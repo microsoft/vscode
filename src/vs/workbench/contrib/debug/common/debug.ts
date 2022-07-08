@@ -206,6 +206,7 @@ export interface IDebugSessionOptions {
 		simple?: boolean;
 	};
 	startedByUser?: boolean;
+	saveBeforeStart?: boolean;
 }
 
 export interface IDataBreakpointInfoResponse {
@@ -296,6 +297,7 @@ export interface IDebugSession extends ITreeElement {
 	readonly subId: string | undefined;
 	readonly compact: boolean;
 	readonly compoundRoot: DebugCompoundRoot | undefined;
+	readonly saveBeforeStart: boolean;
 	readonly name: string;
 	readonly isSimpleUI: boolean;
 	readonly autoExpandLazyVariables: boolean;
@@ -602,6 +604,8 @@ export interface IDebugModel extends ITreeElement {
 	onDidChangeBreakpoints: Event<IBreakpointsChangeEvent | undefined>;
 	onDidChangeCallStack: Event<void>;
 	onDidChangeWatchExpressions: Event<IExpression | undefined>;
+
+	fetchCallstack(thread: IThread, levels?: number): Promise<void>;
 }
 
 /**
@@ -1086,7 +1090,7 @@ export interface IDebugService {
 	 * Returns true if the start debugging was successful. For compound launches, all configurations have to start successfully for it to return success.
 	 * On errors the startDebugging will throw an error, however some error and cancelations are handled and in that case will simply return false.
 	 */
-	startDebugging(launch: ILaunch | undefined, configOrName?: IConfig | string, options?: IDebugSessionOptions, saveBeforeStart?: boolean): Promise<boolean>;
+	startDebugging(launch: ILaunch | undefined, configOrName?: IConfig | string, options?: IDebugSessionOptions): Promise<boolean>;
 
 	/**
 	 * Restarts a session or creates a new one if there is no active session.

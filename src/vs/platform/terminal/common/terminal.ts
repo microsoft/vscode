@@ -40,6 +40,8 @@ export const enum TerminalSettingId {
 	DefaultProfileMacOs = 'terminal.integrated.defaultProfile.osx',
 	DefaultProfileWindows = 'terminal.integrated.defaultProfile.windows',
 	UseWslProfiles = 'terminal.integrated.useWslProfiles',
+	TabsDefaultColor = 'terminal.integrated.tabs.defaultColor',
+	TabsDefaultIcon = 'terminal.integrated.tabs.defaultIcon',
 	TabsEnabled = 'terminal.integrated.tabs.enabled',
 	TabsEnableAnimation = 'terminal.integrated.tabs.enableAnimation',
 	TabsHideCondition = 'terminal.integrated.tabs.hideCondition',

@@ -9,6 +9,8 @@ import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, DEFAU
 import { TerminalLocationString, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { Codicon } from 'vs/base/common/codicons';
+import { terminalColorSchema, terminalIconSchema } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 
 const terminalDescriptors = '\n- ' + [
 	'`\${cwd}`: ' + localize("cwd", "the terminal's current working directory"),
@@ -34,9 +36,18 @@ const terminalConfiguration: IConfigurationNode = {
 	type: 'object',
 	properties: {
 		[TerminalSettingId.SendKeybindingsToShell]: {
-			markdownDescription: localize('terminal.integrated.sendKeybindingsToShell', "Dispatches most keybindings to the terminal instead of the workbench, overriding `#terminal.integrated.commandsToSkipShell#`, which can be used alternatively for fine tuning."),
+			markdownDescription: localize('terminal.integrated.sendKeybindingsToShell', "Dispatches most keybindings to the terminal instead of the workbench, overriding {0}, which can be used alternatively for fine tuning.", '`#terminal.integrated.commandsToSkipShell#`'),
 			type: 'boolean',
 			default: false
+		},
+		[TerminalSettingId.TabsDefaultColor]: {
+			description: localize('terminal.integrated.tabs.defaultColor', "A theme color ID to associate with terminal icons by default."),
+			...terminalColorSchema
+		},
+		[TerminalSettingId.TabsDefaultIcon]: {
+			description: localize('terminal.integrated.tabs.defaultIcon', "A codicon ID to associate with terminal icons by default."),
+			...terminalIconSchema,
+			default: Codicon.terminal.id,
 		},
 		[TerminalSettingId.TabsEnabled]: {
 			description: localize('terminal.integrated.tabs.enabled', 'Controls whether terminal tabs display as a list to the side of the terminal. When this is disabled a dropdown will display instead.'),
@@ -106,17 +117,17 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.ShellIntegrationDecorationIconSuccess]: {
 			type: 'string',
 			default: 'primitive-dot',
-			markdownDescription: localize('terminal.integrated.shellIntegration.decorationIconSuccess', "Controls the icon that will be used for each command in terminals with shell integration enabled that do not have an associated exit code. Set to `''` to hide the icon or disable decorations with `#terminal.integrated.shellIntegration.decorationsEnabled#`")
+			markdownDescription: localize('terminal.integrated.shellIntegration.decorationIconSuccess', "Controls the icon that will be used for each command in terminals with shell integration enabled that do not have an associated exit code. Set to {0} to hide the icon or disable decorations with {1}.", '`\'\'`', '`#terminal.integrated.shellIntegration.decorationsEnabled#`')
 		},
 		[TerminalSettingId.ShellIntegrationDecorationIconError]: {
 			type: 'string',
 			default: 'error-small',
-			markdownDescription: localize('terminal.integrated.shellIntegration.decorationIconError', "Controls the icon that will be used for each command in terminals with shell integration enabled that do have an associated exit code. Set to `''` to hide the icon or disable decorations with `#terminal.integrated.shellIntegration.decorationsEnabled#`.")
+			markdownDescription: localize('terminal.integrated.shellIntegration.decorationIconError', "Controls the icon that will be used for each command in terminals with shell integration enabled that do have an associated exit code. Set to {0} to hide the icon or disable decorations with {1}.", '`\'\'`', '`#terminal.integrated.shellIntegration.decorationsEnabled#`')
 		},
 		[TerminalSettingId.ShellIntegrationDecorationIcon]: {
 			type: 'string',
 			default: 'circle-outline',
-			markdownDescription: localize('terminal.integrated.shellIntegration.decorationIcon', "Controls the icon that will be used for skipped/empty commands. Set to `''` to hide the icon or disable decorations with `#terminal.integrated.shellIntegration.decorationsEnabled#`")
+			markdownDescription: localize('terminal.integrated.shellIntegration.decorationIcon', "Controls the icon that will be used for skipped/empty commands. Set to {0} to hide the icon or disable decorations with {1}.", '`\'\'`', '`#terminal.integrated.shellIntegration.decorationsEnabled#`')
 		},
 		[TerminalSettingId.TabsFocusMode]: {
 			type: 'string',
@@ -139,7 +150,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: false
 		},
 		[TerminalSettingId.AltClickMovesCursor]: {
-			markdownDescription: localize('terminal.integrated.altClickMovesCursor', "If enabled, alt/option + click will reposition the prompt cursor to underneath the mouse when `#editor.multiCursorModifier#` is set to `'alt'` (the default value). This may not work reliably depending on your shell."),
+			markdownDescription: localize('terminal.integrated.altClickMovesCursor', "If enabled, alt/option + click will reposition the prompt cursor to underneath the mouse when {0} is set to {1} (the default value). This may not work reliably depending on your shell.", '`#editor.multiCursorModifier#`', '`\'alt\'`'),
 			type: 'boolean',
 			default: true
 		},
@@ -159,7 +170,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: true
 		},
 		[TerminalSettingId.FontFamily]: {
-			markdownDescription: localize('terminal.integrated.fontFamily', "Controls the font family of the terminal, this defaults to `#editor.fontFamily#`'s value."),
+			markdownDescription: localize('terminal.integrated.fontFamily', "Controls the font family of the terminal, this defaults to {0}'s value.", '`#editor.fontFamily#`'),
 			type: 'string'
 		},
 		// TODO: Support font ligatures
@@ -254,7 +265,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: TerminalCursorStyle.BLOCK
 		},
 		[TerminalSettingId.CursorWidth]: {
-			markdownDescription: localize('terminal.integrated.cursorWidth', "Controls the width of the cursor when `#terminal.integrated.cursorStyle#` is set to `line`."),
+			markdownDescription: localize('terminal.integrated.cursorWidth', "Controls the width of the cursor when {0} is set to {1}.", '`#terminal.integrated.cursorStyle#`', '`line`'),
 			type: 'number',
 			default: 1
 		},
@@ -354,7 +365,8 @@ const terminalConfiguration: IConfigurationNode = {
 				'terminal.integrated.commandsToSkipShell',
 				"A set of command IDs whose keybindings will not be sent to the shell but instead always be handled by VS Code. This allows keybindings that would normally be consumed by the shell to act instead the same as when the terminal is not focused, for example `Ctrl+P` to launch Quick Open.\n\n&nbsp;\n\nMany commands are skipped by default. To override a default and pass that command's keybinding to the shell instead, add the command prefixed with the `-` character. For example add `-workbench.action.quickOpen` to allow `Ctrl+P` to reach the shell.\n\n&nbsp;\n\nThe following list of default skipped commands is truncated when viewed in Settings Editor. To see the full list, {1} and search for the first command from the list below.\n\n&nbsp;\n\nDefault Skipped Commands:\n\n{0}",
 				DEFAULT_COMMANDS_TO_SKIP_SHELL.sort().map(command => `- ${command}`).join('\n'),
-				`[${localize('openDefaultSettingsJson', "open the default settings JSON")}](command:workbench.action.openRawDefaultSettings '${localize('openDefaultSettingsJson.capitalized', "Open Default Settings (JSON)")}')`
+				`[${localize('openDefaultSettingsJson', "open the default settings JSON")}](command:workbench.action.openRawDefaultSettings '${localize('openDefaultSettingsJson.capitalized', "Open Default Settings (JSON)")}')`,
+
 			),
 			type: 'array',
 			items: {
@@ -363,7 +375,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: []
 		},
 		[TerminalSettingId.AllowChords]: {
-			markdownDescription: localize('terminal.integrated.allowChords', "Whether or not to allow chord keybindings in the terminal. Note that when this is true and the keystroke results in a chord it will bypass `#terminal.integrated.commandsToSkipShell#`, setting this to false is particularly useful when you want ctrl+k to go to your shell (not VS Code)."),
+			markdownDescription: localize('terminal.integrated.allowChords', "Whether or not to allow chord keybindings in the terminal. Note that when this is true and the keystroke results in a chord it will bypass {0}, setting this to false is particularly useful when you want ctrl+k to go to your shell (not VS Code).", '`#terminal.integrated.commandsToSkipShell#`'),
 			type: 'boolean',
 			default: true
 		},
@@ -464,7 +476,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 30,
 		},
 		[TerminalSettingId.LocalEchoEnabled]: {
-			markdownDescription: localize('terminal.integrated.localEchoEnabled', "When local echo should be enabled. This will override `#terminal.integrated.localEchoLatencyThreshold#`"),
+			markdownDescription: localize('terminal.integrated.localEchoEnabled', "When local echo should be enabled. This will override {0}", '`#terminal.integrated.localEchoLatencyThreshold#`'),
 			type: 'string',
 			enum: ['on', 'off', 'auto'],
 			enumDescriptions: [

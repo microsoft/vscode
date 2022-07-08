@@ -243,7 +243,7 @@ registerAction2(class extends Action2 {
 				quickPickItems.push({
 					id: 'installSuggested',
 					description: suggestedExtension.displayName ?? suggestedExtension.extensionId,
-					label: nls.localize('installSuggestedKernel', '$({0}) Install suggested extensions', Codicon.lightbulb.id),
+					label: `$(${Codicon.lightbulb.id}) ` + nls.localize('installSuggestedKernel', 'Install suggested extensions'),
 				});
 			}
 			// there is no kernel, show the install from marketplace

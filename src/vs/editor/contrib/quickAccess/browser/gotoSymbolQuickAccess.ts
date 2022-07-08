@@ -20,6 +20,7 @@ import { localize } from 'vs/nls';
 import { IQuickPick, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { Position } from 'vs/editor/common/core/position';
+import { findLast } from 'vs/base/common/arrays';
 
 export interface IGotoSymbolQuickPickItem extends IQuickPickItem {
 	kind: SymbolKind;
@@ -177,7 +178,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 				if (items.length > 0) {
 					picker.items = items;
 					if (positionToEnclose && query.original.length === 0) {
-						const candidate = <IGotoSymbolQuickPickItem | undefined>items.find(item => item.type !== 'separator' && item.range && Range.containsPosition(item.range.decoration, positionToEnclose));
+						const candidate = <IGotoSymbolQuickPickItem>findLast(items, item => Boolean(item.type !== 'separator' && item.range && Range.containsPosition(item.range.decoration, positionToEnclose)));
 						if (candidate) {
 							picker.activeItems = [candidate];
 						}

@@ -365,7 +365,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				run: () => this._clipboardService.writeText(command.command)
 			});
 		}
-		if (command.hasOutput) {
+		if (command.hasOutput()) {
 			if (actions.length > 0) {
 				actions.push(new Separator());
 			}

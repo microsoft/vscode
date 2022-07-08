@@ -21,6 +21,10 @@ if [[ "$VSCODE_INJECTION" == "1" ]]; then
 		. $USER_ZDOTDIR/.zshrc
 		ZDOTDIR=$VSCODE_ZDOTDIR
 	fi
+
+	if [[ -f $USER_ZDOTDIR/.zsh_history ]]; then
+		HISTFILE=$USER_ZDOTDIR/.zsh_history
+	fi
 fi
 
 # Shell integration was disabled by the shell, exit without warning assuming either the shell has
@@ -29,9 +33,8 @@ if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 	builtin return
 fi
 
-__vsc_initialized="0"
 __vsc_in_command_execution="1"
-__vsc_last_history_id=0
+__vsc_current_command=""
 
 __vsc_prompt_start() {
 	builtin printf "\033]633;A\007"
@@ -47,6 +50,7 @@ __vsc_update_cwd() {
 
 __vsc_command_output_start() {
 	builtin printf "\033]633;C\007"
+	builtin printf "\033]633;E;$__vsc_current_command\007"
 }
 
 __vsc_continuation_start() {
@@ -66,17 +70,10 @@ __vsc_right_prompt_end() {
 }
 
 __vsc_command_complete() {
-	builtin local __vsc_history_id=$(builtin history | tail -n1 | awk '{print $1;}')
-	# Don't write the command complete sequence for the first prompt without an associated command
-	if [[ "$__vsc_initialized" == "1" ]]; then
-		if [[ "$__vsc_history_id" == "$__vsc_last_history_id" ]]; then
-			builtin printf "\033]633;D\007"
-		else
-			builtin printf "\033]633;D;%s\007" "$__vsc_status"
-			__vsc_last_history_id=$__vsc_history_id
-		fi
-	else
+	if [[ "$__vsc_current_command" == "" ]]; then
 		builtin printf "\033]633;D\007"
+	else
+		builtin printf "\033]633;D;%s\007" "$__vsc_status"
 	fi
 	__vsc_update_cwd
 }
@@ -108,6 +105,7 @@ __vsc_precmd() {
 	fi
 
 	__vsc_command_complete "$__vsc_status"
+	__vsc_current_command=""
 
 	# in command execution
 	if [ -n "$__vsc_in_command_execution" ]; then
@@ -121,8 +119,8 @@ __vsc_preexec() {
 	if [ -n "$RPROMPT" ]; then
 		RPROMPT="$__vsc_prior_rprompt"
 	fi
-	__vsc_initialized="1"
 	__vsc_in_command_execution="1"
+	__vsc_current_command=$1
 	__vsc_command_output_start
 }
 add-zsh-hook precmd __vsc_precmd
