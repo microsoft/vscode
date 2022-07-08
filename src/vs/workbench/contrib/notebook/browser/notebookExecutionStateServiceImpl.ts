@@ -41,7 +41,6 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 	setLastFailedCell(notebook: URI, cellHandle: number) {
 		this._lastFailedCells.set(notebook, cellHandle);
 		this._onDidChangeLastRunFailState.fire({ failed: true, notebook: notebook });
-
 	}
 
 	clearLastFailedCell(notebook: URI) {

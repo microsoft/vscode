@@ -52,7 +52,6 @@ export interface INotebookExecutionStateService {
 	onDidChangeCellExecution: Event<ICellExecutionStateChangedEvent>;
 	onDidChangeLastRunFailState: Event<INotebookFailStateChangedEvent>;
 
-
 	forceCancelNotebookExecutions(notebookUri: URI): void;
 	getCellExecutionStatesForNotebook(notebook: URI): INotebookCellExecution[];
 	getCellExecution(cellUri: URI): INotebookCellExecution | undefined;
