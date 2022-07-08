@@ -95,25 +95,13 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		const showDecorations = this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled);
 		switch (showDecorations) {
 			case 'never':
-				if (this._placeholderDecoration) {
-					this._placeholderDecoration.options.overviewRulerOptions = undefined;
-				}
-				for (const decoration of this._decorations) {
-					decoration[1].decoration.options.overviewRulerOptions = undefined;
-				}
-				this._placeholderDecoration?.dispose();
-				for (const decoration of this._decorations) {
-					decoration[1].decoration.dispose();
-				}
+				this._disposeOfDecorations();
 				this._updateGutterDecorationVisibility(false);
 				this._overviewRulerDecorations = false;
 				this._decorationsDisabled = true;
 				break;
 			case 'both':
-				this._placeholderDecoration?.dispose();
-				for (const decoration of this._decorations) {
-					decoration[1].decoration.dispose();
-				}
+				this._disposeOfDecorations();
 				this._updateGutterDecorationVisibility(true);
 				this._attachToCommandCapability();
 				this._overviewRulerDecorations = true;
@@ -121,27 +109,26 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				this._attachToCommandCapability();
 				break;
 			case 'gutter':
+				this._disposeOfDecorations();
 				this._updateGutterDecorationVisibility(true);
-				if (this._placeholderDecoration) {
-					this._placeholderDecoration.options.overviewRulerOptions = undefined;
-				}
-				for (const decoration of this._decorations) {
-					decoration[1].decoration.options.overviewRulerOptions = undefined;
-				}
 				this._overviewRulerDecorations = false;
 				this._decorationsDisabled = false;
 				this._attachToCommandCapability();
 				break;
 			case 'overviewRuler':
-				this._placeholderDecoration?.dispose();
-				for (const decoration of this._decorations) {
-					decoration[1].decoration.dispose();
-				}
 				this._updateGutterDecorationVisibility(false);
 				this._overviewRulerDecorations = true;
 				this._decorationsDisabled = false;
 				this._attachToCommandCapability();
 				break;
+		}
+	}
+
+	private _disposeOfDecorations(): void {
+		this._placeholderDecoration?.dispose();
+		for (const value of this._decorations.values()) {
+			value.decoration.dispose();
+			dispose(value.disposables);
 		}
 	}
 
@@ -199,10 +186,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	public clearDecorations(): void {
 		this._placeholderDecoration?.marker.dispose();
 		this._clearPlaceholder();
-		for (const value of this._decorations.values()) {
-			value.decoration.dispose();
-			dispose(value.disposables);
-		}
+		this._disposeOfDecorations();
 		this._decorations.clear();
 	}
 
