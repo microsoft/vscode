@@ -53,6 +53,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	private _contextMenuVisible: boolean = false;
 	private _decorations: Map<number, IDisposableDecoration> = new Map();
 	private _placeholderDecoration: IDecoration | undefined;
+	private _overviewRulerDecorations?: boolean;
+	private _decorationsDisabled?: boolean;
 
 	private readonly _onDidRequestRunCommand = this._register(new Emitter<{ command: ITerminalCommand; copyAsHtml?: boolean }>());
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
@@ -82,14 +84,54 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			} else if (e.affectsConfiguration('workbench.colorCustomizations')) {
 				this._refreshStyles(true);
 			} else if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled)) {
-				this._updateContainerVisibility();
+				this._placeholderDecoration?.dispose();
+				for (const decoration of this._decorations) {
+					decoration[1].decoration.dispose();
+				}
+				this._updateDecorationVisibility();
 			}
 		});
 		this._themeService.onDidColorThemeChange(() => this._refreshStyles(true));
+		this._updateDecorationVisibility();
 	}
 
-	private _updateContainerVisibility(): void {
-		const visible = this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled);
+	private _updateDecorationVisibility(): void {
+		const showDecorations = this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled);
+		switch (showDecorations) {
+			case 'never':
+				this._updateGutterDecorationVisibility(false);
+				this._overviewRulerDecorations = false;
+				this._decorationsDisabled = true;
+				break;
+			case 'both':
+				this._updateGutterDecorationVisibility(true);
+				this._attachToCommandCapability();
+				this._overviewRulerDecorations = true;
+				this._decorationsDisabled = false;
+				this._attachToCommandCapability();
+				break;
+			case 'gutter':
+				this._updateGutterDecorationVisibility(true);
+				if (this._placeholderDecoration) {
+					this._placeholderDecoration.options.overviewRulerOptions = undefined;
+				}
+				for (const decoration of this._decorations) {
+					decoration[1].decoration.options.overviewRulerOptions = undefined;
+				}
+				this._overviewRulerDecorations = false;
+				this._decorationsDisabled = false;
+				this._attachToCommandCapability();
+				break;
+			case 'overviewRuler':
+				this._updateGutterDecorationVisibility(false);
+				this._overviewRulerDecorations = true;
+				this._decorationsDisabled = false;
+				this._attachToCommandCapability();
+				break;
+		}
+	}
+
+	private _updateGutterDecorationVisibility(visible?: boolean): void {
 		const containers = document.querySelectorAll(DecorationSelector.Container);
 		for (const container of containers) {
 			if (visible) {
@@ -98,15 +140,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				container.classList.add('hide');
 			}
 		}
-		for (const ruler of document.querySelectorAll(DecorationSelector.OverviewRuler)) {
-			if (visible) {
-				ruler.classList.remove('hide');
-			} else {
-				ruler.classList.add('hide');
-			}
-		}
 	}
-
 	public refreshLayouts(): void {
 		this._updateLayout(this._placeholderDecoration?.element);
 		for (const decoration of this._decorations) {
@@ -180,7 +214,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 
 	private _addCommandDetectionListeners(): void {
 		if (this._commandDetectionListeners) {
-			return;
+			dispose(this._commandDetectionListeners);
 		}
 		const capability = this._capabilities.get(TerminalCapability.CommandDetection);
 		if (!capability) {
@@ -193,6 +227,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 		this._commandDetectionListeners.push(capability.onCommandStarted(command => this.registerCommandDecoration(command, true)));
 		// Command finished
+		console.log('commands', capability.commands.map(c => c.command));
 		for (const command of capability.commands) {
 			this.registerCommandDecoration(command);
 		}
@@ -227,7 +262,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	}
 
 	registerCommandDecoration(command: ITerminalCommand, beforeCommandExecution?: boolean): IDecoration | undefined {
-		if (!this._terminal || (beforeCommandExecution && command.genericMarkProperties)) {
+		if (!this._terminal || (beforeCommandExecution && command.genericMarkProperties) || this._decorationsDisabled) {
 			return undefined;
 		}
 		if (!command.marker) {
@@ -241,11 +276,12 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		} else {
 			color = '';
 		}
+		console.log('adding decoration', beforeCommandExecution, command.command, this._overviewRulerDecorations);
 		const decoration = this._terminal.registerDecoration({
 			marker: command.marker,
-			overviewRulerOptions: beforeCommandExecution
+			overviewRulerOptions: this._overviewRulerDecorations ? (beforeCommandExecution
 				? { color, position: 'left' }
-				: { color, position: command.exitCode ? 'right' : 'left' }
+				: { color, position: command.exitCode ? 'right' : 'left' }) : undefined
 		});
 		if (!decoration) {
 			return undefined;
@@ -254,9 +290,9 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			this._placeholderDecoration = decoration;
 		}
 		decoration.onRender(element => {
-			if (element.classList.contains(DecorationSelector.OverviewRuler)) {
-				return;
-			}
+			// if (element.classList.contains(DecorationSelector.OverviewRuler)) {
+			// 	return;
+			// }
 			if (!this._decorations.get(decoration.marker.id)) {
 				decoration.onDispose(() => this._decorations.delete(decoration.marker.id));
 				this._decorations.set(decoration.marker.id,
