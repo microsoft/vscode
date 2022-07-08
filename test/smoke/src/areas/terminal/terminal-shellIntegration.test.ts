@@ -65,6 +65,18 @@ export function setup() {
 						await app.workbench.terminal.runCommand(TerminalCommandId.KillAll);
 					});
 				});
+				describe('Disabled', function () {
+					it('Should update and hide icons', async () => {
+						await createShellIntegrationProfile();
+						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
+						await terminal.runCommandInTerminal(`echo "foo"`);
+						await terminal.runCommandInTerminal(`bar`);
+						await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 1 });
+						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationsEnabled', 'false');
+						await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 1 }, undefined, true);
+						await app.workbench.terminal.runCommand(TerminalCommandId.KillAll);
+					});
+				});
 			});
 		});
 

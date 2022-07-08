@@ -25,7 +25,10 @@ export enum Selector {
 	Tabs = '.tabs-list .monaco-list-row',
 	SplitButton = '.editor .codicon-split-horizontal',
 	XtermSplitIndex0 = '#terminal .terminal-groups-container .split-view-view:nth-child(1) .terminal-wrapper',
-	XtermSplitIndex1 = '#terminal .terminal-groups-container .split-view-view:nth-child(2) .terminal-wrapper'
+	XtermSplitIndex1 = '#terminal .terminal-groups-container .split-view-view:nth-child(2) .terminal-wrapper',
+	Hide = '.hide',
+	Container = '.xterm-decoration-container',
+	OverviewRuler = '.xterm-decoration-overview-ruler'
 }
 
 /**
@@ -226,14 +229,23 @@ export class Terminal {
 		await this.code.waitForElement(Selector.TerminalView, result => result === undefined);
 	}
 
-	async assertCommandDecorations(expectedCounts?: ICommandDecorationCounts, customConfig?: { updatedIcon: string; count: number }): Promise<void> {
+	async assertCommandDecorations(expectedCounts?: ICommandDecorationCounts, customIcon?: { updatedIcon: string; count: number }, hidden?: boolean): Promise<void> {
 		if (expectedCounts) {
 			await this.code.waitForElements(Selector.CommandDecorationPlaceholder, true, decorations => decorations && decorations.length === expectedCounts.placeholder);
 			await this.code.waitForElements(Selector.CommandDecorationSuccess, true, decorations => decorations && decorations.length === expectedCounts.success);
 			await this.code.waitForElements(Selector.CommandDecorationError, true, decorations => decorations && decorations.length === expectedCounts.error);
 		}
-		if (customConfig) {
-			await this.code.waitForElements(`.terminal-command-decoration.codicon-${customConfig.updatedIcon}`, true, decorations => decorations && decorations.length === customConfig.count);
+
+		if (hidden) {
+			await this.code.waitForElements(`${Selector.Container}${Selector.Hide}`, true, containers => containers && containers.length === 1);
+			await this.code.waitForElements(`${Selector.OverviewRuler}${Selector.Hide}`, true, ruler => ruler && ruler.length === 1);
+		} else {
+			await this.code.waitForElements(`${Selector.Container}`, true, containers => containers && containers.length === 1);
+			await this.code.waitForElements(`${Selector.OverviewRuler}`, true, ruler => ruler && ruler.length === 1);
+		}
+
+		if (customIcon) {
+			await this.code.waitForElements(`.terminal-command-decoration.codicon-${customIcon.updatedIcon}`, true, decorations => decorations && decorations.length === customIcon.count);
 		}
 	}
 
