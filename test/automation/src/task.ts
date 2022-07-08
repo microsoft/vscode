@@ -8,6 +8,7 @@ import { Code } from './code';
 import { QuickAccess } from './quickaccess';
 import { Editors } from './editors';
 import { QuickInput } from './quickinput';
+import { Terminal } from './terminal';
 
 interface ITaskConfigurationProperties {
 	label?: string;
@@ -27,25 +28,34 @@ export enum TaskCommandId {
 
 export class Task {
 
-	constructor(private code: Code, private editor: Editor, private editors: Editors, private quickaccess: QuickAccess, private quickInput: QuickInput) {
+	constructor(private code: Code, private editor: Editor, private editors: Editors, private quickaccess: QuickAccess, private quickinput: QuickInput, private terminal: Terminal) {
 
 	}
 
-	async runTask(filter: string, expected: ITaskConfigurationProperties[]) {
+	async assertTasks(filter: string, expected: ITaskConfigurationProperties[], type: 'run' | 'configure') {
 		await this.code.dispatchKeybinding('right');
 		await this.editors.saveOpenedFile();
-		await this.quickaccess.runCommand('workbench.action.tasks.runTask', true);
+		type === 'run' ? await this.quickaccess.runCommand('workbench.action.tasks.runTask', true) : await this.quickaccess.runCommand('workbench.action.tasks.configureTask', true);
 		if (expected.length === 0) {
-			await this.quickInput.waitForQuickInputElements(e => e.length > 1 && e.every(label => label.trim() !== filter.trim()));
+			await this.quickinput.waitForQuickInputElements(e => e.length > 1 && e.every(label => label.trim() !== filter.trim()));
 		} else {
-			await this.quickInput.waitForQuickInputElements(e => e.length > 1 && e.some(label => label.trim() === filter.trim()));
+			await this.quickinput.waitForQuickInputElements(e => e.length > 1 && e.some(label => label.trim() === filter.trim()));
 		}
-		await this.quickInput.closeQuickInput();
+		if (expected.length > 0 && !expected[0].hide) {
+			// select the expected task
+			await this.quickinput.selectQuickInputElement(0, true);
+			// Continue without scanning the output
+			await this.quickinput.selectQuickInputElement(0);
+			if (expected[0].icon) {
+				await this.terminal.assertSingleTab({ color: expected[0].icon.color, icon: expected[0].icon.id || 'tools' });
+			}
+		}
+		await this.quickinput.closeQuickInput();
 	}
 
 	async configureTask(properties: ITaskConfigurationProperties) {
 		await this.quickaccess.openFileQuickAccessAndWait('tasks.json', 'tasks.json');
-		await this.quickInput.selectQuickInputElement(0);
+		await this.quickinput.selectQuickInputElement(0);
 		await this.quickaccess.runCommand('editor.action.selectAll');
 		await this.code.dispatchKeybinding('Delete');
 		const taskStringLines: string[] = [
