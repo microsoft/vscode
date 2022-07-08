@@ -82,7 +82,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			} else if (e.affectsConfiguration('workbench.colorCustomizations')) {
 				this._refreshStyles(true);
 			} else if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled) || e.affectsConfiguration(TerminalSettingId.ShellIntegrationEnabled)) {
-				const enabledDecorations = this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled) && this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled);
+				const enabledDecorations = this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled)
 				if (!enabledDecorations) {
 					document.querySelector(DecorationSelector.Container)?.classList.add('hide');
 				} else {
