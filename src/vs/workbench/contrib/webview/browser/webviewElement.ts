@@ -102,6 +102,7 @@ namespace WebviewState {
 
 export interface WebviewInitInfo {
 	readonly id: string;
+	readonly providedId?: string;
 	readonly origin?: string;
 
 	readonly options: WebviewOptions;
@@ -110,6 +111,9 @@ export interface WebviewInitInfo {
 	readonly extension: WebviewExtensionDescription | undefined;
 }
 
+interface WebviewActionContext {
+	webview?: string;
+}
 
 export class WebviewElement extends Disposable implements IWebview, WebviewFindDelegate {
 
@@ -117,6 +121,12 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	 * External identifier of this webview.
 	 */
 	public readonly id: string;
+
+
+	/**
+	 * The provided identifier of this webview.
+	 */
+	public readonly providedId?: string;
 
 	/**
 	 * The origin this webview itself is loaded from. May not be unique
@@ -199,6 +209,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		super();
 
 		this.id = initInfo.id;
+		this.providedId = initInfo.providedId;
 		this.iframeId = generateUuid();
 		this.origin = initInfo.origin ?? this.iframeId;
 
@@ -329,12 +340,17 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			const elementBox = this.element.getBoundingClientRect();
 			contextMenuService.showContextMenu({
 				getActions: () => {
+					const contextKeyService = this._contextKeyService!.createOverlay([
+						['webview', this.providedId],
+					]);
+
 					const result: IAction[] = [];
-					const menu = menuService.createMenu(MenuId.WebviewContext, this._contextKeyService!);
-					createAndFillInContextMenuActions(menu, undefined, result);
+					const menu = menuService.createMenu(MenuId.WebviewContext, contextKeyService);
+					createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result);
 					menu.dispose();
 					return result;
 				},
+				getActionsContext: (): WebviewActionContext => ({ webview: this.providedId }),
 				getAnchor: () => ({
 					x: elementBox.x + data.clientX,
 					y: elementBox.y + data.clientY
