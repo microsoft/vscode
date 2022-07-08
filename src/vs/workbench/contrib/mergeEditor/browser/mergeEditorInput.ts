@@ -14,7 +14,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IEditorIdentifier, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { EditorInput, IEditorCloseHandler } from 'vs/workbench/common/editor/editorInput';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { EditorWorkerServiceDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
@@ -22,7 +22,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ILanguageSupport, ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { assertType } from 'vs/base/common/types';
-import { Event } from 'vs/base/common/event';
 
 export class MergeEditorInputData {
 	constructor(
@@ -33,7 +32,7 @@ export class MergeEditorInputData {
 	) { }
 }
 
-export class MergeEditorInput extends AbstractTextResourceEditorInput implements ILanguageSupport {
+export class MergeEditorInput extends AbstractTextResourceEditorInput implements ILanguageSupport, IEditorCloseHandler {
 
 	static readonly ID = 'mergeEditor.Input';
 
@@ -125,8 +124,6 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 			this._store.add(input1);
 			this._store.add(input2);
 			this._store.add(result);
-
-			this._store.add(Event.fromObservable(this._model.hasUnhandledConflicts)(() => this._onDidChangeDirty.fire(undefined)));
 		}
 
 		this._ignoreUnhandledConflictsForDirtyState = undefined;
@@ -146,21 +143,25 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 	// ---- FileEditorInput
 
 	override isDirty(): boolean {
-		const textModelDirty = Boolean(this._outTextModel?.isDirty());
-		if (textModelDirty) {
+		return Boolean(this._outTextModel?.isDirty());
+	}
+
+	override readonly closeHandler = this;
+
+	showConfirm(): boolean {
+		if (this.isDirty()) {
 			// text model dirty -> 3wm is dirty
 			return true;
 		}
 		if (!this._ignoreUnhandledConflictsForDirtyState) {
-			// unhandled conflicts -> 3wm is dirty UNLESS we explicitly set this input
-			// to ignore unhandled conflicts for the dirty-state. This happens only
-			// after confirming to ignore unhandled changes
+			// unhandled conflicts -> 3wm asks to confirm UNLESS we explicitly set this input
+			// to ignore unhandled conflicts. This happens only after confirming to ignore unhandled changes
 			return Boolean(this._model && this._model.hasUnhandledConflicts.get());
 		}
 		return false;
 	}
 
-	override async confirm(editors?: ReadonlyArray<IEditorIdentifier>): Promise<ConfirmResult> {
+	async confirm(editors?: ReadonlyArray<IEditorIdentifier>): Promise<ConfirmResult> {
 
 		const inputs: MergeEditorInput[] = [this];
 		if (editors) {

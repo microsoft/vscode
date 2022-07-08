@@ -9,7 +9,7 @@ import { dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { EditorInputCapabilities, IEditorIdentifier, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { EditorInput, IEditorCloseHandler } from 'vs/workbench/common/editor/editorInput';
 import { ITerminalInstance, ITerminalInstanceService, terminalEditorId } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -23,7 +23,7 @@ import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/termin
 import { ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { Emitter } from 'vs/base/common/event';
 
-export class TerminalEditorInput extends EditorInput {
+export class TerminalEditorInput extends EditorInput implements IEditorCloseHandler {
 
 	protected readonly _onDidRequestAttach = this._register(new Emitter<ITerminalInstance>());
 	readonly onDidRequestAttach = this._onDidRequestAttach.event;
@@ -106,7 +106,13 @@ export class TerminalEditorInput extends EditorInput {
 		return false;
 	}
 
-	override async confirm(terminals?: ReadonlyArray<IEditorIdentifier>): Promise<ConfirmResult> {
+	override readonly closeHandler = this;
+
+	showConfirm(): boolean {
+		return this.isDirty();
+	}
+
+	async confirm(terminals?: ReadonlyArray<IEditorIdentifier>): Promise<ConfirmResult> {
 		const { choice } = await this._dialogService.show(
 			Severity.Warning,
 			localize('confirmDirtyTerminal.message', "Do you want to terminate running processes?"),
