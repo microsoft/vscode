@@ -13,7 +13,7 @@ import { Delayer } from 'vs/base/common/async';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import 'vs/css!./notebookFindReplaceWidget';
 import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/browser/findState';
-import { findNextMatchIcon, findPreviousMatchIcon, findReplaceAllIcon, findReplaceIcon, SimpleButton } from 'vs/editor/contrib/find/browser/findWidget';
+import { findNextMatchIcon, findPreviousMatchIcon, findReplaceAllIcon, findReplaceIcon, FIND_WIDGET_INITIAL_WIDTH, SimpleButton } from 'vs/editor/contrib/find/browser/findWidget';
 import * as nls from 'vs/nls';
 import { ContextScopedReplaceInput, registerAndCreateHistoryNavigationContext } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -35,6 +35,7 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { filterIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
 import { isSafari } from 'vs/base/common/platform';
+import { ISashEvent, IVerticalSashLayoutProvider, Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -238,7 +239,7 @@ class NotebookFindInput extends FindInput {
 	}
 }
 
-export abstract class SimpleFindReplaceWidget extends Widget {
+export abstract class SimpleFindReplaceWidget extends Widget implements IVerticalSashLayoutProvider {
 	protected readonly _findInput: NotebookFindInput;
 	private readonly _domNode: HTMLElement;
 	private readonly _innerFindDomNode: HTMLElement;
@@ -255,6 +256,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	private readonly _replaceInputFocusTracker!: dom.IFocusTracker;
 	protected _replaceBtn!: SimpleButton;
 	protected _replaceAllBtn!: SimpleButton;
+	private _resizeSash!: Sash;
 
 
 	private _isVisible: boolean = false;
@@ -339,7 +341,10 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 						this.updateButtons(this.foundMatch);
 						return { content: e.message };
 					}
-				}
+				},
+				flexibleWidth: true,
+				flexibleHeight: true,
+				flexibleMaxHeight: 118,
 			}
 		));
 
@@ -474,6 +479,11 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 		this._innerReplaceDomNode.appendChild(this._replaceBtn.domNode);
 		this._innerReplaceDomNode.appendChild(this._replaceAllBtn.domNode);
+		this.handleFlexWidth();
+	}
+
+	getVerticalSashLeft(sash: Sash): number {
+		return 4;
 	}
 
 	getCellToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IAction[] } {
@@ -575,6 +585,37 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this.updateButtons(this.foundMatch);
 	}
 
+	private handleFlexWidth() {
+		this._resizeSash = new Sash(this._domNode, this, { orientation: Orientation.VERTICAL, size: 2 });
+		let originalWidth = FIND_WIDGET_INITIAL_WIDTH;
+
+		this._register(this._resizeSash.onDidStart(() => {
+			originalWidth = dom.getTotalWidth(this._domNode);
+		}));
+
+		this._register(this._resizeSash.onDidChange((evt: ISashEvent) => {
+			const width = originalWidth + evt.startX - evt.currentX;
+
+			if (width < FIND_WIDGET_INITIAL_WIDTH) {
+				// narrow down the find widget should be handled by CSS.
+				return;
+			}
+
+			const maxWidth = parseFloat(dom.getComputedStyle(this._domNode).maxWidth!) || 0;
+			if (width > maxWidth) {
+				return;
+			}
+			this._domNode.style.width = `${width}px`;
+			if (this._isReplaceVisible) {
+				this._replaceInput.width = dom.getTotalWidth(this._findInput.domNode);
+			}
+
+			this._findInput.inputBox.layout();
+		}));
+		// look more into findController
+		// why does the other findWidget trigger constructor every time you open find menu
+		// how to get sash div element
+	}
 	protected _updateMatchesCount(): void {
 	}
 
