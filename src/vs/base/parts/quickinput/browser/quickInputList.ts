@@ -763,7 +763,7 @@ export function matchesContiguousIconAware(query: string, target: IParsedLabelWi
 }
 
 function matchesContiguous(word: string, wordToMatchAgainst: string, enableSeparateSubstringMatching = false): IMatch[] | null {
-	const matchIndex = wordToMatchAgainst.indexOf(word);
+	const matchIndex = wordToMatchAgainst.toLowerCase().indexOf(word.toLowerCase());
 	if (matchIndex !== -1) {
 		return [{ start: matchIndex, end: matchIndex + word.length }];
 	}
