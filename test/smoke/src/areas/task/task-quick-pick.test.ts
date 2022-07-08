@@ -6,7 +6,7 @@
 import { Application, Task, Terminal, TerminalCommandId } from '../../../../automation/';
 
 export function setup() {
-	describe.only('Task Quick Pick', () => {
+	describe('Task Quick Pick', () => {
 		let app: Application;
 		let task: Task;
 		let terminal: Terminal;
