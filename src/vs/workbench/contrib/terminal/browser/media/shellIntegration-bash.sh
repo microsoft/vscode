@@ -178,6 +178,7 @@ __vsc_prompt_cmd_original() {
 }
 
 __vsc_prompt_cmd() {
+	__vsc_status="$?"
 	__vsc_precmd
 }
 
