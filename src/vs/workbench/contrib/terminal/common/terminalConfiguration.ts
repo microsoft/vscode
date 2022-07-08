@@ -117,17 +117,17 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.ShellIntegrationDecorationIconSuccess]: {
 			type: 'string',
 			default: 'primitive-dot',
-			markdownDescription: localize('terminal.integrated.shellIntegration.decorationIconSuccess', "Controls the icon that will be used for each command in terminals with shell integration enabled that do not have an associated exit code. Set to {0} to hide the icon or disable decorations with {1}.", '`\'\'`', '`#terminal.integrated.shellIntegration.decorationsEnabled#`')
+			markdownDescription: localize('terminal.integrated.shellIntegration.decorationIconSuccess', "Controls the icon that will be used for each command in terminals with shell integration enabled that do not have an associated exit code. Set to {0} to hide the icon or disable decorations with {1}.", '`\"\"`', '`#terminal.integrated.shellIntegration.decorationsEnabled#`')
 		},
 		[TerminalSettingId.ShellIntegrationDecorationIconError]: {
 			type: 'string',
 			default: 'error-small',
-			markdownDescription: localize('terminal.integrated.shellIntegration.decorationIconError', "Controls the icon that will be used for each command in terminals with shell integration enabled that do have an associated exit code. Set to {0} to hide the icon or disable decorations with {1}.", '`\'\'`', '`#terminal.integrated.shellIntegration.decorationsEnabled#`')
+			markdownDescription: localize('terminal.integrated.shellIntegration.decorationIconError', "Controls the icon that will be used for each command in terminals with shell integration enabled that do have an associated exit code. Set to {0} to hide the icon or disable decorations with {1}.", '`\"\"`', '`#terminal.integrated.shellIntegration.decorationsEnabled#`')
 		},
 		[TerminalSettingId.ShellIntegrationDecorationIcon]: {
 			type: 'string',
 			default: 'circle-outline',
-			markdownDescription: localize('terminal.integrated.shellIntegration.decorationIcon', "Controls the icon that will be used for skipped/empty commands. Set to {0} to hide the icon or disable decorations with {1}.", '`\'\'`', '`#terminal.integrated.shellIntegration.decorationsEnabled#`')
+			markdownDescription: localize('terminal.integrated.shellIntegration.decorationIcon', "Controls the icon that will be used for skipped/empty commands. Set to {0} to hide the icon or disable decorations with {1}.", '`\"\"`', '`#terminal.integrated.shellIntegration.decorationsEnabled#`')
 		},
 		[TerminalSettingId.TabsFocusMode]: {
 			type: 'string',
