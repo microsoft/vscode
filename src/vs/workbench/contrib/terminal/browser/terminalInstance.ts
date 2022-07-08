@@ -47,7 +47,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalCapabilityStoreMultiplexer } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { IProcessDataEvent, IProcessPropertyMap, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, PosixShellType, ProcessPropertyType, TerminalIcon, TerminalLocation, TerminalSettingId, TerminalShellType, TitleEventSource, WindowsShellType } from 'vs/platform/terminal/common/terminal';
-import { escapeNonWindowsPath, getTildePath } from 'vs/platform/terminal/common/terminalEnvironment';
+import { escapeNonWindowsPath, collapseTildePath } from 'vs/platform/terminal/common/terminalEnvironment';
 import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -851,7 +851,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					if (label.length === 0 || commandMap.has(label)) {
 						continue;
 					}
-					let description = getTildePath(entry.cwd, this._userHome, this._processManager?.os === OperatingSystem.Windows ? '\\' : '/');
+					let description = collapseTildePath(entry.cwd, this._userHome, this._processManager?.os === OperatingSystem.Windows ? '\\' : '/');
 					if (entry.exitCode) {
 						// Since you cannot get the last command's exit code on pwsh, just whether it failed
 						// or not, -1 is treated specially as simply failed

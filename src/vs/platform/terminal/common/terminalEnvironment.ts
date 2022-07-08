@@ -17,7 +17,7 @@ export function escapeNonWindowsPath(path: string): string {
  * Collapses the user's home directory into `~` if it exists within the path, this gives a shorter
  * path that is more suitable within the context of a terminal.
  */
-export function getTildePath(path: string | undefined, userHome: string | undefined, separator: string): string {
+export function collapseTildePath(path: string | undefined, userHome: string | undefined, separator: string): string {
 	if (!path) {
 		return '';
 	}
