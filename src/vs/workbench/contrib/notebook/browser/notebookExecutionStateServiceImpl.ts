@@ -13,7 +13,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellEditType, CellUri, ICellEditOperation, NotebookCellExecutionState, NotebookCellInternalMetadata, NotebookTextModelWillAddRemoveEvent } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType, INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
-import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionStateChangedEvent, ICellExecutionStateUpdate, INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionStateChangedEvent, ICellExecutionStateUpdate, INotebookCellExecution, INotebookExecutionStateService, INotebookFailStateChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
 export class NotebookExecutionStateService extends Disposable implements INotebookExecutionStateService {
@@ -22,9 +22,13 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 	private readonly _executions = new ResourceMap<Map<number, CellExecution>>();
 	private readonly _notebookListeners = new ResourceMap<NotebookExecutionListeners>();
 	private readonly _cellListeners = new ResourceMap<IDisposable>();
+	private readonly _lastFailedCells = new ResourceMap<number>();
 
 	private readonly _onDidChangeCellExecution = this._register(new Emitter<ICellExecutionStateChangedEvent>());
 	onDidChangeCellExecution = this._onDidChangeCellExecution.event;
+
+	private readonly _onDidChangeLastRunFailState = this._register(new Emitter<INotebookFailStateChangedEvent>());
+	onDidChangeLastRunFailState = this._onDidChangeLastRunFailState.event;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -32,6 +36,21 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 		@INotebookService private readonly _notebookService: INotebookService,
 	) {
 		super();
+	}
+
+	setLastFailedCell(notebook: URI, cellHandle: number) {
+		this._lastFailedCells.set(notebook, cellHandle);
+		this._onDidChangeLastRunFailState.fire({ failed: true, notebook: notebook });
+
+	}
+
+	clearLastFailedCell(notebook: URI) {
+		this._lastFailedCells.delete(notebook);
+		this._onDidChangeLastRunFailState.fire({ failed: false, notebook: notebook });
+	}
+
+	getLastFailedCellForNotebook(notebook: URI): number | undefined {
+		return this._lastFailedCells.get(notebook);
 	}
 
 	forceCancelNotebookExecutions(notebookUri: URI): void {

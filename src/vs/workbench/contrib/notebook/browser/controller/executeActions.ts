@@ -15,7 +15,7 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { EditorsOrder } from 'vs/workbench/common/editor';
 import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { cellExecutionArgs, CellToolbarOrder, CELL_TITLE_CELL_GROUP_ID, executeNotebookCondition, getContextFromActiveEditor, getContextFromUri, INotebookActionContext, INotebookCellActionContext, INotebookCellToolbarActionContext, INotebookCommandContext, NotebookAction, NotebookCellAction, NotebookMultiCellAction, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, parseMultiCellExecutionArgs } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { NOTEBOOK_CELL_EXECUTING, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SOURCE_COUNT, NOTEBOOK_MISSING_KERNEL_EXTENSION } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { NOTEBOOK_CELL_EXECUTING, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SOURCE_COUNT, NOTEBOOK_LAST_CELL_FAILED, NOTEBOOK_MISSING_KERNEL_EXTENSION } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -590,6 +590,53 @@ registerAction2(class RevealRunningCellAction extends NotebookAction {
 			const cell = context.notebookEditor.getCellByHandle(executingCells[0].cellHandle);
 			if (cell) {
 				context.notebookEditor.focusNotebookCell(cell, 'container');
+			}
+		}
+	}
+});
+
+registerAction2(class RevealLastFailedCellAction extends NotebookAction {
+	constructor() {
+		super({
+			id: REVEAL_RUNNING_CELL,
+			title: localize('revealLastFailedCell', "Go to Last Failed Cell"),
+			tooltip: localize('revealLastFailedCell', "Go to Last Failed Cell"),
+			shortTitle: localize('revealLastFailedCellShort', "See Last Failure"),
+			precondition: NOTEBOOK_LAST_CELL_FAILED,
+			menu: [
+				{
+					id: MenuId.EditorTitle,
+					when: ContextKeyExpr.and(
+						NOTEBOOK_IS_ACTIVE_EDITOR,
+						NOTEBOOK_LAST_CELL_FAILED,
+						ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
+					),
+					group: 'navigation',
+					order: 100
+				},
+				{
+					id: MenuId.NotebookToolbar,
+					when: ContextKeyExpr.and(
+						NOTEBOOK_IS_ACTIVE_EDITOR,
+						NOTEBOOK_LAST_CELL_FAILED,
+						ContextKeyExpr.equals('config.notebook.globalToolbar', true)
+					),
+					group: 'navigation/execute',
+					order: 100
+				},
+			],
+			icon: icons.warningIcon,
+		});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
+		const notebookExecutionStateService = accessor.get(INotebookExecutionStateService);
+		const notebook = context.notebookEditor.textModel.uri;
+		const lastFailedCellHandle = notebookExecutionStateService.getLastFailedCellForNotebook(notebook);
+		if (lastFailedCellHandle) {
+			const lastFailedCell = context.notebookEditor.getCellByHandle(lastFailedCellHandle);
+			if (lastFailedCell) {
+				context.notebookEditor.focusNotebookCell(lastFailedCell, 'container');
 			}
 		}
 	}
