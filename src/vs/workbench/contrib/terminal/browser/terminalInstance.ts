@@ -1703,7 +1703,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		const parsedExitResult = parseExitResult(exitCodeOrError, this.shellLaunchConfig, this._processManager.processState, this._initialCwd);
 
-		if (this._usedShellIntegrationInjection && (this._processManager.processState === ProcessState.KilledDuringLaunch || this._processManager.processState === ProcessState.KilledByProcess)) {
+		if (this._usedShellIntegrationInjection && (this._processManager.processState === ProcessState.KilledDuringLaunch || this._processManager.processState === ProcessState.KilledByProcess) && parsedExitResult?.code !== 0) {
 			this._relaunchWithShellIntegrationDisabled(parsedExitResult?.message);
 			this._onExit.fire(exitCodeOrError);
 			return;
