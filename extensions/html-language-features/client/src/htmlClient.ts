@@ -9,7 +9,7 @@ const localize = nls.loadMessageBundle();
 import {
 	languages, ExtensionContext, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, workspace, extensions,
 	Disposable, FormattingOptions, CancellationToken, ProviderResult, TextEdit, CompletionContext, CompletionList, SemanticTokensLegend,
-	DocumentSemanticTokensProvider, DocumentRangeSemanticTokensProvider, SemanticTokens, window, commands
+	DocumentSemanticTokensProvider, DocumentRangeSemanticTokensProvider, SemanticTokens, window, commands, OutputChannel
 } from 'vscode';
 import {
 	LanguageClientOptions, RequestType, DocumentRangeFormattingParams,
@@ -18,7 +18,7 @@ import {
 import { FileSystemProvider, serveFileSystemRequests } from './requests';
 import { getCustomDataSource } from './customData';
 import { activateAutoInsertion } from './autoInsertion';
-import { getLanguageParticipants } from './languageParticipants';
+import { getLanguageParticipants, LanguageParticipants } from './languageParticipants';
 
 namespace CustomDataChangedNotification {
 	export const type: NotificationType<string[]> = new NotificationType('html/customDataChanged');
@@ -75,6 +75,8 @@ export interface TelemetryReporter {
 
 export type LanguageClientConstructor = (name: string, description: string, clientOptions: LanguageClientOptions) => BaseLanguageClient;
 
+export const languageServerDescription = localize('htmlserver.name', 'HTML Language Server');
+
 export interface Runtime {
 	TextDecoder: { new(encoding?: string): { decode(buffer: ArrayBuffer): string } };
 	fileFs?: FileSystemProvider;
@@ -84,12 +86,67 @@ export interface Runtime {
 	};
 }
 
-export async function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: Runtime): Promise<BaseLanguageClient> {
+export interface AsyncDisposable {
+	dispose(): Promise<void>;
+}
 
-	const toDispose: Disposable[] = context.subscriptions;
+export async function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: Runtime): Promise<AsyncDisposable> {
+
+	const outputChannel = window.createOutputChannel(languageServerDescription);
 
 	const languageParticipants = getLanguageParticipants();
-	toDispose.push(languageParticipants);
+	context.subscriptions.push(languageParticipants);
+
+	let client: Disposable | undefined = await startClientWithParticipants(languageParticipants, newLanguageClient, outputChannel, runtime);
+
+	const promptForLinkedEditingKey = 'html.promptForLinkedEditing';
+	if (extensions.getExtension('formulahendry.auto-rename-tag') !== undefined && (context.globalState.get(promptForLinkedEditingKey) !== false)) {
+		const config = workspace.getConfiguration('editor', { languageId: 'html' });
+		if (!config.get('linkedEditing') && !config.get('renameOnType')) {
+			const activeEditorListener = window.onDidChangeActiveTextEditor(async e => {
+				if (e && languageParticipants.hasLanguage(e.document.languageId)) {
+					context.globalState.update(promptForLinkedEditingKey, false);
+					activeEditorListener.dispose();
+					const configure = localize('configureButton', 'Configure');
+					const res = await window.showInformationMessage(localize('linkedEditingQuestion', 'VS Code now has built-in support for auto-renaming tags. Do you want to enable it?'), configure);
+					if (res === configure) {
+						commands.executeCommand('workbench.action.openSettings', SettingIds.linkedEditing);
+					}
+				}
+			});
+			context.subscriptions.push(activeEditorListener);
+		}
+	}
+
+	let restartTrigger: Disposable | undefined;
+	languageParticipants.onDidChange(() => {
+		if (restartTrigger) {
+			restartTrigger.dispose();
+		}
+		restartTrigger = runtime.timer.setTimeout(async () => {
+			if (client) {
+				outputChannel.appendLine('Extensions have changed, restarting HTML server...');
+				outputChannel.appendLine('');
+				const oldClient = client;
+				client = undefined;
+				await oldClient.dispose();
+				client = await startClientWithParticipants(languageParticipants, newLanguageClient, outputChannel, runtime);
+			}
+		}, 2000);
+	});
+
+	return {
+		dispose: async () => {
+			restartTrigger?.dispose();
+			await client?.dispose();
+			outputChannel.dispose();
+		}
+	};
+}
+
+async function startClientWithParticipants(languageParticipants: LanguageParticipants, newLanguageClient: LanguageClientConstructor, outputChannel: OutputChannel, runtime: Runtime): Promise<AsyncDisposable> {
+
+	const toDispose: Disposable[] = [];
 
 	const documentSelector = languageParticipants.documentSelector;
 	const embeddedLanguages = { css: true, javascript: true };
@@ -133,9 +190,10 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 			}
 		}
 	};
+	clientOptions.outputChannel = outputChannel;
 
 	// Create the language client and start the client.
-	const client = newLanguageClient('html', localize('htmlserver.name', 'HTML Language Server'), clientOptions);
+	const client = newLanguageClient('html', languageServerDescription, clientOptions);
 	client.registerProposedFeatures();
 
 	await client.start();
@@ -282,25 +340,12 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 		}
 	}));
 
-	const promptForLinkedEditingKey = 'html.promptForLinkedEditing';
-	if (extensions.getExtension('formulahendry.auto-rename-tag') !== undefined && (context.globalState.get(promptForLinkedEditingKey) !== false)) {
-		const config = workspace.getConfiguration('editor', { languageId: 'html' });
-		if (!config.get('linkedEditing') && !config.get('renameOnType')) {
-			const activeEditorListener = window.onDidChangeActiveTextEditor(async e => {
-				if (e && documentSelector.indexOf(e.document.languageId) !== -1) {
-					context.globalState.update(promptForLinkedEditingKey, false);
-					activeEditorListener.dispose();
-					const configure = localize('configureButton', 'Configure');
-					const res = await window.showInformationMessage(localize('linkedEditingQuestion', 'VS Code now has built-in support for auto-renaming tags. Do you want to enable it?'), configure);
-					if (res === configure) {
-						commands.executeCommand('workbench.action.openSettings', SettingIds.linkedEditing);
-					}
-				}
-			});
-			toDispose.push(activeEditorListener);
+	return {
+		dispose: async () => {
+			await client.stop();
+			toDispose.forEach(d => d.dispose());
+			rangeFormatting?.dispose();
 		}
-	}
-
-	return client;
+	};
 
 }

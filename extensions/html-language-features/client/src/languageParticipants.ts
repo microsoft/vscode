@@ -23,6 +23,7 @@ interface LanguageParticipantContribution {
 export interface LanguageParticipants {
 	readonly onDidChange: Event<void>;
 	readonly documentSelector: DocumentSelector;
+	hasLanguage(languageId: string): boolean;
 	useAutoInsert(languageId: string): boolean;
 	dispose(): void;
 }
@@ -67,6 +68,7 @@ export function getLanguageParticipants(): LanguageParticipants {
 	return {
 		onDidChange: onDidChangeEmmiter.event,
 		get documentSelector() { return Array.from(languages); },
+		hasLanguage(languageId: string) { return languages.has(languageId); },
 		useAutoInsert(languageId: string) { return autoInsert.has(languageId); },
 		dispose: () => changeListener.dispose()
 	};
