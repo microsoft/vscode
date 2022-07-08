@@ -36,12 +36,11 @@ export class Task {
 		await this.editors.saveOpenedFile();
 		await this.quickaccess.runCommand('workbench.action.tasks.runTask', true);
 		if (expected.length === 0) {
-			await this.quickInput.waitForQuickInputElements(e => e.length > 1 && e.every(value => value !== filter));
+			await this.quickInput.waitForQuickInputElements(e => e.length > 1 && e.every(label => label.trim() !== filter.trim()));
 		} else {
-			await this.quickInput.waitForQuickInputElements(e => e.length > 1 && e.includes(filter));
+			await this.quickInput.waitForQuickInputElements(e => e.length > 1 && e.some(label => label.trim() === filter.trim()));
 		}
 		await this.quickInput.closeQuickInput();
-
 	}
 
 	async configureTask(properties: ITaskConfigurationProperties) {
@@ -49,22 +48,29 @@ export class Task {
 		await this.quickInput.selectQuickInputElement(0);
 		await this.quickaccess.runCommand('editor.action.selectAll');
 		await this.code.dispatchKeybinding('Delete');
-		await this.editors.saveOpenedFile();
-		await this.code.dispatchKeybinding('right');
-		let taskString = `{
-			"version": "2.0.0",
-			"tasks": [
-				{`;
+		const taskStringLines: string[] = [
+			'{', // Brackets auto close
+			'"version": "2.0.0",',
+			'"tasks": [{' // Brackets auto close
+		];
 		for (let [key, value] of Object.entries(properties)) {
-			if (key === 'icon') {
-				value = `${{ id: value.id }}`;
+			if (typeof value === 'object') {
+				value = JSON.stringify(value);
+			} else if (typeof value === 'boolean') {
+				value = value;
+			} else if (typeof value === 'string') {
+				value = `"${value}"`;
 			} else {
-				value = key === 'hide' || key === 'icon' ? value : `"${value}"`;
+				throw new Error('Unsupported task property value type');
 			}
-
-			taskString += `"${key}": ${value},\n`;
+			taskStringLines.push(`"${key}": ${value},`);
 		}
-		taskString += `}]`;
-		this.editor.waitForTypeInEditor('tasks.json', `${taskString}`);
+		for (const [i, line] of taskStringLines.entries()) {
+			await this.editor.waitForTypeInEditor('tasks.json', `${line}`);
+			if (i !== taskStringLines.length - 1) {
+				await this.code.dispatchKeybinding('Enter');
+			}
+		}
+		await this.editors.saveOpenedFile();
 	}
 }

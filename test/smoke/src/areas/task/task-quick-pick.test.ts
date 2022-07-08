@@ -7,15 +7,15 @@ import { Application, Task } from '../../../../automation/';
 
 export function setup() {
 	describe('Task Quick Pick', () => {
-		// Acquire automation API
-
 		let app: Application;
 		let task: Task;
+
+		// Acquire automation API
 		before(async function () {
-			// Fetch task automation API
 			app = this.app as Application;
 			task = app.workbench.task;
 		});
+
 		describe('run', () => {
 			const name = "name";
 			const type = "shell";
@@ -35,7 +35,7 @@ export function setup() {
 				});
 			});
 
-			describe.skip('icon', () => {
+			describe('icon', () => {
 				it('icon', async () => {
 					const config = { label: name, type, command, icon: { id: "lightbulb" } };
 					await task.configureTask(config);
