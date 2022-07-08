@@ -23,7 +23,7 @@ interface ITaskConfigurationProperties {
 }
 
 export enum TaskCommandId {
-	Rename = 'workbench.action.terminal.rename'
+	TerminalRename = 'workbench.action.terminal.rename'
 }
 
 export class Task {
