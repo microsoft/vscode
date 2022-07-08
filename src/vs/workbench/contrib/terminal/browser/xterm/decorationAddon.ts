@@ -34,9 +34,9 @@ const enum DecorationSelector {
 	Default = 'default',
 	Codicon = 'codicon',
 	XtermDecoration = 'xterm-decoration',
-	OverviewRuler = 'xterm-decoration-overview-ruler',
 	GenericMarkerIcon = 'codicon-circle-small-filled',
-	Container = '.xterm-decoration-container'
+	Container = '.xterm-decoration-container',
+	OverviewRuler = '.xterm-decoration-overview-ruler'
 }
 
 const enum DecorationStyles {
@@ -81,16 +81,30 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				this.refreshLayouts();
 			} else if (e.affectsConfiguration('workbench.colorCustomizations')) {
 				this._refreshStyles(true);
-			} else if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled) || e.affectsConfiguration(TerminalSettingId.ShellIntegrationEnabled)) {
-				const enabledDecorations = this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled)
-				if (!enabledDecorations) {
-					document.querySelector(DecorationSelector.Container)?.classList.add('hide');
-				} else {
-					document.querySelector(DecorationSelector.Container)?.classList.remove('hide');
-				}
+			} else if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled)) {
+				this._updateContainerVisibility();
 			}
 		});
 		this._themeService.onDidColorThemeChange(() => this._refreshStyles(true));
+	}
+
+	private _updateContainerVisibility(): void {
+		const visible = this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled);
+		const containers = document.querySelectorAll(DecorationSelector.Container);
+		for (const container of containers) {
+			if (visible) {
+				container.classList.remove('hide');
+			} else {
+				container.classList.add('hide');
+			}
+		}
+		for (const ruler of document.querySelectorAll(DecorationSelector.OverviewRuler)) {
+			if (visible) {
+				ruler.classList.remove('hide');
+			} else {
+				ruler.classList.add('hide');
+			}
+		}
 	}
 
 	public refreshLayouts(): void {
