@@ -5,10 +5,10 @@
 
 import { Connection, Emitter, Event, InitializeParams, InitializeResult, RequestType, TextDocuments } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { DocumentSymbol, Position, Range } from 'vscode-languageserver-types';
+import * as lsp from 'vscode-languageserver-types';
 import * as md from 'vscode-markdown-languageservice';
 import { URI } from 'vscode-uri';
-import { consoleLogger } from './logging';
+import { LogFunctionLogger } from './logging';
 
 
 const parseRequestType: RequestType<{ uri: string }, md.Token[], any> = new RequestType('markdown/parse');
@@ -31,8 +31,7 @@ class TextDocumentToITextDocumentAdapter implements md.ITextDocument {
 	}
 
 	positionAt(offset: number): md.IPosition {
-		const pos = this._doc.positionAt(offset);
-		return md.makePosition(pos.line, pos.character);
+		return this._doc.positionAt(offset);
 	}
 }
 
@@ -44,6 +43,8 @@ export function startServer(connection: Connection) {
 		return {
 			capabilities: {
 				documentSymbolProvider: true,
+				foldingRangeProvider: true,
+				selectionRangeProvider: true,
 			}
 		};
 	});
@@ -85,15 +86,38 @@ export function startServer(connection: Connection) {
 		}
 	};
 
-	const provider = md.createLanguageService(workspace, parser, consoleLogger);
+	const logger = new LogFunctionLogger(connection.console.log.bind(connection.console));
+	const provider = md.createLanguageService(workspace, parser, logger);
 
-	connection.onDocumentSymbol(async (documentSymbolParams, _token): Promise<DocumentSymbol[]> => {
+	connection.onDocumentSymbol(async (params, token): Promise<lsp.DocumentSymbol[]> => {
 		try {
-			const document = documents.get(documentSymbolParams.textDocument.uri) as TextDocument | undefined;
+			const document = documents.get(params.textDocument.uri);
 			if (document) {
-				const response = await provider.provideDocumentSymbols(new TextDocumentToITextDocumentAdapter(document));
-				// TODO: only required because extra methods returned on positions/ranges
-				return response.map(symbol => convertDocumentSymbol(symbol));
+				return await provider.provideDocumentSymbols(new TextDocumentToITextDocumentAdapter(document), token);
+			}
+		} catch (e) {
+			console.error(e.stack);
+		}
+		return [];
+	});
+
+	connection.onFoldingRanges(async (params, token): Promise<lsp.FoldingRange[]> => {
+		try {
+			const document = documents.get(params.textDocument.uri);
+			if (document) {
+				return await provider.provideFoldingRanges(new TextDocumentToITextDocumentAdapter(document), token);
+			}
+		} catch (e) {
+			console.error(e.stack);
+		}
+		return [];
+	});
+
+	connection.onSelectionRanges(async (params, token): Promise<lsp.SelectionRange[] | undefined> => {
+		try {
+			const document = documents.get(params.textDocument.uri);
+			if (document) {
+				return await provider.provideSelectionRanges(new TextDocumentToITextDocumentAdapter(document), params.positions, token);
 			}
 		} catch (e) {
 			console.error(e.stack);
@@ -102,31 +126,4 @@ export function startServer(connection: Connection) {
 	});
 
 	connection.listen();
-}
-
-
-function convertDocumentSymbol(sym: DocumentSymbol): DocumentSymbol {
-	return {
-		kind: sym.kind,
-		name: sym.name,
-		range: convertRange(sym.range),
-		selectionRange: convertRange(sym.selectionRange),
-		children: sym.children?.map(convertDocumentSymbol),
-		detail: sym.detail,
-		tags: sym.tags,
-	};
-}
-
-function convertRange(range: Range): Range {
-	return {
-		start: convertPosition(range.start),
-		end: convertPosition(range.end),
-	};
-}
-
-function convertPosition(start: Position): Position {
-	return {
-		character: start.character,
-		line: start.line,
-	};
 }

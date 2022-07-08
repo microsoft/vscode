@@ -17,10 +17,11 @@ import { compareAnything } from 'vs/base/common/comparers';
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMatch } from 'vs/base/common/filters';
-import { matchesFuzzyIconAware, parseLabelWithIcons } from 'vs/base/common/iconLabels';
+import { IParsedLabelWithIcons, matchesFuzzyIconAware, parseLabelWithIcons } from 'vs/base/common/iconLabels';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
+import { ltrim } from 'vs/base/common/strings';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IQuickInputOptions } from 'vs/base/parts/quickinput/browser/quickInput';
 import { getIconClass } from 'vs/base/parts/quickinput/browser/quickInputUtils';
@@ -258,6 +259,7 @@ export class QuickInputList {
 	matchOnDescription = false;
 	matchOnDetail = false;
 	matchOnLabel = true;
+	matchOnLabelMode: 'fuzzy' | 'contiguous' = 'fuzzy';
 	matchOnMeta = true;
 	sortByLabel = true;
 	private readonly _onChangedAllVisibleChecked = new Emitter<boolean>();
@@ -610,6 +612,8 @@ export class QuickInputList {
 			this.list.layout();
 			return false;
 		}
+
+		const queryWithWhitespace = query;
 		query = query.trim();
 
 		// Reset filtering
@@ -628,7 +632,12 @@ export class QuickInputList {
 		else {
 			let currentSeparator: IQuickPickSeparator | undefined;
 			this.elements.forEach(element => {
-				const labelHighlights = this.matchOnLabel ? withNullAsUndefined(matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneLabel))) : undefined;
+				let labelHighlights: IMatch[] | undefined;
+				if (this.matchOnLabelMode === 'fuzzy') {
+					labelHighlights = this.matchOnLabel ? withNullAsUndefined(matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneLabel))) : undefined;
+				} else {
+					labelHighlights = this.matchOnLabel ? withNullAsUndefined(matchesContiguousIconAware(queryWithWhitespace, parseLabelWithIcons(element.saneLabel))) : undefined;
+				}
 				const descriptionHighlights = this.matchOnDescription ? withNullAsUndefined(matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneDescription || ''))) : undefined;
 				const detailHighlights = this.matchOnDetail ? withNullAsUndefined(matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneDetail || ''))) : undefined;
 				const metaHighlights = this.matchOnMeta ? withNullAsUndefined(matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneMeta || ''))) : undefined;
@@ -724,6 +733,43 @@ export class QuickInputList {
 	style(styles: IListStyles) {
 		this.list.style(styles);
 	}
+}
+
+export function matchesContiguousIconAware(query: string, target: IParsedLabelWithIcons): IMatch[] | null {
+
+	const { text, iconOffsets } = target;
+
+	// Return early if there are no icon markers in the word to match against
+	if (!iconOffsets || iconOffsets.length === 0) {
+		return matchesContiguous(query, text);
+	}
+
+	// Trim the word to match against because it could have leading
+	// whitespace now if the word started with an icon
+	const wordToMatchAgainstWithoutIconsTrimmed = ltrim(text, ' ');
+	const leadingWhitespaceOffset = text.length - wordToMatchAgainstWithoutIconsTrimmed.length;
+
+	// match on value without icon
+	const matches = matchesContiguous(query, wordToMatchAgainstWithoutIconsTrimmed);
+
+	// Map matches back to offsets with icon and trimming
+	if (matches) {
+		for (const match of matches) {
+			const iconOffset = iconOffsets[match.start + leadingWhitespaceOffset] /* icon offsets at index */ + leadingWhitespaceOffset /* overall leading whitespace offset */;
+			match.start += iconOffset;
+			match.end += iconOffset;
+		}
+	}
+
+	return matches;
+}
+
+function matchesContiguous(word: string, wordToMatchAgainst: string): IMatch[] | null {
+	const matchIndex = wordToMatchAgainst.toLowerCase().indexOf(word.toLowerCase());
+	if (matchIndex !== -1) {
+		return [{ start: matchIndex, end: matchIndex + word.length }];
+	}
+	return null;
 }
 
 function compareEntries(elementA: ListElement, elementB: ListElement, lookFor: string): number {

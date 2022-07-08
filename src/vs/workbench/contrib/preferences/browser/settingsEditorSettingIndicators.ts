@@ -51,12 +51,6 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		this.indicatorsContainerElement = DOM.append(container, $('.misc-label'));
 		this.indicatorsContainerElement.style.display = 'inline';
 
-		const scopeOverridesIndicator = this.createScopeOverridesIndicator();
-		this.scopeOverridesElement = scopeOverridesIndicator.element;
-		this.scopeOverridesLabel = scopeOverridesIndicator.label;
-		this.syncIgnoredElement = this.createSyncIgnoredElement();
-		this.defaultOverrideIndicatorElement = this.createDefaultOverrideIndicator();
-
 		this.hoverDelegate = {
 			showHover: (options: IHoverDelegateOptions, focus?: boolean) => {
 				return hoverService.showHover(options, focus);
@@ -65,6 +59,12 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 			delay: configurationService.getValue<number>('workbench.hover.delay'),
 			placement: 'element'
 		};
+
+		const scopeOverridesIndicator = this.createScopeOverridesIndicator();
+		this.scopeOverridesElement = scopeOverridesIndicator.element;
+		this.scopeOverridesLabel = scopeOverridesIndicator.label;
+		this.syncIgnoredElement = this.createSyncIgnoredElement();
+		this.defaultOverrideIndicatorElement = this.createDefaultOverrideIndicator();
 	}
 
 	private createScopeOverridesIndicator(): { element: HTMLElement; label: SimpleIconLabel } {
@@ -139,6 +139,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 				// Render inline if we have the flag and there are scope overrides to render,
 				// or if there is only one scope override to render and no language overrides.
 				this.scopeOverridesElement.style.display = 'inline';
+				this.scopeOverridesElement.classList.remove('with-custom-hover');
 				this.hover?.dispose();
 
 				// Just show all the text in the label.
@@ -170,6 +171,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 				// show the text in a custom hover only if
 				// the feature flag isn't on.
 				this.scopeOverridesElement.style.display = 'inline';
+				this.scopeOverridesElement.classList.add('with-custom-hover');
 				const scopeOverridesLabelText = element.isConfigured ?
 					localize('alsoConfiguredElsewhere', "Also modified elsewhere") :
 					localize('configuredElsewhere', "Modified elsewhere");

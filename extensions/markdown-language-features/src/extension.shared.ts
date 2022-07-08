@@ -13,11 +13,9 @@ import { MdLinkProvider, registerDocumentLinkSupport } from './languageFeatures/
 import { MdDocumentSymbolProvider } from './languageFeatures/documentSymbols';
 import { registerDropIntoEditorSupport } from './languageFeatures/dropIntoEditor';
 import { registerFindFileReferenceSupport } from './languageFeatures/fileReferences';
-import { registerFoldingSupport } from './languageFeatures/folding';
 import { registerPathCompletionSupport } from './languageFeatures/pathCompletions';
 import { MdReferencesProvider, registerReferencesSupport } from './languageFeatures/references';
 import { registerRenameSupport } from './languageFeatures/rename';
-import { registerSmartSelectSupport } from './languageFeatures/smartSelect';
 import { registerWorkspaceSymbolSupport } from './languageFeatures/workspaceSymbols';
 import { ILogger } from './logging';
 import { IMdParser, MarkdownItEngine, MdParsingProvider } from './markdownEngine';
@@ -81,12 +79,10 @@ function registerMarkdownLanguageFeatures(
 		registerDocumentLinkSupport(selector, linkProvider),
 		registerDropIntoEditorSupport(selector),
 		registerFindFileReferenceSupport(commandManager, referencesProvider),
-		registerFoldingSupport(selector, parser, tocProvider),
 		registerPasteSupport(selector),
 		registerPathCompletionSupport(selector, workspace, parser, linkProvider),
 		registerReferencesSupport(selector, referencesProvider),
 		registerRenameSupport(selector, workspace, referencesProvider, parser.slugifier),
-		registerSmartSelectSupport(selector, parser, tocProvider),
 		registerWorkspaceSymbolSupport(workspace, symbolProvider),
 	);
 }
