@@ -307,16 +307,17 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		this._ctxBaseResourceScheme.set(model.base.uri.scheme);
 
 		const viewState = this.loadEditorViewState(input, context);
-		this._applyViewState(viewState);
-
-		this._sessionDisposables.add(thenIfNotDisposed(model.onInitialized, () => {
-			const firstConflict = model.modifiedBaseRanges.get().find(r => r.isConflicting);
-			if (!firstConflict) {
-				return;
-			}
-
-			this.input1View.editor.revealLineInCenter(firstConflict.input1Range.startLineNumber);
-		}));
+		if (viewState) {
+			this._applyViewState(viewState);
+		} else {
+			this._sessionDisposables.add(thenIfNotDisposed(model.onInitialized, () => {
+				const firstConflict = model.modifiedBaseRanges.get().find(r => r.isConflicting);
+				if (!firstConflict) {
+					return;
+				}
+				this.input1View.editor.revealLineInCenter(firstConflict.input1Range.startLineNumber);
+			}));
+		}
 
 
 		this._sessionDisposables.add(autorunWithStore((reader, store) => {
