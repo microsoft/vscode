@@ -110,8 +110,12 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	services.set(IFileService, fileService);
 	fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(logService)));
 
+	// URI Identity
+	const uriIdentityService = new UriIdentityService(fileService);
+	services.set(IUriIdentityService, uriIdentityService);
+
 	// User Data Profiles
-	const userDataProfilesService = new UserDataProfilesService(environmentService, fileService, logService);
+	const userDataProfilesService = new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService);
 	services.set(IUserDataProfilesService, userDataProfilesService);
 
 	// Configuration
@@ -121,9 +125,6 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 
 	const extensionHostStatusService = new ExtensionHostStatusService();
 	services.set(IExtensionHostStatusService, extensionHostStatusService);
-
-	// URI Identity
-	services.set(IUriIdentityService, new UriIdentityService(fileService));
 
 	// Request
 	services.set(IRequestService, new SyncDescriptor(RequestService));
