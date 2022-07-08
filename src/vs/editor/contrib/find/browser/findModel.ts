@@ -51,14 +51,6 @@ export const TogglePreserveCaseKeybinding: IKeybindings = {
 	primary: KeyMod.Alt | KeyCode.KeyP,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyP }
 };
-export const FocusFilesToIncludeKeybinding: IKeybindings = {
-	primary: KeyMod.Alt | KeyCode.KeyF,
-	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyF }
-};
-export const FocusFilesToExcludeKeybinding: IKeybindings = {
-	primary: KeyMod.Alt | KeyMod.Shift | KeyCode.KeyF,
-	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyF }
-};
 
 export const FIND_IDS = {
 	StartFindAction: 'actions.find',

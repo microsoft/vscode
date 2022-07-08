@@ -276,15 +276,17 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 	}
 
 	focusFilesToIncludeInput() {
-		if (this.showingIncludesExcludes) {
-			this.inputPatternIncludes.focus();
+		if (!this.showingIncludesExcludes) {
+			this.toggleIncludesExcludes(true);
 		}
+		this.inputPatternIncludes.focus();
 	}
 
 	focusFilesToExcludeInput() {
-		if (this.showingIncludesExcludes) {
-			this.inputPatternExcludes.focus();
+		if (!this.showingIncludesExcludes) {
+			this.toggleIncludesExcludes(true);
 		}
+		this.inputPatternExcludes.focus();
 	}
 
 	focusNextInput() {
