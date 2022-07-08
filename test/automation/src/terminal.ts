@@ -236,13 +236,9 @@ export class Terminal {
 			await this.code.waitForElements(Selector.CommandDecorationError, true, decorations => decorations && decorations.length === expectedCounts.error);
 		}
 
-		if (hidden) {
-			await this.code.waitForElements(`${Selector.Container}${Selector.Hide}`, true, containers => containers && containers.length === 1);
-			await this.code.waitForElements(`${Selector.OverviewRuler}${Selector.Hide}`, true, ruler => ruler && ruler.length === 1);
-		} else {
-			await this.code.waitForElements(`${Selector.Container}`, true, containers => containers && containers.length === 1);
-			await this.code.waitForElements(`${Selector.OverviewRuler}`, true, ruler => ruler && ruler.length === 1);
-		}
+		//Visibility
+		await this.code.waitForElements(hidden ? `${Selector.Container}${Selector.Hide}` : `${Selector.Container}`, true, containers => containers && containers.length === 1);
+		await this.code.waitForElements(hidden ? `${Selector.OverviewRuler}${Selector.Hide}` : `${Selector.OverviewRuler}`, true, ruler => ruler && ruler.length === 1);
 
 		if (customIcon) {
 			await this.code.waitForElements(`.terminal-command-decoration.codicon-${customIcon.updatedIcon}`, true, decorations => decorations && decorations.length === customIcon.count);
