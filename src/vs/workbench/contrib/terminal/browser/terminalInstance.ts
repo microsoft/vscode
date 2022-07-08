@@ -1460,9 +1460,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async sendText(text: string, addNewLine: boolean): Promise<void> {
+		// Apply bracketed paste sequences if the terminal has the mode enabled, this will prevent
+		// the text from triggering keybindings https://github.com/microsoft/vscode/issues/153592
+		if (this.xterm?.raw.modes.bracketedPasteMode) {
+			text = `\x1b[200~${text}\x1b[201~`;
+		}
+
 		// Normalize line endings to 'enter' press.
 		text = text.replace(/\r?\n/g, '\r');
-		if (addNewLine && text.substr(text.length - 1) !== '\r') {
+		if (addNewLine && text.at(-1) !== '\r') {
 			text += '\r';
 		}
 
