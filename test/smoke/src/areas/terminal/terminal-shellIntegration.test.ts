@@ -7,7 +7,7 @@ import { Application, Terminal, SettingsEditor, TerminalCommandIdWithValue, Term
 import { setTerminalTestSettings } from './terminal-helpers';
 
 export function setup() {
-	describe('Terminal Shell Integration', () => {
+	describe.only('Terminal Shell Integration', () => {
 		let terminal: Terminal;
 		let settingsEditor: SettingsEditor;
 		let app: Application;
@@ -61,20 +61,59 @@ export function setup() {
 						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationIconSuccess', '"zap"');
 						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationIconError', '"zap"');
 						await terminal.assertCommandDecorations(undefined, { updatedIcon: "zap", count: 3 });
-						await app.workbench.terminal.runCommand(TerminalCommandId.KillAll);
 					});
 				});
-				describe('Visibility', function () {
-					it('Should show or hide the icons and overview ruler', async () => {
+				describe('terminal.integrated.shellIntegration.decorationsEnabled should determine gutter and overview ruler decoration visibility', function () {
+					beforeEach(async () => {
+					});
+					afterEach(async () => {
+					});
+					it('never', async () => {
+						await settingsEditor.clearUserSettings();
+						await setTerminalTestSettings(app, [['terminal.integrated.shellIntegration.enabled', 'true']]);
 						await createShellIntegrationProfile();
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
 						await terminal.runCommandInTerminal(`echo "foo"`);
 						await terminal.runCommandInTerminal(`bar`);
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 1 });
-						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationsEnabled', 'false');
-						await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 1 }, undefined, true);
-						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationsEnabled', 'true');
+						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationsEnabled', '"never"');
+						await terminal.assertCommandDecorations({ placeholder: 0, success: 0, error: 0 }, undefined, 'never');
+						await app.workbench.terminal.runCommand(TerminalCommandId.KillAll);
+					});
+					it('both', async () => {
+						await settingsEditor.clearUserSettings();
+						await setTerminalTestSettings(app, [['terminal.integrated.shellIntegration.enabled', 'true']]);
+						await createShellIntegrationProfile();
+						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
+						await terminal.runCommandInTerminal(`echo "foo"`);
+						await terminal.runCommandInTerminal(`bar`);
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 1 });
+						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationsEnabled', '"never"');
+						await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 1 }, undefined, 'both');
+						await app.workbench.terminal.runCommand(TerminalCommandId.KillAll);
+					});
+					it('gutter', async () => {
+						await settingsEditor.clearUserSettings();
+						await setTerminalTestSettings(app, [['terminal.integrated.shellIntegration.enabled', 'true']]);
+						await createShellIntegrationProfile();
+						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
+						await terminal.runCommandInTerminal(`echo "foo"`);
+						await terminal.runCommandInTerminal(`bar`);
+						await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 1 });
+						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationsEnabled', '"gutter"');
+						await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 1 }, undefined, 'gutter');
+						await app.workbench.terminal.runCommand(TerminalCommandId.KillAll);
+					});
+					it('overviewRuler', async () => {
+						await settingsEditor.clearUserSettings();
+						await setTerminalTestSettings(app, [['terminal.integrated.shellIntegration.enabled', 'true']]);
+						await createShellIntegrationProfile();
+						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
+						await terminal.runCommandInTerminal(`echo "foo"`);
+						await terminal.runCommandInTerminal(`bar`);
+						await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 1 });
+						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationsEnabled', '"overviewRuler"');
+						await terminal.assertCommandDecorations({ placeholder: 0, success: 0, error: 0 }, undefined, 'overviewRuler');
 						await app.workbench.terminal.runCommand(TerminalCommandId.KillAll);
 					});
 				});

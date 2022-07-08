@@ -84,10 +84,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			} else if (e.affectsConfiguration('workbench.colorCustomizations')) {
 				this._refreshStyles(true);
 			} else if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled)) {
-				this._placeholderDecoration?.dispose();
-				for (const decoration of this._decorations) {
-					decoration[1].decoration.dispose();
-				}
 				this._updateDecorationVisibility();
 			}
 		});
@@ -99,11 +95,25 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		const showDecorations = this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled);
 		switch (showDecorations) {
 			case 'never':
+				if (this._placeholderDecoration) {
+					this._placeholderDecoration.options.overviewRulerOptions = undefined;
+				}
+				for (const decoration of this._decorations) {
+					decoration[1].decoration.options.overviewRulerOptions = undefined;
+				}
+				this._placeholderDecoration?.dispose();
+				for (const decoration of this._decorations) {
+					decoration[1].decoration.dispose();
+				}
 				this._updateGutterDecorationVisibility(false);
 				this._overviewRulerDecorations = false;
 				this._decorationsDisabled = true;
 				break;
 			case 'both':
+				this._placeholderDecoration?.dispose();
+				for (const decoration of this._decorations) {
+					decoration[1].decoration.dispose();
+				}
 				this._updateGutterDecorationVisibility(true);
 				this._attachToCommandCapability();
 				this._overviewRulerDecorations = true;
@@ -123,6 +133,10 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				this._attachToCommandCapability();
 				break;
 			case 'overviewRuler':
+				this._placeholderDecoration?.dispose();
+				for (const decoration of this._decorations) {
+					decoration[1].decoration.dispose();
+				}
 				this._updateGutterDecorationVisibility(false);
 				this._overviewRulerDecorations = true;
 				this._decorationsDisabled = false;
@@ -214,7 +228,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 
 	private _addCommandDetectionListeners(): void {
 		if (this._commandDetectionListeners) {
-			dispose(this._commandDetectionListeners);
+			return;
 		}
 		const capability = this._capabilities.get(TerminalCapability.CommandDetection);
 		if (!capability) {
@@ -267,7 +281,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (!command.marker) {
 			throw new Error(`cannot add a decoration for a command ${JSON.stringify(command)} with no marker`);
 		}
-
 		this._clearPlaceholder();
 		let color = command.exitCode === undefined ? defaultColor : command.exitCode ? errorColor : successColor;
 		if (color && typeof color !== 'string') {
@@ -275,7 +288,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		} else {
 			color = '';
 		}
-		console.log('adding decoration', beforeCommandExecution, command.command, this._overviewRulerDecorations);
 		const decoration = this._terminal.registerDecoration({
 			marker: command.marker,
 			overviewRulerOptions: this._overviewRulerDecorations ? (beforeCommandExecution
@@ -289,9 +301,9 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			this._placeholderDecoration = decoration;
 		}
 		decoration.onRender(element => {
-			// if (element.classList.contains(DecorationSelector.OverviewRuler)) {
-			// 	return;
-			// }
+			if (element.classList.contains(DecorationSelector.OverviewRuler)) {
+				return;
+			}
 			if (!this._decorations.get(decoration.marker.id)) {
 				decoration.onDispose(() => this._decorations.delete(decoration.marker.id));
 				this._decorations.set(decoration.marker.id,

@@ -229,7 +229,7 @@ export class Terminal {
 		await this.code.waitForElement(Selector.TerminalView, result => result === undefined);
 	}
 
-	async assertCommandDecorations(expectedCounts?: ICommandDecorationCounts, customIcon?: { updatedIcon: string; count: number }, hidden?: boolean): Promise<void> {
+	async assertCommandDecorations(expectedCounts?: ICommandDecorationCounts, customIcon?: { updatedIcon: string; count: number }, showDecorations?: 'both' | 'gutter' | 'overviewRuler' | 'never'): Promise<void> {
 		if (expectedCounts) {
 			await this.code.waitForElements(Selector.CommandDecorationPlaceholder, true, decorations => decorations && decorations.length === expectedCounts.placeholder);
 			await this.code.waitForElements(Selector.CommandDecorationSuccess, true, decorations => decorations && decorations.length === expectedCounts.success);
@@ -237,8 +237,11 @@ export class Terminal {
 		}
 
 		//Visibility
-		await this.code.waitForElements(hidden ? `${Selector.Container}${Selector.Hide}` : `${Selector.Container}`, true, containers => containers && containers.length === 1);
-		await this.code.waitForElements(hidden ? `${Selector.OverviewRuler}${Selector.Hide}` : `${Selector.OverviewRuler}`, true, ruler => ruler && ruler.length === 1);
+		if (!showDecorations || showDecorations === 'both' || showDecorations === 'gutter') {
+			await this.code.waitForElements(`${Selector.Container}`, true, containers => containers && containers.length === 1);
+		} else if (showDecorations === 'overviewRuler') {
+			await this.code.waitForElements(`${Selector.Container}${Selector.Hide}`, true, containers => containers && containers.length === 1);
+		}
 
 		if (customIcon) {
 			await this.code.waitForElements(`.terminal-command-decoration.codicon-${customIcon.updatedIcon}`, true, decorations => decorations && decorations.length === customIcon.count);
