@@ -612,6 +612,8 @@ export class QuickInputList {
 			this.list.layout();
 			return false;
 		}
+
+		const queryWithWhitespace = query;
 		query = query.trim();
 
 		// Reset filtering
@@ -634,7 +636,7 @@ export class QuickInputList {
 				if (this.matchOnLabelMode === 'fuzzy') {
 					labelHighlights = this.matchOnLabel ? withNullAsUndefined(matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneLabel))) : undefined;
 				} else {
-					labelHighlights = this.matchOnLabel ? withNullAsUndefined(matchesContiguousIconAware(query, parseLabelWithIcons(element.saneLabel))) : undefined;
+					labelHighlights = this.matchOnLabel ? withNullAsUndefined(matchesContiguousIconAware(queryWithWhitespace, parseLabelWithIcons(element.saneLabel))) : undefined;
 				}
 				const descriptionHighlights = this.matchOnDescription ? withNullAsUndefined(matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneDescription || ''))) : undefined;
 				const detailHighlights = this.matchOnDetail ? withNullAsUndefined(matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneDetail || ''))) : undefined;
@@ -733,13 +735,13 @@ export class QuickInputList {
 	}
 }
 
-export function matchesContiguousIconAware(query: string, target: IParsedLabelWithIcons, enableSeparateSubstringMatching = false): IMatch[] | null {
+export function matchesContiguousIconAware(query: string, target: IParsedLabelWithIcons): IMatch[] | null {
 
 	const { text, iconOffsets } = target;
 
 	// Return early if there are no icon markers in the word to match against
 	if (!iconOffsets || iconOffsets.length === 0) {
-		return matchesContiguous(query, text, enableSeparateSubstringMatching);
+		return matchesContiguous(query, text);
 	}
 
 	// Trim the word to match against because it could have leading
@@ -748,7 +750,7 @@ export function matchesContiguousIconAware(query: string, target: IParsedLabelWi
 	const leadingWhitespaceOffset = text.length - wordToMatchAgainstWithoutIconsTrimmed.length;
 
 	// match on value without icon
-	const matches = matchesContiguous(query, wordToMatchAgainstWithoutIconsTrimmed, enableSeparateSubstringMatching);
+	const matches = matchesContiguous(query, wordToMatchAgainstWithoutIconsTrimmed);
 
 	// Map matches back to offsets with icon and trimming
 	if (matches) {
@@ -762,7 +764,7 @@ export function matchesContiguousIconAware(query: string, target: IParsedLabelWi
 	return matches;
 }
 
-function matchesContiguous(word: string, wordToMatchAgainst: string, enableSeparateSubstringMatching = false): IMatch[] | null {
+function matchesContiguous(word: string, wordToMatchAgainst: string): IMatch[] | null {
 	const matchIndex = wordToMatchAgainst.toLowerCase().indexOf(word.toLowerCase());
 	if (matchIndex !== -1) {
 		return [{ start: matchIndex, end: matchIndex + word.length }];

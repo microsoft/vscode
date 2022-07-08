@@ -160,7 +160,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			const existing = await this.getExistingSession();
 			if (existing !== undefined) {
 				this.logService.trace(`Found existing authentication session with ID ${existingSessionId}`);
-				this.#authenticationInfo = { sessionId: existing.session.id, token: existing.session.accessToken, providerId: existing.session.providerId };
+				this.#authenticationInfo = { sessionId: existing.session.id, token: existing.session.idToken ?? existing.session.accessToken, providerId: existing.session.providerId };
 				this.storeClient.setAuthToken(this.#authenticationInfo.token, this.#authenticationInfo.providerId);
 				return true;
 			}
@@ -169,7 +169,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		// Ask the user to pick a preferred account
 		const session = await this.getAccountPreference();
 		if (session !== undefined) {
-			this.#authenticationInfo = { sessionId: session.id, token: session.accessToken, providerId: session.providerId };
+			this.#authenticationInfo = { sessionId: session.id, token: session.idToken ?? session.accessToken, providerId: session.providerId };
 			this.storeClient.setAuthToken(this.#authenticationInfo.token, this.#authenticationInfo.providerId);
 			this.existingSessionId = session.id;
 			this.logService.trace(`Saving authentication session preference for ID ${session.id}.`);
