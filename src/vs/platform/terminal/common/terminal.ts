@@ -438,6 +438,11 @@ export interface IShellLaunchConfig {
 	 */
 	ignoreConfigurationCwd?: boolean;
 
+	/**
+	 * There is an owner of this terminal for reconnection.
+	 */
+	reconnectionOwner?: boolean;
+
 	/** Whether to wait for a key press before closing the terminal. */
 	waitOnExit?: boolean | string | ((exitCode: number) => string);
 
@@ -462,7 +467,7 @@ export interface IShellLaunchConfig {
 	/**
 	 * This is a terminal that attaches to an already running terminal.
 	 */
-	attachPersistentProcess?: { id: number; findRevivedId?: boolean; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string; hasChildProcesses?: boolean; fixedDimensions?: IFixedTerminalDimensions; environmentVariableCollections?: ISerializableEnvironmentVariableCollections };
+	attachPersistentProcess?: { id: number; findRevivedId?: boolean; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string; hasChildProcesses?: boolean; fixedDimensions?: IFixedTerminalDimensions; environmentVariableCollections?: ISerializableEnvironmentVariableCollections; reconnectionOwner?: boolean };
 
 	/**
 	 * Whether the terminal process environment should be exactly as provided in

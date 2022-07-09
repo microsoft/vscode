@@ -456,7 +456,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		return new Promise<ITaskTerminateResponse>((resolve, reject) => {
 			const terminal = activeTerminal.terminal;
 
-			const onExit = terminal.onExit(() => {
+			const onExit = terminal.onExit((e) => {
 				const task = activeTerminal.task;
 				try {
 					onExit.dispose();
@@ -1225,6 +1225,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			}
 		}
 		shellLaunchConfig.isFeatureTerminal = true;
+		shellLaunchConfig.reconnectionOwner = true;
 		shellLaunchConfig.useShellEnvironment = true;
 		return shellLaunchConfig;
 	}
@@ -1307,6 +1308,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					comment: ['The task command line or label']
 				}, 'Executing task: {0}', task._label), { excludeLeadingNewLine: true }) : undefined,
 				isFeatureTerminal: true,
+				reconnectionOwner: true,
 				icon: task.configurationProperties.icon?.id ? ThemeIcon.fromId(task.configurationProperties.icon.id) : undefined,
 				color: task.configurationProperties.icon?.color || undefined,
 			};

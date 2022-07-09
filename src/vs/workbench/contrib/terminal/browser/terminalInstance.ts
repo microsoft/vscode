@@ -275,6 +275,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	// TODO: Should this be an event as it can fire twice?
 	get processReady(): Promise<void> { return this._processManager.ptyProcessReady; }
 	get hasChildProcesses(): boolean { return this.shellLaunchConfig.attachPersistentProcess?.hasChildProcesses || this._processManager.hasChildProcesses; }
+	get reconnectionOwner(): boolean { return this.shellLaunchConfig.attachPersistentProcess?.reconnectionOwner || this.shellLaunchConfig.reconnectionOwner || false; }
 	get areLinksReady(): boolean { return this._areLinksReady; }
 	get initialDataEvents(): string[] | undefined { return this._initialDataEvents; }
 	get exitCode(): number | undefined { return this._exitCode; }
@@ -2335,7 +2336,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			info.requiresAction &&
 			this._configHelper.config.environmentChangesRelaunch &&
 			!this._processManager.hasWrittenData &&
-			!this._shellLaunchConfig.isFeatureTerminal &&
+			(this.reconnectionOwner || !this._shellLaunchConfig.isFeatureTerminal) &&
 			!this._shellLaunchConfig.customPtyImplementation
 			&& !this._shellLaunchConfig.isExtensionOwnedTerminal &&
 			!this._shellLaunchConfig.attachPersistentProcess
