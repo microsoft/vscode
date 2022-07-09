@@ -167,6 +167,7 @@ export interface IPtyHostAttachTarget {
 	icon: TerminalIcon | undefined;
 	fixedDimensions: IFixedTerminalDimensions | undefined;
 	environmentVariableCollections: ISerializableEnvironmentVariableCollections | undefined;
+	reconnectionOwner?: boolean;
 }
 
 export enum TitleEventSource {
