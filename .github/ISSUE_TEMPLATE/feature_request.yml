@@ -1,0 +1,15 @@
+name: Feature request
+description: Suggest an idea for this project
+labels: [feature-request]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please read our Rules of Conduct: https://opensource.microsoft.com/codeofconduct/
+        Please search existing issues to avoid creating duplicates.
+  - type: textarea
+    id: description
+    attributes:
+      label: Issue description
+      description: |
+        Describe the feature you'd like.

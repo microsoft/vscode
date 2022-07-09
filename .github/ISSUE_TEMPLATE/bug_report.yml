@@ -1,0 +1,57 @@
+name: Bug report
+description: Create a report to help us improve
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please read our Rules of Conduct: https://opensource.microsoft.com/codeofconduct/
+        🕮 Read our guide about submitting issues: https://github.com/microsoft/vscode/wiki/Submitting-Bugs-and-Suggestions
+        🔎 Search existing issues to avoid creating duplicates.
+        🧪 Test using the latest Insiders build to see if your issue has already been fixed: https://code.visualstudio.com/insiders/
+        💡 Instead of creating your report here, use 'Report Issue' from the 'Help' menu in VS Code to pre-fill useful information.
+  - type: checkboxes
+    id: no-extenstion
+    attributes:
+      label: Does this issue occur when all extensions are disabled?
+      options:
+        - label: 🔧 Launch with `code --disable-extensions` to check.
+          required: true
+  - type: markdown
+    attributes:
+      value: |
+        🪓 If you answered No above, use 'Help: Start Extension Bisect' from Command Palette to try to identify the cause.
+        📣 Issues caused by an extension need to be reported directly to the extension publisher. The `Help > Report Issue` dialog can assist with this.
+  - type: textarea
+    id: description
+    attributes:
+      label: Issue description
+      description: |
+        Describe the issue in as much detail as possible.
+      placeholder: |
+        Steps to reproduce with below code sample:
+        1. do thing
+        2. observe behavior
+    validations:
+      required: true
+  - type: input
+    id: vsc-version
+    attributes:
+      label: VS Code Version
+      description: Which version of are you using? You can find the version in `Help > About`.
+    validations:
+      required: true
+  - type: input
+    id: os-version
+    attributes:
+      label: Operating system
+      description: Which version of operating system are you using?
+    validations:
+      required: true
+  - type: checkboxes
+    id: insider-release
+    attributes:
+      label: Insiders release
+      options:
+        - label: I have tested this issue on latest Insiders build
+          required: true
