@@ -11,7 +11,7 @@ function fatal(err: any): void {
 
 function main(argv: string[]): void {
 	const ipcClient = new IPCClient('git-editor');
-	const commitMessagePath = argv[argv.length - 1];
+	const commitMessagePath = argv[2] !== '--ms-enable-electron-run-as-node' ? argv[2] : argv[3];
 
 	ipcClient.call({ commitMessagePath }).then(() => {
 		setTimeout(() => process.exit(0), 0);
