@@ -361,8 +361,9 @@ export interface UninstallExtensionEvent {
 }
 
 export interface DidUninstallExtensionEvent {
-	identifier: IExtensionIdentifier;
-	error?: string;
+	readonly identifier: IExtensionIdentifier;
+	readonly version?: string;
+	readonly error?: string;
 }
 
 export enum ExtensionManagementErrorCode {
@@ -403,7 +404,7 @@ export type InstallOptions = {
 	context?: IStringDictionary<any>;
 };
 export type InstallVSIXOptions = Omit<InstallOptions, 'installGivenVersion'> & { installOnlyNewlyAddedFromExtensionPack?: boolean };
-export type UninstallOptions = { donotIncludePack?: boolean; donotCheckDependents?: boolean };
+export type UninstallOptions = { readonly donotIncludePack?: boolean; readonly donotCheckDependents?: boolean; readonly versionOnly?: boolean; readonly remove?: boolean };
 
 export interface IExtensionManagementParticipant {
 	postInstall(local: ILocalExtension, source: URI | IGalleryExtension, options: InstallOptions | InstallVSIXOptions, token: CancellationToken): Promise<void>;
@@ -526,4 +527,11 @@ export interface IExtensionManagementCLIService {
 	installExtensions(extensions: (string | URI)[], builtinExtensionIds: string[], installOptions: InstallOptions, force: boolean, output?: CLIOutput): Promise<void>;
 	uninstallExtensions(extensions: (string | URI)[], force: boolean, output?: CLIOutput): Promise<void>;
 	locateExtension(extensions: string[], output?: CLIOutput): Promise<void>;
+}
+
+export const IDefaultExtensionsProfileInitService = createDecorator<IDefaultExtensionsProfileInitService>('IDefaultExtensionsProfileInitService');
+export interface IDefaultExtensionsProfileInitService {
+	readonly _serviceBrand: undefined;
+	initialize(): Promise<void>;
+	uninitialize(): Promise<void>;
 }

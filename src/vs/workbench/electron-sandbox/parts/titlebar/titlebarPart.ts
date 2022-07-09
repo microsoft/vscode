@@ -21,6 +21,7 @@ import { getTitleBarStyle, useWindowControlsOverlay } from 'vs/platform/window/c
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Codicon } from 'vs/base/common/codicons';
 import { NativeMenubarControl } from 'vs/workbench/electron-sandbox/parts/titlebar/menubarControl';
+import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 
 export class TitlebarPart extends BrowserTitleBarPart {
 	private maxRestoreControl: HTMLElement | undefined;
@@ -60,8 +61,9 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService hostService: IHostService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@IHoverService hoverService: IHoverService,
 	) {
-		super(contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, menuService, contextKeyService, hostService);
+		super(contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, menuService, contextKeyService, hostService, hoverService);
 
 		this.environmentService = environmentService;
 	}

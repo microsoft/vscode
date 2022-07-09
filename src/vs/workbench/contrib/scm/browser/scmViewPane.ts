@@ -20,7 +20,7 @@ import { IContextKeyService, IContextKey, ContextKeyExpr, RawContextKey } from '
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MenuItemAction, IMenuService, registerAction2, MenuId, IAction2Options, MenuRegistry, Action2 } from 'vs/platform/actions/common/actions';
-import { IAction, ActionRunner } from 'vs/base/common/actions';
+import { IAction, ActionRunner, Action, Separator } from 'vs/base/common/actions';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, registerThemingParticipant, IFileIconTheme, ThemeIcon, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton } from './util';
@@ -82,10 +82,11 @@ import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
-import { Button, ButtonWithDescription } from 'vs/base/browser/ui/button/button';
+import { Button, ButtonWithDescription, ButtonWithDropdown } from 'vs/base/browser/ui/button/button';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { RepositoryContextKeys } from 'vs/workbench/contrib/scm/browser/scmViewService';
 import { DropIntoEditorController } from 'vs/editor/contrib/dropIntoEditor/browser/dropIntoEditorContribution';
+import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -107,8 +108,11 @@ class ActionButtonRenderer implements ICompressibleTreeRenderer<ISCMActionButton
 	static readonly TEMPLATE_ID = 'actionButton';
 	get templateId(): string { return ActionButtonRenderer.TEMPLATE_ID; }
 
+	private actionButtons = new Map<ISCMActionButton, SCMActionButton>();
+
 	constructor(
 		@ICommandService private commandService: ICommandService,
+		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IThemeService private themeService: IThemeService,
 		@INotificationService private notificationService: INotificationService,
 	) { }
@@ -117,11 +121,11 @@ class ActionButtonRenderer implements ICompressibleTreeRenderer<ISCMActionButton
 		// hack
 		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
 
-		// Disable hover for list item
-		container.parentElement!.parentElement!.classList.add('force-no-hover');
+		// Use default cursor & disable hover for list item
+		container.parentElement!.parentElement!.classList.add('cursor-default', 'force-no-hover');
 
 		const buttonContainer = append(container, $('.button-container'));
-		const actionButton = new SCMActionButton(buttonContainer, this.commandService, this.themeService, this.notificationService);
+		const actionButton = new SCMActionButton(buttonContainer, this.contextMenuService, this.commandService, this.themeService, this.notificationService);
 
 		return { actionButton, disposable: Disposable.None, templateDisposable: actionButton };
 	}
@@ -129,11 +133,23 @@ class ActionButtonRenderer implements ICompressibleTreeRenderer<ISCMActionButton
 	renderElement(node: ITreeNode<ISCMActionButton, FuzzyScore>, index: number, templateData: ActionButtonTemplate, height: number | undefined): void {
 		templateData.disposable.dispose();
 
+		const disposables = new DisposableStore();
+		const actionButton = node.element;
 		templateData.actionButton.setButton(node.element.button);
+
+		// Remember action button
+		this.actionButtons.set(actionButton, templateData.actionButton);
+		disposables.add({ dispose: () => this.actionButtons.delete(actionButton) });
+
+		templateData.disposable = disposables;
 	}
 
 	renderCompressedElements(): void {
 		throw new Error('Should never happen since node is incompressible');
+	}
+
+	focusActionButton(actionButton: ISCMActionButton): void {
+		this.actionButtons.get(actionButton)?.focus();
 	}
 
 	disposeElement(node: ITreeNode<ISCMActionButton, FuzzyScore>, index: number, template: ActionButtonTemplate): void {
@@ -1923,6 +1939,9 @@ class SCMInputWidget {
 		const fontFamily = this.getInputEditorFontFamily();
 		const fontSize = this.getInputEditorFontSize();
 		const lineHeight = this.computeLineHeight(fontSize);
+		// We respect the configured `editor.accessibilitySupport` setting to be able to have wrapping
+		// even when a screen reader is attached.
+		const accessibilitySupport = this.configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport');
 
 		this.setPlaceholderFontStyles(fontFamily, fontSize, lineHeight);
 
@@ -1945,20 +1964,22 @@ class SCMInputWidget {
 			overflowWidgetsDomNode,
 			renderWhitespace: 'none',
 			enableDropIntoEditor: true,
+			accessibilitySupport
 		};
 
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
 			isSimpleWidget: true,
 			contributions: EditorExtensionsRegistry.getSomeEditorContributions([
-				SuggestController.ID,
-				SnippetController2.ID,
-				MenuPreventer.ID,
-				SelectionClipboardContributionID,
-				ContextMenuController.ID,
 				ColorDetector.ID,
-				ModesHoverController.ID,
+				ContextMenuController.ID,
+				DropIntoEditorController.ID,
 				LinkDetector.ID,
-				DropIntoEditorController.ID
+				MenuPreventer.ID,
+				MessageController.ID,
+				ModesHoverController.ID,
+				SelectionClipboardContributionID,
+				SnippetController2.ID,
+				SuggestController.ID,
 			])
 		};
 
@@ -1997,16 +2018,36 @@ class SCMInputWidget {
 			lastLineKey.set(viewPosition.lineNumber === lastLineNumber && viewPosition.column === lastLineCol);
 		}));
 
-		const onInputFontFamilyChanged = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.inputFontFamily') || e.affectsConfiguration('scm.inputFontSize'), this.disposables);
+		const relevantSettings = [
+			'scm.inputFontFamily',
+			'editor.fontFamily', // When `scm.inputFontFamily` is 'editor', we use it as an effective value
+			'scm.inputFontSize',
+			'editor.accessibilitySupport'
+		];
+
+		const onInputFontFamilyChanged = Event.filter(
+			this.configurationService.onDidChangeConfiguration,
+			(e) => {
+				for (const setting of relevantSettings) {
+					if (e.affectsConfiguration(setting)) {
+						return true;
+					}
+				}
+				return false;
+			},
+			this.disposables
+		);
 		this.disposables.add(onInputFontFamilyChanged(() => {
 			const fontFamily = this.getInputEditorFontFamily();
 			const fontSize = this.getInputEditorFontSize();
 			const lineHeight = this.computeLineHeight(fontSize);
+			const accessibilitySupport = this.configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport');
 
 			this.inputEditor.updateOptions({
 				fontFamily: fontFamily,
 				fontSize: fontSize,
 				lineHeight: lineHeight,
+				accessibilitySupport
 			});
 
 			this.setPlaceholderFontStyles(fontFamily, fontSize, lineHeight);
@@ -2173,6 +2214,7 @@ export class SCMViewPane extends ViewPane {
 	get viewModel(): ViewModel { return this._viewModel; }
 	private listLabels!: ResourceLabels;
 	private inputRenderer!: InputRenderer;
+	private actionButtonRenderer!: ActionButtonRenderer;
 	private readonly disposables = new DisposableStore();
 
 	constructor(
@@ -2227,6 +2269,8 @@ export class SCMViewPane extends ViewPane {
 		this.inputRenderer = this.instantiationService.createInstance(InputRenderer, this.layoutCache, overflowWidgetsDomNode, (input, height) => this.tree.updateElementHeight(input, height));
 		const delegate = new ListDelegate(this.inputRenderer);
 
+		this.actionButtonRenderer = this.instantiationService.createInstance(ActionButtonRenderer);
+
 		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
 		this._register(this.listLabels);
 
@@ -2237,7 +2281,7 @@ export class SCMViewPane extends ViewPane {
 		const renderers: ICompressibleTreeRenderer<any, any, any>[] = [
 			this.instantiationService.createInstance(RepositoryRenderer, getActionViewItemProvider(this.instantiationService)),
 			this.inputRenderer,
-			this.instantiationService.createInstance(ActionButtonRenderer),
+			this.actionButtonRenderer,
 			this.instantiationService.createInstance(ResourceGroupRenderer, getActionViewItemProvider(this.instantiationService)),
 			this._register(this.instantiationService.createInstance(ResourceRenderer, () => this._viewModel, this.listLabels, getActionViewItemProvider(this.instantiationService), actionRunner))
 		];
@@ -2356,6 +2400,7 @@ export class SCMViewPane extends ViewPane {
 
 			if (widget) {
 				widget.focus();
+				this.tree.setFocus([], e.browserEvent);
 
 				const selection = this.tree.getSelection();
 
@@ -2367,6 +2412,13 @@ export class SCMViewPane extends ViewPane {
 			return;
 		} else if (isSCMActionButton(e.element)) {
 			this.scmViewService.focus(e.element.repository);
+
+			// Focus the action button
+			const target = e.browserEvent?.target as HTMLElement;
+			if (target.classList.contains('monaco-tl-row') || target.classList.contains('button-container')) {
+				this.actionButtonRenderer.focusActionButton(e.element);
+				this.tree.setFocus([], e.browserEvent);
+			}
 
 			return;
 		}
@@ -2569,11 +2621,12 @@ registerThemingParticipant((theme, collector) => {
 });
 
 export class SCMActionButton implements IDisposable {
-	private button: Button | ButtonWithDescription | undefined;
+	private button: Button | ButtonWithDescription | ButtonWithDropdown | undefined;
 	private readonly disposables = new MutableDisposable<DisposableStore>();
 
 	constructor(
 		private readonly container: HTMLElement,
+		private readonly contextMenuService: IContextMenuService,
 		private readonly commandService: ICommandService,
 		private readonly themeService: IThemeService,
 		private readonly notificationService: INotificationService
@@ -2591,7 +2644,33 @@ export class SCMActionButton implements IDisposable {
 			return;
 		}
 
-		if (button.description) {
+		const executeButtonAction = async (commandId: string, ...args: any[]) => {
+			try {
+				await this.commandService.executeCommand(commandId, ...args);
+			} catch (ex) {
+				this.notificationService.error(ex);
+			}
+		};
+
+		if (button.secondaryCommands?.length) {
+			const actions: IAction[] = [];
+			for (let index = 0; index < button.secondaryCommands.length; index++) {
+				for (const command of button.secondaryCommands[index]) {
+					actions.push(new Action(command.id, command.title, undefined, true, async () => await executeButtonAction(command.id, ...(command.arguments || []))));
+				}
+				if (index !== button.secondaryCommands.length - 1) {
+					actions.push(new Separator());
+				}
+			}
+
+			// ButtonWithDropdown
+			this.button = new ButtonWithDropdown(this.container, {
+				actions: actions,
+				addPrimaryActionToDropdown: false,
+				contextMenuProvider: this.contextMenuService,
+				supportIcons: true
+			});
+		} else if (button.description) {
 			// ButtonWithDescription
 			this.button = new ButtonWithDescription(this.container, { supportIcons: true, title: button.command.tooltip });
 			(this.button as ButtonWithDescription).description = button.description;
@@ -2602,16 +2681,15 @@ export class SCMActionButton implements IDisposable {
 
 		this.button.enabled = button.enabled;
 		this.button.label = button.command.title;
-		this.button.onDidClick(async () => {
-			try {
-				await this.commandService.executeCommand(button.command.id, ...(button.command.arguments || []));
-			} catch (ex) {
-				this.notificationService.error(ex);
-			}
-		}, null, this.disposables.value);
+		this.button.element.title = button.command.tooltip ?? '';
+		this.button.onDidClick(async () => await executeButtonAction(button.command.id, ...(button.command.arguments || [])), null, this.disposables.value);
 
 		this.disposables.value!.add(this.button);
 		this.disposables.value!.add(attachButtonStyler(this.button, this.themeService));
+	}
+
+	focus(): void {
+		this.button?.focus();
 	}
 
 	private clear(): void {

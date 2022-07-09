@@ -330,7 +330,7 @@ export abstract class SimpleFindWidget extends Widget {
 		this._matchesCount.innerText = '';
 		let label = '';
 		this._matchesCount.classList.toggle('no-results', false);
-		if (count?.resultCount && count?.resultCount <= 0) {
+		if (count?.resultCount !== undefined && count?.resultCount === 0) {
 			label = NLS_NO_RESULTS;
 			if (!!this.inputValue) {
 				this._matchesCount.classList.toggle('no-results', true);
@@ -338,13 +338,13 @@ export abstract class SimpleFindWidget extends Widget {
 		} else if (count?.resultCount) {
 			label = strings.format(NLS_MATCHES_LOCATION, count.resultIndex + 1, count?.resultCount);
 		}
-		alertFn(this._getAriaLabel(label, this.inputValue));
+		alertFn(this._announceSearchResults(label, this.inputValue));
 		this._matchesCount.appendChild(document.createTextNode(label));
 		this._findInput?.domNode.insertAdjacentElement('afterend', this._matchesCount);
 		this._foundMatch = !!count && count.resultCount > 0;
 	}
 
-	private _getAriaLabel(label: string, searchString?: string): string {
+	private _announceSearchResults(label: string, searchString?: string): string {
 		if (!searchString) {
 			return nls.localize('ariaSearchNoInput', "Enter search input");
 		}

@@ -12,6 +12,27 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionTerminalProfile, ITerminalProfile, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { createProfileSchemaEnums } from 'vs/platform/terminal/common/terminalProfiles';
 
+export const terminalColorSchema: IJSONSchema = {
+	type: ['string', 'null'],
+	enum: [
+		'terminal.ansiBlack',
+		'terminal.ansiRed',
+		'terminal.ansiGreen',
+		'terminal.ansiYellow',
+		'terminal.ansiBlue',
+		'terminal.ansiMagenta',
+		'terminal.ansiCyan',
+		'terminal.ansiWhite'
+	],
+	default: null
+};
+
+export const terminalIconSchema: IJSONSchema = {
+	type: 'string',
+	enum: Array.from(Codicon.getAll(), icon => icon.id),
+	markdownEnumDescriptions: Array.from(Codicon.getAll(), icon => `$(${icon.id})`),
+};
+
 const terminalProfileBaseProperties: IJSONSchemaMap = {
 	args: {
 		description: localize('terminalProfile.args', 'An optional set of arguments to run the shell executable with.'),
@@ -25,25 +46,12 @@ const terminalProfileBaseProperties: IJSONSchemaMap = {
 		type: 'boolean'
 	},
 	icon: {
-		description: localize('terminalProfile.icon', 'A codicon ID to associate with this terminal.'),
-		type: 'string',
-		enum: Array.from(Codicon.getAll(), icon => icon.id),
-		markdownEnumDescriptions: Array.from(Codicon.getAll(), icon => `$(${icon.id})`),
+		description: localize('terminalProfile.icon', 'A codicon ID to associate with the terminal icon.'),
+		...terminalIconSchema
 	},
 	color: {
-		description: localize('terminalProfile.color', 'A theme color ID to associate with this terminal.'),
-		type: ['string', 'null'],
-		enum: [
-			'terminal.ansiBlack',
-			'terminal.ansiRed',
-			'terminal.ansiGreen',
-			'terminal.ansiYellow',
-			'terminal.ansiBlue',
-			'terminal.ansiMagenta',
-			'terminal.ansiCyan',
-			'terminal.ansiWhite'
-		],
-		default: null
+		description: localize('terminalProfile.color', 'A theme color ID to associate with the terminal icon.'),
+		...terminalColorSchema
 	},
 	env: {
 		markdownDescription: localize('terminalProfile.env', "An object with environment variables that will be added to the terminal profile process. Set to `null` to delete environment variables from the base environment."),

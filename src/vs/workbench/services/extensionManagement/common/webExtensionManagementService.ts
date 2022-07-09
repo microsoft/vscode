@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ExtensionType, IExtension, IExtensionIdentifier, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { IExtensionManagementService, ILocalExtension, IGalleryExtension, IGalleryMetadata, InstallOperation, IExtensionGalleryService, InstallOptions, Metadata } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ILocalExtension, IGalleryExtension, IGalleryMetadata, InstallOperation, IExtensionGalleryService, InstallOptions, Metadata, UninstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IProfileAwareExtensionManagementService, IScannedExtension, IWebExtensionsScannerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { AbstractExtensionManagementService, AbstractExtensionTask, IInstallExtensionTask, IUninstallExtensionTask, UninstallExtensionTaskOptions } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
+import { AbstractExtensionManagementService, AbstractExtensionTask, IInstallExtensionTask, IUninstallExtensionTask } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -20,7 +20,7 @@ import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagemen
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
-export class WebExtensionManagementService extends AbstractExtensionManagementService implements IExtensionManagementService, IProfileAwareExtensionManagementService {
+export class WebExtensionManagementService extends AbstractExtensionManagementService implements IProfileAwareExtensionManagementService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -100,13 +100,11 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		return local;
 	}
 
-	async switchExtensionsProfile(extensionsProfileResource: URI | undefined): Promise<void> { }
-
 	protected createDefaultInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallOptions): IInstallExtensionTask {
 		return new InstallExtensionTask(manifest, extension, options, this.webExtensionsScannerService);
 	}
 
-	protected createDefaultUninstallExtensionTask(extension: ILocalExtension, options: UninstallExtensionTaskOptions): IUninstallExtensionTask {
+	protected createDefaultUninstallExtensionTask(extension: ILocalExtension, options: UninstallOptions): IUninstallExtensionTask {
 		return new UninstallExtensionTask(extension, options, this.webExtensionsScannerService);
 	}
 
@@ -191,7 +189,7 @@ class UninstallExtensionTask extends AbstractExtensionTask<void> implements IUni
 
 	constructor(
 		readonly extension: ILocalExtension,
-		options: UninstallExtensionTaskOptions,
+		options: UninstallOptions,
 		private readonly webExtensionsScannerService: IWebExtensionsScannerService,
 	) {
 		super();

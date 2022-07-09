@@ -16,13 +16,15 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { ILogService } from 'vs/platform/log/common/log';
 
 interface IStoredProfileExtension {
-	readonly identifier: IExtensionIdentifier;
-	readonly location: UriComponents;
-	readonly metadata?: Metadata;
+	identifier: IExtensionIdentifier;
+	location: UriComponents;
+	version: string;
+	metadata?: Metadata;
 }
 
 export interface IScannedProfileExtension {
 	readonly identifier: IExtensionIdentifier;
+	readonly version: string;
 	readonly location: URI;
 	readonly metadata?: Metadata;
 }
@@ -56,7 +58,7 @@ export class ExtensionsProfileScannerService extends Disposable implements IExte
 		return this.withProfileExtensions(profileLocation, profileExtensions => {
 			// Remove the existing extension to avoid duplicates
 			profileExtensions = profileExtensions.filter(e => extensions.some(([extension]) => !areSameExtensions(e.identifier, extension.identifier)));
-			profileExtensions.push(...extensions.map(([extension, metadata]) => ({ identifier: extension.identifier, location: extension.location, metadata })));
+			profileExtensions.push(...extensions.map(([extension, metadata]) => ({ identifier: extension.identifier, version: extension.manifest.version, location: extension.location, metadata })));
 			return profileExtensions;
 		});
 	}
@@ -74,13 +76,22 @@ export class ExtensionsProfileScannerService extends Disposable implements IExte
 				const content = await this.fileService.readFile(file);
 				const storedWebExtensions: IStoredProfileExtension[] = JSON.parse(content.value.toString());
 				for (const e of storedWebExtensions) {
-					if (!e.location || !e.identifier) {
-						this.logService.info('Ignoring invalid extension while scanning', storedWebExtensions);
+					if (!e.identifier) {
+						this.logService.info('Ignoring invalid extension while scanning. Identifier does not exist.', e);
+						continue;
+					}
+					if (!e.location) {
+						this.logService.info('Ignoring invalid extension while scanning. Location does not exist.', e);
+						continue;
+					}
+					if (!e.version) {
+						this.logService.info('Ignoring invalid extension while scanning. Version does not exist.', e);
 						continue;
 					}
 					extensions.push({
 						identifier: e.identifier,
 						location: URI.revive(e.location),
+						version: e.version,
 						metadata: e.metadata,
 					});
 				}
@@ -96,6 +107,7 @@ export class ExtensionsProfileScannerService extends Disposable implements IExte
 				extensions = updateFn(extensions);
 				const storedProfileExtensions: IStoredProfileExtension[] = extensions.map(e => ({
 					identifier: e.identifier,
+					version: e.version,
 					location: e.location.toJSON(),
 					metadata: e.metadata
 				}));

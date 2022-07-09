@@ -215,6 +215,10 @@ export class CommentsPanel extends ViewPane {
 			return false;
 		}
 
+		if (!this.commentService.isCommentingEnabled) {
+			this.commentService.enableCommenting(true);
+		}
+
 		const range = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].range : element.range;
 
 		const activeEditor = this.editorService.activeTextEditorControl;
@@ -230,7 +234,7 @@ export class CommentsPanel extends ViewPane {
 				const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment.uniqueIdInThread : element.comment.uniqueIdInThread;
 				if (threadToReveal && isCodeEditor(editor)) {
 					const controller = CommentController.get(editor);
-					controller?.revealCommentThread(threadToReveal, commentToReveal, false);
+					controller?.revealCommentThread(threadToReveal, commentToReveal, true);
 				}
 
 				return true;

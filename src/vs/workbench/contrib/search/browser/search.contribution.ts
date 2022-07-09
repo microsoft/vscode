@@ -365,7 +365,10 @@ registerAction2(class CancelSearchAction extends Action2 {
 	constructor() {
 		super({
 			id: 'search.action.cancel',
-			title: nls.localize('CancelSearchAction.label', "Cancel Search"),
+			title: {
+				value: nls.localize('CancelSearchAction.label', "Cancel Search"),
+				original: 'Cancel Search'
+			},
 			icon: searchStopIcon,
 			category,
 			f1: true,
@@ -392,7 +395,10 @@ registerAction2(class RefreshAction extends Action2 {
 	constructor() {
 		super({
 			id: 'search.action.refreshSearchResults',
-			title: nls.localize('RefreshAction.label', "Refresh"),
+			title: {
+				value: nls.localize('RefreshAction.label', "Refresh"),
+				original: 'Refresh'
+			},
 			icon: searchRefreshIcon,
 			precondition: Constants.ViewHasSearchPatternKey,
 			category,
@@ -414,7 +420,10 @@ registerAction2(class CollapseDeepestExpandedLevelAction extends Action2 {
 	constructor() {
 		super({
 			id: 'search.action.collapseSearchResults',
-			title: nls.localize('CollapseDeepestExpandedLevelAction.label', "Collapse All"),
+			title: {
+				value: nls.localize('CollapseDeepestExpandedLevelAction.label', "Collapse All"),
+				original: 'Collapse All'
+			},
 			category,
 			icon: searchCollapseAllIcon,
 			f1: true,
@@ -436,7 +445,10 @@ registerAction2(class ExpandAllAction extends Action2 {
 	constructor() {
 		super({
 			id: 'search.action.expandSearchResults',
-			title: nls.localize('ExpandAllAction.label', "Expand All"),
+			title: {
+				value: nls.localize('ExpandAllAction.label', "Expand All"),
+				original: 'Expand All'
+			},
 			category,
 			icon: searchExpandAllIcon,
 			f1: true,
@@ -458,7 +470,10 @@ registerAction2(class ClearSearchResultsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'search.action.clearSearchResults',
-			title: nls.localize('ClearSearchResultsAction.label', "Clear Search Results"),
+			title: {
+				value: nls.localize('ClearSearchResultsAction.label', "Clear Search Results"),
+				original: 'Clear Search Results'
+			},
 			category,
 			icon: searchClearIcon,
 			f1: true,
@@ -981,7 +996,7 @@ configurationRegistry.registerConfiguration({
 		'search.searchOnTypeDebouncePeriod': {
 			type: 'number',
 			default: 300,
-			markdownDescription: nls.localize('search.searchOnTypeDebouncePeriod', "When `#search.searchOnType#` is enabled, controls the timeout in milliseconds between a character being typed and the search starting. Has no effect when `search.searchOnType` is disabled.")
+			markdownDescription: nls.localize('search.searchOnTypeDebouncePeriod', "When {0} is enabled, controls the timeout in milliseconds between a character being typed and the search starting. Has no effect when {0} is disabled.", '`#search.searchOnType#`')
 		},
 		'search.searchEditor.doubleClickBehaviour': {
 			type: 'string',

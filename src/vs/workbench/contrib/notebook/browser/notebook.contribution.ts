@@ -846,9 +846,10 @@ configurationRegistry.registerConfiguration({
 		[NotebookSetting.showFoldingControls]: {
 			description: nls.localize('notebook.showFoldingControls.description', "Controls when the Markdown header folding arrow is shown."),
 			type: 'string',
-			enum: ['always', 'mouseover'],
+			enum: ['always', 'never', 'mouseover'],
 			enumDescriptions: [
 				nls.localize('showFoldingControls.always', "The folding controls are always visible."),
+				nls.localize('showFoldingControls.never', "Never show the folding controls and reduce the gutter size."),
 				nls.localize('showFoldingControls.mouseover', "The folding controls are visible only on mouseover."),
 			],
 			default: 'mouseover',
@@ -880,7 +881,7 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout']
 		},
 		[NotebookSetting.markupFontSize]: {
-			markdownDescription: nls.localize('notebook.markup.fontSize', "Controls the font size in pixels of rendered markup in notebooks. When set to `0`, 120% of `#editor.fontSize#` is used."),
+			markdownDescription: nls.localize('notebook.markup.fontSize', "Controls the font size in pixels of rendered markup in notebooks. When set to {0}, 120% of {1} is used.", '`0`', '`#editor.fontSize#`'),
 			type: 'number',
 			default: 0,
 			tags: ['notebookLayout']
@@ -899,13 +900,13 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout']
 		},
 		[NotebookSetting.outputFontSize]: {
-			markdownDescription: nls.localize('notebook.outputFontSize', "Font size for the output text for notebook cells. When set to 0 `#editor.fontSize#` is used."),
+			markdownDescription: nls.localize('notebook.outputFontSize', "Font size for the output text for notebook cells. When set to {0}, {1} is used.", '`0`', '`#editor.fontSize#`'),
 			type: 'number',
 			default: 0,
 			tags: ['notebookLayout']
 		},
 		[NotebookSetting.outputFontFamily]: {
-			markdownDescription: nls.localize('notebook.outputFontFamily', "The font family for the output text for notebook cells. When set to empty, the `#editor.fontFamily#` is used."),
+			markdownDescription: nls.localize('notebook.outputFontFamily', "The font family for the output text for notebook cells. When set to empty, the {0} is used.", '`#editor.fontFamily#`'),
 			type: 'string',
 			tags: ['notebookLayout']
 		},

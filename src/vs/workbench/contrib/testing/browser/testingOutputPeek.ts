@@ -1666,7 +1666,7 @@ export class GoToNextMessageAction extends EditorAction2 {
 		super({
 			id: GoToNextMessageAction.ID,
 			f1: true,
-			title: localize('testing.goToNextMessage', "Go to Next Test Failure"),
+			title: { value: localize('testing.goToNextMessage', "Go to Next Test Failure"), original: 'Go to Next Test Failure' },
 			icon: Codicon.arrowDown,
 			category: CATEGORIES.Test,
 			keybinding: {
@@ -1696,7 +1696,7 @@ export class GoToPreviousMessageAction extends EditorAction2 {
 		super({
 			id: GoToPreviousMessageAction.ID,
 			f1: true,
-			title: localize('testing.goToPreviousMessage', "Go to Previous Test Failure"),
+			title: { value: localize('testing.goToPreviousMessage', "Go to Previous Test Failure"), original: 'Go to Previous Test Failure' },
 			icon: Codicon.arrowUp,
 			category: CATEGORIES.Test,
 			keybinding: {
@@ -1726,7 +1726,7 @@ export class OpenMessageInEditorAction extends EditorAction2 {
 		super({
 			id: OpenMessageInEditorAction.ID,
 			f1: false,
-			title: localize('testing.openMessageInEditor', "Open in Editor"),
+			title: { value: localize('testing.openMessageInEditor', "Open in Editor"), original: 'Open in Editor' },
 			icon: Codicon.linkExternal,
 			category: CATEGORIES.Test,
 			menu: [{ id: MenuId.TestPeekTitle }],
@@ -1744,7 +1744,7 @@ export class ToggleTestingPeekHistory extends EditorAction2 {
 		super({
 			id: ToggleTestingPeekHistory.ID,
 			f1: true,
-			title: localize('testing.toggleTestingPeekHistory', "Toggle Test History in Peek"),
+			title: { value: localize('testing.toggleTestingPeekHistory', "Toggle Test History in Peek"), original: 'Toggle Test History in Peek' },
 			icon: Codicon.history,
 			category: CATEGORIES.Test,
 			menu: [{

@@ -39,7 +39,7 @@ export class FoldedCellHint extends CellPart {
 
 			const foldHintTop = element.layoutInfo.previewHeight;
 			this._container.style.top = `${foldHintTop}px`;
-		} else if (element.foldingState === CellFoldingState.Expanded) {
+		} else {
 			DOM.hide(this._container);
 		}
 	}

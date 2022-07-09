@@ -6,7 +6,7 @@
 import { Promises } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export class UserDataProfileService extends Disposable implements IUserDataProfileService {
@@ -19,9 +19,18 @@ export class UserDataProfileService extends Disposable implements IUserDataProfi
 	private _currentProfile: IUserDataProfile;
 	get currentProfile(): IUserDataProfile { return this._currentProfile; }
 
-	constructor(currentProfile: IUserDataProfile) {
+	constructor(currentProfile: IUserDataProfile, userDataProfilesService: IUserDataProfilesService) {
 		super();
 		this._currentProfile = currentProfile;
+		this._register(userDataProfilesService.onDidChangeProfiles(() => {
+			/**
+			 * If the current profile is default profile, then reset it because,
+			 * In Desktop the extensions resource will be set/unset in the default profile when profiles are changed.
+			 */
+			if (this._currentProfile.isDefault) {
+				this._currentProfile = userDataProfilesService.defaultProfile;
+			}
+		}));
 	}
 
 	async updateCurrentProfile(userDataProfile: IUserDataProfile, preserveData: boolean): Promise<void> {
