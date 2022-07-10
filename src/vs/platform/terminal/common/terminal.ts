@@ -443,11 +443,11 @@ export interface IShellLaunchConfig {
 
 	/**
 	 * A string including ANSI escape sequences that will be written to the terminal emulator
-	 * _before_ the terminal process has launched, a trailing \n is added at the end of the string.
-	 * This allows for example the terminal instance to display a styled message as the first line
-	 * of the terminal. Use \x1b over \033 or \e for the escape control character.
+	 * _before_ the terminal process has launched, when a string is specified, a trailing \n is
+	 * added at the end. This allows for example the terminal instance to display a styled message
+	 * as the first line of the terminal. Use \x1b over \033 or \e for the escape control character.
 	 */
-	initialText?: string;
+	initialText?: string | { text: string; trailingNewLine: boolean };
 
 	/**
 	 * Custom PTY/pseudoterminal process to use.

@@ -803,20 +803,20 @@ xterm-addon-unicode11@0.4.0-beta.3:
   resolved "https://registry.yarnpkg.com/xterm-addon-unicode11/-/xterm-addon-unicode11-0.4.0-beta.3.tgz#f350184155fafd5ad0d6fbf31d13e6ca7dea1efa"
   integrity sha512-FryZAVwbUjKTmwXnm1trch/2XO60F5JsDvOkZhzobV1hm10sFLVuZpFyHXiUx7TFeeFsvNP+S77LAtWoeT5z+Q==
 
-xterm-addon-webgl@0.13.0-beta.2:
-  version "0.13.0-beta.2"
-  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.13.0-beta.2.tgz#f58a7a3641ad7c8ac82dd24cfb0165656ed9ac1c"
-  integrity sha512-98tX0BkpD402RoCO6SyikUXpzCn9/OQhlXsRmM/kRFCxMWWofStWTXzCPhN0MjIx2IdGueDjCmnShhidwihErg==
+xterm-addon-webgl@0.13.0-beta.3:
+  version "0.13.0-beta.3"
+  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.13.0-beta.3.tgz#2b456c3105238e64b40a30787d6335f5f6f85abb"
+  integrity sha512-DFGcXAolA0VTsOLIKcORxUOp/FTJdD/YiRzKVLARjgOycwVRKvW2L5Tge8Z7ysZ16sKfnV2vCXyonXYfUWozXw==
 
-xterm-headless@4.20.0-beta.5:
-  version "4.20.0-beta.5"
-  resolved "https://registry.yarnpkg.com/xterm-headless/-/xterm-headless-4.20.0-beta.5.tgz#edcff27eb6437d158e6aea2ed7658e783bee5641"
-  integrity sha512-8SnVUsuNUrQ5P0XU/9Iau3uK7Tf8q/p0KHHwkwJXVxZDIlaDH9XKSs91U9BjJJE3sJgRxH4NSiDYR3vFLSFpxw==
+xterm-headless@4.20.0-beta.6:
+  version "4.20.0-beta.6"
+  resolved "https://registry.yarnpkg.com/xterm-headless/-/xterm-headless-4.20.0-beta.6.tgz#bd016379e9fac47e5b8870d567cdf330cf6f49fc"
+  integrity sha512-EV0V7pxMKI0OEcOCD+6vdXq6rBARr7dSN3PovTsZnDWg5dmvUb2eEmz6BTejJj3UVd/JXNEmEXM+tCh97rDCDg==
 
-xterm@4.20.0-beta.5:
-  version "4.20.0-beta.5"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.20.0-beta.5.tgz#d707b0dcb477a554135fb767b24003fced079866"
-  integrity sha512-KBWfk9UPBKRy662DVGGTZEcW1becEjYvlyWbn2hLj9h2gy6Q4EEEEbggJh8I7SGwdFizl+apHQGhEOZmFCA70w==
+xterm@4.20.0-beta.6:
+  version "4.20.0-beta.6"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.20.0-beta.6.tgz#3ed87ba383a5cf44284098278f714df7113e3e3c"
+  integrity sha512-xJd6vyOuYo4Ht/hTY3DyXGIj0U6kHjr2vWQ1lRmearo3t7QKf7uqOAAfTLeWt/g1P8qe/r0DnsNTeag6vI9RVw==
 
 yallist@^4.0.0:
   version "4.0.0"

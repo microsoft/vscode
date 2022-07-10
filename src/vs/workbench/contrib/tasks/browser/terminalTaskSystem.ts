@@ -1157,7 +1157,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					}, 'Executing task: {0}', commandLine), { excludeLeadingNewLine: true }) + this.taskShellIntegrationOutputSequence;
 				}
 			} else {
-				shellLaunchConfig.initialText = this.taskShellIntegrationStartSequence + this.taskShellIntegrationOutputSequence;
+				shellLaunchConfig.initialText = {
+					text: this.taskShellIntegrationStartSequence + this.taskShellIntegrationOutputSequence,
+					trailingNewLine: false
+				};
 			}
 		} else {
 			const commandExecutable = (task.command.runtime !== RuntimeType.CustomExecution) ? CommandString.value(command) : undefined;
@@ -1197,7 +1200,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					}, 'Executing task: {0}', `${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)}`), { excludeLeadingNewLine: true }) + this.taskShellIntegrationOutputSequence;
 				}
 			} else {
-				shellLaunchConfig.initialText = this.taskShellIntegrationStartSequence + this.taskShellIntegrationOutputSequence;
+				shellLaunchConfig.initialText = {
+					text: this.taskShellIntegrationStartSequence + this.taskShellIntegrationOutputSequence,
+					trailingNewLine: false
+				};
 			}
 		}
 

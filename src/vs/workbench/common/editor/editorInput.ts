@@ -11,6 +11,31 @@ import { EditorInputCapabilities, Verbosity, GroupIdentifier, ISaveOptions, IRev
 import { isEqual } from 'vs/base/common/resources';
 import { ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 
+export interface IEditorCloseHandler {
+
+	/**
+	 * If `true`, will call into the `confirm` method to ask for confirmation
+	 * before closing the editor.
+	 */
+	showConfirm(): boolean;
+
+	/**
+	 * Allows an editor to control what should happen when the editor
+	 * (or a list of editor of the same kind) is being closed.
+	 *
+	 * By default a file specific dialog will open if the editor is
+	 * dirty and not in the process of saving.
+	 *
+	 * If the editor is not dealing with files or another condition
+	 * should be used besides dirty state, this method should be
+	 * implemented to show a different dialog.
+	 *
+	 * @param editors if more than one editor is closed, will pass in
+	 * each editor of the same kind to be able to show a combined dialog.
+	 */
+	confirm(editors?: ReadonlyArray<IEditorIdentifier>): Promise<ConfirmResult>;
+}
+
 /**
  * Editor inputs are lightweight objects that can be passed to the workbench API to open inside the editor part.
  * Each editor input is mapped to an editor that is capable of opening it through the Platform facade.
@@ -44,6 +69,12 @@ export abstract class EditorInput extends AbstractEditorInput {
 	readonly onWillDispose = this._onWillDispose.event;
 
 	private disposed: boolean = false;
+
+	/**
+	 * Optional: subclasses can override to implement
+	 * custom confirmation on close behavior.
+	 */
+	readonly closeHandler?: IEditorCloseHandler;
 
 	/**
 	 * Unique type identifier for this input. Every editor input of the
@@ -167,20 +198,6 @@ export abstract class EditorInput extends AbstractEditorInput {
 	async resolve(): Promise<IEditorModel | null> {
 		return null;
 	}
-
-	/**
-	 * Optional: if this method is implemented, allows an editor to
-	 * control what should happen when the editor (or a list of editors
-	 * of the same kind) is dirty and there is an intent to close it.
-	 *
-	 * By default a file specific dialog will open. If the editor is
-	 * not dealing with files, this method should be implemented to
-	 * show a different dialog.
-	 *
-	 * @param editors if more than one editor is closed, will pass in
-	 * each editor of the same kind to be able to show a combined dialog.
-	 */
-	confirm?(editors?: ReadonlyArray<IEditorIdentifier>): Promise<ConfirmResult>;
 
 	/**
 	 * Saves the editor. The provided groupId helps implementors

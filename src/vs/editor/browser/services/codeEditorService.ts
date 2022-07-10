@@ -10,6 +10,7 @@ import { IModelDecorationOptions, ITextModel } from 'vs/editor/common/model';
 import { ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const ICodeEditorService = createDecorator<ICodeEditorService>('codeEditorService');
 
@@ -53,4 +54,9 @@ export interface ICodeEditorService {
 
 	getActiveCodeEditor(): ICodeEditor | null;
 	openCodeEditor(input: ITextResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null>;
+	registerCodeEditorOpenHandler(handler: ICodeEditorOpenHandler): IDisposable;
+}
+
+export interface ICodeEditorOpenHandler {
+	(input: ITextResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null>;
 }

@@ -853,7 +853,6 @@ export class TestEditorGroupView implements IEditorGroupView {
 	titleHeight!: IEditorGroupTitleHeight;
 
 	isEmpty = true;
-	isMinimized = false;
 
 	onWillDispose: Event<void> = Event.None;
 	onDidModelChange: Event<IGroupModelChangeEvent> = Event.None;

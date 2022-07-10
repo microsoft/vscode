@@ -417,6 +417,7 @@ export function setupTerminalMenus(): void {
 					order: 2,
 					when: ContextKeyExpr.and(
 						ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
+						ContextKeyExpr.notEquals(`config.${TerminalSettingId.TabsHideCondition}`, 'never'),
 						ContextKeyExpr.or(
 							ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`),
 							ContextKeyExpr.and(
@@ -451,6 +452,7 @@ export function setupTerminalMenus(): void {
 					order: 3,
 					when: ContextKeyExpr.and(
 						ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
+						ContextKeyExpr.notEquals(`config.${TerminalSettingId.TabsHideCondition}`, 'never'),
 						ContextKeyExpr.or(
 							ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`),
 							ContextKeyExpr.and(
