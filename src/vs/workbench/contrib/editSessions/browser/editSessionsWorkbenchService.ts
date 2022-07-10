@@ -19,6 +19,7 @@ import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDat
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { EDIT_SESSIONS_SIGNED_IN, EditSession, EDIT_SESSION_SYNC_CATEGORY, IEditSessionsWorkbenchService, EDIT_SESSIONS_SIGNED_IN_KEY, IEditSessionsLogService } from 'vs/workbench/contrib/editSessions/common/editSessions';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { generateUuid } from 'vs/base/common/uuid';
 
 type ExistingSession = IQuickPickItem & { session: AuthenticationSession & { providerId: string } };
@@ -48,6 +49,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		@IProductService private readonly productService: IProductService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IRequestService private readonly requestService: IRequestService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super();
 
@@ -352,8 +354,19 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 				});
 			}
 
-			run() {
-				that.clearAuthenticationPreference();
+			async run() {
+				const result = await that.dialogService.confirm({
+					type: 'info',
+					message: localize('sign out of edit sessions clear data prompt', 'Do you want to sign out of edit sessions?'),
+					checkbox: { label: localize('delete all edit sessions', 'Delete all stored edit sessions from the cloud.') },
+					primaryButton: localize('clear data confirm', 'Yes'),
+				});
+				if (result.confirmed) {
+					if (result.checkboxChecked) {
+						that.storeClient?.delete('editSessions', null);
+					}
+					that.clearAuthenticationPreference();
+				}
 			}
 		}));
 	}
