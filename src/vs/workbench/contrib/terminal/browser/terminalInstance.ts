@@ -46,7 +46,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalCapabilityStoreMultiplexer } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { IProcessDataEvent, IProcessPropertyMap, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, PosixShellType, ProcessPropertyType, TerminalIcon, TerminalLocation, TerminalSettingId, TerminalShellType, TitleEventSource, WindowsShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessPropertyMap, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, PosixShellType, ProcessPropertyType, ShellIntegrationStatus, TerminalIcon, TerminalLocation, TerminalSettingId, TerminalShellType, TitleEventSource, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 import { escapeNonWindowsPath, collapseTildePath } from 'vs/platform/terminal/common/terminalEnvironment';
 import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -356,6 +356,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		private readonly _terminalShellTypeContextKey: IContextKey<string>,
 		private readonly _terminalAltBufferActiveContextKey: IContextKey<boolean>,
 		private readonly _terminalInRunCommandPicker: IContextKey<boolean>,
+		private readonly _terminalShellIntegrationEnabledContextKey: IContextKey<boolean>,
 		private readonly _configHelper: TerminalConfigHelper,
 		private _shellLaunchConfig: IShellLaunchConfig,
 		resource: URI | undefined,
@@ -1083,6 +1084,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const screenElement = xterm.attachToElement(xtermElement);
 
 		xterm.onDidChangeFindResults((results) => this._onDidChangeFindResults.fire(results));
+		xterm.shellIntegration.onDidChangeStatus(() => {
+			if (this.hasFocus) {
+				this._setShellIntegrationContextKey();
+			} else {
+				this._terminalShellIntegrationEnabledContextKey.reset();
+			}
+		});
 
 		if (!xterm.raw.element || !xterm.raw.textarea) {
 			throw new Error('xterm elements not set after open');
@@ -1216,16 +1224,25 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _setFocus(focused?: boolean): void {
 		if (focused) {
 			this._terminalFocusContextKey.set(true);
+			this._setShellIntegrationContextKey();
 			this._onDidFocus.fire(this);
 		} else {
-			this._terminalFocusContextKey.reset();
+			this.resetFocusContextKey();
 			this._onDidBlur.fire(this);
 			this._refreshSelectionContextKey();
 		}
 	}
 
+	private _setShellIntegrationContextKey(): void {
+		console.log('set', this.xterm?.shellIntegration.status === ShellIntegrationStatus.VSCode);
+		if (this.xterm) {
+			this._terminalShellIntegrationEnabledContextKey.set(this.xterm.shellIntegration.status === ShellIntegrationStatus.VSCode);
+		}
+	}
+
 	resetFocusContextKey(): void {
 		this._terminalFocusContextKey.reset();
+		this._terminalShellIntegrationEnabledContextKey.reset();
 	}
 
 	private _initDragAndDrop(container: HTMLElement) {
@@ -1301,6 +1318,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		const terminalFocused = !isFocused && (document.activeElement === this.xterm.raw.textarea || document.activeElement === this.xterm.raw.element);
 		this._terminalFocusContextKey.set(terminalFocused);
+		if (terminalFocused) {
+			this._setShellIntegrationContextKey();
+		} else {
+			this._terminalShellIntegrationEnabledContextKey.reset();
+		}
 	}
 
 	private _refreshAltBufferContextKey() {
@@ -1381,7 +1403,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// as 'blur' event in xterm.raw.textarea is not triggered on xterm.dispose()
 		// See https://github.com/microsoft/vscode/issues/138358
 		if (isFirefox) {
-			this._terminalFocusContextKey.reset();
+			this.resetFocusContextKey();
 			this._terminalHasTextContextKey.reset();
 			this._onDidBlur.fire(this);
 		}
