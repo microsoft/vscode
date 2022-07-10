@@ -115,7 +115,6 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					id: `workbench.profiles.actions.profileEntry.${profile.id}`,
 					title: profile.name,
 					toggled: ContextKeyExpr.equals(CONTEXT_CURRENT_PROFILE.key, profile.id),
-					precondition: ContextKeyExpr.notEquals(CONTEXT_CURRENT_PROFILE.key, profile.id),
 					menu: [
 						{
 							id: ManageProfilesSubMenu,
@@ -126,7 +125,9 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				});
 			}
 			async run(accessor: ServicesAccessor) {
-				return that.userDataProfileManagementService.switchProfile(profile);
+				if (that.userDataProfileService.currentProfile.id !== profile.id) {
+					return that.userDataProfileManagementService.switchProfile(profile);
+				}
 			}
 		});
 	}
