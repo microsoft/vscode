@@ -14,6 +14,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, dispose, MutableDisposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import 'vs/css!./media/action';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
@@ -22,7 +23,7 @@ import { CodeAction, Command } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { codeActionCommandId, CodeActionItem, CodeActionSet, fixAllCommandId, organizeImportsCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionModel } from 'vs/editor/contrib/codeAction/browser/codeActionModel';
-import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionKind, CodeActionTrigger } from 'vs/editor/contrib/codeAction/browser/types';
+import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionKind, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/browser/types';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
@@ -85,11 +86,6 @@ export interface ICodeActionMenuTemplateData {
 	disposables: IDisposable[];
 }
 
-// export interface ICodeMenuData {
-// 	selected: string;
-// 	index: number;
-// }
-
 const TEMPLATE_ID = 'test';
 class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeActionMenuTemplateData> {
 	get templateId(): string { return TEMPLATE_ID; }
@@ -123,10 +119,7 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 		// data.decoratorRight.innerText = '';
 
 		if (!isDisabled) {
-			data.root.classList.add('option-disabled');
-			data.root.style.backgroundColor = 'transparent !important';
-			data.root.style.color = 'rgb(204, 204, 204, 0.5)';
-			data.root.style.cursor = 'default';
+			newFunction(data);
 		} else {
 			data.root.classList.remove('option-disabled');
 		}
@@ -197,45 +190,23 @@ export class CodeActionMenu extends Disposable {
 					console.log(itemAction);
 					element.action.run();
 				}
-				// const toCodeActionAction = (item: CodeActionItem): CodeActionAction => new CodeActionAction(itemAction, () => this._delegate.onSelectCodeAction(item, this.listTrigger));
-				// console.log(toCodeActionAction);
 			});
-			// this.codeActionList.dispose();
-			// this._editor.removeContentWidget(this);
-			// this._editor.getDomNode()?.removeChild(this.parent);
-			this.codeActionList.dispose();
-			this._contextViewService.hideContextView();
-			this.options = [];
+			this.dispose();
 		}
 	}
 
-
-	private setCodeActionMenuList() {
-		this.codeActionList?.splice(0, this.codeActionList.length, this.options);
-	}
-
-	private createOption(value: string, index: number, disabled?: boolean): HTMLOptionElement {
-		const option = document.createElement('option');
-		option.value = value;
-		option.text = value;
-		option.disabled = !!disabled;
-
-		return option;
-	}
-
 	private renderCodeActionMenuList(element: HTMLElement, inputArray: IAction[]): IDisposable {
-		// if (this.codeActionList) {
-		// 	return;
-		// }
-
 		const renderDisposables = new DisposableStore();
-
 		const renderMenu = document.createElement('div');
-		renderMenu.style.backgroundColor = 'rgb(48, 48, 49)';
-		renderMenu.style.border = '1px black';
-		renderMenu.style.borderRadius = '5px';
-		renderMenu.style.color = 'rgb(204, 204, 204)';
-		renderMenu.style.boxShadow = 'rgb(0,0,0,0.36) 0px 2px 8px';
+
+
+		// Menu.initializeOrUpdateStyleSheet(renderMenu, {});
+
+		// renderMenu.style.backgroundColor = 'rgb(48, 48, 49)';
+		// renderMenu.style.border = '1px black';
+		// renderMenu.style.borderRadius = '5px';
+		// renderMenu.style.color = 'rgb(204, 204, 204)';
+		// renderMenu.style.boxShadow = 'rgb(0,0,0,0.36) 0px 2px 8px';
 		renderMenu.style.width = '350px';
 		renderMenu.style.height = '200px';
 		renderMenu.id = 'testMenu';
@@ -252,21 +223,18 @@ export class CodeActionMenu extends Disposable {
 				return 'test';
 			}
 		}, [this.listRenderer],
-
 		);
-
 
 		if (this.codeActionList) {
 			renderDisposables.add(this.codeActionList.onDidChangeSelection(e => this._onListSelection(e)));
 		}
-
 
 		inputArray.forEach((item, index) => {
 			// const tooltip = item.tooltip ? item.tooltip : '';
 			this.options.push(<ICodeActionMenuItem>{ title: item.label, detail: item.tooltip, action: inputArray[index], isDisabled: item.enabled });
 		});
 
-		this.codeActionList?.splice(0, this.codeActionList.length, this.options);
+		this.codeActionList.splice(0, this.codeActionList.length, this.options);
 		this.codeActionList.layout(180);
 		return renderDisposables;
 
@@ -276,8 +244,8 @@ export class CodeActionMenu extends Disposable {
 		this.codeActionList.dispose();
 		this.options = [];
 		this._contextViewService.hideContextView();
+		this._disposables.dispose();
 	}
-
 
 	public async show(trigger: CodeActionTrigger, codeActions: CodeActionSet, at: IAnchor | IPosition, options: CodeActionShowOptions): Promise<void> {
 		const actionsToShow = options.includeDisabledActions ? codeActions.allActions : codeActions.validActions;
@@ -310,6 +278,8 @@ export class CodeActionMenu extends Disposable {
 				console.log(didCancel);
 				this._visible = false;
 				this._editor.focus();
+
+				// TODO: Telemetry to be added
 			},
 		},
 			//this._editor.getDomNode(), if we use shadow dom ( + shadow dom param)
@@ -490,3 +460,10 @@ export class CodeActionKeybindingResolver {
 			}, undefined as ResolveCodeActionKeybinding | undefined);
 	}
 }
+function newFunction(data: ICodeActionMenuTemplateData) {
+	data.root.classList.add('option-disabled');
+	data.root.style.backgroundColor = 'transparent !important';
+	data.root.style.color = 'rgb(204, 204, 204, 0.5)';
+	data.root.style.cursor = 'default';
+}
+
