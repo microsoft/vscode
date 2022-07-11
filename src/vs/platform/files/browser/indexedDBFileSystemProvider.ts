@@ -5,15 +5,15 @@
 
 import { Throttler } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { getErrorMessage } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ExtUri } from 'vs/base/common/resources';
-import { isString } from 'vs/base/common/types';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { isString, UriDto } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { createFileSystemProviderError, FileChangeType, IFileDeleteOptions, IFileOverwriteOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
 import { DBClosedError, IndexedDB } from 'vs/base/browser/indexedDB';
+import { BroadcastDataChannel } from 'vs/base/browser/broadcast';
 
 export type IndexedDBFileSystemProviderErrorDataClassification = {
 	owner: 'sandy081';
@@ -165,78 +165,6 @@ class IndexedDBFileSystemNode {
 	}
 }
 
-type FileChangeDto = {
-	readonly type: FileChangeType;
-	readonly resource: UriComponents;
-};
-
-class IndexedDBChangesBroadcastChannel extends Disposable {
-
-	private broadcastChannel: BroadcastChannel | undefined;
-
-	private readonly _onDidFileChanges = this._register(new Emitter<readonly IFileChange[]>());
-	readonly onDidFileChanges: Event<readonly IFileChange[]> = this._onDidFileChanges.event;
-
-	constructor(private readonly changesKey: string) {
-		super();
-
-		// Use BroadcastChannel
-		if ('BroadcastChannel' in window) {
-			try {
-				this.broadcastChannel = new BroadcastChannel(changesKey);
-				const listener = (event: MessageEvent) => {
-					if (isString(event.data)) {
-						this.onDidReceiveChanges(event.data);
-					}
-				};
-				this.broadcastChannel.addEventListener('message', listener);
-				this._register(toDisposable(() => {
-					if (this.broadcastChannel) {
-						this.broadcastChannel.removeEventListener('message', listener);
-						this.broadcastChannel.close();
-					}
-				}));
-			} catch (error) {
-				console.warn('Error while creating broadcast channel. Falling back to localStorage.', getErrorMessage(error));
-				this.createStorageBroadcastChannel(changesKey);
-			}
-		}
-
-		// BroadcastChannel is not supported. Use storage.
-		else {
-			this.createStorageBroadcastChannel(changesKey);
-		}
-	}
-
-	private createStorageBroadcastChannel(changesKey: string): void {
-		const listener = (event: StorageEvent) => {
-			if (event.key === changesKey && event.newValue) {
-				this.onDidReceiveChanges(event.newValue);
-			}
-		};
-		window.addEventListener('storage', listener);
-		this._register(toDisposable(() => window.removeEventListener('storage', listener)));
-	}
-
-	private onDidReceiveChanges(data: string): void {
-		try {
-			const changesDto: FileChangeDto[] = JSON.parse(data);
-			this._onDidFileChanges.fire(changesDto.map(c => ({ type: c.type, resource: URI.revive(c.resource) })));
-		} catch (error) {/* ignore*/ }
-	}
-
-	postChanges(changes: IFileChange[]): void {
-		if (this.broadcastChannel) {
-			this.broadcastChannel.postMessage(JSON.stringify(changes));
-		} else {
-			// remove previous changes so that event is triggered even if new changes are same as old changes
-			window.localStorage.removeItem(this.changesKey);
-			window.localStorage.setItem(this.changesKey, JSON.stringify(changes));
-		}
-	}
-
-}
-
 export class IndexedDBFileSystemProvider extends Disposable implements IFileSystemProviderWithFileReadWriteCapability {
 
 	readonly capabilities: FileSystemProviderCapabilities =
@@ -246,7 +174,7 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 
 	private readonly extUri = new ExtUri(() => false) /* Case Sensitive */;
 
-	private readonly changesBroadcastChannel: IndexedDBChangesBroadcastChannel | undefined;
+	private readonly changesBroadcastChannel: BroadcastDataChannel<UriDto<IFileChange>[]> | undefined;
 	private readonly _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
 	readonly onDidChangeFile: Event<readonly IFileChange[]> = this._onDidChangeFile.event;
 
@@ -263,8 +191,10 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 		this.writeManyThrottler = new Throttler();
 
 		if (watchCrossWindowChanges) {
-			this.changesBroadcastChannel = this._register(new IndexedDBChangesBroadcastChannel(`vscode.indexedDB.${scheme}.changes`));
-			this._register(this.changesBroadcastChannel.onDidFileChanges(changes => this._onDidChangeFile.fire(changes)));
+			this.changesBroadcastChannel = this._register(new BroadcastDataChannel<UriDto<IFileChange>[]>(`vscode.indexedDB.${scheme}.changes`));
+			this._register(this.changesBroadcastChannel.onDidReceiveData(changes => {
+				this._onDidChangeFile.fire(changes.map(c => ({ type: c.type, resource: URI.revive(c.resource) })));
+			}));
 		}
 	}
 
@@ -459,7 +389,7 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 		if (changes.length) {
 			this._onDidChangeFile.fire(changes);
 
-			this.changesBroadcastChannel?.postChanges(changes);
+			this.changesBroadcastChannel?.postData(changes);
 		}
 	}
 

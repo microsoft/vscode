@@ -2740,7 +2740,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 				this._showQuickPick(tasks ? tasks : taskResult!.tasks, placeholder,
 					{
-						label: nls.localize('TaskService.noEntryToRunSlow', '$(plus) Configure a Task'),
+						label: '$(plus) ' + nls.localize('TaskService.noEntryToRun', 'Configure a Task'),
 						task: null
 					},
 					true).
@@ -2750,7 +2750,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			} else {
 				this._showTwoLevelQuickPick(placeholder,
 					{
-						label: nls.localize('TaskService.noEntryToRun', '$(plus) Configure a Task'),
+						label: '$(plus) ' + nls.localize('TaskService.noEntryToRun', 'Configure a Task'),
 						task: null
 					}).
 					then(pickThen);
