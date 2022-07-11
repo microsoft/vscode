@@ -10,7 +10,7 @@
   "engines": {
     "vscode": "^1.20.0"
   },
-  "main": "./out/extension.node",
+  "main": "./out/extension",
   "browser": "./dist/browser/extension",
   "categories": [
     "Programming Languages"

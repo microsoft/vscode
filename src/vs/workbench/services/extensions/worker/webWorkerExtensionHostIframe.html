@@ -66,7 +66,11 @@
 
 	function start() {
 		try {
-			const worker = new Worker('../../../../base/worker/workerMain.js', { name });
+			const workerUrl = new URL('../../../../base/worker/workerMain.js');
+			if(crossOriginIsolated) {
+				workerUrl.searchParams.set('vscode-coi', 2 /*COEP*/)
+			}
+			const worker = new Worker(workerUrl.toString(), { name });
 			worker.postMessage('vs/workbench/api/worker/extensionHostWorker');
 			const nestedWorkers = new Map();
 

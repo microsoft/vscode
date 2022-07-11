@@ -98,10 +98,16 @@ export class BracketTokens {
 }
 
 function prepareBracketForRegExp(str: string): string {
-	const escaped = escapeRegExpCharacters(str);
-	// This bracket pair uses letters like e.g. "begin" - "end" (see https://github.com/microsoft/vscode/issues/132162)
-	const needsWordBoundaries = (/^[\w ]+$/.test(str));
-	return (needsWordBoundaries ? `\\b${escaped}\\b` : escaped);
+	let escaped = escapeRegExpCharacters(str);
+	// These bracket pair delimiters start or end with letters
+	// see https://github.com/microsoft/vscode/issues/132162 https://github.com/microsoft/vscode/issues/150440
+	if (/^[\w ]+/.test(str)) {
+		escaped = `\\b${escaped}`;
+	}
+	if (/[\w ]+$/.test(str)) {
+		escaped = `${escaped}\\b`;
+	}
+	return escaped;
 }
 
 export class LanguageAgnosticBracketTokens {
