@@ -12,7 +12,7 @@ declare module 'vscode' {
 	 */
 	export enum TerminalExitReason {
 		/**
-		 * Unknow reason.
+		 * Unknown reason.
 		 */
 		Unknown = 0,
 
