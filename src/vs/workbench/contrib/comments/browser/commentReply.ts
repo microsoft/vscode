@@ -218,8 +218,8 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 
 		this._commentThreadDisposables.push(this._commentThread.onDidChangeInput(input => {
 			const thread = this._commentThread;
-
-			if (thread.input && thread.input.uri !== commentEditor.getModel()!.uri) {
+			const model = commentEditor.getModel();
+			if (thread.input && model && (thread.input.uri !== model.uri)) {
 				return;
 			}
 			if (!input) {
