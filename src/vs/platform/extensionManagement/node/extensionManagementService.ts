@@ -65,13 +65,15 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 	private readonly manifestCache: ExtensionsManifestCache;
 	private readonly extensionsDownloader: ExtensionsDownloader;
 
+	private readonly installGalleryExtensionsTasks = new Map<string, InstallGalleryExtensionTask>();
+
 	constructor(
 		@IExtensionGalleryService galleryService: IExtensionGalleryService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ILogService logService: ILogService,
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@IExtensionsScannerService private readonly extensionsScannerService: IExtensionsScannerService,
-		@IExtensionsProfileScannerService extensionsProfileScannerService: IExtensionsProfileScannerService,
+		@IExtensionsProfileScannerService private readonly extensionsProfileScannerService: IExtensionsProfileScannerService,
 		@IDownloadService private downloadService: IDownloadService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IFileService private readonly fileService: IFileService,
@@ -79,7 +81,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 	) {
-		super(userDataProfilesService, uriIdentityService, galleryService, extensionsProfileScannerService, telemetryService, logService, productService);
+		super(galleryService, telemetryService, logService, productService, userDataProfilesService);
 		const extensionLifecycle = this._register(instantiationService.createInstance(ExtensionsLifecycle));
 		this.extensionsScanner = this._register(instantiationService.createInstance(ExtensionsScanner, extension => extensionLifecycle.postUninstall(extension)));
 		this.manifestCache = this._register(new ExtensionsManifestCache(environmentService, this));
@@ -176,11 +178,28 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		return downloadedLocation;
 	}
 
-	protected createDefaultInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: ServerInstallOptions & ServerInstallVSIXOptions): IInstallExtensionTask {
-		return URI.isUri(extension) ? new InstallVSIXTask(manifest, extension, options, this.galleryService, this.extensionsScanner, this.logService) : new InstallGalleryExtensionTask(manifest, extension, options, this.extensionsDownloader, this.extensionsScanner, this.logService);
+	protected doCreateInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: ServerInstallOptions & ServerInstallVSIXOptions): IInstallExtensionTask {
+		let installExtensionTask: IInstallExtensionTask | undefined;
+		if (URI.isUri(extension)) {
+			installExtensionTask = new InstallVSIXTask(manifest, extension, options, this.galleryService, this.extensionsScanner, this.logService);
+		} else {
+			const key = ExtensionKey.create(extension).toString();
+			installExtensionTask = this.installGalleryExtensionsTasks.get(key);
+			if (!installExtensionTask) {
+				this.installGalleryExtensionsTasks.set(key, installExtensionTask = new InstallGalleryExtensionTask(manifest, extension, options, this.extensionsDownloader, this.extensionsScanner, this.logService));
+				installExtensionTask.waitUntilTaskIsFinished().then(() => this.installGalleryExtensionsTasks.delete(key));
+			}
+		}
+		if (options.profileLocation) {
+			return new InstallExtensionInProfileTask(installExtensionTask, options.profileLocation, this.extensionsProfileScannerService);
+		}
+		return installExtensionTask;
 	}
 
-	protected createDefaultUninstallExtensionTask(extension: ILocalExtension, options: ServerUninstallOptions): IUninstallExtensionTask {
+	protected doCreateUninstallExtensionTask(extension: ILocalExtension, options: ServerUninstallOptions): IUninstallExtensionTask {
+		if (options.profileLocation) {
+			return new UninstallExtensionFromProfileTask(extension, options.profileLocation, this.extensionsProfileScannerService);
+		}
 		return new UninstallExtensionTask(extension, options, this.extensionsScanner);
 	}
 
@@ -706,6 +725,42 @@ class InstallVSIXTask extends InstallExtensionTask {
 	}
 }
 
+class InstallExtensionInProfileTask implements IInstallExtensionTask {
+
+	readonly identifier = this.task.identifier;
+	readonly source = this.task.source;
+	readonly operation = this.task.operation;
+
+	private readonly promise: Promise<{ local: ILocalExtension; metadata: Metadata }>;
+
+	constructor(
+		private readonly task: IInstallExtensionTask,
+		private readonly profileLocation: URI,
+		private readonly extensionsProfileScannerService: IExtensionsProfileScannerService,
+	) {
+		this.promise = this.waitAndAddExtensionToProfile();
+	}
+
+	private async waitAndAddExtensionToProfile(): Promise<{ local: ILocalExtension; metadata: Metadata }> {
+		const result = await this.task.waitUntilTaskIsFinished();
+		await this.extensionsProfileScannerService.addExtensionsToProfile([[result.local, result.metadata]], this.profileLocation);
+		return result;
+	}
+
+	async run(): Promise<{ local: ILocalExtension; metadata: Metadata }> {
+		await this.task.run();
+		return this.promise;
+	}
+
+	waitUntilTaskIsFinished(): Promise<{ local: ILocalExtension; metadata: Metadata }> {
+		return this.promise;
+	}
+
+	cancel(): void {
+		return this.task.cancel();
+	}
+}
+
 class UninstallExtensionTask extends AbstractExtensionTask<void> implements IUninstallExtensionTask {
 
 	constructor(
@@ -745,3 +800,20 @@ class UninstallExtensionTask extends AbstractExtensionTask<void> implements IUni
 	}
 
 }
+
+class UninstallExtensionFromProfileTask extends AbstractExtensionTask<void> implements IUninstallExtensionTask {
+
+	constructor(
+		readonly extension: ILocalExtension,
+		private readonly profileLocation: URI,
+		private readonly extensionsProfileScannerService: IExtensionsProfileScannerService,
+	) {
+		super();
+	}
+
+	protected async doRun(token: CancellationToken): Promise<void> {
+		await this.extensionsProfileScannerService.removeExtensionFromProfile(this.extension.identifier, this.profileLocation);
+	}
+
+}
+

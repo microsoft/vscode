@@ -244,13 +244,13 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 		return result.map(({ url, created }) => ({ ref: relativePath(uri, uri.with({ path: url }))!, created: created * 1000 /* Server returns in seconds */ }));
 	}
 
-	async resolveContent(resource: ServerResource, ref: string): Promise<string | null> {
+	async resolveContent(resource: ServerResource, ref: string, headers: IHeaders = {}): Promise<string | null> {
 		if (!this.userDataSyncStoreUrl) {
 			throw new Error('No settings sync store url configured.');
 		}
 
 		const url = joinPath(this.userDataSyncStoreUrl, 'resource', resource, ref).toString();
-		const headers: IHeaders = {};
+		headers = { ...headers };
 		headers['Cache-Control'] = 'no-cache';
 
 		const context = await this.request(url, { type: 'GET', headers }, [], CancellationToken.None);

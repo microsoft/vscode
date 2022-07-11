@@ -110,13 +110,14 @@ suite('ConfigurationEditingService', () => {
 		environmentService = TestEnvironmentService;
 		environmentService.policyFile = joinPath(workspaceFolder, 'policies.json');
 		instantiationService.stub(IEnvironmentService, environmentService);
-		const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(environmentService, fileService, logService));
+		const uriIdentityService = new UriIdentityService(fileService);
+		const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
 		userDataProfileService = new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService);
 		const remoteAgentService = disposables.add(instantiationService.createInstance(RemoteAgentService, null));
 		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, logService))));
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
-		workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService(), new FilePolicyService(environmentService.policyFile, fileService, logService)));
+		workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, new NullLogService(), new FilePolicyService(environmentService.policyFile, fileService, logService)));
 		await workspaceService.initialize({
 			id: hash(workspaceFolder.toString()).toString(16),
 			uri: workspaceFolder
