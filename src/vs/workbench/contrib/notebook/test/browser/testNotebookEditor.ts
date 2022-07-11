@@ -406,12 +406,6 @@ class TestCellExecution implements INotebookCellExecution {
 
 class TestNotebookExecutionStateService implements INotebookExecutionStateService {
 
-	setLastFailedCell(notebook: URI, cellHandle: number): void {
-	}
-
-	clearLastFailedCell(notebook: URI): void {
-	}
-
 	getLastFailedCellForNotebook(notebook: URI): number | undefined {
 		return;
 	}

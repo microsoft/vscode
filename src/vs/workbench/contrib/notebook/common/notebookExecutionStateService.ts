@@ -56,8 +56,6 @@ export interface INotebookExecutionStateService {
 	getCellExecutionStatesForNotebook(notebook: URI): INotebookCellExecution[];
 	getCellExecution(cellUri: URI): INotebookCellExecution | undefined;
 	createCellExecution(notebook: URI, cellHandle: number): INotebookCellExecution;
-	setLastFailedCell(notebook: URI, cellHandle: number): void;
-	clearLastFailedCell(notebook: URI): void;
 	getLastFailedCellForNotebook(notebook: URI): number | undefined;
 }
 

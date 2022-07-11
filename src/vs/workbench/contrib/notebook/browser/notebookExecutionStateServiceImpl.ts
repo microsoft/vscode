@@ -38,16 +38,6 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 		super();
 	}
 
-	setLastFailedCell(notebook: URI, cellHandle: number) {
-		this._lastFailedCells.set(notebook, cellHandle);
-		this._onDidChangeLastRunFailState.fire({ failed: true, notebook: notebook });
-	}
-
-	clearLastFailedCell(notebook: URI) {
-		this._lastFailedCells.delete(notebook);
-		this._onDidChangeLastRunFailState.fire({ failed: false, notebook: notebook });
-	}
-
 	getLastFailedCellForNotebook(notebook: URI): number | undefined {
 		return this._lastFailedCells.get(notebook);
 	}
@@ -86,7 +76,7 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 		this._onDidChangeCellExecution.fire(new NotebookExecutionEvent(notebookUri, cellHandle, exe));
 	}
 
-	private _onCellExecutionDidComplete(notebookUri: URI, cellHandle: number, exe: CellExecution): void {
+	private _onCellExecutionDidComplete(notebookUri: URI, cellHandle: number, exe: CellExecution, lastRunSuccess?: boolean): void {
 		const notebookExecutions = this._executions.get(notebookUri);
 		if (!notebookExecutions) {
 			this._logService.debug(`NotebookExecutionStateService#_onCellExecutionDidComplete - unknown notebook ${notebookUri.toString()}`);
@@ -102,6 +92,14 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 			this._executions.delete(notebookUri);
 			this._notebookListeners.get(notebookUri)?.dispose();
 			this._notebookListeners.delete(notebookUri);
+		}
+
+		if (lastRunSuccess !== undefined) {
+			if (lastRunSuccess) {
+				this._clearLastFailedCell(notebookUri);
+			} else {
+				this._setLastFailedCell(notebookUri, cellHandle);
+			}
 		}
 
 		this._onDidChangeCellExecution.fire(new NotebookExecutionEvent(notebookUri, cellHandle));
@@ -137,11 +135,22 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 		const exe: CellExecution = this._instantiationService.createInstance(CellExecution, cellHandle, notebook);
 		const disposable = combinedDisposable(
 			exe.onDidUpdate(() => this._onCellExecutionDidChange(notebookUri, cellHandle, exe)),
-			exe.onDidComplete(() => this._onCellExecutionDidComplete(notebookUri, cellHandle, exe)));
+			exe.onDidComplete((lastRunSuccess) => this._onCellExecutionDidComplete(notebookUri, cellHandle, exe, lastRunSuccess)));
 		this._cellListeners.set(CellUri.generate(notebookUri, cellHandle), disposable);
 
 		return exe;
 	}
+
+	private _setLastFailedCell(notebook: URI, cellHandle: number) {
+		this._lastFailedCells.set(notebook, cellHandle);
+		this._onDidChangeLastRunFailState.fire({ failed: true, notebook: notebook });
+	}
+
+	private _clearLastFailedCell(notebook: URI) {
+		this._lastFailedCells.delete(notebook);
+		this._onDidChangeLastRunFailState.fire({ failed: false, notebook: notebook });
+	}
+
 
 	override dispose(): void {
 		super.dispose();
@@ -268,7 +277,7 @@ class CellExecution extends Disposable implements INotebookCellExecution {
 	private readonly _onDidUpdate = this._register(new Emitter<void>());
 	readonly onDidUpdate = this._onDidUpdate.event;
 
-	private readonly _onDidComplete = this._register(new Emitter<void>());
+	private readonly _onDidComplete = this._register(new Emitter<boolean | undefined>());
 	readonly onDidComplete = this._onDidComplete.event;
 
 	private _state: NotebookCellExecutionState = NotebookCellExecutionState.Unconfirmed;
@@ -368,7 +377,7 @@ class CellExecution extends Disposable implements INotebookCellExecution {
 			this._applyExecutionEdits([edit]);
 		}
 
-		this._onDidComplete.fire();
+		this._onDidComplete.fire(completionData.lastRunSuccess);
 	}
 
 	private _applyExecutionEdits(edits: ICellEditOperation[]): void {

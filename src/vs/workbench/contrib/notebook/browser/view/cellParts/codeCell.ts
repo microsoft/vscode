@@ -87,13 +87,6 @@ export class CodeCell extends Disposable {
 			}
 
 			if (e.metadataChanged || e.internalMetadataChanged) {
-				if (this.viewCell.internalMetadata.lastRunSuccess !== undefined) {
-					if (this.viewCell.internalMetadata.lastRunSuccess) {
-						notebookExecutionStateService.clearLastFailedCell(this.notebookEditor.textModel.uri);
-					} else {
-						notebookExecutionStateService.setLastFailedCell(this.notebookEditor.textModel.uri, this.viewCell.model.handle);
-					}
-				}
 				this.updateEditorOptions();
 			}
 
