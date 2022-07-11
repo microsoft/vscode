@@ -14,6 +14,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IUserDataProfile, IUserDataProfilesService, PROFILES_ENABLEMENT_CONFIG } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -23,6 +24,8 @@ import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarA
 import { IUserDataProfileManagementService, IUserDataProfileService, ManageProfilesSubMenu, PROFILES_CATEGORY, PROFILES_ENABLEMENT_CONTEXT, PROFILES_TTILE } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 const CONTEXT_CURRENT_PROFILE = new RawContextKey<string>('currentUserDataProfile', '');
+
+export const userDataProfilesIcon = registerIcon('settingsProfiles-icon', Codicon.settings, localize('settingsProfilesIcon', 'Icon for Settings Profiles.'));
 
 export class UserDataProfilesWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 
@@ -114,7 +117,6 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					id: `workbench.profiles.actions.profileEntry.${profile.id}`,
 					title: profile.name,
 					toggled: ContextKeyExpr.equals(CONTEXT_CURRENT_PROFILE.key, profile.id),
-					precondition: ContextKeyExpr.notEquals(CONTEXT_CURRENT_PROFILE.key, profile.id),
 					menu: [
 						{
 							id: ManageProfilesSubMenu,
@@ -125,7 +127,9 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				});
 			}
 			async run(accessor: ServicesAccessor) {
-				return that.userDataProfileManagementService.switchProfile(profile);
+				if (that.userDataProfileService.currentProfile.id !== profile.id) {
+					return that.userDataProfileManagementService.switchProfile(profile);
+				}
 			}
 		});
 	}
@@ -137,7 +141,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				name: PROFILES_CATEGORY,
 				command: 'workbench.profiles.actions.switchProfile',
 				ariaLabel: localize('currentProfile', "Current Settings Profile is {0}", this.userDataProfileService.currentProfile.name),
-				text: `$(${Codicon.multipleWindows.id}) ${this.userDataProfileService.currentProfile.name!}`,
+				text: `$(${userDataProfilesIcon.id}) ${this.userDataProfileService.currentProfile.name!}`,
 				tooltip: localize('profileTooltip', "{0}: {1}", PROFILES_CATEGORY, this.userDataProfileService.currentProfile.name),
 				color: themeColorFromId(STATUS_BAR_SETTINGS_PROFILE_FOREGROUND),
 				backgroundColor: themeColorFromId(STATUS_BAR_SETTINGS_PROFILE_BACKGROUND)

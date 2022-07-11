@@ -112,8 +112,8 @@ suite('Edit session sync', () => {
 		// Create root folder
 		await fileService.createFolder(folderUri);
 
-		// Apply edit session
-		await editSessionsContribution.applyEditSession();
+		// Resume edit session
+		await editSessionsContribution.resumeEditSession();
 
 		// Verify edit session was correctly applied
 		assert.equal((await fileService.readFile(fileUri)).value.toString(), fileContents);
