@@ -203,7 +203,7 @@ export class ExtHostTerminal {
 		this._name = name;
 	}
 
-	public setExitCode(code: number | undefined, reason: TerminalExitReason) {
+	public setExitStatus(code: number | undefined, reason: TerminalExitReason) {
 		this._exitStatus = Object.freeze({ code, reason });
 	}
 
@@ -504,7 +504,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		const index = this._getTerminalObjectIndexById(this._terminals, id);
 		if (index !== null) {
 			const terminal = this._terminals.splice(index, 1)[0];
-			terminal.setExitCode(exitCode, exitReason);
+			terminal.setExitStatus(exitCode, exitReason);
 			this._onDidCloseTerminal.fire(terminal.value);
 		}
 	}
