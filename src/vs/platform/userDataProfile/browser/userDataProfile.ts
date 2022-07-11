@@ -17,7 +17,7 @@ type BroadcastedProfileChanges = UriDto<Omit<DidChangeProfilesEvent, 'all'>>;
 export class BrowserUserDataProfilesService extends UserDataProfilesService implements IUserDataProfilesService {
 
 	protected override readonly defaultProfileShouldIncludeExtensionsResourceAlways: boolean = true;
-	private readonly changesBroadcastChannel: BroadcastDataChannel;
+	private readonly changesBroadcastChannel: BroadcastDataChannel<BroadcastedProfileChanges>;
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
@@ -27,12 +27,11 @@ export class BrowserUserDataProfilesService extends UserDataProfilesService impl
 	) {
 		super(environmentService, fileService, uriIdentityService, logService);
 		super.setEnablement(window.localStorage.getItem(PROFILES_ENABLEMENT_CONFIG) === 'true');
-		this.changesBroadcastChannel = this._register(new BroadcastDataChannel(UserDataProfilesService.PROFILES_KEY));
+		this.changesBroadcastChannel = this._register(new BroadcastDataChannel<BroadcastedProfileChanges>(`${UserDataProfilesService.PROFILES_KEY}.changes`));
 		this._register(this.changesBroadcastChannel.onDidReceiveData(changes => {
 			try {
-				const profilesChanges: BroadcastedProfileChanges = JSON.parse(changes);
 				this._profilesObject = undefined;
-				this._onDidChangeProfiles.fire({ added: profilesChanges.added.map(p => reviveProfile(p, this.profilesHome.scheme)), removed: profilesChanges.removed.map(p => reviveProfile(p, this.profilesHome.scheme)), all: this.profiles });
+				this._onDidChangeProfiles.fire({ added: changes.added.map(p => reviveProfile(p, this.profilesHome.scheme)), removed: changes.removed.map(p => reviveProfile(p, this.profilesHome.scheme)), all: this.profiles });
 			} catch (error) {/* ignore */ }
 		}));
 	}
@@ -57,7 +56,7 @@ export class BrowserUserDataProfilesService extends UserDataProfilesService impl
 
 	protected override triggerProfilesChanges(added: IUserDataProfile[], removed: IUserDataProfile[]) {
 		super.triggerProfilesChanges(added, removed);
-		this.changesBroadcastChannel.postData(JSON.stringify({ added, removed }));
+		this.changesBroadcastChannel.postData({ added, removed });
 	}
 
 	protected override saveStoredProfiles(storedProfiles: StoredUserDataProfile[]): void {

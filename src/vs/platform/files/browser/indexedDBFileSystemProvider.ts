@@ -8,7 +8,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ExtUri } from 'vs/base/common/resources';
-import { isString } from 'vs/base/common/types';
+import { isString, UriDto } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { createFileSystemProviderError, FileChangeType, IFileDeleteOptions, IFileOverwriteOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
@@ -174,7 +174,7 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 
 	private readonly extUri = new ExtUri(() => false) /* Case Sensitive */;
 
-	private readonly changesBroadcastChannel: BroadcastDataChannel | undefined;
+	private readonly changesBroadcastChannel: BroadcastDataChannel<UriDto<IFileChange>[]> | undefined;
 	private readonly _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
 	readonly onDidChangeFile: Event<readonly IFileChange[]> = this._onDidChangeFile.event;
 
@@ -191,9 +191,9 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 		this.writeManyThrottler = new Throttler();
 
 		if (watchCrossWindowChanges) {
-			this.changesBroadcastChannel = this._register(new BroadcastDataChannel(`vscode.indexedDB.${scheme}.changes`));
+			this.changesBroadcastChannel = this._register(new BroadcastDataChannel<UriDto<IFileChange>[]>(`vscode.indexedDB.${scheme}.changes`));
 			this._register(this.changesBroadcastChannel.onDidReceiveData(changes => {
-				try { this._onDidChangeFile.fire(JSON.parse(changes)); } catch (error) {/* ignore */ }
+				this._onDidChangeFile.fire(changes.map(c => ({ type: c.type, resource: URI.revive(c.resource) })));
 			}));
 		}
 	}
@@ -389,7 +389,7 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 		if (changes.length) {
 			this._onDidChangeFile.fire(changes);
 
-			this.changesBroadcastChannel?.postData(JSON.stringify(changes));
+			this.changesBroadcastChannel?.postData(changes);
 		}
 	}
 

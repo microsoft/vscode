@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { BroadcastDataChannel } from 'vs/base/browser/broadcast';
 import { isSafari } from 'vs/base/browser/browser';
 import { IndexedDB } from 'vs/base/browser/indexedDB';
 import { DeferredPromise, Promises } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { assertIsDefined } from 'vs/base/common/types';
 import { InMemoryStorageDatabase, isStorageItemsChangeEvent, IStorage, IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest, Storage } from 'vs/base/parts/storage/common/storage';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -302,7 +303,7 @@ export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBSt
 	private readonly _onDidChangeItemsExternal = this._register(new Emitter<IStorageItemsChangeEvent>());
 	readonly onDidChangeItemsExternal = this._onDidChangeItemsExternal.event;
 
-	private broadcastChannel: BroadcastChannel | undefined;
+	private broadcastChannel: BroadcastDataChannel<IStorageItemsChangeEvent> | undefined;
 
 	private pendingUpdate: Promise<boolean> | undefined = undefined;
 	get hasPendingUpdate(): boolean { return !!this.pendingUpdate; }
@@ -317,7 +318,7 @@ export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBSt
 		super();
 
 		this.name = `${IndexedDBStorageDatabase.STORAGE_DATABASE_PREFIX}${options.id}`;
-		this.broadcastChannel = options.broadcastChanges && ('BroadcastChannel' in window) ? new BroadcastChannel(IndexedDBStorageDatabase.STORAGE_BROADCAST_CHANNEL) : undefined;
+		this.broadcastChannel = options.broadcastChanges ? this._register(new BroadcastDataChannel<IStorageItemsChangeEvent>(IndexedDBStorageDatabase.STORAGE_BROADCAST_CHANNEL)) : undefined;
 
 		this.whenConnected = this.connect();
 
@@ -329,16 +330,10 @@ export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBSt
 		// Check for storage change events from other
 		// windows/tabs via `BroadcastChannel` mechanisms.
 		if (this.broadcastChannel) {
-			const listener = (event: MessageEvent) => {
-				if (isStorageItemsChangeEvent(event.data)) {
-					this._onDidChangeItemsExternal.fire(event.data);
+			this._register(this.broadcastChannel.onDidReceiveData(data => {
+				if (isStorageItemsChangeEvent(data)) {
+					this._onDidChangeItemsExternal.fire(data);
 				}
-			};
-
-			this.broadcastChannel.addEventListener('message', listener);
-			this._register(toDisposable(() => {
-				this.broadcastChannel?.removeEventListener('message', listener);
-				this.broadcastChannel?.close();
 			}));
 		}
 	}
@@ -382,7 +377,7 @@ export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBSt
 				deleted: request.delete
 			};
 
-			this.broadcastChannel.postMessage(event);
+			this.broadcastChannel.postData(event);
 		}
 	}
 
