@@ -320,7 +320,7 @@ CommandsRegistry.registerCommand({
 						},
 						'context': {
 							'type': 'object',
-							'description': localize('workbench.extensions.installExtension.option.context', "Context for the installation. This is a JSON object that can be used to pass any information to the installation hanlders. i.e. `{skipWalktrhough: true}` will skip opening the walkthrough upon install."),
+							'description': localize('workbench.extensions.installExtension.option.context', "Context for the installation. This is a JSON object that can be used to pass any information to the installation handlers. i.e. `{skipWalkthrough: true}` will skip opening the walkthrough upon install."),
 						}
 					}
 				}
