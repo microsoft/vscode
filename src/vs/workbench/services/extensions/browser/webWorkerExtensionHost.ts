@@ -82,7 +82,15 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 	}
 
 	private async _getWebWorkerExtensionHostIframeSrc(): Promise<string> {
-		const suffix = this._environmentService.debugExtensionHost && this._environmentService.debugRenderer ? '?debugged=1' : '?';
+		const suffixSearchParams = new URLSearchParams();
+		if (this._environmentService.debugExtensionHost && this._environmentService.debugRenderer) {
+			suffixSearchParams.set('debugged', '1');
+		}
+		if (globalThis.crossOriginIsolated) {
+			suffixSearchParams.set('vscode-coi', '3' /*COOP+COEP*/);
+		}
+		const suffix = `?${suffixSearchParams.toString()}`;
+
 		const iframeModulePath = 'vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html';
 		if (platform.isWeb) {
 			const webEndpointUrlTemplate = this._productService.webEndpointUrlTemplate;
@@ -132,7 +140,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		const iframe = document.createElement('iframe');
 		iframe.setAttribute('class', 'web-worker-ext-host-iframe');
 		iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
-		iframe.setAttribute('allow', 'usb');
+		iframe.setAttribute('allow', 'usb; serial; hid; cross-origin-isolated;');
 		iframe.setAttribute('aria-hidden', 'true');
 		iframe.style.display = 'none';
 
@@ -290,6 +298,10 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				id: workspace.id,
 				name: this._labelService.getWorkspaceLabel(workspace),
 				transient: workspace.transient
+			},
+			consoleForward: {
+				includeStack: false,
+				logNative: this._environmentService.debugRenderer
 			},
 			allExtensions: deltaExtensions.toAdd,
 			myExtensions: deltaExtensions.myToAdd,

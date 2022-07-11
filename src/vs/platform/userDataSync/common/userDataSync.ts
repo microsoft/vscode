@@ -181,10 +181,10 @@ export interface IUserDataSyncStoreClient {
 	read(resource: ServerResource, oldValue: IUserData | null, headers?: IHeaders): Promise<IUserData>;
 	write(resource: ServerResource, content: string, ref: string | null, headers?: IHeaders): Promise<string>;
 	clear(): Promise<void>;
-	delete(resource: ServerResource): Promise<void>;
+	delete(resource: ServerResource, ref: string | null): Promise<void>;
 
 	getAllRefs(resource: ServerResource): Promise<IResourceRefHandle[]>;
-	resolveContent(resource: ServerResource, ref: string): Promise<string | null>;
+	resolveContent(resource: ServerResource, ref: string, headers?: IHeaders): Promise<string | null>;
 }
 
 export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreService>('IUserDataSyncStoreService');

@@ -185,7 +185,7 @@ configurationRegistry.registerConfiguration({
 		'files.autoGuessEncoding': {
 			'type': 'boolean',
 			'default': false,
-			'markdownDescription': nls.localize('autoGuessEncoding', "When enabled, the editor will attempt to guess the character set encoding when opening files. This setting can also be configured per language. Note, this setting is not respected by text search. Only `#files.encoding#` is respected."),
+			'markdownDescription': nls.localize('autoGuessEncoding', "When enabled, the editor will attempt to guess the character set encoding when opening files. This setting can also be configured per language. Note, this setting is not respected by text search. Only {0} is respected.", '`#files.encoding#`'),
 			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
 		},
 		'files.eol': {
@@ -475,7 +475,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'explorer.excludeGitIgnore': {
 			type: 'boolean',
-			markdownDescription: nls.localize('excludeGitignore', "Controls whether entries in .gitignore should be parsed and excluded from the explorer. Similar to `#files.exclude#`."),
+			markdownDescription: nls.localize('excludeGitignore', "Controls whether entries in .gitignore should be parsed and excluded from the explorer. Similar to {0}.", '`#files.exclude#`'),
 			default: false,
 			scope: ConfigurationScope.RESOURCE
 		},
@@ -487,7 +487,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'explorer.fileNesting.expand': {
 			'type': 'boolean',
-			'markdownDescription': nls.localize('fileNestingExpand', "Controls whether file nests are automatically expanded. `#explorer.fileNesting.enabled#` must be set for this to take effect."),
+			'markdownDescription': nls.localize('fileNestingExpand', "Controls whether file nests are automatically expanded. {0} must be set for this to take effect.", '`#explorer.fileNesting.enabled#`'),
 			'default': true,
 		},
 		'explorer.fileNesting.patterns': {

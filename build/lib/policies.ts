@@ -585,7 +585,8 @@ const Languages = {
 };
 
 type LanguageTranslations = { [moduleName: string]: { [nlsKey: string]: string } };
-type Translations = { languageId: string; languageTranslations: LanguageTranslations }[];
+type Translation = { languageId: string; languageTranslations: LanguageTranslations };
+type Translations = Translation[];
 
 async function getLatestStableVersion(updateUrl: string) {
 	const res = await fetch(`${updateUrl}/api/update/darwin/stable/latest`);
@@ -643,10 +644,15 @@ async function getTranslations(): Promise<Translations> {
 	const version = await getLatestStableVersion(updateUrl);
 	const languageIds = Object.keys(Languages);
 
-	return await Promise.all(languageIds.map(
+	const result = await Promise.allSettled(languageIds.map(
 		languageId => getNLS(resourceUrlTemplate, languageId, version)
+			.catch(err => { console.warn(`Missing translation: ${languageId}@${version}`); return Promise.reject(err); })
 			.then(languageTranslations => ({ languageId, languageTranslations }))
 	));
+
+	return result
+		.filter((r): r is PromiseFulfilledResult<Translation> => r.status === 'fulfilled')
+		.map(r => r.value);
 }
 
 async function main() {

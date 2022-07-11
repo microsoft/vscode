@@ -5,46 +5,46 @@
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
+import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
-import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
+import { ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IUntypedEditorInput, EditorInputCapabilities } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { IEditorIdentifier, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { EditorInput, IEditorCloseHandler } from 'vs/workbench/common/editor/editorInput';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
+import { EditorWorkerServiceDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-
-export interface MergeEditorInputJSON {
-	anchestor: URI;
-	inputOne: { uri: URI; detail?: string; description?: string };
-	inputTwo: { uri: URI; detail?: string; description?: string };
-	result: URI;
-}
+import { ILanguageSupport, ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { autorun } from 'vs/base/common/observable';
 
 export class MergeEditorInputData {
 	constructor(
 		readonly uri: URI,
+		readonly title: string | undefined,
 		readonly detail: string | undefined,
 		readonly description: string | undefined,
 	) { }
 }
 
-export class MergeEditorInput extends AbstractTextResourceEditorInput {
+export class MergeEditorInput extends AbstractTextResourceEditorInput implements ILanguageSupport {
 
 	static readonly ID = 'mergeEditor.Input';
 
 	private _model?: MergeEditorModel;
 	private _outTextModel?: ITextFileEditorModel;
 
+	override closeHandler: MergeEditorCloseHandler | undefined;
+
 	constructor(
-		private readonly _base: URI,
-		private readonly _input1: MergeEditorInputData,
-		private readonly _input2: MergeEditorInputData,
-		private readonly _result: URI,
+		public readonly base: URI,
+		public readonly input1: MergeEditorInputData,
+		public readonly input2: MergeEditorInputData,
+		public readonly result: URI,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IEditorService editorService: IEditorService,
@@ -52,12 +52,12 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput {
 		@ILabelService labelService: ILabelService,
 		@IFileService fileService: IFileService
 	) {
-		super(_result, undefined, editorService, textFileService, labelService, fileService);
+		super(result, undefined, editorService, textFileService, labelService, fileService);
 
 		const modelListener = new DisposableStore();
 		const handleDidCreate = (model: ITextFileEditorModel) => {
 			// TODO@jrieken copied from fileEditorInput.ts
-			if (isEqual(_result, model.resource)) {
+			if (isEqual(result, model.resource)) {
 				modelListener.clear();
 				this._outTextModel = model;
 				modelListener.add(model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
@@ -88,34 +88,39 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput {
 		return localize('name', "Merging: {0}", super.getName());
 	}
 
-	override get capabilities(): EditorInputCapabilities {
-		let result = EditorInputCapabilities.Singleton;
-		if (!this.fileService.hasProvider(this._result) || this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)) {
-			result |= EditorInputCapabilities.Readonly;
-		}
-		return result;
-	}
-
 	override async resolve(): Promise<MergeEditorModel> {
 
 		if (!this._model) {
 
-			const base = await this._textModelService.createModelReference(this._base);
-			const input1 = await this._textModelService.createModelReference(this._input1.uri);
-			const input2 = await this._textModelService.createModelReference(this._input2.uri);
-			const result = await this._textModelService.createModelReference(this._result);
+			const base = await this._textModelService.createModelReference(this.base);
+			const input1 = await this._textModelService.createModelReference(this.input1.uri);
+			const input2 = await this._textModelService.createModelReference(this.input2.uri);
+			const result = await this._textModelService.createModelReference(this.result);
 
 			this._model = this._instaService.createInstance(
 				MergeEditorModel,
 				base.object.textEditorModel,
 				input1.object.textEditorModel,
-				this._input1.detail,
-				this._input1.description,
+				this.input1.title,
+				this.input1.detail,
+				this.input1.description,
 				input2.object.textEditorModel,
-				this._input2.detail,
-				this._input2.description,
-				result.object.textEditorModel
+				this.input2.title,
+				this.input2.detail,
+				this.input2.description,
+				result.object.textEditorModel,
+				this._instaService.createInstance(EditorWorkerServiceDiffComputer),
+				{
+					resetUnknownOnInitialization: true
+				},
 			);
+
+			// set/unset the closeHandler whenever unhandled conflicts are detected
+			const closeHandler = this._instaService.createInstance(MergeEditorCloseHandler, this._model);
+			this._store.add(autorun('closeHandler', reader => {
+				const value = this._model!.hasUnhandledConflicts.read(reader);
+				this.closeHandler = value ? closeHandler : undefined;
+			}));
 
 			await this._model.onInitialized;
 
@@ -125,6 +130,7 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput {
 			this._store.add(input2);
 			this._store.add(result);
 		}
+
 		return this._model;
 	}
 
@@ -132,19 +138,10 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput {
 		if (!(otherInput instanceof MergeEditorInput)) {
 			return false;
 		}
-		return isEqual(this._base, otherInput._base)
-			&& isEqual(this._input1.uri, otherInput._input1.uri)
-			&& isEqual(this._input2.uri, otherInput._input2.uri)
-			&& isEqual(this._result, otherInput._result);
-	}
-
-	toJSON(): MergeEditorInputJSON {
-		return {
-			anchestor: this._base,
-			inputOne: this._input1,
-			inputTwo: this._input2,
-			result: this._result,
-		};
+		return isEqual(this.base, otherInput.base)
+			&& isEqual(this.input1.uri, otherInput.input1.uri)
+			&& isEqual(this.input2.uri, otherInput.input2.uri)
+			&& isEqual(this.result, otherInput.result);
 	}
 
 	// ---- FileEditorInput
@@ -153,7 +150,98 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput {
 		return Boolean(this._outTextModel?.isDirty());
 	}
 
+	setLanguageId(languageId: string, _setExplicitly?: boolean): void {
+		this._model?.setLanguageId(languageId);
+	}
 
 	// implement get/set languageId
 	// implement get/set encoding
+}
+
+class MergeEditorCloseHandler implements IEditorCloseHandler {
+
+	private _ignoreUnhandledConflicts: boolean = false;
+
+	constructor(
+		private readonly _model: MergeEditorModel,
+		@IDialogService private readonly _dialogService: IDialogService,
+	) { }
+
+	showConfirm(): boolean {
+		// unhandled conflicts -> 3wm asks to confirm UNLESS we explicitly set this input
+		// to ignore unhandled conflicts. This happens only after confirming to ignore unhandled changes
+		return !this._ignoreUnhandledConflicts && this._model.hasUnhandledConflicts.get();
+	}
+
+	async confirm(editors?: readonly IEditorIdentifier[] | undefined): Promise<ConfirmResult> {
+
+		const handler: MergeEditorCloseHandler[] = [this];
+		editors?.forEach(candidate => candidate.editor.closeHandler instanceof MergeEditorCloseHandler && handler.push(candidate.editor.closeHandler));
+
+		const inputsWithUnhandledConflicts = handler
+			.filter(input => input._model && input._model.hasUnhandledConflicts.get());
+
+		if (inputsWithUnhandledConflicts.length === 0) {
+			// shouldn't happen
+			return ConfirmResult.SAVE;
+		}
+
+		const actions: string[] = [
+			localize('unhandledConflicts.ignore', "Continue with Conflicts"),
+			localize('unhandledConflicts.discard', "Discard Merge Changes"),
+			localize('unhandledConflicts.cancel', "Cancel"),
+		];
+		const options = {
+			cancelId: 2,
+			detail: handler.length > 1
+				? localize('unhandledConflicts.detailN', 'Merge conflicts in {0} editors will remain unhandled.', handler.length)
+				: localize('unhandledConflicts.detail1', 'Merge conflicts in this editor will remain unhandled.')
+		};
+
+		const { choice } = await this._dialogService.show(
+			Severity.Info,
+			localize('unhandledConflicts.msg', 'Do you want to continue with unhandled conflicts?'), // 1
+			actions,
+			options
+		);
+
+		if (choice === options.cancelId) {
+			// cancel: stay in editor
+			return ConfirmResult.CANCEL;
+		}
+
+		// save or revert: in both cases we tell the inputs to ignore unhandled conflicts
+		// for the dirty state computation.
+		for (const input of handler) {
+			input._ignoreUnhandledConflicts = true;
+		}
+
+		if (choice === 0) {
+			// conflicts: continue with remaining conflicts
+			return ConfirmResult.SAVE;
+
+		} else if (choice === 1) {
+			// discard: undo all changes and save original (pre-merge) state
+			for (const input of handler) {
+				input._discardMergeChanges();
+			}
+			return ConfirmResult.SAVE;
+
+		} else {
+			// don't save
+			return ConfirmResult.DONT_SAVE;
+		}
+	}
+
+	private _discardMergeChanges(): void {
+		const chunks: string[] = [];
+		while (true) {
+			const chunk = this._model.resultSnapshot.read();
+			if (chunk === null) {
+				break;
+			}
+			chunks.push(chunk);
+		}
+		this._model.result.setValue(chunks.join());
+	}
 }

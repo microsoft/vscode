@@ -45,7 +45,7 @@ export function isISubmenuItem(item: IMenuItem | ISubmenuItem): item is ISubmenu
 
 export class MenuId {
 
-	private static _idPool = 0;
+	private static readonly _idPool = new Set<string>();
 
 	static readonly CommandPalette = new MenuId('CommandPalette');
 	static readonly DebugBreakpointsContext = new MenuId('DebugBreakpointsContext');
@@ -59,6 +59,7 @@ export class MenuId {
 	static readonly SimpleEditorContext = new MenuId('SimpleEditorContext');
 	static readonly EditorContextCopy = new MenuId('EditorContextCopy');
 	static readonly EditorContextPeek = new MenuId('EditorContextPeek');
+	static readonly EditorContextShare = new MenuId('EditorContextShare');
 	static readonly EditorTitle = new MenuId('EditorTitle');
 	static readonly EditorTitleRun = new MenuId('EditorTitleRun');
 	static readonly EditorTitleContext = new MenuId('EditorTitleContext');
@@ -85,6 +86,7 @@ export class MenuId {
 	static readonly MenubarPreferencesMenu = new MenuId('MenubarPreferencesMenu');
 	static readonly MenubarRecentMenu = new MenuId('MenubarRecentMenu');
 	static readonly MenubarSelectionMenu = new MenuId('MenubarSelectionMenu');
+	static readonly MenubarShare = new MenuId('MenubarShare');
 	static readonly MenubarSwitchEditorMenu = new MenuId('MenubarSwitchEditorMenu');
 	static readonly MenubarSwitchGroupMenu = new MenuId('MenubarSwitchGroupMenu');
 	static readonly MenubarTerminalMenu = new MenuId('MenubarTerminalMenu');
@@ -160,12 +162,15 @@ export class MenuId {
 	static readonly NewFile = new MenuId('NewFile');
 	static readonly MergeToolbar = new MenuId('MergeToolbar');
 
-	readonly id: number;
-	readonly _debugName: string;
 
-	constructor(debugName: string) {
-		this.id = MenuId._idPool++;
-		this._debugName = debugName;
+	readonly id: string;
+
+	constructor(identifier: string) {
+		if (MenuId._idPool.has(identifier)) {
+			throw new Error(`Duplicate menu identifier ${identifier}`);
+		}
+		MenuId._idPool.add(identifier);
+		this.id = identifier;
 	}
 }
 
@@ -348,6 +353,22 @@ export class SubmenuItemAction extends SubmenuAction {
 	}
 }
 
+export class MenuItemActionManageActions {
+	constructor(
+		private readonly _hideThis: IAction,
+		private readonly _toggleAny: IAction[][],
+	) { }
+
+	asList(): IAction[] {
+		let result: IAction[] = [this._hideThis];
+		for (const n of this._toggleAny) {
+			result.push(new Separator());
+			result = result.concat(n);
+		}
+		return result;
+	}
+}
+
 // implements IAction, does NOT extend Action, so that no one
 // subscribes to events of Action or modified properties
 export class MenuItemAction implements IAction {
@@ -368,6 +389,7 @@ export class MenuItemAction implements IAction {
 		item: ICommandAction,
 		alt: ICommandAction | undefined,
 		options: IMenuActionOptions | undefined,
+		readonly hideActions: MenuItemActionManageActions | undefined,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService private _commandService: ICommandService
 	) {
@@ -394,7 +416,7 @@ export class MenuItemAction implements IAction {
 		}
 
 		this.item = item;
-		this.alt = alt ? new MenuItemAction(alt, undefined, options, contextKeyService, _commandService) : undefined;
+		this.alt = alt ? new MenuItemAction(alt, undefined, options, hideActions, contextKeyService, _commandService) : undefined;
 		this._options = options;
 		if (ThemeIcon.isThemeIcon(item.icon)) {
 			this.class = CSSIcon.asClassName(item.icon);

@@ -24,6 +24,7 @@ import { ProcessTimeRunOnceScheduler } from 'vs/base/common/async';
 import { boolean } from 'vs/editor/common/config/editorOptions';
 import { createURITransformer } from 'vs/workbench/api/node/uriTransformer';
 import { MessagePortMain } from 'electron';
+import { ExtHostConnectionType, readExtHostConnection } from 'vs/workbench/services/extensions/common/extensionHostEnv';
 
 import 'vs/workbench/api/common/extHost.common.services';
 import 'vs/workbench/api/node/extHost.node.services';
@@ -110,7 +111,9 @@ let onTerminate = function (reason: string) {
 };
 
 function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
-	if (process.env.VSCODE_WILL_SEND_MESSAGE_PORT) {
+	const extHostConnection = readExtHostConnection(process.env);
+
+	if (extHostConnection.type === ExtHostConnectionType.MessagePort) {
 
 		return new Promise<IMessagePassingProtocol>((resolve, reject) => {
 
@@ -139,7 +142,7 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 
 		});
 
-	} else if (process.env.VSCODE_EXTHOST_WILL_SEND_SOCKET) {
+	} else if (extHostConnection.type === ExtHostConnectionType.Socket) {
 
 		return new Promise<PersistentProtocol>((resolve, reject) => {
 
@@ -208,7 +211,7 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 
 	} else {
 
-		const pipeName = process.env.VSCODE_IPC_HOOK_EXTHOST!;
+		const pipeName = extHostConnection.pipeName;
 
 		return new Promise<PersistentProtocol>((resolve, reject) => {
 

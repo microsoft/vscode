@@ -8,7 +8,8 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { errorHandler, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { AsyncEmitter, DebounceEmitter, Emitter, Event, EventBufferer, EventMultiplexer, IWaitUntil, MicrotaskEmitter, PauseableEmitter, Relay } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, isDisposable, setDisposableTracker, toDisposable } from 'vs/base/common/lifecycle';
-import { DisposableTracker } from 'vs/base/test/common/utils';
+import { observableValue, transaction } from 'vs/base/common/observable';
+import { DisposableTracker, ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 namespace Samples {
 
@@ -621,6 +622,33 @@ suite('PausableEmitter', function () {
 		emitter.fire(3);
 		assert.deepStrictEqual(data, [1, 1, 2, 2, 3, 3]);
 
+	});
+});
+
+suite('Event utils - ensureNoDisposablesAreLeakedInTestSuite', function () {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('fromObservable', function () {
+
+		const obs = observableValue('test', 12);
+		const event = Event.fromObservable(obs);
+
+		const values: number[] = [];
+		const d = event(n => { values.push(n); });
+
+		obs.set(3, undefined);
+		obs.set(13, undefined);
+		obs.set(3, undefined);
+		obs.set(33, undefined);
+		obs.set(1, undefined);
+
+		transaction(tx => {
+			obs.set(334, tx);
+			obs.set(99, tx);
+		});
+
+		assert.deepStrictEqual(values, ([3, 13, 3, 33, 1, 99]));
+		d.dispose();
 	});
 });
 

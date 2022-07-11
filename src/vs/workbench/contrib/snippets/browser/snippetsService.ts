@@ -139,7 +139,7 @@ class SnippetEnablement {
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
 
-		const raw = _storageService.get(SnippetEnablement._key, StorageScope.GLOBAL, '');
+		const raw = _storageService.get(SnippetEnablement._key, StorageScope.PROFILE, '');
 		let data: string[] | undefined;
 		try {
 			data = JSON.parse(raw);
@@ -162,7 +162,7 @@ class SnippetEnablement {
 			changed = true;
 		}
 		if (changed) {
-			this._storageService.store(SnippetEnablement._key, JSON.stringify(Array.from(this._ignored)), StorageScope.GLOBAL, StorageTarget.USER);
+			this._storageService.store(SnippetEnablement._key, JSON.stringify(Array.from(this._ignored)), StorageScope.PROFILE, StorageTarget.USER);
 		}
 	}
 }
@@ -350,9 +350,21 @@ class SnippetsService implements ISnippetsService {
 	}
 
 	private async _initUserSnippets(): Promise<any> {
-		const userSnippetsFolder = this._userDataProfileService.currentProfile.snippetsHome;
-		await this._fileService.createFolder(userSnippetsFolder);
-		return await this._initFolderSnippets(SnippetSource.User, userSnippetsFolder, this._disposables);
+		const disposables = new DisposableStore();
+		const updateUserSnippets = async () => {
+			disposables.clear();
+			const userSnippetsFolder = this._userDataProfileService.currentProfile.snippetsHome;
+			await this._fileService.createFolder(userSnippetsFolder);
+			await this._initFolderSnippets(SnippetSource.User, userSnippetsFolder, disposables);
+		};
+		this._disposables.add(disposables);
+		this._disposables.add(this._userDataProfileService.onDidChangeCurrentProfile(e => e.join((async () => {
+			if (e.preserveData) {
+				await this._fileService.copy(e.previous.snippetsHome, e.profile.snippetsHome);
+			}
+			this._pendingWork.push(updateUserSnippets());
+		})())));
+		await updateUserSnippets();
 	}
 
 	private _initFolderSnippets(source: SnippetSource, folder: URI, bucket: DisposableStore): Promise<any> {

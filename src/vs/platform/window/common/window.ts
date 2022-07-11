@@ -135,6 +135,7 @@ export interface IWindowSettings {
 	readonly enableMenuBarMnemonics: boolean;
 	readonly closeWhenEmpty: boolean;
 	readonly clickThroughInactive: boolean;
+	readonly experimental?: { useSandbox: boolean };
 }
 
 interface IWindowBorderColors {
@@ -285,7 +286,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	backupPath?: string;
 
 	profiles: {
-		default: UriDto<IUserDataProfile>;
+		all: UriDto<IUserDataProfile>[];
 		current: UriDto<IUserDataProfile>;
 	};
 

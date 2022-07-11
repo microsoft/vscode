@@ -8,8 +8,8 @@ import { AbstractExtensionService, ExtensionHostCrashTracker, ExtensionRunningPr
 import * as nls from 'vs/nls';
 import { runWhenIdle } from 'vs/base/common/async';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IWebExtensionsScannerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IWebExtensionsScannerService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IRemoteExtensionHostDataProvider, RemoteExtensionHost, IRemoteExtensionHostInitData } from 'vs/workbench/services/extensions/common/remoteExtensionHost';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -48,6 +48,7 @@ import { isCI } from 'vs/base/common/platform';
 import { IResolveAuthorityErrorResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
 import { URI } from 'vs/base/common/uri';
 import { ILocalProcessExtensionHostDataProvider, ILocalProcessExtensionHostInitData, SandboxLocalProcessExtensionHost } from 'vs/workbench/services/extensions/electron-sandbox/localProcessExtensionHost';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export abstract class ElectronExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -66,20 +67,21 @@ export abstract class ElectronExtensionService extends AbstractExtensionService 
 		@IWorkbenchExtensionEnablementService extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IFileService fileService: IFileService,
 		@IProductService productService: IProductService,
-		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
+		@IWorkbenchExtensionManagementService extensionManagementService: IWorkbenchExtensionManagementService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@IWebExtensionsScannerService webExtensionsScannerService: IWebExtensionsScannerService,
 		@ILogService logService: ILogService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IHostService private readonly _hostService: IHostService,
 		@IRemoteExplorerService private readonly _remoteExplorerService: IRemoteExplorerService,
 		@IExtensionGalleryService private readonly _extensionGalleryService: IExtensionGalleryService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 	) {
 		super(
 			instantiationService,
@@ -95,7 +97,9 @@ export abstract class ElectronExtensionService extends AbstractExtensionService 
 			extensionManifestPropertiesService,
 			webExtensionsScannerService,
 			logService,
-			remoteAgentService
+			remoteAgentService,
+			lifecycleService,
+			userDataProfileService
 		);
 
 		[this._enableLocalWebWorker, this._lazyLocalWebWorker] = this._isLocalWebWorkerEnabled();
@@ -108,7 +112,7 @@ export abstract class ElectronExtensionService extends AbstractExtensionService 
 		// some editors require the extension host to restore
 		// and this would result in a deadlock
 		// see https://github.com/microsoft/vscode/issues/41322
-		this._lifecycleService.when(LifecyclePhase.Ready).then(() => {
+		lifecycleService.when(LifecyclePhase.Ready).then(() => {
 			// reschedule to ensure this runs after restoring viewlets, panels, and editors
 			runWhenIdle(() => {
 				this._initialize();

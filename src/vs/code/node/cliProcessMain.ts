@@ -23,11 +23,11 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { ExtensionGalleryServiceWithNoStorageService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
-import { IExtensionGalleryService, IExtensionManagementCLIService, IExtensionManagementService, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IExtensionManagementCLIService, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementCLIService } from 'vs/platform/extensionManagement/common/extensionManagementCLIService';
 import { ExtensionsProfileScannerService, IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
-import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
+import { ExtensionManagementService, INativeServerExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/extensionsScannerService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
@@ -47,15 +47,18 @@ import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestService } from 'vs/platform/request/node/requestService';
+import { IStateService } from 'vs/platform/state/node/state';
+import { StateService } from 'vs/platform/state/node/stateService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
 import { ITelemetryService, machineIdKey } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { supportsTelemetry, NullTelemetryService, getPiiPathsFromEnvironment } from 'vs/platform/telemetry/common/telemetryUtils';
-import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
+import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
 import { buildTelemetryMessage } from 'vs/platform/telemetry/node/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfilesService, PROFILES_ENABLEMENT_CONFIG } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { UserDataProfilesService } from 'vs/platform/userDataProfile/node/userDataProfile';
 
 class CliMain extends Disposable {
 
@@ -101,7 +104,7 @@ class CliMain extends Disposable {
 		});
 	}
 
-	private async initServices(): Promise<[IInstantiationService, AppInsightsAppender[]]> {
+	private async initServices(): Promise<[IInstantiationService, OneDataSystemAppender[]]> {
 		const services = new ServiceCollection();
 
 		// Product
@@ -133,8 +136,16 @@ class CliMain extends Disposable {
 		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService));
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
+		// State
+		const stateService = new StateService(environmentService, logService, fileService);
+		services.set(IStateService, stateService);
+
+		// Uri Identity
+		const uriIdentityService = new UriIdentityService(fileService);
+		services.set(IUriIdentityService, uriIdentityService);
+
 		// User Data Profiles
-		const userDataProfilesService = new UserDataProfilesService(undefined, environmentService, fileService, logService);
+		const userDataProfilesService = new UserDataProfilesService(stateService, uriIdentityService, environmentService, fileService, logService);
 		services.set(IUserDataProfilesService, userDataProfilesService);
 
 		// Policy
@@ -147,8 +158,13 @@ class CliMain extends Disposable {
 		const configurationService = this._register(new ConfigurationService(userDataProfilesService.defaultProfile.settingsResource, fileService, policyService, logService));
 		services.set(IConfigurationService, configurationService);
 
-		// Init config
-		await configurationService.initialize();
+		// Initialize
+		await Promise.all([
+			stateService.init(),
+			configurationService.initialize()
+		]);
+
+		userDataProfilesService.setEnablement(!!configurationService.getValue(PROFILES_ENABLEMENT_CONFIG));
 
 		// URI Identity
 		services.set(IUriIdentityService, new UriIdentityService(fileService));
@@ -162,7 +178,7 @@ class CliMain extends Disposable {
 		// Extensions
 		services.set(IExtensionsProfileScannerService, new SyncDescriptor(ExtensionsProfileScannerService));
 		services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService));
-		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
+		services.set(INativeServerExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryServiceWithNoStorageService));
 		services.set(IExtensionManagementCLIService, new SyncDescriptor(ExtensionManagementCLIService));
 
@@ -170,10 +186,10 @@ class CliMain extends Disposable {
 		services.set(ILanguagePackService, new SyncDescriptor(NativeLanguagePackService));
 
 		// Telemetry
-		const appenders: AppInsightsAppender[] = [];
+		const appenders: OneDataSystemAppender[] = [];
 		if (supportsTelemetry(productService, environmentService)) {
-			if (productService.aiConfig && productService.aiConfig.asimovKey) {
-				appenders.push(new AppInsightsAppender('monacoworkbench', null, productService.aiConfig.asimovKey));
+			if (productService.aiConfig && productService.aiConfig.ariaKey) {
+				appenders.push(new OneDataSystemAppender(configurationService, 'monacoworkbench', null, productService.aiConfig.ariaKey));
 			}
 
 			const { installSourcePath } = environmentService;

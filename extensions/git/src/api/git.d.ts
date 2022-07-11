@@ -129,6 +129,8 @@ export interface LogOptions {
 	readonly path?: string;
 }
 
+export type PostCommitCommand = 'push' | 'sync' | string;
+
 export interface CommitOptions {
 	all?: boolean | 'tracked';
 	amend?: boolean;
@@ -139,6 +141,7 @@ export interface CommitOptions {
 	requireUserConfig?: boolean;
 	useEditor?: boolean;
 	verbose?: boolean;
+	postCommitCommand?: PostCommitCommand;
 }
 
 export interface FetchOptions {

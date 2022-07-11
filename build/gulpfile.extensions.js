@@ -53,6 +53,7 @@ const compilations = [
 	'json-language-features/client/tsconfig.json',
 	'json-language-features/server/tsconfig.json',
 	'markdown-language-features/preview-src/tsconfig.json',
+	'markdown-language-features/server/tsconfig.json',
 	'markdown-language-features/tsconfig.json',
 	'markdown-math/tsconfig.json',
 	'merge-conflict/tsconfig.json',
@@ -66,7 +67,6 @@ const compilations = [
 	'typescript-language-features/tsconfig.json',
 	'vscode-api-tests/tsconfig.json',
 	'vscode-colorize-tests/tsconfig.json',
-	'vscode-custom-editor-tests/tsconfig.json',
 	'vscode-notebook-tests/tsconfig.json',
 	'vscode-test-resolver/tsconfig.json'
 ];

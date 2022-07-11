@@ -92,6 +92,7 @@ export interface MainThreadClipboardShape extends IDisposable {
 export interface MainThreadCommandsShape extends IDisposable {
 	$registerCommand(id: string): void;
 	$unregisterCommand(id: string): void;
+	$fireCommandActivationEvent(id: string): void;
 	$executeCommand(id: string, args: any[] | SerializableObjectWithBuffers<any[]>, retry: boolean): Promise<unknown | undefined>;
 	$getCommands(): Promise<string[]>;
 }
@@ -1143,7 +1144,9 @@ export interface SCMProviderFeatures {
 
 export interface SCMActionButtonDto {
 	command: ICommandDto;
+	secondaryCommands?: ICommandDto[][];
 	description?: string;
+	enabled: boolean;
 }
 
 export interface SCMGroupFeatures {
@@ -1447,7 +1450,6 @@ export interface ExtHostExtensionServiceShape {
 	$getCanonicalURI(remoteAuthority: string, uri: UriComponents): Promise<UriComponents | null>;
 	$startExtensionHost(extensionsDelta: IExtensionDescriptionDelta): Promise<void>;
 	$extensionTestsExecute(): Promise<number>;
-	$extensionTestsExit(code: number): Promise<void>;
 	$activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void>;
 	$activate(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<boolean>;
 	$setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void>;
@@ -1585,27 +1587,6 @@ export interface IWorkspaceEditEntryMetadataDto {
 	iconPath?: { id: string } | UriComponents | { light: UriComponents; dark: UriComponents };
 }
 
-export const enum WorkspaceEditType {
-	File = 1,
-	Text = 2,
-	Cell = 3,
-}
-
-export interface IWorkspaceFileEditDto {
-	_type: WorkspaceEditType.File;
-	oldUri?: UriComponents;
-	newUri?: UriComponents;
-	options?: languages.WorkspaceFileEditOptions;
-	metadata?: IWorkspaceEditEntryMetadataDto;
-}
-
-export interface IWorkspaceTextEditDto {
-	_type: WorkspaceEditType.Text;
-	resource: UriComponents;
-	edit: languages.TextEdit & { insertAsSnippet?: boolean };
-	modelVersionId?: number;
-	metadata?: IWorkspaceEditEntryMetadataDto;
-}
 
 export type ICellEditOperationDto =
 	notebookCommon.ICellPartialMetadataEdit
@@ -1617,31 +1598,19 @@ export type ICellEditOperationDto =
 		cells: NotebookCellDataDto[];
 	};
 
-export interface IWorkspaceCellEditDto {
-	_type: WorkspaceEditType.Cell;
-	resource: UriComponents;
-	notebookVersionId?: number;
-	metadata?: IWorkspaceEditEntryMetadataDto;
-	edit: ICellEditOperationDto;
-}
+export type IWorkspaceCellEditDto = Dto<Omit<notebookCommon.IWorkspaceNotebookCellEdit, 'cellEdit'>> & { cellEdit: ICellEditOperationDto };
+
+export type IWorkspaceFileEditDto = Dto<languages.IWorkspaceFileEdit>;
+
+export type IWorkspaceTextEditDto = Dto<languages.IWorkspaceTextEdit>;
 
 export interface IWorkspaceEditDto {
 	edits: Array<IWorkspaceFileEditDto | IWorkspaceTextEditDto | IWorkspaceCellEditDto>;
 }
 
-export function reviveWorkspaceEditDto(data: IWorkspaceEditDto | undefined): languages.WorkspaceEdit {
+export function reviveWorkspaceEditDto(data: IWorkspaceEditDto | undefined): languages.WorkspaceEdit | undefined {
 	if (data && data.edits) {
-		for (const edit of data.edits) {
-			if (typeof (<IWorkspaceTextEditDto>edit).resource === 'object') {
-				(<IWorkspaceTextEditDto>edit).resource = URI.revive((<IWorkspaceTextEditDto>edit).resource);
-			} else {
-				(<IWorkspaceFileEditDto>edit).newUri = URI.revive((<IWorkspaceFileEditDto>edit).newUri);
-				(<IWorkspaceFileEditDto>edit).oldUri = URI.revive((<IWorkspaceFileEditDto>edit).oldUri);
-			}
-			if (edit.metadata && edit.metadata.iconPath) {
-				edit.metadata = revive(edit.metadata);
-			}
-		}
+		revive<languages.WorkspaceEdit>(data);
 	}
 	return <languages.WorkspaceEdit>data;
 }

@@ -18,6 +18,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IWorkbenchFileService } from 'vs/workbench/services/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
+import { ctxIsMergeEditor } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
 
 interface MergeEditorContents {
 	languageId: string;
@@ -28,13 +29,20 @@ interface MergeEditorContents {
 }
 
 export class MergeEditorCopyContentsToJSON extends Action2 {
-
 	constructor() {
 		super({
 			id: 'merge.dev.copyContents',
-			title: localize('merge.dev.copyContents', "Developer Merge Editor: Copy Contents of Inputs, Base and Result as JSON"),
+			category: 'Merge Editor (Dev)',
+			title: {
+				value: localize(
+					'merge.dev.copyContents',
+					'Copy Contents of Inputs, Base and Result as JSON'
+				),
+				original: 'Copy Contents of Inputs, Base and Result as JSON',
+			},
 			icon: Codicon.layoutCentered,
 			f1: true,
+			precondition: ctxIsMergeEditor,
 		});
 	}
 
@@ -72,11 +80,17 @@ export class MergeEditorCopyContentsToJSON extends Action2 {
 }
 
 export class MergeEditorOpenContents extends Action2 {
-
 	constructor() {
 		super({
 			id: 'merge.dev.openContents',
-			title: localize('merge.dev.openContents', "Developer Merge Editor: Open Contents of Inputs, Base and Result from JSON"),
+			category: 'Merge Editor (Dev)',
+			title: {
+				value: localize(
+					'merge.dev.openContents',
+					'Open Contents of Inputs, Base and Result from JSON'
+				),
+				original: 'Open Contents of Inputs, Base and Result from JSON',
+			},
 			icon: Codicon.layoutCentered,
 			f1: true,
 		});
@@ -94,11 +108,14 @@ export class MergeEditorOpenContents extends Action2 {
 			prompt: localize('mergeEditor.enterJSON', 'Enter JSON'),
 			value: await clipboardService.readText(),
 		});
-		if (!result) {
+		if (result === undefined) {
 			return;
 		}
 
-		const content: MergeEditorContents = JSON.parse(result);
+		const content: MergeEditorContents =
+			result !== ''
+				? JSON.parse(result)
+				: { base: '', input1: '', input2: '', result: '', languageId: 'plaintext' };
 
 		const scheme = 'merge-editor-dev';
 
@@ -127,7 +144,6 @@ export class MergeEditorOpenContents extends Action2 {
 		async function setLanguageId(uri: URI, languageId: string): Promise<void> {
 			const ref = await textModelService.createModelReference(uri);
 			ref.object.textEditorModel.setMode(languageId);
-			ref.dispose();
 		}
 
 		await Promise.all([
@@ -140,8 +156,8 @@ export class MergeEditorOpenContents extends Action2 {
 		const input = instaService.createInstance(
 			MergeEditorInput,
 			baseUri,
-			{ uri: input1Uri, description: 'Input 1', detail: '(from JSON)' },
-			{ uri: input2Uri, description: 'Input 2', detail: '(from JSON)' },
+			{ uri: input1Uri, title: 'Input 1', description: 'Input 1', detail: '(from JSON)' },
+			{ uri: input2Uri, title: 'Input 2', description: 'Input 2', detail: '(from JSON)' },
 			resultUri,
 		);
 		editorService.openEditor(input);
