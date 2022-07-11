@@ -324,7 +324,7 @@ class UtilityExtensionHostProcess extends Disposable {
 		const modulePath = FileAccess.asFileUri('bootstrap-fork.js', require).fsPath;
 		const args: string[] = ['--type=extensionHost', '--skipWorkspaceStorageLock'];
 		const execArgv: string[] = opts.execArgv || [];
-		execArgv.push(`--vscode-utility-kind=extensionHost`);
+		execArgv.push(`--vscode-utility-kind=extension-host`);
 		const env: { [key: string]: any } = { ...opts.env };
 
 		// Make sure all values are strings, otherwise the process will not start

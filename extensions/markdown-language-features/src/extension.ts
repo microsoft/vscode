@@ -4,118 +4,47 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { CommandManager } from './commandManager';
-import * as commands from './commands/index';
-import { registerPasteSupport } from './languageFeatures/copyPaste';
-import { registerDefinitionSupport } from './languageFeatures/definitions';
-import { registerDiagnosticSupport } from './languageFeatures/diagnostics';
-import { MdLinkProvider, registerDocumentLinkSupport } from './languageFeatures/documentLinks';
-import { MdDocumentSymbolProvider, registerDocumentSymbolSupport } from './languageFeatures/documentSymbols';
-import { registerDropIntoEditorSupport } from './languageFeatures/dropIntoEditor';
-import { registerFindFileReferenceSupport } from './languageFeatures/fileReferences';
-import { registerFoldingSupport } from './languageFeatures/folding';
-import { registerPathCompletionSupport } from './languageFeatures/pathCompletions';
-import { MdReferencesProvider, registerReferencesSupport } from './languageFeatures/references';
-import { registerRenameSupport } from './languageFeatures/rename';
-import { registerSmartSelectSupport } from './languageFeatures/smartSelect';
-import { registerWorkspaceSymbolSupport } from './languageFeatures/workspaceSymbols';
-import { ILogger, VsCodeOutputLogger } from './logging';
-import { IMdParser, MarkdownItEngine, MdParsingProvider } from './markdownEngine';
+import { LanguageClient, ServerOptions, TransportKind } from 'vscode-languageclient/node';
+import { startClient } from './client';
+import { activateShared } from './extension.shared';
+import { VsCodeOutputLogger } from './logging';
+import { IMdParser, MarkdownItEngine } from './markdownEngine';
 import { getMarkdownExtensionContributions } from './markdownExtensions';
-import { MdDocumentRenderer } from './preview/documentRenderer';
-import { MarkdownPreviewManager } from './preview/previewManager';
-import { ContentSecurityPolicyArbiter, ExtensionContentSecurityPolicyArbiter, PreviewSecuritySelector } from './preview/security';
 import { githubSlugifier } from './slugify';
-import { MdTableOfContentsProvider } from './tableOfContents';
-import { loadDefaultTelemetryReporter, TelemetryReporter } from './telemetryReporter';
 import { IMdWorkspace, VsCodeMdWorkspace } from './workspace';
 
-
 export function activate(context: vscode.ExtensionContext) {
-	const telemetryReporter = loadDefaultTelemetryReporter();
-	context.subscriptions.push(telemetryReporter);
-
 	const contributions = getMarkdownExtensionContributions(context);
 	context.subscriptions.push(contributions);
 
 	const logger = new VsCodeOutputLogger();
 	context.subscriptions.push(logger);
 
-	const cspArbiter = new ExtensionContentSecurityPolicyArbiter(context.globalState, context.workspaceState);
-	const commandManager = new CommandManager();
-
 	const engine = new MarkdownItEngine(contributions, githubSlugifier, logger);
+
 	const workspace = new VsCodeMdWorkspace();
-	const parser = new MdParsingProvider(engine, workspace);
-	const tocProvider = new MdTableOfContentsProvider(parser, workspace, logger);
-	context.subscriptions.push(workspace, parser, tocProvider);
+	context.subscriptions.push(workspace);
 
-	const contentProvider = new MdDocumentRenderer(engine, context, cspArbiter, contributions, logger);
-	const previewManager = new MarkdownPreviewManager(contentProvider, workspace, logger, contributions, tocProvider);
-	context.subscriptions.push(previewManager);
-
-	context.subscriptions.push(registerMarkdownLanguageFeatures(parser, workspace, commandManager, tocProvider, logger));
-	context.subscriptions.push(registerMarkdownCommands(commandManager, previewManager, telemetryReporter, cspArbiter, engine, tocProvider));
-
-	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
-		previewManager.updateConfiguration();
-	}));
+	activateShared(context, workspace, engine, logger, contributions);
+	startServer(context, workspace, engine);
 }
 
-function registerMarkdownLanguageFeatures(
-	parser: IMdParser,
-	workspace: IMdWorkspace,
-	commandManager: CommandManager,
-	tocProvider: MdTableOfContentsProvider,
-	logger: ILogger,
-): vscode.Disposable {
-	const selector: vscode.DocumentSelector = { language: 'markdown', scheme: '*' };
+async function startServer(context: vscode.ExtensionContext, workspace: IMdWorkspace, parser: IMdParser): Promise<void> {
+	const clientMain = vscode.extensions.getExtension('vscode.markdown-language-features')?.packageJSON?.main || '';
 
-	const linkProvider = new MdLinkProvider(parser, workspace, logger);
-	const referencesProvider = new MdReferencesProvider(parser, workspace, tocProvider, logger);
-	const symbolProvider = new MdDocumentSymbolProvider(tocProvider, logger);
+	const serverMain = `./server/${clientMain.indexOf('/dist/') !== -1 ? 'dist' : 'out'}/node/main`;
+	const serverModule = context.asAbsolutePath(serverMain);
 
-	return vscode.Disposable.from(
-		linkProvider,
-		referencesProvider,
+	// The debug options for the server
+	const debugOptions = { execArgv: ['--nolazy', '--inspect=' + (7000 + Math.round(Math.random() * 999))] };
 
-		// Language features
-		registerDefinitionSupport(selector, referencesProvider),
-		registerDiagnosticSupport(selector, workspace, linkProvider, commandManager, referencesProvider, tocProvider, logger),
-		registerDocumentLinkSupport(selector, linkProvider),
-		registerDocumentSymbolSupport(selector, tocProvider, logger),
-		registerDropIntoEditorSupport(selector),
-		registerFindFileReferenceSupport(commandManager, referencesProvider),
-		registerFoldingSupport(selector, parser, tocProvider),
-		registerPasteSupport(selector),
-		registerPathCompletionSupport(selector, workspace, parser, linkProvider),
-		registerReferencesSupport(selector, referencesProvider),
-		registerRenameSupport(selector, workspace, referencesProvider, parser.slugifier),
-		registerSmartSelectSupport(selector, parser, tocProvider),
-		registerWorkspaceSymbolSupport(workspace, symbolProvider),
-	);
-}
-
-function registerMarkdownCommands(
-	commandManager: CommandManager,
-	previewManager: MarkdownPreviewManager,
-	telemetryReporter: TelemetryReporter,
-	cspArbiter: ContentSecurityPolicyArbiter,
-	engine: MarkdownItEngine,
-	tocProvider: MdTableOfContentsProvider,
-): vscode.Disposable {
-	const previewSecuritySelector = new PreviewSecuritySelector(cspArbiter, previewManager);
-
-	commandManager.register(new commands.ShowPreviewCommand(previewManager, telemetryReporter));
-	commandManager.register(new commands.ShowPreviewToSideCommand(previewManager, telemetryReporter));
-	commandManager.register(new commands.ShowLockedPreviewToSideCommand(previewManager, telemetryReporter));
-	commandManager.register(new commands.ShowSourceCommand(previewManager));
-	commandManager.register(new commands.RefreshPreviewCommand(previewManager, engine));
-	commandManager.register(new commands.MoveCursorToPositionCommand());
-	commandManager.register(new commands.ShowPreviewSecuritySelectorCommand(previewSecuritySelector, previewManager));
-	commandManager.register(new commands.OpenDocumentLinkCommand(tocProvider));
-	commandManager.register(new commands.ToggleLockCommand(previewManager));
-	commandManager.register(new commands.RenderDocument(engine));
-	commandManager.register(new commands.ReloadPlugins(previewManager, engine));
-	return commandManager;
+	// If the extension is launch in debug mode the debug server options are use
+	// Otherwise the run options are used
+	const serverOptions: ServerOptions = {
+		run: { module: serverModule, transport: TransportKind.ipc },
+		debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
+	};
+	await startClient((id, name, clientOptions) => {
+		return new LanguageClient(id, name, serverOptions, clientOptions);
+	}, workspace, parser);
 }

@@ -400,7 +400,8 @@ export class MdLinkComputer {
 	private *getReferenceLinks(document: ITextDocument, noLinkRanges: NoLinkRanges): Iterable<MdLink> {
 		const text = document.getText();
 		for (const match of text.matchAll(referenceLinkPattern)) {
-			const linkStart = document.positionAt(match.index ?? 0);
+			const linkStartOffset = (match.index ?? 0) + match[1].length;
+			const linkStart = document.positionAt(linkStartOffset);
 			if (noLinkRanges.contains(linkStart)) {
 				continue;
 			}
@@ -410,17 +411,17 @@ export class MdLinkComputer {
 			let reference = match[4];
 			if (reference === '') { // [ref][],
 				reference = match[3];
-				const offset = ((match.index ?? 0) + match[1].length) + 1;
+				const offset = linkStartOffset + 1;
 				hrefStart = document.positionAt(offset);
 				hrefEnd = document.positionAt(offset + reference.length);
 			} else if (reference) { // [text][ref]
 				const pre = match[2];
-				const offset = ((match.index ?? 0) + match[1].length) + pre.length;
+				const offset = linkStartOffset + pre.length;
 				hrefStart = document.positionAt(offset);
 				hrefEnd = document.positionAt(offset + reference.length);
 			} else if (match[5]) { // [ref]
 				reference = match[5];
-				const offset = ((match.index ?? 0) + match[1].length) + 1;
+				const offset = linkStartOffset + 1;
 				hrefStart = document.positionAt(offset);
 				const line = getLine(document, hrefStart.line);
 				// See if link looks like a checkbox
@@ -433,7 +434,7 @@ export class MdLinkComputer {
 				continue;
 			}
 
-			const linkEnd = linkStart.translate(0, match[0].length);
+			const linkEnd = linkStart.translate(0, match[0].length - match[1].length);
 			yield {
 				kind: 'link',
 				source: {

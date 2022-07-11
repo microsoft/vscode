@@ -47,6 +47,18 @@ export function equals<T>(one: ReadonlyArray<T> | undefined, other: ReadonlyArra
 }
 
 /**
+ * Remove the element at `index` by replacing it with the last element. This is faster than `splice`
+ * but changes the order of the array
+ */
+export function removeFastWithoutKeepingOrder<T>(array: T[], index: number) {
+	const last = array.length - 1;
+	if (index < last) {
+		array[index] = array[last];
+	}
+	array.pop();
+}
+
+/**
  * Performs a binary search algorithm over a sorted array.
  *
  * @param array The array being searched.

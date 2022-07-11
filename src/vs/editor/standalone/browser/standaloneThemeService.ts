@@ -17,13 +17,13 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { asCssVariableName, ColorIdentifier, Extensions, IColorRegistry } from 'vs/platform/theme/common/colorRegistry';
 import { Extensions as ThemingExtensions, ICssStyleCollector, IFileIconTheme, IProductIconTheme, IThemingRegistry, ITokenStyle } from 'vs/platform/theme/common/themeService';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { ColorScheme, isDark } from 'vs/platform/theme/common/theme';
+import { ColorScheme, isDark, isHighContrast } from 'vs/platform/theme/common/theme';
 import { getIconsStyleSheet, UnthemedProductIconTheme } from 'vs/platform/theme/browser/iconsStyleSheet';
 
-const VS_THEME_NAME = 'vs';
-const VS_DARK_THEME_NAME = 'vs-dark';
-const HC_BLACK_THEME_NAME = 'hc-black';
-const HC_LIGHT_THEME_NAME = 'hc-light';
+export const VS_LIGHT_THEME_NAME = 'vs';
+export const VS_DARK_THEME_NAME = 'vs-dark';
+export const HC_BLACK_THEME_NAME = 'hc-black';
+export const HC_LIGHT_THEME_NAME = 'hc-light';
 
 const colorRegistry = Registry.as<IColorRegistry>(Extensions.ColorContribution);
 const themingRegistry = Registry.as<IThemingRegistry>(ThemingExtensions.ThemingContribution);
@@ -118,7 +118,7 @@ class StandaloneTheme implements IStandaloneTheme {
 
 	public get type(): ColorScheme {
 		switch (this.base) {
-			case VS_THEME_NAME: return ColorScheme.LIGHT;
+			case VS_LIGHT_THEME_NAME: return ColorScheme.LIGHT;
 			case HC_BLACK_THEME_NAME: return ColorScheme.HIGH_CONTRAST_DARK;
 			case HC_LIGHT_THEME_NAME: return ColorScheme.HIGH_CONTRAST_LIGHT;
 			default: return ColorScheme.DARK;
@@ -182,7 +182,7 @@ class StandaloneTheme implements IStandaloneTheme {
 
 function isBuiltinTheme(themeName: string): themeName is BuiltinTheme {
 	return (
-		themeName === VS_THEME_NAME
+		themeName === VS_LIGHT_THEME_NAME
 		|| themeName === VS_DARK_THEME_NAME
 		|| themeName === HC_BLACK_THEME_NAME
 		|| themeName === HC_LIGHT_THEME_NAME
@@ -191,7 +191,7 @@ function isBuiltinTheme(themeName: string): themeName is BuiltinTheme {
 
 function getBuiltinRules(builtinTheme: BuiltinTheme): IStandaloneThemeData {
 	switch (builtinTheme) {
-		case VS_THEME_NAME:
+		case VS_LIGHT_THEME_NAME:
 			return vs;
 		case VS_DARK_THEME_NAME:
 			return vs_dark;
@@ -229,7 +229,6 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 	private _globalStyleElement: HTMLStyleElement | null;
 	private _styleElements: HTMLStyleElement[];
 	private _colorMapOverride: Color[] | null;
-	private _desiredTheme!: IStandaloneTheme;
 	private _theme!: IStandaloneTheme;
 
 	private _builtInProductIconTheme = new UnthemedProductIconTheme();
@@ -240,7 +239,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 		this._autoDetectHighContrast = true;
 
 		this._knownThemes = new Map<string, StandaloneTheme>();
-		this._knownThemes.set(VS_THEME_NAME, newBuiltInTheme(VS_THEME_NAME));
+		this._knownThemes.set(VS_LIGHT_THEME_NAME, newBuiltInTheme(VS_LIGHT_THEME_NAME));
 		this._knownThemes.set(VS_DARK_THEME_NAME, newBuiltInTheme(VS_DARK_THEME_NAME));
 		this._knownThemes.set(HC_BLACK_THEME_NAME, newBuiltInTheme(HC_BLACK_THEME_NAME));
 		this._knownThemes.set(HC_LIGHT_THEME_NAME, newBuiltInTheme(HC_LIGHT_THEME_NAME));
@@ -253,7 +252,8 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 		this._globalStyleElement = null;
 		this._styleElements = [];
 		this._colorMapOverride = null;
-		this.setTheme(VS_THEME_NAME);
+		this.setTheme(VS_LIGHT_THEME_NAME);
+		this._onOSSchemeChanged();
 
 		iconsStyleSheet.onDidChange(() => {
 			this._codiconCSS = iconsStyleSheet.getCSS();
@@ -261,7 +261,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 		});
 
 		addMatchMediaChangeListener('(forced-colors: active)', () => {
-			this._updateActualTheme();
+			this._onOSSchemeChanged();
 		});
 	}
 
@@ -331,41 +331,43 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 	}
 
 	public setTheme(themeName: string): void {
-		let theme: StandaloneTheme;
+		let theme: StandaloneTheme | undefined;
 		if (this._knownThemes.has(themeName)) {
-			theme = this._knownThemes.get(themeName)!;
+			theme = this._knownThemes.get(themeName);
 		} else {
-			theme = this._knownThemes.get(VS_THEME_NAME)!;
+			theme = this._knownThemes.get(VS_LIGHT_THEME_NAME);
 		}
-		this._desiredTheme = theme;
-		this._updateActualTheme();
+		this._updateActualTheme(theme);
 	}
 
-	private getHighContrastTheme() {
-		if (isDark(this._desiredTheme.type)) {
-			return HC_BLACK_THEME_NAME;
-		} else {
-			return HC_LIGHT_THEME_NAME;
-		}
-	}
-
-	private _updateActualTheme(): void {
-		const theme = (
-			this._autoDetectHighContrast && window.matchMedia(`(forced-colors: active)`).matches
-				? this._knownThemes.get(this.getHighContrastTheme())!
-				: this._desiredTheme
-		);
-		if (this._theme === theme) {
+	private _updateActualTheme(desiredTheme: IStandaloneTheme | undefined): void {
+		if (!desiredTheme || this._theme === desiredTheme) {
 			// Nothing to do
 			return;
 		}
-		this._theme = theme;
+		this._theme = desiredTheme;
 		this._updateThemeOrColorMap();
+	}
+
+	private _onOSSchemeChanged() {
+		if (this._autoDetectHighContrast) {
+			const wantsHighContrast = window.matchMedia(`(forced-colors: active)`).matches;
+			if (wantsHighContrast !== isHighContrast(this._theme.type)) {
+				// switch to high contrast or non-high contrast but stick to dark or light
+				let newThemeName;
+				if (isDark(this._theme.type)) {
+					newThemeName = wantsHighContrast ? HC_BLACK_THEME_NAME : VS_DARK_THEME_NAME;
+				} else {
+					newThemeName = wantsHighContrast ? HC_LIGHT_THEME_NAME : VS_LIGHT_THEME_NAME;
+				}
+				this._updateActualTheme(this._knownThemes.get(newThemeName));
+			}
+		}
 	}
 
 	public setAutoDetectHighContrast(autoDetectHighContrast: boolean): void {
 		this._autoDetectHighContrast = autoDetectHighContrast;
-		this._updateActualTheme();
+		this._onOSSchemeChanged();
 	}
 
 	private _updateThemeOrColorMap(): void {

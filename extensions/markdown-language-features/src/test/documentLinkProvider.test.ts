@@ -128,6 +128,15 @@ suite('Markdown: MdLinkComputer', () => {
 				new vscode.Range(0, 35, 0, 39),
 			]);
 		}
+		{
+			const links = await getLinksForFile(joinLines(
+				`# h`,
+				`[[a]](http://example.com)`,
+			));
+			assertLinksEqual(links, [
+				new vscode.Range(1, 6, 1, 24),
+			]);
+		}
 	});
 
 	test('Should handle two links without space', async () => {
