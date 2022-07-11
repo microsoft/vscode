@@ -454,9 +454,27 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 	}
 
 	override run(): Promise<any> {
-		const currentFocusElement = this.viewer.getFocus()[0];
-		const nextFocusElement = !currentFocusElement || currentFocusElement instanceof SearchResult || elementIsEqualOrParent(currentFocusElement, this.element) ?
-			this.getElementToFocusAfterRemoved(this.viewer, this.element) :
+
+		let elementsToRemove: RenderableMatch[] = [];
+		const currentSelection: RenderableMatch[] = [];
+
+		this.viewer.getSelection().forEach((elem) => {
+			currentSelection.push(<RenderableMatch>elem);
+		});
+
+		let currentBottomFocusElement;
+
+		// if you're using multiselect and you click to remove one element from the tree, remove all selected
+		if (currentSelection.length > 1 && currentSelection.includes(this.element)) {
+			elementsToRemove = currentSelection;
+			currentBottomFocusElement = currentSelection[currentSelection.length - 1];
+		} else {
+			elementsToRemove.push(this.element);
+			currentBottomFocusElement = this.viewer.getFocus()[0];
+		}
+
+		const nextFocusElement = !currentBottomFocusElement || currentBottomFocusElement instanceof SearchResult || elementIsEqualOrParent(currentBottomFocusElement, this.element) ?
+			this.getElementToFocusAfterRemoved(this.viewer, <any>currentBottomFocusElement) :
 			null;
 
 		if (nextFocusElement) {
@@ -465,8 +483,10 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 			this.viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
 		}
 
-		this.element.parent().remove(<any>this.element);
-		this.viewer.domFocus();
+		elementsToRemove.forEach((currentElement, index) => {
+			currentElement?.parent().remove(<any>currentElement);
+			this.viewer.domFocus();
+		});
 
 		return Promise.resolve();
 	}
@@ -496,8 +516,26 @@ export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 
 	override run(): Promise<any> {
 		const tree = this.viewlet.getControl();
-		const nextFocusElement = this.getElementToFocusAfterRemoved(tree, this.fileMatch);
-		return this.fileMatch.parent().replace(this.fileMatch).then(() => {
+
+		let elementsToReplace: RenderableMatch[] = [];
+		const currentSelection: RenderableMatch[] = [];
+
+		this.viewlet.getControl().getSelection().forEach((elem) => {
+			currentSelection.push(<RenderableMatch>elem);
+		});
+
+		// if you're using multiselect and you click to replace one element from the tree, replace all selected
+		if (currentSelection.length > 1 && currentSelection.includes(this.fileMatch)) {
+			elementsToReplace = currentSelection;
+		} else {
+			elementsToReplace.push(this.fileMatch);
+		}
+		const currFocusElement = elementsToReplace[elementsToReplace.length - 1];
+		const nextFocusElement = this.getElementToFocusAfterRemoved(tree, currFocusElement);
+
+		return Promise.all(elementsToReplace.map(async (elem) => {
+			await elem.parent().replace(<any>elem);
+		})).then(() => {
 			if (nextFocusElement) {
 				tree.setFocus([nextFocusElement], getSelectionKeyboardEvent());
 				tree.setSelection([nextFocusElement], getSelectionKeyboardEvent());
@@ -549,9 +587,27 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 
 	override async run(): Promise<any> {
 		this.enabled = false;
+		let elementsToReplace: RenderableMatch[] = [];
+		const currentSelection: RenderableMatch[] = [];
 
-		await this.element.parent().replace(this.element);
-		const elementToFocus = this.getElementToFocusAfterReplace();
+		this.viewer.getSelection().forEach((elem) => {
+			currentSelection.push(<RenderableMatch>elem);
+		});
+
+		// if you're using multiselect and you click to replace one element from the tree, replace all selected
+		if (currentSelection.length > 1 && currentSelection.includes(this.element)) {
+			elementsToReplace = currentSelection;
+		} else {
+			elementsToReplace.push(this.element);
+		}
+
+		elementsToReplace.forEach(async (elem) =>
+			await elem.parent().replace(<any>elem)
+		);
+
+		const currentBottomFocusElement = <Match>currentSelection[currentSelection.length - 1];
+
+		const elementToFocus = this.getElementToFocusAfterReplace(currentBottomFocusElement);
 		if (elementToFocus) {
 			this.viewer.setFocus([elementToFocus], getSelectionKeyboardEvent());
 			this.viewer.setSelection([elementToFocus], getSelectionKeyboardEvent());
@@ -562,22 +618,22 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 
 		const useReplacePreview = this.configurationService.getValue<ISearchConfiguration>().search.useReplacePreview;
 		if (!useReplacePreview || !elementToShowReplacePreview || this.hasToOpenFile()) {
-			this.viewlet.open(this.element, true);
+			this.viewlet.open(currentBottomFocusElement, true);
 		} else {
 			this.replaceService.openReplacePreview(elementToShowReplacePreview, true);
 		}
 	}
 
-	private getElementToFocusAfterReplace(): RenderableMatch {
+	private getElementToFocusAfterReplace(currElement: Match): RenderableMatch {
 		const navigator: ITreeNavigator<RenderableMatch | null> = this.viewer.navigate();
 		let fileMatched = false;
 		let elementToFocus: RenderableMatch | null = null;
 		do {
 			elementToFocus = navigator.current();
 			if (elementToFocus instanceof Match) {
-				if (elementToFocus.parent().id() === this.element.parent().id()) {
+				if (elementToFocus.parent().id() === currElement.parent().id()) {
 					fileMatched = true;
-					if (this.element.range().getStartPosition().isBeforeOrEqual(elementToFocus.range().getStartPosition())) {
+					if (currElement.range().getStartPosition().isBeforeOrEqual(elementToFocus.range().getStartPosition())) {
 						// Closest next match in the same file
 						break;
 					}

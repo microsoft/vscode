@@ -730,7 +730,7 @@ export class SearchView extends ViewPane {
 					}
 					return null;
 				}),
-				multipleSelectionSupport: false,
+				multipleSelectionSupport: true,
 				selectionNavigation: true,
 				overrideStyles: {
 					listBackground: this.getBackgroundColor()
