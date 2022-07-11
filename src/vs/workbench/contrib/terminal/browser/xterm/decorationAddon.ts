@@ -84,6 +84,10 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			} else if (e.affectsConfiguration('workbench.colorCustomizations')) {
 				this._refreshStyles(true);
 			} else if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled)) {
+				if (this._commandDetectionListeners) {
+					dispose(this._commandDetectionListeners);
+					this._commandDetectionListeners = undefined;
+				}
 				this._updateDecorationVisibility();
 			}
 		});
@@ -96,9 +100,9 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		this._showGutterDecorations = (showDecorations === 'both' || showDecorations === 'gutter');
 		this._showOverviewRulerDecorations = (showDecorations === 'both' || showDecorations === 'overviewRuler');
 		this._disposeAllDecorations();
-		this._updateGutterDecorationVisibility();
 		if (this._showGutterDecorations || this._showOverviewRulerDecorations) {
 			this._attachToCommandCapability();
+			this._updateGutterDecorationVisibility();
 		}
 	}
 
@@ -118,7 +122,11 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	}
 
 	private _updateCommandDecorationVisibility(commandDecorationElement: Element): void {
-		commandDecorationElement.classList.toggle('hide', this._showGutterDecorations);
+		if (this._showGutterDecorations) {
+			commandDecorationElement.classList.remove('hide');
+		} else {
+			commandDecorationElement.classList.add('hide');
+		}
 	}
 
 	public refreshLayouts(): void {
