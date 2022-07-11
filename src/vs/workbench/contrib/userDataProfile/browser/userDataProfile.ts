@@ -63,7 +63,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 						'type': 'boolean',
 						'default': false,
 						'description': localize('workbench.experimental.settingsProfiles.enabled', "Controls whether to enable the Settings Profiles preview feature."),
-						scope: ConfigurationScope.APPLICATION
+						scope: ConfigurationScope.APPLICATION,
+						ignoreSync: true
 					}
 				}
 			});
