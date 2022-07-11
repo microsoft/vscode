@@ -274,6 +274,8 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 
 		this.dropdownButton = this._register(new Button(this.element, { ...options, title: false, supportIcons: true }));
 		this.dropdownButton.element.title = localize("button dropdown more actions", 'More Actions...');
+		this.dropdownButton.element.setAttribute('aria-haspopup', 'true');
+		this.dropdownButton.element.setAttribute('aria-expanded', 'false');
 		this.dropdownButton.element.classList.add('monaco-dropdown-button');
 		this.dropdownButton.icon = Codicon.dropDownButton;
 		this._register(this.dropdownButton.onDidClick(e => {
