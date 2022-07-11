@@ -180,28 +180,42 @@
 			// ensure there is enough space
 			layoutInfo.sideBarWidth = Math.min(layoutInfo.sideBarWidth, window.innerWidth - (layoutInfo.activityBarWidth + layoutInfo.editorPartMinWidth));
 
-			// part: title
-			const titleDiv = document.createElement('div');
-			titleDiv.setAttribute('style', `position: absolute; width: 100%; left: 0; top: 0; height: ${layoutInfo.titleBarHeight}px; background-color: ${colorInfo.titleBarBackground}; -webkit-app-region: drag;`);
-			splash.appendChild(titleDiv);
+			// transform the splash div
+			splash.style.display = 'flex';
+			splash.style.alignItems = 'center';
+			splash.style.justifyContent = 'center';
+			splash.style.height = '100vh';
 
-			// part: activity bar
-			const activityDiv = document.createElement('div');
-			activityDiv.setAttribute('style', `position: absolute; height: calc(100% - ${layoutInfo.titleBarHeight}px); top: ${layoutInfo.titleBarHeight}px; ${layoutInfo.sideBarSide}: 0; width: ${layoutInfo.activityBarWidth}px; background-color: ${colorInfo.activityBarBackground};`);
-			splash.appendChild(activityDiv);
+			// create a spinner div tag
+			const spinnerDiv = document.createElement('div')
+			// set spinner div style
+			// the spinner's accent color is based on the activity bar color
+			spinnerDiv.setAttribute('style', `
+				border: 5px solid ${colorInfo.activityBarBackground};
+				border-radius: 50%;
+				border-top: 5px solid ${configuration.workspace ? colorInfo.statusBarBackground : colorInfo.statusBarNoFolderBackground};
+				width: 40px;
+				height: 40px;
+				-webkit-animation: spin 1s linear infinite; /* Safari */
+				animation: spin 1s linear infinite;`
+			)
+			// create a spinner style tag
+			const spinnerStyle = document.createElement('style')
+			// spinner spin animation keyframes
+			spinnerStyle.innerText = `
+				@-webkit-keyframes spin {
+					0% { -webkit-transform: rotate(0deg); }
+					100% { -webkit-transform: rotate(360deg); }
+				}
 
-			// part: side bar (only when opening workspace/folder)
-			// folder or workspace -> status bar color, sidebar
-			if (configuration.workspace) {
-				const sideDiv = document.createElement('div');
-				sideDiv.setAttribute('style', `position: absolute; height: calc(100% - ${layoutInfo.titleBarHeight}px); top: ${layoutInfo.titleBarHeight}px; ${layoutInfo.sideBarSide}: ${layoutInfo.activityBarWidth}px; width: ${layoutInfo.sideBarWidth}px; background-color: ${colorInfo.sideBarBackground};`);
-				splash.appendChild(sideDiv);
-			}
-
-			// part: statusbar
-			const statusDiv = document.createElement('div');
-			statusDiv.setAttribute('style', `position: absolute; width: 100%; bottom: 0; left: 0; height: ${layoutInfo.statusBarHeight}px; background-color: ${configuration.workspace ? colorInfo.statusBarBackground : colorInfo.statusBarNoFolderBackground};`);
-			splash.appendChild(statusDiv);
+				@keyframes spin {
+					0% { transform: rotate(0deg); }
+					100% { transform: rotate(360deg); }
+				}`;
+			// append spinner style tag inside spinner div tag
+			spinnerDiv.appendChild(spinnerStyle)
+			// append spinner div tag inside loader tag
+			splash.appendChild(spinnerDiv)
 
 			document.body.appendChild(splash);
 		}
