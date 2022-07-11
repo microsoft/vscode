@@ -452,8 +452,12 @@ async function getTranslations() {
     }
     const version = await getLatestStableVersion(updateUrl);
     const languageIds = Object.keys(Languages);
-    return await Promise.all(languageIds.map(languageId => getNLS(resourceUrlTemplate, languageId, version)
+    const result = await Promise.allSettled(languageIds.map(languageId => getNLS(resourceUrlTemplate, languageId, version)
+        .catch(err => { console.warn(`Missing translation: ${languageId}@${version}`); return Promise.reject(err); })
         .then(languageTranslations => ({ languageId, languageTranslations }))));
+    return result
+        .filter((r) => r.status === 'fulfilled')
+        .map(r => r.value);
 }
 async function main() {
     const [policies, translations] = await Promise.all([parsePolicies(), getTranslations()]);

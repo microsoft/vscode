@@ -141,7 +141,8 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		@IKeybindingService protected readonly _keybindingService: IKeybindingService,
 		@INotificationService protected _notificationService: INotificationService,
 		@IContextKeyService protected _contextKeyService: IContextKeyService,
-		@IThemeService protected _themeService: IThemeService
+		@IThemeService protected _themeService: IThemeService,
+		@IContextMenuService protected _contextMenuService: IContextMenuService
 	) {
 		super(undefined, action, { icon: !!(action.class || action.item.icon), label: !action.class && !action.item.icon, draggable: options?.draggable, keybinding: options?.keybinding, hoverDelegate: options?.hoverDelegate });
 		this._altKey = ModifierKeyEmitter.getInstance();
@@ -202,6 +203,21 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 			mouseOver = true;
 			updateAltState();
 		}));
+
+
+		this._register(addDisposableListener(container, 'contextmenu', event => {
+			if (!this._menuItemAction.hideActions) {
+				return;
+			}
+
+			event.preventDefault();
+			event.stopPropagation();
+
+			this._contextMenuService.showContextMenu({
+				getAnchor: () => container,
+				getActions: () => this._menuItemAction.hideActions!.asList()
+			});
+		}, true));
 	}
 
 	override updateLabel(): void {
@@ -356,7 +372,7 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 	) {
 		super(null, submenuAction);
 		this._options = options;
-		this._storageKey = `${submenuAction.item.submenu._debugName}_lastActionId`;
+		this._storageKey = `${submenuAction.item.submenu.id}_lastActionId`;
 
 		// determine default action
 		let defaultAction: IAction | undefined;

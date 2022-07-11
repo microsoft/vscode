@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, Event, EventEmitter, SourceControlActionButton, Uri, workspace } from 'vscode';
 import * as nls from 'vscode-nls';
+import { Disposable, Event, EventEmitter, SourceControlActionButton, Uri, workspace } from 'vscode';
+import { Branch, Status } from './api/git';
 import { Repository, Operation } from './repository';
 import { dispose } from './util';
-import { Branch } from './api/git';
 
 const localize = nls.loadMessageBundle();
 
@@ -16,7 +16,7 @@ interface ActionButtonState {
 	readonly isCommitInProgress: boolean;
 	readonly isMergeInProgress: boolean;
 	readonly isSyncInProgress: boolean;
-	readonly repositoryHasChanges: boolean;
+	readonly repositoryHasChangesToCommit: boolean;
 }
 
 export class ActionButtonCommand {
@@ -40,7 +40,7 @@ export class ActionButtonCommand {
 			isCommitInProgress: false,
 			isMergeInProgress: false,
 			isSyncInProgress: false,
-			repositoryHasChanges: false
+			repositoryHasChangesToCommit: false
 		};
 
 		repository.onDidRunGitStatus(this.onDidRunGitStatus, this, this.disposables);
@@ -48,11 +48,16 @@ export class ActionButtonCommand {
 
 		const root = Uri.file(repository.root);
 		this.disposables.push(workspace.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('git.enableSmartCommit', root) ||
+				e.affectsConfiguration('git.smartCommitChanges', root) ||
+				e.affectsConfiguration('git.suggestSmartCommit', root)) {
+				this.onDidChangeSmartCommitSettings();
+			}
+
 			if (e.affectsConfiguration('git.branchProtection', root) ||
 				e.affectsConfiguration('git.branchProtectionPrompt', root) ||
 				e.affectsConfiguration('git.postCommitCommand', root) ||
-				e.affectsConfiguration('git.showActionButton', root)
-			) {
+				e.affectsConfiguration('git.showActionButton', root)) {
 				this._onDidChange.fire();
 			}
 		}));
@@ -63,7 +68,7 @@ export class ActionButtonCommand {
 
 		let actionButton: SourceControlActionButton | undefined;
 
-		if (this.state.repositoryHasChanges) {
+		if (this.state.repositoryHasChangesToCommit) {
 			// Commit Changes (enabled)
 			actionButton = this.getCommitActionButton();
 		}
@@ -160,7 +165,7 @@ export class ActionButtonCommand {
 					},
 				]
 			],
-			enabled: this.state.repositoryHasChanges && !this.state.isCommitInProgress && !this.state.isMergeInProgress
+			enabled: this.state.repositoryHasChangesToCommit && !this.state.isCommitInProgress && !this.state.isMergeInProgress
 		};
 	}
 
@@ -223,17 +228,45 @@ export class ActionButtonCommand {
 		this.state = { ...this.state, isCommitInProgress, isSyncInProgress };
 	}
 
+	private onDidChangeSmartCommitSettings(): void {
+		this.state = {
+			...this.state,
+			repositoryHasChangesToCommit: this.repositoryHasChangesToCommit()
+		};
+	}
+
 	private onDidRunGitStatus(): void {
 		this.state = {
 			...this.state,
 			HEAD: this.repository.HEAD,
-			isMergeInProgress:
-				this.repository.mergeGroup.resourceStates.length !== 0,
-			repositoryHasChanges:
-				this.repository.indexGroup.resourceStates.length !== 0 ||
-				this.repository.untrackedGroup.resourceStates.length !== 0 ||
-				this.repository.workingTreeGroup.resourceStates.length !== 0
+			isMergeInProgress: this.repository.mergeGroup.resourceStates.length !== 0,
+			repositoryHasChangesToCommit: this.repositoryHasChangesToCommit()
 		};
+	}
+
+	private repositoryHasChangesToCommit(): boolean {
+		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+		const enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
+		const suggestSmartCommit = config.get<boolean>('suggestSmartCommit') === true;
+		const smartCommitChanges = config.get<'all' | 'tracked'>('smartCommitChanges', 'all');
+
+		const resources = [...this.repository.indexGroup.resourceStates];
+
+		if (
+			// Smart commit enabled (all)
+			(enableSmartCommit && smartCommitChanges === 'all') ||
+			// Smart commit disabled, smart suggestion enabled
+			(!enableSmartCommit && suggestSmartCommit)
+		) {
+			resources.push(...this.repository.workingTreeGroup.resourceStates);
+		}
+
+		// Smart commit enabled (tracked only)
+		if (enableSmartCommit && smartCommitChanges === 'tracked') {
+			resources.push(...this.repository.workingTreeGroup.resourceStates.filter(r => r.type !== Status.UNTRACKED));
+		}
+
+		return resources.length !== 0;
 	}
 
 	dispose(): void {
