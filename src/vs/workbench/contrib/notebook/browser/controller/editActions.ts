@@ -49,6 +49,7 @@ export class DeleteCellAction extends MenuItemAction {
 			},
 			undefined,
 			{ shouldForwardArgs: true },
+			undefined,
 			contextKeyService,
 			commandService);
 	}

@@ -30,6 +30,7 @@ import { IExtensionManifestPropertiesService } from 'vs/workbench/services/exten
 import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 import { IAutomatedWindow } from 'vs/platform/log/browser/log';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -54,6 +55,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IUserDataInitializationService private readonly _userDataInitializationService: IUserDataInitializationService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 	) {
 		super(
 			instantiationService,
@@ -70,7 +72,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			webExtensionsScannerService,
 			logService,
 			remoteAgentService,
-			lifecycleService
+			lifecycleService,
+			userDataProfileService
 		);
 
 		// Initialize installed extensions first and do it only after workbench is ready
@@ -92,7 +95,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			return this._remoteAgentService.scanSingleExtension(extension.location, extension.type === ExtensionType.System);
 		}
 
-		const scannedExtension = await this._webExtensionsScannerService.scanExistingExtension(extension.location, extension.type);
+		const scannedExtension = await this._webExtensionsScannerService.scanExistingExtension(extension.location, extension.type, this._userDataProfileService.currentProfile.extensionsResource);
 		if (scannedExtension) {
 			return toExtensionDescription(scannedExtension);
 		}

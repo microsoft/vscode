@@ -48,7 +48,7 @@ class MenuActions extends Disposable {
 		this._onDidChange.fire();
 	}
 
-	private updateSubmenus(actions: readonly IAction[], submenus: { [id: number]: IMenu }): IDisposable {
+	private updateSubmenus(actions: readonly IAction[], submenus: Record<string, IMenu>): IDisposable {
 		const disposables = new DisposableStore();
 
 		for (const action of actions) {
