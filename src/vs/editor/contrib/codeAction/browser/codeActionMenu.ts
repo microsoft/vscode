@@ -66,6 +66,7 @@ export interface ICodeActionMenuItem {
 	action: IAction;
 	decoratorRight?: string;
 	isDisabled?: boolean;
+	disposables?: IDisposable[];
 }
 
 export interface ICodeMenuOptions {
@@ -134,6 +135,10 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 	disposeTemplate(templateData: ICodeActionMenuTemplateData): void {
 		templateData.disposables = dispose(templateData.disposables);
 	}
+
+	// disposeElement(elementData: ICodeActionMenuItem) {
+	// 	elementData.dispoables = dispose(elementData.disposables);
+	// }
 
 }
 
@@ -233,7 +238,7 @@ export class CodeActionMenu extends Disposable {
 		renderMenu.style.boxShadow = 'rgb(0,0,0,0.36) 0px 2px 8px';
 		renderMenu.style.width = '350px';
 		renderMenu.style.height = '200px';
-		renderMenu.id = 'testRedSquare';
+		renderMenu.id = 'testMenu';
 
 		element.appendChild(renderMenu);
 
@@ -268,6 +273,8 @@ export class CodeActionMenu extends Disposable {
 	}
 
 	override dispose() {
+		this.codeActionList.dispose();
+		this.options = [];
 		this._contextViewService.hideContextView();
 	}
 
