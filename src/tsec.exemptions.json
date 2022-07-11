@@ -7,7 +7,7 @@
 		"vs/workbench/api/worker/extHostExtensionService.ts",
 		"vs/base/worker/workerMain",
 		"vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts",
-		"vs/workbench/services/keybinding/test/electron-browser/keyboardMapperTestUtils.ts"
+		"vs/workbench/services/keybinding/test/node/keyboardMapperTestUtils.ts"
 	],
 	"ban-trustedtypes-createpolicy": [
 		"vs/base/browser/dom.ts",
