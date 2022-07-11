@@ -78,7 +78,7 @@ import { ITextEditorSelection, TextEditorSelectionRevealType } from 'vs/platform
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
-import { isWorkspaceFolder, ITaskQuickPickEntry, QUICKOPEN_DETAIL_CONFIG, TaskQuickPick, QUICKOPEN_SKIP_CONFIG, configureTaskIcon } from 'vs/workbench/contrib/tasks/browser/taskQuickPick';
+import { isWorkspaceFolder, ITaskQuickPickEntry, QUICKOPEN_DETAIL_CONFIG, TaskQuickPick, QUICKOPEN_SKIP_CONFIG, configureTaskIcon, ITaskTwoLevelQuickPickEntry } from 'vs/workbench/contrib/tasks/browser/taskQuickPick';
 import { ILogService } from 'vs/platform/log/common/log';
 import { once } from 'vs/base/common/functional';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -352,7 +352,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			id: 'workbench.action.tasks.runTask',
 			handler: async (accessor, arg) => {
 				if (await this._trust()) {
-					await this._runTaskCommand(arg);
+					this._runTaskCommand(arg);
 				}
 			},
 			description: {
@@ -2678,27 +2678,17 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!this._canRunCommand()) {
 			return;
 		}
+		let typeFilter = false;
 		let taskNameOrObject: undefined | string | KeyedTaskIdentifier;
 		if (arg) {
 			if (typeof arg === 'string') {
 				taskNameOrObject = this._getTaskIdentifier(arg);
 			} else if (typeof arg === 'object' && 'taskName' in arg || 'type' in arg) {
-				taskNameOrObject = arg.taskName;
-				if (taskNameOrObject) {
-					const taskIdentifier = this._getTaskIdentifier(taskNameOrObject);
-					if (taskIdentifier) {
-						taskNameOrObject = taskIdentifier;
-					}
-				} else {
-					const taskQuickPick = new TaskQuickPick(this, this._configurationService, this._quickInputService, this._notificationService, this._themeService, this._dialogService);
-					const result = await taskQuickPick.doPickerSecondLevel(arg.type);
-					if (result) {
-						taskNameOrObject = result.label;
-						taskQuickPick.dispose();
-					} else {
-						return;
-					}
+				taskNameOrObject = arg.taskName || arg.type;
+				if (arg.type) {
+					typeFilter = true;
 				}
+				taskNameOrObject = this._getTaskIdentifier(taskNameOrObject);
 			}
 		}
 
@@ -2720,11 +2710,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						return;
 					} else {
 						if (taskNameOrObject) {
-							filter = typeof taskNameOrObject === 'string' ? taskNameOrObject : taskNameOrObject._key;
+							filter = taskNameOrObject;
 						}
 					}
 				}
-				this._doRunTaskCommand(grouped.all(), filter);
+				this._doRunTaskCommand(grouped.all(), typeof taskNameOrObject === 'string' ? taskNameOrObject : taskNameOrObject?.type, typeFilter);
 			}, () => {
 				this._doRunTaskCommand();
 			});
@@ -2764,7 +2754,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return { tasks, grouped };
 	}
 
-	private _doRunTaskCommand(tasks?: Task[], filter?: string): void {
+	private _doRunTaskCommand(tasks?: Task[], filter?: string, typeFilter?: boolean): void {
 		const pickThen = (task: Task | undefined | null) => {
 			if (task === undefined) {
 				return;
@@ -2780,28 +2770,56 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 		const placeholder = nls.localize('TaskService.pickRunTask', 'Select the task to run');
 
-		this._showIgnoredFoldersMessage().then(() => {
+		this._showIgnoredFoldersMessage().then(async () => {
 			if (this._configurationService.getValue(USE_SLOW_PICKER)) {
 				let taskResult: { tasks: Promise<Task[]>; grouped: Promise<TaskMap> } | undefined = undefined;
 				if (!tasks) {
 					taskResult = this._tasksAndGroupedTasks();
+				}
+				if (filter && typeof typeFilter) {
+					const taskQuickPick = new TaskQuickPick(this, this._configurationService, this._quickInputService, this._notificationService, this._themeService, this._dialogService);
+					const result = await taskQuickPick.doPickerSecondLevel(filter);
+					if (result?.task) {
+						pickThen(result.task as Task);
+						taskQuickPick.dispose();
+						return;
+					} else {
+						return;
+					}
 				}
 				this._showQuickPick(tasks ? tasks : taskResult!.tasks, placeholder,
 					{
 						label: '$(plus) ' + nls.localize('TaskService.noEntryToRun', 'Configure a Task'),
 						task: null
 					},
-					true, false, undefined, undefined, filter).
+					true, false, undefined, undefined, typeof filter === 'string' ? filter : undefined).
 					then((entry) => {
 						return pickThen(entry ? entry.task : undefined);
 					});
 			} else {
-				this._showTwoLevelQuickPick(placeholder,
-					{
-						label: '$(plus) ' + nls.localize('TaskService.noEntryToRun', 'Configure a Task'),
-						task: null
-					}, filter).
-					then(pickThen);
+				if (filter && typeof typeFilter) {
+					const picker: IQuickPick<ITaskTwoLevelQuickPickEntry> = this._quickInputService.createQuickPick();
+					picker.placeholder = nls.localize('TaskService.pickRunTask', 'Select the task to run');
+					picker.matchOnDescription = true;
+					picker.ignoreFocusOut = false;
+					const taskQuickPick = new TaskQuickPick(this, this._configurationService, this._quickInputService, this._notificationService, this._themeService, this._dialogService);
+					const result = await taskQuickPick.doPickerSecondLevel(picker, filter);
+					if (result?.task) {
+						pickThen(result.task as Task);
+						picker.dispose();
+						taskQuickPick.dispose();
+						return;
+					} else {
+						return;
+					}
+				} else {
+					this._showTwoLevelQuickPick(placeholder,
+						{
+							label: '$(plus) ' + nls.localize('TaskService.noEntryToRun', 'Configure a Task'),
+							task: null
+						}, typeof filter === 'string' ? filter : undefined).
+						then(pickThen);
+				}
 			}
 		});
 	}

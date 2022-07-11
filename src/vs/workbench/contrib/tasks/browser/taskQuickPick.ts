@@ -305,13 +305,7 @@ export class TaskQuickPick extends Disposable {
 		return firstLevelPickerResult?.task;
 	}
 
-	public async doPickerSecondLevel(type: string, picker?: IQuickPick<ITaskTwoLevelQuickPickEntry>) {
-		if (!picker) {
-			picker = this._quickInputService.createQuickPick();
-			picker.placeholder = nls.localize('TaskService.pickRunTask', 'Select the task to run');
-			picker.matchOnDescription = true;
-			picker.ignoreFocusOut = false;
-		}
+	public async doPickerSecondLevel(picker: IQuickPick<ITaskTwoLevelQuickPickEntry>, type: string) {
 		picker.busy = true;
 		if (type === SHOW_ALL) {
 			const items = (await this._taskService.tasks()).filter(t => !t.configurationProperties.hide).sort((a, b) => this._sorter.compare(a, b)).map(task => this._createTaskEntry(task));
@@ -334,7 +328,6 @@ export class TaskQuickPick extends Disposable {
 				resolve(picker.selectedItems ? picker.selectedItems[0] : undefined);
 			});
 		});
-
 		return secondLevelPickerResult;
 	}
 
