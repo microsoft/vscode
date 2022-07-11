@@ -10,7 +10,7 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IUserDataProfile, PROFILES_ENABLEMENT_CONFIG, UseDefaultProfileFlags } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ContextKeyDefinedExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IsWebContext, ProductQualityContext } from 'vs/platform/contextkey/common/contextkeys';
+import { ProductQualityContext } from 'vs/platform/contextkey/common/contextkeys';
 
 export interface DidChangeUserDataProfileEvent {
 	readonly preserveData: boolean;
@@ -73,4 +73,4 @@ export const PROFILES_TTILE = { value: localize('settings profiles', "Settings P
 export const PROFILES_CATEGORY = PROFILES_TTILE.value;
 export const PROFILE_EXTENSION = 'code-profile';
 export const PROFILE_FILTER = [{ name: localize('profile', "Settings Profile"), extensions: [PROFILE_EXTENSION] }];
-export const PROFILES_ENABLEMENT_CONTEXT = ContextKeyExpr.and(ProductQualityContext.notEqualsTo('stable'), IsWebContext.negate(), ContextKeyDefinedExpr.create(`config.${PROFILES_ENABLEMENT_CONFIG}`));
+export const PROFILES_ENABLEMENT_CONTEXT = ContextKeyExpr.and(ProductQualityContext.notEqualsTo('stable'), ContextKeyDefinedExpr.create(`config.${PROFILES_ENABLEMENT_CONFIG}`));

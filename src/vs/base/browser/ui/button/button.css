@@ -42,8 +42,13 @@
 	outline-offset: -1px !important;
 }
 
-.monaco-button-dropdown > .monaco-dropdown-button {
-	margin-left: 1px;
+.monaco-button-dropdown .monaco-button-dropdown-separator {
+	padding: 4px 0;
+}
+
+.monaco-button-dropdown .monaco-button-dropdown-separator > div {
+	height: 100%;
+	width: 1px;
 }
 
 .monaco-description-button {
