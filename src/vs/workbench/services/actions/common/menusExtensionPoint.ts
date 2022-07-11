@@ -729,7 +729,7 @@ submenusExtensionPoint.setHandler(extensions => {
 
 const _apiMenusByKey = new Map(Iterable.map(Iterable.from(apiMenus), menu => ([menu.key, menu])));
 const _menuRegistrations = new DisposableStore();
-const _submenuMenuItems = new Map<number /* menu id */, Set<number /* submenu id */>>();
+const _submenuMenuItems = new Map<string /* menu id */, Set<string /* submenu id */>>();
 
 const menusExtensionPoint = ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: (schema.IUserFriendlyMenuItem | schema.IUserFriendlySubmenuItem)[] }>({
 	extensionPoint: 'menus',
