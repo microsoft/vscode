@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { generateUuid } from 'vs/base/common/uuid';
 import { isIMenuItem, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { MenuService } from 'vs/platform/actions/common/menuService';
 import { NullCommandService } from 'vs/platform/commands/common/commands';
@@ -29,7 +30,7 @@ suite('MenuService', function () {
 
 	setup(function () {
 		menuService = new MenuService(NullCommandService, new InMemoryStorageService());
-		testMenuId = new MenuId('testo');
+		testMenuId = new MenuId(`testo/${generateUuid()}`);
 		disposables.clear();
 	});
 
