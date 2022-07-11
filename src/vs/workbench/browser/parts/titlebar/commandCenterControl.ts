@@ -148,7 +148,7 @@ registerAction2(class extends Action2 {
 			id: 'commandCenter.help',
 			title: localize('all', "Show Search Modes..."),
 			icon: Codicon.chevronDown,
-			menu: { id: MenuId.CommandCenter, order: 100 }
+			menu: { id: MenuId.CommandCenter, order: 101 }
 		});
 	}
 	run(accessor: ServicesAccessor): void {
