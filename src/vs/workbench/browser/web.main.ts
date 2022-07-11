@@ -22,7 +22,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { IWorkbenchFileService } from 'vs/workbench/services/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { Schemas, connectionTokenCookieName } from 'vs/base/common/network';
-import { IAnyWorkspaceIdentifier, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IAnyWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { setFullscreen } from 'vs/base/browser/browser';
@@ -73,7 +73,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { DelayedLogChannel } from 'vs/workbench/services/output/common/delayedLogChannel';
 import { dirname, joinPath } from 'vs/base/common/resources';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfilesService, PROFILES_ENABLEMENT_CONFIG } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { NullPolicyService } from 'vs/platform/policy/common/policy';
 import { IRemoteExplorerService, TunnelSource } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { DisposableTunnel } from 'vs/platform/tunnel/common/tunnel';
@@ -260,16 +260,15 @@ export class BrowserMain extends Disposable {
 		serviceCollection.set(IWorkbenchFileService, fileService);
 		await this.registerFileSystemProviders(environmentService, fileService, remoteAgentService, logService, logsPath);
 
-		// User Data Profiles
-		const userDataProfilesService = new BrowserUserDataProfilesService(environmentService, fileService, logService);
-		serviceCollection.set(IUserDataProfilesService, userDataProfilesService);
-
-		const userDataProfileService = new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService);
-		serviceCollection.set(IUserDataProfileService, userDataProfileService);
-
 		// URI Identity
 		const uriIdentityService = new UriIdentityService(fileService);
 		serviceCollection.set(IUriIdentityService, uriIdentityService);
+
+		// User Data Profiles
+		const userDataProfilesService = new BrowserUserDataProfilesService(environmentService, fileService, uriIdentityService, logService);
+		serviceCollection.set(IUserDataProfilesService, userDataProfilesService);
+		const userDataProfileService = new UserDataProfileService(userDataProfilesService.getProfile(isWorkspaceIdentifier(payload) || isSingleFolderWorkspaceIdentifier(payload) ? payload : 'empty-window'), userDataProfilesService);
+		serviceCollection.set(IUserDataProfileService, userDataProfileService);
 
 		// Long running services (workspace, config, storage)
 		const [configurationService, storageService] = await Promise.all([
@@ -293,6 +292,7 @@ export class BrowserMain extends Disposable {
 			})
 		]);
 
+		userDataProfilesService.setEnablement(!!configurationService.getValue(PROFILES_ENABLEMENT_CONFIG));
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		//

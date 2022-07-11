@@ -286,9 +286,10 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IModelService, disposables.add(instantiationService.createInstance(ModelService)));
 	const fileService = overrides?.fileService ? overrides.fileService(instantiationService) : new TestFileService();
 	instantiationService.stub(IFileService, fileService);
-	const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(environmentService, fileService, new NullLogService()));
+	const uriIdentityService = new UriIdentityService(fileService);
+	instantiationService.stub(IUriIdentityService, uriIdentityService);
+	const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(environmentService, fileService, uriIdentityService, new NullLogService()));
 	instantiationService.stub(IUserDataProfileService, new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService));
-	instantiationService.stub(IUriIdentityService, new UriIdentityService(fileService));
 	instantiationService.stub(IWorkingCopyBackupService, new TestWorkingCopyBackupService());
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(INotificationService, new TestNotificationService());
@@ -2003,6 +2004,7 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 
 export class TestWebExtensionsScannerService implements IWebExtensionsScannerService {
 	_serviceBrand: undefined;
+	onDidChangeProfileExtensions = Event.None;
 	async scanSystemExtensions(): Promise<IExtension[]> { return []; }
 	async scanUserExtensions(): Promise<IScannedExtension[]> { return []; }
 	async scanExtensionsUnderDevelopment(): Promise<IExtension[]> { return []; }
