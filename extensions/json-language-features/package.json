@@ -85,6 +85,12 @@
           "default": true,
           "description": "%json.format.enable.desc%"
         },
+        "json.format.keepLines": {
+          "type": "boolean",
+          "scope": "window",
+          "default": false,
+          "description": "%json.format.keepLines.desc%"
+        },
         "json.trace.server": {
           "type": "string",
           "scope": "window",
