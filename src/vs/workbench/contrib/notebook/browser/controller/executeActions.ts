@@ -601,7 +601,7 @@ registerAction2(class RevealLastFailedCellAction extends NotebookAction {
 			id: REVEAL_RUNNING_CELL,
 			title: localize('revealLastFailedCell', "Go to Last Failed Cell"),
 			tooltip: localize('revealLastFailedCell', "Go to Last Failed Cell"),
-			shortTitle: localize('revealLastFailedCellShort', "See Last Failure"),
+			shortTitle: localize('revealLastFailedCellShort', "Go To"),
 			precondition: NOTEBOOK_LAST_CELL_FAILED,
 			menu: [
 				{
@@ -612,7 +612,7 @@ registerAction2(class RevealLastFailedCellAction extends NotebookAction {
 						ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
 					),
 					group: 'navigation',
-					order: 100
+					order: 0
 				},
 				{
 					id: MenuId.NotebookToolbar,
@@ -622,10 +622,10 @@ registerAction2(class RevealLastFailedCellAction extends NotebookAction {
 						ContextKeyExpr.equals('config.notebook.globalToolbar', true)
 					),
 					group: 'navigation/execute',
-					order: 100
+					order: 0
 				},
 			],
-			icon: icons.warningIcon,
+			icon: icons.errorStateIcon,
 		});
 	}
 
