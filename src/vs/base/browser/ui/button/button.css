@@ -46,6 +46,11 @@
 	padding: 4px 0;
 }
 
+.monaco-button-dropdown .monaco-button-dropdown-separator.disabled {
+	opacity: 0.4 !important;
+	cursor: default;
+}
+
 .monaco-button-dropdown .monaco-button-dropdown-separator > div {
 	height: 100%;
 	width: 1px;
