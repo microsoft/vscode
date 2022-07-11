@@ -45,7 +45,7 @@ export function isISubmenuItem(item: IMenuItem | ISubmenuItem): item is ISubmenu
 
 export class MenuId {
 
-	private static _idPool = 0;
+	private static readonly _idPool = new Set<string>();
 
 	static readonly CommandPalette = new MenuId('CommandPalette');
 	static readonly DebugBreakpointsContext = new MenuId('DebugBreakpointsContext');
@@ -162,12 +162,15 @@ export class MenuId {
 	static readonly NewFile = new MenuId('NewFile');
 	static readonly MergeToolbar = new MenuId('MergeToolbar');
 
-	readonly id: number;
-	readonly _debugName: string;
 
-	constructor(debugName: string) {
-		this.id = MenuId._idPool++;
-		this._debugName = debugName;
+	readonly id: string;
+
+	constructor(identifier: string) {
+		if (MenuId._idPool.has(identifier)) {
+			throw new Error(`Duplicate menu identifier ${identifier}`);
+		}
+		MenuId._idPool.add(identifier);
+		this.id = identifier;
 	}
 }
 
