@@ -43,9 +43,12 @@ class PersistedMenuHideState {
 
 	private static readonly _key = 'menu.hiddenCommands';
 
-	readonly onDidChange: Event<any>;
 	private readonly _disposables = new DisposableStore();
-	private readonly _data: Record<string, string[] | undefined>;
+	private readonly _onDidChange = new Emitter<void>();
+	readonly onDidChange: Event<void> = this._onDidChange.event;
+
+	private _ignoreChangeEvent: boolean = false;
+	private _data: Record<string, string[] | undefined>;
 
 	constructor(@IStorageService private readonly _storageService: IStorageService) {
 		try {
@@ -55,10 +58,24 @@ class PersistedMenuHideState {
 			this._data = Object.create(null);
 		}
 
-		this.onDidChange = Event.filter(_storageService.onDidChangeValue, e => e.key === PersistedMenuHideState._key, this._disposables);
+		this._disposables.add(_storageService.onDidChangeValue(e => {
+			if (e.key !== PersistedMenuHideState._key) {
+				return;
+			}
+			if (!this._ignoreChangeEvent) {
+				try {
+					const raw = _storageService.get(PersistedMenuHideState._key, StorageScope.PROFILE, '{}');
+					this._data = JSON.parse(raw);
+				} catch (err) {
+					console.log('FAILED to read storage after UPDATE', err);
+				}
+			}
+			this._onDidChange.fire();
+		}));
 	}
 
 	dispose() {
+		this._onDidChange.dispose();
 		this._disposables.dispose();
 	}
 
@@ -94,8 +111,13 @@ class PersistedMenuHideState {
 	}
 
 	private _persist(): void {
-		const raw = JSON.stringify(this._data);
-		this._storageService.store(PersistedMenuHideState._key, raw, StorageScope.PROFILE, StorageTarget.USER);
+		try {
+			this._ignoreChangeEvent = true;
+			const raw = JSON.stringify(this._data);
+			this._storageService.store(PersistedMenuHideState._key, raw, StorageScope.PROFILE, StorageTarget.USER);
+		} finally {
+			this._ignoreChangeEvent = false;
+		}
 	}
 }
 
