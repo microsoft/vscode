@@ -11,7 +11,7 @@ import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
 import { ITerminalCapabilityStore, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IExtensionTerminalProfile, IProcessPropertyMap, IShellIntegration, IShellLaunchConfig, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, ProcessPropertyType, TerminalIcon, TerminalLocation, TerminalShellType, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { IExtensionTerminalProfile, IProcessPropertyMap, IShellIntegration, IShellLaunchConfig, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, ProcessPropertyType, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalShellType, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProcess';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
@@ -572,6 +572,8 @@ export interface ITerminalInstance {
 
 	readonly exitCode: number | undefined;
 
+	readonly exitReason: TerminalExitReason | undefined;
+
 	readonly areLinksReady: boolean;
 
 	/**
@@ -656,17 +658,17 @@ export interface ITerminalInstance {
 	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
 	 *
-	 * @param immediate Whether the kill should be immediate or not. Immediate should only be used
-	 * when VS Code is shutting down or in cases where the terminal dispose was user initiated.
-	 * The immediate===false exists to cover an edge case where the final output of the terminal can
-	 * get cut off. If immediate kill any terminal processes immediately.
+	 * @param reason The reason why the terminal is being disposed
 	 */
-	dispose(immediate?: boolean): void;
+	dispose(reason?: TerminalExitReason): void;
 
 	/**
-	 * Inform the process that the terminal is now detached.
+	 * Informs the process that the terminal is now detached and
+	 * then disposes the terminal.
+	 *
+	 * @param reason The reason why the terminal is being disposed
 	 */
-	detachFromProcess(): Promise<void>;
+	detachProcessAndDispose(reason: TerminalExitReason): Promise<void>;
 
 	/**
 	 * Check if anything is selected in terminal.

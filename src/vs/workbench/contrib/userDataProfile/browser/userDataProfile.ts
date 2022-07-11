@@ -6,7 +6,6 @@
 import { Codicon } from 'vs/base/common/codicons';
 import { Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { isWeb } from 'vs/base/common/platform';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { Action2, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -56,7 +55,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 	}
 
 	private registerConfiguration(): void {
-		if (!isWeb && this.productService.quality !== 'stable') {
+		if (this.productService.quality !== 'stable') {
 			Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 				...workbenchConfigurationNodeBase,
 				'properties': {
@@ -64,7 +63,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 						'type': 'boolean',
 						'default': false,
 						'description': localize('workbench.experimental.settingsProfiles.enabled', "Controls whether to enable the Settings Profiles preview feature."),
-						scope: ConfigurationScope.APPLICATION
+						scope: ConfigurationScope.APPLICATION,
+						ignoreSync: true
 					}
 				}
 			});

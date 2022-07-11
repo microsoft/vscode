@@ -20,7 +20,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ICreateContributedTerminalProfileOptions, IShellLaunchConfig, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, TerminalLocationString, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { ICreateContributedTerminalProfileOptions, IShellLaunchConfig, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalExitReason, TerminalLocation, TerminalLocationString, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 import { iconForeground } from 'vs/platform/theme/common/colorRegistry';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
@@ -282,7 +282,7 @@ export class TerminalService implements ITerminalService {
 						} else {
 							this._terminalGroupService.getGroupForInstance(instanceToDetach)?.removeInstance(instanceToDetach);
 						}
-						await instanceToDetach.detachFromProcess();
+						await instanceToDetach.detachProcessAndDispose(TerminalExitReason.User);
 						await this._primaryBackend?.acceptDetachInstanceReply(e.requestId, persistentProcessId);
 					} else {
 						// will get rejected without a persistentProcessId to attach to
@@ -371,7 +371,7 @@ export class TerminalService implements ITerminalService {
 		}
 		return new Promise<void>(r => {
 			instance.onExit(() => r());
-			instance.dispose();
+			instance.dispose(TerminalExitReason.User);
 		});
 	}
 
@@ -615,7 +615,7 @@ export class TerminalService implements ITerminalService {
 		const shouldPersistTerminals = this._configHelper.config.enablePersistentSessions && e.reason === ShutdownReason.RELOAD;
 		if (shouldPersistTerminals) {
 			for (const instance of this.instances) {
-				instance.detachFromProcess();
+				instance.detachProcessAndDispose(TerminalExitReason.Shutdown);
 			}
 			return;
 		}
@@ -627,7 +627,7 @@ export class TerminalService implements ITerminalService {
 			if (shouldPersistTerminalsForEvent) {
 				instance.shutdownPersistentProcessId = instance.persistentProcessId;
 			}
-			instance.dispose();
+			instance.dispose(TerminalExitReason.Shutdown);
 		}
 
 		// Clear terminal layout info only when not persisting

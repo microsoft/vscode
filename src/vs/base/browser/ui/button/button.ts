@@ -137,8 +137,8 @@ export class Button extends Disposable implements IButton {
 
 		// Also set hover background when button is focused for feedback
 		this.focusTracker = this._register(trackFocus(this._element));
-		this._register(this.focusTracker.onDidFocus(() => this.setHoverBackground()));
-		this._register(this.focusTracker.onDidBlur(() => this.applyStyles())); // restore standard styles
+		this._register(this.focusTracker.onDidFocus(() => { if (this.enabled) { this.setHoverBackground(); } }));
+		this._register(this.focusTracker.onDidBlur(() => { if (this.enabled) { this.applyStyles(); } }));
 
 		this.applyStyles();
 	}
@@ -274,6 +274,8 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 
 		this.dropdownButton = this._register(new Button(this.element, { ...options, title: false, supportIcons: true }));
 		this.dropdownButton.element.title = localize("button dropdown more actions", 'More Actions...');
+		this.dropdownButton.element.setAttribute('aria-haspopup', 'true');
+		this.dropdownButton.element.setAttribute('aria-expanded', 'false');
 		this.dropdownButton.element.classList.add('monaco-dropdown-button');
 		this.dropdownButton.icon = Codicon.dropDownButton;
 		this._register(this.dropdownButton.onDidClick(e => {
@@ -299,6 +301,8 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 	set enabled(enabled: boolean) {
 		this.button.enabled = enabled;
 		this.dropdownButton.enabled = enabled;
+
+		this.element.classList.toggle('disabled', !enabled);
 	}
 
 	get enabled(): boolean {
