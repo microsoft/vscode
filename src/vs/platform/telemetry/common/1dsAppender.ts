@@ -115,15 +115,14 @@ export abstract class AbstractOneDataSystemAppender implements ITelemetryAppende
 		data = validateTelemetryData(data);
 		const name = this._eventPrefix + '/' + eventName;
 
-		if (data?.properties?.version) {
-			data.properties.pluginVersionString = data.properties.version;
-		}
-
 		try {
-			this._withAIClient((aiClient) => aiClient.track({
-				name,
-				baseData: { name, properties: data?.properties, measurements: data?.measurements }
-			}));
+			this._withAIClient((aiClient) => {
+				aiClient.pluginVersionString = data?.properties.version ?? 'Unknown';
+				aiClient.track({
+					name,
+					baseData: { name, properties: data?.properties, measurements: data?.measurements }
+				});
+			});
 		} catch { }
 	}
 
