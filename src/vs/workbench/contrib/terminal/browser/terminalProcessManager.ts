@@ -463,6 +463,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			environmentVariableCollections: this._extEnvironmentVariableCollection ? serializeEnvironmentVariableCollections(this._extEnvironmentVariableCollection.collections) : undefined
 		};
 		const shouldPersist = this._configHelper.config.enablePersistentSessions && (this.reconnectionOwner || !shellLaunchConfig.isFeatureTerminal);
+		console.log('should persist', shouldPersist);
 		return await backend.createProcess(shellLaunchConfig, initialCwd, cols, rows, this._configHelper.config.unicodeVersion, env, options, shouldPersist);
 	}
 
