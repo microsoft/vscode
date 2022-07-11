@@ -337,7 +337,7 @@ export class TestingExplorerView extends ViewPane {
 			icon: group === TestRunProfileBitset.Run
 				? icons.testingRunAllIcon
 				: icons.testingDebugAllIcon,
-		}, undefined, undefined);
+		}, undefined, undefined, undefined);
 
 		const dropdownAction = new Action('selectRunConfig', 'Select Configuration...', 'codicon-chevron-down', true);
 
