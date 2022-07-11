@@ -177,7 +177,6 @@ if (isWindows) {
 	});
 }
 
-// TODO: This only works when shell integration is enabled - create shell integration enabled for active terminal context key
 // Map certain keybindings in pwsh to unused keys which get handled by PSReadLine handlers in the
 // shell integration script. This allows keystrokes that cannot be sent via VT sequences to work.
 // See https://github.com/microsoft/terminal/issues/879#issuecomment-497775007
