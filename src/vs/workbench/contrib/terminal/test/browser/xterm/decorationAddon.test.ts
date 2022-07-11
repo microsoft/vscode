@@ -38,14 +38,14 @@ suite('DecorationAddon', () => {
 		const configurationService = new TestConfigurationService({
 			workbench: {
 				hover: { delay: 5 },
-				terminal: {
-					integrated: {
-						shellIntegration: {
-							decorationsEnabled: 'both'
-						}
+			},
+			terminal: {
+				integrated: {
+					shellIntegration: {
+						decorationsEnabled: 'both'
 					}
 				}
-			},
+			}
 		});
 		instantiationService.stub(IThemeService, new TestThemeService());
 		xterm = new TestTerminal({
