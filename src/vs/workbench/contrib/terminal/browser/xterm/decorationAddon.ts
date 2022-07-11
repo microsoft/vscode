@@ -53,8 +53,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	private _contextMenuVisible: boolean = false;
 	private _decorations: Map<number, IDisposableDecoration> = new Map();
 	private _placeholderDecoration: IDecoration | undefined;
-	private _overviewRulerDecorations?: boolean;
-	private _decorationsDisabled?: boolean;
+	private _showGutterDecorations?: boolean;
+	private _showOverviewRulerDecorations?: boolean;
 
 	private readonly _onDidRequestRunCommand = this._register(new Emitter<{ command: ITerminalCommand; copyAsHtml?: boolean }>());
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
@@ -93,38 +93,16 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 
 	private _updateDecorationVisibility(): void {
 		const showDecorations = this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled);
-		switch (showDecorations) {
-			case 'never':
-				this._disposeOfDecorations();
-				this._updateGutterDecorationVisibility(false);
-				this._overviewRulerDecorations = false;
-				this._decorationsDisabled = true;
-				break;
-			case 'both':
-				this._disposeOfDecorations();
-				this._updateGutterDecorationVisibility(true);
-				this._attachToCommandCapability();
-				this._overviewRulerDecorations = true;
-				this._decorationsDisabled = false;
-				this._attachToCommandCapability();
-				break;
-			case 'gutter':
-				this._disposeOfDecorations();
-				this._updateGutterDecorationVisibility(true);
-				this._overviewRulerDecorations = false;
-				this._decorationsDisabled = false;
-				this._attachToCommandCapability();
-				break;
-			case 'overviewRuler':
-				this._updateGutterDecorationVisibility(false);
-				this._overviewRulerDecorations = true;
-				this._decorationsDisabled = false;
-				this._attachToCommandCapability();
-				break;
+		this._showGutterDecorations = (showDecorations === 'both' || showDecorations === 'gutter');
+		this._showOverviewRulerDecorations = (showDecorations === 'both' || showDecorations === 'overviewRuler');
+		this._disposeAllDecorations();
+		this._updateGutterDecorationVisibility();
+		if (this._showGutterDecorations || this._showOverviewRulerDecorations) {
+			this._attachToCommandCapability();
 		}
 	}
 
-	private _disposeOfDecorations(): void {
+	private _disposeAllDecorations(): void {
 		this._placeholderDecoration?.dispose();
 		for (const value of this._decorations.values()) {
 			value.decoration.dispose();
@@ -132,16 +110,17 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 	}
 
-	private _updateGutterDecorationVisibility(visible?: boolean): void {
-		const containers = document.querySelectorAll(DecorationSelector.Container);
-		for (const container of containers) {
-			if (visible) {
-				container.classList.remove('hide');
-			} else {
-				container.classList.add('hide');
-			}
+	private _updateGutterDecorationVisibility(): void {
+		const commandDecorationElements = document.querySelectorAll(DecorationSelector.CommandDecoration);
+		for (const commandDecorationElement of commandDecorationElements) {
+			this._updateCommandDecorationVisibility(commandDecorationElement);
 		}
 	}
+
+	private _updateCommandDecorationVisibility(commandDecorationElement: Element): void {
+		commandDecorationElement.classList.toggle('hide', this._showGutterDecorations);
+	}
+
 	public refreshLayouts(): void {
 		this._updateLayout(this._placeholderDecoration?.element);
 		for (const decoration of this._decorations) {
@@ -186,7 +165,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	public clearDecorations(): void {
 		this._placeholderDecoration?.marker.dispose();
 		this._clearPlaceholder();
-		this._disposeOfDecorations();
+		this._disposeAllDecorations();
 		this._decorations.clear();
 	}
 
@@ -259,7 +238,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	}
 
 	registerCommandDecoration(command: ITerminalCommand, beforeCommandExecution?: boolean): IDecoration | undefined {
-		if (!this._terminal || (beforeCommandExecution && command.genericMarkProperties) || this._decorationsDisabled) {
+		if (!this._terminal || (beforeCommandExecution && command.genericMarkProperties) || (!this._showGutterDecorations && !this._showOverviewRulerDecorations)) {
 			return undefined;
 		}
 		if (!command.marker) {
@@ -274,7 +253,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 		const decoration = this._terminal.registerDecoration({
 			marker: command.marker,
-			overviewRulerOptions: this._overviewRulerDecorations ? (beforeCommandExecution
+			overviewRulerOptions: this._showOverviewRulerDecorations ? (beforeCommandExecution
 				? { color, position: 'left' }
 				: { color, position: command.exitCode ? 'right' : 'left' }) : undefined
 		});
@@ -341,20 +320,25 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			element.classList.remove(classes);
 		}
 		element.classList.add(DecorationSelector.CommandDecoration, DecorationSelector.Codicon, DecorationSelector.XtermDecoration);
+
 		if (genericMarkProperties) {
 			element.classList.add(DecorationSelector.DefaultColor, DecorationSelector.GenericMarkerIcon);
 			if (!genericMarkProperties.hoverMessage) {
 				//disable the mouse pointer
 				element.classList.add(DecorationSelector.Default);
 			}
-		} else if (exitCode === undefined) {
-			element.classList.add(DecorationSelector.DefaultColor, DecorationSelector.Default);
-			element.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationIcon)}`);
-		} else if (exitCode) {
-			element.classList.add(DecorationSelector.ErrorColor);
-			element.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationIconError)}`);
 		} else {
-			element.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationIconSuccess)}`);
+			// command decoration
+			this._updateCommandDecorationVisibility(element);
+			if (exitCode === undefined) {
+				element.classList.add(DecorationSelector.DefaultColor, DecorationSelector.Default);
+				element.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationIcon)}`);
+			} else if (exitCode) {
+				element.classList.add(DecorationSelector.ErrorColor);
+				element.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationIconError)}`);
+			} else {
+				element.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationIconSuccess)}`);
+			}
 		}
 	}
 

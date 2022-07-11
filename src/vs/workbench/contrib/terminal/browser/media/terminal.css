@@ -14,11 +14,7 @@
 	position: relative;
 }
 
-.xterm-decoration-container.hide {
-	visibility: hidden;
-}
-
-.xterm-decoration-overview-ruler.hide {
+.terminal-command-decoration.hide {
 	visibility: hidden;
 }
 

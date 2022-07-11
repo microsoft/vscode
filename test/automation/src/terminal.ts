@@ -26,9 +26,7 @@ export enum Selector {
 	SplitButton = '.editor .codicon-split-horizontal',
 	XtermSplitIndex0 = '#terminal .terminal-groups-container .split-view-view:nth-child(1) .terminal-wrapper',
 	XtermSplitIndex1 = '#terminal .terminal-groups-container .split-view-view:nth-child(2) .terminal-wrapper',
-	Hide = '.hide',
-	Container = '.xterm-decoration-container',
-	OverviewRuler = '.xterm-decoration-overview-ruler'
+	Hide = '.hide'
 }
 
 /**
@@ -234,13 +232,6 @@ export class Terminal {
 			await this.code.waitForElements(Selector.CommandDecorationPlaceholder, true, decorations => decorations && decorations.length === expectedCounts.placeholder);
 			await this.code.waitForElements(Selector.CommandDecorationSuccess, true, decorations => decorations && decorations.length === expectedCounts.success);
 			await this.code.waitForElements(Selector.CommandDecorationError, true, decorations => decorations && decorations.length === expectedCounts.error);
-		}
-
-		//Visibility
-		if (!showDecorations || showDecorations === 'both' || showDecorations === 'gutter') {
-			await this.code.waitForElements(`${Selector.Container}`, true, containers => containers && containers.length === 1);
-		} else if (showDecorations === 'overviewRuler') {
-			await this.code.waitForElements(`${Selector.Container}${Selector.Hide}`, true, containers => containers && containers.length === 1);
 		}
 
 		if (customIcon) {
