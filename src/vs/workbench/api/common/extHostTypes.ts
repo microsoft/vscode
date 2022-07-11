@@ -1822,6 +1822,14 @@ export enum SourceControlInputBoxValidationType {
 	Information = 2
 }
 
+export enum TerminalExitReason {
+	Unknown = 0,
+	Shutdown = 1,
+	Process = 2,
+	User = 3,
+	Extension = 4
+}
+
 export class TerminalLink implements vscode.TerminalLink {
 	constructor(
 		public startIndex: number,
