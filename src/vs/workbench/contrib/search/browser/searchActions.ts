@@ -483,10 +483,10 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 			this.viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
 		}
 
-		elementsToRemove.forEach((currentElement, index) => {
-			currentElement?.parent().remove(<any>currentElement);
-			this.viewer.domFocus();
-		});
+		elementsToRemove.forEach((currentElement, index) =>
+			currentElement?.parent().remove(<any>currentElement)
+		);
+		this.viewer.domFocus();
 
 		return Promise.resolve();
 	}
