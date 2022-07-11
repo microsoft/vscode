@@ -268,7 +268,7 @@ export class TaskQuickPick extends Disposable {
 		do {
 			if (Types.isString(firstLevelTask)) {
 				// Proceed to second level of quick pick
-				const selectedEntry = await this._doPickerSecondLevel(picker, firstLevelTask);
+				const selectedEntry = await this.doPickerSecondLevel(firstLevelTask, picker);
 				if (selectedEntry && !selectedEntry.settingType && selectedEntry.task === null) {
 					// The user has chosen to go back to the first level
 					firstLevelTask = await this._doPickerFirstLevel(picker, (await this.getTopLevelEntries(defaultEntry)).entries);
@@ -302,7 +302,13 @@ export class TaskQuickPick extends Disposable {
 		return firstLevelPickerResult?.task;
 	}
 
-	private async _doPickerSecondLevel(picker: IQuickPick<ITaskTwoLevelQuickPickEntry>, type: string) {
+	public async doPickerSecondLevel(type: string, picker?: IQuickPick<ITaskTwoLevelQuickPickEntry>) {
+		if (!picker) {
+			picker = this._quickInputService.createQuickPick();
+			picker.placeholder = nls.localize('TaskService.pickRunTask', 'Select the task to run');
+			picker.matchOnDescription = true;
+			picker.ignoreFocusOut = false;
+		}
 		picker.busy = true;
 		if (type === SHOW_ALL) {
 			const items = (await this._taskService.tasks()).filter(t => !t.configurationProperties.hide).sort((a, b) => this._sorter.compare(a, b)).map(task => this._createTaskEntry(task));
@@ -312,9 +318,16 @@ export class TaskQuickPick extends Disposable {
 			picker.value = '';
 			picker.items = await this._getEntriesForProvider(type);
 		}
+		picker.show();
 		picker.busy = false;
 		const secondLevelPickerResult = await new Promise<ITaskTwoLevelQuickPickEntry | undefined | null>(resolve => {
+			if (!picker) {
+				return;
+			}
 			Event.once(picker.onDidAccept)(async () => {
+				if (!picker) {
+					return;
+				}
 				resolve(picker.selectedItems ? picker.selectedItems[0] : undefined);
 			});
 		});

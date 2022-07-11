@@ -352,7 +352,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			id: 'workbench.action.tasks.runTask',
 			handler: async (accessor, arg) => {
 				if (await this._trust()) {
-					this._runTaskCommand(arg);
+					await this._runTaskCommand(arg);
 				}
 			},
 			description: {
@@ -360,7 +360,26 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				args: [{
 					name: 'args',
 					schema: {
-						'type': 'string',
+						'anyOf': [
+							{
+								type: 'string',
+								description: nls.localize('task.', "")
+							},
+							{
+								type: 'object',
+								properties: {
+									type: {
+										type: ['string', 'null'],
+										description: nls.localize('task.', "")
+									},
+									taskName: {
+										type: ['string', 'null'],
+										description: nls.localize('task.', "")
+									}
+								},
+								description: nls.localize('task.', "")
+							}
+						]
 					}
 				}]
 			}
@@ -2654,12 +2673,32 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			})) === true;
 	}
 
-	private _runTaskCommand(arg?: any): void {
+	private async _runTaskCommand(arg?: any): Promise<void> {
 		if (!this._canRunCommand()) {
 			return;
 		}
-		const identifier = this._getTaskIdentifier(arg);
-		if (identifier !== undefined) {
+		let taskNameOrObject: undefined | string | KeyedTaskIdentifier;
+		if (arg) {
+			if (typeof arg === 'string') {
+				taskNameOrObject = this._getTaskIdentifier(arg);
+			} else if (typeof arg === 'object' && 'taskName' in arg || 'type' in arg) {
+				taskNameOrObject = arg.taskName;
+				if (taskNameOrObject) {
+					taskNameOrObject = this._getTaskIdentifier(taskNameOrObject);
+				} else {
+					const taskQuickPick = new TaskQuickPick(this, this._configurationService, this._quickInputService, this._notificationService, this._themeService, this._dialogService);
+					const result = await taskQuickPick.doPickerSecondLevel(arg.type);
+					if (result) {
+						taskNameOrObject = result.label;
+						taskQuickPick.dispose();
+					} else {
+						return;
+					}
+				}
+			}
+		}
+
+		if (taskNameOrObject !== undefined) {
 			this._getGroupedTasks().then(async (grouped) => {
 				const resolver = this._createResolver(grouped);
 				const folderURIs: (URI | string)[] = this._contextService.getWorkspace().folders.map(folder => folder.uri);
@@ -2668,7 +2707,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 				folderURIs.push(USER_TASKS_GROUP_KEY);
 				for (const uri of folderURIs) {
-					const task = await resolver.resolve(uri, identifier);
+					const task = await resolver.resolve(uri, taskNameOrObject);
 					if (task) {
 						this.run(task).then(undefined, reason => {
 							// eat the error, it has already been surfaced to the user and we don't care about it here
@@ -3055,7 +3094,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
-	private _getTaskIdentifier(arg?: any): string | KeyedTaskIdentifier | undefined {
+	private _getTaskIdentifier(arg?: string | ITaskIdentifier): string | KeyedTaskIdentifier | undefined {
 		let result: string | KeyedTaskIdentifier | undefined = undefined;
 		if (Types.isString(arg)) {
 			result = arg;
