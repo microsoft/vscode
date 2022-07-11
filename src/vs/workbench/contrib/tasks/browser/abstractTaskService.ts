@@ -363,21 +363,21 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						'anyOf': [
 							{
 								type: 'string',
-								description: nls.localize('task.', "")
+								description: nls.localize('runTask.label', "The task's label")
 							},
 							{
 								type: 'object',
 								properties: {
 									type: {
 										type: ['string', 'null'],
-										description: nls.localize('task.', "")
+										description: nls.localize('task.type', "The contributed task type")
 									},
 									taskName: {
 										type: ['string', 'null'],
-										description: nls.localize('task.', "")
+										description: nls.localize('runTask.taskName', "The task's label or a term to filter by")
 									}
 								},
-								description: nls.localize('task.', "")
+								description: nls.localize('runTask.arg', "Filters the tasks shown in the quickpick")
 							}
 						]
 					}
@@ -2540,11 +2540,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return entries;
 	}
 
-	private async _showTwoLevelQuickPick(placeHolder: string, defaultEntry?: ITaskQuickPickEntry) {
-		return TaskQuickPick.show(this, this._configurationService, this._quickInputService, this._notificationService, this._dialogService, this._themeService, placeHolder, defaultEntry);
+	private async _showTwoLevelQuickPick(placeHolder: string, defaultEntry?: ITaskQuickPickEntry, filter?: string) {
+		return TaskQuickPick.show(this, this._configurationService, this._quickInputService, this._notificationService, this._dialogService, this._themeService, placeHolder, defaultEntry, filter);
 	}
 
-	private async _showQuickPick(tasks: Promise<Task[]> | Task[], placeHolder: string, defaultEntry?: ITaskQuickPickEntry, group: boolean = false, sort: boolean = false, selectedEntry?: ITaskQuickPickEntry, additionalEntries?: ITaskQuickPickEntry[]): Promise<ITaskQuickPickEntry | undefined | null> {
+	private async _showQuickPick(tasks: Promise<Task[]> | Task[], placeHolder: string, defaultEntry?: ITaskQuickPickEntry, group: boolean = false, sort: boolean = false, selectedEntry?: ITaskQuickPickEntry, additionalEntries?: ITaskQuickPickEntry[], filter?: string): Promise<ITaskQuickPickEntry | undefined | null> {
 		const tokenSource = new CancellationTokenSource();
 		const cancellationToken: CancellationToken = tokenSource.token;
 		const createEntries = new Promise<QuickPickInput<ITaskQuickPickEntry>[]>((resolve) => {
@@ -2583,7 +2583,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const picker: IQuickPick<ITaskQuickPickEntry> = this._quickInputService.createQuickPick();
 		picker.placeholder = placeHolder;
 		picker.matchOnDescription = true;
-
 		picker.onDidTriggerItemButton(context => {
 			const task = context.item.task;
 			this._quickInputService.cancel();
@@ -2599,7 +2598,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			picker.items = entries;
 		});
 		picker.show();
-
+		if (filter) {
+			picker.value = filter;
+		}
 		return new Promise<ITaskQuickPickEntry | undefined | null>(resolve => {
 			this._register(picker.onDidAccept(async () => {
 				let selection = picker.selectedItems ? picker.selectedItems[0] : undefined;
@@ -2684,7 +2685,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			} else if (typeof arg === 'object' && 'taskName' in arg || 'type' in arg) {
 				taskNameOrObject = arg.taskName;
 				if (taskNameOrObject) {
-					taskNameOrObject = this._getTaskIdentifier(taskNameOrObject);
+					const taskIdentifier = this._getTaskIdentifier(taskNameOrObject);
+					if (taskIdentifier) {
+						taskNameOrObject = taskIdentifier;
+					}
 				} else {
 					const taskQuickPick = new TaskQuickPick(this, this._configurationService, this._quickInputService, this._notificationService, this._themeService, this._dialogService);
 					const result = await taskQuickPick.doPickerSecondLevel(arg.type);
@@ -2706,6 +2710,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					folderURIs.push(this._contextService.getWorkspace().configuration!);
 				}
 				folderURIs.push(USER_TASKS_GROUP_KEY);
+				let filter;
 				for (const uri of folderURIs) {
 					const task = await resolver.resolve(uri, taskNameOrObject);
 					if (task) {
@@ -2713,9 +2718,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 							// eat the error, it has already been surfaced to the user and we don't care about it here
 						});
 						return;
+					} else {
+						if (taskNameOrObject) {
+							filter = typeof taskNameOrObject === 'string' ? taskNameOrObject : taskNameOrObject._key;
+						}
 					}
 				}
-				this._doRunTaskCommand(grouped.all());
+				this._doRunTaskCommand(grouped.all(), filter);
 			}, () => {
 				this._doRunTaskCommand();
 			});
@@ -2755,7 +2764,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return { tasks, grouped };
 	}
 
-	private _doRunTaskCommand(tasks?: Task[]): void {
+	private _doRunTaskCommand(tasks?: Task[], filter?: string): void {
 		const pickThen = (task: Task | undefined | null) => {
 			if (task === undefined) {
 				return;
@@ -2782,7 +2791,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						label: '$(plus) ' + nls.localize('TaskService.noEntryToRun', 'Configure a Task'),
 						task: null
 					},
-					true).
+					true, false, undefined, undefined, filter).
 					then((entry) => {
 						return pickThen(entry ? entry.task : undefined);
 					});
@@ -2791,7 +2800,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					{
 						label: '$(plus) ' + nls.localize('TaskService.noEntryToRun', 'Configure a Task'),
 						task: null
-					}).
+					}, filter).
 					then(pickThen);
 			}
 		});

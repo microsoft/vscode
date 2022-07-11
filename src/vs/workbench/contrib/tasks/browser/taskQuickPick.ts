@@ -218,12 +218,15 @@ export class TaskQuickPick extends Disposable {
 		return undefined;
 	}
 
-	public async show(placeHolder: string, defaultEntry?: ITaskQuickPickEntry, startAtType?: string): Promise<Task | undefined | null> {
+	public async show(placeHolder: string, defaultEntry?: ITaskQuickPickEntry, startAtType?: string, filter?: string): Promise<Task | undefined | null> {
 		const picker: IQuickPick<ITaskTwoLevelQuickPickEntry> = this._quickInputService.createQuickPick();
 		picker.placeholder = placeHolder;
 		picker.matchOnDescription = true;
 		picker.ignoreFocusOut = false;
 		picker.show();
+		if (filter) {
+			picker.value = filter;
+		}
 
 		picker.onDidTriggerItemButton(async (context) => {
 			const task = context.item.task;
@@ -411,8 +414,8 @@ export class TaskQuickPick extends Disposable {
 
 	static async show(taskService: ITaskService, configurationService: IConfigurationService,
 		quickInputService: IQuickInputService, notificationService: INotificationService,
-		dialogService: IDialogService, themeService: IThemeService, placeHolder: string, defaultEntry?: ITaskQuickPickEntry) {
+		dialogService: IDialogService, themeService: IThemeService, placeHolder: string, defaultEntry?: ITaskQuickPickEntry, filter?: string) {
 		const taskQuickPick = new TaskQuickPick(taskService, configurationService, quickInputService, notificationService, themeService, dialogService);
-		return taskQuickPick.show(placeHolder, defaultEntry);
+		return taskQuickPick.show(placeHolder, defaultEntry, undefined, filter);
 	}
 }
