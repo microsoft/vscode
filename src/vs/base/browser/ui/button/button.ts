@@ -299,6 +299,8 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 	set enabled(enabled: boolean) {
 		this.button.enabled = enabled;
 		this.dropdownButton.enabled = enabled;
+
+		this.element.classList.toggle('disabled', !enabled);
 	}
 
 	get enabled(): boolean {

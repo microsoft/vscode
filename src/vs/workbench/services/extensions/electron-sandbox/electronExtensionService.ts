@@ -48,6 +48,7 @@ import { isCI } from 'vs/base/common/platform';
 import { IResolveAuthorityErrorResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
 import { URI } from 'vs/base/common/uri';
 import { ILocalProcessExtensionHostDataProvider, ILocalProcessExtensionHostInitData, SandboxLocalProcessExtensionHost } from 'vs/workbench/services/extensions/electron-sandbox/localProcessExtensionHost';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export abstract class ElectronExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -80,6 +81,7 @@ export abstract class ElectronExtensionService extends AbstractExtensionService 
 		@IRemoteExplorerService private readonly _remoteExplorerService: IRemoteExplorerService,
 		@IExtensionGalleryService private readonly _extensionGalleryService: IExtensionGalleryService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 	) {
 		super(
 			instantiationService,
@@ -96,7 +98,8 @@ export abstract class ElectronExtensionService extends AbstractExtensionService 
 			webExtensionsScannerService,
 			logService,
 			remoteAgentService,
-			lifecycleService
+			lifecycleService,
+			userDataProfileService
 		);
 
 		[this._enableLocalWebWorker, this._lazyLocalWebWorker] = this._isLocalWebWorkerEnabled();

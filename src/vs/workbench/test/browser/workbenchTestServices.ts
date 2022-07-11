@@ -163,7 +163,7 @@ import { ILayoutOffsetInfo } from 'vs/platform/layout/browser/layoutService';
 import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { EnablementState, IExtensionManagementServer, IScannedExtension, IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService, ScanOptions } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { EnablementState, IExtensionManagementServer, IScannedExtension, IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { InstallVSIXOptions, ILocalExtension, IGalleryExtension, InstallOptions, IExtensionIdentifier, UninstallOptions, IExtensionsControlManifest, IGalleryMetadata, IExtensionManagementParticipant } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Codicon } from 'vs/base/common/codicons';
 
@@ -286,9 +286,10 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IModelService, disposables.add(instantiationService.createInstance(ModelService)));
 	const fileService = overrides?.fileService ? overrides.fileService(instantiationService) : new TestFileService();
 	instantiationService.stub(IFileService, fileService);
-	const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(environmentService, fileService, new NullLogService()));
+	const uriIdentityService = new UriIdentityService(fileService);
+	instantiationService.stub(IUriIdentityService, uriIdentityService);
+	const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(environmentService, fileService, uriIdentityService, new NullLogService()));
 	instantiationService.stub(IUserDataProfileService, new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService));
-	instantiationService.stub(IUriIdentityService, new UriIdentityService(fileService));
 	instantiationService.stub(IWorkingCopyBackupService, new TestWorkingCopyBackupService());
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(INotificationService, new TestNotificationService());
@@ -2003,9 +2004,13 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 
 export class TestWebExtensionsScannerService implements IWebExtensionsScannerService {
 	_serviceBrand: undefined;
+	onDidChangeProfileExtensions = Event.None;
 	async scanSystemExtensions(): Promise<IExtension[]> { return []; }
-	async scanUserExtensions(options?: ScanOptions | undefined): Promise<IScannedExtension[]> { return []; }
+	async scanUserExtensions(): Promise<IScannedExtension[]> { return []; }
 	async scanExtensionsUnderDevelopment(): Promise<IExtension[]> { return []; }
+	async copyExtensions(): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
 	scanExistingExtension(extensionLocation: URI, extensionType: ExtensionType): Promise<IScannedExtension | null> {
 		throw new Error('Method not implemented.');
 	}
@@ -2015,7 +2020,7 @@ export class TestWebExtensionsScannerService implements IWebExtensionsScannerSer
 	addExtensionFromGallery(galleryExtension: IGalleryExtension, metadata?: Partial<IGalleryMetadata & { isApplicationScoped: boolean; isMachineScoped: boolean; isBuiltin: boolean; isSystem: boolean; updated: boolean; preRelease: boolean; installedTimestamp: number }> | undefined): Promise<IExtension> {
 		throw new Error('Method not implemented.');
 	}
-	removeExtension(identifier: IExtensionIdentifier, version?: string | undefined): Promise<void> {
+	removeExtension(): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 	scanMetadata(extensionLocation: URI): Promise<Partial<IGalleryMetadata & { isApplicationScoped: boolean; isMachineScoped: boolean; isBuiltin: boolean; isSystem: boolean; updated: boolean; preRelease: boolean; installedTimestamp: number }> | undefined> {
