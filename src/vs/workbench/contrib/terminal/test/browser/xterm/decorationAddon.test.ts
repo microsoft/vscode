@@ -37,8 +37,15 @@ suite('DecorationAddon', () => {
 		const instantiationService = new TestInstantiationService();
 		const configurationService = new TestConfigurationService({
 			workbench: {
-				hover: { delay: 5 }
-			}
+				hover: { delay: 5 },
+				terminal: {
+					integrated: {
+						shellIntegration: {
+							decorationsEnabled: 'both'
+						}
+					}
+				}
+			},
 		});
 		instantiationService.stub(IThemeService, new TestThemeService());
 		xterm = new TestTerminal({
