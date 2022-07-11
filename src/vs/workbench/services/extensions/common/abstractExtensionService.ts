@@ -37,6 +37,7 @@ import { ApiProposalName, allApiProposals } from 'vs/workbench/services/extensio
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionHostExitInfo, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
@@ -189,6 +190,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		@ILogService protected readonly _logService: ILogService,
 		@IRemoteAgentService protected readonly _remoteAgentService: IRemoteAgentService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
+		@IUserDataProfileService protected readonly _userDataProfileService: IUserDataProfileService,
 	) {
 		super();
 
@@ -1331,7 +1333,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		try {
 			await Promise.all([
 				this._webExtensionsScannerService.scanSystemExtensions().then(extensions => system.push(...extensions.map(e => toExtensionDescription(e)))),
-				this._webExtensionsScannerService.scanUserExtensions({ skipInvalidExtensions: true }).then(extensions => user.push(...extensions.map(e => toExtensionDescription(e)))),
+				this._webExtensionsScannerService.scanUserExtensions(this._userDataProfileService.currentProfile.extensionsResource, { skipInvalidExtensions: true }).then(extensions => user.push(...extensions.map(e => toExtensionDescription(e)))),
 				this._webExtensionsScannerService.scanExtensionsUnderDevelopment().then(extensions => development.push(...extensions.map(e => toExtensionDescription(e, true))))
 			]);
 		} catch (error) {

@@ -85,7 +85,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		super();
 
 		if (this.environmentService.editSessionId !== undefined) {
-			void this.applyEditSession(this.environmentService.editSessionId).finally(() => this.environmentService.editSessionId = undefined);
+			void this.resumeEditSession(this.environmentService.editSessionId).finally(() => this.environmentService.editSessionId = undefined);
 		}
 
 		this.configurationService.onDidChangeConfiguration((e) => {
@@ -132,7 +132,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 		this.registerContinueEditSessionAction();
 
-		this.registerApplyLatestEditSessionAction();
+		this.registerResumeLatestEditSessionAction();
 		this.registerStoreLatestEditSessionAction();
 
 		this.registerContinueInLocalFolderAction();
@@ -171,9 +171,9 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		}));
 	}
 
-	private registerApplyLatestEditSessionAction(): void {
+	private registerResumeLatestEditSessionAction(): void {
 		const that = this;
-		this._register(registerAction2(class ApplyLatestEditSessionAction extends Action2 {
+		this._register(registerAction2(class ResumeLatestEditSessionAction extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.experimental.editSessions.actions.resumeLatest',
@@ -186,8 +186,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			async run(accessor: ServicesAccessor): Promise<void> {
 				await that.progressService.withProgress({
 					location: ProgressLocation.Notification,
-					title: localize('applying edit session', 'Applying edit session...')
-				}, async () => await that.applyEditSession());
+					title: localize('resuming edit session', 'Resuming edit session...')
+				}, async () => await that.resumeEditSession());
 			}
 		}));
 	}
@@ -213,26 +213,24 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		}));
 	}
 
-	async applyEditSession(ref?: string): Promise<void> {
-		if (ref !== undefined) {
-			this.logService.info(`Applying edit session with ref ${ref}.`);
-		}
+	async resumeEditSession(ref?: string): Promise<void> {
+		this.logService.info(ref !== undefined ? `Resuming edit session with ref ${ref}...` : 'Resuming edit session...');
 
 		const data = await this.editSessionsWorkbenchService.read(ref);
 		if (!data) {
 			if (ref === undefined) {
-				this.notificationService.info(localize('no edit session', 'There are no edit sessions to apply.'));
+				this.notificationService.info(localize('no edit session', 'There are no edit sessions to resume.'));
 			} else {
-				this.notificationService.warn(localize('no edit session content for ref', 'Could not apply edit session contents for ID {0}.', ref));
+				this.notificationService.warn(localize('no edit session content for ref', 'Could not resume edit session contents for ID {0}.', ref));
 			}
-			this.logService.info(`Aborting applying edit session as no edit session content is available to be applied from ref ${ref}.`);
+			this.logService.info(`Aborting resuming edit session as no edit session content is available to be applied from ref ${ref}.`);
 			return;
 		}
 		const editSession = data.editSession;
 		ref = data.ref;
 
 		if (editSession.version > EditSessionSchemaVersion) {
-			this.notificationService.error(localize('client too old', "Please upgrade to a newer version of {0} to apply this edit session.", this.productService.nameLong));
+			this.notificationService.error(localize('client too old', "Please upgrade to a newer version of {0} to resume this edit session.", this.productService.nameLong));
 			return;
 		}
 
@@ -266,7 +264,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			if (hasLocalUncommittedChanges) {
 				// TODO@joyceerhl Provide the option to diff files which would be overwritten by edit session contents
 				const result = await this.dialogService.confirm({
-					message: localize('apply edit session warning', 'Applying your edit session may overwrite your existing uncommitted changes. Do you want to proceed?'),
+					message: localize('resume edit session warning', 'Resuming your edit session may overwrite your existing uncommitted changes. Do you want to proceed?'),
 					type: 'warning',
 					title: EDIT_SESSION_SYNC_CATEGORY.value
 				});
@@ -287,8 +285,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			await this.editSessionsWorkbenchService.delete(ref);
 			this.logService.info(`Deleted edit session with ref ${ref}.`);
 		} catch (ex) {
-			this.logService.error('Failed to apply edit session, reason: ', (ex as Error).toString());
-			this.notificationService.error(localize('apply failed', "Failed to apply your edit session."));
+			this.logService.error('Failed to resume edit session, reason: ', (ex as Error).toString());
+			this.notificationService.error(localize('resume failed', "Failed to resume your edit session."));
 		}
 	}
 

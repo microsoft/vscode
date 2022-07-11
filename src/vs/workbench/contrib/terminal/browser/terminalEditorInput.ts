@@ -25,18 +25,19 @@ import { Emitter } from 'vs/base/common/event';
 
 export class TerminalEditorInput extends EditorInput implements IEditorCloseHandler {
 
-	protected readonly _onDidRequestAttach = this._register(new Emitter<ITerminalInstance>());
-	readonly onDidRequestAttach = this._onDidRequestAttach.event;
-
 	static readonly ID = 'workbench.editors.terminal';
+
+	override readonly closeHandler = this;
 
 	private _isDetached = false;
 	private _isShuttingDown = false;
 	private _isReverted = false;
 	private _copyLaunchConfig?: IShellLaunchConfig;
 	private _terminalEditorFocusContextKey: IContextKey<boolean>;
-
 	private _group: IEditorGroup | undefined;
+
+	protected readonly _onDidRequestAttach = this._register(new Emitter<ITerminalInstance>());
+	readonly onDidRequestAttach = this._onDidRequestAttach.event;
 
 	setGroup(group: IEditorGroup | undefined) {
 		this._group = group;
@@ -64,13 +65,6 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 		}
 		this._terminalInstance = instance;
 		this._setupInstanceListeners();
-
-		// Refresh dirty state when the confirm on kill setting is changed
-		this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TerminalSettingId.ConfirmOnKill)) {
-				this._onDidChangeDirty.fire();
-			}
-		});
 	}
 
 	override copy(): EditorInput {
@@ -95,7 +89,7 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 		return this._isDetached ? undefined : this._terminalInstance;
 	}
 
-	override isDirty(): boolean {
+	showConfirm(): boolean {
 		if (this._isReverted) {
 			return false;
 		}
@@ -104,12 +98,6 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 			return this._terminalInstance?.hasChildProcesses || false;
 		}
 		return false;
-	}
-
-	override readonly closeHandler = this;
-
-	showConfirm(): boolean {
-		return this.isDirty();
 	}
 
 	async confirm(terminals?: ReadonlyArray<IEditorIdentifier>): Promise<ConfirmResult> {
@@ -154,12 +142,6 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 
 		this._terminalEditorFocusContextKey = TerminalContextKeys.editorFocus.bindTo(_contextKeyService);
 
-		// Refresh dirty state when the confirm on kill setting is changed
-		this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TerminalSettingId.ConfirmOnKill)) {
-				this._onDidChangeDirty.fire();
-			}
-		});
 		if (_terminalInstance) {
 			this._setupInstanceListeners();
 		}
@@ -184,7 +166,6 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 			instance.onIconChanged(() => this._onDidChangeLabel.fire()),
 			instance.onDidFocus(() => this._terminalEditorFocusContextKey.set(true)),
 			instance.onDidBlur(() => this._terminalEditorFocusContextKey.reset()),
-			instance.onDidChangeHasChildProcesses(() => this._onDidChangeDirty.fire()),
 			instance.statusList.onDidChangePrimaryStatus(() => this._onDidChangeLabel.fire())
 		];
 

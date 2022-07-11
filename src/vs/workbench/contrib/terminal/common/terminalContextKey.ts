@@ -31,6 +31,7 @@ export const enum TerminalContextKeyStrings {
 	TabsSingularSelection = 'terminalTabsSingularSelection',
 	SplitTerminal = 'terminalSplitTerminal',
 	ShellType = 'terminalShellType',
+	InTerminalRunCommandPicker = 'inTerminalRunCommandPicker',
 }
 
 export namespace TerminalContextKeys {
@@ -119,4 +120,7 @@ export namespace TerminalContextKeys {
 
 	/** Whether the focused tab's terminal is a split terminal. */
 	export const splitTerminal = new RawContextKey<boolean>(TerminalContextKeyStrings.SplitTerminal, false, localize('isSplitTerminalContextKey', "Whether the focused tab's terminal is a split terminal."));
+
+	/** Whether the terminal run command picker is currently open. */
+	export const inTerminalRunCommandPicker = new RawContextKey<boolean>(TerminalContextKeyStrings.InTerminalRunCommandPicker, false, localize('inTerminalRunCommandPickerContextKey', "Whether the terminal run command picker is currently open."));
 }
