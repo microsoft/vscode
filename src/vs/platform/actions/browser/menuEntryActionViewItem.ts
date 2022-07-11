@@ -206,12 +206,16 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 
 
 		this._register(addDisposableListener(container, 'contextmenu', event => {
+			if (!this._menuItemAction.hideActions) {
+				return;
+			}
+
 			event.preventDefault();
 			event.stopPropagation();
 
 			this._contextMenuService.showContextMenu({
 				getAnchor: () => container,
-				getActions: () => this._menuItemAction.hideActions.asList()
+				getActions: () => this._menuItemAction.hideActions!.asList()
 			});
 		}, true));
 	}

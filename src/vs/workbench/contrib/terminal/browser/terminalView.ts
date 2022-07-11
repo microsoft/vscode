@@ -373,7 +373,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 		@IThemeService themeService: IThemeService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
-		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IContextMenuService contextMenuService: IContextMenuService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -390,11 +390,12 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 				icon: Codicon.splitHorizontal
 			},
 			undefined,
+			undefined,
 			contextKeyService,
 			_commandService
 		), {
 			draggable: true
-		}, keybindingService, notificationService, contextKeyService, themeService);
+		}, keybindingService, notificationService, contextKeyService, themeService, contextMenuService);
 
 		// Register listeners to update the tab
 		this._register(this._terminalService.onDidChangeInstancePrimaryStatus(e => this.updateLabel(e)));
