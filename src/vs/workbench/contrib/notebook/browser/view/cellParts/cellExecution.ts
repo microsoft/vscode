@@ -9,7 +9,6 @@ import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/no
 import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookKernelType } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 
 export class CellExecutionPart extends CellPart {
 	private kernelDisposables = this._register(new DisposableStore());
@@ -42,7 +41,7 @@ export class CellExecutionPart extends CellPart {
 	}
 
 	private updateExecutionOrder(internalMetadata: NotebookCellInternalMetadata): void {
-		if (this._notebookEditor.activeKernel?.type === NotebookKernelType.Resolved && this._notebookEditor.activeKernel?.implementsExecutionOrder) {
+		if (this._notebookEditor.activeKernel?.implementsExecutionOrder) {
 			const executionOrderLabel = typeof internalMetadata.executionOrder === 'number' ?
 				`[${internalMetadata.executionOrder}]` :
 				'[ ]';

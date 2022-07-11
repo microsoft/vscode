@@ -450,6 +450,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private _matchOnDescription = false;
 	private _matchOnDetail = false;
 	private _matchOnLabel = true;
+	private _matchOnLabelMode: 'fuzzy' | 'contiguous' = 'fuzzy';
 	private _sortByLabel = true;
 	private _autoFocusOnList = true;
 	private _keepScrollPosition = false;
@@ -592,6 +593,15 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 
 	set matchOnLabel(matchOnLabel: boolean) {
 		this._matchOnLabel = matchOnLabel;
+		this.update();
+	}
+
+	get matchOnLabelMode() {
+		return this._matchOnLabelMode;
+	}
+
+	set matchOnLabelMode(matchOnLabelMode: 'fuzzy' | 'contiguous') {
+		this._matchOnLabelMode = matchOnLabelMode;
 		this.update();
 	}
 
@@ -979,13 +989,22 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		if (this.ui.inputBox.placeholder !== (this.placeholder || '')) {
 			this.ui.inputBox.placeholder = (this.placeholder || '');
 		}
-		const ariaLabel = this.ariaLabel || this.placeholder || QuickPick.DEFAULT_ARIA_LABEL;
+
+		let ariaLabel = this.ariaLabel;
+		if (!ariaLabel) {
+			ariaLabel = this.placeholder || QuickPick.DEFAULT_ARIA_LABEL;
+			// If we have a title, include it in the aria label.
+			if (this.title) {
+				ariaLabel += ` - ${this.title}`;
+			}
+		}
 		if (this.ui.inputBox.ariaLabel !== ariaLabel) {
 			this.ui.inputBox.ariaLabel = ariaLabel;
 		}
 		this.ui.list.matchOnDescription = this.matchOnDescription;
 		this.ui.list.matchOnDetail = this.matchOnDetail;
 		this.ui.list.matchOnLabel = this.matchOnLabel;
+		this.ui.list.matchOnLabelMode = this.matchOnLabelMode;
 		this.ui.list.sortByLabel = this.sortByLabel;
 		if (this.itemsUpdated) {
 			this.itemsUpdated = false;
@@ -1233,6 +1252,7 @@ export class QuickInputController extends Disposable {
 
 		const checkAll = <HTMLInputElement>dom.append(headerContainer, $('input.quick-input-check-all'));
 		checkAll.type = 'checkbox';
+		checkAll.setAttribute('aria-label', localize('quickInput.checkAll', "Toggle all checkboxes"));
 		this._register(dom.addStandardDisposableListener(checkAll, dom.EventType.CHANGE, e => {
 			const checked = checkAll.checked;
 			list.setAllVisibleChecked(checked);
@@ -1397,9 +1417,7 @@ export class QuickInputController extends Disposable {
 		return new Promise<R>((doResolve, reject) => {
 			let resolve = (result: R) => {
 				resolve = doResolve;
-				if (options.onKeyMods) {
-					options.onKeyMods(input.keyMods);
-				}
+				options.onKeyMods?.(input.keyMods);
 				doResolve(result);
 			};
 			if (token.isCancellationRequested) {

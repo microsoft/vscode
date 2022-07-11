@@ -34,9 +34,9 @@ export class CommandNavigationAddon extends Disposable implements ICommandTracke
 
 	activate(terminal: Terminal): void {
 		this._terminal = terminal;
-		this._terminal.onData(() => {
+		this._register(this._terminal.onData(() => {
 			this._currentMarker = Boundary.Bottom;
-		});
+		}));
 	}
 
 	constructor(
@@ -178,7 +178,7 @@ export class CommandNavigationAddon extends Disposable implements ICommandTracke
 		});
 		this._navigationDecoration = decoration;
 		if (decoration) {
-			let isRendered = false;
+			const isRendered = false;
 			decoration.onRender(element => {
 				if (!isRendered) {
 					// TODO: Remove when https://github.com/xtermjs/xterm.js/issues/3686 is fixed

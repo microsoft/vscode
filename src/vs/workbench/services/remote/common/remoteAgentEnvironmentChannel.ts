@@ -138,4 +138,8 @@ export class RemoteExtensionEnvironmentChannelClient {
 	static flushTelemetry(channel: IChannel): Promise<void> {
 		return channel.call<void>('flushTelemetry');
 	}
+
+	static async ping(channel: IChannel): Promise<void> {
+		await channel.call<void>('ping');
+	}
 }

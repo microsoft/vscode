@@ -19,6 +19,7 @@ export function createUpdateURL(platform: string, quality: string, productServic
 }
 
 export type UpdateNotAvailableClassification = {
+	owner: 'joaomoreno';
 	explicit: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 };
 
@@ -57,7 +58,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	 * optimization, to avoid using extra CPU cycles before first window open.
 	 * https://github.com/microsoft/vscode/issues/89784
 	 */
-	async initialize(): Promise<void> {
+	initialize(): void {
 		if (!this.environmentMainService.isBuilt) {
 			return; // updates are never enabled when running out of sources
 		}
@@ -72,7 +73,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			return;
 		}
 
-		const updateMode = await this.getUpdateMode();
+		const updateMode = this.getUpdateMode();
 		const quality = this.getProductQuality(updateMode);
 
 		if (!quality) {
@@ -104,7 +105,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		}
 	}
 
-	protected async getUpdateMode(): Promise<'none' | 'manual' | 'start' | 'default'> {
+	protected getUpdateMode(): 'none' | 'manual' | 'start' | 'default' {
 		return getMigratedSettingValue<'none' | 'manual' | 'start' | 'default'>(this.configurationService, 'update.mode', 'update.channel');
 	}
 

@@ -8,13 +8,14 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { once as onceFn } from 'vs/base/common/functional';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, SafeDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
+import { IObservable, IObserver } from 'vs/base/common/observableImpl/base';
 import { StopWatch } from 'vs/base/common/stopwatch';
 
 
 // -----------------------------------------------------------------------------------------------------------------------
 // Uncomment the next line to print warnings whenever an emitter with listeners is disposed. That is a sign of code smell.
 // -----------------------------------------------------------------------------------------------------------------------
-let _enableDisposeWithListenerWarning = false;
+const _enableDisposeWithListenerWarning = false;
 // _enableDisposeWithListenerWarning = Boolean("TRUE"); // causes a linter warning so that it cannot be pushed
 
 
@@ -22,7 +23,7 @@ let _enableDisposeWithListenerWarning = false;
 // Uncomment the next line to print warnings whenever a snapshotted event is used repeatedly without cleanup.
 // See https://github.com/microsoft/vscode/issues/142851
 // -----------------------------------------------------------------------------------------------------------------------
-let _enableSnapshotPotentialLeakWarning = false;
+const _enableSnapshotPotentialLeakWarning = false;
 // _enableSnapshotPotentialLeakWarning = Boolean("TRUE"); // causes a linter warning so that it cannot be pushed
 
 /**
@@ -60,7 +61,7 @@ export namespace Event {
 		return (listener, thisArgs = null, disposables?) => {
 			// we need this, in case the event fires during the listener call
 			let didFire = false;
-			let result: IDisposable;
+			let result: IDisposable | undefined = undefined;
 			result = event(e => {
 				if (didFire) {
 					return;
@@ -143,14 +144,14 @@ export namespace Event {
 	}
 
 	function snapshot<T>(event: Event<T>, disposable: DisposableStore | undefined): Event<T> {
-		let listener: IDisposable;
+		let listener: IDisposable | undefined;
 
 		const options: EmitterOptions | undefined = {
 			onFirstListenerAdd() {
 				listener = event(emitter.fire, emitter);
 			},
 			onLastListenerRemove() {
-				listener.dispose();
+				listener?.dispose();
 			}
 		};
 
@@ -160,9 +161,7 @@ export namespace Event {
 
 		const emitter = new Emitter<T>(options);
 
-		if (disposable) {
-			disposable.add(emitter);
-		}
+		disposable?.add(emitter);
 
 		return emitter.event;
 	}
@@ -223,9 +222,7 @@ export namespace Event {
 
 		const emitter = new Emitter<O>(options);
 
-		if (disposable) {
-			disposable.add(emitter);
-		}
+		disposable?.add(emitter);
 
 		return emitter.event;
 	}
@@ -276,9 +273,7 @@ export namespace Event {
 		});
 
 		const flush = () => {
-			if (buffer) {
-				buffer.forEach(e => emitter.fire(e));
-			}
+			buffer?.forEach(e => emitter.fire(e));
 			buffer = null;
 		};
 
@@ -310,7 +305,7 @@ export namespace Event {
 		return emitter.event;
 	}
 
-	export interface IChainableEvent<T> {
+	export interface IChainableEvent<T> extends IDisposable {
 
 		event: Event<T>;
 		map<O>(fn: (i: T) => O): IChainableEvent<O>;
@@ -327,34 +322,36 @@ export namespace Event {
 
 	class ChainableEvent<T> implements IChainableEvent<T> {
 
+		private readonly disposables = new DisposableStore();
+
 		constructor(readonly event: Event<T>) { }
 
 		map<O>(fn: (i: T) => O): IChainableEvent<O> {
-			return new ChainableEvent(map(this.event, fn));
+			return new ChainableEvent(map(this.event, fn, this.disposables));
 		}
 
 		forEach(fn: (i: T) => void): IChainableEvent<T> {
-			return new ChainableEvent(forEach(this.event, fn));
+			return new ChainableEvent(forEach(this.event, fn, this.disposables));
 		}
 
 		filter(fn: (e: T) => boolean): IChainableEvent<T>;
 		filter<R>(fn: (e: T | R) => e is R): IChainableEvent<R>;
 		filter(fn: (e: T) => boolean): IChainableEvent<T> {
-			return new ChainableEvent(filter(this.event, fn));
+			return new ChainableEvent(filter(this.event, fn, this.disposables));
 		}
 
 		reduce<R>(merge: (last: R | undefined, event: T) => R, initial?: R): IChainableEvent<R> {
-			return new ChainableEvent(reduce(this.event, merge, initial));
+			return new ChainableEvent(reduce(this.event, merge, initial, this.disposables));
 		}
 
 		latch(): IChainableEvent<T> {
-			return new ChainableEvent(latch(this.event));
+			return new ChainableEvent(latch(this.event, undefined, this.disposables));
 		}
 
 		debounce(merge: (last: T | undefined, event: T) => T, delay?: number, leading?: boolean, leakWarningThreshold?: number): IChainableEvent<T>;
 		debounce<R>(merge: (last: R | undefined, event: T) => R, delay?: number, leading?: boolean, leakWarningThreshold?: number): IChainableEvent<R>;
 		debounce<R>(merge: (last: R | undefined, event: T) => R, delay: number = 100, leading = false, leakWarningThreshold?: number): IChainableEvent<R> {
-			return new ChainableEvent(debounce(this.event, merge, delay, leading, leakWarningThreshold));
+			return new ChainableEvent(debounce(this.event, merge, delay, leading, leakWarningThreshold, this.disposables));
 		}
 
 		on(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[] | DisposableStore) {
@@ -364,11 +361,12 @@ export namespace Event {
 		once(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[]) {
 			return once(this.event)(listener, thisArgs, disposables);
 		}
+
+		dispose() {
+			this.disposables.dispose();
+		}
 	}
 
-	/**
-	 * @deprecated DO NOT use, this leaks memory
-	 */
 	export function chain<T>(event: Event<T>): IChainableEvent<T> {
 		return new ChainableEvent(event);
 	}
@@ -425,6 +423,55 @@ export namespace Event {
 			disposable.dispose();
 			store?.dispose();
 		});
+	}
+
+	class EmitterObserver<T> implements IObserver {
+
+		readonly emitter: Emitter<T>;
+
+		private _counter = 0;
+		private _hasChanged = false;
+
+		constructor(readonly obs: IObservable<T, any>, store: DisposableStore | undefined) {
+			const options = {
+				onFirstListenerAdd: () => {
+					obs.addObserver(this);
+				},
+				onLastListenerRemove: () => {
+					obs.removeObserver(this);
+				}
+			};
+			if (!store) {
+				_addLeakageTraceLogic(options);
+			}
+			this.emitter = new Emitter<T>(options);
+			if (store) {
+				store.add(this.emitter);
+			}
+		}
+
+		beginUpdate<T>(_observable: IObservable<T, void>): void {
+			// console.assert(_observable === this.obs);
+			this._counter++;
+		}
+
+		handleChange<T, TChange>(_observable: IObservable<T, TChange>, _change: TChange): void {
+			this._hasChanged = true;
+		}
+
+		endUpdate<T>(_observable: IObservable<T, void>): void {
+			if (--this._counter === 0) {
+				if (this._hasChanged) {
+					this._hasChanged = false;
+					this.emitter.fire(this.obs.get());
+				}
+			}
+		}
+	}
+
+	export function fromObservable<T>(obs: IObservable<T, any>, store?: DisposableStore): Event<T> {
+		const observer = new EmitterObserver(obs, store);
+		return observer.emitter.event;
 	}
 }
 
@@ -690,9 +737,7 @@ export class Emitter<T> {
 				}
 
 				const result = listener.subscription.set(() => {
-					if (removeMonitor) {
-						removeMonitor();
-					}
+					removeMonitor?.();
 					if (!this._disposed) {
 						removeListener();
 						if (this._options && this._options.onLastListenerRemove) {
@@ -730,7 +775,7 @@ export class Emitter<T> {
 				this._deliveryQueue = new PrivateEventDeliveryQueue();
 			}
 
-			for (let listener of this._listeners) {
+			for (const listener of this._listeners) {
 				this._deliveryQueue.push(this, listener, event);
 			}
 

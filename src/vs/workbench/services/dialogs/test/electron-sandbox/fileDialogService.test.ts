@@ -127,7 +127,7 @@ suite('FileDialogService', function () {
 		instantiationService.stub(IPathService, new class {
 			defaultUriScheme: string = 'vscode-virtual-test';
 			userHome = async () => URI.file('/user/home');
-		});
+		} as IPathService);
 		const dialogService = instantiationService.createInstance(TestFileDialogService, new TestSimpleFileDialog());
 		instantiationService.set(IFileDialogService, dialogService);
 		const workspaceService: IWorkspaceEditingService = instantiationService.createInstance(BrowserWorkspaceEditingService);
@@ -159,7 +159,7 @@ suite('FileDialogService', function () {
 		instantiationService.stub(IPathService, new class {
 			defaultUriScheme: string = Schemas.vscodeRemote;
 			userHome = async () => URI.file('/user/home');
-		});
+		} as IPathService);
 		const dialogService = instantiationService.createInstance(TestFileDialogService, new TestSimpleFileDialog());
 		instantiationService.set(IFileDialogService, dialogService);
 		const workspaceService: IWorkspaceEditingService = instantiationService.createInstance(BrowserWorkspaceEditingService);

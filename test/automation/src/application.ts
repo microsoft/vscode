@@ -10,7 +10,9 @@ import { Logger, measureAndLog } from './logger';
 export const enum Quality {
 	Dev,
 	Insiders,
-	Stable
+	Stable,
+	Exploration,
+	OSS
 }
 
 export interface ApplicationOptions extends LaunchOptions {
@@ -107,7 +109,7 @@ export class Application {
 			extraArgs: [...(this.options.extraArgs || []), ...extraArgs],
 		});
 
-		this._workbench = new Workbench(this._code, this.userDataPath);
+		this._workbench = new Workbench(this._code);
 
 		return code;
 	}

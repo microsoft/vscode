@@ -16,6 +16,7 @@ import { FileOperation } from 'vs/platform/files/common/files';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
+import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 class FileSystemWatcher implements vscode.FileSystemWatcher {
 
@@ -63,7 +64,7 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 
 		const subscription = dispatcher(events => {
 			if (!ignoreCreateEvents) {
-				for (let created of events.created) {
+				for (const created of events.created) {
 					const uri = URI.revive(created);
 					if (parsedPattern(uri.fsPath) && (!excludeOutOfWorkspaceEvents || workspace.getWorkspaceFolder(uri))) {
 						this._onDidCreate.fire(uri);
@@ -71,7 +72,7 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 				}
 			}
 			if (!ignoreChangeEvents) {
-				for (let changed of events.changed) {
+				for (const changed of events.changed) {
 					const uri = URI.revive(changed);
 					if (parsedPattern(uri.fsPath) && (!excludeOutOfWorkspaceEvents || workspace.getWorkspaceFolder(uri))) {
 						this._onDidChange.fire(uri);
@@ -79,7 +80,7 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 				}
 			}
 			if (!ignoreDeleteEvents) {
-				for (let deleted of events.deleted) {
+				for (const deleted of events.deleted) {
 					const uri = URI.revive(deleted);
 					if (parsedPattern(uri.fsPath) && (!excludeOutOfWorkspaceEvents || workspace.getWorkspaceFolder(uri))) {
 						this._onDidDelete.fire(uri);
@@ -92,7 +93,7 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 	}
 
 	private ensureWatching(mainContext: IMainContext, extension: IExtensionDescription, globPattern: string | IRelativePatternDto): Disposable {
-		let disposable = Disposable.from();
+		const disposable = Disposable.from();
 
 		if (typeof globPattern === 'string') {
 			return disposable; // a pattern alone does not carry sufficient information to start watching anything
@@ -223,14 +224,14 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 	private async _fireWillEvent<E extends IWaitUntil>(emitter: AsyncEmitter<E>, data: IWaitUntilData<E>, timeout: number, token: CancellationToken): Promise<IWillRunFileOperationParticipation | undefined> {
 
 		const extensionNames = new Set<string>();
-		const edits: WorkspaceEdit[] = [];
+		const edits: [IExtensionDescription, WorkspaceEdit][] = [];
 
-		await emitter.fireAsync(data, token, async (thenable, listener) => {
+		await emitter.fireAsync(data, token, async (thenable: Promise<unknown>, listener) => {
 			// ignore all results except for WorkspaceEdits. Those are stored in an array.
 			const now = Date.now();
 			const result = await Promise.resolve(thenable);
 			if (result instanceof WorkspaceEdit) {
-				edits.push(result);
+				edits.push([(<IExtensionListener<E>>listener).extension, result]);
 				extensionNames.add((<IExtensionListener<E>>listener).extension.displayName ?? (<IExtensionListener<E>>listener).extension.identifier.value);
 			}
 
@@ -249,11 +250,11 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 
 		// concat all WorkspaceEdits collected via waitUntil-call and send them over to the renderer
 		const dto: IWorkspaceEditDto = { edits: [] };
-		for (let edit of edits) {
-			let { edits } = typeConverter.WorkspaceEdit.from(edit, {
+		for (const [extension, edit] of edits) {
+			const { edits } = typeConverter.WorkspaceEdit.from(edit, {
 				getTextDocumentVersion: uri => this._extHostDocumentsAndEditors.getDocument(uri)?.version,
 				getNotebookDocumentVersion: () => undefined,
-			});
+			}, isProposedApiEnabled(extension, 'snippetWorkspaceEdit'));
 			dto.edits = dto.edits.concat(edits);
 		}
 		return { edit: dto, extensionNames: Array.from(extensionNames) };

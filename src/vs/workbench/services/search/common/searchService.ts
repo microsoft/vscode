@@ -134,9 +134,7 @@ export class SearchService extends Disposable implements ISearchService {
 					return;
 				}
 
-				if (onProgress) {
-					onProgress(item);
-				}
+				onProgress?.(item);
 			};
 
 			const exists = await Promise.all(query.folderQueries.map(query => this.fileService.exists(query.folder)));
@@ -173,13 +171,9 @@ export class SearchService extends Disposable implements ISearchService {
 
 	private getSchemesInQuery(query: ISearchQuery): Set<string> {
 		const schemes = new Set<string>();
-		if (query.folderQueries) {
-			query.folderQueries.forEach(fq => schemes.add(fq.folder.scheme));
-		}
+		query.folderQueries?.forEach(fq => schemes.add(fq.folder.scheme));
 
-		if (query.extraFileResources) {
-			query.extraFileResources.forEach(extraFile => schemes.add(extraFile.scheme));
-		}
+		query.extraFileResources?.forEach(extraFile => schemes.add(extraFile.scheme));
 
 		return schemes;
 	}
@@ -288,6 +282,7 @@ export class SearchService extends Disposable implements ISearchService {
 				const cacheStats: ICachedSearchStats = fileSearchStats.detailStats as ICachedSearchStats;
 
 				type CachedSearchCompleteClassifcation = {
+					owner: 'roblourens';
 					reason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 					resultCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
 					workspaceFolderCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
@@ -330,6 +325,7 @@ export class SearchService extends Disposable implements ISearchService {
 				const searchEngineStats: ISearchEngineStats = fileSearchStats.detailStats as ISearchEngineStats;
 
 				type SearchCompleteClassification = {
+					owner: 'roblourens';
 					reason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 					resultCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
 					workspaceFolderCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
@@ -387,6 +383,7 @@ export class SearchService extends Disposable implements ISearchService {
 			}
 
 			type TextSearchCompleteClassification = {
+				owner: 'roblourens';
 				reason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 				workspaceFolderCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
 				endToEndTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
@@ -419,7 +416,7 @@ export class SearchService extends Disposable implements ISearchService {
 
 		if (query.type === QueryType.Text) {
 			const canonicalToOriginalResources = new ResourceMap<URI>();
-			for (let editorInput of this.editorService.editors) {
+			for (const editorInput of this.editorService.editors) {
 				const canonical = EditorResourceAccessor.getCanonicalUri(editorInput, { supportSideBySide: SideBySideEditor.PRIMARY });
 				const original = EditorResourceAccessor.getOriginalUri(editorInput, { supportSideBySide: SideBySideEditor.PRIMARY });
 

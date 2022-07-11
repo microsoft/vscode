@@ -179,7 +179,7 @@ suite('ExtHostWorkspace', function () {
 	});
 
 	test('Multiroot change event should have a delta, #29641', function (done) {
-		let ws = createExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [] }, new NullLogService());
+		const ws = createExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [] }, new NullLogService());
 
 		let finished = false;
 		const finish = (error?: any) => {
@@ -242,9 +242,9 @@ suite('ExtHostWorkspace', function () {
 	});
 
 	test('Multiroot change keeps existing workspaces live', function () {
-		let ws = createExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0)] }, new NullLogService());
+		const ws = createExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0)] }, new NullLogService());
 
-		let firstFolder = ws.getWorkspaceFolders()![0];
+		const firstFolder = ws.getWorkspaceFolders()![0];
 		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar2'), 0), aWorkspaceFolderData(URI.parse('foo:bar'), 1, 'renamed')] });
 
 		assert.strictEqual(ws.getWorkspaceFolders()![1], firstFolder);
@@ -528,8 +528,8 @@ suite('ExtHostWorkspace', function () {
 			}
 		};
 
-		let ws = createExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [] }, new NullLogService());
-		let sub = ws.onDidChangeWorkspace(e => {
+		const ws = createExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [] }, new NullLogService());
+		const sub = ws.onDidChangeWorkspace(e => {
 			try {
 				assert.throws(() => {
 					(<any>e).added = [];
@@ -549,7 +549,7 @@ suite('ExtHostWorkspace', function () {
 	test('`vscode.workspace.getWorkspaceFolder(file)` don\'t return workspace folder when file open from command line. #36221', function () {
 		if (isWindows) {
 
-			let ws = createExtHostWorkspace(new TestRPCProtocol(), {
+			const ws = createExtHostWorkspace(new TestRPCProtocol(), {
 				id: 'foo', name: 'Test', folders: [
 					aWorkspaceFolderData(URI.file('c:/Users/marek/Desktop/vsc_test/'), 0)
 				]

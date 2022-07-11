@@ -26,6 +26,11 @@ import { Codicon } from 'vs/base/common/codicons';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { isLinux, isNative, isWindows } from 'vs/base/common/platform';
+import { Action2, MenuId } from 'vs/platform/actions/common/actions';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export class ExecuteCommandAction extends Action {
 
@@ -568,24 +573,31 @@ abstract class AbstractCloseAllAction extends Action {
 	override async run(): Promise<void> {
 
 		// Depending on the editor and auto save configuration,
-		// split dirty editors into buckets
+		// split editors into buckets for handling confirmation
 
 		const dirtyEditorsWithDefaultConfirm = new Set<IEditorIdentifier>();
 		const dirtyAutoSaveOnFocusChangeEditors = new Set<IEditorIdentifier>();
 		const dirtyAutoSaveOnWindowChangeEditors = new Set<IEditorIdentifier>();
-		const dirtyEditorsWithCustomConfirm = new Map<string /* typeId */, Set<IEditorIdentifier>>();
+		const editorsWithCustomConfirm = new Map<string /* typeId */, Set<IEditorIdentifier>>();
 
 		for (const { editor, groupId } of this.editorService.getEditors(EditorsOrder.SEQUENTIAL, { excludeSticky: this.excludeSticky })) {
-			if (!editor.isDirty() || editor.isSaving()) {
-				continue; // only interested in dirty editors that are not in the process of saving
+			let confirmClose = false;
+			if (editor.closeHandler) {
+				confirmClose = editor.closeHandler.showConfirm(); // custom handling of confirmation on close
+			} else {
+				confirmClose = editor.isDirty() && !editor.isSaving(); // default confirm only when dirty and not saving
+			}
+
+			if (!confirmClose) {
+				continue;
 			}
 
 			// Editor has custom confirm implementation
-			if (typeof editor.confirm === 'function') {
-				let customEditorsToConfirm = dirtyEditorsWithCustomConfirm.get(editor.typeId);
+			if (typeof editor.closeHandler?.confirm === 'function') {
+				let customEditorsToConfirm = editorsWithCustomConfirm.get(editor.typeId);
 				if (!customEditorsToConfirm) {
 					customEditorsToConfirm = new Set();
-					dirtyEditorsWithCustomConfirm.set(editor.typeId, customEditorsToConfirm);
+					editorsWithCustomConfirm.set(editor.typeId, customEditorsToConfirm);
 				}
 
 				customEditorsToConfirm.add({ editor, groupId });
@@ -614,7 +626,7 @@ abstract class AbstractCloseAllAction extends Action {
 		if (dirtyEditorsWithDefaultConfirm.size > 0) {
 			const editors = Array.from(dirtyEditorsWithDefaultConfirm.values());
 
-			await this.revealDirtyEditors(editors); // help user make a decision by revealing editors
+			await this.revealEditorsToConfirm(editors); // help user make a decision by revealing editors
 
 			const confirmation = await this.fileDialogService.showSaveConfirm(editors.map(({ editor }) => {
 				if (editor instanceof SideBySideEditorInput) {
@@ -637,12 +649,12 @@ abstract class AbstractCloseAllAction extends Action {
 		}
 
 		// 2.) Show custom confirm based dialog
-		for (const [, editorIdentifiers] of dirtyEditorsWithCustomConfirm) {
+		for (const [, editorIdentifiers] of editorsWithCustomConfirm) {
 			const editors = Array.from(editorIdentifiers.values());
 
-			await this.revealDirtyEditors(editors); // help user make a decision by revealing editors
+			await this.revealEditorsToConfirm(editors); // help user make a decision by revealing editors
 
-			const confirmation = await firstOrDefault(editors)?.editor.confirm?.(editors);
+			const confirmation = await firstOrDefault(editors)?.editor.closeHandler?.confirm?.(editors);
 			if (typeof confirmation === 'number') {
 				switch (confirmation) {
 					case ConfirmResult.CANCEL:
@@ -678,7 +690,7 @@ abstract class AbstractCloseAllAction extends Action {
 		return this.doCloseAll();
 	}
 
-	private async revealDirtyEditors(editors: ReadonlyArray<IEditorIdentifier>): Promise<void> {
+	private async revealEditorsToConfirm(editors: ReadonlyArray<IEditorIdentifier>): Promise<void> {
 		try {
 			const handledGroups = new Set<GroupIdentifier>();
 			for (const { editor, groupId } of editors) {
@@ -1011,7 +1023,7 @@ export class MinimizeOtherGroupsAction extends Action {
 	}
 
 	override async run(): Promise<void> {
-		this.editorGroupService.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS);
+		this.editorGroupService.arrangeGroups(GroupsArrangement.MAXIMIZE);
 	}
 }
 
@@ -1062,7 +1074,7 @@ export class MaximizeGroupAction extends Action {
 		if (this.editorService.activeEditor) {
 			this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
 			this.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
-			this.editorGroupService.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS);
+			this.editorGroupService.arrangeGroups(GroupsArrangement.MAXIMIZE);
 		}
 	}
 }
@@ -1258,39 +1270,67 @@ export class OpenLastEditorInGroup extends AbstractNavigateEditorAction {
 	}
 }
 
-export class NavigateForwardAction extends Action {
+export class NavigateForwardAction extends Action2 {
 
 	static readonly ID = 'workbench.action.navigateForward';
 	static readonly LABEL = localize('navigateForward', "Go Forward");
 
-	constructor(
-		id: string,
-		label: string,
-		@IHistoryService private readonly historyService: IHistoryService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: NavigateForwardAction.ID,
+			title: { value: localize('navigateForward', "Go Forward"), original: 'Go Forward', mnemonicTitle: localize({ key: 'miForward', comment: ['&& denotes a mnemonic'] }, "&&Forward") },
+			f1: true,
+			icon: Codicon.arrowRight,
+			precondition: ContextKeyExpr.has('canNavigateForward'),
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				win: { primary: KeyMod.Alt | KeyCode.RightArrow },
+				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Minus },
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus }
+			},
+			menu: [
+				{ id: MenuId.MenubarGoMenu, group: '1_history_nav', order: 2 },
+				{ id: MenuId.CommandCenter, order: 2 }
+			]
+		});
 	}
 
-	override async run(): Promise<void> {
-		await this.historyService.goForward(GoFilter.NONE);
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const historyService = accessor.get(IHistoryService);
+
+		await historyService.goForward(GoFilter.NONE);
 	}
 }
 
-export class NavigateBackwardsAction extends Action {
+export class NavigateBackwardsAction extends Action2 {
 
 	static readonly ID = 'workbench.action.navigateBack';
 	static readonly LABEL = localize('navigateBack', "Go Back");
 
-	constructor(
-		id: string,
-		label: string,
-		@IHistoryService private readonly historyService: IHistoryService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: NavigateBackwardsAction.ID,
+			title: { value: localize('navigateBack', "Go Back"), original: 'Go Back', mnemonicTitle: localize({ key: 'miBack', comment: ['&& denotes a mnemonic'] }, "&&Back") },
+			f1: true,
+			precondition: ContextKeyExpr.has('canNavigateBack'),
+			icon: Codicon.arrowLeft,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				win: { primary: KeyMod.Alt | KeyCode.LeftArrow },
+				mac: { primary: KeyMod.WinCtrl | KeyCode.Minus },
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus }
+			},
+			menu: [
+				{ id: MenuId.MenubarGoMenu, group: '1_history_nav', order: 1 },
+				{ id: MenuId.CommandCenter, order: 1 }
+			]
+		});
 	}
 
-	override async run(): Promise<void> {
-		await this.historyService.goBack(GoFilter.NONE);
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const historyService = accessor.get(IHistoryService);
+
+		await historyService.goBack(GoFilter.NONE);
 	}
 }
 

@@ -78,7 +78,7 @@ export class PackageJSONContribution implements IJSONContribution {
 					if (currentWord.indexOf('/') !== -1) {
 						return this.collectScopedPackages(currentWord, addValue, isLast, collector);
 					}
-					for (let scope of this.knownScopes) {
+					for (const scope of this.knownScopes) {
 						const proposal = new CompletionItem(scope);
 						proposal.kind = CompletionItemKind.Property;
 						proposal.insertText = new SnippetString().appendText(`"${scope}/`).appendTabstop().appendText('"');
@@ -146,14 +146,14 @@ export class PackageJSONContribution implements IJSONContribution {
 	}
 
 	private collectScopedPackages(currentWord: string, addValue: boolean, isLast: boolean, collector: ISuggestionsCollector): Thenable<any> {
-		let segments = currentWord.split('/');
+		const segments = currentWord.split('/');
 		if (segments.length === 2 && segments[0].length > 1) {
-			let scope = segments[0].substr(1);
+			const scope = segments[0].substr(1);
 			let name = segments[1];
 			if (name.length < 4) {
 				name = '';
 			}
-			let queryUrl = `https://registry.npmjs.com/-/v1/search?text=scope:${scope}%20${name}&size=250`;
+			const queryUrl = `https://registry.npmjs.com/-/v1/search?text=scope:${scope}%20${name}&size=250`;
 			return this.xhr({
 				url: queryUrl,
 				headers: { agent: USER_AGENT }
@@ -163,7 +163,7 @@ export class PackageJSONContribution implements IJSONContribution {
 						const obj = JSON.parse(success.responseText);
 						if (obj && Array.isArray(obj.objects)) {
 							const objects = <{ package: SearchPackageInfo }[]>obj.objects;
-							for (let object of objects) {
+							for (const object of objects) {
 								this.processPackage(object.package, addValue, isLast, collector);
 							}
 						}
@@ -286,7 +286,7 @@ export class PackageJSONContribution implements IJSONContribution {
 	private npmView(npmCommandPath: string, pack: string, resource: Uri | undefined): Promise<ViewPackageInfo | undefined> {
 		return new Promise((resolve, _reject) => {
 			const args = ['view', '--json', pack, 'description', 'dist-tags.latest', 'homepage', 'version'];
-			let cwd = resource && resource.scheme === 'file' ? dirname(resource.fsPath) : undefined;
+			const cwd = resource && resource.scheme === 'file' ? dirname(resource.fsPath) : undefined;
 			cp.execFile(npmCommandPath, args, { cwd }, (error, stdout) => {
 				if (!error) {
 					try {

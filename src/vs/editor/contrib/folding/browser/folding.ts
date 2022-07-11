@@ -123,7 +123,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		this.mouseDownInfo = null;
 
 		this.foldingDecorationProvider = new FoldingDecorationProvider(editor);
-		this.foldingDecorationProvider.autoHideFoldingControls = options.get(EditorOption.showFoldingControls) === 'mouseover';
+		this.foldingDecorationProvider.showFoldingControls = options.get(EditorOption.showFoldingControls);
 		this.foldingDecorationProvider.showFoldingHighlights = options.get(EditorOption.foldingHighlight);
 		this.foldingEnabled = CONTEXT_FOLDING_ENABLED.bindTo(this.contextKeyService);
 		this.foldingEnabled.set(this._isEnabled);
@@ -155,7 +155,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 			}
 			if (e.hasChanged(EditorOption.showFoldingControls) || e.hasChanged(EditorOption.foldingHighlight)) {
 				const options = this.editor.getOptions();
-				this.foldingDecorationProvider.autoHideFoldingControls = options.get(EditorOption.showFoldingControls) === 'mouseover';
+				this.foldingDecorationProvider.showFoldingControls = options.get(EditorOption.showFoldingControls);
 				this.foldingDecorationProvider.showFoldingHighlights = options.get(EditorOption.foldingHighlight);
 				this.triggerFoldingModelChanged();
 			}
@@ -177,13 +177,13 @@ export class FoldingController extends Disposable implements IEditorContribution
 	 * Store view state.
 	 */
 	public saveViewState(): FoldingStateMemento | undefined {
-		let model = this.editor.getModel();
+		const model = this.editor.getModel();
 		if (!model || !this._isEnabled || model.isTooLargeForTokenization()) {
 			return {};
 		}
 		if (this.foldingModel) { // disposed ?
-			let collapsedRegions = this.foldingModel.getMemento();
-			let provider = this.rangeProvider ? this.rangeProvider.id : undefined;
+			const collapsedRegions = this.foldingModel.getMemento();
+			const provider = this.rangeProvider ? this.rangeProvider.id : undefined;
 			return { collapsedRegions, lineCount: model.getLineCount(), provider, foldedImports: this._currentModelHasFoldedImports };
 		}
 		return undefined;
@@ -193,10 +193,14 @@ export class FoldingController extends Disposable implements IEditorContribution
 	 * Restore view state.
 	 */
 	public restoreViewState(state: FoldingStateMemento): void {
-		let model = this.editor.getModel();
-		if (!model || !this._isEnabled || model.isTooLargeForTokenization() || !this.hiddenRangeModel || !state) {
+		const model = this.editor.getModel();
+		if (!model || !this._isEnabled || model.isTooLargeForTokenization() || !this.hiddenRangeModel) {
 			return;
 		}
+		if (!state || state.lineCount !== model.getLineCount()) {
+			return;
+		}
+
 		this._currentModelHasFoldedImports = !!state.foldedImports;
 		if (state.collapsedRegions && state.collapsedRegions.length > 0 && this.foldingModel) {
 			this._restoringViewState = true;
@@ -211,7 +215,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 	private onModelChanged(): void {
 		this.localToDispose.clear();
 
-		let model = this.editor.getModel();
+		const model = this.editor.getModel();
 		if (!this._isEnabled || !model || model.isTooLargeForTokenization()) {
 			// huge files get no view model, so they cannot support hidden areas
 			return;
@@ -272,7 +276,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		}
 		this.rangeProvider = new IndentRangeProvider(editorModel, this.languageConfigurationService, this._maxFoldingRegions); // fallback
 		if (this._useFoldingProviders && this.foldingModel) {
-			let foldingProviders = this.languageFeaturesService.foldingRangeProvider.ordered(this.foldingModel.textModel);
+			const foldingProviders = this.languageFeaturesService.foldingRangeProvider.ordered(this.foldingModel.textModel);
 			if (foldingProviders.length > 0) {
 				this.rangeProvider = new SyntaxRangeProvider(editorModel, foldingProviders, () => this.triggerFoldingModelChanged(), this._maxFoldingRegions);
 			}
@@ -302,7 +306,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 				}
 				const sw = new StopWatch(true);
 				const provider = this.getRangeProvider(foldingModel.textModel);
-				let foldingRegionPromise = this.foldingRegionPromise = createCancelablePromise(token => provider.compute(token, this._notifyTooManyRegions));
+				const foldingRegionPromise = this.foldingRegionPromise = createCancelablePromise(token => provider.compute(token, this._notifyTooManyRegions));
 				return foldingRegionPromise.then(foldingRanges => {
 					if (foldingRanges && foldingRegionPromise === this.foldingRegionPromise) { // new request or cancelled in the meantime?
 						let scrollState: StableEditorScrollState | undefined;
@@ -316,13 +320,11 @@ export class FoldingController extends Disposable implements IEditorContribution
 						}
 
 						// some cursors might have moved into hidden regions, make sure they are in expanded regions
-						let selections = this.editor.getSelections();
-						let selectionLineNumbers = selections ? selections.map(s => s.startLineNumber) : [];
+						const selections = this.editor.getSelections();
+						const selectionLineNumbers = selections ? selections.map(s => s.startLineNumber) : [];
 						foldingModel.update(foldingRanges, selectionLineNumbers);
 
-						if (scrollState) {
-							scrollState.restore(this.editor);
-						}
+						scrollState?.restore(this.editor);
 
 						// update debounce info
 						const newValue = this.updateDebounceInfo.update(foldingModel.textModel, sw.elapsed());
@@ -341,7 +343,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 
 	private onHiddenRangesChanges(hiddenRanges: IRange[]) {
 		if (this.hiddenRangeModel && hiddenRanges.length && !this._restoringViewState) {
-			let selections = this.editor.getSelections();
+			const selections = this.editor.getSelections();
 			if (selections) {
 				if (this.hiddenRangeModel.adjustSelections(selections)) {
 					this.editor.setSelections(selections);
@@ -364,11 +366,11 @@ export class FoldingController extends Disposable implements IEditorContribution
 		}
 		foldingModel.then(foldingModel => { // null is returned if folding got disabled in the meantime
 			if (foldingModel) {
-				let selections = this.editor.getSelections();
+				const selections = this.editor.getSelections();
 				if (selections && selections.length > 0) {
-					let toToggle: FoldingRegion[] = [];
-					for (let selection of selections) {
-						let lineNumber = selection.selectionStartLineNumber;
+					const toToggle: FoldingRegion[] = [];
+					for (const selection of selections) {
+						const lineNumber = selection.selectionStartLineNumber;
 						if (this.hiddenRangeModel && this.hiddenRangeModel.isHidden(lineNumber)) {
 							toToggle.push(...foldingModel.getAllRegionsAtLine(lineNumber, r => r.isCollapsed && lineNumber > r.startLineNumber));
 						}
@@ -422,7 +424,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 			}
 			case MouseTargetType.CONTENT_TEXT: {
 				if (this.hiddenRangeModel.hasRanges()) {
-					let model = this.editor.getModel();
+					const model = this.editor.getModel();
 					if (model && range.startColumn === model.getLineMaxColumn(range.startLineNumber)) {
 						break;
 					}
@@ -441,10 +443,10 @@ export class FoldingController extends Disposable implements IEditorContribution
 		if (!foldingModel || !this.mouseDownInfo || !e.target) {
 			return;
 		}
-		let lineNumber = this.mouseDownInfo.lineNumber;
-		let iconClicked = this.mouseDownInfo.iconClicked;
+		const lineNumber = this.mouseDownInfo.lineNumber;
+		const iconClicked = this.mouseDownInfo.iconClicked;
 
-		let range = e.target.range;
+		const range = e.target.range;
 		if (!range || range.startLineNumber !== lineNumber) {
 			return;
 		}
@@ -454,21 +456,21 @@ export class FoldingController extends Disposable implements IEditorContribution
 				return;
 			}
 		} else {
-			let model = this.editor.getModel();
+			const model = this.editor.getModel();
 			if (!model || range.startColumn !== model.getLineMaxColumn(lineNumber)) {
 				return;
 			}
 		}
 
-		let region = foldingModel.getRegionAtLine(lineNumber);
+		const region = foldingModel.getRegionAtLine(lineNumber);
 		if (region && region.startLineNumber === lineNumber) {
-			let isCollapsed = region.isCollapsed;
+			const isCollapsed = region.isCollapsed;
 			if (iconClicked || isCollapsed) {
-				let surrounding = e.event.altKey;
+				const surrounding = e.event.altKey;
 				let toToggle = [];
 				if (surrounding) {
-					let filter = (otherRegion: FoldingRegion) => !otherRegion.containedBy(region!) && !region!.containedBy(otherRegion);
-					let toMaybeToggle = foldingModel.getRegionsInside(null, filter);
+					const filter = (otherRegion: FoldingRegion) => !otherRegion.containedBy(region!) && !region!.containedBy(otherRegion);
+					const toMaybeToggle = foldingModel.getRegionsInside(null, filter);
 					for (const r of toMaybeToggle) {
 						if (r.isCollapsed) {
 							toToggle.push(r);
@@ -480,7 +482,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 					}
 				}
 				else {
-					let recursive = e.event.middleButton || e.event.shiftKey;
+					const recursive = e.event.middleButton || e.event.shiftKey;
 					if (recursive) {
 						for (const r of foldingModel.getRegionsInside(region)) {
 							if (r.isCollapsed === isCollapsed) {
@@ -530,7 +532,7 @@ abstract class FoldingAction<T> extends EditorAction {
 	}
 
 	protected getSelectedLines(editor: ICodeEditor) {
-		let selections = editor.getSelections();
+		const selections = editor.getSelections();
 		return selections ? selections.map(s => s.startLineNumber) : [];
 	}
 
@@ -624,8 +626,8 @@ class UnfoldAction extends FoldingAction<FoldingArguments> {
 	}
 
 	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor, args: FoldingArguments): void {
-		let levels = args && args.levels || 1;
-		let lineNumbers = this.getLineNumbers(args, editor);
+		const levels = args && args.levels || 1;
+		const lineNumbers = this.getLineNumbers(args, editor);
 		if (args && args.direction === 'up') {
 			setCollapseStateLevelsUp(foldingModel, false, levels, lineNumbers);
 		} else {
@@ -708,7 +710,7 @@ class FoldAction extends FoldingAction<FoldingArguments> {
 	}
 
 	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor, args: FoldingArguments): void {
-		let lineNumbers = this.getLineNumbers(args, editor);
+		const lineNumbers = this.getLineNumbers(args, editor);
 
 		const levels = args && args.levels;
 		const direction = args && args.direction;
@@ -744,7 +746,7 @@ class ToggleFoldAction extends FoldingAction<void> {
 	}
 
 	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
-		let selectedLines = this.getSelectedLines(editor);
+		const selectedLines = this.getSelectedLines(editor);
 		toggleCollapseState(foldingModel, 1, selectedLines);
 	}
 }
@@ -767,7 +769,7 @@ class FoldRecursivelyAction extends FoldingAction<void> {
 	}
 
 	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
-		let selectedLines = this.getSelectedLines(editor);
+		const selectedLines = this.getSelectedLines(editor);
 		setCollapseStateLevelsDown(foldingModel, true, Number.MAX_VALUE, selectedLines);
 	}
 }
@@ -798,7 +800,7 @@ class FoldAllBlockCommentsAction extends FoldingAction<void> {
 			}
 			const comments = languageConfigurationService.getLanguageConfiguration(editorModel.getLanguageId()).comments;
 			if (comments && comments.blockCommentStartToken) {
-				let regExp = new RegExp('^\\s*' + escapeRegExpCharacters(comments.blockCommentStartToken));
+				const regExp = new RegExp('^\\s*' + escapeRegExpCharacters(comments.blockCommentStartToken));
 				setCollapseStateForMatchingLines(foldingModel, regExp, true);
 			}
 		}
@@ -831,7 +833,7 @@ class FoldAllRegionsAction extends FoldingAction<void> {
 			}
 			const foldingRules = languageConfigurationService.getLanguageConfiguration(editorModel.getLanguageId()).foldingRules;
 			if (foldingRules && foldingRules.markers && foldingRules.markers.start) {
-				let regExp = new RegExp(foldingRules.markers.start);
+				const regExp = new RegExp(foldingRules.markers.start);
 				setCollapseStateForMatchingLines(foldingModel, regExp, true);
 			}
 		}
@@ -864,7 +866,7 @@ class UnfoldAllRegionsAction extends FoldingAction<void> {
 			}
 			const foldingRules = languageConfigurationService.getLanguageConfiguration(editorModel.getLanguageId()).foldingRules;
 			if (foldingRules && foldingRules.markers && foldingRules.markers.start) {
-				let regExp = new RegExp(foldingRules.markers.start);
+				const regExp = new RegExp(foldingRules.markers.start);
 				setCollapseStateForMatchingLines(foldingModel, regExp, false);
 			}
 		}
@@ -888,7 +890,7 @@ class FoldAllRegionsExceptAction extends FoldingAction<void> {
 	}
 
 	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
-		let selectedLines = this.getSelectedLines(editor);
+		const selectedLines = this.getSelectedLines(editor);
 		setCollapseStateForRest(foldingModel, true, selectedLines);
 	}
 
@@ -911,7 +913,7 @@ class UnfoldAllRegionsExceptAction extends FoldingAction<void> {
 	}
 
 	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
-		let selectedLines = this.getSelectedLines(editor);
+		const selectedLines = this.getSelectedLines(editor);
 		setCollapseStateForRest(foldingModel, false, selectedLines);
 	}
 }
@@ -987,9 +989,9 @@ class GotoParentFoldAction extends FoldingAction<void> {
 	}
 
 	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
-		let selectedLines = this.getSelectedLines(editor);
+		const selectedLines = this.getSelectedLines(editor);
 		if (selectedLines.length > 0) {
-			let startLineNumber = getParentFoldLine(selectedLines[0], foldingModel);
+			const startLineNumber = getParentFoldLine(selectedLines[0], foldingModel);
 			if (startLineNumber !== null) {
 				editor.setSelection({
 					startLineNumber: startLineNumber,
@@ -1018,9 +1020,9 @@ class GotoPreviousFoldAction extends FoldingAction<void> {
 	}
 
 	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
-		let selectedLines = this.getSelectedLines(editor);
+		const selectedLines = this.getSelectedLines(editor);
 		if (selectedLines.length > 0) {
-			let startLineNumber = getPreviousFoldLine(selectedLines[0], foldingModel);
+			const startLineNumber = getPreviousFoldLine(selectedLines[0], foldingModel);
 			if (startLineNumber !== null) {
 				editor.setSelection({
 					startLineNumber: startLineNumber,
@@ -1049,9 +1051,9 @@ class GotoNextFoldAction extends FoldingAction<void> {
 	}
 
 	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
-		let selectedLines = this.getSelectedLines(editor);
+		const selectedLines = this.getSelectedLines(editor);
 		if (selectedLines.length > 0) {
-			let startLineNumber = getNextFoldLine(selectedLines[0], foldingModel);
+			const startLineNumber = getNextFoldLine(selectedLines[0], foldingModel);
 			if (startLineNumber !== null) {
 				editor.setSelection({
 					startLineNumber: startLineNumber,
@@ -1081,7 +1083,7 @@ class FoldSelectedAction extends FoldingAction<void> {
 	}
 
 	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
-		let collapseRanges: FoldRange[] = [];
+		const collapseRanges: FoldRange[] = [];
 		const selections = editor.getSelections();
 		if (selections) {
 			for (const selection of selections) {

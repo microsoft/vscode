@@ -9,11 +9,10 @@ import * as performance from 'vs/base/common/performance';
 import { URI } from 'vs/base/common/uri';
 import { createURITransformer } from 'vs/workbench/api/node/uriTransformer';
 import { IRemoteAgentEnvironmentDTO, IGetEnvironmentDataArguments, IScanExtensionsArguments, IScanSingleExtensionArguments, IGetExtensionHostExitInfoArguments } from 'vs/workbench/services/remote/common/remoteAgentEnvironmentChannel';
-import * as nls from 'vs/nls';
 import { Schemas } from 'vs/base/common/network';
 import { IServerEnvironmentService } from 'vs/server/node/serverEnvironmentService';
 import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { ExtensionIdentifier, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { transformOutgoingURIs } from 'vs/base/common/uriIpc';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ContextKeyExpr, ContextKeyDefinedExpr, ContextKeyNotExpr, ContextKeyEqualsExpr, ContextKeyNotEqualsExpr, ContextKeyRegexExpr, IContextKeyExprMapper, ContextKeyExpression, ContextKeyInExpr, ContextKeyGreaterExpr, ContextKeyGreaterEqualsExpr, ContextKeySmallerExpr, ContextKeySmallerEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -27,6 +26,8 @@ import { cwd } from 'vs/base/common/process';
 import { ServerConnectionToken, ServerConnectionTokenType } from 'vs/server/node/serverConnectionToken';
 import { IExtensionHostStatusService } from 'vs/server/node/extensionHostStatusService';
 import { IExtensionsScannerService, toExtensionDescription } from 'vs/platform/extensionManagement/common/extensionsScannerService';
+import { dedupExtensions } from 'vs/workbench/services/extensions/common/extensionsUtil';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export class RemoteAgentEnvironmentChannel implements IServerChannel {
 
@@ -37,6 +38,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 	constructor(
 		private readonly _connectionToken: ServerConnectionToken,
 		private readonly _environmentService: IServerEnvironmentService,
+		private readonly _userDataProfilesService: IUserDataProfilesService,
 		extensionManagementCLIService: IExtensionManagementCLIService,
 		private readonly _logService: ILogService,
 		private readonly _extensionHostStatusService: IExtensionHostStatusService,
@@ -252,7 +254,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 
 		const _massageWhenUserArr = (elements: WhenUser[] | WhenUser) => {
 			if (Array.isArray(elements)) {
-				for (let element of elements) {
+				for (const element of elements) {
 					_massageWhenUser(element);
 				}
 			} else {
@@ -261,7 +263,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 		};
 
 		const _massageLocWhenUser = (target: LocWhenUser) => {
-			for (let loc in target) {
+			for (const loc in target) {
 				_massageWhenUserArr(target[loc]);
 			}
 		};
@@ -290,7 +292,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 			logsPath: URI.file(this._environmentService.logsPath),
 			extensionsPath: URI.file(this._environmentService.extensionsPath!),
 			extensionHostLogsPath: URI.file(join(this._environmentService.logsPath, `exthost${RemoteAgentEnvironmentChannel._namePool++}`)),
-			globalStorageHome: this._environmentService.globalStorageHome,
+			globalStorageHome: this._userDataProfilesService.defaultProfile.globalStorageHome,
 			workspaceStorageHome: this._environmentService.workspaceStorageHome,
 			localHistoryHome: this._environmentService.localHistoryHome,
 			userHome: this._environmentService.userHome,
@@ -310,35 +312,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 			this._scanDevelopedExtensions(language, extensionDevelopmentPath)
 		]);
 
-		let result = new Map<string, IExtensionDescription>();
-
-		builtinExtensions.forEach((builtinExtension) => {
-			if (!builtinExtension) {
-				return;
-			}
-			result.set(ExtensionIdentifier.toKey(builtinExtension.identifier), builtinExtension);
-		});
-
-		installedExtensions.forEach((installedExtension) => {
-			if (!installedExtension) {
-				return;
-			}
-			if (result.has(ExtensionIdentifier.toKey(installedExtension.identifier))) {
-				console.warn(nls.localize('overwritingExtension', "Overwriting extension {0} with {1}.", result.get(ExtensionIdentifier.toKey(installedExtension.identifier))!.extensionLocation.fsPath, installedExtension.extensionLocation.fsPath));
-			}
-			result.set(ExtensionIdentifier.toKey(installedExtension.identifier), installedExtension);
-		});
-
-		developedExtensions.forEach((developedExtension) => {
-			if (!developedExtension) {
-				return;
-			}
-			result.set(ExtensionIdentifier.toKey(developedExtension.identifier), developedExtension);
-		});
-
-		const r: IExtensionDescription[] = [];
-		result.forEach((v) => r.push(v));
-		return r;
+		return dedupExtensions(builtinExtensions, installedExtensions, developedExtensions, this._logService);
 	}
 
 	private async _scanDevelopedExtensions(language: string, extensionDevelopmentPaths?: string[]): Promise<IExtensionDescription[]> {

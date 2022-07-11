@@ -116,9 +116,9 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 		assertLineBreaks(factory, 4, 5, 'aaa))|).aaa');
 		assertLineBreaks(factory, 4, 5, 'aaa))|).|aaaa');
 		assertLineBreaks(factory, 4, 5, 'aaa)|().|aaa');
-		assertLineBreaks(factory, 4, 5, 'aaa(|().|aaa');
-		assertLineBreaks(factory, 4, 5, 'aa.(|().|aaa');
-		assertLineBreaks(factory, 4, 5, 'aa.(.|).aaa');
+		assertLineBreaks(factory, 4, 5, 'aaa|(().|aaa');
+		assertLineBreaks(factory, 4, 5, 'aa.|(().|aaa');
+		assertLineBreaks(factory, 4, 5, 'aa.|(.).|aaa');
 	});
 
 	function assertLineBreakDataEqual(a: ModelLineProjectionData | null, b: ModelLineProjectionData | null): void {
@@ -291,6 +291,11 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 	test('issue #33366: Word wrap algorithm behaves differently around punctuation', () => {
 		const factory = new MonospaceLineBreaksComputerFactory(EditorOptions.wordWrapBreakBeforeCharacters.defaultValue, EditorOptions.wordWrapBreakAfterCharacters.defaultValue);
 		assertLineBreaks(factory, 4, 23, 'this is a line of |text, text that sits |on a line', WrappingIndent.Same);
+	});
+
+	test('issue #152773: Word wrap algorithm behaves differently with bracket followed by comma', () => {
+		const factory = new MonospaceLineBreaksComputerFactory(EditorOptions.wordWrapBreakBeforeCharacters.defaultValue, EditorOptions.wordWrapBreakAfterCharacters.defaultValue);
+		assertLineBreaks(factory, 4, 24, 'this is a line of |(text), text that sits |on a line', WrappingIndent.Same);
 	});
 
 	test('issue #112382: Word wrap doesn\'t work well with control characters', () => {

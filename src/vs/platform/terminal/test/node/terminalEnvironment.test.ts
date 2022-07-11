@@ -8,8 +8,8 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
 import { getShellIntegrationInjection, IShellIntegrationConfigInjection } from 'vs/platform/terminal/node/terminalEnvironment';
 
-const enabledProcessOptions: ITerminalProcessOptions['shellIntegration'] = { enabled: true, showWelcome: true };
-const disabledProcessOptions: ITerminalProcessOptions['shellIntegration'] = { enabled: false, showWelcome: true };
+const enabledProcessOptions: ITerminalProcessOptions['shellIntegration'] = { enabled: true };
+const disabledProcessOptions: ITerminalProcessOptions['shellIntegration'] = { enabled: false };
 const pwshExe = process.platform === 'win32' ? 'pwsh.exe' : 'pwsh';
 const repoRoot = process.platform === 'win32' ? process.cwd()[0].toLowerCase() + process.cwd().substring(1) : process.cwd();
 const logService = new NullLogService();
@@ -33,7 +33,10 @@ suite('platform - terminalEnvironment', () => {
 						'-noexit',
 						'-command',
 						`. "${expectedPs1}"`
-					]
+					],
+					envMixin: {
+						VSCODE_INJECTION: '1'
+					}
 				});
 				test('when undefined, []', () => {
 					deepStrictEqual(getShellIntegrationInjection({ executable: pwshExe, args: [] }, enabledProcessOptions, logService), enabledExpectedResult);
@@ -61,7 +64,10 @@ suite('platform - terminalEnvironment', () => {
 						'-noexit',
 						'-command',
 						`. "${expectedPs1}"`
-					]
+					],
+					envMixin: {
+						VSCODE_INJECTION: '1'
+					}
 				});
 				test('when array contains no logo and login', () => {
 					deepStrictEqual(getShellIntegrationInjection({ executable: pwshExe, args: ['-l', '-NoLogo'] }, enabledProcessOptions, logService), enabledExpectedResult);
@@ -89,22 +95,26 @@ suite('platform - terminalEnvironment', () => {
 			suite('zsh', () => {
 				suite('should override args', () => {
 					const expectedDir = /.+\/vscode-zsh/;
-					const expectedDests = [/.+\/vscode-zsh\/.zshrc/, /.+\/vscode-zsh\/.zprofile/, /.+\/vscode-zsh\/.zshenv/];
+					const expectedDests = [/.+\/vscode-zsh\/.zshrc/, /.+\/vscode-zsh\/.zprofile/, /.+\/vscode-zsh\/.zshenv/, /.+\/vscode-zsh\/.zlogin/];
 					const expectedSources = [
-						/.+\/out\/vs\/workbench\/contrib\/terminal\/browser\/media\/shellIntegration.zsh/,
+						/.+\/out\/vs\/workbench\/contrib\/terminal\/browser\/media\/shellIntegration-rc.zsh/,
 						/.+\/out\/vs\/workbench\/contrib\/terminal\/browser\/media\/shellIntegration-profile.zsh/,
-						/.+\/out\/vs\/workbench\/contrib\/terminal\/browser\/media\/shellIntegration-env.zsh/
+						/.+\/out\/vs\/workbench\/contrib\/terminal\/browser\/media\/shellIntegration-env.zsh/,
+						/.+\/out\/vs\/workbench\/contrib\/terminal\/browser\/media\/shellIntegration-login.zsh/
 					];
 					function assertIsEnabled(result: IShellIntegrationConfigInjection) {
-						strictEqual(Object.keys(result.envMixin!).length, 1);
+						strictEqual(Object.keys(result.envMixin!).length, 2);
 						ok(result.envMixin!['ZDOTDIR']?.match(expectedDir));
-						strictEqual(result.filesToCopy?.length, 3);
+						ok(result.envMixin!['VSCODE_INJECTION']?.match('1'));
+						strictEqual(result.filesToCopy?.length, 4);
 						ok(result.filesToCopy[0].dest.match(expectedDests[0]));
 						ok(result.filesToCopy[1].dest.match(expectedDests[1]));
 						ok(result.filesToCopy[2].dest.match(expectedDests[2]));
+						ok(result.filesToCopy[3].dest.match(expectedDests[3]));
 						ok(result.filesToCopy[0].source.match(expectedSources[0]));
 						ok(result.filesToCopy[1].source.match(expectedSources[1]));
 						ok(result.filesToCopy[2].source.match(expectedSources[2]));
+						ok(result.filesToCopy[3].source.match(expectedSources[3]));
 					}
 					test('when undefined, []', () => {
 						const result1 = getShellIntegrationInjection({ executable: 'zsh', args: [] }, enabledProcessOptions, logService);
@@ -140,7 +150,9 @@ suite('platform - terminalEnvironment', () => {
 								'--init-file',
 								`${repoRoot}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration-bash.sh`
 							],
-							envMixin: {}
+							envMixin: {
+								VSCODE_INJECTION: '1'
+							}
 						});
 						deepStrictEqual(getShellIntegrationInjection({ executable: 'bash', args: [] }, enabledProcessOptions, logService), enabledExpectedResult);
 						deepStrictEqual(getShellIntegrationInjection({ executable: 'bash', args: '' }, enabledProcessOptions, logService), enabledExpectedResult);
@@ -153,6 +165,7 @@ suite('platform - terminalEnvironment', () => {
 								`${repoRoot}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration-bash.sh`
 							],
 							envMixin: {
+								VSCODE_INJECTION: '1',
 								VSCODE_SHELL_LOGIN: '1'
 							}
 						});

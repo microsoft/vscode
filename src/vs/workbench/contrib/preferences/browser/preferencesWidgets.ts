@@ -463,15 +463,11 @@ export class SearchWidget extends Widget {
 
 	layout(dimension: DOM.Dimension) {
 		if (dimension.width < 400) {
-			if (this.countElement) {
-				this.countElement.classList.add('hide');
-			}
+			this.countElement?.classList.add('hide');
 
 			this.inputBox.inputElement.style.paddingRight = '0px';
 		} else {
-			if (this.countElement) {
-				this.countElement.classList.remove('hide');
-			}
+			this.countElement?.classList.remove('hide');
 
 			this.inputBox.inputElement.style.paddingRight = this.getControlsWidth() + 'px';
 		}
@@ -506,9 +502,7 @@ export class SearchWidget extends Widget {
 	}
 
 	override dispose(): void {
-		if (this.options.focusKey) {
-			this.options.focusKey.set(false);
-		}
+		this.options.focusKey?.set(false);
 		super.dispose();
 	}
 }
@@ -518,14 +512,13 @@ export class EditPreferenceWidget<T> extends Disposable {
 	private _line: number = -1;
 	private _preferences: T[] = [];
 
-	private _editPreferenceDecoration: string[];
+	private readonly _editPreferenceDecoration = this.editor.createDecorationsCollection();
 
 	private readonly _onClick = this._register(new Emitter<IEditorMouseEvent>());
 	readonly onClick: Event<IEditorMouseEvent> = this._onClick.event;
 
 	constructor(private editor: ICodeEditor) {
 		super();
-		this._editPreferenceDecoration = [];
 		this._register(this.editor.onMouseDown((e: IEditorMouseEvent) => {
 			if (e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN || e.target.detail.isAfterLines || !this.isVisible()) {
 				return;
@@ -560,11 +553,11 @@ export class EditPreferenceWidget<T> extends Disposable {
 				endColumn: 1
 			}
 		});
-		this._editPreferenceDecoration = this.editor.deltaDecorations(this._editPreferenceDecoration, newDecoration);
+		this._editPreferenceDecoration.set(newDecoration);
 	}
 
 	hide(): void {
-		this._editPreferenceDecoration = this.editor.deltaDecorations(this._editPreferenceDecoration, []);
+		this._editPreferenceDecoration.clear();
 	}
 
 	isVisible(): boolean {

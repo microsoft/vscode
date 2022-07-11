@@ -16,6 +16,7 @@ import { getColorClass, getIconId, getUriClasses } from 'vs/workbench/contrib/te
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 let terminalPicks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
 
 export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
@@ -27,7 +28,8 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@ICommandService private readonly _commandService: ICommandService,
-		@IThemeService private readonly _themeService: IThemeService
+		@IThemeService private readonly _themeService: IThemeService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super(TerminalQuickAccessProvider.PREFIX, { canAcceptInBackground: true });
 	}
@@ -39,7 +41,7 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 			const terminalGroup = terminalGroups[groupIndex];
 			for (let terminalIndex = 0; terminalIndex < terminalGroup.terminalInstances.length; terminalIndex++) {
 				const terminal = terminalGroup.terminalInstances[terminalIndex];
-				const pick = this._createPick(terminal, terminalIndex, filter, groupIndex);
+				const pick = this._createPick(terminal, terminalIndex, filter, { groupIndex, groupSize: terminalGroup.terminalInstances.length });
 				if (pick) {
 					terminalPicks.push(pick);
 				}
@@ -79,9 +81,14 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 		return terminalPicks;
 	}
 
-	private _createPick(terminal: ITerminalInstance, terminalIndex: number, filter: string, groupIndex?: number): IPickerQuickAccessItem | undefined {
-		const iconId = getIconId(terminal);
-		const label = groupIndex ? `$(${iconId}) ${groupIndex + 1}.${terminalIndex + 1}: ${terminal.title}` : `$(${iconId}) ${terminalIndex + 1}: ${terminal.title}`;
+	private _createPick(terminal: ITerminalInstance, terminalIndex: number, filter: string, groupInfo?: { groupIndex: number; groupSize: number }): IPickerQuickAccessItem | undefined {
+		const iconId = this._instantiationService.invokeFunction(getIconId, terminal);
+		const index = groupInfo
+			? (groupInfo.groupSize > 1
+				? `${groupInfo.groupIndex + 1}.${terminalIndex + 1}`
+				: `${groupInfo.groupIndex + 1}`)
+			: `${terminalIndex + 1}`;
+		const label = `$(${iconId}) ${index}: ${terminal.title}`;
 		const iconClasses: string[] = [];
 		const colorClass = getColorClass(terminal);
 		if (colorClass) {

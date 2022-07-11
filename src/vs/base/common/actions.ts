@@ -14,6 +14,7 @@ export interface ITelemetryData {
 }
 
 export type WorkbenchActionExecutedClassification = {
+	owner: 'bpasero';
 	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 	from: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 };
