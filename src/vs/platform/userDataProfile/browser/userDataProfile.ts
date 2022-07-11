@@ -3,16 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { BroadcastDataChannel } from 'vs/base/browser/broadcast';
 import { revive } from 'vs/base/common/marshalling';
+import { UriDto } from 'vs/base/common/types';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IUserDataProfilesService, PROFILES_ENABLEMENT_CONFIG, StoredProfileAssociations, StoredUserDataProfile, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { DidChangeProfilesEvent, IUserDataProfile, IUserDataProfilesService, PROFILES_ENABLEMENT_CONFIG, reviveProfile, StoredProfileAssociations, StoredUserDataProfile, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+
+type BroadcastedProfileChanges = UriDto<Omit<DidChangeProfilesEvent, 'all'>>;
 
 export class BrowserUserDataProfilesService extends UserDataProfilesService implements IUserDataProfilesService {
 
 	protected override readonly defaultProfileShouldIncludeExtensionsResourceAlways: boolean = true;
+	private readonly changesBroadcastChannel: BroadcastDataChannel<BroadcastedProfileChanges>;
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
@@ -22,6 +27,13 @@ export class BrowserUserDataProfilesService extends UserDataProfilesService impl
 	) {
 		super(environmentService, fileService, uriIdentityService, logService);
 		super.setEnablement(window.localStorage.getItem(PROFILES_ENABLEMENT_CONFIG) === 'true');
+		this.changesBroadcastChannel = this._register(new BroadcastDataChannel<BroadcastedProfileChanges>(`${UserDataProfilesService.PROFILES_KEY}.changes`));
+		this._register(this.changesBroadcastChannel.onDidReceiveData(changes => {
+			try {
+				this._profilesObject = undefined;
+				this._onDidChangeProfiles.fire({ added: changes.added.map(p => reviveProfile(p, this.profilesHome.scheme)), removed: changes.removed.map(p => reviveProfile(p, this.profilesHome.scheme)), all: this.profiles });
+			} catch (error) {/* ignore */ }
+		}));
 	}
 
 	override setEnablement(enabled: boolean): void {
@@ -40,6 +52,11 @@ export class BrowserUserDataProfilesService extends UserDataProfilesService impl
 			this.logService.error(error);
 		}
 		return [];
+	}
+
+	protected override triggerProfilesChanges(added: IUserDataProfile[], removed: IUserDataProfile[]) {
+		super.triggerProfilesChanges(added, removed);
+		this.changesBroadcastChannel.postData({ added, removed });
 	}
 
 	protected override saveStoredProfiles(storedProfiles: StoredUserDataProfile[]): void {
