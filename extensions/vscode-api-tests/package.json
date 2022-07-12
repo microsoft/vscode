@@ -37,7 +37,6 @@
     "taskPresentationGroup",
     "terminalDataWriteEvent",
     "terminalDimensions",
-    "terminalNameChangeEvent",
     "testCoverage",
     "testObserver",
     "textSearchProvider",
