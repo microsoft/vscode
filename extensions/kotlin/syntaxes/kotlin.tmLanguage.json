@@ -1,0 +1,535 @@
+{
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/fwcd/kotlin-language-server/blob/master/grammars/Kotlin.tmLanguage.json",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
+	"version": "https://github.com/fwcd/kotlin-language-server/commit/5dab99536c87e677534f1ecc6dcff7fe69d01f0f",
+	"name": "Kotlin",
+	"scopeName": "source.kotlin",
+	"patterns": [
+		{
+			"include": "#import"
+		},
+		{
+			"include": "#package"
+		},
+		{
+			"include": "#code"
+		}
+	],
+	"repository": {
+		"import": {
+			"begin": "\\b(import)\\b\\s*",
+			"beginCaptures": {
+				"1": {
+					"name": "storage.type.import.kotlin"
+				}
+			},
+			"end": ";|$",
+			"name": "meta.import.kotlin",
+			"contentName": "entity.name.package.kotlin",
+			"patterns": [
+				{
+					"include": "#comments"
+				},
+				{
+					"include": "#hard-keywords"
+				},
+				{
+					"match": "\\*",
+					"name": "variable.language.wildcard.kotlin"
+				}
+			]
+		},
+		"package": {
+			"begin": "\\b(package)\\b\\s*",
+			"beginCaptures": {
+				"1": {
+					"name": "storage.type.package.kotlin"
+				}
+			},
+			"end": ";|$",
+			"name": "meta.package.kotlin",
+			"contentName": "entity.name.package.kotlin",
+			"patterns": [
+				{
+					"include": "#comments"
+				}
+			]
+		},
+		"code": {
+			"patterns": [
+				{
+					"include": "#comments"
+				},
+				{
+					"include": "#keywords"
+				},
+				{
+					"include": "#annotation-simple"
+				},
+				{
+					"include": "#annotation-site-list"
+				},
+				{
+					"include": "#annotation-site"
+				},
+				{
+					"include": "#class-declaration"
+				},
+				{
+					"include": "#object-declaration"
+				},
+				{
+					"include": "#type-alias"
+				},
+				{
+					"include": "#function-declaration"
+				},
+				{
+					"include": "#variable-declaration"
+				},
+				{
+					"include": "#type-constraint"
+				},
+				{
+					"include": "#type-annotation"
+				},
+				{
+					"include": "#function-call"
+				},
+				{
+					"include": "#method-reference"
+				},
+				{
+					"include": "#key"
+				},
+				{
+					"include": "#string"
+				},
+				{
+					"include": "#string-empty"
+				},
+				{
+					"include": "#string-multiline"
+				},
+				{
+					"include": "#character"
+				},
+				{
+					"include": "#operators"
+				},
+				{
+					"include": "#self-reference"
+				},
+				{
+					"include": "#decimal-literal"
+				},
+				{
+					"include": "#hex-literal"
+				},
+				{
+					"include": "#binary-literal"
+				},
+				{
+					"include": "#boolean-literal"
+				},
+				{
+					"include": "#null-literal"
+				}
+			]
+		},
+		"comments": {
+			"patterns": [
+				{
+					"include": "#comment-line"
+				},
+				{
+					"include": "#comment-block"
+				},
+				{
+					"include": "#comment-javadoc"
+				}
+			]
+		},
+		"comment-line": {
+			"begin": "//",
+			"end": "$",
+			"name": "comment.line.double-slash.kotlin"
+		},
+		"comment-block": {
+			"begin": "/\\*(?!\\*)",
+			"end": "\\*/",
+			"name": "comment.block.kotlin"
+		},
+		"comment-javadoc": {
+			"patterns": [
+				{
+					"begin": "/\\*\\*",
+					"end": "\\*/",
+					"name": "comment.block.javadoc.kotlin",
+					"patterns": [
+						{
+							"match": "@(author|deprecated|return|see|serial|since|version)\\b",
+							"name": "keyword.other.documentation.javadoc.kotlin"
+						},
+						{
+							"match": "(@param)\\s+(\\S+)",
+							"captures": {
+								"1": {
+									"name": "keyword.other.documentation.javadoc.kotlin"
+								},
+								"2": {
+									"name": "variable.parameter.kotlin"
+								}
+							}
+						},
+						{
+							"match": "(@(?:exception|throws))\\s+(\\S+)",
+							"captures": {
+								"1": {
+									"name": "keyword.other.documentation.javadoc.kotlin"
+								},
+								"2": {
+									"name": "entity.name.type.class.kotlin"
+								}
+							}
+						},
+						{
+							"match": "{(@link)\\s+(\\S+)?#([\\w$]+\\s*\\([^\\(\\)]*\\)).*}",
+							"captures": {
+								"1": {
+									"name": "keyword.other.documentation.javadoc.kotlin"
+								},
+								"2": {
+									"name": "entity.name.type.class.kotlin"
+								},
+								"3": {
+									"name": "variable.parameter.kotlin"
+								}
+							}
+						}
+					]
+				}
+			]
+		},
+		"keywords": {
+			"patterns": [
+				{
+					"include": "#prefix-modifiers"
+				},
+				{
+					"include": "#postfix-modifiers"
+				},
+				{
+					"include": "#soft-keywords"
+				},
+				{
+					"include": "#hard-keywords"
+				},
+				{
+					"include": "#control-keywords"
+				}
+			]
+		},
+		"prefix-modifiers": {
+			"match": "\\b(abstract|final|enum|open|annotation|sealed|data|override|final|lateinit|private|protected|public|internal|inner|companion|noinline|crossinline|vararg|reified|tailrec|operator|infix|inline|external|const|suspend)\\b",
+			"name": "storage.modifier.other.kotlin"
+		},
+		"postfix-modifiers": {
+			"match": "\\b(where|by|get|set)\\b",
+			"name": "storage.modifier.other.kotlin"
+		},
+		"soft-keywords": {
+			"match": "\\b(catch|finally|field)\\b",
+			"name": "keyword.soft.kotlin"
+		},
+		"hard-keywords": {
+			"match": "\\b(as|typeof|is|in)\\b",
+			"name": "keyword.hard.kotlin"
+		},
+		"control-keywords": {
+			"match": "\\b(if|else|while|do|when|try|throw|break|continue|return|for)\\b",
+			"name": "keyword.control.kotlin"
+		},
+		"annotation-simple": {
+			"match": "(?<!\\w)@[\\w\\.]+\\b(?!:)",
+			"name": "entity.name.type.annotation.kotlin"
+		},
+		"annotation-site-list": {
+			"begin": "(?<!\\w)(@\\w+):\\s*\\[",
+			"end": "\\]",
+			"beginCaptures": {
+				"1": {
+					"name": "entity.name.type.annotation-site.kotlin"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#unescaped-annotation"
+				}
+			]
+		},
+		"annotation-site": {
+			"begin": "(?<!\\w)(@\\w+):\\s*(?!\\[)",
+			"end": "$",
+			"beginCaptures": {
+				"1": {
+					"name": "entity.name.type.annotation-site.kotlin"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#unescaped-annotation"
+				}
+			]
+		},
+		"unescaped-annotation": {
+			"match": "\\b[\\w\\.]+\\b",
+			"name": "entity.name.type.annotation.kotlin"
+		},
+		"class-declaration": {
+			"match": "\\b(class|interface)\\s+(\\b\\w+\\b|`[^`]+`)\\s*(?<GROUP><([^<>]|\\g<GROUP>)+>)?",
+			"captures": {
+				"1": {
+					"name": "storage.type.class.kotlin"
+				},
+				"2": {
+					"name": "entity.name.type.class.kotlin"
+				},
+				"3": {
+					"patterns": [
+						{
+							"include": "#type-parameter"
+						}
+					]
+				}
+			}
+		},
+		"object-declaration": {
+			"match": "\\b(object)\\s+(\\b\\w+\\b|`[^`]+`)",
+			"captures": {
+				"1": {
+					"name": "storage.type.object.kotlin"
+				},
+				"2": {
+					"name": "entity.name.type.object.kotlin"
+				}
+			}
+		},
+		"type-alias": {
+			"match": "\\b(typealias)\\s+(\\b\\w+\\b|`[^`]+`)\\s*(?<GROUP><([^<>]|\\g<GROUP>)+>)?",
+			"captures": {
+				"1": {
+					"name": "storage.type.alias.kotlin"
+				},
+				"2": {
+					"name": "entity.name.type.kotlin"
+				},
+				"3": {
+					"patterns": [
+						{
+							"include": "#type-parameter"
+						}
+					]
+				}
+			}
+		},
+		"function-declaration": {
+			"match": "\\b(fun)\\b\\s*(?<GROUP><([^<>]|\\g<GROUP>)+>)?\\s*(?:(\\w+)\\.)?(\\b\\w+\\b|`[^`]+`)",
+			"captures": {
+				"1": {
+					"name": "storage.type.function.kotlin"
+				},
+				"2": {
+					"patterns": [
+						{
+							"include": "#type-parameter"
+						}
+					]
+				},
+				"4": {
+					"name": "entity.name.type.class.extension.kotlin"
+				},
+				"5": {
+					"name": "entity.name.function.declaration.kotlin"
+				}
+			}
+		},
+		"variable-declaration": {
+			"match": "\\b(val|var)\\b\\s*(?<GROUP><([^<>]|\\g<GROUP>)+>)?",
+			"captures": {
+				"1": {
+					"name": "storage.type.variable.kotlin"
+				},
+				"2": {
+					"patterns": [
+						{
+							"include": "#type-parameter"
+						}
+					]
+				}
+			}
+		},
+		"type-parameter": {
+			"patterns": [
+				{
+					"match": "\\b\\w+\\b",
+					"name": "entity.name.type.kotlin"
+				},
+				{
+					"match": "\\b(in|out)\\b",
+					"name": "storage.modifier.kotlin"
+				}
+			]
+		},
+		"type-annotation": {
+			"match": "(?<![:?]):\\s*(\\w|\\?|\\s|->|(?<GROUP>[<(]([^<>()]|\\g<GROUP>)+[)>]))+",
+			"captures": {
+				"0": {
+					"patterns": [
+						{
+							"include": "#type-parameter"
+						}
+					]
+				}
+			}
+		},
+		"function-call": {
+			"match": "\\??\\.?(\\b\\w+\\b|`[^`]+`)\\s*(?<GROUP><([^<>]|\\g<GROUP>)+>)?\\s*(?=[({])",
+			"captures": {
+				"1": {
+					"name": "entity.name.function.call.kotlin"
+				},
+				"2": {
+					"patterns": [
+						{
+							"include": "#type-parameter"
+						}
+					]
+				}
+			}
+		},
+		"method-reference": {
+			"match": "\\??::(\\b\\w+\\b|`[^`]+`)",
+			"captures": {
+				"1": {
+					"name": "entity.name.function.reference.kotlin"
+				}
+			}
+		},
+		"key": {
+			"match": "\\b(\\w=)\\s*(=)",
+			"captures": {
+				"1": {
+					"name": "variable.parameter.kotlin"
+				},
+				"2": {
+					"name": "keyword.operator.assignment.kotlin"
+				}
+			}
+		},
+		"string-empty": {
+			"match": "(?<!\")\"\"(?!\")",
+			"name": "string.quoted.double.kotlin"
+		},
+		"string": {
+			"begin": "(?<!\")\"(?!\")",
+			"end": "\"",
+			"name": "string.quoted.double.kotlin",
+			"patterns": [
+				{
+					"match": "\\\\.",
+					"name": "constant.character.escape.kotlin"
+				},
+				{
+					"include": "#string-escape-simple"
+				},
+				{
+					"include": "#string-escape-bracketed"
+				}
+			]
+		},
+		"string-multiline": {
+			"begin": "\"\"\"",
+			"end": "\"\"\"",
+			"name": "string.quoted.double.kotlin",
+			"patterns": [
+				{
+					"match": "\\\\.",
+					"name": "constant.character.escape.kotlin"
+				},
+				{
+					"include": "#string-escape-simple"
+				},
+				{
+					"include": "#string-escape-bracketed"
+				}
+			]
+		},
+		"string-escape-simple": {
+			"match": "(?<!\\\\)\\$\\w+\\b",
+			"name": "variable.string-escape.kotlin"
+		},
+		"string-escape-bracketed": {
+			"begin": "(?<!\\\\)(\\$\\{)",
+			"end": "(\\})",
+			"name": "meta.template.expression.kotlin",
+			"beginCaptures": {
+				"1": {
+					"name": "punctuation.definition.template-expression.begin"
+				}
+			},
+			"endCaptures": {
+				"1": {
+					"name": "punctuation.definition.template-expression.end"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#code"
+				}
+			]
+		},
+		"character": {
+			"begin": "'",
+			"end": "'",
+			"name": "string.quoted.single.kotlin",
+			"patterns": [
+				{
+					"match": "\\\\.",
+					"name": "constant.character.escape.kotlin"
+				}
+			]
+		},
+		"decimal-literal": {
+			"match": "\\b\\d[\\d_]*(\\.[\\d_]+)?((e|E)\\d+)?(L|F|f)?\\b",
+			"name": "constant.numeric.decimal.kotlin"
+		},
+		"hex-literal": {
+			"match": "0(x|X)[A-Fa-f0-9][A-Fa-f0-9_]*",
+			"name": "constant.numeric.hex.kotlin"
+		},
+		"binary-literal": {
+			"match": "0(b|B)[01][01_]*",
+			"name": "constant.numeric.binary.kotlin"
+		},
+		"boolean-literal": {
+			"match": "\\b(true|false)\\b",
+			"name": "constant.language.boolean.kotlin"
+		},
+		"null-literal": {
+			"match": "\\bnull\\b",
+			"name": "constant.language.null.kotlin"
+		},
+		"operators": {
+			"match": "<=|>=|===|==|=>|=|\\!==|\\!=|\\+=|\\+\\+|\\+|-=|--|-|\\*=|\\*|/=|/|%=|%|!|\\&\\&|\\&|\\|\\||\\|..",
+			"name": "keyword.operator.kotlin"
+		},
+		"self-reference": {
+			"match": "\\b(this|super)(@\\w+)?\\b",
+			"name": "variable.language.this.kotlin"
+		}
+	}
+}

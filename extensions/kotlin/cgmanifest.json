@@ -1,0 +1,17 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "fwcd/kotlin-language-server",
+					"repositoryUrl": "https://github.com/fwcd/kotlin-language-server",
+					"commitHash": "e7d136d0c0d69e9cf9c4ba8a93ba7298cd639992"
+				}
+			},
+			"license": "MIT",
+			"version": "1.3.1"
+		}
+	],
+	"version": 1
+}
