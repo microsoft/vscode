@@ -11,11 +11,11 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import * as perf from 'vs/base/common/performance';
 import { isEqualOrParent } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ActivationTimes, ExtensionPointContribution, IExtensionService, IExtensionsStatus, IMessage, IWillActivateEvent, IResponsiveStateChangeEvent, toExtension, IExtensionHost, ActivationKind, ExtensionHostKind, toExtensionDescription, ExtensionRunningLocation, extensionHostKindToString, ExtensionActivationReason, IInternalExtensionService, RemoteRunningLocation, LocalProcessRunningLocation, LocalWebWorkerRunningLocation } from 'vs/workbench/services/extensions/common/extensions';
+import { ActivationTimes, ExtensionPointContribution, IExtensionService, IExtensionsStatus, IMessage, IWillActivateEvent, IResponsiveStateChangeEvent, toExtension, IExtensionHost, ActivationKind, ExtensionHostKind, ExtensionRunningLocation, extensionHostKindToString, ExtensionActivationReason, IInternalExtensionService, RemoteRunningLocation, LocalProcessRunningLocation, LocalWebWorkerRunningLocation } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
@@ -32,7 +32,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { dedupExtensions } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { ApiProposalName, allApiProposals } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionHostExitInfo, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -186,7 +185,6 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IConfigurationService protected readonly _configurationService: IConfigurationService,
 		@IExtensionManifestPropertiesService protected readonly _extensionManifestPropertiesService: IExtensionManifestPropertiesService,
-		@IWebExtensionsScannerService protected readonly _webExtensionsScannerService: IWebExtensionsScannerService,
 		@ILogService protected readonly _logService: ILogService,
 		@IRemoteAgentService protected readonly _remoteAgentService: IRemoteAgentService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
@@ -1326,20 +1324,6 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 		this._extensionHostExtensionRuntimeErrors.get(extensionKey)!.push(err);
 		this._onDidChangeExtensionsStatus.fire([extensionId]);
-	}
-
-	protected async _scanWebExtensions(): Promise<IExtensionDescription[]> {
-		const system: IExtensionDescription[] = [], user: IExtensionDescription[] = [], development: IExtensionDescription[] = [];
-		try {
-			await Promise.all([
-				this._webExtensionsScannerService.scanSystemExtensions().then(extensions => system.push(...extensions.map(e => toExtensionDescription(e)))),
-				this._webExtensionsScannerService.scanUserExtensions(this._userDataProfileService.currentProfile.extensionsResource, { skipInvalidExtensions: true }).then(extensions => user.push(...extensions.map(e => toExtensionDescription(e)))),
-				this._webExtensionsScannerService.scanExtensionsUnderDevelopment().then(extensions => development.push(...extensions.map(e => toExtensionDescription(e, true))))
-			]);
-		} catch (error) {
-			this._logService.error(error);
-		}
-		return dedupExtensions(system, user, development, this._logService);
 	}
 
 	//#endregion

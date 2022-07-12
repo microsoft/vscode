@@ -82,13 +82,6 @@ steps:
 
   - script: |
       set -e
-      npm install -g node-gyp@latest
-      node-gyp --version
-    displayName: Update node-gyp
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-
-  - script: |
-      set -e
       npx https://aka.ms/enablesecurefeed standAlone
     timeoutInMinutes: 5
     retryCountOnTaskFailure: 3
