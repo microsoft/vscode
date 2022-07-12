@@ -3728,4 +3728,7 @@ export class NotebookDiffEditorTabInput {
 export class TerminalEditorTabInput {
 	constructor() { }
 }
+export class InteractiveWindowInput {
+	constructor(readonly uri: URI) { }
+}
 //#endregion

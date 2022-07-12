@@ -624,7 +624,8 @@ export const enum TabInputKind {
 	NotebookDiffInput,
 	CustomEditorInput,
 	WebviewEditorInput,
-	TerminalEditorInput
+	TerminalEditorInput,
+	InteractiveEditorInput,
 }
 
 export const enum TabModelOperationKind {
@@ -673,11 +674,16 @@ export interface WebviewInputDto {
 	viewType: string;
 }
 
+export interface InteractiveEditorInputDto {
+	kind: TabInputKind.InteractiveEditorInput;
+	uri: UriComponents;
+}
+
 export interface TabInputDto {
 	kind: TabInputKind.TerminalEditorInput;
 }
 
-export type AnyInputDto = UnknownInputDto | TextInputDto | TextDiffInputDto | NotebookInputDto | NotebookDiffInputDto | CustomInputDto | WebviewInputDto | TabInputDto;
+export type AnyInputDto = UnknownInputDto | TextInputDto | TextDiffInputDto | NotebookInputDto | NotebookDiffInputDto | CustomInputDto | WebviewInputDto | InteractiveEditorInputDto | TabInputDto;
 
 export interface MainThreadEditorTabsShape extends IDisposable {
 	// manage tabs: move, close, rearrange etc
