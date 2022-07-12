@@ -361,31 +361,28 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				description: 'Run Task',
 				args: [{
 					name: 'args',
+					isOptional: true,
+					description: nls.localize('runTask.arg', "Filters the tasks shown in the quickpick"),
 					schema: {
 						'anyOf': [
 							{
 								type: 'string',
-								description: nls.localize('runTask.taskName', "The task's label or a term to filter by"),
-								enum: await this.tasks().then((tasks) => tasks.map(t => t._label))
+								description: nls.localize('runTask.label', "The task's label or a term to filter by")
 							},
 							{
 								type: 'object',
 								properties: {
-									type: {
+									'type': {
 										type: 'string',
-										description: nls.localize('task.type', "The contributed task type"),
+										description: nls.localize('runTask.type', "The contributed task type"),
 										enum: Array.from(this._providerTypes.values()).map(provider => provider)
 									},
-									taskName: {
+									'taskName': {
 										type: 'string',
 										description: nls.localize('runTask.taskName', "The task's label or a term to filter by"),
 										enum: await this.tasks().then((tasks) => tasks.map(t => t._label))
 									}
 								},
-								description: nls.localize('runTask.arg', "Filters the tasks shown in the quickpick")
-							},
-							{
-								type: 'null'
 							}
 						]
 					}
