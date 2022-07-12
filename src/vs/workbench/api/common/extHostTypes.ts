@@ -3729,6 +3729,6 @@ export class TerminalEditorTabInput {
 	constructor() { }
 }
 export class InteractiveWindowInput {
-	constructor(readonly uri: URI) { }
+	constructor(readonly uri: URI, readonly inputBoxUri: URI) { }
 }
 //#endregion
