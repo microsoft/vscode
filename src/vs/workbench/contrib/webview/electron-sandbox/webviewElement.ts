@@ -23,17 +23,13 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
 import { FindInFrameOptions, IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
-import { WebviewElement, WebviewInitInfo, WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/webviewElement';
-import { WindowIgnoreMenuShortcutsManager } from 'vs/workbench/contrib/webview/electron-sandbox/windowIgnoreMenuShortcutsManager';
+import { WebviewElement, WebviewInitInfo } from 'vs/workbench/contrib/webview/browser/webviewElement';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 /**
  * Webview backed by an iframe but that uses Electron APIs to power the webview.
  */
 export class ElectronWebviewElement extends WebviewElement {
-
-	private readonly _webviewKeyboardHandler: WindowIgnoreMenuShortcutsManager;
-
 	private _findStarted: boolean = false;
 	private _cachedHtmlContent: string | undefined;
 
@@ -64,17 +60,7 @@ export class ElectronWebviewElement extends WebviewElement {
 			configurationService, contextMenuService, menuService, notificationService, environmentService,
 			fileService, logService, remoteAuthorityResolverService, telemetryService, tunnelService, instantiationService, accessibilityService);
 
-		this._webviewKeyboardHandler = new WindowIgnoreMenuShortcutsManager(configurationService, mainProcessService, nativeHostService);
-
 		this._webviewMainService = ProxyChannel.toService<IWebviewManagerService>(mainProcessService.getChannel('webview'));
-
-		this._register(this.on(WebviewMessageChannels.didFocus, () => {
-			this._webviewKeyboardHandler.didFocus();
-		}));
-
-		this._register(this.on(WebviewMessageChannels.didBlur, () => {
-			this._webviewKeyboardHandler.didBlur();
-		}));
 
 		if (initInfo.options.enableFindWidget) {
 			this._register(this.onDidHtmlChange((newContent) => {
@@ -88,13 +74,6 @@ export class ElectronWebviewElement extends WebviewElement {
 				this._hasFindResult.fire(result.matches > 0);
 			}));
 		}
-	}
-
-	override dispose(): void {
-		// Make sure keyboard handler knows it closed (#71800)
-		this._webviewKeyboardHandler.didBlur();
-
-		super.dispose();
 	}
 
 	protected override webviewContentEndpoint(iframeId: string): string {

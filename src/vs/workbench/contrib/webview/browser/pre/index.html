@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-v9xEHcwDE5dc/lU7HYs5bG3LpPWGmQe0w/Vz6kmdd60=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-AelevOpL4CZtgfJ6TSeSuiVEM8LM/lSf+kZCQqHsXZg=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -580,6 +580,10 @@
 				} else {
 					return; // let the browser handle this
 				}
+			} else if (isCloseEvent(e)) {
+				// Prevent default (system menu closing)
+				e.preventDefault();
+				// We let it continue for did-keydown to handle
 			}
 
 			hostMessaging.postMessage('did-keydown', {
@@ -644,6 +648,15 @@
 		function isFindEvent(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
 			return hasMeta && e.key.toLowerCase() === 'f';
+		}
+
+		/**
+		 * @param {KeyboardEvent} e
+		 * @return {boolean}
+		 */
+		function isCloseEvent(e) {
+			const hasMeta = e.ctrlKey || e.metaKey;
+			return hasMeta && e.key.toLowerCase() === 'w';
 		}
 
 		let isHandlingScroll = false;

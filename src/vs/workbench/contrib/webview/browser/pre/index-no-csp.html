@@ -579,6 +579,10 @@
 				} else {
 					return; // let the browser handle this
 				}
+			} else if (isCloseEvent(e)) {
+				// Prevent default (system menu closing)
+				e.preventDefault();
+				// We let it continue for did-keydown to handle
 			}
 
 			hostMessaging.postMessage('did-keydown', {
@@ -643,6 +647,15 @@
 		function isFindEvent(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
 			return hasMeta && e.key.toLowerCase() === 'f';
+		}
+
+		/**
+		 * @param {KeyboardEvent} e
+		 * @return {boolean}
+		 */
+		function isCloseEvent(e) {
+			const hasMeta = e.ctrlKey || e.metaKey;
+			return hasMeta && e.key.toLowerCase() === 'w';
 		}
 
 		let isHandlingScroll = false;
