@@ -362,7 +362,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					isOptional: true,
 					description: nls.localize('runTask.arg', "Filters the tasks shown in the quickpick"),
 					schema: {
-						'anyOf': [
+						anyOf: [
 							{
 								type: 'string',
 								description: nls.localize('runTask.label', "The task's label or a term to filter by")
@@ -370,17 +370,17 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 							{
 								type: 'object',
 								properties: {
-									'type': {
+									type: {
 										type: 'string',
 										description: nls.localize('runTask.type', "The contributed task type"),
 										enum: Array.from(this._providerTypes.values()).map(provider => provider)
 									},
-									'taskName': {
+									taskName: {
 										type: 'string',
 										description: nls.localize('runTask.taskName', "The task's label or a term to filter by"),
 										enum: await this.tasks().then((tasks) => tasks.map(t => t._label))
 									}
-								},
+								}
 							}
 						]
 					}
