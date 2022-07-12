@@ -271,7 +271,7 @@ export class TaskQuickPick extends Disposable {
 		do {
 			if (Types.isString(firstLevelTask)) {
 				// Proceed to second level of quick pick
-				const selectedEntry = await this.doPickerSecondLevel(firstLevelTask, picker);
+				const selectedEntry = await this.doPickerSecondLevel(picker, firstLevelTask);
 				if (selectedEntry && !selectedEntry.settingType && selectedEntry.task === null) {
 					// The user has chosen to go back to the first level
 					firstLevelTask = await this._doPickerFirstLevel(picker, (await this.getTopLevelEntries(defaultEntry)).entries);
