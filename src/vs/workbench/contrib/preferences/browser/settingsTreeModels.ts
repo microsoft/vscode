@@ -13,7 +13,7 @@ import { ITOCEntry, knownAcronyms, knownTermMappings, tocData } from 'vs/workben
 import { ENABLE_LANGUAGE_FILTER, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IExtensionSetting, ISearchResult, ISetting, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { FOLDER_SCOPES, WORKSPACE_SCOPES, REMOTE_MACHINE_SCOPES, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, LOCAL_MACHINE_PROFILE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
+import { FOLDER_SCOPES, WORKSPACE_SCOPES, REMOTE_MACHINE_SCOPES, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, LOCAL_MACHINE_PROFILE_SCOPES, APPLICATION_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
@@ -366,24 +366,28 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			return true;
 		}
 
+		if (configTarget === ConfigurationTarget.APPLICATION) {
+			return APPLICATION_SCOPES.includes(this.setting.scope);
+		}
+
 		if (configTarget === ConfigurationTarget.WORKSPACE_FOLDER) {
-			return FOLDER_SCOPES.indexOf(this.setting.scope) !== -1;
+			return FOLDER_SCOPES.includes(this.setting.scope);
 		}
 
 		if (configTarget === ConfigurationTarget.WORKSPACE) {
-			return WORKSPACE_SCOPES.indexOf(this.setting.scope) !== -1;
+			return WORKSPACE_SCOPES.includes(this.setting.scope);
 		}
 
 		if (configTarget === ConfigurationTarget.USER_REMOTE) {
-			return REMOTE_MACHINE_SCOPES.indexOf(this.setting.scope) !== -1;
+			return REMOTE_MACHINE_SCOPES.includes(this.setting.scope);
 		}
 
 		if (configTarget === ConfigurationTarget.USER_LOCAL) {
 			if (!this.userDataProfileService.currentProfile.isDefault) {
-				return LOCAL_MACHINE_PROFILE_SCOPES.indexOf(this.setting.scope) !== -1;
+				return LOCAL_MACHINE_PROFILE_SCOPES.includes(this.setting.scope);
 			}
 			if (isRemote) {
-				return LOCAL_MACHINE_SCOPES.indexOf(this.setting.scope) !== -1;
+				return LOCAL_MACHINE_SCOPES.includes(this.setting.scope);
 			}
 		}
 

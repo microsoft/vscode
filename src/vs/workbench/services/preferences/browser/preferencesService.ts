@@ -450,6 +450,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	public async getEditableSettingsURI(configurationTarget: ConfigurationTarget, resource?: URI): Promise<URI | null> {
 		switch (configurationTarget) {
+			case ConfigurationTarget.APPLICATION:
+				return this.userSettingsResource;
 			case ConfigurationTarget.USER:
 			case ConfigurationTarget.USER_LOCAL:
 				return this.userSettingsResource;
