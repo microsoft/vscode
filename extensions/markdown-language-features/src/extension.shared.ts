@@ -10,13 +10,11 @@ import { registerPasteSupport } from './languageFeatures/copyPaste';
 import { registerDefinitionSupport } from './languageFeatures/definitions';
 import { registerDiagnosticSupport } from './languageFeatures/diagnostics';
 import { MdLinkProvider, registerDocumentLinkSupport } from './languageFeatures/documentLinks';
-import { MdDocumentSymbolProvider } from './languageFeatures/documentSymbols';
 import { registerDropIntoEditorSupport } from './languageFeatures/dropIntoEditor';
 import { registerFindFileReferenceSupport } from './languageFeatures/fileReferences';
 import { registerPathCompletionSupport } from './languageFeatures/pathCompletions';
 import { MdReferencesProvider, registerReferencesSupport } from './languageFeatures/references';
 import { registerRenameSupport } from './languageFeatures/rename';
-import { registerWorkspaceSymbolSupport } from './languageFeatures/workspaceSymbols';
 import { ILogger } from './logging';
 import { IMdParser, MarkdownItEngine, MdParsingProvider } from './markdownEngine';
 import { MarkdownContributionProvider } from './markdownExtensions';
@@ -67,7 +65,6 @@ function registerMarkdownLanguageFeatures(
 
 	const linkProvider = new MdLinkProvider(parser, workspace, logger);
 	const referencesProvider = new MdReferencesProvider(parser, workspace, tocProvider, logger);
-	const symbolProvider = new MdDocumentSymbolProvider(tocProvider, logger);
 
 	return vscode.Disposable.from(
 		linkProvider,
@@ -83,7 +80,6 @@ function registerMarkdownLanguageFeatures(
 		registerPathCompletionSupport(selector, workspace, parser, linkProvider),
 		registerReferencesSupport(selector, referencesProvider),
 		registerRenameSupport(selector, workspace, referencesProvider, parser.slugifier),
-		registerWorkspaceSymbolSupport(workspace, symbolProvider),
 	);
 }
 

@@ -45,7 +45,7 @@ export function isISubmenuItem(item: IMenuItem | ISubmenuItem): item is ISubmenu
 
 export class MenuId {
 
-	private static _idPool = 0;
+	private static readonly _idPool = new Set<string>();
 
 	static readonly CommandPalette = new MenuId('CommandPalette');
 	static readonly DebugBreakpointsContext = new MenuId('DebugBreakpointsContext');
@@ -162,12 +162,15 @@ export class MenuId {
 	static readonly NewFile = new MenuId('NewFile');
 	static readonly MergeToolbar = new MenuId('MergeToolbar');
 
-	readonly id: number;
-	readonly _debugName: string;
 
-	constructor(debugName: string) {
-		this.id = MenuId._idPool++;
-		this._debugName = debugName;
+	readonly id: string;
+
+	constructor(identifier: string) {
+		if (MenuId._idPool.has(identifier)) {
+			throw new Error(`Duplicate menu identifier ${identifier}`);
+		}
+		MenuId._idPool.add(identifier);
+		this.id = identifier;
 	}
 }
 
@@ -193,7 +196,18 @@ export interface IMenuService {
 
 	readonly _serviceBrand: undefined;
 
+	/**
+	 * Create a new menu for the given menu identifier. A menu sends events when it's entries
+	 * have changed (placement, enablement, checked-state). By default it does not send events for
+	 * submenu entries. That is more expensive and must be explicitly enabled with the
+	 * `emitEventsForSubmenuChanges` flag.
+	 */
 	createMenu(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuCreateOptions): IMenu;
+
+	/**
+	 * Reset **all** menu item hidden states.
+	 */
+	resetHiddenStates(): void;
 }
 
 export type ICommandsMap = Map<string, ICommandAction>;
@@ -350,6 +364,22 @@ export class SubmenuItemAction extends SubmenuAction {
 	}
 }
 
+export class MenuItemActionManageActions {
+	constructor(
+		readonly hideThis: IAction,
+		readonly toggleAny: readonly IAction[][],
+	) { }
+
+	asList(): IAction[] {
+		let result: IAction[] = [this.hideThis];
+		for (const n of this.toggleAny) {
+			result.push(new Separator());
+			result = result.concat(n);
+		}
+		return result;
+	}
+}
+
 // implements IAction, does NOT extend Action, so that no one
 // subscribes to events of Action or modified properties
 export class MenuItemAction implements IAction {
@@ -370,6 +400,7 @@ export class MenuItemAction implements IAction {
 		item: ICommandAction,
 		alt: ICommandAction | undefined,
 		options: IMenuActionOptions | undefined,
+		readonly hideActions: MenuItemActionManageActions | undefined,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService private _commandService: ICommandService
 	) {
@@ -396,7 +427,7 @@ export class MenuItemAction implements IAction {
 		}
 
 		this.item = item;
-		this.alt = alt ? new MenuItemAction(alt, undefined, options, contextKeyService, _commandService) : undefined;
+		this.alt = alt ? new MenuItemAction(alt, undefined, options, hideActions, contextKeyService, _commandService) : undefined;
 		this._options = options;
 		if (ThemeIcon.isThemeIcon(item.icon)) {
 			this.class = CSSIcon.asClassName(item.icon);

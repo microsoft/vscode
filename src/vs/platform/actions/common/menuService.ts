@@ -6,32 +6,123 @@
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IMenu, IMenuActionOptions, IMenuCreateOptions, IMenuItem, IMenuService, isIMenuItem, ISubmenuItem, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from 'vs/platform/actions/common/actions';
-import { ILocalizedString } from 'vs/platform/action/common/action';
+import { IMenu, IMenuActionOptions, IMenuCreateOptions, IMenuItem, IMenuService, isIMenuItem, ISubmenuItem, MenuId, MenuItemAction, MenuItemActionManageActions, MenuRegistry, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { ICommandAction, ILocalizedString } from 'vs/platform/action/common/action';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IAction, SubmenuAction } from 'vs/base/common/actions';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { removeFastWithoutKeepingOrder } from 'vs/base/common/arrays';
+import { localize } from 'vs/nls';
 
 export class MenuService implements IMenuService {
 
 	declare readonly _serviceBrand: undefined;
 
+	private readonly _hiddenStates: PersistedMenuHideState;
+
 	constructor(
-		@ICommandService private readonly _commandService: ICommandService
+		@ICommandService private readonly _commandService: ICommandService,
+		@IStorageService storageService: IStorageService,
 	) {
-		//
+		this._hiddenStates = new PersistedMenuHideState(storageService);
 	}
 
-	/**
-	 * Create a new menu for the given menu identifier. A menu sends events when it's entries
-	 * have changed (placement, enablement, checked-state). By default it does send events for
-	 * sub menu entries. That is more expensive and must be explicitly enabled with the
-	 * `emitEventsForSubmenuChanges` flag.
-	 */
 	createMenu(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuCreateOptions): IMenu {
-		return new Menu(id, { emitEventsForSubmenuChanges: false, eventDebounceDelay: 50, ...options }, this._commandService, contextKeyService, this);
+		return new Menu(id, this._hiddenStates, { emitEventsForSubmenuChanges: false, eventDebounceDelay: 50, ...options }, this._commandService, contextKeyService, this);
+	}
+
+	resetHiddenStates(): void {
+		this._hiddenStates.reset();
 	}
 }
 
+class PersistedMenuHideState {
+
+	private static readonly _key = 'menu.hiddenCommands';
+
+	private readonly _disposables = new DisposableStore();
+	private readonly _onDidChange = new Emitter<void>();
+	readonly onDidChange: Event<void> = this._onDidChange.event;
+
+	private _ignoreChangeEvent: boolean = false;
+	private _data: Record<string, string[] | undefined>;
+
+	constructor(@IStorageService private readonly _storageService: IStorageService) {
+		try {
+			const raw = _storageService.get(PersistedMenuHideState._key, StorageScope.PROFILE, '{}');
+			this._data = JSON.parse(raw);
+		} catch (err) {
+			this._data = Object.create(null);
+		}
+
+		this._disposables.add(_storageService.onDidChangeValue(e => {
+			if (e.key !== PersistedMenuHideState._key) {
+				return;
+			}
+			if (!this._ignoreChangeEvent) {
+				try {
+					const raw = _storageService.get(PersistedMenuHideState._key, StorageScope.PROFILE, '{}');
+					this._data = JSON.parse(raw);
+				} catch (err) {
+					console.log('FAILED to read storage after UPDATE', err);
+				}
+			}
+			this._onDidChange.fire();
+		}));
+	}
+
+	dispose() {
+		this._onDidChange.dispose();
+		this._disposables.dispose();
+	}
+
+	isHidden(menu: MenuId, commandId: string): boolean {
+		return this._data[menu.id]?.includes(commandId) ?? false;
+	}
+
+	updateHidden(menu: MenuId, commandId: string, hidden: boolean): void {
+		const entries = this._data[menu.id];
+		if (!hidden) {
+			// remove and cleanup
+			if (entries) {
+				const idx = entries.indexOf(commandId);
+				if (idx >= 0) {
+					removeFastWithoutKeepingOrder(entries, idx);
+				}
+				if (entries.length === 0) {
+					delete this._data[menu.id];
+				}
+			}
+		} else {
+			// add unless already added
+			if (!entries) {
+				this._data[menu.id] = [commandId];
+			} else {
+				const idx = entries.indexOf(commandId);
+				if (idx < 0) {
+					entries.push(commandId);
+				}
+			}
+		}
+		this._persist();
+	}
+
+	reset(): void {
+		this._data = Object.create(null);
+		this._persist();
+	}
+
+	private _persist(): void {
+		try {
+			this._ignoreChangeEvent = true;
+			const raw = JSON.stringify(this._data);
+			this._storageService.store(PersistedMenuHideState._key, raw, StorageScope.PROFILE, StorageTarget.USER);
+		} finally {
+			this._ignoreChangeEvent = false;
+		}
+	}
+}
 
 type MenuItemGroup = [string, Array<IMenuItem | ISubmenuItem>];
 
@@ -47,6 +138,7 @@ class Menu implements IMenu {
 
 	constructor(
 		private readonly _id: MenuId,
+		private readonly _hiddenStates: PersistedMenuHideState,
 		private readonly _options: Required<IMenuCreateOptions>,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -68,24 +160,27 @@ class Menu implements IMenu {
 			}
 		}));
 
-		// When context keys change we need to check if the menu also has changed. However,
-		// we only do that when someone listens on this menu because (1) context key events are
+		// When context keys or storage state changes we need to check if the menu also has changed. However,
+		// we only do that when someone listens on this menu because (1) these events are
 		// firing often and (2) menu are often leaked
-		const contextKeyListener = this._disposables.add(new DisposableStore());
-		const startContextKeyListener = () => {
+		const lazyListener = this._disposables.add(new DisposableStore());
+		const startLazyListener = () => {
 			const fireChangeSoon = new RunOnceScheduler(() => this._onDidChange.fire(this), _options.eventDebounceDelay);
-			contextKeyListener.add(fireChangeSoon);
-			contextKeyListener.add(_contextKeyService.onDidChangeContext(e => {
+			lazyListener.add(fireChangeSoon);
+			lazyListener.add(_contextKeyService.onDidChangeContext(e => {
 				if (e.affectsSome(this._contextKeys)) {
 					fireChangeSoon.schedule();
 				}
+			}));
+			lazyListener.add(_hiddenStates.onDidChange(() => {
+				fireChangeSoon.schedule();
 			}));
 		};
 
 		this._onDidChange = new Emitter({
 			// start/stop context key listener
-			onFirstListenerAdd: startContextKeyListener,
-			onLastListenerRemove: contextKeyListener.clear.bind(contextKeyListener)
+			onFirstListenerAdd: startLazyListener,
+			onLastListenerRemove: lazyListener.clear.bind(lazyListener)
 		});
 		this.onDidChange = this._onDidChange.event;
 
@@ -145,19 +240,45 @@ class Menu implements IMenu {
 
 	getActions(options?: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][] {
 		const result: [string, Array<MenuItemAction | SubmenuItemAction>][] = [];
+		const allToggleActions: IAction[][] = [];
+
 		for (const group of this._menuGroups) {
 			const [id, items] = group;
+
+			const toggleActions: IAction[] = [];
+
 			const activeActions: Array<MenuItemAction | SubmenuItemAction> = [];
 			for (const item of items) {
 				if (this._contextKeyService.contextMatchesRules(item.when)) {
 					let action: MenuItemAction | SubmenuItemAction | undefined;
 					if (isIMenuItem(item)) {
-						action = new MenuItemAction(item.command, item.alt, options, this._contextKeyService, this._commandService);
+						if (!this._hiddenStates.isHidden(this._id, item.command.id)) {
+							action = new MenuItemAction(
+								item.command, item.alt, options,
+								new MenuItemActionManageActions(new HideMenuItemAction(this._id, item.command, this._hiddenStates), allToggleActions),
+								this._contextKeyService, this._commandService
+							);
+						}
+						// add toggle commmand
+						toggleActions.push(new ToggleMenuItemAction(this._id, item.command, this._hiddenStates));
 					} else {
 						action = new SubmenuItemAction(item, this._menuService, this._contextKeyService, options);
 						if (action.actions.length === 0) {
 							action.dispose();
 							action = undefined;
+						}
+						// add toggle submenu - this re-creates ToggleMenuItemAction-instances for submenus but that's OK...
+						if (action) {
+							const makeToggleCommand = (id: MenuId, action: IAction): IAction => {
+								if (action instanceof SubmenuItemAction) {
+									return new SubmenuAction(action.id, action.label, action.actions.map(a => makeToggleCommand(action.item.submenu, a)));
+								} else if (action instanceof MenuItemAction) {
+									return new ToggleMenuItemAction(id, action.item, this._hiddenStates);
+								} else {
+									return action;
+								}
+							};
+							toggleActions.push(makeToggleCommand(this._id, action));
 						}
 					}
 
@@ -168,6 +289,9 @@ class Menu implements IMenu {
 			}
 			if (activeActions.length > 0) {
 				result.push([id, activeActions]);
+			}
+			if (toggleActions.length > 0) {
+				allToggleActions.push(toggleActions);
 			}
 		}
 		return result;
@@ -229,5 +353,57 @@ class Menu implements IMenu {
 		const aStr = typeof a === 'string' ? a : a.original;
 		const bStr = typeof b === 'string' ? b : b.original;
 		return aStr.localeCompare(bStr);
+	}
+}
+
+class ToggleMenuItemAction implements IAction {
+
+	readonly id: string;
+	readonly label: string;
+	readonly enabled: boolean = true;
+	readonly tooltip: string = '';
+
+	readonly checked: boolean;
+	readonly class: undefined;
+
+	run: () => void;
+
+	constructor(id: MenuId, command: ICommandAction, hiddenStates: PersistedMenuHideState) {
+		this.id = `toggle/${id.id}/${command.id}`;
+		this.label = typeof command.title === 'string' ? command.title : command.title.value;
+
+		let isHidden = hiddenStates.isHidden(id, command.id);
+		this.checked = !isHidden;
+		this.run = () => {
+			isHidden = !isHidden;
+			hiddenStates.updateHidden(id, command.id, isHidden);
+		};
+	}
+
+	dispose(): void {
+		// NOTHING
+	}
+}
+
+class HideMenuItemAction implements IAction {
+
+	readonly id: string;
+	readonly label: string;
+	readonly enabled: boolean = true;
+	readonly tooltip: string = '';
+
+	readonly checked: undefined;
+	readonly class: undefined;
+
+	run: () => void;
+
+	constructor(id: MenuId, command: ICommandAction, hiddenStates: PersistedMenuHideState) {
+		this.id = `hide/${id.id}/${command.id}`;
+		this.label = localize('hide.label', 'Hide \'{0}\'', typeof command.title === 'string' ? command.title : command.title.value);
+		this.run = () => { hiddenStates.updateHidden(id, command.id, true); };
+	}
+
+	dispose(): void {
+		// NOTHING
 	}
 }

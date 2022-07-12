@@ -244,6 +244,7 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 
 			type WorkbenchNotebookOpenClassification = {
 				owner: 'rebornix';
+				comment: 'The notebook file open metrics. Used to get a better understanding of the performance of notebook file opening';
 				scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 				ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 				viewType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
