@@ -508,6 +508,10 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			params.purpose = options.purpose;
 		}
 
+		if (globalThis.crossOriginIsolated) {
+			params['vscode-coi'] = '3'; /*COOP+COEP*/
+		}
+
 		const queryString = new URLSearchParams(params).toString();
 
 		// Workaround for https://bugzilla.mozilla.org/show_bug.cgi?id=1754872
