@@ -191,7 +191,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		// our workspace watchers in case the request is a
 		// recursive file watcher.
 		// Still allow for non-recursive watch requests as a way
-		// to bypass configured exlcude rules though
+		// to bypass configured exclude rules though
 		// (see https://github.com/microsoft/vscode/issues/146066)
 		if (workspaceFolder && opts.recursive) {
 			this._logService.trace(`MainThreadFileSystem#$watch(): ignoring request to start watching because path is inside workspace (extension: ${extensionId}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session})`);

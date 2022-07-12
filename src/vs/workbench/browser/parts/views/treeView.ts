@@ -1495,11 +1495,11 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 		}
 
 		const originalDataTransfer = toVSDataTransfer(originalEvent.dataTransfer);
-		addExternalEditorsDropData(originalDataTransfer, originalEvent);
+		addExternalEditorsDropData(originalDataTransfer, originalEvent, true);
 
 		const outDataTransfer = new VSDataTransfer();
 		for (const [type, item] of originalDataTransfer.entries()) {
-			if (type === this.treeMimeType || dndController.dropMimeTypes.indexOf(type) >= 0) {
+			if (type === this.treeMimeType || dndController.dropMimeTypes.includes(type) || (item.asFile() && dndController.dropMimeTypes.includes(DataTransfers.FILES.toLowerCase()))) {
 				outDataTransfer.append(type, item);
 				if (type === this.treeMimeType) {
 					try {

@@ -1608,7 +1608,6 @@ declare module 'vscode' {
 		/**
 		 * The event listeners can subscribe to.
 		 */
-		// eslint-disable-next-line vscode-dts-event-naming
 		event: Event<T>;
 
 		/**
@@ -10165,6 +10164,8 @@ declare module 'vscode' {
 		 * To support drops from trees, you will need to add the mime type of that tree.
 		 * This includes drops from within the same tree.
 		 * The mime type of a tree is recommended to be of the format `application/vnd.code.tree.<treeidlowercase>`.
+		 *
+		 * Use the special `files` mime type to support all types of dropped files {@link DataTransferFile files}, regardless of the file's actual mime type.
 		 *
 		 * To learn the mime type of a dragged item:
 		 * 1. Set up your `DragAndDropController`

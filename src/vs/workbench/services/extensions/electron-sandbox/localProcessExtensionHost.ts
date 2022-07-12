@@ -35,7 +35,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
 import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
 import { IExtensionHostProcessOptions, IExtensionHostStarter } from 'vs/platform/extensions/common/extensionHostStarter';
-import { SerializedError } from 'vs/base/common/errors';
+import { CancellationError, SerializedError } from 'vs/base/common/errors';
 import { removeDangerousEnvVariables } from 'vs/base/common/processes';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
@@ -164,7 +164,6 @@ export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 
 		this._toDispose.add(this._onExit);
 		this._toDispose.add(this._lifecycleService.onWillShutdown(e => this._onWillShutdown(e)));
-		this._toDispose.add(this._lifecycleService.onDidShutdown(() => this._terminate()));
 		this._toDispose.add(this._extensionHostDebugService.onClose(event => {
 			if (this._isExtensionDevHost && this._environmentService.debugExtensionHost.debugId === event.sessionId) {
 				this._nativeHostService.closeWindow();
@@ -178,10 +177,6 @@ export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 	}
 
 	public dispose(): void {
-		this._terminate();
-	}
-
-	private _terminate(): void {
 		if (this._terminating) {
 			return;
 		}
@@ -190,10 +185,10 @@ export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 		this._toDispose.dispose();
 	}
 
-	public start(): Promise<IMessagePassingProtocol> | null {
+	public start(): Promise<IMessagePassingProtocol> {
 		if (this._terminating) {
 			// .terminate() was called
-			return null;
+			throw new CancellationError();
 		}
 
 		if (!this._messageProtocol) {

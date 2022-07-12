@@ -108,6 +108,8 @@ class ActionButtonRenderer implements ICompressibleTreeRenderer<ISCMActionButton
 	static readonly TEMPLATE_ID = 'actionButton';
 	get templateId(): string { return ActionButtonRenderer.TEMPLATE_ID; }
 
+	private actionButtons = new Map<ISCMActionButton, SCMActionButton>();
+
 	constructor(
 		@ICommandService private commandService: ICommandService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
@@ -131,11 +133,23 @@ class ActionButtonRenderer implements ICompressibleTreeRenderer<ISCMActionButton
 	renderElement(node: ITreeNode<ISCMActionButton, FuzzyScore>, index: number, templateData: ActionButtonTemplate, height: number | undefined): void {
 		templateData.disposable.dispose();
 
+		const disposables = new DisposableStore();
+		const actionButton = node.element;
 		templateData.actionButton.setButton(node.element.button);
+
+		// Remember action button
+		this.actionButtons.set(actionButton, templateData.actionButton);
+		disposables.add({ dispose: () => this.actionButtons.delete(actionButton) });
+
+		templateData.disposable = disposables;
 	}
 
 	renderCompressedElements(): void {
 		throw new Error('Should never happen since node is incompressible');
+	}
+
+	focusActionButton(actionButton: ISCMActionButton): void {
+		this.actionButtons.get(actionButton)?.focus();
 	}
 
 	disposeElement(node: ITreeNode<ISCMActionButton, FuzzyScore>, index: number, template: ActionButtonTemplate): void {
@@ -2200,6 +2214,7 @@ export class SCMViewPane extends ViewPane {
 	get viewModel(): ViewModel { return this._viewModel; }
 	private listLabels!: ResourceLabels;
 	private inputRenderer!: InputRenderer;
+	private actionButtonRenderer!: ActionButtonRenderer;
 	private readonly disposables = new DisposableStore();
 
 	constructor(
@@ -2254,6 +2269,8 @@ export class SCMViewPane extends ViewPane {
 		this.inputRenderer = this.instantiationService.createInstance(InputRenderer, this.layoutCache, overflowWidgetsDomNode, (input, height) => this.tree.updateElementHeight(input, height));
 		const delegate = new ListDelegate(this.inputRenderer);
 
+		this.actionButtonRenderer = this.instantiationService.createInstance(ActionButtonRenderer);
+
 		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
 		this._register(this.listLabels);
 
@@ -2264,7 +2281,7 @@ export class SCMViewPane extends ViewPane {
 		const renderers: ICompressibleTreeRenderer<any, any, any>[] = [
 			this.instantiationService.createInstance(RepositoryRenderer, getActionViewItemProvider(this.instantiationService)),
 			this.inputRenderer,
-			this.instantiationService.createInstance(ActionButtonRenderer),
+			this.actionButtonRenderer,
 			this.instantiationService.createInstance(ResourceGroupRenderer, getActionViewItemProvider(this.instantiationService)),
 			this._register(this.instantiationService.createInstance(ResourceRenderer, () => this._viewModel, this.listLabels, getActionViewItemProvider(this.instantiationService), actionRunner))
 		];
@@ -2383,6 +2400,7 @@ export class SCMViewPane extends ViewPane {
 
 			if (widget) {
 				widget.focus();
+				this.tree.setFocus([], e.browserEvent);
 
 				const selection = this.tree.getSelection();
 
@@ -2394,6 +2412,13 @@ export class SCMViewPane extends ViewPane {
 			return;
 		} else if (isSCMActionButton(e.element)) {
 			this.scmViewService.focus(e.element.repository);
+
+			// Focus the action button
+			const target = e.browserEvent?.target as HTMLElement;
+			if (target.classList.contains('monaco-tl-row') || target.classList.contains('button-container')) {
+				this.actionButtonRenderer.focusActionButton(e.element);
+				this.tree.setFocus([], e.browserEvent);
+			}
 
 			return;
 		}
@@ -2619,21 +2644,15 @@ export class SCMActionButton implements IDisposable {
 			return;
 		}
 
-		const executeButtonAction = async (commandId: string, ...args: any[]) => {
-			try {
-				await this.commandService.executeCommand(commandId, ...args);
-			} catch (ex) {
-				this.notificationService.error(ex);
-			}
-		};
-
 		if (button.secondaryCommands?.length) {
 			const actions: IAction[] = [];
-			for (const commandGroup of button.secondaryCommands) {
-				for (const command of commandGroup) {
-					actions.push(new Action(command.id, command.title, undefined, true, async () => await executeButtonAction(command.id, ...(command.arguments || []))));
+			for (let index = 0; index < button.secondaryCommands.length; index++) {
+				for (const command of button.secondaryCommands[index]) {
+					actions.push(new Action(command.id, command.title, undefined, true, async () => await this.executeCommand(command.id, ...(command.arguments || []))));
 				}
-				actions.push(new Separator());
+				if (index !== button.secondaryCommands.length - 1) {
+					actions.push(new Separator());
+				}
 			}
 
 			// ButtonWithDropdown
@@ -2641,6 +2660,7 @@ export class SCMActionButton implements IDisposable {
 				actions: actions,
 				addPrimaryActionToDropdown: false,
 				contextMenuProvider: this.contextMenuService,
+				title: button.command.tooltip,
 				supportIcons: true
 			});
 		} else if (button.description) {
@@ -2654,16 +2674,27 @@ export class SCMActionButton implements IDisposable {
 
 		this.button.enabled = button.enabled;
 		this.button.label = button.command.title;
-		this.button.element.title = button.command.tooltip ?? '';
-		this.button.onDidClick(async () => await executeButtonAction(button.command.id, ...(button.command.arguments || [])), null, this.disposables.value);
+		this.button.onDidClick(async () => await this.executeCommand(button.command.id, ...(button.command.arguments || [])), null, this.disposables.value);
 
 		this.disposables.value!.add(this.button);
 		this.disposables.value!.add(attachButtonStyler(this.button, this.themeService));
+	}
+
+	focus(): void {
+		this.button?.focus();
 	}
 
 	private clear(): void {
 		this.disposables.value = new DisposableStore();
 		this.button = undefined;
 		clearNode(this.container);
+	}
+
+	private async executeCommand(commandId: string, ...args: any[]): Promise<void> {
+		try {
+			await this.commandService.executeCommand(commandId, ...args);
+		} catch (ex) {
+			this.notificationService.error(ex);
+		}
 	}
 }

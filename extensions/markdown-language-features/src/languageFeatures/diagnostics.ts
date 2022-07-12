@@ -242,7 +242,9 @@ export abstract class DiagnosticReporter extends Disposable {
 
 	public abstract delete(uri: vscode.Uri): void;
 
-	public abstract areDiagnosticsEnabled(uri: vscode.Uri): boolean;
+	public abstract isOpen(uri: vscode.Uri): boolean;
+
+	public abstract getOpenDocuments(): ITextDocument[];
 
 	public addWorkItem(promise: Promise<any>): Promise<any> {
 		this.pending.add(promise);
@@ -256,6 +258,7 @@ export abstract class DiagnosticReporter extends Disposable {
 }
 
 export class DiagnosticCollectionReporter extends DiagnosticReporter {
+
 	private readonly collection: vscode.DiagnosticCollection;
 
 	constructor() {
@@ -269,11 +272,11 @@ export class DiagnosticCollectionReporter extends DiagnosticReporter {
 	}
 
 	public set(uri: vscode.Uri, diagnostics: readonly vscode.Diagnostic[]): void {
-		this.collection.set(uri, this.areDiagnosticsEnabled(uri) ? diagnostics : []);
+		this.collection.set(uri, this.isOpen(uri) ? diagnostics : []);
 	}
 
-	public areDiagnosticsEnabled(uri: vscode.Uri): boolean {
-		const tabs = this.getAllTabResources();
+	public isOpen(uri: vscode.Uri): boolean {
+		const tabs = this.getTabResources();
 		return tabs.has(uri);
 	}
 
@@ -281,7 +284,12 @@ export class DiagnosticCollectionReporter extends DiagnosticReporter {
 		this.collection.delete(uri);
 	}
 
-	private getAllTabResources(): ResourceMap<void> {
+	public getOpenDocuments(): ITextDocument[] {
+		const tabs = this.getTabResources();
+		return vscode.workspace.textDocuments.filter(doc => tabs.has(doc.uri));
+	}
+
+	private getTabResources(): ResourceMap<void> {
 		const openedTabDocs = new ResourceMap<void>();
 		for (const group of vscode.window.tabGroups.all) {
 			for (const tab of group.tabs) {
@@ -365,7 +373,7 @@ export class DiagnosticManager extends Disposable {
 		return this.reporter.addWorkItem(
 			(async () => {
 				const triggered = new ResourceMap<Promise<void>>();
-				for (const ref of await this.referencesProvider.getAllReferencesToFile(uri, noopToken)) {
+				for (const ref of await this.referencesProvider.getReferencesToFileInDocs(uri, this.reporter.getOpenDocuments(), noopToken)) {
 					const file = ref.location.uri;
 					if (!triggered.has(file)) {
 						triggered.set(file, this.triggerDiagnostics(file));
@@ -398,7 +406,7 @@ export class DiagnosticManager extends Disposable {
 			const doc = await this.workspace.getOrLoadMarkdownDocument(resource);
 			if (doc) {
 				await this.inFlightDiagnostics.trigger(doc.uri, async (token) => {
-					if (this.reporter.areDiagnosticsEnabled(doc.uri)) {
+					if (this.reporter.isOpen(doc.uri)) {
 						const state = await this.recomputeDiagnosticState(doc, token);
 						this.linkWatcher.updateLinksForDocument(doc.uri, state.config.enabled && state.config.validateFileLinks ? state.links : []);
 						this.reporter.set(doc.uri, state.diagnostics);
@@ -417,12 +425,7 @@ export class DiagnosticManager extends Disposable {
 		this.inFlightDiagnostics.clear();
 
 		return this.reporter.addWorkItem(
-			(async () => {
-				// TODO: This pulls in all md files in the workspace. Instead we only care about opened text documents.
-				// Need a new way to handle that.
-				const allDocs = await this.workspace.getAllMarkdownDocuments();
-				await Promise.all(Array.from(allDocs, doc => this.triggerDiagnostics(doc.uri)));
-			})()
+			Promise.all(Array.from(this.reporter.getOpenDocuments(), doc => this.triggerDiagnostics(doc.uri)))
 		);
 	}
 
@@ -511,17 +514,17 @@ export class DiagnosticComputer {
 		const diagnostics: vscode.Diagnostic[] = [];
 		for (const link of links) {
 			if (link.href.kind === 'internal'
-				&& link.source.text.startsWith('#')
+				&& link.source.hrefText.startsWith('#')
 				&& link.href.path.toString() === doc.uri.toString()
 				&& link.href.fragment
 				&& !toc.lookup(link.href.fragment)
 			) {
-				if (!this.isIgnoredLink(options, link.source.text)) {
+				if (!this.isIgnoredLink(options, link.source.hrefText)) {
 					diagnostics.push(new LinkDoesNotExistDiagnostic(
 						link.source.hrefRange,
 						localize('invalidHeaderLink', 'No header found: \'{0}\'', link.href.fragment),
 						severity,
-						link.source.text));
+						link.source.hrefText));
 				}
 			}
 		}
@@ -553,7 +556,7 @@ export class DiagnosticComputer {
 		const fragmentErrorSeverity = toSeverity(typeof options.validateMarkdownFileLinkFragments === 'undefined' ? options.validateFragmentLinks : options.validateMarkdownFileLinkFragments);
 
 		// We've already validated our own fragment links in `validateOwnHeaderLinks`
-		const linkSet = new FileLinkMap(links.filter(link => !link.source.text.startsWith('#')));
+		const linkSet = new FileLinkMap(links.filter(link => !link.source.hrefText.startsWith('#')));
 		if (linkSet.size === 0) {
 			return [];
 		}
@@ -582,10 +585,10 @@ export class DiagnosticComputer {
 						if (fragmentLinks.length) {
 							const toc = await this.tocProvider.get(resolvedHrefPath);
 							for (const link of fragmentLinks) {
-								if (!toc.lookup(link.fragment) && !this.isIgnoredLink(options, link.source.pathText) && !this.isIgnoredLink(options, link.source.text)) {
+								if (!toc.lookup(link.fragment) && !this.isIgnoredLink(options, link.source.pathText) && !this.isIgnoredLink(options, link.source.hrefText)) {
 									const msg = localize('invalidLinkToHeaderInOtherFile', 'Header does not exist in file: {0}', link.fragment);
 									const range = link.source.fragmentRange?.with({ start: link.source.fragmentRange.start.translate(0, -1) }) ?? link.source.hrefRange;
-									diagnostics.push(new LinkDoesNotExistDiagnostic(range, msg, fragmentErrorSeverity, link.source.text));
+									diagnostics.push(new LinkDoesNotExistDiagnostic(range, msg, fragmentErrorSeverity, link.source.hrefText));
 								}
 							}
 						}

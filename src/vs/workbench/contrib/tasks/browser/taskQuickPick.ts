@@ -24,7 +24,6 @@ import { TaskQuickPickEntryType } from 'vs/workbench/contrib/tasks/browser/abstr
 
 export const QUICKOPEN_DETAIL_CONFIG = 'task.quickOpen.detail';
 export const QUICKOPEN_SKIP_CONFIG = 'task.quickOpen.skip';
-
 export function isWorkspaceFolder(folder: IWorkspace | IWorkspaceFolder): folder is IWorkspaceFolder {
 	return 'uri' in folder;
 }
@@ -64,7 +63,7 @@ export class TaskQuickPick extends Disposable {
 
 	private _guessTaskLabel(task: Task | ConfiguringTask): string {
 		if (task._label) {
-			return TaskQuickPick.getTaskLabelWithIcon(task);
+			return task._label;
 		}
 		if (ConfiguringTask.is(task)) {
 			let label: string = task.configures.type;
@@ -77,12 +76,13 @@ export class TaskQuickPick extends Disposable {
 		return '';
 	}
 
-	public static getTaskLabelWithIcon(task: Task | ConfiguringTask): string {
+	public static getTaskLabelWithIcon(task: Task | ConfiguringTask, labelGuess?: string): string {
+		const label = labelGuess || task._label;
 		const icon = task.configurationProperties.icon;
 		if (!icon) {
-			return `${task._label}`;
+			return `${label}`;
 		}
-		return icon.id ? `$(${icon.id}) ${task._label}` : `$(${Codicon.tools.id}) ${task._label}`;
+		return icon.id ? `$(${icon.id}) ${label}` : `$(${Codicon.tools.id}) ${label}`;
 	}
 
 	public static applyColorStyles(task: Task | ConfiguringTask, entry: TaskQuickPickEntryType | ITaskTwoLevelQuickPickEntry, themeService: IThemeService): void {
@@ -95,7 +95,7 @@ export class TaskQuickPick extends Disposable {
 	}
 
 	private _createTaskEntry(task: Task | ConfiguringTask, extraButtons: IQuickInputButton[] = []): ITaskTwoLevelQuickPickEntry {
-		const entry: ITaskTwoLevelQuickPickEntry = { label: this._guessTaskLabel(task), description: this._taskService.getTaskDescription(task), task, detail: this._showDetail() ? task.configurationProperties.detail : undefined };
+		const entry: ITaskTwoLevelQuickPickEntry = { label: TaskQuickPick.getTaskLabelWithIcon(task, this._guessTaskLabel(task)), description: this._taskService.getTaskDescription(task), task, detail: this._showDetail() ? task.configurationProperties.detail : undefined };
 		entry.buttons = [];
 		entry.buttons.push({ iconClass: ThemeIcon.asClassName(configureTaskIcon), tooltip: nls.localize('configureTask', "Configure Task") });
 		entry.buttons.push(...extraButtons);
@@ -107,7 +107,9 @@ export class TaskQuickPick extends Disposable {
 		groupLabel: string, extraButtons: IQuickInputButton[] = []) {
 		entries.push({ type: 'separator', label: groupLabel });
 		tasks.forEach(task => {
-			entries.push(this._createTaskEntry(task, extraButtons));
+			if (!task.configurationProperties.hide) {
+				entries.push(this._createTaskEntry(task, extraButtons));
+			}
 		});
 	}
 
@@ -303,7 +305,7 @@ export class TaskQuickPick extends Disposable {
 	private async _doPickerSecondLevel(picker: IQuickPick<ITaskTwoLevelQuickPickEntry>, type: string) {
 		picker.busy = true;
 		if (type === SHOW_ALL) {
-			const items = (await this._taskService.tasks()).sort((a, b) => this._sorter.compare(a, b)).map(task => this._createTaskEntry(task));
+			const items = (await this._taskService.tasks()).filter(t => !t.configurationProperties.hide).sort((a, b) => this._sorter.compare(a, b)).map(task => this._createTaskEntry(task));
 			items.push(...TaskQuickPick.allSettingEntries(this._configurationService));
 			picker.items = items;
 		} else {
@@ -352,9 +354,13 @@ export class TaskQuickPick extends Disposable {
 
 	private async _getEntriesForProvider(type: string): Promise<QuickPickInput<ITaskTwoLevelQuickPickEntry>[]> {
 		const tasks = (await this._taskService.tasks({ type })).sort((a, b) => this._sorter.compare(a, b));
-		let taskQuickPickEntries: QuickPickInput<ITaskTwoLevelQuickPickEntry>[];
+		let taskQuickPickEntries: QuickPickInput<ITaskTwoLevelQuickPickEntry>[] = [];
 		if (tasks.length > 0) {
-			taskQuickPickEntries = tasks.map(task => this._createTaskEntry(task));
+			for (const task of tasks) {
+				if (!task.configurationProperties.hide) {
+					taskQuickPickEntries.push(this._createTaskEntry(task));
+				}
+			}
 			taskQuickPickEntries.push({
 				type: 'separator'
 			}, {

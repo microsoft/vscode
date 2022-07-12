@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { BroadcastDataChannel } from 'vs/base/browser/broadcast';
 import { isSafari } from 'vs/base/browser/browser';
 import { IndexedDB } from 'vs/base/browser/indexedDB';
 import { DeferredPromise, Promises } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { assertIsDefined } from 'vs/base/common/types';
 import { InMemoryStorageDatabase, isStorageItemsChangeEvent, IStorage, IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest, Storage } from 'vs/base/parts/storage/common/storage';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -23,7 +24,7 @@ export class BrowserStorageService extends AbstractStorageService {
 
 	private applicationStorage: IStorage | undefined;
 	private applicationStorageDatabase: IIndexedDBStorageDatabase | undefined;
-	private readonly applicationStoragePromise = new DeferredPromise<{ indededDb: IIndexedDBStorageDatabase; storage: IStorage }>();
+	private readonly applicationStoragePromise = new DeferredPromise<{ indexedDb: IIndexedDBStorageDatabase; storage: IStorage }>();
 
 	private profileStorage: IStorage | undefined;
 	private profileStorageDatabase: IIndexedDBStorageDatabase | undefined;
@@ -92,7 +93,7 @@ export class BrowserStorageService extends AbstractStorageService {
 
 		this.updateIsNew(this.applicationStorage);
 
-		this.applicationStoragePromise.complete({ indededDb: applicationStorageIndexedDB, storage: this.applicationStorage });
+		this.applicationStoragePromise.complete({ indexedDb: applicationStorageIndexedDB, storage: this.applicationStorage });
 	}
 
 	private async createProfileStorage(profile: IUserDataProfile): Promise<void> {
@@ -110,22 +111,24 @@ export class BrowserStorageService extends AbstractStorageService {
 			// avoid creating the storage library a second time on
 			// the same DB.
 
-			const { indededDb: applicationStorageIndexedDB, storage: applicationStorage } = await this.applicationStoragePromise.p;
+			const { indexedDb: applicationStorageIndexedDB, storage: applicationStorage } = await this.applicationStoragePromise.p;
 
 			this.profileStorageDatabase = applicationStorageIndexedDB;
 			this.profileStorage = applicationStorage;
+
+			this.profileStorageDisposables.add(this.profileStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.PROFILE, key)));
 		} else {
 			const profileStorageIndexedDB = await IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.PROFILE), broadcastChanges: true }, this.logService);
 
 			this.profileStorageDatabase = this.profileStorageDisposables.add(profileStorageIndexedDB);
 			this.profileStorage = this.profileStorageDisposables.add(new Storage(this.profileStorageDatabase));
+
+			this.profileStorageDisposables.add(this.profileStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.PROFILE, key)));
+
+			await this.profileStorage.init();
+
+			this.updateIsNew(this.profileStorage);
 		}
-
-		this.profileStorageDisposables.add(this.profileStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.PROFILE, key)));
-
-		await this.profileStorage.init();
-
-		this.updateIsNew(this.profileStorage);
 	}
 
 	private async createWorkspaceStorage(): Promise<void> {
@@ -166,7 +169,7 @@ export class BrowserStorageService extends AbstractStorageService {
 	}
 
 	protected async switchToProfile(toProfile: IUserDataProfile, preserveData: boolean): Promise<void> {
-		if (this.profileStorageProfile && !this.canSwitchProfile(this.profileStorageProfile, toProfile)) {
+		if (!this.canSwitchProfile(this.profileStorageProfile, toProfile)) {
 			return;
 		}
 
@@ -300,7 +303,7 @@ export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBSt
 	private readonly _onDidChangeItemsExternal = this._register(new Emitter<IStorageItemsChangeEvent>());
 	readonly onDidChangeItemsExternal = this._onDidChangeItemsExternal.event;
 
-	private broadcastChannel: BroadcastChannel | undefined;
+	private broadcastChannel: BroadcastDataChannel<IStorageItemsChangeEvent> | undefined;
 
 	private pendingUpdate: Promise<boolean> | undefined = undefined;
 	get hasPendingUpdate(): boolean { return !!this.pendingUpdate; }
@@ -315,7 +318,7 @@ export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBSt
 		super();
 
 		this.name = `${IndexedDBStorageDatabase.STORAGE_DATABASE_PREFIX}${options.id}`;
-		this.broadcastChannel = options.broadcastChanges && ('BroadcastChannel' in window) ? new BroadcastChannel(IndexedDBStorageDatabase.STORAGE_BROADCAST_CHANNEL) : undefined;
+		this.broadcastChannel = options.broadcastChanges ? this._register(new BroadcastDataChannel<IStorageItemsChangeEvent>(IndexedDBStorageDatabase.STORAGE_BROADCAST_CHANNEL)) : undefined;
 
 		this.whenConnected = this.connect();
 
@@ -327,16 +330,10 @@ export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBSt
 		// Check for storage change events from other
 		// windows/tabs via `BroadcastChannel` mechanisms.
 		if (this.broadcastChannel) {
-			const listener = (event: MessageEvent) => {
-				if (isStorageItemsChangeEvent(event.data)) {
-					this._onDidChangeItemsExternal.fire(event.data);
+			this._register(this.broadcastChannel.onDidReceiveData(data => {
+				if (isStorageItemsChangeEvent(data)) {
+					this._onDidChangeItemsExternal.fire(data);
 				}
-			};
-
-			this.broadcastChannel.addEventListener('message', listener);
-			this._register(toDisposable(() => {
-				this.broadcastChannel?.removeEventListener('message', listener);
-				this.broadcastChannel?.close();
 			}));
 		}
 	}
@@ -380,7 +377,7 @@ export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBSt
 				deleted: request.delete
 			};
 
-			this.broadcastChannel.postMessage(event);
+			this.broadcastChannel.postData(event);
 		}
 	}
 

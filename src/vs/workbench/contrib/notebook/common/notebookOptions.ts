@@ -59,7 +59,7 @@ export interface NotebookLayoutConfiguration {
 	globalToolbar: boolean;
 	consolidatedOutputButton: boolean;
 	consolidatedRunButton: boolean;
-	showFoldingControls: 'always' | 'mouseover';
+	showFoldingControls: 'always' | 'never' | 'mouseover';
 	dragAndDropEnabled: boolean;
 	fontSize: number;
 	outputFontSize: number;
@@ -385,7 +385,7 @@ export class NotebookOptions extends Disposable {
 	}
 
 	private _computeShowFoldingControlsOption() {
-		return this.configurationService.getValue<'always' | 'mouseover'>(NotebookSetting.showFoldingControls) ?? 'mouseover';
+		return this.configurationService.getValue<'always' | 'never' | 'mouseover'>(NotebookSetting.showFoldingControls) ?? 'mouseover';
 	}
 
 	private _computeFocusIndicatorOption() {

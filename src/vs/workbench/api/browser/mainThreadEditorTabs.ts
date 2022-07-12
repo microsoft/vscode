@@ -173,7 +173,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 	 */
 	private _generateTabId(editor: EditorInput, groupId: number) {
 		let resourceString: string | undefined;
-		// Properly get the reousrce and account for sideby side editors
+		// Properly get the resource and account for side by side editors
 		const resource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.BOTH });
 		if (resource instanceof URI) {
 			resourceString = resource.toString();

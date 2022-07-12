@@ -59,7 +59,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadNotebookKernels);
 
-		// todo@rebornix @joyceerhl: move to APICommands once stablized.
+		// todo@rebornix @joyceerhl: move to APICommands once stabilized.
 		const selectKernelApiCommand = new ApiCommand(
 			'notebook.selectKernel',
 			'_notebook.selectKernel',
