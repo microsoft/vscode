@@ -206,7 +206,6 @@ export class PtyService extends Disposable implements IPtyService {
 				persistentProcess.installAutoReply(e[0], e[1]);
 			}
 		});
-		this._logService.trace('setting', id, shellLaunchConfig);
 		this._ptys.set(id, persistentProcess);
 		return id;
 	}
@@ -264,7 +263,7 @@ export class PtyService extends Disposable implements IPtyService {
 
 	async shutdown(id: number, immediate: boolean): Promise<void> {
 		// Don't throw if the pty is already shutdown
-		this._logService.trace('ptyService#shutDown', id, immediate);
+		this._logService.info('ptyService#shutDown', id, immediate);
 		return this._ptys.get(id)?.shutdown(immediate);
 	}
 	async input(id: number, data: string): Promise<void> {
@@ -348,17 +347,17 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	async setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {
-		this._logService.info('ptyService#setLayoutInfo', args);
+		this._logService.trace('ptyService#setLayoutInfo', args.tabs);
 		this._workspaceLayoutInfos.set(args.workspaceId, args);
 	}
 
 	async getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
 		const layout = this._workspaceLayoutInfos.get(args.workspaceId);
-		this._logService.info('ptyService#getLayoutInfo', args);
+		this._logService.trace('ptyService#getLayoutInfo', args);
 		if (layout) {
 			const expandedTabs = await Promise.all(layout.tabs.map(async tab => this._expandTerminalTab(tab)));
 			const tabs = expandedTabs.filter(t => t.terminals.length > 0);
-			this._logService.info('ptyService#returnLayoutInfo', tabs);
+			this._logService.trace('ptyService#returnLayoutInfo', tabs);
 			return { tabs };
 		}
 		return undefined;
@@ -379,7 +378,6 @@ export class PtyService extends Disposable implements IPtyService {
 			const revivedPtyId = this._revivedPtyIdMap.get(t.terminal)?.newId;
 			const persistentProcessId = revivedPtyId ?? t.terminal;
 			const persistentProcess = this._throwIfNoPty(persistentProcessId);
-			this._logService.info('tz', t.terminal, persistentProcess);
 			const processDetails = persistentProcess && await this._buildProcessDetails(t.terminal, persistentProcess, revivedPtyId !== undefined);
 			return {
 				terminal: { ...processDetails, id: persistentProcessId } ?? null,
@@ -398,7 +396,6 @@ export class PtyService extends Disposable implements IPtyService {
 	private async _buildProcessDetails(id: number, persistentProcess: PersistentTerminalProcess, wasRevived: boolean = false): Promise<IProcessDetails> {
 		// If the process was just revived, don't do the orphan check as it will
 		// take some time
-		this._logService.info('hi', id, persistentProcess);
 		const [cwd, isOrphan] = await Promise.all([persistentProcess.getCwd(), wasRevived ? true : persistentProcess.isOrphaned()]);
 		return {
 			id,

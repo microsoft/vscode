@@ -439,7 +439,7 @@ export interface ITerminalInstance {
 	readonly fixedRows?: number;
 	readonly icon?: TerminalIcon;
 	readonly color?: string;
-
+	readonly reconnectionOwner?: boolean;
 	readonly processName: string;
 	readonly sequence?: string;
 	readonly staticTitle?: string;
