@@ -24,6 +24,8 @@ import product from 'vs/platform/product/common/product';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { randomPath } from 'vs/base/common/extpath';
 import { Utils } from 'vs/platform/profiling/common/profiling';
+import { dirname } from 'vs/base/common/resources';
+import { FileAccess } from 'vs/base/common/network';
 
 function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
 	return !!argv['install-source']
@@ -57,6 +59,23 @@ export async function main(argv: string[]): Promise<any> {
 	// Version Info
 	else if (args.version) {
 		console.log(buildVersionMessage(product.version, product.commit));
+	}
+
+	// Shell integration
+	else if (args['shell-integration']) {
+		// Silently fail when the terminal is not VS Code's integrated terminal
+		if (process.env['TERM_PROGRAM'] !== 'vscode') {
+			return;
+		}
+		let p: string;
+		switch (args['shell-integration']) {
+			case 'bash': p = 'vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration-bash.sh'; break;
+			// Usage: if ($s=$(code --shell-integration pwsh)) { . $s }
+			case 'pwsh': p = 'vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1'; break;
+			case 'zsh': p = 'vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration-rc.zsh'; break;
+			default: throw new Error('Error using --shell-integration: Invalid shell type');
+		}
+		console.log(`${dirname(FileAccess.asFileUri('', require)).fsPath}\\out\\${p}`);
 	}
 
 	// Extensions Management
