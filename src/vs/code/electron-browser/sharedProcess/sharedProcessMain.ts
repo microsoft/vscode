@@ -105,7 +105,7 @@ import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/pol
 import { UserDataProfilesNativeService } from 'vs/platform/userDataProfile/electron-sandbox/userDataProfile';
 import { OneDataSystemWebAppender } from 'vs/platform/telemetry/browser/1dsAppender';
 import { DefaultExtensionsProfileInitService } from 'vs/platform/extensionManagement/electron-sandbox/defaultExtensionsProfileInit';
-import { RequestChannelClient } from 'vs/platform/request/common/requestIpc';
+import { SharedProcessRequestService } from 'vs/platform/request/electron-browser/sharedProcessRequestService';
 
 class SharedProcessMain extends Disposable {
 
@@ -254,7 +254,7 @@ class SharedProcessMain extends Disposable {
 		services.set(IUriIdentityService, new UriIdentityService(fileService));
 
 		// Request
-		services.set(IRequestService, new RequestChannelClient(mainProcessService.getChannel('request')));
+		services.set(IRequestService, new SharedProcessRequestService(mainProcessService, configurationService, logService));
 
 		// Checksum
 		services.set(IChecksumService, new SyncDescriptor(ChecksumService));
