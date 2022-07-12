@@ -140,6 +140,7 @@ export class IssueReporter extends Disposable {
 		this.handleExtensionData(configuration.data.enabledExtensions);
 		this.updateExperimentsInfo(configuration.data.experiments);
 		this.updateRestrictedMode(configuration.data.restrictedMode);
+		this.updateUnsupportedMode(configuration.data.isUnsupported);
 	}
 
 	render(): void {
@@ -1152,6 +1153,10 @@ export class IssueReporter extends Disposable {
 
 	private updateRestrictedMode(restrictedMode: boolean) {
 		this.issueReporterModel.update({ restrictedMode });
+	}
+
+	private updateUnsupportedMode(isUnsupported: boolean) {
+		this.issueReporterModel.update({ isUnsupported });
 	}
 
 	private updateExperimentsInfo(experimentInfo: string | undefined) {

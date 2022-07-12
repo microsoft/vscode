@@ -189,9 +189,23 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		// Try open as an absolute link
 		let resourceMatch: IResourceMatch | undefined;
 		if (absolutePath) {
-			const slashNormalizedPath = this._os === OperatingSystem.Windows ? absolutePath.replace(/\\/g, '/') : absolutePath;
-			const scheme = this._workbenchEnvironmentService.remoteAuthority ? Schemas.vscodeRemote : Schemas.file;
-			const uri = URI.from({ scheme, path: slashNormalizedPath });
+			let normalizedAbsolutePath: string = absolutePath;
+			if (this._os === OperatingSystem.Windows) {
+				normalizedAbsolutePath = absolutePath.replace(/\\/g, '/');
+				if (normalizedAbsolutePath.match(/[a-z]:/i)) {
+					normalizedAbsolutePath = `/${normalizedAbsolutePath}`;
+				}
+			}
+			let uri: URI;
+			if (this._workbenchEnvironmentService.remoteAuthority) {
+				uri = URI.from({
+					scheme: Schemas.vscodeRemote,
+					authority: this._workbenchEnvironmentService.remoteAuthority,
+					path: normalizedAbsolutePath
+				});
+			} else {
+				uri = URI.file(normalizedAbsolutePath);
+			}
 			try {
 				const fileStat = await this._fileService.stat(uri);
 				resourceMatch = { uri, isDirectory: fileStat.isDirectory };
@@ -218,6 +232,16 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 
 	private async _tryOpenExactLink(text: string, link: ITerminalSimpleLink): Promise<boolean> {
 		const sanitizedLink = text.replace(/:\d+(:\d+)?$/, '');
+		// For links made up of only a file name (no folder), disallow exact link matching. For
+		// example searching for `foo.txt` when there is no cwd information available (ie. only the
+		// initial cwd) should NOT search  as it's ambiguous if there are multiple matches.
+		//
+		// However, for a link like `src/foo.txt`, if there's an exact match for `src/foo.txt` in
+		// any folder we want to take it, even if there are partial matches like `src2/foo.txt`
+		// available.
+		if (!sanitizedLink.match(/[\\/]/)) {
+			return false;
+		}
 		try {
 			const result = await this._getExactMatch(sanitizedLink);
 			if (result) {

@@ -549,6 +549,11 @@ export interface IConfigurationProperties {
 	 * The icon for this task in the terminal tabs list
 	 */
 	icon?: { id?: string; color?: string };
+
+	/**
+	 * Do not show this task in the run task quickpick
+	 */
+	hide?: boolean;
 }
 
 export enum RunOnOptions {
@@ -914,6 +919,11 @@ export class ContributedTask extends CommonTask {
 	 */
 	icon: { id?: string; color?: string } | undefined;
 
+	/**
+	 * Don't show the task in the run task quickpick
+	 */
+	hide?: boolean;
+
 	public constructor(id: string, source: IExtensionTaskSource, label: string, type: string | undefined, defines: KeyedTaskIdentifier,
 		command: ICommandConfiguration, hasDefinedMatchers: boolean, runOptions: IRunOptions,
 		configurationProperties: IConfigurationProperties) {
@@ -922,6 +932,7 @@ export class ContributedTask extends CommonTask {
 		this.hasDefinedMatchers = hasDefinedMatchers;
 		this.command = command;
 		this.icon = configurationProperties.icon;
+		this.hide = configurationProperties.hide;
 	}
 
 	public override clone(): ContributedTask {
@@ -1177,6 +1188,30 @@ export namespace KeyedTaskIdentifier {
 		Object.assign(result, value);
 		return result;
 	}
+}
+
+export const enum TaskSettingId {
+	AutoDetect = 'task.autoDetect',
+	SaveBeforeRun = 'task.saveBeforeRun',
+	ShowDecorations = 'task.showDecorations',
+	ProblemMatchersNeverPrompt = 'task.problemMatchers.neverPrompt',
+	SlowProviderWarning = 'task.slowProviderWarning',
+	QuickOpenHistory = 'task.quickOpen.history',
+	QuickOpenDetail = 'task.quickOpen.detail',
+	QuickOpenSkip = 'task.quickOpen.skip',
+	QuickOpenShowAll = 'task.quickOpen.showAll',
+	AllowAutomaticTasks = 'task.allowAutomaticTasks'
+}
+
+export const enum TasksSchemaProperties {
+	Tasks = 'tasks',
+	SuppressTaskName = 'tasks.suppressTaskName',
+	Windows = 'tasks.windows',
+	Osx = 'tasks.osx',
+	Linux = 'tasks.linux',
+	ShowOutput = 'tasks.showOutput',
+	IsShellCommand = 'tasks.isShellCommand',
+	ServiceTestSetting = 'tasks.service.testSetting',
 }
 
 export namespace TaskDefinition {

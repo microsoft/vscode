@@ -12,7 +12,7 @@ import { CommandInvalidationReason, ITerminalCapabilityStore, TerminalCapability
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, Separator } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { localize } from 'vs/nls';
@@ -353,24 +353,39 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 
 	private async _getCommandActions(command: ITerminalCommand): Promise<IAction[]> {
 		const actions: IAction[] = [];
-		if (command.hasOutput) {
+		if (command.command !== '') {
+			const labelRun = localize("terminal.rerunCommand", 'Rerun Command');
 			actions.push({
-				class: 'copy-output', tooltip: 'Copy Output', dispose: () => { }, id: 'terminal.copyOutput', label: localize("terminal.copyOutput", 'Copy Output'), enabled: true,
+				class: undefined, tooltip: labelRun, dispose: () => { }, id: 'terminal.rerunCommand', label: labelRun, enabled: true,
+				run: () => this._onDidRequestRunCommand.fire({ command })
+			});
+			const labelCopy = localize("terminal.copyCommand", 'Copy Command');
+			actions.push({
+				class: undefined, tooltip: labelCopy, dispose: () => { }, id: 'terminal.copyCommand', label: labelCopy, enabled: true,
+				run: () => this._clipboardService.writeText(command.command)
+			});
+		}
+		if (command.hasOutput()) {
+			if (actions.length > 0) {
+				actions.push(new Separator());
+			}
+			const labelText = localize("terminal.copyOutput", 'Copy Output');
+			actions.push({
+				class: undefined, tooltip: labelText, dispose: () => { }, id: 'terminal.copyOutput', label: labelText, enabled: true,
 				run: () => this._clipboardService.writeText(command.getOutput()!)
 			});
+			const labelHtml = localize("terminal.copyOutputAsHtml", 'Copy Output as HTML');
 			actions.push({
-				class: 'copy-output', tooltip: 'Copy Output as HTML', dispose: () => { }, id: 'terminal.copyOutputAsHtml', label: localize("terminal.copyOutputAsHtml", 'Copy Output as HTML'), enabled: true,
+				class: undefined, tooltip: labelHtml, dispose: () => { }, id: 'terminal.copyOutputAsHtml', label: labelHtml, enabled: true,
 				run: () => this._onDidRequestRunCommand.fire({ command, copyAsHtml: true })
 			});
 		}
-		if (command.command !== '') {
-			actions.push({
-				class: 'rerun-command', tooltip: 'Rerun Command', dispose: () => { }, id: 'terminal.rerunCommand', label: localize("terminal.rerunCommand", 'Rerun Command'), enabled: true,
-				run: () => this._onDidRequestRunCommand.fire({ command })
-			});
+		if (actions.length > 0) {
+			actions.push(new Separator());
 		}
+		const label = localize("terminal.learnShellIntegration", 'Learn About Shell Integration');
 		actions.push({
-			class: 'how-does-this-work', tooltip: 'How does this work?', dispose: () => { }, id: 'terminal.howDoesThisWork', label: localize("terminal.howDoesThisWork", 'How does this work?'), enabled: true,
+			class: undefined, tooltip: label, dispose: () => { }, id: 'terminal.learnShellIntegration', label, enabled: true,
 			run: () => this._openerService.open('https://code.visualstudio.com/docs/editor/integrated-terminal#_shell-integration')
 		});
 		return actions;
