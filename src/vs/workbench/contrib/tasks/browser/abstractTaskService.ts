@@ -349,7 +349,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return this.inTerminal();
 	}
 
-	private _registerCommands(): void {
+	private async _registerCommands(): Promise<void> {
 		CommandsRegistry.registerCommand({
 			id: 'workbench.action.tasks.runTask',
 			handler: async (accessor, arg) => {
@@ -365,21 +365,27 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						'anyOf': [
 							{
 								type: 'string',
-								description: nls.localize('runTask.label', "The task's label")
+								description: nls.localize('runTask.taskName', "The task's label or a term to filter by"),
+								enum: await this.tasks().then((tasks) => tasks.map(t => t._label))
 							},
 							{
 								type: 'object',
 								properties: {
 									type: {
-										type: ['string', 'null'],
-										description: nls.localize('task.type', "The contributed task type")
+										type: 'string',
+										description: nls.localize('task.type', "The contributed task type"),
+										enum: Array.from(this._providerTypes.values()).map(provider => provider)
 									},
 									taskName: {
-										type: ['string', 'null'],
-										description: nls.localize('runTask.taskName', "The task's label or a term to filter by")
+										type: 'string',
+										description: nls.localize('runTask.taskName', "The task's label or a term to filter by"),
+										enum: await this.tasks().then((tasks) => tasks.map(t => t._label))
 									}
 								},
 								description: nls.localize('runTask.arg', "Filters the tasks shown in the quickpick")
+							},
+							{
+								type: 'null'
 							}
 						]
 					}
