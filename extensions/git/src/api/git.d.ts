@@ -254,8 +254,8 @@ export interface CredentialsProvider {
 	getCredentials(host: Uri): ProviderResult<Credentials>;
 }
 
-export interface CommitSecondaryCommandsProvider {
-	getCommands(repository: Repository): ProviderResult<Command[]>;
+export interface PostCommitCommandsProvider {
+	getCommands(repository: Repository): Command[];
 }
 
 export interface PushErrorHandler {
@@ -286,7 +286,7 @@ export interface API {
 	registerRemoteSourcePublisher(publisher: RemoteSourcePublisher): Disposable;
 	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable;
 	registerCredentialsProvider(provider: CredentialsProvider): Disposable;
-	registerCommitSecondaryCommandsProvider(provider: CommitSecondaryCommandsProvider): Disposable;
+	registerPostCommitCommandsProvider(provider: PostCommitCommandsProvider): Disposable;
 	registerPushErrorHandler(handler: PushErrorHandler): Disposable;
 }
 

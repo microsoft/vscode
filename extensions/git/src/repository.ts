@@ -22,7 +22,7 @@ import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { ActionButtonCommand } from './actionButton';
-import { ICommitSecondaryCommandsProviderRegistry } from './commitCommands';
+import { IPostCommitCommandsProviderRegistry } from './postCommitCommands';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -877,7 +877,7 @@ export class Repository implements Disposable {
 		private readonly repository: BaseRepository,
 		private pushErrorHandlerRegistry: IPushErrorHandlerRegistry,
 		remoteSourcePublisherRegistry: IRemoteSourcePublisherRegistry,
-		commitSecondaryCommandsProviderRegistry: ICommitSecondaryCommandsProviderRegistry,
+		postCommitCommandsProviderRegistry: IPostCommitCommandsProviderRegistry,
 		globalState: Memento,
 		outputChannelLogger: OutputChannelLogger,
 		private telemetryReporter: TelemetryReporter
@@ -999,9 +999,10 @@ export class Repository implements Disposable {
 		statusBar.onDidChange(() => this._sourceControl.statusBarCommands = statusBar.commands, null, this.disposables);
 		this._sourceControl.statusBarCommands = statusBar.commands;
 
-		const actionButton = new ActionButtonCommand(this, commitSecondaryCommandsProviderRegistry);
+		const actionButton = new ActionButtonCommand(this, postCommitCommandsProviderRegistry);
 		this.disposables.push(actionButton);
-		actionButton.onDidChange(async () => this._sourceControl.actionButton = await actionButton.getActionButton());
+		actionButton.onDidChange(() => this._sourceControl.actionButton = actionButton.button);
+		this._sourceControl.actionButton = actionButton.button;
 
 		const progressManager = new ProgressManager(this);
 		this.disposables.push(progressManager);

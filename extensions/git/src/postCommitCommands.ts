@@ -4,18 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vscode-nls';
-import { Command } from 'vscode';
-import { CommitSecondaryCommandsProvider, ProviderResult } from './api/git';
+import { Command, Disposable } from 'vscode';
+import { PostCommitCommandsProvider } from './api/git';
+
+export interface IPostCommitCommandsProviderRegistry {
+	getPostCommitCommandsProviders(): PostCommitCommandsProvider[];
+	registerPostCommitCommandsProvider(provider: PostCommitCommandsProvider): Disposable;
+}
 
 const localize = nls.loadMessageBundle();
 
-export class GitCommitSecondaryCommandsProvider implements CommitSecondaryCommandsProvider {
-	getCommands(): ProviderResult<Command[]> {
+export class GitPostCommitCommandsProvider implements PostCommitCommandsProvider {
+	getCommands(): Command[] {
 		return [
-			{
-				command: 'git.commit',
-				title: localize('scm secondary button commit', "Commit")
-			},
 			{
 				command: 'git.push',
 				title: localize('scm secondary button commit and push', "Commit & Push")

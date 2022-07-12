@@ -5,11 +5,11 @@
 
 import { Command, Disposable, Event, EventEmitter, SourceControlActionButton, Uri, workspace } from 'vscode';
 import * as nls from 'vscode-nls';
-import { ICommitSecondaryCommandsProviderRegistry } from './commitCommands';
 import { Repository, Operation } from './repository';
 import { dispose } from './util';
 import { ApiRepository } from './api/api1';
 import { Branch } from './api/git';
+import { IPostCommitCommandsProviderRegistry } from './postCommitCommands';
 
 const localize = nls.loadMessageBundle();
 
@@ -38,7 +38,7 @@ export class ActionButtonCommand {
 
 	constructor(
 		readonly repository: Repository,
-		readonly commitSecondaryCommandsProviderRegistry: ICommitSecondaryCommandsProviderRegistry) {
+		readonly postCommitCommandsProviderRegistry: IPostCommitCommandsProviderRegistry) {
 		this._state = {
 			HEAD: undefined,
 			isCommitInProgress: false,
@@ -62,21 +62,21 @@ export class ActionButtonCommand {
 		}));
 	}
 
-	async getActionButton(): Promise<SourceControlActionButton | undefined> {
+	get button(): SourceControlActionButton | undefined {
 		if (!this.state.HEAD || !this.state.HEAD.name) { return undefined; }
 
 		let actionButton: SourceControlActionButton | undefined;
 
 		if (this.state.repositoryHasChanges) {
 			// Commit Changes (enabled)
-			actionButton = await this.getCommitActionButton();
+			actionButton = this.getCommitActionButton();
 		}
 
 		// Commit Changes (enabled) -> Publish Branch -> Sync Changes -> Commit Changes (disabled)
-		return actionButton ?? this.getPublishBranchActionButton() ?? this.getSyncChangesActionButton() ?? await this.getCommitActionButton();
+		return actionButton ?? this.getPublishBranchActionButton() ?? this.getSyncChangesActionButton() ?? this.getCommitActionButton();
 	}
 
-	private async getCommitActionButton(): Promise<SourceControlActionButton | undefined> {
+	private getCommitActionButton(): SourceControlActionButton | undefined {
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const showActionButton = config.get<{ commit: boolean }>('showActionButton', { commit: true });
 
@@ -148,27 +148,27 @@ export class ActionButtonCommand {
 				tooltip: tooltip,
 				arguments: [this.repository.sourceControl, commandArg],
 			},
-			secondaryCommands: await this.getCommitActionButtonSecondaryCommands(),
+			secondaryCommands: this.getCommitActionButtonSecondaryCommands(),
 			enabled: this.state.repositoryHasChanges && !this.state.isCommitInProgress && !this.state.isMergeInProgress
 		};
 	}
 
-	private async getCommitActionButtonSecondaryCommands(): Promise<Command[][]> {
+	private getCommitActionButtonSecondaryCommands(): Command[][] {
 		const commandGroups: Command[][] = [];
 
-		for (const provider of this.commitSecondaryCommandsProviderRegistry.getCommitSecondaryCommandsProviders()) {
-			const commands = await provider.getCommands(new ApiRepository(this.repository));
+		for (const provider of this.postCommitCommandsProviderRegistry.getPostCommitCommandsProviders()) {
+			const commands = provider.getCommands(new ApiRepository(this.repository));
 			commandGroups.push((commands ?? []).map(c => {
-				const originalCommand = c.command;
 				return {
 					command: 'git.commit',
 					title: c.title,
-					arguments: [
-						this.repository.sourceControl,
-						originalCommand !== 'git.commit' ? originalCommand : ''
-					]
+					arguments: [this.repository.sourceControl, c.command]
 				};
 			}));
+		}
+
+		if (commandGroups.length > 0) {
+			commandGroups[0].splice(0, 0, { command: 'git.commit', title: localize('scm secondary button commit', "Commit") });
 		}
 
 		return commandGroups;

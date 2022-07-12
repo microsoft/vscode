@@ -2655,6 +2655,8 @@ export class SCMActionButton implements IDisposable {
 				}
 			}
 
+			console.log(actions);
+
 			// ButtonWithDropdown
 			this.button = new ButtonWithDropdown(this.container, {
 				actions: actions,
