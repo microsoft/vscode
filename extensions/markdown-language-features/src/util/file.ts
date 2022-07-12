@@ -6,16 +6,16 @@
 import * as vscode from 'vscode';
 import * as URI from 'vscode-uri';
 
-const markdownFileExtensions = Object.freeze<string[]>([
-	'.md',
-	'.mkd',
-	'.mdwn',
-	'.mdown',
-	'.markdown',
-	'.markdn',
-	'.mdtxt',
-	'.mdtext',
-	'.workbook',
+export const markdownFileExtensions = Object.freeze<string[]>([
+	'md',
+	'mkd',
+	'mdwn',
+	'mdown',
+	'markdown',
+	'markdn',
+	'mdtxt',
+	'mdtext',
+	'workbook',
 ]);
 
 export function isMarkdownFile(document: vscode.TextDocument) {
@@ -23,5 +23,5 @@ export function isMarkdownFile(document: vscode.TextDocument) {
 }
 
 export function looksLikeMarkdownPath(resolvedHrefPath: vscode.Uri) {
-	return markdownFileExtensions.includes(URI.Utils.extname(resolvedHrefPath).toLowerCase());
+	return markdownFileExtensions.includes(URI.Utils.extname(resolvedHrefPath).toLowerCase().replace('.', ''));
 }
