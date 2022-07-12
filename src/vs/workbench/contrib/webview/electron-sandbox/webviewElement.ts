@@ -90,6 +90,13 @@ export class ElectronWebviewElement extends WebviewElement {
 		}
 	}
 
+	override dispose(): void {
+		// Make sure keyboard handler knows it closed (#71800)
+		this._webviewKeyboardHandler.didBlur();
+
+		super.dispose();
+	}
+
 	protected override webviewContentEndpoint(iframeId: string): string {
 		return `${Schemas.vscodeWebview}://${iframeId}`;
 	}

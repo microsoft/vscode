@@ -585,8 +585,7 @@ const Languages = {
 };
 
 type LanguageTranslations = { [moduleName: string]: { [nlsKey: string]: string } };
-type Translation = { languageId: string; languageTranslations: LanguageTranslations };
-type Translations = Translation[];
+type Translations = { languageId: string; languageTranslations: LanguageTranslations }[];
 
 async function getLatestStableVersion(updateUrl: string) {
 	const res = await fetch(`${updateUrl}/api/update/darwin/stable/latest`);
@@ -594,7 +593,7 @@ async function getLatestStableVersion(updateUrl: string) {
 	return version;
 }
 
-async function getNLS(resourceUrlTemplate: string, languageId: string, version: string) {
+async function getSpecificNLS(resourceUrlTemplate: string, languageId: string, version: string) {
 	const resource = {
 		publisher: 'ms-ceintl',
 		name: `vscode-language-pack-${languageId}`,
@@ -604,8 +603,31 @@ async function getNLS(resourceUrlTemplate: string, languageId: string, version: 
 
 	const url = resourceUrlTemplate.replace(/\{([^}]+)\}/g, (_, key) => resource[key as keyof typeof resource]);
 	const res = await fetch(url);
+
+	if (res.status !== 200) {
+		throw new Error(`[${res.status}] Error downloading language pack ${languageId}@${version}`);
+	}
+
 	const { contents: result } = await res.json() as { contents: LanguageTranslations };
 	return result;
+}
+
+function previousVersion(version: string): string {
+	const [, major, minor, patch] = /^(\d+)\.(\d+)\.(\d+)$/.exec(version)!;
+	return `${major}.${parseInt(minor) - 1}.${patch}`;
+}
+
+async function getNLS(resourceUrlTemplate: string, languageId: string, version: string) {
+	try {
+		return await getSpecificNLS(resourceUrlTemplate, languageId, version);
+	} catch (err) {
+		if (/\[404\]/.test(err.message)) {
+			console.warn(`Language pack ${languageId}@${version} is missing. Downloading previous version...`);
+			return await getSpecificNLS(resourceUrlTemplate, languageId, previousVersion(version));
+		} else {
+			throw err;
+		}
+	}
 }
 
 async function parsePolicies(): Promise<Policy[]> {
@@ -644,15 +666,10 @@ async function getTranslations(): Promise<Translations> {
 	const version = await getLatestStableVersion(updateUrl);
 	const languageIds = Object.keys(Languages);
 
-	const result = await Promise.allSettled(languageIds.map(
+	return await Promise.all(languageIds.map(
 		languageId => getNLS(resourceUrlTemplate, languageId, version)
-			.catch(err => { console.warn(`Missing translation: ${languageId}@${version}`); return Promise.reject(err); })
 			.then(languageTranslations => ({ languageId, languageTranslations }))
 	));
-
-	return result
-		.filter((r): r is PromiseFulfilledResult<Translation> => r.status === 'fulfilled')
-		.map(r => r.value);
 }
 
 async function main() {
