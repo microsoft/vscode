@@ -86,6 +86,7 @@ import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 
 import { VirtualWorkspaceContext } from 'vs/workbench/common/contextkeys';
 import { Schemas } from 'vs/base/common/network';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
@@ -259,7 +260,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@ILogService private readonly _logService: ILogService,
-		@IThemeService private readonly _themeService: IThemeService
+		@IThemeService private readonly _themeService: IThemeService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 
@@ -2773,7 +2775,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					picker.placeholder = nls.localize('TaskService.pickRunTask', 'Select the task to run');
 					picker.matchOnDescription = true;
 					picker.ignoreFocusOut = false;
-					const taskQuickPick = new TaskQuickPick(this, this._configurationService, this._quickInputService, this._notificationService, this._themeService, this._dialogService);
+					const taskQuickPick = this._instantiationService.createInstance(TaskQuickPick);
 					const result = await taskQuickPick.doPickerSecondLevel(picker, filter);
 					if (result?.task) {
 						pickThen(result.task as Task);
@@ -2796,7 +2798,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					picker.placeholder = nls.localize('TaskService.pickRunTask', 'Select the task to run');
 					picker.matchOnDescription = true;
 					picker.ignoreFocusOut = false;
-					const taskQuickPick = new TaskQuickPick(this, this._configurationService, this._quickInputService, this._notificationService, this._themeService, this._dialogService);
+					const taskQuickPick = this._instantiationService.createInstance(TaskQuickPick);
 					const result = await taskQuickPick.doPickerSecondLevel(picker, filter);
 					if (result?.task) {
 						pickThen(result.task as Task);

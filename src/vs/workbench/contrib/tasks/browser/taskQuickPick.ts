@@ -318,13 +318,7 @@ export class TaskQuickPick extends Disposable {
 		picker.show();
 		picker.busy = false;
 		const secondLevelPickerResult = await new Promise<ITaskTwoLevelQuickPickEntry | undefined | null>(resolve => {
-			if (!picker) {
-				return;
-			}
 			Event.once(picker.onDidAccept)(async () => {
-				if (!picker) {
-					return;
-				}
 				resolve(picker.selectedItems ? picker.selectedItems[0] : undefined);
 			});
 		});
