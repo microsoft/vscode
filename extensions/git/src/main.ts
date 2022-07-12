@@ -27,6 +27,7 @@ import { TerminalEnvironmentManager } from './terminal';
 import { OutputChannelLogger } from './log';
 import { createIPCServer, IPCServer } from './ipc/ipcServer';
 import { GitEditor } from './gitEditor';
+import { GitPostCommitCommandsProvider } from './postCommitCommands';
 
 const deactivateTasks: { (): Promise<any> }[] = [];
 
@@ -116,6 +117,9 @@ async function createModel(context: ExtensionContext, outputChannelLogger: Outpu
 		new GitProtocolHandler(),
 		new GitTimelineProvider(model, cc)
 	);
+
+	const postCommitCommandsProvider = new GitPostCommitCommandsProvider();
+	model.registerPostCommitCommandsProvider(postCommitCommandsProvider);
 
 	checkGitVersion(info);
 
