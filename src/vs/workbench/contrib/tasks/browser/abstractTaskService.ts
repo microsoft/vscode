@@ -2782,10 +2782,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					if (result?.task) {
 						pickThen(result.task as Task);
 						taskQuickPick.dispose();
-						return;
-					} else {
-						return;
 					}
+					return;
 				}
 				this._showQuickPick(tasks ? tasks : taskResult!.tasks, placeholder,
 					{
