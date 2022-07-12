@@ -13,8 +13,8 @@ import { sysrootInfo } from './sysroots';
 import { ArchString } from './types';
 
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:build/linux/sysroot_scripts/install-sysroot.py.
-const URL_PREFIX = 'https://s3.amazonaws.com';
-const URL_PATH = 'electronjs-sysroots/toolchain';
+const URL_PREFIX = 'https://msftelectron.blob.core.windows.net/';
+const URL_PATH = 'sysroots/toolchain';
 
 function getSha(filename: fs.PathLike): string {
 	const hash = createHash('sha1');
@@ -55,23 +55,21 @@ export async function getSysroot(arch: ArchString): Promise<string> {
 	console.log(`Downloading ${url}`);
 	let downloadSuccess = false;
 	for (let i = 0; i < 3 && !downloadSuccess; i++) {
-		try {
-			const response = new Promise<Buffer>((c) => {
-				https.get(url, (res) => {
-					const chunks: Uint8Array[] = [];
-					res.on('data', (chunk) => {
-						chunks.push(chunk);
-					});
-					res.on('end', () => {
-						c(Buffer.concat(chunks));
-					});
+		await new Promise<void>((c) => {
+			https.get(url, (res) => {
+				const chunks: Uint8Array[] = [];
+				res.on('data', (chunk) => {
+					chunks.push(chunk);
 				});
+				res.on('end', () => {
+					fs.writeFileSync(tarball, Buffer.concat(chunks));
+					downloadSuccess = true;
+					c();
+				});
+			}).on('error', (err) => {
+				console.error('Encountered an error during the download attempt: ' + err.message);
 			});
-			fs.writeFileSync(tarball, await response);
-			downloadSuccess = true;
-		} catch (_) {
-			// ignore
-		}
+		});
 	}
 	if (!downloadSuccess) {
 		throw new Error('Failed to download ' + url);

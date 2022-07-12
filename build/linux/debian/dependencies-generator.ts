@@ -129,7 +129,7 @@ function calculatePackageDeps(binaryPath: string, arch: ArchString, sysroot: str
 	return requires;
 }
 
-// Based on https://source.chromium.org/chromium/chromium/src/+/main:chrome/installer/linux/rpm/merge_package_deps.py
+// Based on https://source.chromium.org/chromium/chromium/src/+/main:chrome/installer/linux/rpm/merge_package_deps.py.
 function mergePackageDeps(inputDeps: Set<string>[]): Set<string> {
 	// For now, see if directly appending the dependencies helps.
 	const requires = new Set<string>();

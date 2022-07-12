@@ -13,8 +13,8 @@ const https = require("https");
 const path = require("path");
 const sysroots_1 = require("./sysroots");
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:build/linux/sysroot_scripts/install-sysroot.py.
-const URL_PREFIX = 'https://s3.amazonaws.com';
-const URL_PATH = 'electronjs-sysroots/toolchain';
+const URL_PREFIX = 'https://msftelectron.blob.core.windows.net/';
+const URL_PATH = 'sysroots/toolchain';
 function getSha(filename) {
     const hash = (0, crypto_1.createHash)('sha1');
     // Read file 1 MB at a time
@@ -46,24 +46,21 @@ async function getSysroot(arch) {
     console.log(`Downloading ${url}`);
     let downloadSuccess = false;
     for (let i = 0; i < 3 && !downloadSuccess; i++) {
-        try {
-            const response = new Promise((c) => {
-                https.get(url, (res) => {
-                    const chunks = [];
-                    res.on('data', (chunk) => {
-                        chunks.push(chunk);
-                    });
-                    res.on('end', () => {
-                        c(Buffer.concat(chunks));
-                    });
+        await new Promise((c) => {
+            https.get(url, (res) => {
+                const chunks = [];
+                res.on('data', (chunk) => {
+                    chunks.push(chunk);
                 });
+                res.on('end', () => {
+                    fs.writeFileSync(tarball, Buffer.concat(chunks));
+                    downloadSuccess = true;
+                    c();
+                });
+            }).on('error', (err) => {
+                console.error('Encountered an error during the download attempt: ' + err.message);
             });
-            fs.writeFileSync(tarball, await response);
-            downloadSuccess = true;
-        }
-        catch (_) {
-            // ignore
-        }
+        });
     }
     if (!downloadSuccess) {
         throw new Error('Failed to download ' + url);
