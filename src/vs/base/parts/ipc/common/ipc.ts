@@ -195,9 +195,9 @@ enum DataType {
 	String = 1,
 	Buffer = 2,
 	VSBuffer = 3,
-	Uint8Array = 4,
-	Array = 5,
-	Object = 6,
+	Array = 4,
+	Object = 5,
+	Uint8Array = 6
 }
 
 function createSizeBuffer(size: number): VSBuffer {
