@@ -366,13 +366,13 @@ export class SubmenuItemAction extends SubmenuAction {
 
 export class MenuItemActionManageActions {
 	constructor(
-		private readonly _hideThis: IAction,
-		private readonly _toggleAny: IAction[][],
+		readonly hideThis: IAction,
+		readonly toggleAny: readonly IAction[][],
 	) { }
 
 	asList(): IAction[] {
-		let result: IAction[] = [this._hideThis];
-		for (const n of this._toggleAny) {
+		let result: IAction[] = [this.hideThis];
+		for (const n of this.toggleAny) {
 			result.push(new Separator());
 			result = result.concat(n);
 		}
