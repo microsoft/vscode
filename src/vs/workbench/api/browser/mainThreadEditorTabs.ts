@@ -166,8 +166,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		if (editor instanceof InteractiveEditorInput) {
 			return {
 				kind: TabInputKind.InteractiveEditorInput,
-				uri: editor.resource,
-				inputBoxUri: editor.inputResource
+				uri: editor.resource
 			};
 		}
 

@@ -95,7 +95,7 @@ class ExtHostEditorTab {
 			case TabInputKind.TerminalEditorInput:
 				return new TerminalEditorTabInput();
 			case TabInputKind.InteractiveEditorInput:
-				return new InteractiveWindowInput(URI.revive(this._dto.input.uri), URI.revive(this._dto.input.inputBoxUri));
+				return new InteractiveWindowInput(URI.revive(this._dto.input.uri));
 			default:
 				return undefined;
 		}

@@ -12,16 +12,7 @@ declare module 'vscode' {
 		 * The uri of the history notebook in the interactive window.
 		 */
 		readonly uri: Uri;
-		/**
-		 * The uri of the input box in the interactive window.
-		 */
-		readonly inputBoxUri: Uri;
-		/**
-		 * Constructs a new tab input for a notebook.
-		 * @param uri The uri of the history notebook in the interactive window.
-		 * @param uri The uri of the input box in the interactive window.
-		 */
-		constructor(uri: Uri, inputBoxUri: Uri);
+		constructor(uri: Uri);
 	}
 
 	export interface Tab {
