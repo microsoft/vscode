@@ -4,7 +4,7 @@
 		<meta http-equiv="Content-Security-Policy" content="
 			default-src 'none';
 			child-src 'self' data: blob:;
-			script-src 'self' 'unsafe-eval' 'sha256-fh3TwPMflhsEIpR8g1OYTIMVWhXTLcjQ9kh2tIpmv54=' https:;
+			script-src 'self' 'unsafe-eval' 'sha256-I2bXlXP0Wc0BE/JY1BWBcIz0Ir6hz/imbReD5C8bXcg=' https:;
 			connect-src 'self' https: wss: http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*;"/>
 	</head>
 	<body>
@@ -66,11 +66,12 @@
 
 	function start() {
 		try {
-			const workerUrl = new URL('../../../../base/worker/workerMain.js');
+			let workerUrl = '../../../../base/worker/workerMain.js';
 			if(crossOriginIsolated) {
-				workerUrl.searchParams.set('vscode-coi', 2 /*COEP*/)
+				workerUrl += '?vscode-coi=2'; // COEP
 			}
-			const worker = new Worker(workerUrl.toString(), { name });
+
+			const worker = new Worker(workerUrl, { name });
 			worker.postMessage('vs/workbench/api/worker/extensionHostWorker');
 			const nestedWorkers = new Map();
 
