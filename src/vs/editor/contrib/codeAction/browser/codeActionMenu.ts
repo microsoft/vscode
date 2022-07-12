@@ -207,13 +207,18 @@ export class CodeActionMenu extends Disposable {
 		// renderMenu.style.borderRadius = '5px';
 		// renderMenu.style.color = 'rgb(204, 204, 204)';
 		// renderMenu.style.boxShadow = 'rgb(0,0,0,0.36) 0px 2px 8px';
-		renderMenu.style.width = '350px';
-		renderMenu.style.height = '200px';
-		renderMenu.id = 'testMenu';
-
-		element.appendChild(renderMenu);
+		// renderMenu.style.width = '350px';
 
 		this.listRenderer = new CodeMenuRenderer();
+
+		const height = inputArray.length * 23;
+		renderMenu.style.height = String(height) + 'px';
+
+
+		renderMenu.id = 'testMenu';
+		renderMenu.classList.add('testMenu');
+
+		element.appendChild(renderMenu);
 
 		this.codeActionList = new List('test', renderMenu, {
 			getHeight(element) {
@@ -235,7 +240,7 @@ export class CodeActionMenu extends Disposable {
 		});
 
 		this.codeActionList.splice(0, this.codeActionList.length, this.options);
-		this.codeActionList.layout(180);
+		this.codeActionList.layout(this.codeActionList.length * 23);
 		return renderDisposables;
 
 	}

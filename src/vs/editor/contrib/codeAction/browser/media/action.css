@@ -10,8 +10,54 @@
 }
 
 .testMenu {
-	background-color: red !important;
+	padding: 10px 10px 10px 10px;
+	overflow: auto;
+	font-size: 13px;
+	border-radius: 5px;
+	min-width: 160px;
+	z-index: 40;
+	display: flex;
+	flex-direction: column;
+	flex: 0 1 auto;
+	width: 100%;
+	border-style: solid;
+	border-width: 1px;
+	border-color: var(--vscode-editorSuggestWidget-border);
+	background-color: var(--vscode-editorSuggestWidget-background);
 }
+
+.testMenu .monaco-list {
+	user-select: none;
+	-webkit-user-select: none;
+	-ms-user-select: none;
+}
+
+.testMenu .monaco-list .monaco-scrollable-element .monaco-list-rows{
+	height: 100% !important;
+}
+/** Styles for each row in the list element **/
+
+.testMenu .monaco-list .monaco-list-row {
+	display: flex;
+	-mox-box-sizing: border-box;
+	box-sizing: border-box;
+	padding-right: 10px;
+	background-repeat: no-repeat;
+	background-position: 2px 2px;
+	white-space: nowrap;
+	cursor: pointer;
+	touch-action: none;
+}
+
+.testMenu .monaco-list .monaco-list-row:hover:not(.option-disabled) {
+	color: var(--vscode-editorSuggestWidget-selectedForeground);
+	background-color: rgb(4, 57, 94) !important;
+}
+
+.testMenu .monaco-list .option-disabled {
+	pointer-events: none;
+}
+
 /*
 ${formatRule(Codicon.menuSelection)}
 ${formatRule(Codicon.menuSubmenu)} */
