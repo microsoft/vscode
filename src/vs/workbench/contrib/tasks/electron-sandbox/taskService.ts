@@ -121,7 +121,7 @@ export class TaskService extends AbstractTaskService {
 			workspaceTrustManagementService,
 			logService,
 			themeService,
-			instantiationService);
+		);
 		this._register(lifecycleService.onBeforeShutdown(event => event.veto(this.beforeShutdown(), 'veto.tasks')));
 	}
 
