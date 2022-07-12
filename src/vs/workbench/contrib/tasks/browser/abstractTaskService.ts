@@ -2677,23 +2677,20 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			})) === true;
 	}
 
-	private async _runTaskCommand(arg?: any): Promise<void> {
+	private async _runTaskCommand(filter?: { type?: string; taskName?: string } | string): Promise<void> {
 		if (!this._canRunCommand()) {
 			return;
 		}
-		// when a name is provided, that takes precedence
-		const typeFilter = arg?.type && !arg.taskName;
-		let taskNameOrObject: undefined | string | KeyedTaskIdentifier;
-		if (arg) {
-			if (typeof arg === 'string') {
-				taskNameOrObject = this._getTaskIdentifier(arg);
-			} else if (typeof arg === 'object' && 'taskName' in arg || 'type' in arg) {
-				taskNameOrObject = arg.taskName || arg.type;
-				taskNameOrObject = this._getTaskIdentifier(taskNameOrObject);
-			}
+
+		let typeFilter: boolean = false;
+		if (filter && typeof filter !== 'string') {
+			// name takes precedence
+			typeFilter = !filter?.taskName && !!filter?.type;
+			filter = filter?.taskName || filter?.type;
 		}
 
-		if (taskNameOrObject !== undefined) {
+		const taskIdentifier: KeyedTaskIdentifier | undefined | string = this._getTaskIdentifier(filter);
+		if (taskIdentifier) {
 			this._getGroupedTasks().then(async (grouped) => {
 				const resolver = this._createResolver(grouped);
 				const folderURIs: (URI | string)[] = this._contextService.getWorkspace().folders.map(folder => folder.uri);
@@ -2702,7 +2699,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 				folderURIs.push(USER_TASKS_GROUP_KEY);
 				for (const uri of folderURIs) {
-					const task = await resolver.resolve(uri, taskNameOrObject);
+					const task = await resolver.resolve(uri, taskIdentifier);
 					if (task) {
 						this.run(task).then(undefined, reason => {
 							// eat the error, it has already been surfaced to the user and we don't care about it here
@@ -2710,7 +2707,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						return;
 					}
 				}
-				this._doRunTaskCommand(grouped.all(), typeof taskNameOrObject === 'string' ? taskNameOrObject : taskNameOrObject?.type, typeFilter);
+				this._doRunTaskCommand(grouped.all(), typeof taskIdentifier === 'string' ? taskIdentifier : undefined, typeFilter);
 			}, () => {
 				this._doRunTaskCommand();
 			});
