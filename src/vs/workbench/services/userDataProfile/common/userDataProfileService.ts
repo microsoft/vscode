@@ -19,7 +19,10 @@ export class UserDataProfileService extends Disposable implements IUserDataProfi
 	private _currentProfile: IUserDataProfile;
 	get currentProfile(): IUserDataProfile { return this._currentProfile; }
 
-	constructor(currentProfile: IUserDataProfile, userDataProfilesService: IUserDataProfilesService) {
+	constructor(
+		currentProfile: IUserDataProfile,
+		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService
+	) {
 		super();
 		this._currentProfile = currentProfile;
 		this._register(userDataProfilesService.onDidChangeProfiles(() => {

@@ -14,11 +14,13 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IAuthenticationProvider } from 'vs/platform/userDataSync/common/userDataSync';
+import { createSyncHeaders, IAuthenticationProvider } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { EDIT_SESSIONS_SIGNED_IN, EditSession, EDIT_SESSION_SYNC_CATEGORY, IEditSessionsWorkbenchService, EDIT_SESSIONS_SIGNED_IN_KEY, IEditSessionsLogService } from 'vs/workbench/contrib/editSessions/common/editSessions';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { generateUuid } from 'vs/base/common/uuid';
 
 type ExistingSession = IQuickPickItem & { session: AuthenticationSession & { providerId: string } };
 type AuthenticationProviderOption = IQuickPickItem & { provider: IAuthenticationProvider };
@@ -47,6 +49,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		@IProductService private readonly productService: IProductService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IRequestService private readonly requestService: IRequestService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super();
 
@@ -73,7 +76,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			throw new Error('Please sign in to store your edit session.');
 		}
 
-		return this.storeClient!.write('editSessions', JSON.stringify(editSession), null);
+		return this.storeClient!.write('editSessions', JSON.stringify(editSession), null, createSyncHeaders(generateUuid()));
 	}
 
 	/**
@@ -89,11 +92,12 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		}
 
 		let content: string | undefined | null;
+		const headers = createSyncHeaders(generateUuid());
 		try {
 			if (ref !== undefined) {
-				content = await this.storeClient?.resolveContent('editSessions', ref);
+				content = await this.storeClient?.resolveContent('editSessions', ref, headers);
 			} else {
-				const result = await this.storeClient?.read('editSessions', null);
+				const result = await this.storeClient?.read('editSessions', null, headers);
 				content = result?.content;
 				ref = result?.ref;
 			}
@@ -160,7 +164,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			const existing = await this.getExistingSession();
 			if (existing !== undefined) {
 				this.logService.trace(`Found existing authentication session with ID ${existingSessionId}`);
-				this.#authenticationInfo = { sessionId: existing.session.id, token: existing.session.accessToken, providerId: existing.session.providerId };
+				this.#authenticationInfo = { sessionId: existing.session.id, token: existing.session.idToken ?? existing.session.accessToken, providerId: existing.session.providerId };
 				this.storeClient.setAuthToken(this.#authenticationInfo.token, this.#authenticationInfo.providerId);
 				return true;
 			}
@@ -169,7 +173,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		// Ask the user to pick a preferred account
 		const session = await this.getAccountPreference();
 		if (session !== undefined) {
-			this.#authenticationInfo = { sessionId: session.id, token: session.accessToken, providerId: session.providerId };
+			this.#authenticationInfo = { sessionId: session.id, token: session.idToken ?? session.accessToken, providerId: session.providerId };
 			this.storeClient.setAuthToken(this.#authenticationInfo.token, this.#authenticationInfo.providerId);
 			this.existingSessionId = session.id;
 			this.logService.trace(`Saving authentication session preference for ID ${session.id}.`);
@@ -350,8 +354,19 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 				});
 			}
 
-			run() {
-				that.clearAuthenticationPreference();
+			async run() {
+				const result = await that.dialogService.confirm({
+					type: 'info',
+					message: localize('sign out of edit sessions clear data prompt', 'Do you want to sign out of edit sessions?'),
+					checkbox: { label: localize('delete all edit sessions', 'Delete all stored edit sessions from the cloud.') },
+					primaryButton: localize('clear data confirm', 'Yes'),
+				});
+				if (result.confirmed) {
+					if (result.checkboxChecked) {
+						that.storeClient?.delete('editSessions', null);
+					}
+					that.clearAuthenticationPreference();
+				}
 			}
 		}));
 	}

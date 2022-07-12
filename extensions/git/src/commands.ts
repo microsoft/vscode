@@ -9,7 +9,7 @@ import { Command, commands, Disposable, LineChange, MessageOptions, Position, Pr
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
-import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, PostCommitCommand } from './api/git';
+import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher } from './api/git';
 import { Git, Stash } from './git';
 import { Model } from './model';
 import { Repository, Resource, ResourceGroupType } from './repository';
@@ -1623,12 +1623,11 @@ export class CommandCenter {
 
 		await repository.commit(message, opts);
 
-		const postCommitCommand = config.get<'none' | 'push' | 'sync'>('postCommitCommand');
-		if ((opts.postCommitCommand === undefined && postCommitCommand === 'push') || opts.postCommitCommand === 'push') {
-			await this._push(repository, { pushType: PushType.Push });
-		}
-		if ((opts.postCommitCommand === undefined && postCommitCommand === 'sync') || opts.postCommitCommand === 'sync') {
-			await this.sync(repository);
+		// Execute post commit command
+		if (opts.postCommitCommand?.length) {
+			await commands.executeCommand(
+				opts.postCommitCommand,
+				new ApiRepository(repository));
 		}
 
 		return true;
@@ -1677,7 +1676,7 @@ export class CommandCenter {
 	}
 
 	@command('git.commit', { repository: true })
-	async commit(repository: Repository, postCommitCommand?: PostCommitCommand): Promise<void> {
+	async commit(repository: Repository, postCommitCommand?: string): Promise<void> {
 		await this.commitWithAnyInput(repository, { postCommitCommand });
 	}
 
