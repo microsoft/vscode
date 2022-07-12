@@ -556,7 +556,7 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'string',
 			enum: ['both', 'gutter', 'overviewRuler', 'never'],
 			enumDescriptions: [
-				localize('terminal.integrated.shellIntegration.decorationsEnabled.both', "Show decorations in the gutter (left) and overviewRuler (right)"),
+				localize('terminal.integrated.shellIntegration.decorationsEnabled.both', "Show decorations in the gutter (left) and overview ruler (right)"),
 				localize('terminal.integrated.shellIntegration.decorationsEnabled.gutter', "Show gutter decorations to the left of the terminal"),
 				localize('terminal.integrated.shellIntegration.decorationsEnabled.overviewRuler', "Show overview ruler decorations to the right of the terminal"),
 				localize('terminal.integrated.shellIntegration.decorationsEnabled.never', "Do not show decorations"),
