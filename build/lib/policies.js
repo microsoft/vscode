@@ -413,7 +413,7 @@ async function getLatestStableVersion(updateUrl) {
     const { name: version } = await res.json();
     return version;
 }
-async function getNLS(resourceUrlTemplate, languageId, version) {
+async function getSpecificNLS(resourceUrlTemplate, languageId, version) {
     const resource = {
         publisher: 'ms-ceintl',
         name: `vscode-language-pack-${languageId}`,
@@ -422,8 +422,29 @@ async function getNLS(resourceUrlTemplate, languageId, version) {
     };
     const url = resourceUrlTemplate.replace(/\{([^}]+)\}/g, (_, key) => resource[key]);
     const res = await (0, node_fetch_1.default)(url);
+    if (res.status !== 200) {
+        throw new Error(`[${res.status}] Error downloading language pack ${languageId}@${version}`);
+    }
     const { contents: result } = await res.json();
     return result;
+}
+function previousVersion(version) {
+    const [, major, minor, patch] = /^(\d+)\.(\d+)\.(\d+)$/.exec(version);
+    return `${major}.${parseInt(minor) - 1}.${patch}`;
+}
+async function getNLS(resourceUrlTemplate, languageId, version) {
+    try {
+        return await getSpecificNLS(resourceUrlTemplate, languageId, version);
+    }
+    catch (err) {
+        if (/\[404\]/.test(err.message)) {
+            console.warn(`Language pack ${languageId}@${version} is missing. Downloading previous version...`);
+            return await getSpecificNLS(resourceUrlTemplate, languageId, previousVersion(version));
+        }
+        else {
+            throw err;
+        }
+    }
 }
 async function parsePolicies() {
     const parser = new Parser();
@@ -452,12 +473,8 @@ async function getTranslations() {
     }
     const version = await getLatestStableVersion(updateUrl);
     const languageIds = Object.keys(Languages);
-    const result = await Promise.allSettled(languageIds.map(languageId => getNLS(resourceUrlTemplate, languageId, version)
-        .catch(err => { console.warn(`Missing translation: ${languageId}@${version}`); return Promise.reject(err); })
+    return await Promise.all(languageIds.map(languageId => getNLS(resourceUrlTemplate, languageId, version)
         .then(languageTranslations => ({ languageId, languageTranslations }))));
-    return result
-        .filter((r) => r.status === 'fulfilled')
-        .map(r => r.value);
 }
 async function main() {
     const [policies, translations] = await Promise.all([parsePolicies(), getTranslations()]);

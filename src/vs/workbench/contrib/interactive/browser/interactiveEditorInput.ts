@@ -8,7 +8,6 @@ import { IReference } from 'vs/base/common/lifecycle';
 import * as paths from 'vs/base/common/path';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { IModelService } from 'vs/editor/common/services/model';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUntypedEditorInput } from 'vs/workbench/common/editor';
@@ -44,8 +43,10 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 		return [this._notebookEditorInput];
 	}
 
-	override get resource() {
-		return this.primary.resource;
+	private _resource: URI;
+
+	override get resource(): URI {
+		return this._resource;
 	}
 
 	private _inputResource: URI;
@@ -71,7 +72,6 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 		inputResource: URI,
 		title: string | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IModelService modelService: IModelService,
 		@ITextModelService textModelService: ITextModelService,
 
 		@IInteractiveDocumentService interactiveDocumentService: IInteractiveDocumentService,
@@ -82,6 +82,7 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 		this._notebookEditorInput = input;
 		this._register(this._notebookEditorInput);
 		this._initTitle = title;
+		this._resource = resource;
 		this._inputResource = inputResource;
 		this._inputResolver = null;
 		this._editorModelReference = null;
