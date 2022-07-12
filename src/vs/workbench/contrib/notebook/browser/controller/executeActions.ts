@@ -35,6 +35,7 @@ const EXECUTE_CELL_AND_BELOW = 'notebook.cell.executeCellAndBelow';
 const EXECUTE_CELLS_ABOVE = 'notebook.cell.executeCellsAbove';
 const RENDER_ALL_MARKDOWN_CELLS = 'notebook.renderAllMarkdownCells';
 const REVEAL_RUNNING_CELL = 'notebook.revealRunningCell';
+const REVEAL_LAST_FAILED_CELL = 'notebook.revealLastFailedCell';
 
 // If this changes, update getCodeCellExecutionContextKeyService to match
 export const executeCondition = ContextKeyExpr.and(
@@ -598,9 +599,9 @@ registerAction2(class RevealRunningCellAction extends NotebookAction {
 registerAction2(class RevealLastFailedCellAction extends NotebookAction {
 	constructor() {
 		super({
-			id: REVEAL_RUNNING_CELL,
-			title: localize('revealLastFailedCell', "Go to Last Failed Cell"),
-			tooltip: localize('revealLastFailedCell', "Go to Last Failed Cell"),
+			id: REVEAL_LAST_FAILED_CELL,
+			title: localize('revealLastFailedCell', "Go to Most Recently Failed Cell"),
+			tooltip: localize('revealLastFailedCell', "Go to Most Recently Failed Cell"),
 			shortTitle: localize('revealLastFailedCellShort', "Go To"),
 			precondition: NOTEBOOK_LAST_CELL_FAILED,
 			menu: [
