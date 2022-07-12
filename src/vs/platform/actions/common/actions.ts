@@ -196,7 +196,18 @@ export interface IMenuService {
 
 	readonly _serviceBrand: undefined;
 
+	/**
+	 * Create a new menu for the given menu identifier. A menu sends events when it's entries
+	 * have changed (placement, enablement, checked-state). By default it does not send events for
+	 * submenu entries. That is more expensive and must be explicitly enabled with the
+	 * `emitEventsForSubmenuChanges` flag.
+	 */
 	createMenu(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuCreateOptions): IMenu;
+
+	/**
+	 * Reset **all** menu item hidden states.
+	 */
+	resetHiddenStates(): void;
 }
 
 export type ICommandsMap = Map<string, ICommandAction>;

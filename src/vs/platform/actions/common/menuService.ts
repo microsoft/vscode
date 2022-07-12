@@ -28,14 +28,12 @@ export class MenuService implements IMenuService {
 		this._hiddenStates = new PersistedMenuHideState(storageService);
 	}
 
-	/**
-	 * Create a new menu for the given menu identifier. A menu sends events when it's entries
-	 * have changed (placement, enablement, checked-state). By default it does not send events for
-	 * submenu entries. That is more expensive and must be explicitly enabled with the
-	 * `emitEventsForSubmenuChanges` flag.
-	 */
 	createMenu(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuCreateOptions): IMenu {
 		return new Menu(id, this._hiddenStates, { emitEventsForSubmenuChanges: false, eventDebounceDelay: 50, ...options }, this._commandService, contextKeyService, this);
+	}
+
+	resetHiddenStates(): void {
+		this._hiddenStates.reset();
 	}
 }
 
@@ -107,6 +105,11 @@ class PersistedMenuHideState {
 				}
 			}
 		}
+		this._persist();
+	}
+
+	reset(): void {
+		this._data = Object.create(null);
 		this._persist();
 	}
 
