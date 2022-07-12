@@ -57,6 +57,7 @@ import { ITextEditorOptions, TextEditorSelectionSource } from 'vs/platform/edito
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { NOTEBOOK_KERNEL } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';
@@ -97,6 +98,7 @@ export class InteractiveEditor extends EditorPane {
 	#contextMenuService: IContextMenuService;
 	#editorGroupService: IEditorGroupsService;
 	#notebookExecutionStateService: INotebookExecutionStateService;
+	#extensionService: IExtensionService;
 	#widgetDisposableStore: DisposableStore = this._register(new DisposableStore());
 	#dimension?: DOM.Dimension;
 	#notebookOptions: NotebookOptions;
@@ -124,7 +126,8 @@ export class InteractiveEditor extends EditorPane {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
-		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService
+		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService,
+		@IExtensionService extensionService: IExtensionService,
 	) {
 		super(
 			InteractiveEditor.ID,
@@ -142,6 +145,7 @@ export class InteractiveEditor extends EditorPane {
 		this.#contextMenuService = contextMenuService;
 		this.#editorGroupService = editorGroupService;
 		this.#notebookExecutionStateService = notebookExecutionStateService;
+		this.#extensionService = extensionService;
 
 		this.#notebookOptions = new NotebookOptions(configurationService, notebookExecutionStateService, { cellToolbarInteraction: 'hover', globalToolbar: true, defaultCellCollapseConfig: { codeCell: { inputCollapsed: true } } });
 		this.#editorMemento = this.getEditorMemento<InteractiveEditorViewState>(editorGroupService, textResourceConfigurationService, INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY);
@@ -397,6 +401,7 @@ export class InteractiveEditor extends EditorPane {
 		this.#notebookWidget.value?.setParentContextKeyService(this.#contextKeyService);
 
 		const viewState = options?.viewState ?? this.#loadNotebookEditorViewState(input);
+		await this.#extensionService.whenInstalledExtensionsRegistered();
 		await this.#notebookWidget.value!.setModel(model.notebook, viewState?.notebook);
 		model.notebook.setCellCollapseDefault(this.#notebookOptions.getCellCollapseDefault());
 		this.#notebookWidget.value!.setOptions({

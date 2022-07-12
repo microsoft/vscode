@@ -38,7 +38,7 @@ import { contrastBorder, listInactiveSelectionBackground, registerColor, transpa
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { EditorExtensions, EditorsOrder, IEditorSerializer } from 'vs/workbench/common/editor';
+import { EditorExtensions, EditorsOrder, IEditorFactoryRegistry, IEditorSerializer } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 // import { Color } from 'vs/base/common/color';
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
@@ -194,7 +194,7 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 		editorResolverService.registerEditor(
 			`${Schemas.vscodeInteractiveInput}:/**`,
 			{
-				id: InteractiveEditorInput.ID,
+				id: 'vscode-interactive-input',
 				label: 'Interactive Editor',
 				priority: RegisteredEditorPriority.exclusive
 			},
@@ -211,7 +211,7 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 		editorResolverService.registerEditor(
 			`*.interactive`,
 			{
-				id: InteractiveEditorInput.ID,
+				id: 'interactive',
 				label: 'Interactive Editor',
 				priority: RegisteredEditorPriority.exclusive
 			},
@@ -272,6 +272,8 @@ workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveDocument
 workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveInputContentProvider, LifecyclePhase.Starting);
 
 export class InteractiveEditorSerializer implements IEditorSerializer {
+	public static readonly ID = InteractiveEditorInput.ID;
+
 	canSerialize(): boolean {
 		return true;
 	}
@@ -281,11 +283,13 @@ export class InteractiveEditorSerializer implements IEditorSerializer {
 		return JSON.stringify({
 			resource: input.primary.resource,
 			inputResource: input.inputResource,
+			name: input.getName(),
+			data: input.getSerialization()
 		});
 	}
 
 	deserialize(instantiationService: IInstantiationService, raw: string) {
-		type Data = { resource: URI; inputResource: URI };
+		type Data = { resource: URI; inputResource: URI; data: any };
 		const data = <Data>parse(raw);
 		if (!data) {
 			return undefined;
@@ -296,14 +300,15 @@ export class InteractiveEditorSerializer implements IEditorSerializer {
 		}
 
 		const input = InteractiveEditorInput.create(instantiationService, resource, inputResource);
+		input.restoreSerialization(data.data);
 		return input;
 	}
 }
 
-// Registry.as<EditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(
-// 	InteractiveEditorInput.ID,
-// 	InteractiveEditorSerializer
-// );
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory)
+	.registerEditorSerializer(
+		InteractiveEditorSerializer.ID,
+		InteractiveEditorSerializer);
 
 registerSingleton(IInteractiveHistoryService, InteractiveHistoryService);
 registerSingleton(IInteractiveDocumentService, InteractiveDocumentService);
