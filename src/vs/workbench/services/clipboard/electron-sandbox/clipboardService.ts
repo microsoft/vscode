@@ -65,13 +65,13 @@ export class NativeClipboardService implements IClipboardService {
 			return [];
 		}
 
-		const bufferValue = buffer.toString();
+		const bufferValue = VSBuffer.wrap(buffer).toString();
 		if (!bufferValue) {
 			return [];
 		}
 
 		try {
-			return bufferValue.split('\n').map(f => URI.parse(f));
+			return bufferValue.split('\n').map(line => URI.parse(line));
 		} catch (error) {
 			return []; // do not trust clipboard data
 		}
