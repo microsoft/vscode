@@ -1100,6 +1100,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			}
 			type WorkbenchNotebookOpenClassification = {
 				owner: 'rebornix';
+				comment: 'Identify the notebook editor view type';
 				scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 				ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 				viewType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
