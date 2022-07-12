@@ -35,7 +35,6 @@ const enum DecorationSelector {
 	Codicon = 'codicon',
 	XtermDecoration = 'xterm-decoration',
 	GenericMarkerIcon = 'codicon-circle-small-filled',
-	Container = '.xterm-decoration-container',
 	OverviewRuler = '.xterm-decoration-overview-ruler'
 }
 
@@ -93,6 +92,19 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		});
 		this._themeService.onDidColorThemeChange(() => this._refreshStyles(true));
 		this._updateDecorationVisibility();
+		this._register(this._capabilities.onDidAddCapability(c => {
+			if (c === TerminalCapability.CommandDetection) {
+				this._addCommandDetectionListeners();
+			}
+		}));
+		this._register(this._capabilities.onDidRemoveCapability(c => {
+			if (c === TerminalCapability.CommandDetection) {
+				if (this._commandDetectionListeners) {
+					dispose(this._commandDetectionListeners);
+					this._commandDetectionListeners = undefined;
+				}
+			}
+		}));
 	}
 
 	private _updateDecorationVisibility(): void {
@@ -103,6 +115,10 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (this._showGutterDecorations || this._showOverviewRulerDecorations) {
 			this._attachToCommandCapability();
 			this._updateGutterDecorationVisibility();
+		}
+		const currentCommand = this._capabilities.get(TerminalCapability.CommandDetection)?.executingCommandObject;
+		if (currentCommand) {
+			this.registerCommandDecoration(currentCommand, true);
 		}
 	}
 
@@ -123,9 +139,9 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 
 	private _updateCommandDecorationVisibility(commandDecorationElement: Element): void {
 		if (this._showGutterDecorations) {
-			commandDecorationElement.classList.remove('hide');
+			commandDecorationElement.classList.remove(DecorationSelector.Hide);
 		} else {
-			commandDecorationElement.classList.add('hide');
+			commandDecorationElement.classList.add(DecorationSelector.Hide);
 		}
 	}
 
@@ -180,21 +196,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	private _attachToCommandCapability(): void {
 		if (this._capabilities.has(TerminalCapability.CommandDetection)) {
 			this._addCommandDetectionListeners();
-		} else {
-			this._register(this._capabilities.onDidAddCapability(c => {
-				if (c === TerminalCapability.CommandDetection) {
-					this._addCommandDetectionListeners();
-				}
-			}));
 		}
-		this._register(this._capabilities.onDidRemoveCapability(c => {
-			if (c === TerminalCapability.CommandDetection) {
-				if (this._commandDetectionListeners) {
-					dispose(this._commandDetectionListeners);
-					this._commandDetectionListeners = undefined;
-				}
-			}
-		}));
 	}
 
 	private _addCommandDetectionListeners(): void {

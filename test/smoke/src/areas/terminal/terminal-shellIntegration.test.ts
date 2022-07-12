@@ -90,7 +90,7 @@ export function setup() {
 					});
 					it('overviewRuler', async () => {
 						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationsEnabled', '"overviewRuler"');
-						await terminal.assertCommandDecorations({ placeholder: 0, success: 0, error: 0 }, undefined, 'overviewRuler');
+						await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 1 }, undefined, 'overviewRuler');
 					});
 				});
 			});
