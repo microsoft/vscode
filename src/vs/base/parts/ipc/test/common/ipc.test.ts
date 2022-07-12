@@ -103,6 +103,7 @@ interface ITestService {
 	neverComplete(): Promise<void>;
 	neverCompleteCT(cancellationToken: CancellationToken): Promise<void>;
 	buffersLength(buffers: VSBuffer[]): Promise<number>;
+	uint8ArrayLength(arrays: Uint8Array[]): Promise<number>;
 	marshall(uri: URI): Promise<URI>;
 	context(): Promise<unknown>;
 
@@ -135,7 +136,13 @@ class TestService implements ITestService {
 	}
 
 	buffersLength(buffers: VSBuffer[]): Promise<number> {
+		assert.ok(buffers.every(b => b instanceof VSBuffer));
 		return Promise.resolve(buffers.reduce((r, b) => r + b.buffer.length, 0));
+	}
+
+	uint8ArrayLength(arrays: Uint8Array[]): Promise<number> {
+		assert.ok(arrays.every(a => a instanceof Uint8Array));
+		return Promise.resolve(arrays.reduce((r, b) => r + b.length, 0));
 	}
 
 	ping(msg: string): void {
@@ -162,6 +169,7 @@ class TestChannel implements IServerChannel {
 			case 'neverComplete': return this.service.neverComplete();
 			case 'neverCompleteCT': return this.service.neverCompleteCT(cancellationToken);
 			case 'buffersLength': return this.service.buffersLength(arg);
+			case 'uint8ArrayLength': return this.service.uint8ArrayLength(arg);
 			default: return Promise.reject(new Error('not implemented'));
 		}
 	}
@@ -200,6 +208,10 @@ class TestChannelClient implements ITestService {
 
 	buffersLength(buffers: VSBuffer[]): Promise<number> {
 		return this.channel.call('buffersLength', buffers);
+	}
+
+	uint8ArrayLength(arrays: Uint8Array[]): Promise<number> {
+		return this.channel.call('uint8ArrayLength', arrays);
 	}
 
 	marshall(uri: URI): Promise<URI> {
@@ -319,6 +331,11 @@ suite('Base IPC', function () {
 			const r = await ipcService.buffersLength([VSBuffer.alloc(2), VSBuffer.alloc(3)]);
 			return assert.strictEqual(r, 5);
 		});
+
+		test('uint8arrays in arrays', async function () {
+			const r = await ipcService.uint8ArrayLength([VSBuffer.alloc(2).buffer, VSBuffer.alloc(3).buffer]);
+			return assert.strictEqual(r, 5);
+		});
 	});
 
 	suite('one to one (proxy)', function () {
@@ -383,6 +400,11 @@ suite('Base IPC', function () {
 
 		test('buffers in arrays', async function () {
 			const r = await ipcService.buffersLength([VSBuffer.alloc(2), VSBuffer.alloc(3)]);
+			return assert.strictEqual(r, 5);
+		});
+
+		test('uint8arrays in arrays', async function () {
+			const r = await ipcService.uint8ArrayLength([VSBuffer.alloc(2).buffer, VSBuffer.alloc(3).buffer]);
 			return assert.strictEqual(r, 5);
 		});
 	});

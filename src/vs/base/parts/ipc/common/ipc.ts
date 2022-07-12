@@ -8,11 +8,11 @@ import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/com
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { memoize } from 'vs/base/common/decorators';
-import * as errors from 'vs/base/common/errors';
+import { canceled } from 'vs/base/common/errors';
 import { Emitter, Event, EventMultiplexer, Relay } from 'vs/base/common/event';
 import { combinedDisposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
-import * as strings from 'vs/base/common/strings';
+import { isUpperAsciiLetter } from 'vs/base/common/strings';
 import { isFunction, isUndefinedOrNull } from 'vs/base/common/types';
 
 /**
@@ -195,8 +195,9 @@ enum DataType {
 	String = 1,
 	Buffer = 2,
 	VSBuffer = 3,
-	Array = 4,
-	Object = 5
+	Uint8Array = 4,
+	Array = 5,
+	Object = 6,
 }
 
 function createSizeBuffer(size: number): VSBuffer {
@@ -220,8 +221,9 @@ const BufferPresets = {
 	String: createOneByteBuffer(DataType.String),
 	Buffer: createOneByteBuffer(DataType.Buffer),
 	VSBuffer: createOneByteBuffer(DataType.VSBuffer),
+	Uint8Array: createOneByteBuffer(DataType.Uint8Array),
 	Array: createOneByteBuffer(DataType.Array),
-	Object: createOneByteBuffer(DataType.Object),
+	Object: createOneByteBuffer(DataType.Object)
 };
 
 declare const Buffer: any;
@@ -244,6 +246,11 @@ function serialize(writer: IWriter, data: any): void {
 		writer.write(BufferPresets.VSBuffer);
 		writer.write(createSizeBuffer(data.byteLength));
 		writer.write(data);
+	} else if (data instanceof Uint8Array) {
+		const buffer = VSBuffer.wrap(data);
+		writer.write(BufferPresets.Uint8Array);
+		writer.write(createSizeBuffer(buffer.byteLength));
+		writer.write(buffer);
 	} else if (Array.isArray(data)) {
 		writer.write(BufferPresets.Array);
 		writer.write(createSizeBuffer(data.length));
@@ -265,8 +272,10 @@ function deserialize(reader: IReader): any {
 	switch (type) {
 		case DataType.Undefined: return undefined;
 		case DataType.String: return reader.read(readSizeBuffer(reader)).toString();
-		case DataType.Buffer: return reader.read(readSizeBuffer(reader)).buffer;
 		case DataType.VSBuffer: return reader.read(readSizeBuffer(reader));
+		case DataType.Uint8Array:
+		case DataType.Buffer:
+			return reader.read(readSizeBuffer(reader)).buffer;
 		case DataType.Array: {
 			const length = readSizeBuffer(reader);
 			const result: any[] = [];
@@ -516,7 +525,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		return {
 			call(command: string, arg?: any, cancellationToken?: CancellationToken) {
 				if (that.isDisposed) {
-					return Promise.reject(errors.canceled());
+					return Promise.reject(canceled());
 				}
 				return that.requestPromise(channelName, command, arg, cancellationToken);
 			},
@@ -535,14 +544,14 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		const request: IRawRequest = { id, type, channelName, name, arg };
 
 		if (cancellationToken.isCancellationRequested) {
-			return Promise.reject(errors.canceled());
+			return Promise.reject(canceled());
 		}
 
 		let disposable: IDisposable;
 
 		const result = new Promise((c, e) => {
 			if (cancellationToken.isCancellationRequested) {
-				return e(errors.canceled());
+				return e(canceled());
 			}
 
 			const doRequest = () => {
@@ -591,7 +600,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 					this.sendRequest({ id, type: RequestType.PromiseCancel });
 				}
 
-				e(errors.canceled());
+				e(canceled());
 			};
 
 			const cancellationTokenListener = cancellationToken.onCancellationRequested(cancel);
@@ -1152,12 +1161,12 @@ export namespace ProxyChannel {
 
 	function propertyIsEvent(name: string): boolean {
 		// Assume a property is an event if it has a form of "onSomething"
-		return name[0] === 'o' && name[1] === 'n' && strings.isUpperAsciiLetter(name.charCodeAt(2));
+		return name[0] === 'o' && name[1] === 'n' && isUpperAsciiLetter(name.charCodeAt(2));
 	}
 
 	function propertyIsDynamicEvent(name: string): boolean {
 		// Assume a property is a dynamic event (a method that returns an event) if it has a form of "onDynamicSomething"
-		return /^onDynamic/.test(name) && strings.isUpperAsciiLetter(name.charCodeAt(9));
+		return /^onDynamic/.test(name) && isUpperAsciiLetter(name.charCodeAt(9));
 	}
 }
 
