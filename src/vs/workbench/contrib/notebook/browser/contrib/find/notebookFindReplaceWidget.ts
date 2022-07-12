@@ -18,7 +18,7 @@ import * as nls from 'vs/nls';
 import { ContextScopedReplaceInput, registerAndCreateHistoryNavigationContext } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { editorWidgetBackground, editorWidgetForeground, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { editorWidgetBackground, editorWidgetBorder, editorWidgetForeground, editorWidgetResizeBorder, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { registerIcon, widgetClose } from 'vs/platform/theme/common/iconRegistry';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IColorTheme, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -35,7 +35,8 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { filterIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
 import { isSafari } from 'vs/base/common/platform';
-import { ISashEvent, IVerticalSashLayoutProvider, Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
+import { ISashEvent, Orientation, Sash, SashState } from 'vs/base/browser/ui/sash/sash';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -239,7 +240,7 @@ class NotebookFindInput extends FindInput {
 	}
 }
 
-export abstract class SimpleFindReplaceWidget extends Widget implements IVerticalSashLayoutProvider {
+export abstract class SimpleFindReplaceWidget extends Widget {
 	protected readonly _findInput: NotebookFindInput;
 	private readonly _domNode: HTMLElement;
 	private readonly _innerFindDomNode: HTMLElement;
@@ -256,7 +257,9 @@ export abstract class SimpleFindReplaceWidget extends Widget implements IVertica
 	private readonly _replaceInputFocusTracker!: dom.IFocusTracker;
 	protected _replaceBtn!: SimpleButton;
 	protected _replaceAllBtn!: SimpleButton;
-	private _resizeSash!: Sash;
+	private readonly _westSash: Sash;
+	private readonly _sashListener = new DisposableStore();
+
 
 
 	private _isVisible: boolean = false;
@@ -288,6 +291,7 @@ export abstract class SimpleFindReplaceWidget extends Widget implements IVertica
 		});
 
 		this._domNode = document.createElement('div');
+
 		this._domNode.classList.add('simple-fr-find-part-wrapper');
 		this._register(this._state.onFindReplaceStateChange((e) => this._onStateChanged(e)));
 		this._scopedContextKeyService = contextKeyService.createScoped(this._domNode);
@@ -480,11 +484,34 @@ export abstract class SimpleFindReplaceWidget extends Widget implements IVertica
 		this._innerReplaceDomNode.appendChild(this._replaceBtn.domNode);
 		this._innerReplaceDomNode.appendChild(this._replaceAllBtn.domNode);
 		this.handleFlexWidth();
+
+		this._westSash = new Sash(this._domNode, { getVerticalSashLeft: () => 0 }, { orientation: Orientation.VERTICAL, size: 2 });
+
+		let originalWidth = FIND_WIDGET_INITIAL_WIDTH;
+		this._sashListener.add(this._westSash.onDidStart(() => {
+			originalWidth = dom.getTotalWidth(this._domNode);
+		}));
+		this._sashListener.add(this._westSash.onDidEnd(() => {
+			console.log('end');
+		}));
+		this._sashListener.add(this._westSash.onDidChange((evt: ISashEvent) => {
+			const width = originalWidth + evt.startX - evt.currentX;
+
+			this._domNode.style.width = `${width}px`;
+			if (this._isReplaceVisible) {
+				this._replaceInput.width = dom.getTotalWidth(this._findInput.domNode);
+			}
+			this._findInput.inputBox.layout();
+		}));
+		this._sashListener.add(this._westSash.onDidReset(() => {
+			console.log('reset');
+		}));
+		this._westSash.state = SashState.Enabled;
 	}
 
-	getVerticalSashLeft(sash: Sash): number {
-		return 4;
-	}
+	// getVerticalSashLeft(sash: Sash): number {
+	// 	return 4;
+	// }
 
 	getCellToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IAction[] } {
 		const primary: IAction[] = [];
@@ -586,32 +613,33 @@ export abstract class SimpleFindReplaceWidget extends Widget implements IVertica
 	}
 
 	private handleFlexWidth() {
-		this._resizeSash = new Sash(this._domNode, this, { orientation: Orientation.VERTICAL, size: 2 });
-		let originalWidth = FIND_WIDGET_INITIAL_WIDTH;
 
-		this._register(this._resizeSash.onDidStart(() => {
-			originalWidth = dom.getTotalWidth(this._domNode);
-		}));
+		// this._resizeSash = new Sash(this._domNode, this, { orientation: Orientation.VERTICAL, size: 2 });
+		// let originalWidth = FIND_WIDGET_INITIAL_WIDTH;
 
-		this._register(this._resizeSash.onDidChange((evt: ISashEvent) => {
-			const width = originalWidth + evt.startX - evt.currentX;
+		// this._register(this._resizeSash.onDidStart(() => {
+		// 	originalWidth = dom.getTotalWidth(this._domNode);
+		// }));
 
-			if (width < FIND_WIDGET_INITIAL_WIDTH) {
-				// narrow down the find widget should be handled by CSS.
-				return;
-			}
+		// this._register(this._resizeSash.onDidChange((evt: ISashEvent) => {
+		// 	const width = originalWidth + evt.startX - evt.currentX;
 
-			const maxWidth = parseFloat(dom.getComputedStyle(this._domNode).maxWidth!) || 0;
-			if (width > maxWidth) {
-				return;
-			}
-			this._domNode.style.width = `${width}px`;
-			if (this._isReplaceVisible) {
-				this._replaceInput.width = dom.getTotalWidth(this._findInput.domNode);
-			}
+		// 	if (width < FIND_WIDGET_INITIAL_WIDTH) {
+		// 		// narrow down the find widget should be handled by CSS.
+		// 		return;
+		// 	}
 
-			this._findInput.inputBox.layout();
-		}));
+		// 	const maxWidth = parseFloat(dom.getComputedStyle(this._domNode).maxWidth!) || 0;
+		// 	if (width > maxWidth) {
+		// 		return;
+		// 	}
+		// 	this._domNode.style.width = `${width}px`;
+		// 	if (this._isReplaceVisible) {
+		// 		this._replaceInput.width = dom.getTotalWidth(this._findInput.domNode);
+		// 	}
+
+		// 	this._findInput.inputBox.layout();
+		// }));
 		// look more into findController
 		// why does the other findWidget trigger constructor every time you open find menu
 		// how to get sash div element
@@ -767,5 +795,15 @@ registerThemingParticipant((theme, collector) => {
 	const inputActiveOptionBackgroundColor = theme.getColor(inputActiveOptionBackground);
 	if (inputActiveOptionBackgroundColor) {
 		collector.addRule(`.simple-fr-find-part .find-filter-button > .monaco-action-bar .action-label.notebook-filters.checked { background-color: ${inputActiveOptionBackgroundColor}; }`);
+	}
+
+	const resizeBorderBackground = theme.getColor(editorWidgetResizeBorder);
+	if (resizeBorderBackground) {
+		collector.addRule(`.monaco-workbench .simple-fr-find-part-wrapper .monaco-sash { background-color: ${resizeBorderBackground}; }`);
+	} else {
+		const border = theme.getColor(editorWidgetBorder);
+		if (border) {
+			collector.addRule(`.monaco-workbench .simple-fr-find-part-wrapper .monaco-sash { background-color: ${border}; }`);
+		}
 	}
 });

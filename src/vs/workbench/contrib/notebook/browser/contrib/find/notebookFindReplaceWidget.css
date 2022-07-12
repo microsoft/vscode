@@ -11,7 +11,7 @@
 	right: 18px;
 	width: 318px;
 	max-width: calc(100% - 28px - 28px - 8px);
-	pointer-events: none;
+	/* pointer-events: none; */
 	transition: top 200ms linear;
 	visibility: hidden;
 }
