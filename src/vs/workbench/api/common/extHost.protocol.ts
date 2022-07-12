@@ -677,6 +677,7 @@ export interface WebviewInputDto {
 export interface InteractiveEditorInputDto {
 	kind: TabInputKind.InteractiveEditorInput;
 	uri: UriComponents;
+	inputBoxUri: UriComponents;
 }
 
 export interface TabInputDto {
