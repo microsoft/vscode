@@ -55,6 +55,7 @@ export const JUMP_TO_CURSOR_ID = 'debug.jumpToCursor';
 export const FOCUS_SESSION_ID = 'workbench.action.debug.focusProcess';
 export const SELECT_AND_START_ID = 'workbench.action.debug.selectandstart';
 export const SELECT_DEBUG_CONSOLE_ID = 'workbench.action.debug.selectDebugConsole';
+export const SELECT_DEBUG_SESSION_ID = 'workbench.action.debug.selectDebugSession';
 export const DEBUG_CONFIGURE_COMMAND_ID = 'workbench.action.debug.configure';
 export const DEBUG_START_COMMAND_ID = 'workbench.action.debug.start';
 export const DEBUG_RUN_COMMAND_ID = 'workbench.action.debug.run';
@@ -85,9 +86,11 @@ export const PREV_DEBUG_CONSOLE_LABEL = nls.localize('prevDebugConsole', "Focus 
 export const SHOW_LOADED_SCRIPTS_LABEL = nls.localize('showLoadedScripts', "Show Loaded Scripts");
 
 export const SELECT_DEBUG_CONSOLE_LABEL = nls.localize('selectDebugConsole', "Select Debug Console");
+export const SELECT_DEBUG_SESSION_LABEL = nls.localize('selectDebugSession', "Select Debug Session");
 
 export const DEBUG_QUICK_ACCESS_PREFIX = 'debug ';
-export const DEBUG_CONSOLE_QUICK_ACCESS_PREFIX = 'debug sessions ';
+export const DEBUG_CONSOLE_QUICK_ACCESS_PREFIX = 'debug consoles ';
+export const DEBUG_SESSION_QUICK_ACCESS_PREFIX = 'debug sessions ';
 
 interface CallStackContext {
 	sessionId: string;
@@ -570,6 +573,14 @@ CommandsRegistry.registerCommand({
 	handler: async (accessor: ServicesAccessor) => {
 		const quickInputService = accessor.get(IQuickInputService);
 		quickInputService.quickAccess.show(DEBUG_CONSOLE_QUICK_ACCESS_PREFIX);
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: SELECT_DEBUG_SESSION_ID,
+	handler: async (accessor: ServicesAccessor) => {
+		const quickInputService = accessor.get(IQuickInputService);
+		quickInputService.quickAccess.show(DEBUG_SESSION_QUICK_ACCESS_PREFIX);
 	}
 });
 
