@@ -24,6 +24,7 @@ import { peekViewBorder /*, peekViewEditorBackground, peekViewResultsBackground 
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { EditorActivation, IResourceEditorInput } from 'vs/platform/editor/common/editor';
@@ -43,7 +44,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 // import { Color } from 'vs/base/common/color';
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
-import { INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
+import { InteractiveWindowSetting, INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
 import { IInteractiveDocumentService, InteractiveDocumentService } from 'vs/workbench/contrib/interactive/browser/interactiveDocumentService';
 import { InteractiveEditor } from 'vs/workbench/contrib/interactive/browser/interactiveEditor';
 import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
@@ -52,7 +53,7 @@ import { NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from 'vs/workbench/contrib/noteb
 import { INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { CellEditType, CellKind, CellUri, ICellOutput, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, CellUri, ICellOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookContentProvider, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
@@ -274,8 +275,11 @@ workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveInputCon
 export class InteractiveEditorSerializer implements IEditorSerializer {
 	public static readonly ID = InteractiveEditorInput.ID;
 
+	constructor(@IConfigurationService private configurationService: IConfigurationService) {
+	}
+
 	canSerialize(): boolean {
-		return true;
+		return this.configurationService.getValue<boolean>(InteractiveWindowSetting.interactiveWindowHotExit);
 	}
 
 	serialize(input: EditorInput): string {
@@ -289,6 +293,9 @@ export class InteractiveEditorSerializer implements IEditorSerializer {
 	}
 
 	deserialize(instantiationService: IInstantiationService, raw: string) {
+		if (!this.canSerialize()) {
+			return undefined;
+		}
 		type Data = { resource: URI; inputResource: URI; data: any };
 		const data = <Data>parse(raw);
 		if (!data) {
@@ -743,15 +750,20 @@ registerThemingParticipant((theme) => {
 });
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
-	id: 'notebook',
+	id: 'interactiveWindow',
 	order: 100,
 	type: 'object',
 	'properties': {
-		[NotebookSetting.interactiveWindowAlwaysScrollOnNewCell]: {
+		[InteractiveWindowSetting.interactiveWindowAlwaysScrollOnNewCell]: {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('interactiveWindow.alwaysScrollOnNewCell', "Automatically scroll the interactive window to show the output of the last statement executed. If this value is false, the window will only scroll if the last cell was already the one scrolled to.")
 		},
+		[InteractiveWindowSetting.interactiveWindowHotExit]: {
+			type: 'boolean',
+			default: false,
+			markdownDescription: localize('interactiveWindow.hotExit', "Controls whether the interactive window sessions should be restored when the workspace reloads.")
+		}
 	}
 });
 
