@@ -154,7 +154,10 @@
 			}
 		},
 		{
-			"scope": "markup.inline.raw",
+			"scope": [
+				"markup.inline.raw",
+				"markup.fenced_code.block"
+			],
 			"settings": {
 				"foreground": "#0F4A85"
 			}

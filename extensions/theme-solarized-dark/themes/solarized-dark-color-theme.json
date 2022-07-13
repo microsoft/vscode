@@ -300,7 +300,10 @@
 		},
 		{
 			"name": "Markup Inline",
-			"scope": "markup.inline.raw",
+			"scope": [
+				"markup.inline.raw",
+				"markup.fenced_code.block"
+			],
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#2AA198"
