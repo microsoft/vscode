@@ -35,11 +35,11 @@ export interface ISubmenuItem {
 	rememberDefaultAction?: boolean;	// for dropdown menu: if true the last executed action is remembered as the default action
 }
 
-export function isIMenuItem(item: IMenuItem | ISubmenuItem): item is IMenuItem {
+export function isIMenuItem(item: any): item is IMenuItem {
 	return (item as IMenuItem).command !== undefined;
 }
 
-export function isISubmenuItem(item: IMenuItem | ISubmenuItem): item is ISubmenuItem {
+export function isISubmenuItem(item: any): item is ISubmenuItem {
 	return (item as ISubmenuItem).submenu !== undefined;
 }
 
@@ -350,6 +350,7 @@ export class SubmenuItemAction extends SubmenuAction {
 
 	constructor(
 		readonly item: ISubmenuItem,
+		readonly hideActions: MenuItemActionManageActions,
 		private readonly _menuService: IMenuService,
 		private readonly _contextKeyService: IContextKeyService,
 		private readonly _options?: IMenuActionOptions
