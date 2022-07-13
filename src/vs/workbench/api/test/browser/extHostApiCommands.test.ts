@@ -100,7 +100,9 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			override async activateByEvent() {
 
 			}
-
+			override activationEventIsDone(activationEvent: string): boolean {
+				return true;
+			}
 		});
 		services.set(ICommandService, new SyncDescriptor(class extends mock<ICommandService>() {
 

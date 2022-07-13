@@ -15,7 +15,7 @@ import { nulLogger } from './nulLogging';
 import { assertRangeEqual, joinLines, workspacePath } from './util';
 
 
-suite.only('Markdown: MdLinkComputer', () => {
+suite('Markdown: MdLinkComputer', () => {
 
 	function getLinksForFile(fileContents: string): Promise<MdLink[]> {
 		const doc = new InMemoryDocument(workspacePath('x.md'), fileContents);
@@ -126,6 +126,15 @@ suite.only('Markdown: MdLinkComputer', () => {
 			const links = await getLinksForFile('[some [inner with space] in title](link)');
 			assertLinksEqual(links, [
 				new vscode.Range(0, 35, 0, 39),
+			]);
+		}
+		{
+			const links = await getLinksForFile(joinLines(
+				`# h`,
+				`[[a]](http://example.com)`,
+			));
+			assertLinksEqual(links, [
+				new vscode.Range(1, 6, 1, 24),
 			]);
 		}
 	});

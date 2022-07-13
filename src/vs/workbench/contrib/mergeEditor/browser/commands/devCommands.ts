@@ -29,12 +29,17 @@ interface MergeEditorContents {
 }
 
 export class MergeEditorCopyContentsToJSON extends Action2 {
-
 	constructor() {
 		super({
 			id: 'merge.dev.copyContents',
 			category: 'Merge Editor (Dev)',
-			title: localize('merge.dev.copyContents', "Copy Contents of Inputs, Base and Result as JSON"),
+			title: {
+				value: localize(
+					'merge.dev.copyContents',
+					'Copy Contents of Inputs, Base and Result as JSON'
+				),
+				original: 'Copy Contents of Inputs, Base and Result as JSON',
+			},
 			icon: Codicon.layoutCentered,
 			f1: true,
 			precondition: ctxIsMergeEditor,
@@ -75,12 +80,17 @@ export class MergeEditorCopyContentsToJSON extends Action2 {
 }
 
 export class MergeEditorOpenContents extends Action2 {
-
 	constructor() {
 		super({
 			id: 'merge.dev.openContents',
 			category: 'Merge Editor (Dev)',
-			title: localize('merge.dev.openContents', "Open Contents of Inputs, Base and Result from JSON"),
+			title: {
+				value: localize(
+					'merge.dev.openContents',
+					'Open Contents of Inputs, Base and Result from JSON'
+				),
+				original: 'Open Contents of Inputs, Base and Result from JSON',
+			},
 			icon: Codicon.layoutCentered,
 			f1: true,
 		});
@@ -98,11 +108,14 @@ export class MergeEditorOpenContents extends Action2 {
 			prompt: localize('mergeEditor.enterJSON', 'Enter JSON'),
 			value: await clipboardService.readText(),
 		});
-		if (!result) {
+		if (result === undefined) {
 			return;
 		}
 
-		const content: MergeEditorContents = JSON.parse(result);
+		const content: MergeEditorContents =
+			result !== ''
+				? JSON.parse(result)
+				: { base: '', input1: '', input2: '', result: '', languageId: 'plaintext' };
 
 		const scheme = 'merge-editor-dev';
 

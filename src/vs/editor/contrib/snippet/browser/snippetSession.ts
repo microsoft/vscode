@@ -359,6 +359,11 @@ const _defaultOptions: ISnippetSessionInsertOptions = {
 	overtypingCapturer: undefined
 };
 
+export interface ISnippetEdit {
+	range: Range;
+	template: string;
+}
+
 export class SnippetSession {
 
 	static adjustWhitespace(model: ITextModel, position: IPosition, snippet: TextmateSnippet, adjustIndentation: boolean, adjustNewlines: boolean): string {
@@ -434,7 +439,7 @@ export class SnippetSession {
 		return selection;
 	}
 
-	static createEditsAndSnippets(editor: IActiveCodeEditor, template: string, overwriteBefore: number, overwriteAfter: number, enforceFinalTabstop: boolean, adjustWhitespace: boolean, clipboardText: string | undefined, overtypingCapturer: OvertypingCapturer | undefined, languageConfigurationService: ILanguageConfigurationService): { edits: IIdentifiedSingleEditOperation[]; snippets: OneSnippet[] } {
+	static createEditsAndSnippetsFromSelections(editor: IActiveCodeEditor, template: string, overwriteBefore: number, overwriteAfter: number, enforceFinalTabstop: boolean, adjustWhitespace: boolean, clipboardText: string | undefined, overtypingCapturer: OvertypingCapturer | undefined, languageConfigurationService: ILanguageConfigurationService): { edits: IIdentifiedSingleEditOperation[]; snippets: OneSnippet[] } {
 		const edits: IIdentifiedSingleEditOperation[] = [];
 		const snippets: OneSnippet[] = [];
 
@@ -518,22 +523,79 @@ export class SnippetSession {
 		return { edits, snippets };
 	}
 
-	private readonly _editor: IActiveCodeEditor;
-	private readonly _template: string;
-	private readonly _templateMerges: [number, number, string][] = [];
-	private readonly _options: ISnippetSessionInsertOptions;
+	static createEditsAndSnippetsFromEdits(editor: IActiveCodeEditor, snippetEdits: ISnippetEdit[], enforceFinalTabstop: boolean, adjustWhitespace: boolean, clipboardText: string | undefined, overtypingCapturer: OvertypingCapturer | undefined, languageConfigurationService: ILanguageConfigurationService): { edits: IIdentifiedSingleEditOperation[]; snippets: OneSnippet[] } {
+
+		if (!editor.hasModel() || snippetEdits.length === 0) {
+			return { edits: [], snippets: [] };
+		}
+
+		const edits: IIdentifiedSingleEditOperation[] = [];
+		const model = editor.getModel();
+
+		const parser = new SnippetParser();
+		const snippet = new TextmateSnippet();
+
+		//
+		snippetEdits = snippetEdits.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
+		let offset = 0;
+		for (let i = 0; i < snippetEdits.length; i++) {
+
+			const { range, template } = snippetEdits[i];
+
+			// gaps between snippet edits are appended as text nodes. this
+			// ensures placeholder-offsets are later correct
+			if (i > 0) {
+				const lastRange = snippetEdits[i - 1].range;
+				const textRange = Range.fromPositions(lastRange.getEndPosition(), range.getStartPosition());
+				const textNode = new Text(model.getValueInRange(textRange));
+				snippet.appendChild(textNode);
+				offset += textNode.value.length;
+			}
+
+			parser.parseFragment(template, snippet);
+
+			const snippetText = snippet.toString();
+			const snippetFragmentText = snippetText.slice(offset);
+			offset = snippetText.length;
+
+			// make edit
+			const edit: IIdentifiedSingleEditOperation = EditOperation.replace(range, snippetFragmentText);
+			edit.identifier = { major: i, minor: 0 }; // mark the edit so only our undo edits will be used to generate end cursors
+			edit._isTracked = true;
+			edits.push(edit);
+		}
+
+		//
+		parser.ensureFinalTabstop(snippet, enforceFinalTabstop, true);
+
+		// snippet variables resolver
+		const resolver = new CompositeSnippetVariableResolver([
+			editor.invokeWithinContext(accessor => new ModelBasedVariableResolver(accessor.get(ILabelService), model)),
+			new ClipboardBasedVariableResolver(() => clipboardText, 0, editor.getSelections().length, editor.getOption(EditorOption.multiCursorPaste) === 'spread'),
+			new SelectionBasedVariableResolver(model, editor.getSelection(), 0, overtypingCapturer),
+			new CommentBasedVariableResolver(model, editor.getSelection(), languageConfigurationService),
+			new TimeBasedVariableResolver,
+			new WorkspaceBasedVariableResolver(editor.invokeWithinContext(accessor => accessor.get(IWorkspaceContextService))),
+			new RandomBasedVariableResolver,
+		]);
+		snippet.resolveVariables(resolver);
+
+
+		return {
+			edits,
+			snippets: [new OneSnippet(editor, snippet, '')]
+		};
+	}
+
+	private readonly _templateMerges: [number, number, string | ISnippetEdit[]][] = [];
 	private _snippets: OneSnippet[] = [];
 
 	constructor(
-		editor: IActiveCodeEditor,
-		template: string,
-		options: ISnippetSessionInsertOptions = _defaultOptions,
+		private readonly _editor: IActiveCodeEditor,
+		private readonly _template: string | ISnippetEdit[],
+		private readonly _options: ISnippetSessionInsertOptions = _defaultOptions,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService
-	) {
-		this._editor = editor;
-		this._template = template;
-		this._options = options;
-	}
+	) { }
 
 	dispose(): void {
 		dispose(this._snippets);
@@ -549,7 +611,10 @@ export class SnippetSession {
 		}
 
 		// make insert edit and start with first selections
-		const { edits, snippets } = SnippetSession.createEditsAndSnippets(this._editor, this._template, this._options.overwriteBefore, this._options.overwriteAfter, false, this._options.adjustWhitespace, this._options.clipboardText, this._options.overtypingCapturer, this._languageConfigurationService);
+		const { edits, snippets } = typeof this._template === 'string'
+			? SnippetSession.createEditsAndSnippetsFromSelections(this._editor, this._template, this._options.overwriteBefore, this._options.overwriteAfter, false, this._options.adjustWhitespace, this._options.clipboardText, this._options.overtypingCapturer, this._languageConfigurationService)
+			: SnippetSession.createEditsAndSnippetsFromEdits(this._editor, this._template, false, this._options.adjustWhitespace, this._options.clipboardText, this._options.overtypingCapturer, this._languageConfigurationService);
+
 		this._snippets = snippets;
 
 		this._editor.executeEdits('snippet', edits, _undoEdits => {
@@ -576,7 +641,7 @@ export class SnippetSession {
 			return;
 		}
 		this._templateMerges.push([this._snippets[0]._nestingLevel, this._snippets[0]._placeholderGroupsIdx, template]);
-		const { edits, snippets } = SnippetSession.createEditsAndSnippets(this._editor, template, options.overwriteBefore, options.overwriteAfter, true, options.adjustWhitespace, options.clipboardText, options.overtypingCapturer, this._languageConfigurationService);
+		const { edits, snippets } = SnippetSession.createEditsAndSnippetsFromSelections(this._editor, template, options.overwriteBefore, options.overwriteAfter, true, options.adjustWhitespace, options.clipboardText, options.overtypingCapturer, this._languageConfigurationService);
 
 		this._editor.executeEdits('snippet', edits, _undoEdits => {
 			// Sometimes, the text buffer will remove automatic whitespace when doing any edits,

@@ -31,7 +31,7 @@ import { IOutputService } from 'vs/workbench/services/output/common/output';
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEventKind, ProblemHandlingStrategy } from 'vs/workbench/contrib/tasks/common/problemCollectors';
 import {
 	Task, CustomTask, ContributedTask, RevealKind, CommandOptions, IShellConfiguration, RuntimeType, PanelKind,
-	TaskEvent, TaskEventKind, IShellQuotingOptions, ShellQuoting, CommandString, ICommandConfiguration, IExtensionTaskSource, TaskScope, RevealProblemKind, DependsOrder, TaskSourceKind, InMemoryTask, ITaskEvent
+	TaskEvent, TaskEventKind, IShellQuotingOptions, ShellQuoting, CommandString, ICommandConfiguration, IExtensionTaskSource, TaskScope, RevealProblemKind, DependsOrder, TaskSourceKind, InMemoryTask, ITaskEvent, TaskSettingId
 } from 'vs/workbench/contrib/tasks/common/tasks';
 import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, ITaskResolver,
@@ -209,10 +209,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private readonly _onDidStateChange: Emitter<ITaskEvent>;
 
 	get taskShellIntegrationStartSequence(): string {
-		return this._configurationService.getValue('task.showDecorations') ? VSCodeSequence(VSCodeOscPt.PromptStart) + VSCodeSequence(VSCodeOscPt.Property, `${VSCodeOscProperty.Task}=True`) + VSCodeSequence(VSCodeOscPt.CommandStart) : '';
+		return this._configurationService.getValue(TaskSettingId.ShowDecorations) ? VSCodeSequence(VSCodeOscPt.PromptStart) + VSCodeSequence(VSCodeOscPt.Property, `${VSCodeOscProperty.Task}=True`) + VSCodeSequence(VSCodeOscPt.CommandStart) : '';
 	}
 	get taskShellIntegrationOutputSequence(): string {
-		return this._configurationService.getValue('task.showDecorations') ? VSCodeSequence(VSCodeOscPt.CommandExecuted) : '';
+		return this._configurationService.getValue(TaskSettingId.ShowDecorations) ? VSCodeSequence(VSCodeOscPt.CommandExecuted) : '';
 	}
 
 	constructor(
@@ -516,12 +516,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			for (const dependency of task.configurationProperties.dependsOn) {
 				const dependencyTask = await resolver.resolve(dependency.uri, dependency.task!);
 				if (dependencyTask) {
-					if (dependencyTask.configurationProperties.icon) {
-						dependencyTask.configurationProperties.icon.id ||= task.configurationProperties.icon?.id;
-						dependencyTask.configurationProperties.icon.color ||= task.configurationProperties.icon?.color;
-					} else {
-						dependencyTask.configurationProperties.icon = task.configurationProperties.icon;
-					}
+					this._adoptConfigurationForDependencyTask(dependencyTask, task);
 					const key = dependencyTask.getMapKey();
 					let promise = this._activeTasks[key] ? this._getDependencyPromise(this._activeTasks[key]) : undefined;
 					if (!promise) {
@@ -588,6 +583,21 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				}
 			});
 		});
+	}
+
+	private _adoptConfigurationForDependencyTask(dependencyTask: Task, task: Task): void {
+		if (dependencyTask.configurationProperties.icon) {
+			dependencyTask.configurationProperties.icon.id ||= task.configurationProperties.icon?.id;
+			dependencyTask.configurationProperties.icon.color ||= task.configurationProperties.icon?.color;
+		} else {
+			dependencyTask.configurationProperties.icon = task.configurationProperties.icon;
+		}
+
+		if (dependencyTask.configurationProperties.hide) {
+			dependencyTask.configurationProperties.hide ||= task.configurationProperties.hide;
+		} else {
+			dependencyTask.configurationProperties.hide = task.configurationProperties.hide;
+		}
 	}
 
 	private async _getDependencyPromise(task: IActiveTerminalData): Promise<ITaskSummary> {
@@ -1147,7 +1157,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					}, 'Executing task: {0}', commandLine), { excludeLeadingNewLine: true }) + this.taskShellIntegrationOutputSequence;
 				}
 			} else {
-				shellLaunchConfig.initialText = this.taskShellIntegrationStartSequence + this.taskShellIntegrationOutputSequence;
+				shellLaunchConfig.initialText = {
+					text: this.taskShellIntegrationStartSequence + this.taskShellIntegrationOutputSequence,
+					trailingNewLine: false
+				};
 			}
 		} else {
 			const commandExecutable = (task.command.runtime !== RuntimeType.CustomExecution) ? CommandString.value(command) : undefined;
@@ -1187,7 +1200,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					}, 'Executing task: {0}', `${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)}`), { excludeLeadingNewLine: true }) + this.taskShellIntegrationOutputSequence;
 				}
 			} else {
-				shellLaunchConfig.initialText = this.taskShellIntegrationStartSequence + this.taskShellIntegrationOutputSequence;
+				shellLaunchConfig.initialText = {
+					text: this.taskShellIntegrationStartSequence + this.taskShellIntegrationOutputSequence,
+					trailingNewLine: false
+				};
 			}
 		}
 

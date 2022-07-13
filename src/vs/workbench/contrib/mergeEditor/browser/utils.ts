@@ -5,11 +5,10 @@
 
 import { CompareResult, ArrayQueue } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IObservable, autorun } from 'vs/base/common/observable';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
-import { IObservable, autorun } from 'vs/workbench/contrib/audioCues/browser/observable';
-import { IDisposable } from 'xterm';
 
 export class ReentrancyBarrier {
 	private isActive = false;
@@ -74,12 +73,12 @@ function toSize(value: number | string): string {
 export function applyObservableDecorations(editor: CodeEditorWidget, decorations: IObservable<IModelDeltaDecoration[]>): IDisposable {
 	const d = new DisposableStore();
 	let decorationIds: string[] = [];
-	d.add(autorun(reader => {
+	d.add(autorun(`Apply decorations from ${decorations.debugName}`, reader => {
 		const d = decorations.read(reader);
 		editor.changeDecorations(a => {
 			decorationIds = a.deltaDecorations(decorationIds, d);
 		});
-	}, 'Update Decorations'));
+	}));
 	d.add({
 		dispose: () => {
 			editor.changeDecorations(a => {

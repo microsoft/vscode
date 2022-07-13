@@ -53,7 +53,7 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProp
 import { ITelemetryService, machineIdKey } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { supportsTelemetry, NullTelemetryService, getPiiPathsFromEnvironment } from 'vs/platform/telemetry/common/telemetryUtils';
-import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
+import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
 import { buildTelemetryMessage } from 'vs/platform/telemetry/node/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
@@ -104,7 +104,7 @@ class CliMain extends Disposable {
 		});
 	}
 
-	private async initServices(): Promise<[IInstantiationService, AppInsightsAppender[]]> {
+	private async initServices(): Promise<[IInstantiationService, OneDataSystemAppender[]]> {
 		const services = new ServiceCollection();
 
 		// Product
@@ -186,10 +186,10 @@ class CliMain extends Disposable {
 		services.set(ILanguagePackService, new SyncDescriptor(NativeLanguagePackService));
 
 		// Telemetry
-		const appenders: AppInsightsAppender[] = [];
+		const appenders: OneDataSystemAppender[] = [];
 		if (supportsTelemetry(productService, environmentService)) {
-			if (productService.aiConfig && productService.aiConfig.asimovKey) {
-				appenders.push(new AppInsightsAppender('monacoworkbench', null, productService.aiConfig.asimovKey));
+			if (productService.aiConfig && productService.aiConfig.ariaKey) {
+				appenders.push(new OneDataSystemAppender(configurationService, 'monacoworkbench', null, productService.aiConfig.ariaKey));
 			}
 
 			const { installSourcePath } = environmentService;

@@ -12,7 +12,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { ICodeEditor, IOverlayWidget } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ResizableHTMLElement } from 'vs/editor/contrib/suggest/browser/resizable';
+import { ResizableHTMLElement } from 'vs/base/browser/ui/resizable/resizable';
 import * as nls from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CompletionItem } from './suggest';

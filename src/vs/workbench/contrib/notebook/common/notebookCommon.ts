@@ -17,7 +17,7 @@ import { ISplice } from 'vs/base/common/sequence';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ILineChange } from 'vs/editor/common/diff/diffComputer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { Command } from 'vs/editor/common/languages';
+import { Command, WorkspaceEditMetadata } from 'vs/editor/common/languages';
 import { IReadonlyTextBuffer } from 'vs/editor/common/model';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -497,6 +497,14 @@ export interface ICellMoveEdit {
 export type IImmediateCellEditOperation = ICellOutputEditByHandle | ICellPartialMetadataEditByHandle | ICellOutputItemEdit | ICellPartialInternalMetadataEdit | ICellPartialInternalMetadataEditByHandle | ICellPartialMetadataEdit;
 export type ICellEditOperation = IImmediateCellEditOperation | ICellReplaceEdit | ICellOutputEdit | ICellMetadataEdit | ICellPartialMetadataEdit | ICellPartialInternalMetadataEdit | IDocumentMetadataEdit | ICellMoveEdit | ICellOutputItemEdit | ICellLanguageEdit;
 
+
+export interface IWorkspaceNotebookCellEdit {
+	metadata?: WorkspaceEditMetadata;
+	resource: URI;
+	notebookVersionId: number | undefined;
+	cellEdit: ICellPartialMetadataEdit | IDocumentMetadataEdit | ICellReplaceEdit;
+}
+
 export interface NotebookData {
 	readonly cells: ICellDto2[];
 	readonly metadata: NotebookDocumentMetadata;
@@ -927,8 +935,7 @@ export const NotebookSetting = {
 	interactiveWindowCollapseCodeCells: 'interactiveWindow.collapseCellInputCode',
 	outputLineHeight: 'notebook.outputLineHeight',
 	outputFontSize: 'notebook.outputFontSize',
-	outputFontFamily: 'notebook.outputFontFamily',
-	interactiveWindowAlwaysScrollOnNewCell: 'interactiveWindow.alwaysScrollOnNewCell'
+	outputFontFamily: 'notebook.outputFontFamily'
 } as const;
 
 export const enum CellStatusbarAlignment {

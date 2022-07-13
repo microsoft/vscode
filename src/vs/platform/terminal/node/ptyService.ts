@@ -190,7 +190,7 @@ export class PtyService extends Disposable implements IPtyService {
 			executableEnv,
 			options
 		};
-		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, processLaunchOptions, unicodeVersion, this._reconnectConstants, this._logService, isReviving ? shellLaunchConfig.initialText : undefined, rawReviveBuffer, shellLaunchConfig.icon, shellLaunchConfig.color, shellLaunchConfig.name, shellLaunchConfig.fixedDimensions);
+		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, processLaunchOptions, unicodeVersion, this._reconnectConstants, this._logService, isReviving && typeof shellLaunchConfig.initialText === 'string' ? shellLaunchConfig.initialText : undefined, rawReviveBuffer, shellLaunchConfig.icon, shellLaunchConfig.color, shellLaunchConfig.name, shellLaunchConfig.fixedDimensions);
 		process.onDidChangeProperty(property => this._onDidChangeProperty.fire({ id, property }));
 		process.onProcessExit(event => {
 			persistentProcess.dispose();
@@ -335,6 +335,15 @@ export class PtyService extends Disposable implements IPtyService {
 			});
 			proc.stdin!.end();
 		});
+	}
+
+	async getRevivedPtyNewId(id: number): Promise<number | undefined> {
+		try {
+			return this._revivedPtyIdMap.get(id)?.newId;
+		} catch (e) {
+			this._logService.trace(`Couldn't find terminal ID ${id}`, e.message);
+		}
+		return undefined;
 	}
 
 	async setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {

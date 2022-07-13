@@ -39,13 +39,6 @@ if [[ "$PROMPT_COMMAND" =~ .*(' '.*\;)|(\;.*' ').* ]]; then
 	builtin return
 fi
 
-# Disable shell integration if HISTCONTROL is set to erase duplicate entries as the exit code
-# reporting relies on the duplicates existing
-if [[ "$HISTCONTROL" =~ .*erasedups.* ]]; then
-	builtin unset VSCODE_SHELL_INTEGRATION
-	builtin return
-fi
-
 if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 	builtin return
 fi
@@ -56,7 +49,7 @@ __vsc_original_PS2="$PS2"
 __vsc_custom_PS1=""
 __vsc_custom_PS2=""
 __vsc_in_command_execution="1"
-__vsc_last_history_id=$(history 1 | awk '{print $1;}')
+__vsc_current_command=""
 
 __vsc_prompt_start() {
 	builtin printf "\033]633;A\007"
@@ -72,6 +65,7 @@ __vsc_update_cwd() {
 
 __vsc_command_output_start() {
 	builtin printf "\033]633;C\007"
+	builtin printf "\033]633;E;$__vsc_current_command\007"
 }
 
 __vsc_continuation_start() {
@@ -83,12 +77,10 @@ __vsc_continuation_end() {
 }
 
 __vsc_command_complete() {
-	local __vsc_history_id=$(builtin history 1 | awk '{print $1;}')
-	if [[ "$__vsc_history_id" == "$__vsc_last_history_id" ]]; then
+	if [ "$__vsc_current_command" = "" ]; then
 		builtin printf "\033]633;D\007"
 	else
 		builtin printf "\033]633;D;%s\007" "$__vsc_status"
-		__vsc_last_history_id=$__vsc_history_id
 	fi
 	__vsc_update_cwd
 }
@@ -113,22 +105,27 @@ __vsc_update_prompt() {
 
 __vsc_precmd() {
 	__vsc_command_complete "$__vsc_status"
+	__vsc_current_command=""
 	__vsc_update_prompt
 }
 
 __vsc_preexec() {
-	if [ "$__vsc_in_command_execution" = "0" ]; then
-		__vsc_initialized=1
-		__vsc_in_command_execution="1"
-		__vsc_command_output_start
+	__vsc_initialized=1
+	if [[ ! "$BASH_COMMAND" =~ ^__vsc_prompt* ]]; then
+		__vsc_current_command=$BASH_COMMAND
+	else
+		__vsc_current_command=""
 	fi
+	__vsc_command_output_start
 }
 
 # Debug trapping/preexec inspired by starship (ISC)
 if [[ -n "${bash_preexec_imported:-}" ]]; then
 	__vsc_preexec_only() {
-		__vsc_status="$?"
-		__vsc_preexec
+		if [ "$__vsc_in_command_execution" = "0" ]; then
+			__vsc_in_command_execution="1"
+			__vsc_preexec
+		fi
 	}
 	precmd_functions+=(__vsc_prompt_cmd)
 	preexec_functions+=(__vsc_preexec_only)
@@ -136,15 +133,19 @@ else
 	__vsc_dbg_trap="$(trap -p DEBUG | cut -d' ' -f3 | tr -d \')"
 	if [[ -z "$__vsc_dbg_trap" ]]; then
 		__vsc_preexec_only() {
-			__vsc_status="$?"
-			__vsc_preexec
+			if [ "$__vsc_in_command_execution" = "0" ]; then
+				__vsc_in_command_execution="1"
+				__vsc_preexec
+			fi
 		}
 		trap '__vsc_preexec_only "$_"' DEBUG
 	elif [[ "$__vsc_dbg_trap" != '__vsc_preexec "$_"' && "$__vsc_dbg_trap" != '__vsc_preexec_all "$_"' ]]; then
 		__vsc_preexec_all() {
-			__vsc_status="$?"
-			builtin eval ${__vsc_dbg_trap}
-			__vsc_preexec
+			if [ "$__vsc_in_command_execution" = "0" ]; then
+				__vsc_in_command_execution="1"
+				builtin eval ${__vsc_dbg_trap}
+				__vsc_preexec
+			fi
 		}
 		trap '__vsc_preexec_all "$_"' DEBUG
 	fi
@@ -153,6 +154,7 @@ fi
 __vsc_update_prompt
 
 __vsc_prompt_cmd_original() {
+	__vsc_status="$?"
 	if [[ ${IFS+set} ]]; then
 		__vsc_original_ifs="$IFS"
 	fi

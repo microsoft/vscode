@@ -22,6 +22,7 @@ export interface ILanguagePackService {
 	readonly _serviceBrand: undefined;
 	getAvailableLanguages(): Promise<Array<ILanguagePackItem>>;
 	getInstalledLanguages(): Promise<Array<ILanguagePackItem>>;
+	getLocale(extension: IGalleryExtension): string | undefined;
 }
 
 export abstract class LanguagePackBaseService extends Disposable implements ILanguagePackService {
@@ -51,7 +52,7 @@ export abstract class LanguagePackBaseService extends Disposable implements ILan
 		const languagePackExtensions = result.firstPage.filter(e => e.properties.localizedLanguages?.length && e.tags.some(t => t.startsWith('lp-')));
 		const allFromMarketplace: ILanguagePackItem[] = languagePackExtensions.map(lp => {
 			const languageName = lp.properties.localizedLanguages?.[0];
-			const locale = lp.tags.find(t => t.startsWith('lp-'))!.split('lp-')[1];
+			const locale = this.getLocale(lp)!;
 			const baseQuickPick = this.createQuickPickItem({ locale, label: languageName });
 			return {
 				...baseQuickPick,
@@ -66,6 +67,10 @@ export abstract class LanguagePackBaseService extends Disposable implements ILan
 		});
 
 		return allFromMarketplace;
+	}
+
+	getLocale(extension: IGalleryExtension): string | undefined {
+		return extension.tags.find(t => t.startsWith('lp-'))?.split('lp-')[1];
 	}
 
 	protected createQuickPickItem(languageItem: { locale: string; label?: string | undefined }): IQuickPickItem {

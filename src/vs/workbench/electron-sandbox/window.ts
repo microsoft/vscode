@@ -68,8 +68,6 @@ import { dirname } from 'vs/base/common/resources';
 
 export class NativeWindow extends Disposable {
 
-	private static REMEMBER_PROXY_CREDENTIALS_KEY = 'window.rememberProxyCredentials';
-
 	private touchBarMenu: IMenu | undefined;
 	private readonly touchBarDisposables = this._register(new DisposableStore());
 	private lastInstalledTouchedBar: ICommandAction[][] | undefined;
@@ -215,7 +213,8 @@ export class NativeWindow extends Disposable {
 
 		// Proxy Login Dialog
 		ipcRenderer.on('vscode:openProxyAuthenticationDialog', async (event: unknown, payload: { authInfo: AuthInfo; username?: string; password?: string; replyChannel: string }) => {
-			const rememberCredentials = this.storageService.getBoolean(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, StorageScope.APPLICATION);
+			const rememberCredentialsKey = 'window.rememberProxyCredentials';
+			const rememberCredentials = this.storageService.getBoolean(rememberCredentialsKey, StorageScope.APPLICATION);
 			const result = await this.dialogService.input(Severity.Warning, localize('proxyAuthRequired', "Proxy Authentication Required"),
 				[
 					localize({ key: 'loginButton', comment: ['&& denotes a mnemonic'] }, "&&Log In"),
@@ -245,9 +244,9 @@ export class NativeWindow extends Disposable {
 
 				// Update state based on checkbox
 				if (result.checkboxChecked) {
-					this.storageService.store(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+					this.storageService.store(rememberCredentialsKey, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 				} else {
-					this.storageService.remove(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, StorageScope.APPLICATION);
+					this.storageService.remove(rememberCredentialsKey, StorageScope.APPLICATION);
 				}
 
 				// Reply back to main side with credentials
@@ -286,7 +285,7 @@ export class NativeWindow extends Disposable {
 				const file = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY, filterByScheme: Schemas.file });
 
 				// Represented Filename
-				this.updateRepresentedFilename(file?.fsPath);
+				this.nativeHostService.setRepresentedFilename(file?.fsPath ?? '');
 
 				// Custom title menu
 				this.provideCustomTitleContextMenu(file?.fsPath);
@@ -571,10 +570,6 @@ export class NativeWindow extends Disposable {
 		if (getZoomLevel() !== configuredZoomLevel) {
 			applyZoom(configuredZoomLevel);
 		}
-	}
-
-	private updateRepresentedFilename(filePath: string | undefined): void {
-		this.nativeHostService.setRepresentedFilename(filePath ? filePath : '');
 	}
 
 	private provideCustomTitleContextMenu(filePath: string | undefined): void {

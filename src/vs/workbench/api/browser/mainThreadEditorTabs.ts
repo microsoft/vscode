@@ -22,6 +22,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { isEqual } from 'vs/base/common/resources';
 import { isGroupEditorMoveEvent } from 'vs/workbench/common/editor/editorGroupModel';
+import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
 
 interface TabInfo {
 	tab: IEditorTabDto;
@@ -160,6 +161,14 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 					original: editor.original.resource
 				};
 			}
+		}
+
+		if (editor instanceof InteractiveEditorInput) {
+			return {
+				kind: TabInputKind.InteractiveEditorInput,
+				uri: editor.resource,
+				inputBoxUri: editor.inputResource
+			};
 		}
 
 		return { kind: TabInputKind.UnknownInput };

@@ -49,6 +49,7 @@ export class DeleteCellAction extends MenuItemAction {
 			},
 			undefined,
 			{ shouldForwardArgs: true },
+			undefined,
 			contextKeyService,
 			commandService);
 	}
@@ -469,7 +470,7 @@ registerAction2(class DetectCellLanguageAction extends NotebookCellAction {
 	constructor() {
 		super({
 			id: DETECT_CELL_LANGUAGE,
-			title: localize('detectLanguage', 'Accept Detected Language for Cell'),
+			title: { value: localize('detectLanguage', 'Accept Detected Language for Cell'), original: 'Accept Detected Language for Cell' },
 			f1: true,
 			precondition: ContextKeyExpr.and(NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
 			keybinding: { primary: KeyCode.KeyD | KeyMod.Alt | KeyMod.Shift, weight: KeybindingWeight.WorkbenchContrib }

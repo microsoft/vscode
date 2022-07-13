@@ -8,11 +8,27 @@
 	height: 30px;
 	display: flex;
 	align-content: center;
-	justify-content: space-between;
 }
 
-.monaco-workbench .merge-editor .code-view > .title .monaco-icon-label {
-	margin: auto 0;
+.monaco-workbench .merge-editor .code-view > .title>SPAN {
+	align-self: center;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	padding-right: 6px;
+}
+
+.monaco-workbench .merge-editor .code-view > .title>SPAN.title {
+	flex-shrink: 0;
+}
+
+.monaco-workbench .merge-editor .code-view > .title>SPAN.description {
+	opacity: 0.7;
+	font-size: 90%;
+}
+
+.monaco-workbench .merge-editor .code-view > .title>SPAN.detail {
+	margin-left: auto;
+	flex-shrink: 0;
 }
 
 .monaco-workbench .merge-editor .code-view > .container {

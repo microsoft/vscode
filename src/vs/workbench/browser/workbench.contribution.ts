@@ -245,7 +245,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.restoreViewState': {
 				'type': 'boolean',
-				'markdownDescription': localize('restoreViewState', "Restores the last editor view state (e.g. scroll position) when re-opening editors after they have been closed. Editor view state is stored per editor group and discarded when a group closes. Use the `#workbench.editor.sharedViewState#` setting to use the last known view state across all editor groups in case no previous view state was found for a editor group."),
+				'markdownDescription': localize('restoreViewState', "Restores the last editor view state (e.g. scroll position) when re-opening editors after they have been closed. Editor view state is stored per editor group and discarded when a group closes. Use the {0} setting to use the last known view state across all editor groups in case no previous view state was found for a editor group.", '`#workbench.editor.sharedViewState#`'),
 				'default': true,
 				'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
 			},
@@ -278,7 +278,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'number',
 				'default': 10,
 				'exclusiveMinimum': 0,
-				'markdownDescription': localize('limitEditorsMaximum', "Controls the maximum number of opened editors. Use the `#workbench.editor.limit.perEditorGroup#` setting to control this limit per editor group or across all groups.")
+				'markdownDescription': localize('limitEditorsMaximum', "Controls the maximum number of opened editors. Use the {0} setting to control this limit per editor group or across all groups.", '`#workbench.editor.limit.perEditorGroup#`')
 			},
 			'workbench.editor.limit.excludeDirty': {
 				'type': 'boolean',
@@ -540,12 +540,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'window.titleSeparator': {
 				'type': 'string',
 				'default': isMacintosh ? ' \u2014 ' : ' - ',
-				'markdownDescription': localize("window.titleSeparator", "Separator used by `window.title`.")
+				'markdownDescription': localize("window.titleSeparator", "Separator used by {0}.", '`#window.title#`')
 			},
 			'window.commandCenter': {
 				type: 'boolean',
 				default: false,
-				markdownDescription: localize('window.commandCenter', "Show command launcher together with the window title. This setting only has an effect when `#window.titleBarStyle#` is set to `custom`.")
+				markdownDescription: localize('window.commandCenter', "Show command launcher together with the window title. This setting only has an effect when {0} is set to {1}.", '`#window.titleBarStyle#`', '`custom`')
 			},
 			'window.menuBarVisibility': {
 				'type': 'string',
@@ -557,7 +557,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 						localize('window.menuBarVisibility.toggle.mac', "Menu is hidden but can be displayed at the top of the window by executing the `Focus Application Menu` command.") :
 						localize('window.menuBarVisibility.toggle', "Menu is hidden but can be displayed at the top of the window via the Alt key."),
 					localize('window.menuBarVisibility.hidden', "Menu is always hidden."),
-					localize('window.menuBarVisibility.compact', "Menu is displayed as a compact button in the side bar. This value is ignored when `#window.titleBarStyle#` is `native`.")
+					localize('window.menuBarVisibility.compact', "Menu is displayed as a compact button in the side bar. This value is ignored when {0} is {1}.", '`#window.titleBarStyle#`', '`native`')
 				],
 				'default': isWeb ? 'compact' : 'classic',
 				'scope': ConfigurationScope.APPLICATION,
