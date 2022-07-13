@@ -45,7 +45,7 @@ export function isISubmenuItem(item: IMenuItem | ISubmenuItem): item is ISubmenu
 
 export class MenuId {
 
-	private static readonly _idPool = new Set<string>();
+	private static readonly _instances = new Map<string, MenuId>();
 
 	static readonly CommandPalette = new MenuId('CommandPalette');
 	static readonly DebugBreakpointsContext = new MenuId('DebugBreakpointsContext');
@@ -162,14 +162,25 @@ export class MenuId {
 	static readonly NewFile = new MenuId('NewFile');
 	static readonly MergeToolbar = new MenuId('MergeToolbar');
 
+	/**
+	 * Create or reuse a `MenuId` with the given identifier
+	 */
+	static for(identifier: string): MenuId {
+		return MenuId._instances.get(identifier) ?? new MenuId(identifier);
+	}
 
 	readonly id: string;
 
+	/**
+	 * Create a new `MenuId` with the unique identifier. Will throw if a menu
+	 * with the identifier already exists, use `MenuId.for(ident)` or a unique
+	 * identifier
+	 */
 	constructor(identifier: string) {
-		if (MenuId._idPool.has(identifier)) {
-			throw new Error(`Duplicate menu identifier ${identifier}`);
+		if (MenuId._instances.has(identifier)) {
+			throw new TypeError(`MenuId with identifier '${identifier}' already exists. Use MenuId.for(ident) or a unique identifier`);
 		}
-		MenuId._idPool.add(identifier);
+		MenuId._instances.set(identifier, this);
 		this.id = identifier;
 	}
 }
