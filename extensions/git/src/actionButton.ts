@@ -186,15 +186,13 @@ export class ActionButtonCommand {
 		// Branch does have an upstream, commit/merge is in progress, or the button is disabled
 		if (this.state.HEAD?.upstream || this.state.isCommitInProgress || this.state.isMergeInProgress || !showActionButton.publish) { return undefined; }
 
-		const branchLocalizationComment = ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'];
-
 		return {
 			command: {
 				command: 'git.publish',
-				title: localize({ key: 'scm publish branch action button title', comment: branchLocalizationComment }, "{0} Publish Branch", '$(cloud-upload)'),
+				title: localize({ key: 'scm publish branch action button title', comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }, "{0} Publish Branch", '$(cloud-upload)'),
 				tooltip: this.state.isSyncInProgress ?
-					localize({ key: 'scm button publish branch running', comment: branchLocalizationComment }, "Publishing Branch...") :
-					localize({ key: 'scm button publish branch', comment: branchLocalizationComment }, "Publish Branch"),
+					localize({ key: 'scm button publish branch running', comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }, "Publishing Branch...") :
+					localize({ key: 'scm button publish branch', comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }, "Publish Branch"),
 				arguments: [this.repository.sourceControl],
 			},
 			enabled: !this.state.isSyncInProgress
