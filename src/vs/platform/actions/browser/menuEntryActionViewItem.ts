@@ -26,6 +26,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { isDark } from 'vs/platform/theme/common/theme';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { assertType } from 'vs/base/common/types';
 
 export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[] }, primaryGroup?: string): IDisposable {
 	const groups = menu.getActions(options);
@@ -129,6 +130,23 @@ export interface IMenuEntryActionViewItemOptions {
 	hoverDelegate?: IHoverDelegate;
 }
 
+function registerConfigureMenu(contextMenuService: IContextMenuService, item: BaseActionViewItem, action: MenuItemAction | SubmenuItemAction): IDisposable {
+	assertType(item.element);
+	return addDisposableListener(item.element, 'contextmenu', event => {
+		if (!action.hideActions) {
+			return;
+		}
+
+		event.preventDefault();
+		event.stopPropagation();
+
+		contextMenuService.showContextMenu({
+			getAnchor: () => item.element!,
+			getActions: () => action.hideActions!.asList()
+		});
+	}, true);
+}
+
 export class MenuEntryActionViewItem extends ActionViewItem {
 
 	private _wantsAltCommand: boolean = false;
@@ -204,20 +222,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 			updateAltState();
 		}));
 
-
-		this._register(addDisposableListener(container, 'contextmenu', event => {
-			if (!this._menuItemAction.hideActions) {
-				return;
-			}
-
-			event.preventDefault();
-			event.stopPropagation();
-
-			this._contextMenuService.showContextMenu({
-				getAnchor: () => container,
-				getActions: () => this._menuItemAction.hideActions!.asList()
-			});
-		}, true));
+		this._register(registerConfigureMenu(this._contextMenuService, this, this._menuItemAction));
 	}
 
 	override updateLabel(): void {
@@ -308,7 +313,7 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 	constructor(
 		action: SubmenuItemAction,
 		options: IDropdownMenuActionViewItemOptions | undefined,
-		@IContextMenuService contextMenuService: IContextMenuService,
+		@IContextMenuService protected _contextMenuService: IContextMenuService,
 		@IThemeService protected _themeService: IThemeService
 	) {
 		const dropdownOptions = Object.assign({}, options ?? Object.create(null), {
@@ -316,32 +321,35 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 			classNames: options?.classNames ?? (ThemeIcon.isThemeIcon(action.item.icon) ? ThemeIcon.asClassName(action.item.icon) : undefined),
 		});
 
-		super(action, { getActions: () => action.actions }, contextMenuService, dropdownOptions);
+		super(action, { getActions: () => action.actions }, _contextMenuService, dropdownOptions);
 	}
 
 	override render(container: HTMLElement): void {
 		super.render(container);
-		if (this.element) {
-			container.classList.add('menu-entry');
-			const { icon } = (<SubmenuItemAction>this._action).item;
-			if (icon && !ThemeIcon.isThemeIcon(icon)) {
-				this.element.classList.add('icon');
-				const setBackgroundImage = () => {
-					if (this.element) {
-						this.element.style.backgroundImage = (
-							isDark(this._themeService.getColorTheme().type)
-								? asCSSUrl(icon.dark)
-								: asCSSUrl(icon.light)
-						);
-					}
-				};
+		assertType(this.element);
+
+		container.classList.add('menu-entry');
+		const action = <SubmenuItemAction>this._action;
+		const { icon } = action.item;
+		if (icon && !ThemeIcon.isThemeIcon(icon)) {
+			this.element.classList.add('icon');
+			const setBackgroundImage = () => {
+				if (this.element) {
+					this.element.style.backgroundImage = (
+						isDark(this._themeService.getColorTheme().type)
+							? asCSSUrl(icon.dark)
+							: asCSSUrl(icon.light)
+					);
+				}
+			};
+			setBackgroundImage();
+			this._register(this._themeService.onDidColorThemeChange(() => {
+				// refresh when the theme changes in case we go between dark <-> light
 				setBackgroundImage();
-				this._register(this._themeService.onDidColorThemeChange(() => {
-					// refresh when the theme changes in case we go between dark <-> light
-					setBackgroundImage();
-				}));
-			}
+			}));
 		}
+
+		this._register(registerConfigureMenu(this._contextMenuService, this, action));
 	}
 }
 
@@ -461,6 +469,8 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 				event.stopPropagation();
 			}
 		}));
+
+		this._register(registerConfigureMenu(this._contextMenuService, this, (<SubmenuItemAction>this.action)));
 	}
 
 	override focus(fromRight?: boolean): void {
