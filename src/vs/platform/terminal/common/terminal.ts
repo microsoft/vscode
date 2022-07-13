@@ -785,6 +785,27 @@ export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSourc
 export type ITerminalProfileType = ITerminalProfile | IExtensionTerminalProfile;
 
 export interface IShellIntegration {
-	capabilities: ITerminalCapabilityStore;
+	readonly capabilities: ITerminalCapabilityStore;
+	readonly status: ShellIntegrationStatus;
+
+	readonly onDidChangeStatus: Event<ShellIntegrationStatus>;
+
 	deserialize(serialized: ISerializedCommandDetectionCapability): void;
+}
+
+export const enum ShellIntegrationStatus {
+	/** No shell integration sequences have been encountered. */
+	Off,
+	/** Final term shell integration sequences have been encountered. */
+	FinalTerm,
+	/** VS Code shell integration sequences have been encountered. Supercedes FinalTerm. */
+	VSCode
+}
+
+export enum TerminalExitReason {
+	Unknown = 0,
+	Shutdown = 1,
+	Process = 2,
+	User = 3,
+	Extension = 4,
 }

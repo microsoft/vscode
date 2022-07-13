@@ -338,6 +338,10 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		}
 		this.saveStoredProfiles(storedProfiles);
 		this._profilesObject = undefined;
+		this.triggerProfilesChanges(added, removed);
+	}
+
+	protected triggerProfilesChanges(added: IUserDataProfile[], removed: IUserDataProfile[]) {
 		this._onDidChangeProfiles.fire({ added, removed, all: this.profiles });
 	}
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { AppInsightsCore } from '@microsoft/1ds-core-js';
 import * as assert from 'assert';
-import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
+import { OneDataSystemWebAppender } from 'vs/platform/telemetry/browser/1dsAppender';
 
 class AppInsightsCoreMock extends AppInsightsCore {
 	public override config: any;
@@ -27,13 +27,13 @@ class AppInsightsCoreMock extends AppInsightsCore {
 
 suite('AIAdapter', () => {
 	let appInsightsMock: AppInsightsCoreMock;
-	let adapter: OneDataSystemAppender;
+	let adapter: OneDataSystemWebAppender;
 	const prefix = 'prefix';
 
 
 	setup(() => {
 		appInsightsMock = new AppInsightsCoreMock();
-		adapter = new OneDataSystemAppender(undefined, prefix, undefined!, () => appInsightsMock);
+		adapter = new OneDataSystemWebAppender(undefined, prefix, undefined!, () => appInsightsMock);
 	});
 
 	teardown(() => {
@@ -48,7 +48,7 @@ suite('AIAdapter', () => {
 	});
 
 	test('addional data', () => {
-		adapter = new OneDataSystemAppender(undefined, prefix, { first: '1st', second: 2, third: true }, () => appInsightsMock);
+		adapter = new OneDataSystemWebAppender(undefined, prefix, { first: '1st', second: 2, third: true }, () => appInsightsMock);
 		adapter.log('testEvent');
 
 		assert.strictEqual(appInsightsMock.events.length, 1);

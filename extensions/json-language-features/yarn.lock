@@ -100,19 +100,19 @@ vscode-jsonrpc@8.0.2-next.1:
   resolved "https://registry.yarnpkg.com/vscode-jsonrpc/-/vscode-jsonrpc-8.0.2-next.1.tgz#6bdc39fd194782032e34047eeefce562941259c6"
   integrity sha512-sbbvGSWja7NVBLHPGawtgezc8DHYJaP4qfr/AaJiyDapWcSFtHyPtm18+LnYMLTmB7bhOUW/lf5PeeuLpP6bKA==
 
-vscode-languageclient@^8.0.2-next.4:
-  version "8.0.2-next.4"
-  resolved "https://registry.yarnpkg.com/vscode-languageclient/-/vscode-languageclient-8.0.2-next.4.tgz#87dd364ffbd4356aff3af14e7b557d9fe34d2b67"
-  integrity sha512-j9BEiCYMN9IoKwYdk9iickV6WNPVGPoVO11SMdoxFnWPIT3y5UAe3qf/WsfA9OdklAIaxxYasfgyKCpBjSPNuw==
+vscode-languageclient@^8.0.2-next.5:
+  version "8.0.2-next.5"
+  resolved "https://registry.yarnpkg.com/vscode-languageclient/-/vscode-languageclient-8.0.2-next.5.tgz#3238a388585c3119e247f761b4355273cc2fd909"
+  integrity sha512-g87RJLHz0XlRyk6DOTbAk4JHcj8CKggXy4JiFL7OlhETkcYzTOR8d+Qdb4GqZr37PDs1Cl21omtTNK5LyR/RQg==
   dependencies:
     minimatch "^3.0.4"
     semver "^7.3.5"
-    vscode-languageserver-protocol "3.17.2-next.5"
+    vscode-languageserver-protocol "3.17.2-next.6"
 
-vscode-languageserver-protocol@3.17.2-next.5:
-  version "3.17.2-next.5"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol/-/vscode-languageserver-protocol-3.17.2-next.5.tgz#9bc747411c3ce9e1d73c2714bf6555e0199eec26"
-  integrity sha512-UlH+QL4Q4lX94of/UPDDwwWIkd8w7dtMW4khzvEDUoykiG9tba0iG6V0bAiv8XVpnBIUYjL2FNFiL3zl+TY1Sw==
+vscode-languageserver-protocol@3.17.2-next.6:
+  version "3.17.2-next.6"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol/-/vscode-languageserver-protocol-3.17.2-next.6.tgz#8f1dc0fcb29366b85f623a3f9af726de433b5fcc"
+  integrity sha512-WtsebNOOkWyNn4oFYoAMPC8Q/ZDoJ/K7Ja53OzTixiitvrl/RpXZETrtzH79R8P5kqCyx6VFBPb6KQILJfkDkA==
   dependencies:
     vscode-jsonrpc "8.0.2-next.1"
     vscode-languageserver-types "3.17.2-next.2"

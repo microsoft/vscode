@@ -1608,7 +1608,6 @@ declare module 'vscode' {
 		/**
 		 * The event listeners can subscribe to.
 		 */
-		// eslint-disable-next-line vscode-dts-event-naming
 		event: Event<T>;
 
 		/**

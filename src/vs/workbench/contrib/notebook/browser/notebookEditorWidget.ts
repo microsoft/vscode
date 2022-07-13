@@ -1100,6 +1100,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			}
 			type WorkbenchNotebookOpenClassification = {
 				owner: 'rebornix';
+				comment: 'Identify the notebook editor view type';
 				scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 				ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 				viewType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
@@ -1692,8 +1693,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	private _restoreSelectedKernel(viewState: INotebookEditorViewState | undefined): void {
 		if (viewState?.selectedKernelId && this.textModel) {
-			const kernel = this.notebookKernelService.getMatchingKernel(this.textModel).all.find(k => k.id === viewState.selectedKernelId);
-			if (kernel) {
+			const matching = this.notebookKernelService.getMatchingKernel(this.textModel);
+			const kernel = matching.all.find(k => k.id === viewState.selectedKernelId);
+			// Selected kernel may have already been picked prior to the view state loading
+			// If so, don't overwrite it with the saved kernel.
+			if (kernel && !matching.selected) {
 				this.notebookKernelService.selectKernelForNotebook(kernel, this.textModel);
 			}
 		}

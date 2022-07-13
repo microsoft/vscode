@@ -1576,7 +1576,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// again to see if anything needs to happen before closing for good.
 		// This can happen for example if `autoSave: onFocusChange` is configured
 		// so that the save happens when the dialog opens.
-		if (!this.shouldConfirmClose(editor)) {
+		// However, we only do this unless a custom confirm handler is installed
+		// that may not be fit to be asked a second time right after.
+		if (!editor.closeHandler && !this.shouldConfirmClose(editor)) {
 			return confirmation === ConfirmResult.CANCEL ? true : false;
 		}
 

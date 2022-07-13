@@ -259,7 +259,8 @@ export function isMonacoEditor(e: HTMLElement): boolean {
 }
 
 export function isButton(e: HTMLElement): boolean {
-	if (e.tagName === 'A' && e.classList.contains('monaco-button')) {
+	if ((e.tagName === 'A' && e.classList.contains('monaco-button')) ||
+		(e.tagName === 'DIV' && e.classList.contains('monaco-button-dropdown'))) {
 		return true;
 	}
 
