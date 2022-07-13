@@ -333,6 +333,7 @@ export class InteractiveEditor extends EditorPane {
 			menuIds: {
 				notebookToolbar: MenuId.InteractiveToolbar,
 				cellTitleToolbar: MenuId.InteractiveCellTitle,
+				cellDeleteToolbar: MenuId.InteractiveCellDelete,
 				cellInsertToolbar: MenuId.NotebookCellBetween,
 				cellTopInsertToolbar: MenuId.NotebookCellListTop,
 				cellExecuteToolbar: MenuId.InteractiveCellExecute,
