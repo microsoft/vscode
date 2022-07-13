@@ -651,7 +651,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const editorService = accessor.get(IEditorService);
 
 		await editorService.openEditor({
-			resource: args?.path ? URI.from({ scheme: Schemas.untitled, path: `Untitled-${args.path}` }) : undefined,
+			resource: args?.path ? URI.from({ scheme: Schemas.untitled, path: args.path }) : undefined,
 			options: {
 				override: args?.viewType,
 				pinned: true
