@@ -319,7 +319,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._waitForSupportedExecutions = new Promise(resolve => {
 			once(this._onDidRegisterSupportedExecutions.event)(() => resolve());
 		});
-		this._updateWorkspaceTasks();
 		this._upgrade();
 	}
 
@@ -341,8 +340,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _restartTasks(): Promise<void> {
-		//TODO: remove?
-		await this.getWorkspaceTasks();
 		const recentlyUsedTasks = await this.readRecentTasks();
 		if (!recentlyUsedTasks) {
 			return;
@@ -924,8 +921,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const readTasksMap: Map<string, (Task | ConfiguringTask)> = new Map();
 
 		async function readTasks(that: AbstractTaskService, map: Map<string, any>, isWorkspaceFile: boolean) {
-			//TODO: remove?
-			await that._getGroupedTasks();
 			for (const key of map.keys()) {
 				const custom: CustomTask[] = [];
 				const customized: IStringDictionary<ConfiguringTask> = Object.create(null);
