@@ -4335,24 +4335,24 @@
 		"c": "```",
 		"t": "text.html.markdown markup.fenced_code.block.markdown punctuation.definition.markdown",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "markup.fenced_code.block: #CE9178",
+			"light_plus": "markup.fenced_code.block: #800000",
+			"dark_vs": "markup.fenced_code.block: #CE9178",
+			"light_vs": "markup.fenced_code.block: #800000",
 			"hc_black": "default: #FFFFFF",
-			"hc_light": "default: #292929"
+			"hc_light": "markup.fenced_code.block: #0F4A85"
 		}
 	},
 	{
 		"c": "txt",
 		"t": "text.html.markdown markup.fenced_code.block.markdown fenced_code.block.language",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "markup.fenced_code.block: #CE9178",
+			"light_plus": "markup.fenced_code.block: #800000",
+			"dark_vs": "markup.fenced_code.block: #CE9178",
+			"light_vs": "markup.fenced_code.block: #800000",
 			"hc_black": "default: #FFFFFF",
-			"hc_light": "default: #292929"
+			"hc_light": "markup.fenced_code.block: #0F4A85"
 		}
 	},
 	{
@@ -4371,7 +4371,7 @@
 		"c": "\\displaystyle",
 		"t": "text.html.markdown markup.fenced_code.block.markdown",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
+			"dark_plus": "markup.fenced_code.block: #CE9178",
 			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
@@ -4443,12 +4443,12 @@
 		"c": "```",
 		"t": "text.html.markdown markup.fenced_code.block.markdown punctuation.definition.markdown",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "markup.fenced_code.block: #CE9178",
+			"light_plus": "markup.fenced_code.block: #800000",
+			"dark_vs": "markup.fenced_code.block: #CE9178",
+			"light_vs": "markup.fenced_code.block: #800000",
 			"hc_black": "default: #FFFFFF",
-			"hc_light": "default: #292929"
+			"hc_light": "markup.fenced_code.block: #0F4A85"
 		}
 	},
 	{
