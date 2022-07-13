@@ -13,7 +13,7 @@ import { getLine, ITextDocument } from '../types/textDocument';
 import { coalesce } from '../util/arrays';
 import { noopToken } from '../util/cancellation';
 import { Disposable } from '../util/dispose';
-import { getUriForLinkWithKnownExternalScheme, isOfScheme, Schemes } from '../util/schemes';
+import { Schemes } from '../util/schemes';
 import { MdDocumentInfoCache } from '../util/workspaceCache';
 import { IMdWorkspace } from '../workspace';
 
@@ -43,14 +43,6 @@ function resolveLink(
 	link: string,
 ): ExternalHref | InternalHref | undefined {
 	const cleanLink = stripAngleBrackets(link);
-	const externalSchemeUri = getUriForLinkWithKnownExternalScheme(cleanLink);
-	if (externalSchemeUri) {
-		// Normalize VS Code links to target currently running version
-		if (isOfScheme(Schemes.vscode, link) || isOfScheme(Schemes['vscode-insiders'], link)) {
-			return { kind: 'external', uri: vscode.Uri.parse(link).with({ scheme: vscode.env.uriScheme }) };
-		}
-		return { kind: 'external', uri: externalSchemeUri };
-	}
 
 	if (/^[a-z\-][a-z\-]+:/i.test(cleanLink)) {
 		// Looks like a uri
@@ -573,6 +565,11 @@ export class MdVsCodeLinkProvider implements vscode.DocumentLinkProvider {
 	private toValidDocumentLink(link: MdLink, definitionSet: LinkDefinitionSet): vscode.DocumentLink | undefined {
 		switch (link.href.kind) {
 			case 'external': {
+				let target = link.href.uri;
+				// Normalize VS Code links to target currently running version
+				if (link.href.uri.scheme === Schemes.vscode || link.href.uri.scheme === Schemes['vscode-insiders']) {
+					target = target.with({ scheme: vscode.env.uriScheme });
+				}
 				return new vscode.DocumentLink(link.source.hrefRange, link.href.uri);
 			}
 			case 'internal': {

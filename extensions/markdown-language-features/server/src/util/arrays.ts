@@ -3,15 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export const Schemes = Object.freeze({
-	file: 'file',
-	untitled: 'untitled',
-	mailto: 'mailto',
-	vscode: 'vscode',
-	'vscode-insiders': 'vscode-insiders',
-	notebookCell: 'vscode-notebook-cell',
-});
-
-export function isOfScheme(scheme: string, link: string): boolean {
-	return link.toLowerCase().startsWith(scheme + ':');
+/**
+ * @returns New array with all falsy values removed. The original array IS NOT modified.
+ */
+export function coalesce<T>(array: ReadonlyArray<T | undefined | null>): T[] {
+	return <T[]>array.filter(e => !!e);
 }
