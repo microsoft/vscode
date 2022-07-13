@@ -245,6 +245,11 @@ configurationRegistry.registerConfiguration({
 			'minimum': 0,
 			'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'autoSaveDelay' }, "Controls the delay in milliseconds after which an editor with unsaved changes is saved automatically. Only applies when `#files.autoSave#` is set to `{0}`.", AutoSaveConfiguration.AFTER_DELAY)
 		},
+		'files.codeActionsOnAutoSave': {
+			'type': 'boolean',
+			'default': false,
+			'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.codeActionsOnAutoSave' }, "Controls if code actions should run when files are saved automatically. Only applies when `#files.autoSave#` is not set to `{0}`.", AutoSaveConfiguration.OFF)
+		},
 		'files.watcherExclude': {
 			'type': 'object',
 			'default': { '**/.git/objects/**': true, '**/.git/subtree-cache/**': true, '**/node_modules/*/**': true, '**/.hg/store/**': true },

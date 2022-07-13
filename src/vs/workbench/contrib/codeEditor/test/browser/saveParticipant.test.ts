@@ -67,6 +67,22 @@ suite('Save Participants', function () {
 		assert.strictEqual(snapshotToString(model.createSnapshot()!), `${lineContent}${model.textEditorModel.getEOL()}`);
 	});
 
+	test('runs if enabled to run on autosave', async function () {
+		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/final_new_line.txt'), 'utf8', undefined) as IResolvedTextFileEditorModel;
+
+		await model.resolve();
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration('files', { 'insertFinalNewline': true });
+		configService.setUserConfiguration('files', { 'codeActionsOnAutoSave': true });
+		const participant = new FinalNewLineParticipant(configService, undefined!);
+
+		const lineContent = 'Hello New Line';
+		model.textEditorModel.setValue(lineContent);
+		await participant.participate(model, { reason: SaveReason.AUTO });
+		assert.strictEqual(snapshotToString(model.createSnapshot()!), `${lineContent}${model.textEditorModel.getEOL()}`);
+
+	});
+
 	test('trim final new lines', async function () {
 		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/trim_final_new_line.txt'), 'utf8', undefined) as IResolvedTextFileEditorModel;
 

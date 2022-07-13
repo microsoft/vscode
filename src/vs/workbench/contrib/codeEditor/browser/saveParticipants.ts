@@ -278,8 +278,10 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 			return;
 		}
 
+
+		const codeActionsOnAutoSave = this.configurationService.getValue<{ [kind: string]: boolean } | string[]>('files.codeActionsOnAutoSave');
 		// Do not run code actions on auto save
-		if (env.reason !== SaveReason.EXPLICIT) {
+		if (!codeActionsOnAutoSave && env.reason !== SaveReason.EXPLICIT) {
 			return undefined;
 		}
 
