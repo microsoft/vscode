@@ -13,7 +13,7 @@ const https = require("https");
 const path = require("path");
 const sysroots_1 = require("./sysroots");
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:build/linux/sysroot_scripts/install-sysroot.py.
-const URL_PREFIX = 'https://msftelectron.blob.core.windows.net/';
+const URL_PREFIX = 'https://msftelectron.blob.core.windows.net';
 const URL_PATH = 'sysroots/toolchain';
 function getSha(filename) {
     const hash = (0, crypto_1.createHash)('sha1');
@@ -59,6 +59,7 @@ async function getSysroot(arch) {
                 });
             }).on('error', (err) => {
                 console.error('Encountered an error during the download attempt: ' + err.message);
+                c();
             });
         });
     }

@@ -13,7 +13,7 @@ import { sysrootInfo } from './sysroots';
 import { ArchString } from './types';
 
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:build/linux/sysroot_scripts/install-sysroot.py.
-const URL_PREFIX = 'https://msftelectron.blob.core.windows.net/';
+const URL_PREFIX = 'https://msftelectron.blob.core.windows.net';
 const URL_PATH = 'sysroots/toolchain';
 
 function getSha(filename: fs.PathLike): string {
@@ -68,6 +68,7 @@ export async function getSysroot(arch: ArchString): Promise<string> {
 				});
 			}).on('error', (err) => {
 				console.error('Encountered an error during the download attempt: ' + err.message);
+				c();
 			});
 		});
 	}
