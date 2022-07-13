@@ -127,7 +127,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'logsPath': { type: 'string' },
 	'__enable-file-policy': { type: 'boolean' },
 	'editSessionId': { type: 'string' },
-	'shell-integration': { type: 'boolean' },
+	'shell-integration': { type: 'string' },
 
 	// chromium flags
 	'no-proxy-server': { type: 'boolean' },

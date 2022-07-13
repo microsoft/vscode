@@ -26,6 +26,7 @@ import { randomPath } from 'vs/base/common/extpath';
 import { Utils } from 'vs/platform/profiling/common/profiling';
 import { dirname } from 'vs/base/common/resources';
 import { FileAccess } from 'vs/base/common/network';
+import { join } from 'path';
 
 function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
 	return !!argv['install-source']
@@ -67,15 +68,17 @@ export async function main(argv: string[]): Promise<any> {
 		if (process.env['TERM_PROGRAM'] !== 'vscode') {
 			return;
 		}
-		let p: string;
+		let file: string;
 		switch (args['shell-integration']) {
-			case 'bash': p = 'vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration-bash.sh'; break;
-			// Usage: if ($s=$(code --shell-integration pwsh)) { . $s }
-			case 'pwsh': p = 'vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1'; break;
-			case 'zsh': p = 'vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration-rc.zsh'; break;
+			// Usage: `. "$(code --shell-integration bash)"`
+			case 'bash': file = 'shellIntegration-bash.sh'; break;
+			// Usage: `if ($s=$(code --shell-integration pwsh)) { . $s }`
+			case 'pwsh': file = 'shellIntegration.ps1'; break;
+			// Usage: `. "$(code --shell-integration zsh)"`
+			case 'zsh': file = 'shellIntegration-rc.zsh'; break;
 			default: throw new Error('Error using --shell-integration: Invalid shell type');
 		}
-		console.log(`${dirname(FileAccess.asFileUri('', require)).fsPath}\\out\\${p}`);
+		console.log(join(dirname(FileAccess.asFileUri('', require)).fsPath, 'out', 'vs', 'workbench', 'contrib', 'terminal', 'browser', 'media', file));
 	}
 
 	// Extensions Management
