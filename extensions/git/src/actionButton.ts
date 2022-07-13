@@ -9,7 +9,7 @@ import { ApiRepository } from './api/api1';
 import { Branch, Status } from './api/git';
 import { IPostCommitCommandsProviderRegistry } from './postCommitCommands';
 import { Repository, Operation } from './repository';
-import { anyEvent, dispose } from './util';
+import { dispose } from './util';
 
 const localize = nls.loadMessageBundle();
 
@@ -50,10 +50,7 @@ export class ActionButtonCommand {
 		repository.onDidRunGitStatus(this.onDidRunGitStatus, this, this.disposables);
 		repository.onDidChangeOperations(this.onDidChangeOperations, this, this.disposables);
 
-		const postCommitCommandsProviderRegistryChanged = anyEvent(
-			postCommitCommandsProviderRegistry.onDidAddPostCommitCommandsProvider,
-			postCommitCommandsProviderRegistry.onDidRemovePostCommitCommandsProvider);
-		this.disposables.push(postCommitCommandsProviderRegistryChanged(() => this._onDidChange.fire()));
+		this.disposables.push(postCommitCommandsProviderRegistry.onDidChangePostCommitCommandsProviders(() => this._onDidChange.fire()));
 
 		const root = Uri.file(repository.root);
 		this.disposables.push(workspace.onDidChangeConfiguration(e => {

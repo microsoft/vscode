@@ -108,11 +108,8 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 
 	private postCommitCommandsProviders = new Set<PostCommitCommandsProvider>();
 
-	private _onDidAddPostCommitCommandsProvider = new EventEmitter<PostCommitCommandsProvider>();
-	readonly onDidAddPostCommitCommandsProvider = this._onDidAddPostCommitCommandsProvider.event;
-
-	private _onDidRemovePostCommitCommandsProvider = new EventEmitter<PostCommitCommandsProvider>();
-	readonly onDidRemovePostCommitCommandsProvider = this._onDidRemovePostCommitCommandsProvider.event;
+	private _onDidChangePostCommitCommandsProviders = new EventEmitter<void>();
+	readonly onDidChangePostCommitCommandsProviders = this._onDidChangePostCommitCommandsProviders.event;
 
 	private showRepoOnHomeDriveRootWarning = true;
 	private pushErrorHandlers = new Set<PushErrorHandler>();
@@ -597,11 +594,11 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 
 	registerPostCommitCommandsProvider(provider: PostCommitCommandsProvider): Disposable {
 		this.postCommitCommandsProviders.add(provider);
-		this._onDidAddPostCommitCommandsProvider.fire(provider);
+		this._onDidChangePostCommitCommandsProviders.fire();
 
 		return toDisposable(() => {
 			this.postCommitCommandsProviders.delete(provider);
-			this._onDidRemovePostCommitCommandsProvider.fire(provider);
+			this._onDidChangePostCommitCommandsProviders.fire();
 		});
 	}
 

@@ -8,8 +8,7 @@ import { Command, Disposable, Event } from 'vscode';
 import { PostCommitCommandsProvider } from './api/git';
 
 export interface IPostCommitCommandsProviderRegistry {
-	readonly onDidAddPostCommitCommandsProvider: Event<PostCommitCommandsProvider>;
-	readonly onDidRemovePostCommitCommandsProvider: Event<PostCommitCommandsProvider>;
+	readonly onDidChangePostCommitCommandsProviders: Event<void>;
 
 	getPostCommitCommandsProviders(): PostCommitCommandsProvider[];
 	registerPostCommitCommandsProvider(provider: PostCommitCommandsProvider): Disposable;
