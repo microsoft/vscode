@@ -25,6 +25,8 @@ import { TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR, TERMINAL_COMMAND_
 import { Color } from 'vs/base/common/color';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProcess';
+import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { Codicon } from 'vs/base/common/codicons';
 
 const enum DecorationSelector {
 	CommandDecoration = 'terminal-command-decoration',
@@ -65,7 +67,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@IOpenerService private readonly _openerService: IOpenerService
+		@IOpenerService private readonly _openerService: IOpenerService,
+		@IQuickInputService private readonly _quickInputService: IQuickInputService
 	) {
 		super();
 		this._register(toDisposable(() => this._dispose()));
@@ -431,12 +434,101 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (actions.length > 0) {
 			actions.push(new Separator());
 		}
-		const label = localize("terminal.learnShellIntegration", 'Learn About Shell Integration');
+		const labelConfigure = localize("terminal.configureCommandDecorations", 'Configure Command Decorations');
 		actions.push({
-			class: undefined, tooltip: label, dispose: () => { }, id: 'terminal.learnShellIntegration', label, enabled: true,
+			class: undefined, tooltip: labelConfigure, dispose: () => { }, id: 'terminal.configureCommandDecorations', label: labelConfigure, enabled: true,
+			run: () => this._showConfigureCommandDecorationsQuickPick()
+		});
+		const labelAbout = localize("terminal.learnShellIntegration", 'Learn About Shell Integration');
+		actions.push({
+			class: undefined, tooltip: labelAbout, dispose: () => { }, id: 'terminal.learnShellIntegration', label: labelAbout, enabled: true,
 			run: () => this._openerService.open('https://code.visualstudio.com/docs/editor/integrated-terminal#_shell-integration')
 		});
 		return actions;
+	}
+
+	private async _showConfigureCommandDecorationsQuickPick() {
+		const quickPick = this._quickInputService.createQuickPick();
+		quickPick.items = [
+			{ id: 'a', label: localize('changeDefaultIcon', 'Change default icon') },
+			{ id: 'b', label: localize('changeSuccessIcon', 'Change success icon') },
+			{ id: 'c', label: localize('changeErrorIcon', 'Change error icon') },
+			{ type: 'separator' },
+			{ id: 'd', label: localize('toggleVisibility', 'Toggle visibility') },
+		];
+		quickPick.canSelectMany = false;
+		quickPick.onDidAccept(async e => {
+			quickPick.hide();
+			const result = quickPick.activeItems[0];
+			let iconSetting: string | undefined;
+			switch (result.id) {
+				case 'a': iconSetting = TerminalSettingId.ShellIntegrationDecorationIcon; break;
+				case 'b': iconSetting = TerminalSettingId.ShellIntegrationDecorationIconSuccess; break;
+				case 'c': iconSetting = TerminalSettingId.ShellIntegrationDecorationIconError; break;
+				case 'd': this._showToggleVisibilityQuickPick(); break;
+			}
+			if (iconSetting) {
+				this._showChangeIconQuickPick(iconSetting);
+			}
+		});
+		quickPick.show();
+	}
+
+	private async _showChangeIconQuickPick(iconSetting: string) {
+		type Item = IQuickPickItem & { icon: Codicon };
+		const items: Item[] = [];
+		for (const icon of Codicon.getAll()) {
+			items.push({ label: `$(${icon.id})`, description: `${icon.id}`, icon });
+		}
+		const result = await this._quickInputService.pick(items, {
+			matchOnDescription: true
+		});
+		if (result) {
+			this._configurationService.updateValue(iconSetting, result.icon.id);
+			this._showConfigureCommandDecorationsQuickPick();
+		}
+	}
+
+	private _showToggleVisibilityQuickPick() {
+		const quickPick = this._quickInputService.createQuickPick();
+		quickPick.hideInput = true;
+		quickPick.hideCheckAll = true;
+		quickPick.canSelectMany = true;
+		quickPick.title = localize('toggleVisibility', 'Toggle visibility');
+		const configValue = this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled);
+		const gutterIcon: IQuickPickItem = {
+			label: localize('gutter', 'Gutter command decorations'),
+			picked: configValue !== 'never' && configValue !== 'overviewRuler'
+		};
+		const overviewRulerIcon: IQuickPickItem = {
+			label: localize('overviewRuler', 'Overview ruler command decorations'),
+			picked: configValue !== 'never' && configValue !== 'gutter'
+		};
+		quickPick.items = [gutterIcon, overviewRulerIcon];
+		const selectedItems: IQuickPickItem[] = [];
+		if (configValue !== 'never') {
+			if (configValue !== 'gutter') {
+				selectedItems.push(gutterIcon);
+			}
+			if (configValue !== 'overviewRuler') {
+				selectedItems.push(overviewRulerIcon);
+			}
+		}
+		quickPick.selectedItems = selectedItems;
+		quickPick.onDidChangeSelection(async e => {
+			let newValue: 'both' | 'gutter' | 'overviewRuler' | 'never' = 'never';
+			if (e.includes(gutterIcon)) {
+				if (e.includes(overviewRulerIcon)) {
+					newValue = 'both';
+				} else {
+					newValue = 'gutter';
+				}
+			} else if (e.includes(overviewRulerIcon)) {
+				newValue = 'overviewRuler';
+			}
+			await this._configurationService.updateValue(TerminalSettingId.ShellIntegrationDecorationsEnabled, newValue);
+		});
+		quickPick.show();
 	}
 }
 let successColor: string | Color | undefined;
