@@ -11,7 +11,7 @@
 	right: 18px;
 	width: var(--notebook-find-width);
 	max-width: calc(100% - 28px - 28px - 8px);
-	padding:0 4px;
+	padding:0 var(--notebook-find-horizontal-padding);
 	transition: top 200ms linear;
 	visibility: hidden;
 }

@@ -58,7 +58,8 @@ const NOTEBOOK_FIND_IN_MARKUP_PREVIEW = nls.localize('notebook.find.filter.findI
 const NOTEBOOK_FIND_IN_CODE_INPUT = nls.localize('notebook.find.filter.findInCodeInput', "Code Cell Source");
 const NOTEBOOK_FIND_IN_CODE_OUTPUT = nls.localize('notebook.find.filter.findInCodeOutput', "Cell Output");
 
-const NOTEBOOK_FIND_WIDGET_INITIAL_WIDTH = 318;
+const NOTEBOOK_FIND_WIDGET_INITIAL_WIDTH = 322;
+const NOTEBOOK_FIND_WIDGET_INITIAL_HORIZONTAL_PADDING = 4;
 class NotebookFindFilterActionViewItem extends DropdownMenuActionViewItem {
 	constructor(readonly filters: NotebookFindFilters, action: IAction, actionRunner: IActionRunner, @IContextMenuService contextMenuService: IContextMenuService) {
 		super(action,
@@ -260,10 +261,9 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	protected _replaceBtn!: SimpleButton;
 	protected _replaceAllBtn!: SimpleButton;
 
-	private readonly _westSash: Sash;
-	private _resized: boolean = false;
+	private readonly _resizeSash: Sash;
 	private readonly _sashListener = new DisposableStore();
-
+	private _resizeOriginalWidth = NOTEBOOK_FIND_WIDGET_INITIAL_WIDTH;
 
 	private _isVisible: boolean = false;
 	private _isReplaceVisible: boolean = false;
@@ -485,44 +485,59 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._innerReplaceDomNode.appendChild(this._replaceBtn.domNode);
 		this._innerReplaceDomNode.appendChild(this._replaceAllBtn.domNode);
 
-		this._westSash = new Sash(this._domNode, { getVerticalSashLeft: () => 0 }, { orientation: Orientation.VERTICAL, size: 2 });
+		this._resizeSash = new Sash(this._domNode, { getVerticalSashLeft: () => 0 }, { orientation: Orientation.VERTICAL, size: 2 });
 
-		let originalWidth = NOTEBOOK_FIND_WIDGET_INITIAL_WIDTH;
-
-		this._sashListener.add(this._westSash.onDidStart(() => {
-			originalWidth = dom.getTotalWidth(this._domNode);
+		this._sashListener.add(this._resizeSash.onDidStart(() => {
+			this._resizeOriginalWidth = this._getDomWidth();
 		}));
-		this._sashListener.add(this._westSash.onDidChange((evt: ISashEvent) => {
-			this._resized = true;
-			const width = originalWidth + evt.startX - evt.currentX;
+
+		this._sashListener.add(this._resizeSash.onDidChange((evt: ISashEvent) => {
+			let width = this._resizeOriginalWidth + evt.startX - evt.currentX;
 			if (width < NOTEBOOK_FIND_WIDGET_INITIAL_WIDTH) {
-				return;
+				width = NOTEBOOK_FIND_WIDGET_INITIAL_WIDTH;
 			}
 
 			const maxWidth = this._getMaxWidth();
 			if (width > maxWidth) {
-				return;
+				width = maxWidth;
+			}
+
+			this._domNode.style.width = `${width}px`;
+
+			if (this._isReplaceVisible) {
+				this._replaceInput.width = dom.getTotalWidth(this._findInput.domNode);
+			}
+
+			this._findInput.inputBox.layout();
+		}));
+
+		this._sashListener.add(this._resizeSash.onDidReset(() => {
+			// users double click on the sash
+			// try to emulate what happens with editor findWidget
+			const currentWidth = this._getDomWidth();
+			let width = NOTEBOOK_FIND_WIDGET_INITIAL_WIDTH;
+
+			if (currentWidth <= NOTEBOOK_FIND_WIDGET_INITIAL_WIDTH) {
+				width = this._getMaxWidth();
 			}
 
 			this._domNode.style.width = `${width}px`;
 			if (this._isReplaceVisible) {
 				this._replaceInput.width = dom.getTotalWidth(this._findInput.domNode);
 			}
+
 			this._findInput.inputBox.layout();
-		}));
-		this._sashListener.add(this._westSash.onDidReset(() => {
-			// this._domNode.style.width = `${NOTEBOOK_FIND_WIDGET_INITIAL_WIDTH}px`;
-			const layoutInfo = this._notebookEditor.getLayoutInfo();
-			console.log(layoutInfo);
-			console.log(this._domNode.style.width);
-			// const layoutInfo = notebookEditor
-			// width = layoutInfo.width - 28 - layoutInfo.minimap.minimapWidth - 15;
 		}));
 	}
 
 	private _getMaxWidth() {
 		return this._notebookEditor.getLayoutInfo().width - 64;
 	}
+
+	private _getDomWidth() {
+		return dom.getTotalWidth(this._domNode) - (NOTEBOOK_FIND_WIDGET_INITIAL_HORIZONTAL_PADDING * 2);
+	}
+
 	getCellToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IAction[] } {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
@@ -788,6 +803,7 @@ registerThemingParticipant((theme, collector) => {
 	collector.addRule(`
 	:root {
 		--notebook-find-width: ${NOTEBOOK_FIND_WIDGET_INITIAL_WIDTH}px;
+		--notebook-find-horizontal-padding: ${NOTEBOOK_FIND_WIDGET_INITIAL_HORIZONTAL_PADDING}px;
 	}
 	`);
 });
