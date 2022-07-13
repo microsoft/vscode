@@ -123,10 +123,13 @@ class BulkEditPreviewContribution {
 				Severity.Info,
 				localize('overlap', "Another refactoring is being previewed."),
 				[localize('continue', "Continue"), localize('cancel', "Cancel")],
-				{ detail: localize('detail', "Press 'Continue' to discard the previous refactoring and continue with the current refactoring.") }
+				{
+					detail: localize('detail', "Press 'Continue' to discard the previous refactoring and continue with the current refactoring."),
+					cancelId: 1
+				}
 			);
 
-			if (choice.choice === 0) {
+			if (choice.choice === 1) {
 				// this refactoring is being cancelled
 				return [];
 			}
