@@ -189,10 +189,10 @@ export class ActionButtonCommand {
 		return {
 			command: {
 				command: 'git.publish',
-				title: localize('scm publish branch action button title', "{0} Publish Branch", '$(cloud-upload)'),
+				title: localize({ key: 'scm publish branch action button title', comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }, "{0} Publish Branch", '$(cloud-upload)'),
 				tooltip: this.state.isSyncInProgress ?
-					localize('scm button publish branch running', "Publishing Branch...") :
-					localize('scm button publish branch', "Publish Branch"),
+					localize({ key: 'scm button publish branch running', comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }, "Publishing Branch...") :
+					localize({ key: 'scm button publish branch', comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }, "Publish Branch"),
 				arguments: [this.repository.sourceControl],
 			},
 			enabled: !this.state.isSyncInProgress
