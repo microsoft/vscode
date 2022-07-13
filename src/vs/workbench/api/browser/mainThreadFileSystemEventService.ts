@@ -84,7 +84,7 @@ export class MainThreadFileSystemEventService {
 				}
 
 				const needsConfirmation = data.edit.edits.some(edit => edit.metadata?.needsConfirmation);
-				let showPreview = storageService.getBoolean(MainThreadFileSystemEventService.MementoKeyAdditionalEdits, StorageScope.GLOBAL);
+				let showPreview = storageService.getBoolean(MainThreadFileSystemEventService.MementoKeyAdditionalEdits, StorageScope.PROFILE);
 
 				if (envService.extensionTestsLocationURI) {
 					// don't show dialog in tests
@@ -140,7 +140,7 @@ export class MainThreadFileSystemEventService {
 						}
 						showPreview = answer.choice === 1;
 						if (answer.checkboxChecked /* && answer.choice !== 2 */) {
-							storageService.store(MainThreadFileSystemEventService.MementoKeyAdditionalEdits, showPreview, StorageScope.GLOBAL, StorageTarget.USER);
+							storageService.store(MainThreadFileSystemEventService.MementoKeyAdditionalEdits, showPreview, StorageScope.PROFILE, StorageTarget.USER);
 						}
 					}
 				}
@@ -185,11 +185,14 @@ registerAction2(class ResetMemento extends Action2 {
 	constructor() {
 		super({
 			id: 'files.participants.resetChoice',
-			title: localize('label', "Reset choice for 'File operation needs preview'"),
+			title: {
+				value: localize('label', "Reset choice for 'File operation needs preview'"),
+				original: `Reset choice for 'File operation needs preview'`
+			},
 			f1: true
 		});
 	}
 	run(accessor: ServicesAccessor) {
-		accessor.get(IStorageService).remove(MainThreadFileSystemEventService.MementoKeyAdditionalEdits, StorageScope.GLOBAL);
+		accessor.get(IStorageService).remove(MainThreadFileSystemEventService.MementoKeyAdditionalEdits, StorageScope.PROFILE);
 	}
 });

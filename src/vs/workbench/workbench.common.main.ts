@@ -52,6 +52,7 @@ import 'vs/workbench/browser/parts/views/viewsService';
 
 //#region --- workbench services
 
+import 'vs/platform/actions/common/actions.contribution';
 import 'vs/platform/undoRedo/common/undoRedoService';
 import 'vs/workbench/services/extensions/browser/extensionUrlHandler';
 import 'vs/workbench/services/keybinding/common/keybindingEditing';
@@ -76,13 +77,14 @@ import 'vs/workbench/services/commands/common/commandService';
 import 'vs/workbench/services/themes/browser/workbenchThemeService';
 import 'vs/workbench/services/label/common/labelService';
 import 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import 'vs/workbench/services/extensionManagement/browser/webExtensionsScannerService';
 import 'vs/workbench/services/extensionManagement/browser/extensionEnablementService';
 import 'vs/workbench/services/extensionManagement/browser/builtinExtensionsScannerService';
 import 'vs/workbench/services/extensionRecommendations/common/extensionIgnoredRecommendationsService';
 import 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
 import 'vs/workbench/services/notification/common/notificationService';
 import 'vs/workbench/services/userDataSync/common/userDataSyncUtil';
+import 'vs/workbench/services/userDataProfile/common/userDataProfileImportExportService';
+import 'vs/workbench/services/userDataProfile/browser/userDataProfileManagement';
 import 'vs/workbench/services/remote/common/remoteExplorerService';
 import 'vs/workbench/services/workingCopy/common/workingCopyService';
 import 'vs/workbench/services/workingCopy/common/workingCopyFileService';
@@ -115,8 +117,6 @@ import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyServ
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { TextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { IMenuService } from 'vs/platform/actions/common/actions';
-import { MenuService } from 'vs/platform/actions/common/menuService';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadService } from 'vs/platform/download/common/downloadService';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
@@ -125,6 +125,7 @@ import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService
 import { ExtensionStorageService, IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
 import { IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
+import { IExtensionsProfileScannerService, ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 
 registerSingleton(IUserDataSyncLogService, UserDataSyncLogService);
 registerSingleton(IIgnoredExtensionsManagementService, IgnoredExtensionsManagementService);
@@ -138,9 +139,9 @@ registerSingleton(IMarkerDecorationsService, MarkerDecorationsService);
 registerSingleton(IMarkerService, MarkerService, true);
 registerSingleton(IContextKeyService, ContextKeyService);
 registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationService);
-registerSingleton(IMenuService, MenuService, true);
 registerSingleton(IDownloadService, DownloadService, true);
 registerSingleton(IOpenerService, OpenerService, true);
+registerSingleton(IExtensionsProfileScannerService, ExtensionsProfileScannerService);
 
 //#endregion
 
@@ -208,6 +209,9 @@ import 'vs/workbench/contrib/debug/browser/debugViewlet';
 
 // Markers
 import 'vs/workbench/contrib/markers/browser/markers.contribution';
+
+// Merge Editor
+import 'vs/workbench/contrib/mergeEditor/browser/mergeEditor.contribution';
 
 // Comments
 import 'vs/workbench/contrib/comments/browser/comments.contribution';
@@ -303,6 +307,9 @@ import 'vs/workbench/contrib/typeHierarchy/browser/typeHierarchy.contribution';
 import 'vs/workbench/contrib/codeEditor/browser/outline/documentSymbolsOutline';
 import 'vs/workbench/contrib/outline/browser/outline.contribution';
 
+// Language Detection
+import 'vs/workbench/contrib/languageDetection/browser/languageDetection.contribution';
+
 // Language Status
 import 'vs/workbench/contrib/languageStatus/browser/languageStatus.contribution';
 
@@ -314,6 +321,12 @@ import 'vs/workbench/contrib/feedback/browser/feedback.contribution';
 
 // User Data Sync
 import 'vs/workbench/contrib/userDataSync/browser/userDataSync.contribution';
+
+// User Data Profiles
+import 'vs/workbench/contrib/userDataProfile/browser/userDataProfile.contribution';
+
+// Continue Edit Session
+import 'vs/workbench/contrib/editSessions/browser/editSessions.contribution';
 
 // Code Actions
 import 'vs/workbench/contrib/codeActions/browser/codeActions.contribution';
@@ -335,8 +348,5 @@ import 'vs/workbench/contrib/list/browser/list.contribution';
 
 // Audio Cues
 import 'vs/workbench/contrib/audioCues/browser/audioCues.contribution';
-
-// Drop into editor
-import 'vs/workbench/contrib/dropIntoEditor/browser/dropIntoEditor.contibution';
 
 //#endregion

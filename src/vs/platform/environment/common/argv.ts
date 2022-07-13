@@ -79,10 +79,6 @@ export interface NativeParsedArgs {
 	'max-memory'?: string;
 	'file-write'?: boolean;
 	'file-chmod'?: boolean;
-	/**
-	 * @deprecated use `enable-smoke-test-driver`
-	 */
-	'driver'?: string;
 	'enable-smoke-test-driver'?: boolean;
 	'remote'?: string;
 	'force'?: boolean;
@@ -90,8 +86,9 @@ export interface NativeParsedArgs {
 	'force-user-env'?: boolean;
 	'force-disable-user-env'?: boolean;
 	'sync'?: 'on' | 'off';
-	'__sandbox'?: boolean;
 	'logsPath'?: string;
+	'__enable-file-policy'?: boolean;
+	editSessionId?: string;
 
 	// chromium command line args: https://electronjs.org/docs/all#supported-chrome-command-line-switches
 	'no-proxy-server'?: boolean;

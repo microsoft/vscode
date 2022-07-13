@@ -8,7 +8,7 @@ import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import * as extHostTypeConverter from 'vs/workbench/api/common/extHostTypeConverters';
 import { cloneAndChange } from 'vs/base/common/objects';
-import { MainContext, MainThreadCommandsShape, ExtHostCommandsShape, ICommandDto, ICommandHandlerDescriptionDto } from './extHost.protocol';
+import { MainContext, MainThreadCommandsShape, ExtHostCommandsShape, ICommandDto, ICommandHandlerDescriptionDto, MainThreadTelemetryShape } from './extHost.protocol';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import * as languages from 'vs/editor/common/languages';
 import type * as vscode from 'vscode';
@@ -46,6 +46,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 	private readonly _commands = new Map<string, CommandHandler>();
 	private readonly _apiCommands = new Map<string, ApiCommand>();
+	#telemetry: MainThreadTelemetryShape;
 
 	private readonly _logService: ILogService;
 	private readonly _argumentProcessors: ArgumentProcessor[];
@@ -58,6 +59,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 	) {
 		this.#proxy = extHostRpc.getProxy(MainContext.MainThreadCommands);
 		this._logService = logService;
+		this.#telemetry = extHostRpc.getProxy(MainContext.MainThreadTelemetry);
 		this.converter = new CommandsConverter(
 			this,
 			id => {
@@ -167,8 +169,11 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 	private async _doExecuteCommand<T>(id: string, args: any[], retry: boolean): Promise<T> {
 
 		if (this._commands.has(id)) {
-			// we stay inside the extension host and support
-			// to pass any kind of parameters around
+			// - We stay inside the extension host and support
+			// 	 to pass any kind of parameters around.
+			// - We still emit the corresponding activation event
+			//   BUT we don't await that event
+			this.#proxy.$fireCommandActivationEvent(id);
 			return this._executeContributedCommand<T>(id, args, false);
 
 		} else {
@@ -204,7 +209,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 			} catch (e) {
 				// Rerun the command when it wasn't known, had arguments, and when retry
 				// is enabled. We do this because the command might be registered inside
-				// the extension host now and can therfore accept the arguments as-is.
+				// the extension host now and can therefore accept the arguments as-is.
 				if (e instanceof Error && e.message === '$executeCommand:retry') {
 					return this._doExecuteCommand(id, args, false);
 				} else {
@@ -219,7 +224,8 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		if (!command) {
 			throw new Error('Unknown command');
 		}
-		let { callback, thisArg, description } = command;
+		this._reportTelemetry(command, id);
+		const { callback, thisArg, description } = command;
 		if (description) {
 			for (let i = 0; i < description.args.length; i++) {
 				try {
@@ -257,6 +263,26 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		}
 	}
 
+	private _reportTelemetry(command: CommandHandler, id: string) {
+		if (!command.extension || command.extension.isBuiltin) {
+			return;
+		}
+		type ExtensionActionTelemetry = {
+			extensionId: string;
+			id: string;
+		};
+		type ExtensionActionTelemetryMeta = {
+			extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the extension handling the command, informing which extensions provide most-used functionality.' };
+			id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the command, to understand which specific extension features are most popular.' };
+			owner: 'digitarald';
+			comment: 'Used to gain insight on the most popular commands used from extensions';
+		};
+		this.#telemetry.$publicLog2<ExtensionActionTelemetry, ExtensionActionTelemetryMeta>('Extension:ActionExecuted', {
+			extensionId: command.extension.identifier.value,
+			id: id,
+		});
+	}
+
 	$executeContributedCommand(id: string, ...args: any[]): Promise<unknown> {
 		this._logService.trace('ExtHostCommands#$executeContributedCommand', id);
 
@@ -281,8 +307,8 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 	$getContributedCommandHandlerDescriptions(): Promise<{ [id: string]: string | ICommandHandlerDescriptionDto }> {
 		const result: { [id: string]: string | ICommandHandlerDescription } = Object.create(null);
-		for (let [id, command] of this._commands) {
-			let { description } = command;
+		for (const [id, command] of this._commands) {
+			const { description } = command;
 			if (description) {
 				result[id] = description;
 			}

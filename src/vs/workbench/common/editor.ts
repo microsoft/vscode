@@ -8,8 +8,8 @@ import { Event } from 'vs/base/common/event';
 import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditorViewState, IDiffEditor, IDiffEditorViewState, IEditorViewState } from 'vs/editor/common/editorCommon';
-import { IEditorOptions, ITextEditorOptions, IResourceEditorInput, ITextResourceEditorInput, IBaseTextResourceEditorInput, IBaseUntypedEditorInput } from 'vs/platform/editor/common/editor';
+import { ICodeEditorViewState, IDiffEditor, IDiffEditorViewState, IEditor, IEditorViewState } from 'vs/editor/common/editorCommon';
+import { IEditorOptions, IResourceEditorInput, ITextResourceEditorInput, IBaseTextResourceEditorInput, IBaseUntypedEditorInput } from 'vs/platform/editor/common/editor';
 import type { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IInstantiationService, IConstructorSignature, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -326,12 +326,23 @@ export interface IVisibleEditorPane extends IEditorPane {
 }
 
 /**
+ * The text editor pane is the container for workbench text editors.
+ */
+export interface ITextEditorPane extends IEditorPane {
+
+	/**
+	 * Returns the underlying text editor widget of this editor.
+	 */
+	getControl(): IEditor | undefined;
+}
+
+/**
  * The text editor pane is the container for workbench text diff editors.
  */
 export interface ITextDiffEditorPane extends IEditorPane {
 
 	/**
-	 * Returns the underlying text editor widget of this editor.
+	 * Returns the underlying text diff editor widget of this editor.
 	 */
 	getControl(): IDiffEditor | undefined;
 }
@@ -675,7 +686,13 @@ export const enum EditorInputCapabilities {
 	 * component may decide to hide the description portion
 	 * for brevity.
 	 */
-	ForceDescription = 1 << 6
+	ForceDescription = 1 << 6,
+
+	/**
+	 * Signals that the editor supports dropping into the
+	 * editor by holding shift.
+	 */
+	CanDropIntoEditor = 1 << 7,
 }
 
 export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceSideBySideEditorInput;
@@ -703,7 +720,7 @@ export interface EditorInputWithPreferredResource {
 	 * URIs. But when displaying the editor label to the user, the
 	 * preferred URI should be used.
 	 *
-	 * Not all editors have a `preferredResouce`. The `EditorResourceAccessor`
+	 * Not all editors have a `preferredResource`. The `EditorResourceAccessor`
 	 * utility can be used to always get the right resource without having
 	 * to do instanceof checks.
 	 */
@@ -1334,10 +1351,9 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 			return;
 		}
 
-		const options: ITextEditorOptions = {
-			selection: exists ? path.selection : undefined,
-			pinned: true,
-			override: path.editorOverrideId
+		const options: IEditorOptions = {
+			...path.options,
+			pinned: true
 		};
 
 		let input: IResourceEditorInput | IUntitledTextResourceEditorInput;

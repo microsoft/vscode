@@ -19,6 +19,7 @@ import { URI } from 'vs/base/common/uri';
 import { realpath } from 'vs/base/node/extpath';
 import { virtualMachineHint } from 'vs/base/node/id';
 import { Promises, SymlinkSupport } from 'vs/base/node/pfs';
+import { findFreePort } from 'vs/base/node/ports';
 import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
 import { localize } from 'vs/nls';
 import { ISerializableCommandAction } from 'vs/platform/action/common/action';
@@ -38,6 +39,7 @@ import { IColorScheme, IOpenedWindow, IOpenEmptyWindowOptions, IOpenWindowOption
 import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -211,15 +213,24 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
+	async updateTitleBarOverlay(windowId: number | undefined, options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void> {
+		const window = this.windowById(windowId);
+		if (window?.win) {
+			window.win.setTitleBarOverlay({
+				color: options.backgroundColor,
+				symbolColor: options.foregroundColor,
+				height: options.height ? options.height - 1 : undefined // account for window border
+			});
+		}
+	}
+
 	async focusWindow(windowId: number | undefined, options?: { windowId?: number; force?: boolean }): Promise<void> {
 		if (options && typeof options.windowId === 'number') {
 			windowId = options.windowId;
 		}
 
 		const window = this.windowById(windowId);
-		if (window) {
-			window.focus({ force: options?.force ?? false });
-		}
+		window?.focus({ force: options?.force ?? false });
 	}
 
 	async setMinimumSize(windowId: number | undefined, width: number | undefined, height: number | undefined): Promise<void> {
@@ -425,16 +436,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async setRepresentedFilename(windowId: number | undefined, path: string): Promise<void> {
 		const window = this.windowById(windowId);
-		if (window) {
-			window.setRepresentedFilename(path);
-		}
+		window?.setRepresentedFilename(path);
 	}
 
 	async setDocumentEdited(windowId: number | undefined, edited: boolean): Promise<void> {
 		const window = this.windowById(windowId);
-		if (window) {
-			window.setDocumentEdited(edited);
-		}
+		window?.setDocumentEdited(edited);
 	}
 
 	async openExternal(windowId: number | undefined, url: string): Promise<boolean> {
@@ -597,12 +604,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return clipboard.writeFindText(text);
 	}
 
-	async writeClipboardBuffer(windowId: number | undefined, format: string, buffer: Uint8Array, type?: 'selection' | 'clipboard'): Promise<void> {
-		return clipboard.writeBuffer(format, Buffer.from(buffer), type);
+	async writeClipboardBuffer(windowId: number | undefined, format: string, buffer: VSBuffer, type?: 'selection' | 'clipboard'): Promise<void> {
+		return clipboard.writeBuffer(format, Buffer.from(buffer.buffer), type);
 	}
 
-	async readClipboardBuffer(windowId: number | undefined, format: string): Promise<Uint8Array> {
-		return clipboard.readBuffer(format);
+	async readClipboardBuffer(windowId: number | undefined, format: string): Promise<VSBuffer> {
+		return VSBuffer.wrap(clipboard.readBuffer(format));
 	}
 
 	async hasClipboard(windowId: number | undefined, format: string, type?: 'selection' | 'clipboard'): Promise<boolean> {
@@ -646,9 +653,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async updateTouchBar(windowId: number | undefined, items: ISerializableCommandAction[][]): Promise<void> {
 		const window = this.windowById(windowId);
-		if (window) {
-			window.updateTouchBar(items);
-		}
+		window?.updateTouchBar(items);
 	}
 
 	//#endregion
@@ -734,6 +739,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		} else {
 			return undefined;
 		}
+	}
+
+	findFreePort(windowId: number | undefined, startPort: number, giveUpAfter: number, timeout: number, stride = 1): Promise<number> {
+		return findFreePort(startPort, giveUpAfter, timeout, stride);
 	}
 
 	//#endregion

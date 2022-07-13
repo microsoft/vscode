@@ -227,7 +227,7 @@ export class TypeOperations {
 
 				const lineText = model.getLineContent(selection.startLineNumber);
 
-				if (/^\s*$/.test(lineText) && model.isCheapToTokenize(selection.startLineNumber)) {
+				if (/^\s*$/.test(lineText) && model.tokenization.isCheapToTokenize(selection.startLineNumber)) {
 					let goodIndent = this._goodIndentForLine(config, model, selection.startLineNumber);
 					goodIndent = goodIndent || '\t';
 					const possibleTypeText = config.normalizeIndentation(goodIndent);
@@ -300,7 +300,7 @@ export class TypeOperations {
 		if (config.autoIndent === EditorAutoIndentStrategy.None) {
 			return TypeOperations._typeCommand(range, '\n', keepPosition);
 		}
-		if (!model.isCheapToTokenize(range.getStartPosition().lineNumber) || config.autoIndent === EditorAutoIndentStrategy.Keep) {
+		if (!model.tokenization.isCheapToTokenize(range.getStartPosition().lineNumber) || config.autoIndent === EditorAutoIndentStrategy.Keep) {
 			const lineText = model.getLineContent(range.startLineNumber);
 			const indentation = strings.getLeadingWhitespace(lineText).substring(0, range.startColumn - 1);
 			return TypeOperations._typeCommand(range, '\n' + config.normalizeIndentation(indentation), keepPosition);
@@ -385,7 +385,7 @@ export class TypeOperations {
 		}
 
 		for (let i = 0, len = selections.length; i < len; i++) {
-			if (!model.isCheapToTokenize(selections[i].getEndPosition().lineNumber)) {
+			if (!model.tokenization.isCheapToTokenize(selections[i].getEndPosition().lineNumber)) {
 				return false;
 			}
 		}
@@ -642,13 +642,13 @@ export class TypeOperations {
 				}
 			}
 
-			if (!model.isCheapToTokenize(lineNumber)) {
+			if (!model.tokenization.isCheapToTokenize(lineNumber)) {
 				// Do not force tokenization
 				return null;
 			}
 
-			model.forceTokenization(lineNumber);
-			const lineTokens = model.getLineTokens(lineNumber);
+			model.tokenization.forceTokenization(lineNumber);
+			const lineTokens = model.tokenization.getLineTokens(lineNumber);
 			const scopedLineTokens = createScopedLineTokens(lineTokens, beforeColumn - 1);
 			if (!pair.shouldAutoClose(scopedLineTokens, beforeColumn - scopedLineTokens.firstCharOffset)) {
 				return null;
@@ -664,7 +664,7 @@ export class TypeOperations {
 			//
 			const neutralCharacter = pair.findNeutralCharacter();
 			if (neutralCharacter) {
-				const tokenType = model.getTokenTypeIfInsertingCharacter(lineNumber, beforeColumn, neutralCharacter);
+				const tokenType = model.tokenization.getTokenTypeIfInsertingCharacter(lineNumber, beforeColumn, neutralCharacter);
 				if (!pair.isOK(tokenType)) {
 					return null;
 				}
@@ -757,7 +757,7 @@ export class TypeOperations {
 	}
 
 	private static _isTypeInterceptorElectricChar(config: CursorConfiguration, model: ITextModel, selections: Selection[]) {
-		if (selections.length === 1 && model.isCheapToTokenize(selections[0].getEndPosition().lineNumber)) {
+		if (selections.length === 1 && model.tokenization.isCheapToTokenize(selections[0].getEndPosition().lineNumber)) {
 			return true;
 		}
 		return false;
@@ -769,8 +769,8 @@ export class TypeOperations {
 		}
 
 		const position = selection.getPosition();
-		model.forceTokenization(position.lineNumber);
-		const lineTokens = model.getLineTokens(position.lineNumber);
+		model.tokenization.forceTokenization(position.lineNumber);
+		const lineTokens = model.tokenization.getLineTokens(position.lineNumber);
 
 		let electricAction: IElectricAction | null;
 		try {

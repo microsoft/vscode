@@ -3,34 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IAction } from 'vs/base/common/actions';
+import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/debugViewlet';
 import * as nls from 'vs/nls';
-import { IAction } from 'vs/base/common/actions';
-import { IDebugService, VIEWLET_ID, State, BREAKPOINTS_VIEW_ID, CONTEXT_DEBUG_UX, CONTEXT_DEBUG_UX_KEY, REPL_VIEW_ID, CONTEXT_DEBUG_STATE, ILaunch, getStateLabel, CONTEXT_DEBUGGERS_AVAILABLE } from 'vs/workbench/contrib/debug/common/debug';
-import { StartDebugActionViewItem, FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IProgressService } from 'vs/platform/progress/common/progress';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ViewPaneContainer, ViewsSubMenu } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
-import { MenuId, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
-import { WelcomeView } from 'vs/workbench/contrib/debug/browser/welcomeView';
-import { debugConfigure } from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
+import { Action2, MenuId, MenuItemAction, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { FOCUS_SESSION_ID, SELECT_AND_START_ID, DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL, DEBUG_START_LABEL, DEBUG_START_COMMAND_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
-import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
+import { ViewPaneContainer, ViewsSubMenu } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
+import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
+import { FocusSessionActionViewItem, StartDebugActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
+import { DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL, DEBUG_START_COMMAND_ID, DEBUG_START_LABEL, DISCONNECT_ID, FOCUS_SESSION_ID, SELECT_AND_START_ID, STOP_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
+import { debugConfigure } from 'vs/workbench/contrib/debug/browser/debugIcons';
+import { createDisconnectMenuItemAction } from 'vs/workbench/contrib/debug/browser/debugToolBar';
+import { WelcomeView } from 'vs/workbench/contrib/debug/browser/welcomeView';
+import { BREAKPOINTS_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_STATE, CONTEXT_DEBUG_UX, CONTEXT_DEBUG_UX_KEY, getStateLabel, IDebugService, ILaunch, REPL_VIEW_ID, State, VIEWLET_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 
 export class DebugViewPaneContainer extends ViewPaneContainer {
 
@@ -38,6 +39,8 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 	private progressResolve: (() => void) | undefined;
 	private breakpointView: ViewPane | undefined;
 	private paneListeners = new Map<string, IDisposable>();
+
+	private readonly stopActionViewItemDisposables = this._register(new DisposableStore());
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -53,7 +56,7 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 	) {
 		super(VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
 
@@ -97,6 +100,15 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 		if (action.id === FOCUS_SESSION_ID) {
 			return new FocusSessionActionViewItem(action, undefined, this.debugService, this.themeService, this.contextViewService, this.configurationService);
 		}
+
+		if (action.id === STOP_ID || action.id === DISCONNECT_ID) {
+			this.stopActionViewItemDisposables.clear();
+			const item = this.instantiationService.invokeFunction(accessor => createDisconnectMenuItemAction(action as MenuItemAction, this.stopActionViewItemDisposables, accessor));
+			if (item) {
+				return item;
+			}
+		}
+
 		return createActionViewItem(this.instantiationService, action);
 	}
 

@@ -50,7 +50,7 @@ export interface INotebookExecutionStateService {
 	forceCancelNotebookExecutions(notebookUri: URI): void;
 	getCellExecutionStatesForNotebook(notebook: URI): INotebookCellExecution[];
 	getCellExecution(cellUri: URI): INotebookCellExecution | undefined;
-	createCellExecution(controllerId: string, notebook: URI, cellHandle: number): INotebookCellExecution;
+	createCellExecution(notebook: URI, cellHandle: number): INotebookCellExecution;
 }
 
 export interface INotebookCellExecution {

@@ -87,7 +87,7 @@ export interface ISetting {
 	enumItemLabels?: string[];
 	allKeysAreBoolean?: boolean;
 	editPresentation?: EditPresentationTypes;
-	defaultValueSource?: string | IExtensionInfo;
+	nonLanguageSpecificDefaultValueSource?: string | IExtensionInfo;
 	isLanguageTagSetting?: boolean;
 	categoryOrder?: number;
 	categoryLabel?: string;

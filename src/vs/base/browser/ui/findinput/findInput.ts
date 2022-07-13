@@ -214,10 +214,10 @@ export class FindInput extends Widget {
 		}
 
 		// Arrow-Key support to navigate between options
-		let indexes = [this.caseSensitive.domNode, this.wholeWords.domNode, this.regex.domNode];
+		const indexes = [this.caseSensitive.domNode, this.wholeWords.domNode, this.regex.domNode];
 		this.onkeydown(this.domNode, (event: IKeyboardEvent) => {
 			if (event.equals(KeyCode.LeftArrow) || event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Escape)) {
-				let index = indexes.indexOf(<HTMLElement>document.activeElement);
+				const index = indexes.indexOf(<HTMLElement>document.activeElement);
 				if (index >= 0) {
 					let newIndex: number = -1;
 					if (event.equals(KeyCode.RightArrow)) {
@@ -252,9 +252,7 @@ export class FindInput extends Widget {
 
 		this.domNode.appendChild(this.controls);
 
-		if (parent) {
-			parent.appendChild(this.domNode);
-		}
+		parent?.appendChild(this.domNode);
 
 		this._register(dom.addDisposableListener(this.inputBox.inputElement, 'compositionstart', (e: CompositionEvent) => {
 			this.imeSessionInProgress = true;

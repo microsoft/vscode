@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { parse as jsonParse, getNodeType } from 'vs/base/common/json';
-import { forEach } from 'vs/base/common/collections';
 import { localize } from 'vs/nls';
 import { extname, basename } from 'vs/base/common/path';
 import { SnippetParser, Variable, Placeholder, Text } from 'vs/editor/contrib/snippet/browser/snippetParser';
@@ -12,7 +11,7 @@ import { KnownSnippetVariableNames } from 'vs/editor/contrib/snippet/browser/sni
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IdleValue } from 'vs/base/common/async';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 import { relativePath } from 'vs/base/common/resources';
@@ -45,7 +44,7 @@ class SnippetBodyInsights {
 		// check snippet...
 		const textmateSnippet = new SnippetParser().parse(body, false);
 
-		let placeholders = new Map<string, number>();
+		const placeholders = new Map<string, number>();
 		let placeholderMax = 0;
 		for (const placeholder of textmateSnippet.placeholders) {
 			placeholderMax = Math.max(placeholderMax, placeholder.index);
@@ -60,7 +59,7 @@ class SnippetBodyInsights {
 			this.isTrivial = last instanceof Placeholder && last.isFinalTabstop;
 		}
 
-		let stack = [...textmateSnippet.children];
+		const stack = [...textmateSnippet.children];
 		while (stack.length > 0) {
 			const marker = stack.shift()!;
 			if (marker instanceof Variable) {
@@ -114,7 +113,8 @@ export class Snippet {
 		readonly body: string,
 		readonly source: string,
 		readonly snippetSource: SnippetSource,
-		readonly snippetIdentifier?: string
+		readonly snippetIdentifier?: string,
+		readonly extensionId?: ExtensionIdentifier,
 	) {
 		this.prefixLow = prefix.toLowerCase();
 		this._bodyInsights = new IdleValue(() => new SnippetBodyInsights(this.body));
@@ -235,7 +235,7 @@ export class SnippetFile {
 			}
 		}
 
-		let idx = selector.lastIndexOf('.');
+		const idx = selector.lastIndexOf('.');
 		if (idx >= 0) {
 			this._scopeSelect(selector.substring(0, idx), bucket);
 		}
@@ -255,17 +255,15 @@ export class SnippetFile {
 			this._loadPromise = Promise.resolve(this._load()).then(content => {
 				const data = <JsonSerializedSnippets>jsonParse(content);
 				if (getNodeType(data) === 'object') {
-					forEach(data, entry => {
-						const { key: name, value: scopeOrTemplate } = entry;
+					for (const [name, scopeOrTemplate] of Object.entries(data)) {
 						if (isJsonSerializedSnippet(scopeOrTemplate)) {
 							this._parseSnippet(name, scopeOrTemplate, this.data);
 						} else {
-							forEach(scopeOrTemplate, entry => {
-								const { key: name, value: template } = entry;
+							for (const [name, template] of Object.entries(scopeOrTemplate)) {
 								this._parseSnippet(name, template, this.data);
-							});
+							}
 						}
-					});
+					}
 				}
 				return this;
 			});
@@ -332,7 +330,8 @@ export class SnippetFile {
 				body,
 				source,
 				this.source,
-				this._extension && `${relativePath(this._extension.extensionLocation, this.location)}/${name}`
+				this._extension && `${relativePath(this._extension.extensionLocation, this.location)}/${name}`,
+				this._extension?.identifier,
 			));
 		}
 	}

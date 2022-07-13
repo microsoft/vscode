@@ -27,9 +27,9 @@ const ExtensionKeyRegex = /^([^.]+\..+)-(\d+\.\d+\.\d+)(-(.+))?$/;
 
 export class ExtensionKey {
 
-	static create(extension: ILocalExtension | IGalleryExtension): ExtensionKey {
-		const version = (extension as ILocalExtension).manifest ? (extension as ILocalExtension).manifest.version : (extension as IGalleryExtension).version;
-		const targetPlatform = (extension as ILocalExtension).manifest ? (extension as ILocalExtension).targetPlatform : (extension as IGalleryExtension).properties.targetPlatform;
+	static create(extension: IExtension | IGalleryExtension): ExtensionKey {
+		const version = (extension as IExtension).manifest ? (extension as IExtension).manifest.version : (extension as IGalleryExtension).version;
+		const targetPlatform = (extension as IExtension).manifest ? (extension as IExtension).targetPlatform : (extension as IGalleryExtension).properties.targetPlatform;
 		return new ExtensionKey(extension.identifier, version, targetPlatform);
 	}
 

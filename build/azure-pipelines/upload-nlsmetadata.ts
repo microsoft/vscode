@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as es from 'event-stream';
 import * as Vinyl from 'vinyl';
 import * as vfs from 'vinyl-fs';
 import * as merge from 'gulp-merge-json';
 import * as gzip from 'gulp-gzip';
 import { ClientSecretCredential } from '@azure/identity';
+import path = require('path');
+import { readFileSync } from 'fs';
 const azure = require('gulp-azure-storage');
 
 const commit = process.env['VSCODE_DISTRO_COMMIT'] || process.env['BUILD_SOURCEVERSION'];
@@ -34,7 +34,6 @@ function main(): Promise<void> {
 				fileName: 'combined.nls.metadata.json',
 				jsonSpace: '',
 				edit: (parsedJson, file) => {
-					let key;
 					if (file.base === 'out-vscode-web-min') {
 						return { vscode: parsedJson };
 					}
@@ -82,7 +81,12 @@ function main(): Promise<void> {
 							break;
 						}
 					}
-					key = 'vscode.' + file.relative.split('/')[0];
+
+					// Get extension id and use that as the key
+					const folderPath = path.join(file.base, file.relative.split('/')[0]);
+					const manifest = readFileSync(path.join(folderPath, 'package.json'), 'utf-8');
+					const manifestJson = JSON.parse(manifest);
+					const key = manifestJson.publisher + '.' + manifestJson.name;
 					return { [key]: parsedJson };
 				},
 			}))
@@ -113,4 +117,3 @@ main().catch(err => {
 	console.error(err);
 	process.exit(1);
 });
-

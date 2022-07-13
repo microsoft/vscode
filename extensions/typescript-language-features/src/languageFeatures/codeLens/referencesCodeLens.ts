@@ -14,7 +14,7 @@ import { conditionalRegistration, requireGlobalConfiguration, requireSomeCapabil
 import { DocumentSelector } from '../../utils/documentSelector';
 import { LanguageDescription } from '../../utils/languageDescription';
 import * as typeConverters from '../../utils/typeConverters';
-import { ReferencesCodeLens, TypeScriptBaseCodeLensProvider } from './baseCodeLensProvider';
+import { getSymbolRange, ReferencesCodeLens, TypeScriptBaseCodeLensProvider } from './baseCodeLensProvider';
 
 const localize = nls.loadMessageBundle();
 
@@ -61,24 +61,19 @@ export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLens
 	}
 
 	protected extractSymbol(
+		document: vscode.TextDocument,
 		item: Proto.NavigationTree,
 		parent: Proto.NavigationTree | undefined
 	): vscode.Range | undefined {
-		if (!item.nameSpan) {
-			return undefined;
-		}
-
-		const itemSpan = typeConverters.Range.fromTextSpan(item.nameSpan);
-
 		if (parent && parent.kind === PConst.Kind.enum) {
-			return itemSpan;
+			return getSymbolRange(document, item);
 		}
 
 		switch (item.kind) {
 			case PConst.Kind.function: {
 				const showOnAllFunctions = vscode.workspace.getConfiguration(this.language.id).get<boolean>('referencesCodeLens.showOnAllFunctions');
 				if (showOnAllFunctions) {
-					return itemSpan;
+					return getSymbolRange(document, item);
 				}
 			}
 			// fallthrough
@@ -88,7 +83,7 @@ export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLens
 			case PConst.Kind.variable:
 				// Only show references for exported variables
 				if (/\bexport\b/.test(item.kindModifiers)) {
-					return itemSpan;
+					return getSymbolRange(document, item);
 				}
 				break;
 
@@ -96,12 +91,12 @@ export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLens
 				if (item.text === '<class>') {
 					break;
 				}
-				return itemSpan;
+				return getSymbolRange(document, item);
 
 			case PConst.Kind.interface:
 			case PConst.Kind.type:
 			case PConst.Kind.enum:
-				return itemSpan;
+				return getSymbolRange(document, item);
 
 			case PConst.Kind.method:
 			case PConst.Kind.memberGetAccessor:
@@ -121,7 +116,7 @@ export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLens
 					case PConst.Kind.class:
 					case PConst.Kind.interface:
 					case PConst.Kind.type:
-						return itemSpan;
+						return getSymbolRange(document, item);
 				}
 				break;
 		}

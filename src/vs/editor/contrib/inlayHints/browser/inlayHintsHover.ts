@@ -132,7 +132,7 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 
 			// (3) Inlay Label Part Location tooltip
 			const iterable = await this._resolveInlayHintLabelPartHover(part, token);
-			for await (let item of iterable) {
+			for await (const item of iterable) {
 				executor.emitOne(item);
 			}
 		});

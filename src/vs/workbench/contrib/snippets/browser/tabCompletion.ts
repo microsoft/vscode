@@ -91,7 +91,7 @@ export class TabCompletionController implements IEditorContribution {
 		// lots of dance for getting the
 		const selection = this._editor.getSelection();
 		const model = this._editor.getModel();
-		model.tokenizeIfCheap(selection.positionLineNumber);
+		model.tokenization.tokenizeIfCheap(selection.positionLineNumber);
 		const id = model.getLanguageIdAtPosition(selection.positionLineNumber, selection.positionColumn);
 		const snippets = this._snippetService.getSnippetsSync(id);
 
@@ -147,7 +147,7 @@ export class TabCompletionController implements IEditorContribution {
 				}
 			};
 			const registration = this._languageFeaturesService.completionProvider.register(
-				{ language: model.getLanguageId(), pattern: model.uri.path, scheme: model.uri.scheme },
+				{ language: model.getLanguageId(), pattern: model.uri.fsPath, scheme: model.uri.scheme },
 				this._completionProvider
 			);
 		}

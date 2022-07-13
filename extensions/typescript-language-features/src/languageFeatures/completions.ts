@@ -7,7 +7,6 @@ import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { Command, CommandManager } from '../commands/commandManager';
 import type * as Proto from '../protocol';
-import protocol = require('../protocol');
 import * as PConst from '../protocol.const';
 import { ClientCapability, ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
 import API from '../utils/api';
@@ -59,8 +58,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 	constructor(
 		public readonly position: vscode.Position,
 		public readonly document: vscode.TextDocument,
-		// Intersection needed to avoid type error until TS 4.7.
-		public readonly tsEntry: Proto.CompletionEntry & { labelDetails?: { detail?: string; description?: string } },
+		public readonly tsEntry: Proto.CompletionEntry,
 		private readonly completionContext: CompletionContext,
 		public readonly metadata: any | undefined,
 		client: ITypeScriptServiceClient,
@@ -506,7 +504,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 	}
 
 	private static getCommitCharacters(context: CompletionContext, entry: Proto.CompletionEntry): string[] | undefined {
-		if (entry.kind === PConst.Kind.warning) { // Ambient JS word based suggestion
+		if (entry.kind === PConst.Kind.warning || entry.kind === PConst.Kind.string) { // Ambient JS word based suggestion, strings
 			return undefined;
 		}
 
@@ -556,6 +554,7 @@ class CompletionAcceptedCommand implements Command {
 		if (item instanceof MyCompletionItem) {
 			/* __GDPR__
 				"completions.accept" : {
+					"owner": "mjbvz",
 					"isPackageJsonImport" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"isImportStatementCompletion" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"${include}": [
@@ -718,7 +717,14 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 			return undefined;
 		}
 
-		const wordRange = document.getWordRangeAtPosition(position);
+		let wordRange = document.getWordRangeAtPosition(position);
+		if (wordRange && !wordRange.isEmpty) {
+			const secondCharPosition = wordRange.start.translate(0, 1);
+			const firstChar = document.getText(new vscode.Range(wordRange.start, secondCharPosition));
+			if (firstChar === '@') {
+				wordRange = wordRange.with(secondCharPosition);
+			}
+		}
 
 		await this.client.interruptGetErr(() => this.fileConfigurationManager.ensureConfigurationForDocument(document, token));
 
@@ -815,9 +821,11 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 	) {
 		/* __GDPR__
 			"completions.execute" : {
+				"owner": "mjbvz",
 				"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"flags": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"updateGraphDurationMs" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"createAutoImportProviderProgramDurationMs" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"includesPackageJsonImport" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -830,6 +838,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		this.telemetryReporter.logTelemetry('completions.execute', {
 			duration: String(duration),
 			type: response?.type ?? 'unknown',
+			flags: response?.type === 'response' && typeof response.body?.flags === 'number' ? String(response.body.flags) : undefined,
 			count: String(response?.type === 'response' && response.body ? response.body.entries.length : 0),
 			updateGraphDurationMs: response?.type === 'response' && typeof response.performanceData?.updateGraphDurationMs === 'number'
 				? String(response.performanceData.updateGraphDurationMs)

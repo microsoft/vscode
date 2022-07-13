@@ -101,7 +101,7 @@ suite('AsyncDataTree', function () {
 
 		await tree.setInput(model.root);
 		assert.strictEqual(container.querySelectorAll('.monaco-list-row').length, 1);
-		let twistie = container.querySelector('.monaco-list-row:first-child .monaco-tl-twistie') as HTMLElement;
+		const twistie = container.querySelector('.monaco-list-row:first-child .monaco-tl-twistie') as HTMLElement;
 		assert(!twistie.classList.contains('collapsible'));
 		assert(!twistie.classList.contains('collapsed'));
 

@@ -7,15 +7,18 @@ import * as assert from 'assert';
 import { URI as uri } from 'vs/base/common/uri';
 import { DebugModel, Breakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { getExpandedBodySize, getBreakpointMessageAndIcon } from 'vs/workbench/contrib/debug/browser/breakpointsView';
-import { dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
-import { IBreakpointData, IBreakpointUpdateData, State } from 'vs/workbench/contrib/debug/common/debug';
+import { IBreakpointData, IBreakpointUpdateData, IDebugService, State } from 'vs/workbench/contrib/debug/common/debug';
 import { createBreakpointDecorations } from 'vs/workbench/contrib/debug/browser/breakpointEditorContribution';
 import { OverviewRulerLane } from 'vs/editor/common/model';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { createMockSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
-import { createMockDebugModel } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
+import { createMockDebugModel, MockDebugService } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { LanguageService } from 'vs/editor/common/services/languageService';
 
 function addBreakpointsAndCheckEvents(model: DebugModel, uri: uri, data: IBreakpointData[]): void {
 	let eventCount = 0;
@@ -39,9 +42,14 @@ function addBreakpointsAndCheckEvents(model: DebugModel, uri: uri, data: IBreakp
 
 suite('Debug - Breakpoints', () => {
 	let model: DebugModel;
+	const disposables = new DisposableStore();
 
 	setup(() => {
 		model = createMockDebugModel();
+	});
+
+	teardown(() => {
+		disposables.clear();
 	});
 
 	// Breakpoints
@@ -350,7 +358,10 @@ suite('Debug - Breakpoints', () => {
 		]);
 		const breakpoints = model.getBreakpoints();
 
-		let decorations = createBreakpointDecorations(textModel, breakpoints, State.Running, true, true);
+		const instantiationService = new TestInstantiationService();
+		instantiationService.stub(IDebugService, new MockDebugService());
+		instantiationService.stub(ILanguageService, disposables.add(new LanguageService()));
+		let decorations = instantiationService.invokeFunction(accessor => createBreakpointDecorations(accessor, textModel, breakpoints, State.Running, true, true));
 		assert.strictEqual(decorations.length, 3); // last breakpoint filtered out since it has a large line number
 		assert.deepStrictEqual(decorations[0].range, new Range(1, 1, 1, 2));
 		assert.deepStrictEqual(decorations[1].range, new Range(2, 4, 2, 5));
@@ -358,10 +369,10 @@ suite('Debug - Breakpoints', () => {
 		assert.strictEqual(decorations[0].options.beforeContentClassName, undefined);
 		assert.strictEqual(decorations[1].options.before?.inlineClassName, `debug-breakpoint-placeholder`);
 		assert.strictEqual(decorations[0].options.overviewRuler?.position, OverviewRulerLane.Left);
-		const expected = new MarkdownString().appendCodeblock(languageId, 'Expression condition: x > 5');
+		const expected = new MarkdownString(undefined, { isTrusted: true, supportThemeIcons: true }).appendCodeblock(languageId, 'Expression condition: x > 5');
 		assert.deepStrictEqual(decorations[0].options.glyphMarginHoverMessage, expected);
 
-		decorations = createBreakpointDecorations(textModel, breakpoints, State.Running, true, false);
+		decorations = instantiationService.invokeFunction(accessor => createBreakpointDecorations(accessor, textModel, breakpoints, State.Running, true, false));
 		assert.strictEqual(decorations[0].options.overviewRuler, null);
 
 		textModel.dispose();

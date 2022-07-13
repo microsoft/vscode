@@ -82,6 +82,9 @@ Name: "associatewithfiles"; Description: "{cm:AssociateWithFiles,{#NameShort}}";
 Name: "addtopath"; Description: "{cm:AddToPath}"; GroupDescription: "{cm:Other}"
 Name: "runcode"; Description: "{cm:RunAfter,{#NameShort}}"; GroupDescription: "{cm:Other}"; Check: WizardSilent
 
+[Dirs]
+Name: "{app}"; AfterInstall: DisableAppDirInheritance
+
 [Files]
 Source: "*"; Excludes: "\CodeSignSummary*.md,\tools,\tools\*,\resources\app\product.json"; DestDir: "{code:GetDestDir}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "tools\*"; DestDir: "{app}\tools"; Flags: ignoreversion
@@ -1480,3 +1483,19 @@ end;
 #ifdef Debug
   #expr SaveToFile(AddBackslash(SourcePath) + "code-processed.iss")
 #endif
+
+// https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/icacls
+// https://docs.microsoft.com/en-US/windows/security/identity-protection/access-control/security-identifiers
+procedure DisableAppDirInheritance();
+var
+  ResultCode: Integer;
+  Permissions: string;
+begin
+  Permissions := '/grant:r "*S-1-5-18:(OI)(CI)F" /grant:r "*S-1-5-32-544:(OI)(CI)F" /grant:r "*S-1-5-11:(OI)(CI)RX" /grant:r "*S-1-5-32-545:(OI)(CI)RX"';
+
+  #if "user" == InstallTarget
+    Permissions := Permissions + ' /grant:r "*S-1-3-0:(OI)(CI)F"';
+  #endif
+
+  Exec(ExpandConstant('{sys}\icacls.exe'), ExpandConstant('"{app}" /inheritancelevel:r ') + Permissions, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+end;

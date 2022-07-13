@@ -4,96 +4,47 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { CommandManager } from './commandManager';
-import * as commands from './commands/index';
-import { MdLinkProvider } from './languageFeatures/documentLinkProvider';
-import { MdDocumentSymbolProvider } from './languageFeatures/documentSymbolProvider';
-import { registerDropIntoEditor } from './languageFeatures/dropIntoEditor';
-import { MdFoldingProvider } from './languageFeatures/foldingProvider';
-import { MdPathCompletionProvider } from './languageFeatures/pathCompletions';
-import { MdReferencesProvider } from './languageFeatures/references';
-import { MdRenameProvider } from './languageFeatures/rename';
-import { MdSmartSelect } from './languageFeatures/smartSelect';
-import { MdWorkspaceSymbolProvider } from './languageFeatures/workspaceSymbolProvider';
-import { Logger } from './logger';
-import { MarkdownEngine } from './markdownEngine';
+import { LanguageClient, ServerOptions, TransportKind } from 'vscode-languageclient/node';
+import { startClient } from './client';
+import { activateShared } from './extension.shared';
+import { VsCodeOutputLogger } from './logging';
+import { IMdParser, MarkdownItEngine } from './markdownEngine';
 import { getMarkdownExtensionContributions } from './markdownExtensions';
-import { MarkdownContentProvider } from './preview/previewContentProvider';
-import { MarkdownPreviewManager } from './preview/previewManager';
-import { ContentSecurityPolicyArbiter, ExtensionContentSecurityPolicyArbiter, PreviewSecuritySelector } from './preview/security';
 import { githubSlugifier } from './slugify';
-import { loadDefaultTelemetryReporter, TelemetryReporter } from './telemetryReporter';
-import { VsCodeMdWorkspaceContents } from './workspaceContents';
-
+import { IMdWorkspace, VsCodeMdWorkspace } from './workspace';
 
 export function activate(context: vscode.ExtensionContext) {
-	const telemetryReporter = loadDefaultTelemetryReporter();
-	context.subscriptions.push(telemetryReporter);
-
 	const contributions = getMarkdownExtensionContributions(context);
 	context.subscriptions.push(contributions);
 
-	const cspArbiter = new ExtensionContentSecurityPolicyArbiter(context.globalState, context.workspaceState);
-	const engine = new MarkdownEngine(contributions, githubSlugifier);
-	const logger = new Logger();
+	const logger = new VsCodeOutputLogger();
+	context.subscriptions.push(logger);
 
-	const contentProvider = new MarkdownContentProvider(engine, context, cspArbiter, contributions, logger);
-	const symbolProvider = new MdDocumentSymbolProvider(engine);
-	const previewManager = new MarkdownPreviewManager(contentProvider, logger, contributions, engine);
-	context.subscriptions.push(previewManager);
+	const engine = new MarkdownItEngine(contributions, githubSlugifier, logger);
 
-	context.subscriptions.push(registerMarkdownLanguageFeatures(symbolProvider, engine));
-	context.subscriptions.push(registerMarkdownCommands(previewManager, telemetryReporter, cspArbiter, engine));
+	const workspace = new VsCodeMdWorkspace();
+	context.subscriptions.push(workspace);
 
-	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
-		logger.updateConfiguration();
-		previewManager.updateConfiguration();
-	}));
+	activateShared(context, workspace, engine, logger, contributions);
+	startServer(context, workspace, engine);
 }
 
-function registerMarkdownLanguageFeatures(
-	symbolProvider: MdDocumentSymbolProvider,
-	engine: MarkdownEngine
-): vscode.Disposable {
-	const selector: vscode.DocumentSelector = { language: 'markdown', scheme: '*' };
+async function startServer(context: vscode.ExtensionContext, workspace: IMdWorkspace, parser: IMdParser): Promise<void> {
+	const clientMain = vscode.extensions.getExtension('vscode.markdown-language-features')?.packageJSON?.main || '';
 
-	const linkProvider = new MdLinkProvider(engine);
-	const workspaceContents = new VsCodeMdWorkspaceContents();
+	const serverMain = `./server/${clientMain.indexOf('/dist/') !== -1 ? 'dist' : 'out'}/node/main`;
+	const serverModule = context.asAbsolutePath(serverMain);
 
-	const referencesProvider = new MdReferencesProvider(linkProvider, workspaceContents, engine, githubSlugifier);
-	return vscode.Disposable.from(
-		vscode.languages.registerDocumentSymbolProvider(selector, symbolProvider),
-		vscode.languages.registerDocumentLinkProvider(selector, linkProvider),
-		vscode.languages.registerFoldingRangeProvider(selector, new MdFoldingProvider(engine)),
-		vscode.languages.registerSelectionRangeProvider(selector, new MdSmartSelect(engine)),
-		vscode.languages.registerWorkspaceSymbolProvider(new MdWorkspaceSymbolProvider(symbolProvider, workspaceContents)),
-		vscode.languages.registerReferenceProvider(selector, referencesProvider),
-		vscode.languages.registerRenameProvider(selector, new MdRenameProvider(referencesProvider, githubSlugifier)),
-		MdPathCompletionProvider.register(selector, engine, linkProvider),
-		registerDropIntoEditor(selector),
-	);
+	// The debug options for the server
+	const debugOptions = { execArgv: ['--nolazy', '--inspect=' + (7000 + Math.round(Math.random() * 999))] };
+
+	// If the extension is launch in debug mode the debug server options are use
+	// Otherwise the run options are used
+	const serverOptions: ServerOptions = {
+		run: { module: serverModule, transport: TransportKind.ipc },
+		debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
+	};
+	await startClient((id, name, clientOptions) => {
+		return new LanguageClient(id, name, serverOptions, clientOptions);
+	}, workspace, parser);
 }
-
-function registerMarkdownCommands(
-	previewManager: MarkdownPreviewManager,
-	telemetryReporter: TelemetryReporter,
-	cspArbiter: ContentSecurityPolicyArbiter,
-	engine: MarkdownEngine
-): vscode.Disposable {
-	const previewSecuritySelector = new PreviewSecuritySelector(cspArbiter, previewManager);
-
-	const commandManager = new CommandManager();
-	commandManager.register(new commands.ShowPreviewCommand(previewManager, telemetryReporter));
-	commandManager.register(new commands.ShowPreviewToSideCommand(previewManager, telemetryReporter));
-	commandManager.register(new commands.ShowLockedPreviewToSideCommand(previewManager, telemetryReporter));
-	commandManager.register(new commands.ShowSourceCommand(previewManager));
-	commandManager.register(new commands.RefreshPreviewCommand(previewManager, engine));
-	commandManager.register(new commands.MoveCursorToPositionCommand());
-	commandManager.register(new commands.ShowPreviewSecuritySelectorCommand(previewSecuritySelector, previewManager));
-	commandManager.register(new commands.OpenDocumentLinkCommand(engine));
-	commandManager.register(new commands.ToggleLockCommand(previewManager));
-	commandManager.register(new commands.RenderDocument(engine));
-	commandManager.register(new commands.ReloadPlugins(previewManager, engine));
-	return commandManager;
-}
-

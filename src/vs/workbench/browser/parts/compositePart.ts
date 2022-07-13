@@ -232,9 +232,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 		// Take Composite on-DOM and show
 		const contentArea = this.getContentArea();
-		if (contentArea) {
-			contentArea.appendChild(compositeContainer);
-		}
+		contentArea?.appendChild(compositeContainer);
 		show(compositeContainer);
 
 		// Setup action runner
@@ -362,9 +360,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		}
 
 		// Clear any running Progress
-		if (this.progressBar) {
-			this.progressBar.stop().hide();
-		}
+		this.progressBar?.stop().hide();
 
 		// Empty Actions
 		if (this.toolBar) {
@@ -477,9 +473,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		this.contentAreaSize = Dimension.lift(super.layoutContents(width, height).contentSize);
 
 		// Layout composite
-		if (this.activeComposite) {
-			this.activeComposite.layout(this.contentAreaSize);
-		}
+		this.activeComposite?.layout(this.contentAreaSize);
 	}
 
 	protected removeComposite(compositeId: string): boolean {

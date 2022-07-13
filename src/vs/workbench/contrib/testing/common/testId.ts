@@ -39,7 +39,7 @@ export class TestId {
 			return new TestId([rootId]);
 		}
 
-		let path = [item.id];
+		const path = [item.id];
 		for (let i = parent; i && i.id !== rootId; i = i.parent) {
 			path.push(i.id);
 		}

@@ -131,7 +131,7 @@ export function dispose<T extends IDisposable>(disposables: Array<T>): Array<T>;
 export function dispose<T extends IDisposable>(disposables: ReadonlyArray<T>): ReadonlyArray<T>;
 export function dispose<T extends IDisposable>(arg: T | IterableIterator<T> | undefined): any {
 	if (Iterable.is(arg)) {
-		let errors: any[] = [];
+		const errors: any[] = [];
 
 		for (const d of arg) {
 			if (d) {

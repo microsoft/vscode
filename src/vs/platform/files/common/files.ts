@@ -5,9 +5,8 @@
 
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { ErrorNoTelemetry } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
-import { IExpression } from 'vs/base/common/glob';
+import { IExpression, IRelativePattern } from 'vs/base/common/glob';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { sep } from 'vs/base/common/path';
@@ -437,7 +436,7 @@ export interface IWatchOptions {
 	 * watching. If not provided, all paths are considered for
 	 * events.
 	 */
-	includes?: string[];
+	includes?: Array<string | IRelativePattern>;
 }
 
 export const enum FileSystemProviderCapabilities {
@@ -1148,7 +1147,7 @@ export interface ICreateFileOptions {
 	readonly overwrite?: boolean;
 }
 
-export class FileOperationError extends ErrorNoTelemetry {
+export class FileOperationError extends Error {
 	constructor(
 		message: string,
 		readonly fileOperationResult: FileOperationResult,

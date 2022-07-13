@@ -35,7 +35,7 @@ import { EditorResolution } from 'vs/platform/editor/common/editor';
 
 suite('WorkingCopyBackupTracker (browser)', function () {
 	let accessor: TestServiceAccessor;
-	let disposables = new DisposableStore();
+	const disposables = new DisposableStore();
 
 	setup(() => {
 		disposables.add(registerTestResourceEditor());

@@ -8,7 +8,7 @@
 			"dark_vs": "meta.diff.header: #569CD6",
 			"light_vs": "meta.diff.header: #000080",
 			"hc_black": "meta.diff.header: #000080",
-			"hc_light": "meta.diff.header: #000080"
+			"hc_light": "meta.diff.header: #062F4A"
 		}
 	},
 	{
@@ -32,7 +32,7 @@
 			"dark_vs": "meta.diff.header: #569CD6",
 			"light_vs": "meta.diff.header: #000080",
 			"hc_black": "meta.diff.header: #000080",
-			"hc_light": "meta.diff.header: #000080"
+			"hc_light": "meta.diff.header: #062F4A"
 		}
 	},
 	{
@@ -44,7 +44,7 @@
 			"dark_vs": "meta.diff.header: #569CD6",
 			"light_vs": "meta.diff.header: #000080",
 			"hc_black": "meta.diff.header: #000080",
-			"hc_light": "meta.diff.header: #000080"
+			"hc_light": "meta.diff.header: #062F4A"
 		}
 	},
 	{
@@ -56,7 +56,7 @@
 			"dark_vs": "meta.diff.header: #569CD6",
 			"light_vs": "meta.diff.header: #000080",
 			"hc_black": "meta.diff.header: #000080",
-			"hc_light": "meta.diff.header: #000080"
+			"hc_light": "meta.diff.header: #062F4A"
 		}
 	},
 	{
@@ -68,7 +68,7 @@
 			"dark_vs": "meta.diff.header: #569CD6",
 			"light_vs": "meta.diff.header: #000080",
 			"hc_black": "meta.diff.header: #000080",
-			"hc_light": "meta.diff.header: #000080"
+			"hc_light": "meta.diff.header: #062F4A"
 		}
 	},
 	{
@@ -140,7 +140,7 @@
 			"dark_vs": "markup.deleted: #CE9178",
 			"light_vs": "markup.deleted: #A31515",
 			"hc_black": "markup.deleted: #CE9178",
-			"hc_light": "markup.deleted: #A31515"
+			"hc_light": "markup.deleted: #5A5A5A"
 		}
 	},
 	{
@@ -152,7 +152,7 @@
 			"dark_vs": "markup.deleted: #CE9178",
 			"light_vs": "markup.deleted: #A31515",
 			"hc_black": "markup.deleted: #CE9178",
-			"hc_light": "markup.deleted: #A31515"
+			"hc_light": "markup.deleted: #5A5A5A"
 		}
 	},
 	{
@@ -164,7 +164,7 @@
 			"dark_vs": "markup.inserted: #B5CEA8",
 			"light_vs": "markup.inserted: #098658",
 			"hc_black": "markup.inserted: #B5CEA8",
-			"hc_light": "markup.inserted: #098658"
+			"hc_light": "markup.inserted: #096D48"
 		}
 	},
 	{
@@ -176,7 +176,7 @@
 			"dark_vs": "markup.inserted: #B5CEA8",
 			"light_vs": "markup.inserted: #098658",
 			"hc_black": "markup.inserted: #B5CEA8",
-			"hc_light": "markup.inserted: #098658"
+			"hc_light": "markup.inserted: #096D48"
 		}
 	}
 ]

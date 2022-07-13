@@ -14,7 +14,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { dispose } from 'vs/base/common/lifecycle';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewPaneContainer, IExtensionContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
-import { IGalleryExtension, IExtensionGalleryService, ILocalExtension, InstallOptions, InstallOperation, TargetPlatformToString, ExtensionManagementErrorCode } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IGalleryExtension, IExtensionGalleryService, ILocalExtension, InstallOptions, InstallOperation, TargetPlatformToString, ExtensionManagementErrorCode, isTargetPlatformCompatible } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionRecommendationReason, IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { areSameExtensions, getExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -55,8 +55,8 @@ import { ActionWithDropdownActionViewItem, IActionWithDropdownActionViewItemOpti
 import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
 import { ILogService } from 'vs/platform/log/common/log';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
-import { errorIcon, infoIcon, manageExtensionIcon, syncEnabledIcon, syncIgnoredIcon, trustIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
-import { isIOS, isWeb } from 'vs/base/common/platform';
+import { errorIcon, infoIcon, manageExtensionIcon, preReleaseIcon, syncEnabledIcon, syncIgnoredIcon, trustIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
+import { isIOS, isWeb, language } from 'vs/base/common/platform';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { isVirtualWorkspace } from 'vs/platform/workspace/common/virtualWorkspace';
@@ -64,8 +64,9 @@ import { escapeMarkdownSyntaxTokens, IMarkdownString, MarkdownString } from 'vs/
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { flatten } from 'vs/base/common/arrays';
-import { isBoolean } from 'vs/base/common/types';
 import { fromNow } from 'vs/base/common/date';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
 
 export class PromptExtensionInstallFailureAction extends Action {
 
@@ -104,7 +105,7 @@ export class PromptExtensionInstallFailureAction extends Action {
 			return;
 		}
 
-		if ([ExtensionManagementErrorCode.Incompatible, ExtensionManagementErrorCode.IncompatibleTargetPlatform, ExtensionManagementErrorCode.Malicious, ExtensionManagementErrorCode.ReleaseVersionNotFound, ExtensionManagementErrorCode.UnsupportedPreRelease].includes(<ExtensionManagementErrorCode>this.error.name)) {
+		if ([ExtensionManagementErrorCode.Incompatible, ExtensionManagementErrorCode.IncompatibleTargetPlatform, ExtensionManagementErrorCode.Malicious, ExtensionManagementErrorCode.ReleaseVersionNotFound, ExtensionManagementErrorCode.Deprecated].includes(<ExtensionManagementErrorCode>this.error.name)) {
 			await this.dialogService.show(Severity.Info, getErrorMessage(this.error));
 			return;
 		}
@@ -144,7 +145,7 @@ export class PromptExtensionInstallFailureAction extends Action {
 			});
 		}
 
-		let message = `${operationMessage}${additionalMessage ? ` ${additionalMessage}` : ''}`;
+		const message = `${operationMessage}${additionalMessage ? ` ${additionalMessage}` : ''}`;
 		this.notificationService.prompt(Severity.Error, message, promptChoices);
 	}
 }
@@ -250,6 +251,8 @@ export abstract class AbstractInstallAction extends ExtensionAction {
 		@IExtensionService private readonly runtimeExtensionService: IExtensionService,
 		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
 		@ILabelService private readonly labelService: ILabelService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
 	) {
 		super(id, localize('install', "Install"), cssClass, false);
 		this.update();
@@ -262,11 +265,18 @@ export abstract class AbstractInstallAction extends ExtensionAction {
 
 	protected async computeAndUpdateEnablement(): Promise<void> {
 		this.enabled = false;
-		if (this.extension && !this.extension.isBuiltin) {
-			if (this.extension.state === ExtensionState.Uninstalled && await this.extensionsWorkbenchService.canInstall(this.extension)) {
-				this.enabled = this.installPreReleaseVersion ? this.extension.hasPreReleaseVersion : this.extension.hasReleaseVersion;
-				this.updateLabel();
-			}
+		if (!this.extension) {
+			return;
+		}
+		if (this.extension.isBuiltin) {
+			return;
+		}
+		if (this.extensionsWorkbenchService.canSetLanguage(this.extension)) {
+			return;
+		}
+		if (this.extension.state === ExtensionState.Uninstalled && await this.extensionsWorkbenchService.canInstall(this.extension)) {
+			this.enabled = this.installPreReleaseVersion ? this.extension.hasPreReleaseVersion : this.extension.hasReleaseVersion;
+			this.updateLabel();
 		}
 	}
 
@@ -274,6 +284,41 @@ export abstract class AbstractInstallAction extends ExtensionAction {
 		if (!this.extension) {
 			return;
 		}
+
+		if (this.extension.deprecationInfo) {
+			let detail = localize('deprecated message', "This extension is deprecated as it is no longer being maintained.");
+			let action: () => Promise<any> = async () => undefined;
+			const buttons = [
+				localize('install anyway', "Install Anyway"),
+				localize('cancel', "Cancel"),
+			];
+
+			if (this.extension.deprecationInfo.extension) {
+				detail = localize('deprecated with alternate extension message', "This extension is deprecated. Use the {0} extension instead.", this.extension.deprecationInfo.extension.displayName);
+				buttons.splice(1, 0, localize('Show alternate extension', "Open {0}", this.extension.deprecationInfo.extension.displayName));
+				const alternateExtension = this.extension.deprecationInfo.extension;
+				action = () => this.extensionsWorkbenchService.getExtensions([{ id: alternateExtension.id, preRelease: alternateExtension.preRelease }], CancellationToken.None)
+					.then(([extension]) => this.extensionsWorkbenchService.open(extension));
+			} else if (this.extension.deprecationInfo.settings) {
+				detail = localize('deprecated with alternate settings message', "This extension is deprecated as this functionality is now built-in to VS Code.");
+				buttons.splice(1, 0, localize('configure in settings', "Configure Settings"));
+				const settings = this.extension.deprecationInfo.settings;
+				action = () => this.preferencesService.openSettings({ query: settings.map(setting => `@id:${setting}`).join(' ') });
+			}
+
+			const result = await this.dialogService.show(
+				Severity.Warning,
+				localize('install confirmation', "Are you sure you want to install '{0}'?", this.extension.displayName),
+				buttons,
+				{ detail, cancelId: buttons.length - 1 });
+			if (result.choice === 1) {
+				return action();
+			}
+			if (result.choice === 2) {
+				return;
+			}
+		}
+
 		this.extensionsWorkbenchService.open(this.extension, { showPreReleaseVersion: this.installPreReleaseVersion });
 
 		alert(localize('installExtensionStart', "Installing extension {0} started. An editor is now open with more details on this extension", this.extension.displayName));
@@ -373,12 +418,14 @@ export class InstallAction extends AbstractInstallAction {
 		@IExtensionService runtimeExtensionService: IExtensionService,
 		@IWorkbenchThemeService workbenchThemeService: IWorkbenchThemeService,
 		@ILabelService labelService: ILabelService,
+		@IDialogService dialogService: IDialogService,
+		@IPreferencesService preferencesService: IPreferencesService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IWorkbenchExtensionManagementService private readonly workbenchExtensioManagementService: IWorkbenchExtensionManagementService,
 		@IUserDataSyncEnablementService protected readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 	) {
 		super(`extensions.install`, installPreReleaseVersion, InstallAction.Class,
-			extensionsWorkbenchService, instantiationService, runtimeExtensionService, workbenchThemeService, labelService);
+			extensionsWorkbenchService, instantiationService, runtimeExtensionService, workbenchThemeService, labelService, dialogService, preferencesService);
 		this.updateLabel();
 		this._register(labelService.onDidChangeFormatters(() => this.updateLabel(), this));
 		this._register(Event.any(userDataSyncEnablementService.onDidChangeEnablement,
@@ -438,11 +485,13 @@ export class InstallAndSyncAction extends AbstractInstallAction {
 		@IExtensionService runtimeExtensionService: IExtensionService,
 		@IWorkbenchThemeService workbenchThemeService: IWorkbenchThemeService,
 		@ILabelService labelService: ILabelService,
+		@IDialogService dialogService: IDialogService,
+		@IPreferencesService preferencesService: IPreferencesService,
 		@IProductService productService: IProductService,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 	) {
 		super('extensions.installAndSync', installPreReleaseVersion, AbstractInstallAction.Class,
-			extensionsWorkbenchService, instantiationService, runtimeExtensionService, workbenchThemeService, labelService);
+			extensionsWorkbenchService, instantiationService, runtimeExtensionService, workbenchThemeService, labelService, dialogService, preferencesService);
 		this.tooltip = localize({ key: 'install everywhere tooltip', comment: ['Placeholder is the name of the product. Eg: Visual Studio Code or Visual Studio Code - Insiders'] }, "Install this extension in all your synced {0} instances", productService.nameLong);
 		this._register(Event.any(userDataSyncEnablementService.onDidChangeEnablement,
 			Event.filter(userDataSyncEnablementService.onDidChangeResourceEnablement, e => e[0] === SyncResource.Extensions))(() => this.update()));
@@ -520,6 +569,7 @@ export abstract class InstallInOtherServerAction extends ExtensionAction {
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionManagementServerService protected readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 	) {
 		super(id, InstallInOtherServerAction.INSTALL_LABEL, InstallInOtherServerAction.Class, false);
 		this.update();
@@ -594,19 +644,29 @@ export abstract class InstallInOtherServerAction extends ExtensionAction {
 	}
 
 	override async run(): Promise<void> {
-		if (!this.extension) {
+		if (!this.extension?.local) {
 			return;
 		}
-		if (this.server) {
-			this.extensionsWorkbenchService.open(this.extension);
-			alert(localize('installExtensionStart', "Installing extension {0} started. An editor is now open with more details on this extension", this.extension.displayName));
-			if (this.extension.gallery) {
-				await this.server.extensionManagementService.installFromGallery(this.extension.gallery);
-			} else {
-				const vsix = await this.extension.server!.extensionManagementService.zip(this.extension.local!);
-				await this.server.extensionManagementService.install(vsix);
-			}
+		if (!this.extension?.server) {
+			return;
 		}
+		if (!this.server) {
+			return;
+		}
+		this.extensionsWorkbenchService.open(this.extension);
+		alert(localize('installExtensionStart', "Installing extension {0} started. An editor is now open with more details on this extension", this.extension.displayName));
+
+		const gallery = this.extension.gallery ?? (this.extensionGalleryService.isEnabled() && (await this.extensionGalleryService.getExtensions([this.extension.identifier], CancellationToken.None))[0]);
+		if (gallery) {
+			await this.server.extensionManagementService.installFromGallery(gallery, { installPreReleaseVersion: this.extension.local.preRelease });
+			return;
+		}
+		const targetPlatform = await this.server.extensionManagementService.getTargetPlatform();
+		if (!isTargetPlatformCompatible(this.extension.local.targetPlatform, [this.extension.local.targetPlatform], targetPlatform)) {
+			throw new Error(localize('incompatible', "Can't install '{0}' extension because it is not compatible.", this.extension.identifier.id));
+		}
+		const vsix = await this.extension.server.extensionManagementService.zip(this.extension.local);
+		await this.server.extensionManagementService.install(vsix);
 	}
 
 	protected abstract getInstallLabel(): string;
@@ -619,8 +679,9 @@ export class RemoteInstallAction extends InstallInOtherServerAction {
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
+		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
 	) {
-		super(`extensions.remoteinstall`, extensionManagementServerService.remoteExtensionManagementServer, canInstallAnyWhere, extensionsWorkbenchService, extensionManagementServerService, extensionManifestPropertiesService);
+		super(`extensions.remoteinstall`, extensionManagementServerService.remoteExtensionManagementServer, canInstallAnyWhere, extensionsWorkbenchService, extensionManagementServerService, extensionManifestPropertiesService, extensionGalleryService);
 	}
 
 	protected getInstallLabel(): string {
@@ -637,8 +698,9 @@ export class LocalInstallAction extends InstallInOtherServerAction {
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
+		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
 	) {
-		super(`extensions.localinstall`, extensionManagementServerService.localExtensionManagementServer, false, extensionsWorkbenchService, extensionManagementServerService, extensionManifestPropertiesService);
+		super(`extensions.localinstall`, extensionManagementServerService.localExtensionManagementServer, false, extensionsWorkbenchService, extensionManagementServerService, extensionManifestPropertiesService, extensionGalleryService);
 	}
 
 	protected getInstallLabel(): string {
@@ -653,8 +715,9 @@ export class WebInstallAction extends InstallInOtherServerAction {
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
+		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
 	) {
-		super(`extensions.webInstall`, extensionManagementServerService.webExtensionManagementServer, false, extensionsWorkbenchService, extensionManagementServerService, extensionManifestPropertiesService);
+		super(`extensions.webInstall`, extensionManagementServerService.webExtensionManagementServer, false, extensionsWorkbenchService, extensionManagementServerService, extensionManifestPropertiesService, extensionGalleryService);
 	}
 
 	protected getInstallLabel(): string {
@@ -742,10 +805,15 @@ export class UpdateAction extends ExtensionAction {
 	}
 
 	private async computeAndUpdateEnablement(): Promise<void> {
+		this.enabled = false;
+		this.class = UpdateAction.DisabledClass;
+		this.label = this.getLabel();
+
 		if (!this.extension) {
-			this.enabled = false;
-			this.class = UpdateAction.DisabledClass;
-			this.label = this.getLabel();
+			return;
+		}
+
+		if (this.extension.deprecationInfo) {
 			return;
 		}
 
@@ -782,6 +850,52 @@ export class UpdateAction extends ExtensionAction {
 			return localize('updateToTargetPlatformVersion', "Update to {0} version", TargetPlatformToString(extension.gallery!.properties.targetPlatform));
 		}
 		return localize('updateToLatestVersion', "Update to {0}", extension.latestVersion);
+	}
+}
+
+export class MigrateDeprecatedExtensionAction extends ExtensionAction {
+
+	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} prominent migrate`;
+	private static readonly DisabledClass = `${MigrateDeprecatedExtensionAction.EnabledClass} disabled`;
+
+	constructor(
+		private readonly small: boolean,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		super('extensionsAction.migrateDeprecatedExtension', localize('migrateExtension', "Migrate"), MigrateDeprecatedExtensionAction.DisabledClass, false);
+		this.update();
+	}
+
+	update(): void {
+		this.enabled = false;
+		this.class = MigrateDeprecatedExtensionAction.DisabledClass;
+		if (!this.extension?.local) {
+			return;
+		}
+		if (this.extension.state !== ExtensionState.Installed) {
+			return;
+		}
+		if (!this.extension.deprecationInfo?.extension) {
+			return;
+		}
+		const id = this.extension.deprecationInfo.extension.id;
+		if (this.extensionsWorkbenchService.local.some(e => areSameExtensions(e.identifier, { id }))) {
+			return;
+		}
+		this.enabled = true;
+		this.class = MigrateDeprecatedExtensionAction.EnabledClass;
+		this.tooltip = localize('migrate to', "Migrate to {0}", this.extension.deprecationInfo.extension.displayName);
+		this.label = this.small ? localize('migrate', "Migrate") : this.tooltip;
+	}
+
+	override async run(): Promise<any> {
+		if (!this.extension?.deprecationInfo?.extension) {
+			return;
+		}
+		const local = this.extension.local;
+		await this.extensionsWorkbenchService.uninstall(this.extension);
+		const [extension] = await this.extensionsWorkbenchService.getExtensions([{ id: this.extension.deprecationInfo.extension.id, preRelease: this.extension.deprecationInfo?.extension?.preRelease }], CancellationToken.None);
+		await this.extensionsWorkbenchService.install(extension, { isMachineScoped: local?.isMachineScoped });
 	}
 }
 
@@ -829,9 +943,7 @@ export abstract class ExtensionDropDownAction extends ExtensionAction {
 	}
 
 	public override run({ actionGroups, disposeActionsOnHide }: { actionGroups: IAction[][]; disposeActionsOnHide: boolean }): Promise<any> {
-		if (this._actionViewItem) {
-			this._actionViewItem.showMenu(actionGroups, disposeActionsOnHide);
-		}
+		this._actionViewItem?.showMenu(actionGroups, disposeActionsOnHide);
 		return Promise.resolve();
 	}
 }
@@ -847,7 +959,7 @@ export class DropDownMenuActionViewItem extends ActionViewItem {
 	public showMenu(menuActionGroups: IAction[][], disposeActionsOnHide: boolean): void {
 		if (this.element) {
 			const actions = this.getActions(menuActionGroups);
-			let elementPosition = DOM.getDomNodePagePosition(this.element);
+			const elementPosition = DOM.getDomNodePagePosition(this.element);
 			const anchor = { x: elementPosition.left, y: elementPosition.top + elementPosition.height + 10 };
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => anchor,
@@ -1059,12 +1171,12 @@ export class SwitchToPreReleaseVersionAction extends ExtensionAction {
 	static readonly ID = 'workbench.extensions.action.switchToPreReleaseVersion';
 	static readonly TITLE = { value: localize('switch to pre-release version', "Switch to Pre-Release Version"), original: 'Switch to  Pre-Release Version' };
 
-	private static readonly Class = `${ExtensionAction.LABEL_ACTION_CLASS} hide-when-disabled`;
-
 	constructor(
+		icon: boolean,
 		@ICommandService private readonly commandService: ICommandService,
 	) {
-		super(SwitchToPreReleaseVersionAction.ID, SwitchToPreReleaseVersionAction.TITLE.value, SwitchToPreReleaseVersionAction.Class);
+		super(SwitchToPreReleaseVersionAction.ID, icon ? '' : SwitchToPreReleaseVersionAction.TITLE.value, `${icon ? ExtensionAction.ICON_ACTION_CLASS + ' ' + ThemeIcon.asClassName(preReleaseIcon) : ExtensionAction.LABEL_ACTION_CLASS} hide-when-disabled switch-to-prerelease`, true);
+		this.tooltip = localize('switch to pre-release version tooltip', "Switch to Pre-Release version of this extension");
 		this.update();
 	}
 
@@ -1085,12 +1197,12 @@ export class SwitchToReleasedVersionAction extends ExtensionAction {
 	static readonly ID = 'workbench.extensions.action.switchToReleaseVersion';
 	static readonly TITLE = { value: localize('switch to release version', "Switch to Release Version"), original: 'Switch to Release Version' };
 
-	private static readonly Class = `${ExtensionAction.LABEL_ACTION_CLASS} hide-when-disabled`;
-
 	constructor(
+		icon: boolean,
 		@ICommandService private readonly commandService: ICommandService,
 	) {
-		super(SwitchToReleasedVersionAction.ID, SwitchToReleasedVersionAction.TITLE.value, SwitchToReleasedVersionAction.Class);
+		super(SwitchToReleasedVersionAction.ID, icon ? '' : SwitchToReleasedVersionAction.TITLE.value, `${icon ? ExtensionAction.ICON_ACTION_CLASS + ' ' + ThemeIcon.asClassName(preReleaseIcon) : ExtensionAction.LABEL_ACTION_CLASS} hide-when-disabled switch-to-released`);
+		this.tooltip = localize('switch to release version tooltip', "Switch to Release version of this extension");
 		this.update();
 	}
 
@@ -1123,7 +1235,7 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 	}
 
 	update(): void {
-		this.enabled = !!this.extension && !this.extension.isBuiltin && !!this.extension.gallery && !!this.extension.local && !!this.extension.server && this.extension.state === ExtensionState.Installed;
+		this.enabled = !!this.extension && !this.extension.isBuiltin && !!this.extension.gallery && !!this.extension.local && !!this.extension.server && this.extension.state === ExtensionState.Installed && !this.extension.deprecationInfo;
 	}
 
 	override async run(): Promise<any> {
@@ -1131,7 +1243,7 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 			return;
 		}
 		const targetPlatform = await this.extension!.server!.extensionManagementService.getTargetPlatform();
-		const allVersions = await this.extensionGalleryService.getAllCompatibleVersions(this.extension!.gallery!, this.extension!.local!.isPreReleaseVersion, targetPlatform);
+		const allVersions = await this.extensionGalleryService.getAllCompatibleVersions(this.extension!.gallery!, this.extension!.local!.preRelease, targetPlatform);
 		if (!allVersions.length) {
 			await this.dialogService.show(Severity.Info, localize('no versions', "This extension has no other versions."));
 			return;
@@ -1533,38 +1645,38 @@ export class SetColorThemeAction extends ExtensionAction {
 	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} theme`;
 	private static readonly DisabledClass = `${SetColorThemeAction.EnabledClass} disabled`;
 
-	private colorThemes: IWorkbenchColorTheme[] = [];
-
 	constructor(
 		@IExtensionService extensionService: IExtensionService,
 		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 	) {
 		super(SetColorThemeAction.ID, SetColorThemeAction.TITLE.value, SetColorThemeAction.DisabledClass, false);
 		this._register(Event.any<any>(extensionService.onDidChangeExtensions, workbenchThemeService.onDidColorThemeChange)(() => this.update(), this));
-		workbenchThemeService.getColorThemes().then(colorThemes => {
-			this.colorThemes = colorThemes;
-			this.update();
-		});
 		this.update();
 	}
 
 	update(): void {
-		this.enabled = !!this.extension && (this.extension.state === ExtensionState.Installed) && this.colorThemes.some(th => isThemeFromExtension(th, this.extension));
-		this.class = this.enabled ? SetColorThemeAction.EnabledClass : SetColorThemeAction.DisabledClass;
+		this.workbenchThemeService.getColorThemes().then(colorThemes => {
+			this.enabled = this.computeEnablement(colorThemes);
+			this.class = this.enabled ? SetColorThemeAction.EnabledClass : SetColorThemeAction.DisabledClass;
+		});
+	}
+
+	private computeEnablement(colorThemes: IWorkbenchColorTheme[]): boolean {
+		return !!this.extension && this.extension.state === ExtensionState.Installed && this.extensionEnablementService.isEnabledEnablementState(this.extension.enablementState) && colorThemes.some(th => isThemeFromExtension(th, this.extension));
 	}
 
 	override async run({ showCurrentTheme, ignoreFocusLost }: { showCurrentTheme: boolean; ignoreFocusLost: boolean } = { showCurrentTheme: false, ignoreFocusLost: false }): Promise<any> {
-		this.colorThemes = await this.workbenchThemeService.getColorThemes();
+		const colorThemes = await this.workbenchThemeService.getColorThemes();
 
-		this.update();
-		if (!this.enabled) {
+		if (!this.computeEnablement(colorThemes)) {
 			return;
 		}
 		const currentTheme = this.workbenchThemeService.getColorTheme();
 
 		const delayer = new Delayer<any>(100);
-		const picks = getQuickPickEntries(this.colorThemes, currentTheme, this.extension, showCurrentTheme);
+		const picks = getQuickPickEntries(colorThemes, currentTheme, this.extension, showCurrentTheme);
 		const pickedTheme = await this.quickInputService.pick(
 			picks,
 			{
@@ -1584,37 +1696,37 @@ export class SetFileIconThemeAction extends ExtensionAction {
 	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} theme`;
 	private static readonly DisabledClass = `${SetFileIconThemeAction.EnabledClass} disabled`;
 
-	private fileIconThemes: IWorkbenchFileIconTheme[] = [];
-
 	constructor(
 		@IExtensionService extensionService: IExtensionService,
 		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 	) {
 		super(SetFileIconThemeAction.ID, SetFileIconThemeAction.TITLE.value, SetFileIconThemeAction.DisabledClass, false);
 		this._register(Event.any<any>(extensionService.onDidChangeExtensions, workbenchThemeService.onDidFileIconThemeChange)(() => this.update(), this));
-		workbenchThemeService.getFileIconThemes().then(fileIconThemes => {
-			this.fileIconThemes = fileIconThemes;
-			this.update();
-		});
 		this.update();
 	}
 
 	update(): void {
-		this.enabled = !!this.extension && (this.extension.state === ExtensionState.Installed) && this.fileIconThemes.some(th => isThemeFromExtension(th, this.extension));
-		this.class = this.enabled ? SetFileIconThemeAction.EnabledClass : SetFileIconThemeAction.DisabledClass;
+		this.workbenchThemeService.getFileIconThemes().then(fileIconThemes => {
+			this.enabled = this.computeEnablement(fileIconThemes);
+			this.class = this.enabled ? SetFileIconThemeAction.EnabledClass : SetFileIconThemeAction.DisabledClass;
+		});
+	}
+
+	private computeEnablement(colorThemfileIconThemess: IWorkbenchFileIconTheme[]): boolean {
+		return !!this.extension && this.extension.state === ExtensionState.Installed && this.extensionEnablementService.isEnabledEnablementState(this.extension.enablementState) && colorThemfileIconThemess.some(th => isThemeFromExtension(th, this.extension));
 	}
 
 	override async run({ showCurrentTheme, ignoreFocusLost }: { showCurrentTheme: boolean; ignoreFocusLost: boolean } = { showCurrentTheme: false, ignoreFocusLost: false }): Promise<any> {
-		this.fileIconThemes = await this.workbenchThemeService.getFileIconThemes();
-		this.update();
-		if (!this.enabled) {
+		const fileIconThemes = await this.workbenchThemeService.getFileIconThemes();
+		if (!this.computeEnablement(fileIconThemes)) {
 			return;
 		}
 		const currentTheme = this.workbenchThemeService.getFileIconTheme();
 
 		const delayer = new Delayer<any>(100);
-		const picks = getQuickPickEntries(this.fileIconThemes, currentTheme, this.extension, showCurrentTheme);
+		const picks = getQuickPickEntries(fileIconThemes, currentTheme, this.extension, showCurrentTheme);
 		const pickedTheme = await this.quickInputService.pick(
 			picks,
 			{
@@ -1634,38 +1746,38 @@ export class SetProductIconThemeAction extends ExtensionAction {
 	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} theme`;
 	private static readonly DisabledClass = `${SetProductIconThemeAction.EnabledClass} disabled`;
 
-	private productIconThemes: IWorkbenchProductIconTheme[] = [];
-
 	constructor(
 		@IExtensionService extensionService: IExtensionService,
 		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 	) {
 		super(SetProductIconThemeAction.ID, SetProductIconThemeAction.TITLE.value, SetProductIconThemeAction.DisabledClass, false);
 		this._register(Event.any<any>(extensionService.onDidChangeExtensions, workbenchThemeService.onDidProductIconThemeChange)(() => this.update(), this));
-		workbenchThemeService.getProductIconThemes().then(productIconThemes => {
-			this.productIconThemes = productIconThemes;
-			this.update();
-		});
 		this.update();
 	}
 
 	update(): void {
-		this.enabled = !!this.extension && (this.extension.state === ExtensionState.Installed) && this.productIconThemes.some(th => isThemeFromExtension(th, this.extension));
-		this.class = this.enabled ? SetProductIconThemeAction.EnabledClass : SetProductIconThemeAction.DisabledClass;
+		this.workbenchThemeService.getProductIconThemes().then(productIconThemes => {
+			this.enabled = this.computeEnablement(productIconThemes);
+			this.class = this.enabled ? SetProductIconThemeAction.EnabledClass : SetProductIconThemeAction.DisabledClass;
+		});
+	}
+
+	private computeEnablement(productIconThemes: IWorkbenchProductIconTheme[]): boolean {
+		return !!this.extension && this.extension.state === ExtensionState.Installed && this.extensionEnablementService.isEnabledEnablementState(this.extension.enablementState) && productIconThemes.some(th => isThemeFromExtension(th, this.extension));
 	}
 
 	override async run({ showCurrentTheme, ignoreFocusLost }: { showCurrentTheme: boolean; ignoreFocusLost: boolean } = { showCurrentTheme: false, ignoreFocusLost: false }): Promise<any> {
-		this.productIconThemes = await this.workbenchThemeService.getProductIconThemes();
-		this.update();
-		if (!this.enabled) {
+		const productIconThemes = await this.workbenchThemeService.getProductIconThemes();
+		if (!this.computeEnablement(productIconThemes)) {
 			return;
 		}
 
 		const currentTheme = this.workbenchThemeService.getProductIconTheme();
 
 		const delayer = new Delayer<any>(100);
-		const picks = getQuickPickEntries(this.productIconThemes, currentTheme, this.extension, showCurrentTheme);
+		const picks = getQuickPickEntries(productIconThemes, currentTheme, this.extension, showCurrentTheme);
 		const pickedTheme = await this.quickInputService.pick(
 			picks,
 			{
@@ -1674,6 +1786,43 @@ export class SetProductIconThemeAction extends ExtensionAction {
 				ignoreFocusLost
 			});
 		return this.workbenchThemeService.setProductIconTheme(pickedTheme ? pickedTheme.id : currentTheme.id, 'auto');
+	}
+}
+
+export class SetLanguageAction extends ExtensionAction {
+
+	static readonly ID = 'workbench.extensions.action.setLanguageTheme';
+	static readonly TITLE = { value: localize('workbench.extensions.action.setLanguageTheme', "Set Display Language"), original: 'Set Display Language' };
+
+	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} theme`;
+	private static readonly DisabledClass = `${SetLanguageAction.EnabledClass} disabled`;
+
+	constructor(
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@ILanguagePackService private readonly languagePackService: ILanguagePackService,
+	) {
+		super(SetLanguageAction.ID, SetLanguageAction.TITLE.value, SetLanguageAction.DisabledClass, false);
+		this.update();
+	}
+
+	update(): void {
+		this.enabled = false;
+		this.class = SetLanguageAction.DisabledClass;
+		if (!this.extension) {
+			return;
+		}
+		if (!this.extensionsWorkbenchService.canSetLanguage(this.extension)) {
+			return;
+		}
+		if (this.extension.gallery && language === this.languagePackService.getLocale(this.extension.gallery)) {
+			return;
+		}
+		this.enabled = true;
+		this.class = SetLanguageAction.EnabledClass;
+	}
+
+	override async run(): Promise<any> {
+		return this.extension && this.extensionsWorkbenchService.setLanguage(this.extension);
 	}
 }
 
@@ -2156,15 +2305,20 @@ export class ExtensionStatusAction extends ExtensionAction {
 			return;
 		}
 
-		if (this.extension.isUnsupported) {
-			if (isBoolean(this.extension.isUnsupported)) {
-				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('unsupported tooltip', "This extension no longer supported.")) }, true);
+		if (this.extension.deprecationInfo) {
+			if (this.extension.deprecationInfo.extension) {
+				const link = `[${this.extension.deprecationInfo.extension.displayName}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.deprecationInfo.extension.id]))}`)})`;
+				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('deprecated with alternate extension tooltip', "This extension is deprecated. Use the {0} extension instead.", link)) }, true);
+			} else if (this.extension.deprecationInfo.settings) {
+				const link = `[${localize('settings', "settings")}](${URI.parse(`command:workbench.action.openSettings?${encodeURIComponent(JSON.stringify([this.extension.deprecationInfo.settings.map(setting => `@id:${setting}`).join(' ')]))}`)})`;
+				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('deprecated with alternate settings tooltip', "This extension is deprecated as this functionality is now built-in to VS Code. Configure these {0} to use this functionality.", link)) }, true);
 			} else {
-				const link = `[${this.extension.isUnsupported.preReleaseExtension.displayName}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.isUnsupported.preReleaseExtension.id]))}`)})`;
-				if (this.extension.state !== ExtensionState.Installed) {
-					this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('unsupported prerelease switch tooltip', "This extension is now part of the {0} extension as a pre-release version.", link)) }, true);
-				}
+				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('deprecated tooltip', "This extension is deprecated as it is no longer being maintained.")) }, true);
 			}
+			return;
+		}
+
+		if (this.extensionsWorkbenchService.canSetLanguage(this.extension)) {
 			return;
 		}
 
@@ -2346,6 +2500,11 @@ export class ExtensionStatusAction extends ExtensionAction {
 				this.updateStatus({ message: new MarkdownString(localize('workspace disabled', "This extension is disabled for this workspace by the user.")) }, true);
 				return;
 			}
+		}
+
+		if (isEnabled && !isRunning && !this.extension.local.isValid) {
+			const errors = this.extension.local.validations.filter(([severity]) => severity === Severity.Error).map(([, message]) => message);
+			this.updateStatus({ icon: errorIcon, message: new MarkdownString(errors.join(' ').trim()) }, true);
 		}
 
 	}
@@ -2747,72 +2906,64 @@ export const extensionButtonProminentHoverBackground = registerColor('extensionB
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 	const foregroundColor = theme.getColor(foreground);
 	if (foregroundColor) {
-		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action.built-in-status { border-color: ${foregroundColor}; }`);
-		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.built-in-status { border-color: ${foregroundColor}; }`);
+		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.built-in-status { border-color: ${foregroundColor}; }`);
 	}
 
 	const buttonBackgroundColor = theme.getColor(buttonBackground);
 	if (buttonBackgroundColor) {
-		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action.label { background-color: ${buttonBackgroundColor}; }`);
-		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.label { background-color: ${buttonBackgroundColor}; }`);
+		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.label { background-color: ${buttonBackgroundColor}; }`);
 	}
 
 	const buttonForegroundColor = theme.getColor(buttonForeground);
 	if (buttonForegroundColor) {
-		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action.label { color: ${buttonForegroundColor}; }`);
-		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.label { color: ${buttonForegroundColor}; }`);
+		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.label { color: ${buttonForegroundColor}; }`);
 	}
 
 	const buttonHoverBackgroundColor = theme.getColor(buttonHoverBackground);
 	if (buttonHoverBackgroundColor) {
-		collector.addRule(`.extension-list-item .monaco-action-bar .action-item:hover .action-label.extension-action.label { background-color: ${buttonHoverBackgroundColor}; }`);
-		collector.addRule(`.extension-editor .monaco-action-bar .action-item:hover .action-label.extension-action.label { background-color: ${buttonHoverBackgroundColor}; }`);
+		collector.addRule(`.monaco-action-bar .action-item:hover .action-label.extension-action.label { background-color: ${buttonHoverBackgroundColor}; }`);
 	}
 
 	const extensionButtonProminentBackgroundColor = theme.getColor(extensionButtonProminentBackground);
 	if (extensionButtonProminentBackground) {
-		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action.label.prominent { background-color: ${extensionButtonProminentBackgroundColor}; }`);
-		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.label.prominent { background-color: ${extensionButtonProminentBackgroundColor}; }`);
+		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.label.prominent { background-color: ${extensionButtonProminentBackgroundColor}; }`);
 	}
 
 	const extensionButtonProminentForegroundColor = theme.getColor(extensionButtonProminentForeground);
 	if (extensionButtonProminentForeground) {
-		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action.label.prominent { color: ${extensionButtonProminentForegroundColor}; }`);
-		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.label.prominent { color: ${extensionButtonProminentForegroundColor}; }`);
+		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.label.prominent { color: ${extensionButtonProminentForegroundColor}; }`);
 	}
 
 	const extensionButtonProminentHoverBackgroundColor = theme.getColor(extensionButtonProminentHoverBackground);
 	if (extensionButtonProminentHoverBackground) {
-		collector.addRule(`.extension-list-item .monaco-action-bar .action-item:hover .action-label.extension-action.label.prominent { background-color: ${extensionButtonProminentHoverBackgroundColor}; }`);
-		collector.addRule(`.extension-editor .monaco-action-bar .action-item:hover .action-label.extension-action.label.prominent { background-color: ${extensionButtonProminentHoverBackgroundColor}; }`);
+		collector.addRule(`.monaco-action-bar .action-item:hover .action-label.extension-action.label.prominent { background-color: ${extensionButtonProminentHoverBackgroundColor}; }`);
 	}
 
 	const contrastBorderColor = theme.getColor(contrastBorder);
 	if (contrastBorderColor) {
-		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action:not(.disabled) { border: 1px solid ${contrastBorderColor}; }`);
-		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action:not(.disabled) { border: 1px solid ${contrastBorderColor}; }`);
+		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action:not(.disabled) { border: 1px solid ${contrastBorderColor}; }`);
 	}
 
 	const errorColor = theme.getColor(editorErrorForeground);
 	if (errorColor) {
-		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action.extension-status-error { color: ${errorColor}; }`);
-		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.extension-status-error { color: ${errorColor}; }`);
+		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.extension-status-error { color: ${errorColor}; }`);
+		collector.addRule(`.extension-editor .header .actions-status-container > .status ${ThemeIcon.asCSSSelector(errorIcon)} { color: ${errorColor}; }`);
 		collector.addRule(`.extension-editor .body .subcontent .runtime-status ${ThemeIcon.asCSSSelector(errorIcon)} { color: ${errorColor}; }`);
 		collector.addRule(`.monaco-hover.extension-hover .markdown-hover .hover-contents ${ThemeIcon.asCSSSelector(errorIcon)} { color: ${errorColor}; }`);
 	}
 
 	const warningColor = theme.getColor(editorWarningForeground);
 	if (warningColor) {
-		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action.extension-status-warning { color: ${warningColor}; }`);
-		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.extension-status-warning { color: ${warningColor}; }`);
+		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.extension-status-warning { color: ${warningColor}; }`);
+		collector.addRule(`.extension-editor .header .actions-status-container > .status ${ThemeIcon.asCSSSelector(warningIcon)} { color: ${warningColor}; }`);
 		collector.addRule(`.extension-editor .body .subcontent .runtime-status ${ThemeIcon.asCSSSelector(warningIcon)} { color: ${warningColor}; }`);
 		collector.addRule(`.monaco-hover.extension-hover .markdown-hover .hover-contents ${ThemeIcon.asCSSSelector(warningIcon)} { color: ${warningColor}; }`);
 	}
 
 	const infoColor = theme.getColor(editorInfoForeground);
 	if (infoColor) {
-		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action.extension-status-info { color: ${infoColor}; }`);
-		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.extension-status-info { color: ${infoColor}; }`);
+		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.extension-status-info { color: ${infoColor}; }`);
+		collector.addRule(`.extension-editor .header .actions-status-container > .status ${ThemeIcon.asCSSSelector(infoIcon)} { color: ${infoColor}; }`);
 		collector.addRule(`.extension-editor .body .subcontent .runtime-status ${ThemeIcon.asCSSSelector(infoIcon)} { color: ${infoColor}; }`);
 		collector.addRule(`.monaco-hover.extension-hover .markdown-hover .hover-contents ${ThemeIcon.asCSSSelector(infoIcon)} { color: ${infoColor}; }`);
 	}

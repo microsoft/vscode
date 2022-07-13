@@ -75,7 +75,10 @@ import { Event } from 'vs/base/common/event';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { UnsupportedExtensionsMigrationContrib } from 'vs/workbench/contrib/extensions/browser/unsupportedExtensionsMigrationContribution';
 import { isWeb } from 'vs/base/common/platform';
-import { ExtensionsCleaner } from 'vs/workbench/contrib/extensions/browser/extensionsCleaner';
+import { ExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import product from 'vs/platform/product/common/product';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
@@ -90,7 +93,7 @@ Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessPro
 	ctor: ManageExtensionsQuickAccessProvider,
 	prefix: ManageExtensionsQuickAccessProvider.PREFIX,
 	placeholder: localize('manageExtensionsQuickAccessPlaceholder', "Press Enter to manage extensions."),
-	helpEntries: [{ description: localize('manageExtensionsHelp', "Manage Extensions"), needsEditor: false }]
+	helpEntries: [{ description: localize('manageExtensionsHelp', "Manage Extensions") }]
 });
 
 // Editor
@@ -200,9 +203,12 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					}
 				},
 				additionalProperties: false,
-				default: {
-					'pub.name': false
-				}
+				default: {},
+				defaultSnippets: [{
+					'body': {
+						'pub.name': false
+					}
+				}]
 			},
 			'extensions.experimental.affinity': {
 				type: 'object',
@@ -214,9 +220,17 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					}
 				},
 				additionalProperties: false,
-				default: {
-					'pub.name': 1
-				}
+				default: {},
+				defaultSnippets: [{
+					'body': {
+						'pub.name': 1
+					}
+				}]
+			},
+			'extensions.experimental.useUtilityProcess': {
+				type: 'boolean',
+				description: localize('extensionsUseUtilityProcess', "When enabled, the extension host will be launched using the new UtilityProcess Electron API."),
+				default: product.quality === 'stable' ? false : true // disabled by default in stable for now
 			},
 			[WORKSPACE_TRUST_EXTENSION_SUPPORT]: {
 				type: 'object',
@@ -303,13 +317,17 @@ CommandsRegistry.registerCommand({
 							'type': 'boolean',
 							'description': localize('workbench.extensions.installExtension.option.donotSync', "When enabled, VS Code do not sync this extension when Settings Sync is on."),
 							default: false
+						},
+						'context': {
+							'type': 'object',
+							'description': localize('workbench.extensions.installExtension.option.context', "Context for the installation. This is a JSON object that can be used to pass any information to the installation handlers. i.e. `{skipWalkthrough: true}` will skip opening the walkthrough upon install."),
 						}
 					}
 				}
 			}
 		]
 	},
-	handler: async (accessor, arg: string | UriComponents, options?: { installOnlyNewlyAddedFromExtensionPackVSIX?: boolean; installPreReleaseVersion?: boolean; donotSync?: boolean }) => {
+	handler: async (accessor, arg: string | UriComponents, options?: { installOnlyNewlyAddedFromExtensionPackVSIX?: boolean; installPreReleaseVersion?: boolean; donotSync?: boolean; context?: IStringDictionary<any> }) => {
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		try {
 			if (typeof arg === 'string') {
@@ -319,7 +337,8 @@ CommandsRegistry.registerCommand({
 					const installOptions: InstallOptions = {
 						isMachineScoped: options?.donotSync ? true : undefined, /* do not allow syncing extensions automatically while installing through the command */
 						installPreReleaseVersion: options?.installPreReleaseVersion,
-						installGivenVersion: !!version
+						installGivenVersion: !!version,
+						context: options?.context
 					};
 					if (version) {
 						await extensionsWorkbenchService.installVersion(extension, version, installOptions);
@@ -433,7 +452,7 @@ async function runAction(action: IAction): Promise<void> {
 }
 
 interface IExtensionActionOptions extends IAction2Options {
-	menuTitles?: { [id: number]: string };
+	menuTitles?: { [id: string]: string };
 	run(accessor: ServicesAccessor, ...args: any[]): Promise<any>;
 }
 
@@ -485,7 +504,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				ctor: InstallExtensionQuickAccessProvider,
 				prefix: InstallExtensionQuickAccessProvider.PREFIX,
 				placeholder: localize('installExtensionQuickAccessPlaceholder', "Type the name of an extension to install or search."),
-				helpEntries: [{ description: localize('installExtensionQuickAccessHelp', "Install or Search Extensions"), needsEditor: false }]
+				helpEntries: [{ description: localize('installExtensionQuickAccessHelp', "Install or Search Extensions") }]
 			});
 		}
 	}
@@ -1330,7 +1349,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			},
 			run: async (accessor: ServicesAccessor, extensionId: string) => {
 				const clipboardService = accessor.get(IClipboardService);
-				let extension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, { id: extensionId }))[0]
+				const extension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, { id: extensionId }))[0]
 					|| (await this.extensionsWorkbenchService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
 				if (extension) {
 					const name = localize('extensionInfoName', 'Name: {0}', extension.displayName);
@@ -1548,6 +1567,16 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 }
 
+class ExtensionStorageCleaner implements IWorkbenchContribution {
+
+	constructor(
+		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
+		@IStorageService storageService: IStorageService,
+	) {
+		ExtensionStorageService.removeOutdatedExtensionVersions(extensionManagementService, storageService);
+	}
+}
+
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(ExtensionsContributions, LifecyclePhase.Starting);
 workbenchRegistry.registerWorkbenchContribution(StatusUpdater, LifecyclePhase.Restored);
@@ -1560,7 +1589,7 @@ workbenchRegistry.registerWorkbenchContribution(ExtensionEnablementWorkspaceTrus
 workbenchRegistry.registerWorkbenchContribution(ExtensionsCompletionItemsProvider, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(UnsupportedExtensionsMigrationContrib, LifecyclePhase.Eventually);
 if (isWeb) {
-	workbenchRegistry.registerWorkbenchContribution(ExtensionsCleaner, LifecyclePhase.Eventually);
+	workbenchRegistry.registerWorkbenchContribution(ExtensionStorageCleaner, LifecyclePhase.Eventually);
 }
 
 
