@@ -113,7 +113,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	readonly onRestoreCommands = this._onRestoreCommands.event;
 
 	get persistentProcessId(): number | undefined { return this._process?.id; }
-	get shouldPersist(): boolean { return this._shellLaunchConfig?.attachPersistentProcess?.reconnectionOwner || this._shellLaunchConfig?.reconnectionOwner ? true : (this._process ? this._process.shouldPersist : false); }
+	get shouldPersist(): boolean { return this.reconnectionOwner || (this._process ? this._process.shouldPersist : false); }
 	get hasWrittenData(): boolean { return this._hasWrittenData; }
 	get hasChildProcesses(): boolean { return this._hasChildProcesses; }
 	get reconnectionOwner(): boolean { return this._shellLaunchConfig?.attachPersistentProcess?.reconnectionOwner || this._shellLaunchConfig?.reconnectionOwner || false; }
@@ -463,7 +463,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			environmentVariableCollections: this._extEnvironmentVariableCollection ? serializeEnvironmentVariableCollections(this._extEnvironmentVariableCollection.collections) : undefined
 		};
 		const shouldPersist = this._configHelper.config.enablePersistentSessions && (this.reconnectionOwner || !shellLaunchConfig.isFeatureTerminal);
-		console.log('should persist', shouldPersist);
 		return await backend.createProcess(shellLaunchConfig, initialCwd, cols, rows, this._configHelper.config.unicodeVersion, env, options, shouldPersist);
 	}
 

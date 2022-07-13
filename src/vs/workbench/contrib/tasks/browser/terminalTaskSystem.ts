@@ -203,9 +203,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private _tasksToReconnect: string[] = [];
 	private readonly _onDidStateChange: Emitter<ITaskEvent>;
 
-	private readonly _onDidReconnectToTerminals: Emitter<void> = new Emitter();
-	onDidReconnectToTerminals: Event<void> = this._onDidReconnectToTerminals.event;
-
 	get taskShellIntegrationStartSequence(): string {
 		return this._configurationService.getValue(TaskSettingId.ShowDecorations) ? VSCodeSequence(VSCodeOscPt.PromptStart) + VSCodeSequence(VSCodeOscPt.Property, `${VSCodeOscProperty.Task}=True`) + VSCodeSequence(VSCodeOscPt.CommandStart) : '';
 	}
@@ -1091,7 +1088,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				env: { ...defaultProfile.env },
 				icon,
 				color: task.configurationProperties.icon?.color || undefined,
-				waitOnExit,
+				waitOnExit
 			};
 			let shellSpecified: boolean = false;
 			const shellOptions: IShellConfiguration | undefined = task.command.options && task.command.options.shell;
@@ -1245,7 +1242,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			}
 		}
 		shellLaunchConfig.isFeatureTerminal = true;
-		shellLaunchConfig.reconnectionOwner = true;
 		shellLaunchConfig.useShellEnvironment = true;
 		return shellLaunchConfig;
 	}
@@ -1290,7 +1286,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		return createdTerminal;
 	}
 
-	private async _createTerminal(task: CustomTask | ContributedTask, resolver: VariableResolver, workspaceFolder: IWorkspaceFolder | undefined): Promise<[ITerminalInstance | undefined, TaskError | undefined]> {
+	private _reviveTerminals(): void {
 		if (Object.entries(this._terminals).length === 0) {
 			for (const terminal of this._terminalService.instances) {
 				if (terminal.shellLaunchConfig.attachPersistentProcess?.task?.lastTask) {
@@ -1298,6 +1294,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				}
 			}
 		}
+	}
+
+	private async _createTerminal(task: CustomTask | ContributedTask, resolver: VariableResolver, workspaceFolder: IWorkspaceFolder | undefined): Promise<[ITerminalInstance | undefined, TaskError | undefined]> {
+		this._reviveTerminals();
 		const platform = resolver.taskSystemInfo ? resolver.taskSystemInfo.platform : Platform.platform;
 		const options = await this._resolveOptions(resolver, task.command.options);
 		const presentationOptions = task.command.presentation;
@@ -1335,9 +1335,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					comment: ['The task command line or label']
 				}, 'Executing task: {0}', task._label), { excludeLeadingNewLine: true }) : undefined,
 				isFeatureTerminal: true,
-				reconnectionOwner: true,
 				icon: task.configurationProperties.icon?.id ? ThemeIcon.fromId(task.configurationProperties.icon.id) : undefined,
-				color: task.configurationProperties.icon?.color || undefined,
+				color: task.configurationProperties.icon?.color || undefined
 			};
 		} else {
 			const resolvedResult: { command: CommandString; args: CommandString[] } = await this._resolveCommandAndArgs(resolver, task.command);
@@ -1399,8 +1398,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		this._terminalCreationQueue = this._terminalCreationQueue.then(() => this._doCreateTerminal(group, launchConfigs!));
 		const result: ITerminalInstance = (await this._terminalCreationQueue)!;
 		result.shellLaunchConfig.task = { lastTask: taskKey, group, label: task._label, id: task._id };
+		result.shellLaunchConfig.reconnectionOwner = true;
 		const terminalKey = result.instanceId.toString();
-		result.onDisposed((terminal) => {
+		result.onDisposed(() => {
 			const terminalData = this._terminals[terminalKey];
 			if (terminalData) {
 				delete this._terminals[terminalKey];

@@ -139,7 +139,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	onDidDisposeGroup: Event<ITerminalGroup>;
 	onDidCreateInstance: Event<ITerminalInstance>;
 	onDidReceiveProcessId: Event<ITerminalInstance>;
-	onDidRequestReconnection: Event<ITerminalInstance>;
 	onDidChangeInstanceDimensions: Event<ITerminalInstance>;
 	onDidMaximumDimensionsChange: Event<ITerminalInstance>;
 	onDidRequestStartExtensionTerminal: Event<IStartExtensionTerminalRequest>;
