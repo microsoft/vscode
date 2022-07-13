@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vscode-nls';
-import { Command, Disposable } from 'vscode';
+import { Command, Disposable, Event } from 'vscode';
 import { PostCommitCommandsProvider } from './api/git';
 
 export interface IPostCommitCommandsProviderRegistry {
+	readonly onDidAddPostCommitCommandsProvider: Event<PostCommitCommandsProvider>;
+	readonly onDidRemovePostCommitCommandsProvider: Event<PostCommitCommandsProvider>;
+
 	getPostCommitCommandsProviders(): PostCommitCommandsProvider[];
 	registerPostCommitCommandsProvider(provider: PostCommitCommandsProvider): Disposable;
 }
