@@ -28,13 +28,14 @@ import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProc
 
 const enum DecorationSelector {
 	CommandDecoration = 'terminal-command-decoration',
+	Hide = 'hide',
 	ErrorColor = 'error',
 	DefaultColor = 'default-color',
 	Default = 'default',
 	Codicon = 'codicon',
 	XtermDecoration = 'xterm-decoration',
-	OverviewRuler = 'xterm-decoration-overview-ruler',
-	GenericMarkerIcon = 'codicon-circle-small-filled'
+	GenericMarkerIcon = 'codicon-circle-small-filled',
+	OverviewRuler = '.xterm-decoration-overview-ruler'
 }
 
 const enum DecorationStyles {
@@ -51,6 +52,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	private _contextMenuVisible: boolean = false;
 	private _decorations: Map<number, IDisposableDecoration> = new Map();
 	private _placeholderDecoration: IDecoration | undefined;
+	private _showGutterDecorations?: boolean;
+	private _showOverviewRulerDecorations?: boolean;
 
 	private readonly _onDidRequestRunCommand = this._register(new Emitter<{ command: ITerminalCommand; copyAsHtml?: boolean }>());
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
@@ -79,9 +82,67 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				this.refreshLayouts();
 			} else if (e.affectsConfiguration('workbench.colorCustomizations')) {
 				this._refreshStyles(true);
+			} else if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled)) {
+				if (this._commandDetectionListeners) {
+					dispose(this._commandDetectionListeners);
+					this._commandDetectionListeners = undefined;
+				}
+				this._updateDecorationVisibility();
 			}
 		});
 		this._themeService.onDidColorThemeChange(() => this._refreshStyles(true));
+		this._updateDecorationVisibility();
+		this._register(this._capabilities.onDidAddCapability(c => {
+			if (c === TerminalCapability.CommandDetection) {
+				this._addCommandDetectionListeners();
+			}
+		}));
+		this._register(this._capabilities.onDidRemoveCapability(c => {
+			if (c === TerminalCapability.CommandDetection) {
+				if (this._commandDetectionListeners) {
+					dispose(this._commandDetectionListeners);
+					this._commandDetectionListeners = undefined;
+				}
+			}
+		}));
+	}
+
+	private _updateDecorationVisibility(): void {
+		const showDecorations = this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled);
+		this._showGutterDecorations = (showDecorations === 'both' || showDecorations === 'gutter');
+		this._showOverviewRulerDecorations = (showDecorations === 'both' || showDecorations === 'overviewRuler');
+		this._disposeAllDecorations();
+		if (this._showGutterDecorations || this._showOverviewRulerDecorations) {
+			this._attachToCommandCapability();
+			this._updateGutterDecorationVisibility();
+		}
+		const currentCommand = this._capabilities.get(TerminalCapability.CommandDetection)?.executingCommandObject;
+		if (currentCommand) {
+			this.registerCommandDecoration(currentCommand, true);
+		}
+	}
+
+	private _disposeAllDecorations(): void {
+		this._placeholderDecoration?.dispose();
+		for (const value of this._decorations.values()) {
+			value.decoration.dispose();
+			dispose(value.disposables);
+		}
+	}
+
+	private _updateGutterDecorationVisibility(): void {
+		const commandDecorationElements = document.querySelectorAll(DecorationSelector.CommandDecoration);
+		for (const commandDecorationElement of commandDecorationElements) {
+			this._updateCommandDecorationVisibility(commandDecorationElement);
+		}
+	}
+
+	private _updateCommandDecorationVisibility(commandDecorationElement: Element): void {
+		if (this._showGutterDecorations) {
+			commandDecorationElement.classList.remove(DecorationSelector.Hide);
+		} else {
+			commandDecorationElement.classList.add(DecorationSelector.Hide);
+		}
 	}
 
 	public refreshLayouts(): void {
@@ -128,31 +189,14 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	public clearDecorations(): void {
 		this._placeholderDecoration?.marker.dispose();
 		this._clearPlaceholder();
-		for (const value of this._decorations.values()) {
-			value.decoration.dispose();
-			dispose(value.disposables);
-		}
+		this._disposeAllDecorations();
 		this._decorations.clear();
 	}
 
 	private _attachToCommandCapability(): void {
 		if (this._capabilities.has(TerminalCapability.CommandDetection)) {
 			this._addCommandDetectionListeners();
-		} else {
-			this._register(this._capabilities.onDidAddCapability(c => {
-				if (c === TerminalCapability.CommandDetection) {
-					this._addCommandDetectionListeners();
-				}
-			}));
 		}
-		this._register(this._capabilities.onDidRemoveCapability(c => {
-			if (c === TerminalCapability.CommandDetection) {
-				if (this._commandDetectionListeners) {
-					dispose(this._commandDetectionListeners);
-					this._commandDetectionListeners = undefined;
-				}
-			}
-		}));
 	}
 
 	private _addCommandDetectionListeners(): void {
@@ -204,13 +248,12 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	}
 
 	registerCommandDecoration(command: ITerminalCommand, beforeCommandExecution?: boolean): IDecoration | undefined {
-		if (!this._terminal || (beforeCommandExecution && command.genericMarkProperties)) {
+		if (!this._terminal || (beforeCommandExecution && command.genericMarkProperties) || (!this._showGutterDecorations && !this._showOverviewRulerDecorations)) {
 			return undefined;
 		}
 		if (!command.marker) {
 			throw new Error(`cannot add a decoration for a command ${JSON.stringify(command)} with no marker`);
 		}
-
 		this._clearPlaceholder();
 		let color = command.exitCode === undefined ? defaultColor : command.exitCode ? errorColor : successColor;
 		if (color && typeof color !== 'string') {
@@ -220,9 +263,9 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 		const decoration = this._terminal.registerDecoration({
 			marker: command.marker,
-			overviewRulerOptions: beforeCommandExecution
+			overviewRulerOptions: this._showOverviewRulerDecorations ? (beforeCommandExecution
 				? { color, position: 'left' }
-				: { color, position: command.exitCode ? 'right' : 'left' }
+				: { color, position: command.exitCode ? 'right' : 'left' }) : undefined
 		});
 		if (!decoration) {
 			return undefined;
@@ -287,20 +330,25 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			element.classList.remove(classes);
 		}
 		element.classList.add(DecorationSelector.CommandDecoration, DecorationSelector.Codicon, DecorationSelector.XtermDecoration);
+
 		if (genericMarkProperties) {
 			element.classList.add(DecorationSelector.DefaultColor, DecorationSelector.GenericMarkerIcon);
 			if (!genericMarkProperties.hoverMessage) {
 				//disable the mouse pointer
 				element.classList.add(DecorationSelector.Default);
 			}
-		} else if (exitCode === undefined) {
-			element.classList.add(DecorationSelector.DefaultColor, DecorationSelector.Default);
-			element.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationIcon)}`);
-		} else if (exitCode) {
-			element.classList.add(DecorationSelector.ErrorColor);
-			element.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationIconError)}`);
 		} else {
-			element.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationIconSuccess)}`);
+			// command decoration
+			this._updateCommandDecorationVisibility(element);
+			if (exitCode === undefined) {
+				element.classList.add(DecorationSelector.DefaultColor, DecorationSelector.Default);
+				element.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationIcon)}`);
+			} else if (exitCode) {
+				element.classList.add(DecorationSelector.ErrorColor);
+				element.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationIconError)}`);
+			} else {
+				element.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationIconSuccess)}`);
+			}
 		}
 	}
 

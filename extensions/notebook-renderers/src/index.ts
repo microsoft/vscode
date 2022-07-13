@@ -11,7 +11,12 @@ interface IDisposable {
 }
 
 interface HtmlRenderingHook {
-	postRender(element: HTMLElement): HTMLElement | undefined;
+	/**
+	 * Invoked after the output item has been rendered but before it has been appended to the document.
+	 *
+	 * @return A new `HTMLElement` or `undefined` to continue using the provided element.
+	 */
+	postRender(outputItem: OutputItem, element: HTMLElement): HTMLElement | undefined;
 }
 
 function clearContainer(container: HTMLElement) {
@@ -75,7 +80,7 @@ function renderHTML(outputInfo: OutputItem, container: HTMLElement, hooks: Itera
 	element.innerHTML = trustedHtml as string;
 
 	for (const hook of hooks) {
-		element = hook.postRender(element) ?? element;
+		element = hook.postRender(outputInfo, element) ?? element;
 	}
 
 	container.appendChild(element);
@@ -286,7 +291,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 				disposables.forEach(d => d.dispose());
 			}
 		},
-		registerHtmlRenderingHook: (hook: HtmlRenderingHook): IDisposable => {
+		experimental_registerHtmlRenderingHook: (hook: HtmlRenderingHook): IDisposable => {
 			htmlHooks.add(hook);
 			return {
 				dispose: () => {
