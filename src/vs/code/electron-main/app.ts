@@ -1006,6 +1006,7 @@ export class CodeApplication extends Disposable {
 			cli: args,
 			forceNewWindow: args['new-window'] || (!hasCliArgs && args['unity-launch']),
 			diffMode: args.diff,
+			mergeMode: args.merge,
 			noRecentEntry,
 			waitMarkerFileURI,
 			gotoLineMode: args.goto,

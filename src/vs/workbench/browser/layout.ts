@@ -9,7 +9,7 @@ import { EventType, addDisposableListener, getClientArea, Dimension, position, s
 import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { isWindows, isLinux, isMacintosh, isWeb, isNative, isIOS } from 'vs/base/common/platform';
-import { IUntypedEditorInput, pathsToEditors } from 'vs/workbench/common/editor';
+import { IUntypedEditorInput, mergeEditorFactory, pathsToEditors } from 'vs/workbench/common/editor';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
@@ -98,6 +98,7 @@ enum WorkbenchLayoutClasses {
 interface IInitialFilesToOpen {
 	filesToOpenOrCreate?: IPath[];
 	filesToDiff?: IPath[];
+	filesToMerge?: IPath[];
 }
 
 export abstract class Layout extends Disposable implements IWorkbenchLayoutService {
@@ -278,7 +279,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._register(this.hostService.onDidChangeFocus(e => this.onWindowFocusChanged(e)));
 	}
 
-	private onMenubarToggled(visible: boolean) {
+	private onMenubarToggled(visible: boolean): void {
 		if (visible !== this.windowState.runtime.menuBar.toggled) {
 			this.windowState.runtime.menuBar.toggled = visible;
 
@@ -566,24 +567,32 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private resolveEditorsToOpen(fileService: IFileService, initialFilesToOpen: IInitialFilesToOpen | undefined): Promise<IUntypedEditorInput[]> | IUntypedEditorInput[] {
-
-		// Files to open, diff or create
 		if (initialFilesToOpen) {
 
-			// Files to diff is exclusive
-			return pathsToEditors(initialFilesToOpen.filesToDiff, fileService).then(filesToDiff => {
-				if (filesToDiff.length === 2) {
-					const diffEditorInput: IUntypedEditorInput[] = [{
-						original: { resource: filesToDiff[0].resource },
-						modified: { resource: filesToDiff[1].resource },
-						options: { pinned: true }
-					}];
-
-					return diffEditorInput;
+			// Files to merge is exclusive over others
+			return pathsToEditors(initialFilesToOpen.filesToMerge, fileService).then(filesToMerge => {
+				if (filesToMerge.length === 4) {
+					const mergeEditorInput = mergeEditorFactory?.createMergeEditorInput(filesToMerge);
+					if (mergeEditorInput) {
+						return [mergeEditorInput];
+					}
 				}
 
-				// Otherwise: Open/Create files
-				return pathsToEditors(initialFilesToOpen.filesToOpenOrCreate, fileService);
+				// Files to diff is exclusive over normal opening
+				return pathsToEditors(initialFilesToOpen.filesToDiff, fileService).then(filesToDiff => {
+					if (filesToDiff.length === 2) {
+						const diffEditorInput: IUntypedEditorInput[] = [{
+							original: { resource: filesToDiff[0].resource },
+							modified: { resource: filesToDiff[1].resource },
+							options: { pinned: true }
+						}];
+
+						return diffEditorInput;
+					}
+
+					// Otherwise: Open/Create files
+					return pathsToEditors(initialFilesToOpen.filesToOpenOrCreate, fileService);
+				});
 			});
 		}
 
@@ -638,10 +647,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			};
 		}
 
-		// Then check for files to open, create or diff from main side
-		const { filesToOpenOrCreate, filesToDiff } = this.environmentService;
-		if (filesToOpenOrCreate || filesToDiff) {
-			return { filesToOpenOrCreate, filesToDiff };
+		// Then check for files to open, create or diff/merge from main side
+		const { filesToOpenOrCreate, filesToDiff, filesToMerge } = this.environmentService;
+		if (filesToOpenOrCreate || filesToDiff || filesToMerge) {
+			return { filesToOpenOrCreate, filesToDiff, filesToMerge };
 		}
 
 		return undefined;

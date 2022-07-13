@@ -18,6 +18,7 @@ import { LogLevelToString } from 'vs/platform/log/common/log';
 import { isUndefined } from 'vs/base/common/types';
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { coalesce } from 'vs/base/common/arrays';
 
 export const IBrowserWorkbenchEnvironmentService = refineServiceDecorator<IEnvironmentService, IBrowserWorkbenchEnvironmentService>(IEnvironmentService);
 
@@ -327,6 +328,26 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 					{ fileUri: URI.parse(fileToDiffSecondary) },
 					{ fileUri: URI.parse(fileToDiffPrimary) }
 				];
+			}
+		}
+
+		return undefined;
+	}
+
+	@memoize
+	get filesToMerge(): IPath[] | undefined {
+		if (this.payload) {
+			const fileToMergeBase = this.payload.get('mergeFileBase');
+			const fileToMergeLocal = this.payload.get('mergeFileLocal');
+			const fileToMergeRemote = this.payload.get('mergeFileRemote');
+			const fileToMergeMerged = this.payload.get('mergeFileMerged');
+			if (fileToMergeBase && fileToMergeLocal && fileToMergeRemote && fileToMergeMerged) {
+				return coalesce([
+					{ fileUri: URI.parse(fileToMergeBase) },
+					{ fileUri: URI.parse(fileToMergeLocal) },
+					{ fileUri: URI.parse(fileToMergeRemote) },
+					{ fileUri: URI.parse(fileToMergeMerged) }
+				]);
 			}
 		}
 

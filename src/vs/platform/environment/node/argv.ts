@@ -41,6 +41,7 @@ type OptionTypeName<T> =
 
 export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'diff': { type: 'boolean', cat: 'o', alias: 'd', args: ['file', 'file'], description: localize('diff', "Compare two files with each other.") },
+	'merge': { type: 'boolean', cat: 'o', alias: 'm', args: ['base', 'local', 'remote', 'merged'], description: localize('merge', "Perform a three-way merge by providing paths for the common base, the contents of the current branch, the contents of the branch to be merged and the output path to save the merge result to.") },
 	'add': { type: 'boolean', cat: 'o', alias: 'a', args: 'folder', description: localize('add', "Add folder(s) to the last active window.") },
 	'goto': { type: 'boolean', cat: 'o', alias: 'g', args: 'file:line[:character]', description: localize('goto', "Open a file at the path on the specified line and character position.") },
 	'new-window': { type: 'boolean', cat: 'o', alias: 'n', description: localize('newWindow', "Force to open a new window.") },

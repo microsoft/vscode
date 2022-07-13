@@ -605,23 +605,24 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	}
 
 	private async handleWorkspaceTrust(editors: Array<EditorInputWithOptions | IUntypedEditorInput>): Promise<boolean> {
-		const { resources, diffMode } = this.extractEditorResources(editors);
+		const { resources, diffMode, mergeMode } = this.extractEditorResources(editors);
 
 		const trustResult = await this.workspaceTrustRequestService.requestOpenFilesTrust(resources);
 		switch (trustResult) {
 			case WorkspaceTrustUriResponse.Open:
 				return true;
 			case WorkspaceTrustUriResponse.OpenInNewWindow:
-				await this.hostService.openWindow(resources.map(resource => ({ fileUri: resource })), { forceNewWindow: true, diffMode });
+				await this.hostService.openWindow(resources.map(resource => ({ fileUri: resource })), { forceNewWindow: true, diffMode, mergeMode });
 				return false;
 			case WorkspaceTrustUriResponse.Cancel:
 				return false;
 		}
 	}
 
-	private extractEditorResources(editors: Array<EditorInputWithOptions | IUntypedEditorInput>): { resources: URI[]; diffMode?: boolean } {
+	private extractEditorResources(editors: Array<EditorInputWithOptions | IUntypedEditorInput>): { resources: URI[]; diffMode?: boolean; mergeMode?: boolean } {
 		const resources = new ResourceMap<boolean>();
 		let diffMode = false;
+		let mergeMode = false;
 
 		for (const editor of editors) {
 
@@ -640,6 +641,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					}
 
 					diffMode = editor.editor instanceof DiffEditorInput;
+					mergeMode = editor.editor.typeId === 'mergeEditor.Input'; // TODO@bpasero hack until we settled on https://github.com/microsoft/vscode/issues/153963
 				}
 			}
 
@@ -659,13 +661,16 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					diffMode = true;
 				} else if (isResourceEditorInput(editor)) {
 					resources.set(editor.resource, true);
+
+					mergeMode = editor.resource.scheme === 'mergeEditor'; // TODO@bpasero hack until we settled on https://github.com/microsoft/vscode/issues/153963
 				}
 			}
 		}
 
 		return {
 			resources: Array.from(resources.keys()),
-			diffMode
+			diffMode,
+			mergeMode
 		};
 	}
 

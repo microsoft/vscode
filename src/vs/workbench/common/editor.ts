@@ -1397,3 +1397,16 @@ export function isTextEditorViewState(candidate: unknown): candidate is IEditorV
 
 	return !!(codeEditorViewState.contributionsState && codeEditorViewState.viewState && Array.isArray(codeEditorViewState.cursorState));
 }
+
+//#region Merge Editor (TODO@bpasero hack until we settled on https://github.com/microsoft/vscode/issues/153963)
+
+export interface IMergeEditorFactory {
+	createMergeEditorInput: (inputs: IUntypedEditorInput[]) => IUntypedEditorInput | undefined;
+}
+
+export let mergeEditorFactory: IMergeEditorFactory | undefined = undefined;
+export function registerMergeEditorFactory(factory: IMergeEditorFactory): void {
+	mergeEditorFactory = factory;
+}
+
+//#endregion

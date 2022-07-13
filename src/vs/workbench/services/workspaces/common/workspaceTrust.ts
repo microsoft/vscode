@@ -224,6 +224,10 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			filesToOpen.push(...this.environmentService.filesToDiff);
 		}
 
+		if (this.environmentService.filesToMerge) {
+			filesToOpen.push(...this.environmentService.filesToMerge);
+		}
+
 		if (filesToOpen.length) {
 			const filesToOpenOrCreateUris = filesToOpen.filter(f => !!f.fileUri).map(f => f.fileUri!);
 			const canonicalFilesToOpen = await Promise.all(filesToOpenOrCreateUris.map(uri => this.getCanonicalUri(uri)));
