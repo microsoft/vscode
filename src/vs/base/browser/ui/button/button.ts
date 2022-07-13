@@ -65,7 +65,6 @@ export class Button extends Disposable implements IButton {
 	private buttonBackground: Color | undefined;
 	private buttonHoverBackground: Color | undefined;
 	private buttonForeground: Color | undefined;
-	private buttonSeparator: Color | undefined;
 	private buttonSecondaryBackground: Color | undefined;
 	private buttonSecondaryHoverBackground: Color | undefined;
 	private buttonSecondaryForeground: Color | undefined;
@@ -83,7 +82,6 @@ export class Button extends Disposable implements IButton {
 		mixin(this.options, defaultOptions, false);
 
 		this.buttonForeground = this.options.buttonForeground;
-		this.buttonSeparator = this.options.buttonSeparator;
 		this.buttonBackground = this.options.buttonBackground;
 		this.buttonHoverBackground = this.options.buttonHoverBackground;
 
@@ -161,7 +159,6 @@ export class Button extends Disposable implements IButton {
 
 	style(styles: IButtonStyles): void {
 		this.buttonForeground = styles.buttonForeground;
-		this.buttonSeparator = styles.buttonSeparator;
 		this.buttonBackground = styles.buttonBackground;
 		this.buttonHoverBackground = styles.buttonHoverBackground;
 		this.buttonSecondaryForeground = styles.buttonSecondaryForeground;
@@ -174,13 +171,12 @@ export class Button extends Disposable implements IButton {
 
 	private applyStyles(): void {
 		if (this._element) {
-			let background, foreground, separator;
+			let background, foreground;
 			if (this.options.secondary) {
 				foreground = this.buttonSecondaryForeground ? this.buttonSecondaryForeground.toString() : '';
 				background = this.buttonSecondaryBackground ? this.buttonSecondaryBackground.toString() : '';
 			} else {
 				foreground = this.buttonForeground ? this.buttonForeground.toString() : '';
-				separator = this.buttonSeparator ? this.buttonSeparator.toString() : '';
 				background = this.buttonBackground ? this.buttonBackground.toString() : '';
 			}
 
