@@ -35,17 +35,19 @@ vscode-languageserver-types@^3.17.1:
   resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.17.1.tgz#c2d87fa7784f8cac389deb3ff1e2d9a7bef07e16"
   integrity sha512-K3HqVRPElLZVVPtMeKlsyL9aK0GxGQpvtAUTfX4k7+iJ4mc1M+JM+zQwkgGy2LzY0f0IAafe8MKqIkJrxfGGjQ==
 
-vscode-languageserver@^8.0.2-next.4:
+vscode-languageserver@^8.0.2-next.5`:
   version "8.0.2-next.5"
   resolved "https://registry.yarnpkg.com/vscode-languageserver/-/vscode-languageserver-8.0.2-next.5.tgz#39a2dd4c504fb88042375e7ac706a714bdaab4e5"
   integrity sha512-2ZDb7O/4atS9mJKufPPz637z+51kCyZfgnobFW5eSrUdS3c0UB/nMS4Ng1EavYTX84GVaVMKCrmP0f2ceLmR0A==
   dependencies:
     vscode-languageserver-protocol "3.17.2-next.6"
 
-vscode-markdown-languageservice@microsoft/vscode-markdown-languageservice:
-  version "0.0.0-alpha.2"
-  resolved "https://codeload.github.com/microsoft/vscode-markdown-languageservice/tar.gz/db497ada376aae9a335519dbfb406c6a1f873446"
+vscode-markdown-languageservice@^0.0.0-alpha.5:
+  version "0.0.0-alpha.5"
+  resolved "https://registry.yarnpkg.com/vscode-markdown-languageservice/-/vscode-markdown-languageservice-0.0.0-alpha.5.tgz#fb3042f3ee79589606154c19b15565541337bceb"
+  integrity sha512-vy8UVa1jtm3CwkifRn3fEWM710JC4AYEECNd5KQthSCoFSfT5pOshJNFWs5yzBeVrohiy4deOdhSrfbDMg/Hyg==
   dependencies:
+    vscode-languageserver-textdocument "^1.0.5"
     vscode-languageserver-types "^3.17.1"
     vscode-uri "^3.0.3"
 
