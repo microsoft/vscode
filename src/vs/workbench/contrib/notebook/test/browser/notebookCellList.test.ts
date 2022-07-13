@@ -106,6 +106,7 @@ suite('NotebookCellList', () => {
 				// reveal cell 0, top 0, bottom 50
 				cellList.revealElementsInView({ start: 0, end: 1 });
 				assert.deepStrictEqual(cellList.scrollTop, 0);
+				assert.deepStrictEqual(cellList.getViewScrollBottom(), 210);
 			});
 	});
 
@@ -128,7 +129,6 @@ suite('NotebookCellList', () => {
 				});
 
 				const cellList = createNotebookCellList(instantiationService);
-				// without additionalscrollheight, the last 20 px will always be hidden due to `topInsertToolbarHeight`
 				cellList.updateOptions({ additionalScrollHeight: 100 });
 				cellList.attachViewModel(viewModel);
 
@@ -141,11 +141,11 @@ suite('NotebookCellList', () => {
 
 				cellList.revealElementsInView({ start: 4, end: 5 });
 				assert.deepStrictEqual(cellList.scrollTop, 140);
-				// assert.deepStrictEqual(cellList.getViewScrollBottom(), 330);
+				assert.deepStrictEqual(cellList.getViewScrollBottom(), 350);
 			});
 	});
 
-	test('updateElementHeight', async function () {
+	test('updateElementHeight of anchor element', async function () {
 		await withTestNotebook(
 			[
 				['# header a', 'markdown', CellKind.Markup, [], {}],
@@ -169,10 +169,6 @@ suite('NotebookCellList', () => {
 				// render height 210, it can render 3 full cells and 1 partial cell
 				cellList.layout(210, 100);
 
-				// init scrollTop and scrollBottom
-				assert.deepStrictEqual(cellList.scrollTop, 0);
-				assert.deepStrictEqual(cellList.getViewScrollBottom(), 210);
-
 				cellList.updateElementHeight(0, 60);
 				assert.deepStrictEqual(cellList.scrollTop, 0);
 
@@ -182,6 +178,7 @@ suite('NotebookCellList', () => {
 				assert.deepStrictEqual(cellList.getViewScrollBottom(), 215);
 
 				cellList.updateElementHeight(0, 80);
+				// first cell is the default anchor, so it will push the second cell down
 				assert.deepStrictEqual(cellList.scrollTop, 5);
 			});
 	});
@@ -210,10 +207,6 @@ suite('NotebookCellList', () => {
 				// render height 210, it can render 3 full cells and 1 partial cell
 				cellList.layout(210, 100);
 
-				// init scrollTop and scrollBottom
-				assert.deepStrictEqual(cellList.scrollTop, 0);
-				assert.deepStrictEqual(cellList.getViewScrollBottom(), 210);
-
 				// scroll to 5
 				cellList.scrollTop = 5;
 				assert.deepStrictEqual(cellList.scrollTop, 5);
@@ -223,7 +216,7 @@ suite('NotebookCellList', () => {
 				cellList.updateElementHeight2(viewModel.cellAt(0)!, 100);
 				assert.deepStrictEqual(cellList.scrollHeight, 400);
 
-				// the first cell grows, but it's partially visible, so we won't push down the focused cell
+				// the first cell grows and it's partially visible, however it's not focused, so we won't push down the focused cell
 				assert.deepStrictEqual(cellList.scrollTop, 55);
 				assert.deepStrictEqual(cellList.getViewScrollBottom(), 265);
 
@@ -231,10 +224,13 @@ suite('NotebookCellList', () => {
 				assert.deepStrictEqual(cellList.scrollTop, 5);
 				assert.deepStrictEqual(cellList.getViewScrollBottom(), 215);
 
+				const offset = cellList.getAbsoluteTopOfElement(viewModel.cellAt(1)!) - cellList.scrollTop;
 				// focus won't be visible after cell 0 grow to 250, so let's try to keep the focused cell visible
 				cellList.updateElementHeight2(viewModel.cellAt(0)!, 250);
-				assert.deepStrictEqual(cellList.scrollTop, 250 + 100 - cellList.renderHeight);
-				assert.deepStrictEqual(cellList.getViewScrollBottom(), 250 + 100 - cellList.renderHeight + 210);
+				// focused cell would be fully visible
+				// assert.deepStrictEqual(cellList.scrollTop, 250 /** first cell height */ + 100 /** second cell height */ - 210 /** render height */);
+				// assert.deepStrictEqual(cellList.getViewScrollBottom(), 250 + 100);
+				assert.deepStrictEqual(cellList.getAbsoluteTopOfElement(viewModel.cellAt(1)!) - cellList.scrollTop, offset);
 			});
 	});
 
@@ -266,6 +262,7 @@ suite('NotebookCellList', () => {
 				assert.deepStrictEqual(cellList.scrollTop, 0);
 				assert.deepStrictEqual(cellList.getViewScrollBottom(), 210);
 
+				// focus cell at index 4 but does not scroll to it yet
 				cellList.setFocus([4]);
 				cellList.updateElementHeight2(viewModel.cellAt(1)!, 130);
 				// the focus cell is not in the viewport, the scrolltop should not change at all
@@ -305,8 +302,18 @@ suite('NotebookCellList', () => {
 				cellList.scrollTop = 80;
 				assert.deepStrictEqual(cellList.scrollTop, 80);
 
+				// check the visual offset of the focused cell
+				assert.deepStrictEqual(cellList.getAbsoluteTopOfElement(viewModel.cellAt(1)!) - cellList.scrollTop, -30);
+
+				// the focused cell should not move visually when previous cell shrinks
 				cellList.updateElementHeight2(viewModel.cellAt(0)!, 30);
 				assert.deepStrictEqual(cellList.scrollTop, 60);
+				assert.deepStrictEqual(cellList.getAbsoluteTopOfElement(viewModel.cellAt(1)!) - cellList.scrollTop, -30);
+
+				// the focused cell should not move visually when previous cell grows
+				cellList.updateElementHeight2(viewModel.cellAt(0)!, 100);
+				assert.deepStrictEqual(cellList.scrollTop, 130);
+				assert.deepStrictEqual(cellList.getAbsoluteTopOfElement(viewModel.cellAt(1)!) - cellList.scrollTop, -30);
 			});
 	});
 
