@@ -636,7 +636,7 @@ registerAction2(class RevealLastFailedCellAction extends NotebookAction {
 		const notebookExecutionStateService = accessor.get(INotebookExecutionStateService);
 		const notebook = context.notebookEditor.textModel.uri;
 		const lastFailedCellHandle = notebookExecutionStateService.getLastFailedCellForNotebook(notebook);
-		if (lastFailedCellHandle) {
+		if (lastFailedCellHandle !== undefined) {
 			const lastFailedCell = context.notebookEditor.getCellByHandle(lastFailedCellHandle);
 			if (lastFailedCell) {
 				context.notebookEditor.focusNotebookCell(lastFailedCell, 'container');

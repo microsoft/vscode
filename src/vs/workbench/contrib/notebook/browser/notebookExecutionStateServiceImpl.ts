@@ -135,7 +135,7 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 		const exe: CellExecution = this._instantiationService.createInstance(CellExecution, cellHandle, notebook);
 		const disposable = combinedDisposable(
 			exe.onDidUpdate(() => this._onCellExecutionDidChange(notebookUri, cellHandle, exe)),
-			exe.onDidComplete((lastRunSuccess) => this._onCellExecutionDidComplete(notebookUri, cellHandle, exe, lastRunSuccess)));
+			exe.onDidComplete(lastRunSuccess => this._onCellExecutionDidComplete(notebookUri, cellHandle, exe, lastRunSuccess)));
 		this._cellListeners.set(CellUri.generate(notebookUri, cellHandle), disposable);
 
 		return exe;
@@ -143,14 +143,13 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 
 	private _setLastFailedCell(notebook: URI, cellHandle: number) {
 		this._lastFailedCells.set(notebook, cellHandle);
-		this._onDidChangeLastRunFailState.fire({ failed: true, notebook: notebook });
+		this._onDidChangeLastRunFailState.fire({ failed: true, notebook });
 	}
 
 	private _clearLastFailedCell(notebook: URI) {
 		this._lastFailedCells.delete(notebook);
 		this._onDidChangeLastRunFailState.fire({ failed: false, notebook: notebook });
 	}
-
 
 	override dispose(): void {
 		super.dispose();
