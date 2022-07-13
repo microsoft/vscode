@@ -533,7 +533,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!setup) {
 			setup = this._computeWorkspaceFolderSetup();
 		}
-
 		this._workspaceFolders = setup[0];
 		if (this._ignoredWorkspaceFolders) {
 			if (this._ignoredWorkspaceFolders.length !== setup[1].length) {
@@ -620,7 +619,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 		if (this.hasTaskSystemInfo) {
 			this._onDidChangeTaskSystemInfo.fire();
-			await this.restartTasks();
+			await this._restartTasks();
 		}
 	}
 
@@ -1732,11 +1731,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		await this._editorService.saveAll({ reason: SaveReason.AUTO });
 		return true;
-	}
-
-	//TODO: make private
-	public async restartTasks(): Promise<void> {
-		await this._restartTasks();
 	}
 
 	private async _executeTask(task: Task, resolver: ITaskResolver, runSource: TaskRunSource): Promise<ITaskSummary> {
@@ -2873,7 +2867,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 								return;
 							}
 							runSingleTask(task, { attachProblemMatcher: true }, this);
-							this._setRecentlyUsedTask(task);
 						});
 				});
 			};
@@ -2903,7 +2896,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						const { none, defaults } = this._splitPerGroupType(tasks, areGlobTasks);
 						if (defaults.length === 1) {
 							runSingleTask(defaults[0], undefined, this);
-							this._setRecentlyUsedTask(defaults[0]);
 							return;
 						} else if (defaults.length + none.length > 0) {
 							tasks = defaults.concat(none);
@@ -2919,9 +2911,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				if (ConfiguringTask.is(taskGroupTask)) {
 					this.tryResolveTask(taskGroupTask).then(resolvedTask => {
 						runSingleTask(resolvedTask, undefined, this);
-						if (resolvedTask) {
-							this._setRecentlyUsedTask(resolvedTask);
-						}
 					});
 				} else {
 					runSingleTask(taskGroupTask, undefined, this);
@@ -3586,7 +3575,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				await this._configurationService.updateValue(TasksSchemaProperties.SuppressTaskName, undefined, { resource: folder.uri });
 			}
 		}
-
 		this._updateSetup();
 
 		this._notificationService.prompt(Severity.Warning,

@@ -247,11 +247,12 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	private _reconnectToTerminals(terminals: ITerminalInstance[]): void {
 		for (const terminal of terminals) {
-			if (terminal.shellLaunchConfig.attachPersistentProcess?.task?.lastTask) {
-				this._tasksToReconnect.push(terminal.shellLaunchConfig.attachPersistentProcess.task?.id);
-				this._terminals[terminal.instanceId] = { terminal, lastTask: terminal.shellLaunchConfig.attachPersistentProcess.task?.lastTask, group: terminal.shellLaunchConfig.attachPersistentProcess?.task?.group };
+			const taskForTerminal = terminal.shellLaunchConfig.attachPersistentProcess?.task;
+			if (taskForTerminal?.id && taskForTerminal?.lastTask) {
+				this._tasksToReconnect.push(taskForTerminal.id);
+				this._terminals[terminal.instanceId] = { terminal, lastTask: taskForTerminal.lastTask, group: taskForTerminal.group };
 			} else {
-				throw new Error('No last task for terminal');
+				this._logService.trace(`Could not reconnect to terminal ${terminal.instanceId} with process details ${terminal.shellLaunchConfig.attachPersistentProcess}`);
 			}
 		}
 	}

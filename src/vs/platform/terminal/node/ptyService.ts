@@ -263,7 +263,7 @@ export class PtyService extends Disposable implements IPtyService {
 
 	async shutdown(id: number, immediate: boolean): Promise<void> {
 		// Don't throw if the pty is already shutdown
-		this._logService.info('ptyService#shutDown', id, immediate);
+		this._logService.trace('ptyService#shutDown', id, immediate);
 		return this._ptys.get(id)?.shutdown(immediate);
 	}
 	async input(id: number, data: string): Promise<void> {
