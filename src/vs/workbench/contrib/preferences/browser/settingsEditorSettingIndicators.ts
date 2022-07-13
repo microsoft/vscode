@@ -12,7 +12,7 @@ import { Emitter } from 'vs/base/common/event';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { getDefaultIgnoredSettings, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
@@ -133,7 +133,19 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	updateScopeOverrides(element: SettingsTreeSettingElement, elementDisposables: DisposableStore, onDidClickOverrideElement: Emitter<ISettingOverrideClickEvent>) {
 		this.scopeOverridesElement.innerText = '';
 		this.scopeOverridesElement.style.display = 'none';
-		if (element.overriddenScopeList.length || element.overriddenDefaultsLanguageList.length) {
+		if (element.matchesScope(ConfigurationTarget.APPLICATION, false)) {
+			// If the setting is an application-scoped setting, there are no overrides so we can use this
+			// indicator to display that information instead.
+			this.scopeOverridesElement.style.display = 'inline';
+			this.scopeOverridesElement.classList.add('with-custom-hover');
+
+			const applicationSettingText = localize('applicationSetting', "Applies to all profiles");
+			this.scopeOverridesLabel.text = applicationSettingText;
+
+			const content = localize('applicationSettingDescription', "Setting applies to all profiles.");
+			this.hover?.dispose();
+			this.hover = setupCustomHover(this.hoverDelegate, this.scopeOverridesElement, content);
+		} else if (element.overriddenScopeList.length || element.overriddenDefaultsLanguageList.length) {
 			if ((MODIFIED_INDICATOR_USE_INLINE_ONLY && element.overriddenScopeList.length) ||
 				(element.overriddenScopeList.length === 1 && !element.overriddenDefaultsLanguageList.length)) {
 				// Render inline if we have the flag and there are scope overrides to render,

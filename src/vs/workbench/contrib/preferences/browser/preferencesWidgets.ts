@@ -215,7 +215,6 @@ export interface ISettingsTargetsWidgetOptions {
 export class SettingsTargetsWidget extends Widget {
 
 	private settingsSwitcherBar!: ActionBar;
-	private applicationSettings!: Action;
 	private userLocalSettings!: Action;
 	private userRemoteSettings!: Action;
 	private workspaceSettings!: Action;
@@ -257,7 +256,6 @@ export class SettingsTargetsWidget extends Widget {
 	private resetLabels() {
 		const remoteAuthority = this.environmentService.remoteAuthority;
 		const hostLabel = remoteAuthority && this.labelService.getHostLabel(Schemas.vscodeRemote, remoteAuthority);
-		this.applicationSettings.label = localize('applicationSettings', "Application");
 		this.userLocalSettings.label = localize('userSettings', "User");
 		this.userRemoteSettings.label = localize('userSettingsRemote', "Remote") + (hostLabel ? ` [${hostLabel}]` : '');
 		this.workspaceSettings.label = localize('workspaceSettings', "Workspace");
@@ -273,11 +271,6 @@ export class SettingsTargetsWidget extends Widget {
 			animated: false,
 			actionViewItemProvider: (action: IAction) => action.id === 'folderSettings' ? this.folderSettings : undefined
 		}));
-
-		this.applicationSettings = new Action('applicationSettings', '', '.settings-tab', false, () => this.updateTarget(ConfigurationTarget.APPLICATION));
-		this.preferencesService.getEditableSettingsURI(ConfigurationTarget.APPLICATION).then(uri => {
-			this.applicationSettings.tooltip = uri?.fsPath ?? '';
-		});
 
 		this.userLocalSettings = new Action('userSettings', '', '.settings-tab', true, () => this.updateTarget(ConfigurationTarget.USER_LOCAL));
 		this.preferencesService.getEditableSettingsURI(ConfigurationTarget.USER_LOCAL).then(uri => {
@@ -300,7 +293,7 @@ export class SettingsTargetsWidget extends Widget {
 		this.resetLabels();
 		this.update();
 
-		this.settingsSwitcherBar.push([this.applicationSettings, this.userLocalSettings, this.userRemoteSettings, this.workspaceSettings, this.folderSettingsAction]);
+		this.settingsSwitcherBar.push([this.userLocalSettings, this.userRemoteSettings, this.workspaceSettings, this.folderSettingsAction]);
 	}
 
 	get settingsTarget(): SettingsTarget | null {
@@ -309,7 +302,6 @@ export class SettingsTargetsWidget extends Widget {
 
 	set settingsTarget(settingsTarget: SettingsTarget | null) {
 		this._settingsTarget = settingsTarget;
-		this.applicationSettings.checked = ConfigurationTarget.APPLICATION === this.settingsTarget;
 		this.userLocalSettings.checked = ConfigurationTarget.USER_LOCAL === this.settingsTarget;
 		this.userRemoteSettings.checked = ConfigurationTarget.USER_REMOTE === this.settingsTarget;
 		this.workspaceSettings.checked = ConfigurationTarget.WORKSPACE === this.settingsTarget;
@@ -347,7 +339,6 @@ export class SettingsTargetsWidget extends Widget {
 			const languageToUse = this.languageService.getLanguageName(filter);
 			if (languageToUse) {
 				const languageSuffix = ` [${languageToUse}]`;
-				this.applicationSettings.label += languageSuffix;
 				this.userLocalSettings.label += languageSuffix;
 				this.userRemoteSettings.label += languageSuffix;
 				this.workspaceSettings.label += languageSuffix;
@@ -380,7 +371,6 @@ export class SettingsTargetsWidget extends Widget {
 
 	private async update(): Promise<void> {
 		this.settingsSwitcherBar.domNode.classList.toggle('empty-workbench', this.contextService.getWorkbenchState() === WorkbenchState.EMPTY);
-		this.applicationSettings.enabled = !this.userDataProfileService.currentProfile.isDefault;
 		this.userRemoteSettings.enabled = !!(this.options.enableRemoteSettings && this.environmentService.remoteAuthority);
 		this.workspaceSettings.enabled = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY;
 		this.folderSettings.getAction().enabled = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && this.contextService.getWorkspace().folders.length > 0;
