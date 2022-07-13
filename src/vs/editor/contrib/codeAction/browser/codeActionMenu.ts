@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// import * as dom from 'vs/base/browser/dom';
-import { getDomNodePagePosition } from 'vs/base/browser/dom';
+import * as dom from 'vs/base/browser/dom';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { IListEvent, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
@@ -15,7 +14,7 @@ import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, dispose, MutableDisposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/action';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { ScrollType } from 'vs/editor/common/editorCommon';
@@ -24,7 +23,11 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { codeActionCommandId, CodeActionItem, CodeActionSet, fixAllCommandId, organizeImportsCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionModel } from 'vs/editor/contrib/codeAction/browser/codeActionModel';
 import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionKind, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/browser/types';
+import { ICancelEvent } from 'vs/editor/contrib/suggest/browser/suggestModel';
+import { localize } from 'vs/nls';
+import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { historyNavigationVisible } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -33,6 +36,17 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 // const $ = dom.$;
 
+export const Context = {
+	Visible: historyNavigationVisible,
+	// HasFocusedSuggestion: new RawContextKey<boolean>('suggestWidgetHasFocusedSuggestion', false, localize('suggestWidgetHasSelection', "Whether any suggestion is focused")),
+	// DetailsVisible: new RawContextKey<boolean>('suggestWidgetDetailsVisible', false, localize('suggestWidgetDetailsVisible', "Whether suggestion details are visible")),
+	// MultipleSuggestions: new RawContextKey<boolean>('suggestWidgetMultipleSuggestions', false, localize('suggestWidgetMultipleSuggestions', "Whether there are multiple suggestions to pick from")),
+	// MakesTextEdit: new RawContextKey<boolean>('suggestionMakesTextEdit', true, localize('suggestionMakesTextEdit', "Whether inserting the current suggestion yields in a change or has everything already been typed")),
+	// AcceptSuggestionsOnEnter: new RawContextKey<boolean>('acceptSuggestionOnEnter', true, localize('acceptSuggestionOnEnter', "Whether suggestions are inserted when pressing Enter")),
+	// HasInsertAndReplaceRange: new RawContextKey<boolean>('suggestionHasInsertAndReplaceRange', false, localize('suggestionHasInsertAndReplaceRange', "Whether the current suggestion has insert and replace behaviour")),
+	// InsertMode: new RawContextKey<'insert' | 'replace'>('suggestionInsertMode', undefined, { type: 'string', description: localize('suggestionInsertMode', "Whether the default behaviour is to insert or replace") }),
+	// CanResolve: new RawContextKey<boolean>('suggestionCanResolve', false, localize('suggestionCanResolve', "Whether the current suggestion supports to resolve further details")),
+};
 
 interface CodeActionWidgetDelegate {
 	onSelectCodeAction: (action: CodeActionItem, trigger: CodeActionTrigger) => Promise<any>;
@@ -66,7 +80,8 @@ export interface ICodeActionMenuItem {
 	detail: string;
 	action: IAction;
 	decoratorRight?: string;
-	isDisabled?: boolean;
+	isSeparator?: boolean;
+	isEnabled?: boolean;
 	disposables?: IDisposable[];
 }
 
@@ -112,16 +127,25 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 		const text = element.title;
 		const detail = element.detail;
 
-		const isDisabled = element.isDisabled;
+		const isEnabled = element.isEnabled;
+		const isSeparator = element.isSeparator;
 
 		data.text.textContent = text;
 		// data.detail.textContent = detail;
 		// data.decoratorRight.innerText = '';
 
-		if (!isDisabled) {
-			newFunction(data);
+		if (!isEnabled) {
+			data.root.classList.add('option-disabled');
+			data.root.style.backgroundColor = 'transparent !important';
+			data.root.style.color = 'rgb(204, 204, 204, 0.5)';
+			data.root.style.cursor = 'default';
 		} else {
 			data.root.classList.remove('option-disabled');
+		}
+
+		if (isSeparator) {
+			data.root.classList.add('separator');
+			data.root.style.height = '10px';
 		}
 
 	}
@@ -151,9 +175,17 @@ export class CodeActionMenu extends Disposable {
 	private readonly _disposables = new DisposableStore();
 	private readonly _onDidSelect = new Emitter<ISelectedCodeAction>();
 	private readonly _onDidHideContextMenu = new Emitter<void>();
+	// private readonly _onDidCancel = new Emitter<ICancelEvent>();
 	readonly onDidHideContextMenu = this._onDidHideContextMenu.event;
+	private readonly _ctxMenuWidgetIsFocused?: IContextKey<boolean>;
+	private readonly _ctxMenuWidgetVisible: IContextKey<boolean>;
+	private element!: HTMLElement;
 
-	readonly onDidSelect: Event<ISelectedCodeAction> = this._onDidSelect.event;
+
+	// private _onDidCancel = this._register(new Emitter<void>({ onFirstListenerAdd: () => this.cancelHasListener = true }));
+	// readonly onDidCancel = this._onDidCancel.event;
+
+	// readonly onDidSelect: Event<ISelectedCodeAction> = this._onDidSelect.event;
 
 	private readonly _keybindingResolver: CodeActionKeybindingResolver;
 	listRenderer: any;
@@ -163,6 +195,7 @@ export class CodeActionMenu extends Disposable {
 		private readonly _delegate: CodeActionWidgetDelegate,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
+		@IContextKeyService _contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -174,9 +207,20 @@ export class CodeActionMenu extends Disposable {
 			getKeybindings: () => keybindingService.getKeybindings()
 		});
 
+		this._ctxMenuWidgetVisible = Context.Visible.bindTo(_contextKeyService);
+
+		if (this.codeActionList && !this.codeActionList.isDOMFocused()) {
+			this.dispose();
+		}
+
+		// this.onDidCancel(() => this._contextViewService.hideContextView(true));
+
 	}
+
 	allowEditorOverflow?: boolean | undefined;
 	suppressMouseDown?: boolean | undefined;
+
+
 
 	get isVisible(): boolean {
 		return this._visible;
@@ -185,7 +229,7 @@ export class CodeActionMenu extends Disposable {
 	private _onListSelection(e: IListEvent<ICodeActionMenuItem>): void {
 		if (e.elements.length) {
 			e.elements.forEach(element => {
-				if (element.isDisabled) {
+				if (element.isEnabled) {
 					const itemAction = element;
 					console.log(itemAction);
 					element.action.run();
@@ -195,10 +239,32 @@ export class CodeActionMenu extends Disposable {
 		}
 	}
 
+	private _onListFocus(e: IListEvent<ICodeActionMenuItem>): void {
+
+		this._ctxMenuWidgetIsFocused?.set(true);
+		const item = e.elements[0];
+		const index = e.indexes[0];
+
+	}
+
+	// private _onEditorMouseDown(mouseEvent: IEditorMouseEvent): void {
+	// 	if (this.codeActionList.getDOMNode().contains(mouseEvent.target.element)) {
+	// 		// Clicking inside details
+	// 		this.element.click();
+	// 		this.element.onmouseleave = () => this.element.classList.remove('pointer');
+	// 		this._details.widget.domNode.focus();
+	// 	} else {
+	// 		// Clicking outside details and inside suggest
+	// 		if (this.element.domNode.contains(mouseEvent.target.element)) {
+	// 			this.editor.focus();
+	// 		}
+	// 	}
+	// }
+
 	private renderCodeActionMenuList(element: HTMLElement, inputArray: IAction[]): IDisposable {
 		const renderDisposables = new DisposableStore();
 		const renderMenu = document.createElement('div');
-
+		this.element = element;
 
 		// Menu.initializeOrUpdateStyleSheet(renderMenu, {});
 
@@ -211,7 +277,7 @@ export class CodeActionMenu extends Disposable {
 
 		this.listRenderer = new CodeMenuRenderer();
 
-		const height = inputArray.length * 23;
+		const height = inputArray.length * 25;
 		renderMenu.style.height = String(height) + 'px';
 
 
@@ -222,7 +288,7 @@ export class CodeActionMenu extends Disposable {
 
 		this.codeActionList = new List('test', renderMenu, {
 			getHeight(element) {
-				return 23;
+				return 25;
 			},
 			getTemplateId(element) {
 				return 'test';
@@ -236,16 +302,33 @@ export class CodeActionMenu extends Disposable {
 
 		inputArray.forEach((item, index) => {
 			// const tooltip = item.tooltip ? item.tooltip : '';
-			this.options.push(<ICodeActionMenuItem>{ title: item.label, detail: item.tooltip, action: inputArray[index], isDisabled: item.enabled });
+			this.options.push(<ICodeActionMenuItem>{ title: item.label, detail: item.tooltip, action: inputArray[index], isEnabled: item.enabled, isSeparator: item.class === 'separator' });
 		});
 
+		// const w = dom.$('.monaco-list-row').innerWidth();
+
 		this.codeActionList.splice(0, this.codeActionList.length, this.options);
-		this.codeActionList.layout(this.codeActionList.length * 23);
+		this.codeActionList.layout(height);
+		this.codeActionList.domFocus();
+
+
+
+		const focusTracker = dom.trackFocus(element);
+		const blurListener = focusTracker.onDidBlur(() => {
+			this.dispose();
+			this._contextViewService.hideContextView({ source: this });
+		});
+
+		renderDisposables.add(blurListener);
+		renderDisposables.add(focusTracker);
+
+		this._ctxMenuWidgetVisible.set(true);
 		return renderDisposables;
 
 	}
 
 	override dispose() {
+		this._ctxMenuWidgetVisible.reset();
 		this.codeActionList.dispose();
 		this.options = [];
 		this._contextViewService.hideContextView();
@@ -382,7 +465,7 @@ export class CodeActionMenu extends Disposable {
 
 		// Translate to absolute editor position
 		const cursorCoords = this._editor.getScrolledVisiblePosition(position);
-		const editorCoords = getDomNodePagePosition(this._editor.getDomNode());
+		const editorCoords = dom.getDomNodePagePosition(this._editor.getDomNode());
 		const x = editorCoords.left + cursorCoords.left;
 		const y = editorCoords.top + cursorCoords.top + cursorCoords.height;
 
@@ -464,11 +547,5 @@ export class CodeActionKeybindingResolver {
 				return currentBest.kind.contains(candidate.kind) ? candidate : currentBest;
 			}, undefined as ResolveCodeActionKeybinding | undefined);
 	}
-}
-function newFunction(data: ICodeActionMenuTemplateData) {
-	data.root.classList.add('option-disabled');
-	data.root.style.backgroundColor = 'transparent !important';
-	data.root.style.color = 'rgb(204, 204, 204, 0.5)';
-	data.root.style.cursor = 'default';
 }
 

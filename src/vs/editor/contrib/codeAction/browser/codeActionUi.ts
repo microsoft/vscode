@@ -119,7 +119,6 @@ export class CodeActionUi extends Disposable {
 			// auto magically triggered
 			if (this._codeActionWidget.getValue().isVisible) {
 				// TODO: Figure out if we should update the showing menu?
-				this._codeActionWidget.getValue().dispose();
 				actions.dispose();
 			} else {
 				this._activeCodeActions.value = actions;
