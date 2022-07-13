@@ -9,10 +9,9 @@ import * as commands from './commands/index';
 import { registerPasteSupport } from './languageFeatures/copyPaste';
 import { registerDefinitionSupport } from './languageFeatures/definitions';
 import { registerDiagnosticSupport } from './languageFeatures/diagnostics';
-import { MdLinkProvider, registerDocumentLinkSupport } from './languageFeatures/documentLinks';
+import { MdLinkProvider } from './languageFeatures/documentLinks';
 import { registerDropIntoEditorSupport } from './languageFeatures/dropIntoEditor';
 import { registerFindFileReferenceSupport } from './languageFeatures/fileReferences';
-import { registerPathCompletionSupport } from './languageFeatures/pathCompletions';
 import { MdReferencesProvider, registerReferencesSupport } from './languageFeatures/references';
 import { registerRenameSupport } from './languageFeatures/rename';
 import { ILogger } from './logging';
@@ -73,11 +72,9 @@ function registerMarkdownLanguageFeatures(
 		// Language features
 		registerDefinitionSupport(selector, referencesProvider),
 		registerDiagnosticSupport(selector, workspace, linkProvider, commandManager, referencesProvider, tocProvider, logger),
-		registerDocumentLinkSupport(selector, linkProvider),
 		registerDropIntoEditorSupport(selector),
 		registerFindFileReferenceSupport(commandManager, referencesProvider),
 		registerPasteSupport(selector),
-		registerPathCompletionSupport(selector, workspace, parser, linkProvider),
 		registerReferencesSupport(selector, referencesProvider),
 		registerRenameSupport(selector, workspace, referencesProvider, parser.slugifier),
 	);
