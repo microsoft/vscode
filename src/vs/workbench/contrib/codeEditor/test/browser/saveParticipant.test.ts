@@ -72,8 +72,9 @@ suite('Save Participants', function () {
 
 		await model.resolve();
 		const configService = new TestConfigurationService();
-		configService.setUserConfiguration('files', { 'insertFinalNewline': true });
-		configService.setUserConfiguration('files', { 'codeActionsOnAutoSave': true });
+		configService.setUserConfiguration('files', {
+			'insertFinalNewline': true, 'codeActionsOnAutoSave': true
+		});
 		const participant = new FinalNewLineParticipant(configService, undefined!);
 
 		const lineContent = 'Hello New Line';
