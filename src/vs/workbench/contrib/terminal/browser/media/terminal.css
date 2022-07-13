@@ -14,6 +14,10 @@
 	position: relative;
 }
 
+.terminal-command-decoration.hide {
+	visibility: hidden;
+}
+
 .monaco-workbench .pane-body.integrated-terminal .terminal-outer-container,
 .monaco-workbench .pane-body.integrated-terminal .terminal-groups-container,
 .monaco-workbench .pane-body.integrated-terminal .terminal-group,
