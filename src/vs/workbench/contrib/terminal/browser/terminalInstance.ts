@@ -1236,7 +1236,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _setShellIntegrationContextKey(): void {
-		console.log('set', this.xterm?.shellIntegration.status === ShellIntegrationStatus.VSCode);
 		if (this.xterm) {
 			this._terminalShellIntegrationEnabledContextKey.set(this.xterm.shellIntegration.status === ShellIntegrationStatus.VSCode);
 		}

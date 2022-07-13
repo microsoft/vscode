@@ -273,6 +273,11 @@ export interface IDialogService {
 	/**
 	 * Present a modal dialog to the user.
 	 *
+	 * @param severity the severity of the message
+	 * @param message the message to show
+	 * @param buttons the buttons to show. By convention, the first button should be the
+	 * primary action and the last button the "Cancel" action.
+	 *
 	 * @returns A promise with the selected choice index. If the user refused to choose,
 	 * then a promise with index of `cancelId` option is returned. If there is no such
 	 * option then promise with index `0` is returned.
