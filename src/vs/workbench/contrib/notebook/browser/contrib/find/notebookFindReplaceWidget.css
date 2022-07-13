@@ -9,9 +9,9 @@
 	position: absolute;
 	top: -45px;
 	right: 18px;
-	width: 318px;
+	width: var(--notebook-find-width);
 	max-width: calc(100% - 28px - 28px - 8px);
-	/* pointer-events: none; */
+	padding:0 4px;
 	transition: top 200ms linear;
 	visibility: hidden;
 }
