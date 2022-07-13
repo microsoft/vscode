@@ -400,6 +400,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 	function focusFirstFocusableInCell(cellId: string) {
 		const cellOutputContainer = document.getElementById(cellId);
 		if (cellOutputContainer) {
+			if (cellOutputContainer.contains(document.activeElement)) {
+				return;
+			}
+
 			const focusableElement = cellOutputContainer.querySelector('[tabindex="0"], [href], button, input, option, select, textarea') as HTMLElement | null;
 			focusableElement?.focus();
 		}
