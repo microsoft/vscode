@@ -69,11 +69,11 @@ export async function main(argv: string[]): Promise<any> {
 		}
 		let file: string;
 		switch (args['shell-integration']) {
-			// Usage: `. "$(code --shell-integration bash)"`
+			// Usage: `[[ "$TERM_PROGRAM" == "vscode" ]] && . "$(code --shell-integration bash)"`
 			case 'bash': file = 'shellIntegration-bash.sh'; break;
-			// Usage: `if ($s=$(code --shell-integration pwsh)) { . $s }`
+			// Usage: `if ($env:TERM_PROGRAM -eq "vscode") { . "$(code --shell-integration pwsh)" }`
 			case 'pwsh': file = 'shellIntegration.ps1'; break;
-			// Usage: `. "$(code --shell-integration zsh)"`
+			// Usage: `[[ "$TERM_PROGRAM" == "vscode" ]] && . "$(code --shell-integration zsh)"`
 			case 'zsh': file = 'shellIntegration-rc.zsh'; break;
 			default: throw new Error('Error using --shell-integration: Invalid shell type');
 		}
