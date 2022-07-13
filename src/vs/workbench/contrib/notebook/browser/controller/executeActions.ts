@@ -610,6 +610,7 @@ registerAction2(class RevealLastFailedCellAction extends NotebookAction {
 					when: ContextKeyExpr.and(
 						NOTEBOOK_IS_ACTIVE_EDITOR,
 						NOTEBOOK_LAST_CELL_FAILED,
+						NOTEBOOK_HAS_RUNNING_CELL.toNegated(),
 						ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
 					),
 					group: 'navigation',
@@ -620,6 +621,7 @@ registerAction2(class RevealLastFailedCellAction extends NotebookAction {
 					when: ContextKeyExpr.and(
 						NOTEBOOK_IS_ACTIVE_EDITOR,
 						NOTEBOOK_LAST_CELL_FAILED,
+						NOTEBOOK_HAS_RUNNING_CELL.toNegated(),
 						ContextKeyExpr.equals('config.notebook.globalToolbar', true)
 					),
 					group: 'navigation/execute',
