@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { Codicon } from 'vs/base/common/codicons';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { matchesFuzzy } from 'vs/base/common/filters';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -56,35 +55,28 @@ export class DebugSessionQuickAccess extends PickerQuickAccessProvider<IPickerQu
 		return debugConsolePicks;
 	}
 
-	private _createParentTree(session: IDebugSession) {
-		const parentTree = [];
-		let currSession = session;
+	private _getNonRootParent(session: IDebugSession) {
 
-		while (currSession.parentSession !== undefined) {
-			parentTree.push(currSession);
-			currSession = currSession.parentSession;
+		// don't return a parent if it's the launch task nane
+		if (session.parentSession) {
+			if (session.parentSession.parentSession) {
+				return session.parentSession;
+			}
 		}
-		return parentTree;
-	}
+		return undefined;
 
-	private getSessionHierarchyString(session: IDebugSession): { description: string; ariaLabel: string } {
-		const parentTree = this._createParentTree(session);
-		const allHierarchyStrings: String[] = [];
-		parentTree.forEach((session) => allHierarchyStrings.push(session.configuration.name));
-		const iconId = Codicon.arrowSmallLeft.id;
+	}
+	private _getSessionParentString(session: IDebugSession): { description: string; ariaLabel: string } {
+		const parentName = this._getNonRootParent(session)?.configuration.name;
 		let desc;
 		let ariaLabel;
-		const separatorAriaString = localize("workbench.action.debug.spawnFrom", "which was spawn from");
-
-		if (allHierarchyStrings.length === 0) {
-			return { description: '', ariaLabel: '' };
-		}
-		else if (allHierarchyStrings.length === 1) {
+		if (parentName) {
+			const prefixAriaString = localize("workbench.action.debug.spawnFrom", "which was spawn from");
+			ariaLabel = `${prefixAriaString} ${parentName}`;
+			desc = parentName;
+		} else {
 			desc = '';
 			ariaLabel = '';
-		} else {
-			ariaLabel = allHierarchyStrings.join(` ${separatorAriaString} `);
-			desc = `$(${iconId}) ` + allHierarchyStrings.splice(1).join(` $(${iconId}) `);
 		}
 
 		return { description: desc, ariaLabel: ariaLabel };
@@ -99,8 +91,9 @@ export class DebugSessionQuickAccess extends PickerQuickAccessProvider<IPickerQu
 			} else {
 				label = session.name;
 			}
+
 		}
-		const labels = this.getSessionHierarchyString(session);
+		const labels = this._getSessionParentString(session);
 		const highlights = matchesFuzzy(filter, label, true);
 		if (highlights) {
 			return {
