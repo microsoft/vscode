@@ -319,6 +319,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._waitForSupportedExecutions = new Promise(resolve => {
 			once(this._onDidRegisterSupportedExecutions.event)(() => resolve());
 		});
+		this._updateWorkspaceTasks();
 		this._upgrade();
 	}
 
@@ -340,14 +341,20 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _restartTasks(): Promise<void> {
+		//TODO: remove?
+		await this.getWorkspaceTasks();
 		const recentlyUsedTasks = await this.readRecentTasks();
 		if (!recentlyUsedTasks) {
 			return;
 		}
 		for (const task of recentlyUsedTasks) {
-			const resolvedTask = await this.getTask(task._source.label, task._id);
-			if (resolvedTask) {
-				this.run(resolvedTask);
+			if (ConfiguringTask.is(task)) {
+				const resolved = await this.tryResolveTask(task);
+				if (resolved) {
+					this.run(resolved, undefined, TaskRunSource.Reconnect);
+				}
+			} else {
+				this.run(task, undefined, TaskRunSource.Reconnect);
 			}
 		}
 	}
@@ -593,7 +600,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return infosCount > 0;
 	}
 
-	public registerTaskSystem(key: string, info: ITaskSystemInfo): void {
+	public async registerTaskSystem(key: string, info: ITaskSystemInfo): Promise<void> {
 		// Ideally the Web caller of registerRegisterTaskSystem would use the correct key.
 		// However, the caller doesn't know about the workspace folders at the time of the call, even though we know about them here.
 		if (info.platform === Platform.Platform.Web) {
@@ -613,6 +620,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 		if (this.hasTaskSystemInfo) {
 			this._onDidChangeTaskSystemInfo.fire();
+			await this.restartTasks();
 		}
 	}
 
@@ -652,7 +660,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 			}
 		}
-
 		return result;
 	}
 
@@ -895,7 +902,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this.workspaceFolders.forEach(folder => {
 			folderMap[folder.uri.toString()] = folder;
 		});
-		console.log(folderMap);
 		const folderToTasksMap: Map<string, any> = new Map();
 		const workspaceToTaskMap: Map<string, any> = new Map();
 		const recentlyUsedTasks = this._getRecentlyUsedTasks();
@@ -909,17 +915,18 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				map.get(folder).push(task);
 			}
 		}
-
 		for (const entry of recentlyUsedTasks.entries()) {
 			const key = entry[0];
 			const task = JSON.parse(entry[1]);
 			const folderInfo = this._getFolderFromTaskKey(key);
-			console.log('folderInfo', folderInfo);
 			addTaskToMap(folderInfo.isWorkspaceFile ? workspaceToTaskMap : folderToTasksMap, folderInfo.folder, task);
 		}
 
 		const readTasksMap: Map<string, (Task | ConfiguringTask)> = new Map();
+
 		async function readTasks(that: AbstractTaskService, map: Map<string, any>, isWorkspaceFile: boolean) {
+			//TODO: remove?
+			await that._getGroupedTasks();
 			for (const key of map.keys()) {
 				const custom: CustomTask[] = [];
 				const customized: IStringDictionary<ConfiguringTask> = Object.create(null);
@@ -927,7 +934,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					? (isWorkspaceFile
 						? TaskConfig.TaskConfigSource.WorkspaceFile : TaskConfig.TaskConfigSource.TasksJson)
 					: TaskConfig.TaskConfigSource.User);
-				await that._computeTasksForSingleConfig(folderMap[key] ?? await that._getAFolder(folderMap[key]), {
+				await that._computeTasksForSingleConfig(folderMap[key] ?? await that._getAFolder(), {
 					version: '2.0.0',
 					tasks: map.get(key)
 				}, TaskRunSource.System, custom, customized, taskConfigSource, true);
@@ -947,11 +954,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		await readTasks(this, folderToTasksMap, false);
 		await readTasks(this, workspaceToTaskMap, true);
-		console.log([...workspaceToTaskMap.entries()]);
-		console.log([...folderToTasksMap.entries()]);
-		console.log([...readTasksMap!.entries()]);
-		console.log([...recentlyUsedTasks!.entries()]);
-		console.log(recentlyUsedTasks.keys());
 		for (const key of recentlyUsedTasks.keys()) {
 			if (readTasksMap.has(key)) {
 				tasks.push(readTasksMap.get(key)!);
@@ -1732,8 +1734,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return true;
 	}
 
+	//TODO: make private
 	public async restartTasks(): Promise<void> {
-		this._getTaskSystem();
 		await this._restartTasks();
 	}
 
@@ -1751,9 +1753,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				? await this.getTask(taskFolder, taskIdentifier) : task) ?? task;
 		}
 		await ProblemMatcherRegistry.onReady();
-		const executeResult = this._getTaskSystem().run(taskToRun, resolver);
-
-		return this._handleExecuteResult(executeResult, runSource);
+		const executeResult = runSource === TaskRunSource.Reconnect ? this._getTaskSystem().reconnect(taskToRun, resolver) : this._getTaskSystem().run(taskToRun, resolver);
+		if (executeResult) {
+			return this._handleExecuteResult(executeResult, runSource);
+		}
+		return { exitCode: 0 };
 	}
 
 	private async _handleExecuteResult(executeResult: ITaskExecuteResult, runSource?: TaskRunSource): Promise<ITaskSummary> {
@@ -2870,6 +2874,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 								return;
 							}
 							runSingleTask(task, { attachProblemMatcher: true }, this);
+							this._setRecentlyUsedTask(task);
 						});
 				});
 			};
@@ -2899,6 +2904,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						const { none, defaults } = this._splitPerGroupType(tasks, areGlobTasks);
 						if (defaults.length === 1) {
 							runSingleTask(defaults[0], undefined, this);
+							this._setRecentlyUsedTask(defaults[0]);
 							return;
 						} else if (defaults.length + none.length > 0) {
 							tasks = defaults.concat(none);
@@ -2914,6 +2920,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				if (ConfiguringTask.is(taskGroupTask)) {
 					this.tryResolveTask(taskGroupTask).then(resolvedTask => {
 						runSingleTask(resolvedTask, undefined, this);
+						if (resolvedTask) {
+							this._setRecentlyUsedTask(resolvedTask);
+						}
 					});
 				} else {
 					runSingleTask(taskGroupTask, undefined, this);

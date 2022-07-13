@@ -84,6 +84,16 @@ export class TerminalService implements ITerminalService {
 		return this._terminalGroupService.instances.concat(this._terminalEditorService.instances);
 	}
 
+	/**
+	 * The task system is created after reconnection has occurred,
+	 * so it will later ask for the terminals that should be reconnected
+	 * to tasks
+	 */
+	private _taskReconnectedTerminals: ITerminalInstance[] = [];
+	get taskReconnectedTerminals(): ITerminalInstance[] {
+		return this._taskReconnectedTerminals;
+	}
+
 	get defaultLocation(): TerminalLocation { return this.configHelper.config.defaultLocation === TerminalLocationString.Editor ? TerminalLocation.Editor : TerminalLocation.Panel; }
 
 	private _activeInstance: ITerminalInstance | undefined;
@@ -1044,7 +1054,7 @@ export class TerminalService implements ITerminalService {
 			instance = group.split(shellLaunchConfig);
 		}
 		if (instance.reconnectionOwner) {
-			this._onDidRequestReconnection.fire(instance);
+			this._taskReconnectedTerminals.push(instance);
 		}
 		return instance;
 	}

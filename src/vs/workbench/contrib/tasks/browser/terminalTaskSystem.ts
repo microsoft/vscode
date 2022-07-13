@@ -199,7 +199,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private _previousTerminalInstance: ITerminalInstance | undefined;
 	private _terminalStatusManager: TaskTerminalStatus;
 	private _terminalCreationQueue: Promise<ITerminalInstance | void> = Promise.resolve();
-
+	private _hasReconnected: boolean = false;
+	private _tasksToReconnect: string[] = [];
 	private readonly _onDidStateChange: Emitter<ITaskEvent>;
 
 	private readonly _onDidReconnectToTerminals: Emitter<void> = new Emitter();
@@ -242,21 +243,21 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		this._terminals = Object.create(null);
 		this._idleTaskTerminals = new LinkedMap<string, string>();
 		this._sameTaskTerminals = Object.create(null);
-
 		this._onDidStateChange = new Emitter();
 		this._taskSystemInfoResolver = taskSystemInfoResolver;
 		this._register(this._terminalStatusManager = new TaskTerminalStatus(taskService));
-		// this._register(this._terminalService.onDidRequestReconnection(terminal => this._reconnectToTerminal(terminal)));
 	}
 
-	// private _reconnectToTerminal(terminal: ITerminalInstance): void {
-	// 	console.log('request reconnect to terminal', terminal.instanceId, terminal.shellLaunchConfig?.attachPersistentProcess?.task);
-	// 	if (terminal.shellLaunchConfig.attachPersistentProcess?.task?.lastTask) {
-	// 		this._terminals[terminal.instanceId] = { terminal, lastTask: terminal.shellLaunchConfig.attachPersistentProcess.task?.lastTask, group: terminal.shellLaunchConfig.attachPersistentProcess?.task?.group };
-	// 	} else {
-	// 		throw new Error('No last task for terminal');
-	// 	}
-	// }
+	private _reconnectToTerminals(terminals: ITerminalInstance[]): void {
+		for (const terminal of terminals) {
+			if (terminal.shellLaunchConfig.attachPersistentProcess?.task?.lastTask) {
+				this._tasksToReconnect.push(terminal.shellLaunchConfig.attachPersistentProcess.task?.id);
+				this._terminals[terminal.instanceId] = { terminal, lastTask: terminal.shellLaunchConfig.attachPersistentProcess.task?.lastTask, group: terminal.shellLaunchConfig.attachPersistentProcess?.task?.group };
+			} else {
+				throw new Error('No last task for terminal');
+			}
+		}
+	}
 
 	public get onDidStateChange(): Event<ITaskEvent> {
 		return this._onDidStateChange.event;
@@ -268,6 +269,18 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	protected _showOutput(): void {
 		this._outputService.showChannel(this._outputChannelId, true);
+	}
+
+	public reconnect(task: Task, resolver: ITaskResolver, trigger: string = Triggers.command): ITaskExecuteResult | undefined {
+		if (!this._hasReconnected && this._terminalService.taskReconnectedTerminals.length > 0) {
+			this._reconnectToTerminals(this._terminalService.taskReconnectedTerminals);
+			this._hasReconnected = true;
+		}
+		if (this._tasksToReconnect.includes(task._id)) {
+			this._lastTask = new VerifiedTask(task, resolver, trigger);
+			this.rerun();
+		}
+		return undefined;
 	}
 
 	public run(task: Task, resolver: ITaskResolver, trigger: string = Triggers.command): ITaskExecuteResult {
@@ -1385,8 +1398,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 		this._terminalCreationQueue = this._terminalCreationQueue.then(() => this._doCreateTerminal(group, launchConfigs!));
 		const result: ITerminalInstance = (await this._terminalCreationQueue)!;
-		result.shellLaunchConfig.task = { lastTask: taskKey, group };
-		console.log('set slc task', result.shellLaunchConfig.task);
+		result.shellLaunchConfig.task = { lastTask: taskKey, group, label: task._label, id: task._id };
 		const terminalKey = result.instanceId.toString();
 		result.onDisposed((terminal) => {
 			const terminalData = this._terminals[terminalKey];

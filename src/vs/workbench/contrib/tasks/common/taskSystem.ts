@@ -103,6 +103,7 @@ export interface ITaskSystem {
 	onDidStateChange: Event<ITaskEvent>;
 	onDidReconnectToTerminals: Event<void>;
 	run(task: Task, resolver: ITaskResolver): ITaskExecuteResult;
+	reconnect(task: Task, resolver: ITaskResolver): ITaskExecuteResult | undefined;
 	rerun(): ITaskExecuteResult | undefined;
 	isActive(): Promise<boolean>;
 	isActiveSync(): boolean;
