@@ -144,6 +144,8 @@ export class TerminalService implements ITerminalService {
 	get onDidChangeConnectionState(): Event<void> { return this._onDidChangeConnectionState.event; }
 	private readonly _onDidRequestHideFindWidget = new Emitter<void>();
 	get onDidRequestHideFindWidget(): Event<void> { return this._onDidRequestHideFindWidget.event; }
+	private readonly _onDidRequestReconnection = new Emitter<ITerminalInstance>();
+	get onDidRequestReconnection(): Event<ITerminalInstance> { return this._onDidRequestReconnection.event; }
 
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
@@ -168,7 +170,9 @@ export class TerminalService implements ITerminalService {
 		// the below avoids having to poll routinely.
 		// we update detected profiles when an instance is created so that,
 		// for example, we detect if you've installed a pwsh
-		this.onDidCreateInstance(() => this._terminalProfileService.refreshAvailableProfiles());
+		this.onDidCreateInstance(async (instance) => {
+			this._terminalProfileService.refreshAvailableProfiles();
+		});
 
 		this._forwardInstanceHostEvents(this._terminalGroupService);
 		this._forwardInstanceHostEvents(this._terminalEditorService);
@@ -1039,6 +1043,9 @@ export class TerminalService implements ITerminalService {
 			shellLaunchConfig.parentTerminalId = parent.instanceId;
 			instance = group.split(shellLaunchConfig);
 		}
+		if (instance.reconnectionOwner) {
+			this._onDidRequestReconnection.fire(instance);
+		}
 		return instance;
 	}
 
@@ -1053,6 +1060,9 @@ export class TerminalService implements ITerminalService {
 			// TODO: pass resource?
 			const group = this._terminalGroupService.createGroup(shellLaunchConfig);
 			instance = group.terminalInstances[0];
+		}
+		if (instance.reconnectionOwner) {
+			this._onDidRequestReconnection.fire(instance);
 		}
 		return instance;
 	}

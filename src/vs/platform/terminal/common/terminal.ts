@@ -168,6 +168,7 @@ export interface IPtyHostAttachTarget {
 	fixedDimensions: IFixedTerminalDimensions | undefined;
 	environmentVariableCollections: ISerializableEnvironmentVariableCollections | undefined;
 	reconnectionOwner?: boolean;
+	task?: { lastTask?: string; group?: string };
 }
 
 export enum TitleEventSource {
@@ -468,7 +469,7 @@ export interface IShellLaunchConfig {
 	/**
 	 * This is a terminal that attaches to an already running terminal.
 	 */
-	attachPersistentProcess?: { id: number; findRevivedId?: boolean; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string; hasChildProcesses?: boolean; fixedDimensions?: IFixedTerminalDimensions; environmentVariableCollections?: ISerializableEnvironmentVariableCollections; reconnectionOwner?: boolean };
+	attachPersistentProcess?: { id: number; findRevivedId?: boolean; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string; hasChildProcesses?: boolean; fixedDimensions?: IFixedTerminalDimensions; environmentVariableCollections?: ISerializableEnvironmentVariableCollections; reconnectionOwner?: boolean; task?: { lastTask?: string; group?: string } };
 
 	/**
 	 * Whether the terminal process environment should be exactly as provided in
@@ -539,6 +540,11 @@ export interface IShellLaunchConfig {
 	 * Create a terminal without shell integration even when it's enabled
 	 */
 	ignoreShellIntegration?: boolean;
+
+	/**
+	 * The task associated with this terminal
+	 */
+	task?: { lastTask?: string; group?: string };
 }
 
 export interface ICreateContributedTerminalProfileOptions {

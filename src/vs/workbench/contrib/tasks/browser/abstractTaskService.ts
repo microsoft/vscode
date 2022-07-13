@@ -339,6 +339,19 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._onDidRegisterSupportedExecutions.fire();
 	}
 
+	private async _restartTasks(): Promise<void> {
+		const recentlyUsedTasks = await this.readRecentTasks();
+		if (!recentlyUsedTasks) {
+			return;
+		}
+		for (const task of recentlyUsedTasks) {
+			const resolvedTask = await this.getTask(task._source.label, task._id);
+			if (resolvedTask) {
+				this.run(resolvedTask);
+			}
+		}
+	}
+
 	public get onDidStateChange(): Event<ITaskEvent> {
 		return this._onDidStateChange.event;
 	}
@@ -347,7 +360,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return this.inTerminal();
 	}
 
-	private _registerCommands(): void {
+	private async _registerCommands(): Promise<void> {
 		CommandsRegistry.registerCommand({
 			id: 'workbench.action.tasks.runTask',
 			handler: async (accessor, arg) => {
@@ -383,7 +396,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				this._runTerminateCommand(arg);
 			}
 		});
-
 		CommandsRegistry.registerCommand('workbench.action.tasks.showLog', () => {
 			if (!this._canRunCommand()) {
 				return;
@@ -514,6 +526,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!setup) {
 			setup = this._computeWorkspaceFolderSetup();
 		}
+
 		this._workspaceFolders = setup[0];
 		if (this._ignoredWorkspaceFolders) {
 			if (this._ignoredWorkspaceFolders.length !== setup[1].length) {
@@ -882,6 +895,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this.workspaceFolders.forEach(folder => {
 			folderMap[folder.uri.toString()] = folder;
 		});
+		console.log(folderMap);
 		const folderToTasksMap: Map<string, any> = new Map();
 		const workspaceToTaskMap: Map<string, any> = new Map();
 		const recentlyUsedTasks = this._getRecentlyUsedTasks();
@@ -900,6 +914,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			const key = entry[0];
 			const task = JSON.parse(entry[1]);
 			const folderInfo = this._getFolderFromTaskKey(key);
+			console.log('folderInfo', folderInfo);
 			addTaskToMap(folderInfo.isWorkspaceFile ? workspaceToTaskMap : folderToTasksMap, folderInfo.folder, task);
 		}
 
@@ -912,7 +927,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					? (isWorkspaceFile
 						? TaskConfig.TaskConfigSource.WorkspaceFile : TaskConfig.TaskConfigSource.TasksJson)
 					: TaskConfig.TaskConfigSource.User);
-				await that._computeTasksForSingleConfig(folderMap[key] ?? await that._getAFolder(), {
+				await that._computeTasksForSingleConfig(folderMap[key] ?? await that._getAFolder(folderMap[key]), {
 					version: '2.0.0',
 					tasks: map.get(key)
 				}, TaskRunSource.System, custom, customized, taskConfigSource, true);
@@ -932,7 +947,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		await readTasks(this, folderToTasksMap, false);
 		await readTasks(this, workspaceToTaskMap, true);
-
+		console.log([...workspaceToTaskMap.entries()]);
+		console.log([...folderToTasksMap.entries()]);
+		console.log([...readTasksMap!.entries()]);
+		console.log([...recentlyUsedTasks!.entries()]);
+		console.log(recentlyUsedTasks.keys());
 		for (const key of recentlyUsedTasks.keys()) {
 			if (readTasksMap.has(key)) {
 				tasks.push(readTasksMap.get(key)!);
@@ -1713,6 +1732,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return true;
 	}
 
+	public async restartTasks(): Promise<void> {
+		this._getTaskSystem();
+		await this._restartTasks();
+	}
+
 	private async _executeTask(task: Task, resolver: ITaskResolver, runSource: TaskRunSource): Promise<ITaskSummary> {
 		let taskToRun: Task = task;
 		if (await this._saveBeforeRun()) {
@@ -1728,6 +1752,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		await ProblemMatcherRegistry.onReady();
 		const executeResult = this._getTaskSystem().run(taskToRun, resolver);
+
 		return this._handleExecuteResult(executeResult, runSource);
 	}
 
@@ -3553,6 +3578,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				await this._configurationService.updateValue(TasksSchemaProperties.SuppressTaskName, undefined, { resource: folder.uri });
 			}
 		}
+
 		this._updateSetup();
 
 		this._notificationService.prompt(Severity.Warning,

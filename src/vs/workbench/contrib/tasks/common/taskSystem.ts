@@ -101,6 +101,7 @@ export interface ITaskSystemInfoResolver {
 
 export interface ITaskSystem {
 	onDidStateChange: Event<ITaskEvent>;
+	onDidReconnectToTerminals: Event<void>;
 	run(task: Task, resolver: ITaskResolver): ITaskExecuteResult;
 	rerun(): ITaskExecuteResult | undefined;
 	isActive(): Promise<boolean>;
