@@ -48,7 +48,7 @@ export const referenceGeneratedDepsByArch = {
 		'libdbus-1-3 (>= 1.5.12)',
 		'libdrm2 (>= 2.4.38)',
 		'libexpat1 (>= 2.0.1)',
-		'libgbm1 (>= 17.1.0~rc2)',
+		'libgbm1 (>= 8.1~0)',
 		'libgcc1 (>= 1:3.0)',
 		'libglib2.0-0 (>= 2.16.0)',
 		'libglib2.0-0 (>= 2.39.4)',
@@ -68,7 +68,6 @@ export const referenceGeneratedDepsByArch = {
 		'libxfixes3',
 		'libxkbcommon0 (>= 0.4.1)',
 		'libxkbfile1',
-		'libxrandr2',
 		'xdg-utils (>= 1.0.2)'
 	],
 	'armhf': [
@@ -85,7 +84,7 @@ export const referenceGeneratedDepsByArch = {
 		'libdbus-1-3 (>= 1.5.12)',
 		'libdrm2 (>= 2.4.38)',
 		'libexpat1 (>= 2.0.1)',
-		'libgbm1 (>= 17.1.0~rc2)',
+		'libgbm1 (>= 8.1~0)',
 		'libgcc1 (>= 1:3.0)',
 		'libgcc1 (>= 1:3.5)',
 		'libglib2.0-0 (>= 2.16.0)',
@@ -110,7 +109,6 @@ export const referenceGeneratedDepsByArch = {
 		'libxfixes3',
 		'libxkbcommon0 (>= 0.4.1)',
 		'libxkbfile1',
-		'libxrandr2',
 		'xdg-utils (>= 1.0.2)'
 	],
 	'arm64': [
@@ -125,7 +123,7 @@ export const referenceGeneratedDepsByArch = {
 		'libdbus-1-3 (>= 1.0.2)',
 		'libdrm2 (>= 2.4.38)',
 		'libexpat1 (>= 2.0.1)',
-		'libgbm1 (>= 17.1.0~rc2)',
+		'libgbm1 (>= 8.1~0)',
 		'libgcc1 (>= 1:3.0)',
 		'libgcc1 (>= 1:4.2)',
 		'libgcc1 (>= 1:4.5)',
@@ -151,7 +149,6 @@ export const referenceGeneratedDepsByArch = {
 		'libxfixes3',
 		'libxkbcommon0 (>= 0.4.1)',
 		'libxkbfile1',
-		'libxrandr2',
 		'xdg-utils (>= 1.0.2)'
 	]
 };
