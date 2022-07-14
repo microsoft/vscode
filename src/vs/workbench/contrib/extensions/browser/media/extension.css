@@ -236,3 +236,12 @@
 .extension-list-item .monaco-action-bar > .actions-container > .action-item:not(.action-dropdown-item) > .extension-action {
 	margin-left: 6px;
 }
+
+.extension-list-item .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .action-dropdown-item-separator {
+	height: 16px;
+	margin-top: 2px;
+}
+
+.extension-list-item .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .action-dropdown-item-separator > div {
+	height: 10px;
+}

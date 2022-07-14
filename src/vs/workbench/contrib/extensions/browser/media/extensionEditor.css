@@ -237,6 +237,18 @@
 	max-width: 300px;
 }
 
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .action-dropdown-item-separator {
+	height: 22px;
+}
+
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .action-dropdown-item-separator > div {
+	height: 16px;
+}
+
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item.empty > .action-dropdown-item-separator {
+	display: none;
+}
+
 .extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item > .action-label.extension-status {
 	margin-right: 0;
 }
