@@ -38,8 +38,15 @@ suite('SnippetSession', function () {
 		languageConfigurationService = new TestLanguageConfigurationService();
 		const serviceCollection = new ServiceCollection(
 			[ILabelService, new class extends mock<ILabelService>() { }],
-			[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { }],
-			[ILanguageConfigurationService, languageConfigurationService]
+			[ILanguageConfigurationService, languageConfigurationService],
+			[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
+				override getWorkspace() {
+					return {
+						id: 'workspace-id',
+						folders: [],
+					};
+				}
+			}],
 		);
 		editor = createTestCodeEditor(model, { serviceCollection }) as IActiveCodeEditor;
 		editor.setSelections([new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5)]);
