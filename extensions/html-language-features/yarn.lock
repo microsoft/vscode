@@ -2,15 +2,54 @@
 # yarn lockfile v1
 
 
+"@microsoft/1ds-core-js@3.2.4", "@microsoft/1ds-core-js@^3.2.3":
+  version "3.2.4"
+  resolved "https://registry.yarnpkg.com/@microsoft/1ds-core-js/-/1ds-core-js-3.2.4.tgz#fbffd3fbcc80b04ba57c961486ff581c59e1180e"
+  integrity sha512-ZkbCb63JF7hN+YQ8e/4nRe6vAIBMpoF8PQNiYiXSzYtdhXZ/pM3jB9/7g0O5LR4h/2IU1amAq0kpBgPbd6NWqg==
+  dependencies:
+    "@microsoft/applicationinsights-core-js" "2.8.5"
+    "@microsoft/applicationinsights-shims" "^2.0.1"
+    "@microsoft/dynamicproto-js" "^1.1.6"
+
+"@microsoft/1ds-post-js@^3.2.3":
+  version "3.2.4"
+  resolved "https://registry.yarnpkg.com/@microsoft/1ds-post-js/-/1ds-post-js-3.2.4.tgz#38913faa3fbaca320cea14d275f7cd4c28242d35"
+  integrity sha512-SblhGNkd8C6kzewq+Gc/ViN2oYp1/TJFw0Y4rOfHXCr6siznInBggm5ehqZd/QPXh/7MYqCx4Gpw9Rra18fO0g==
+  dependencies:
+    "@microsoft/1ds-core-js" "3.2.4"
+    "@microsoft/applicationinsights-shims" "^2.0.1"
+    "@microsoft/dynamicproto-js" "^1.1.6"
+
+"@microsoft/applicationinsights-core-js@2.8.5":
+  version "2.8.5"
+  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-core-js/-/applicationinsights-core-js-2.8.5.tgz#02adb1b9a7dca83897a9a06a98d1aecdc7526b6f"
+  integrity sha512-7/EgK6r8GiDVluo84skCMNthgnPa6P7TXiJqHBJbuCf11N4YqkZoGjKs+Fo7h6XIPuYMUHVMNLpBObI7oS7HsQ==
+  dependencies:
+    "@microsoft/applicationinsights-shims" "2.0.1"
+    "@microsoft/dynamicproto-js" "^1.1.6"
+
+"@microsoft/applicationinsights-shims@2.0.1", "@microsoft/applicationinsights-shims@^2.0.1":
+  version "2.0.1"
+  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-shims/-/applicationinsights-shims-2.0.1.tgz#5d72fb7aaf4056c4fda54f9d7c93ccf8ca9bcbfd"
+  integrity sha512-G0MXf6R6HndRbDy9BbEj0zrLeuhwt2nsXk2zKtF0TnYo39KgYqhYC2ayIzKPTm2KAE+xzD7rgyLdZnrcRvt9WQ==
+
+"@microsoft/dynamicproto-js@^1.1.6":
+  version "1.1.6"
+  resolved "https://registry.yarnpkg.com/@microsoft/dynamicproto-js/-/dynamicproto-js-1.1.6.tgz#6fe03468862861f5f88ac4c3959a652b3797f1bc"
+  integrity sha512-D1Oivw1A4bIXhzBIy3/BBPn3p2On+kpO2NiYt9shICDK7L/w+cR6FFBUsBZ05l6iqzTeL+Jm8lAYn0g6G7DmDg==
+
 "@types/node@16.x":
   version "16.11.6"
   resolved "https://registry.yarnpkg.com/@types/node/-/node-16.11.6.tgz#6bef7a2a0ad684cf6e90fcfe31cecabd9ce0a3ae"
   integrity sha512-ua7PgUoeQFjmWPcoo9khiPum3Pd60k4/2ZGXt18sm2Slk0W0xZTqt5Y0Ny1NyBiN1EVQ/+FaF9NcY4Qe6rwk5w==
 
-"@vscode/extension-telemetry@0.5.1":
-  version "0.5.1"
-  resolved "https://registry.yarnpkg.com/@vscode/extension-telemetry/-/extension-telemetry-0.5.1.tgz#20150976629663b3d33799a4ad25944a1535f7db"
-  integrity sha512-cvFq8drxdLRF8KN72WcV4lTEa9GqDiRwy9EbnYuoSCD9Jdk8zHFF49MmACC1qs4R9Ko/C1uMOmeLJmVi8EA0rQ==
+"@vscode/extension-telemetry@0.6.2":
+  version "0.6.2"
+  resolved "https://registry.yarnpkg.com/@vscode/extension-telemetry/-/extension-telemetry-0.6.2.tgz#b86814ee680615730da94220c2b03ea9c3c14a8e"
+  integrity sha512-yb/wxLuaaCRcBAZtDCjNYSisAXz3FWsSqAha5nhHcYxx2ZPdQdWuZqVXGKq0ZpHVndBWWtK6XqtpCN2/HB4S1w==
+  dependencies:
+    "@microsoft/1ds-core-js" "^3.2.3"
+    "@microsoft/1ds-post-js" "^3.2.3"
 
 balanced-match@^1.0.0:
   version "1.0.0"
