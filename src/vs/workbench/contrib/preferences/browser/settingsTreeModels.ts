@@ -13,7 +13,7 @@ import { ITOCEntry, knownAcronyms, knownTermMappings, tocData } from 'vs/workben
 import { ENABLE_LANGUAGE_FILTER, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IExtensionSetting, ISearchResult, ISetting, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { FOLDER_SCOPES, WORKSPACE_SCOPES, REMOTE_MACHINE_SCOPES, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, LOCAL_MACHINE_PROFILE_SCOPES, APPLICATION_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
+import { FOLDER_SCOPES, WORKSPACE_SCOPES, REMOTE_MACHINE_SCOPES, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, APPLICATION_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
@@ -167,8 +167,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		parent: SettingsTreeGroupElement,
 		inspectResult: IInspectResult,
 		isWorkspaceTrusted: boolean,
-		private readonly languageService: ILanguageService,
-		private readonly userDataProfileService: IUserDataProfileService,
+		private readonly languageService: ILanguageService
 	) {
 		super(sanitizeId(parent.id + '_' + setting.key));
 		this.setting = setting;
@@ -383,9 +382,6 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		}
 
 		if (configTarget === ConfigurationTarget.USER_LOCAL) {
-			if (!this.userDataProfileService.currentProfile.isDefault) {
-				return LOCAL_MACHINE_PROFILE_SCOPES.includes(this.setting.scope);
-			}
 			if (isRemote) {
 				return LOCAL_MACHINE_SCOPES.includes(this.setting.scope);
 			}
@@ -475,8 +471,7 @@ export class SettingsTreeModel {
 		protected _viewState: ISettingsEditorViewState,
 		private _isWorkspaceTrusted: boolean,
 		@IWorkbenchConfigurationService private readonly _configurationService: IWorkbenchConfigurationService,
-		@ILanguageService private readonly _languageService: ILanguageService,
-		@IUserDataProfileService private readonly _userDataProfileService: IUserDataProfileService,
+		@ILanguageService private readonly _languageService: ILanguageService
 	) {
 	}
 
@@ -537,7 +532,8 @@ export class SettingsTreeModel {
 
 	private updateSettings(settings: SettingsTreeSettingElement[]): void {
 		settings.forEach(element => {
-			const inspectResult = inspectSetting(element.setting.key, this._viewState.settingsTarget, this._viewState.languageFilter, this._configurationService);
+			const target = element.setting.scope === ConfigurationScope.APPLICATION ? ConfigurationTarget.APPLICATION : this._viewState.settingsTarget;
+			const inspectResult = inspectSetting(element.setting.key, target, this._viewState.languageFilter, this._configurationService);
 			element.update(inspectResult, this._isWorkspaceTrusted);
 		});
 	}
@@ -573,8 +569,9 @@ export class SettingsTreeModel {
 	}
 
 	private createSettingsTreeSettingElement(setting: ISetting, parent: SettingsTreeGroupElement): SettingsTreeSettingElement {
-		const inspectResult = inspectSetting(setting.key, this._viewState.settingsTarget, this._viewState.languageFilter, this._configurationService);
-		const element = new SettingsTreeSettingElement(setting, parent, inspectResult, this._isWorkspaceTrusted, this._languageService, this._userDataProfileService);
+		const target = setting.scope === ConfigurationScope.APPLICATION ? ConfigurationTarget.APPLICATION : this._viewState.settingsTarget;
+		const inspectResult = inspectSetting(setting.key, target, this._viewState.languageFilter, this._configurationService);
+		const element = new SettingsTreeSettingElement(setting, parent, inspectResult, this._isWorkspaceTrusted, this._languageService);
 
 		const nameElements = this._treeElementsBySettingName.get(setting.key) || [];
 		nameElements.push(element);
@@ -586,7 +583,7 @@ export class SettingsTreeModel {
 interface IInspectResult {
 	isConfigured: boolean;
 	inspected: IConfigurationValue<unknown>;
-	targetSelector: 'userLocalValue' | 'userRemoteValue' | 'workspaceValue' | 'workspaceFolderValue';
+	targetSelector: 'applicationValue' | 'userLocalValue' | 'userRemoteValue' | 'workspaceValue' | 'workspaceFolderValue';
 	inspectedLanguageOverrides: Map<string, IConfigurationValue<unknown>>;
 	languageSelector: string | undefined;
 }
@@ -594,17 +591,21 @@ interface IInspectResult {
 export function inspectSetting(key: string, target: SettingsTarget, languageFilter: string | undefined, configurationService: IWorkbenchConfigurationService): IInspectResult {
 	const inspectOverrides = URI.isUri(target) ? { resource: target } : undefined;
 	const inspected = configurationService.inspect(key, inspectOverrides);
-	const targetSelector = target === ConfigurationTarget.USER_LOCAL ? 'userLocalValue' :
-		target === ConfigurationTarget.USER_REMOTE ? 'userRemoteValue' :
-			target === ConfigurationTarget.WORKSPACE ? 'workspaceValue' :
-				'workspaceFolderValue';
-	const targetOverrideSelector = target === ConfigurationTarget.USER_LOCAL ? 'userLocal' :
-		target === ConfigurationTarget.USER_REMOTE ? 'userRemote' :
-			target === ConfigurationTarget.WORKSPACE ? 'workspace' :
-				'workspaceFolder';
+	const targetSelector = target === ConfigurationTarget.APPLICATION ? 'applicationValue' :
+		target === ConfigurationTarget.USER_LOCAL ? 'userLocalValue' :
+			target === ConfigurationTarget.USER_REMOTE ? 'userRemoteValue' :
+				target === ConfigurationTarget.WORKSPACE ? 'workspaceValue' :
+					'workspaceFolderValue';
+	const targetOverrideSelector = target === ConfigurationTarget.APPLICATION ? 'application' :
+		target === ConfigurationTarget.USER_LOCAL ? 'userLocal' :
+			target === ConfigurationTarget.USER_REMOTE ? 'userRemote' :
+				target === ConfigurationTarget.WORKSPACE ? 'workspace' :
+					'workspaceFolder';
 	let isConfigured = typeof inspected[targetSelector] !== 'undefined';
 	if (!isConfigured) {
-		if (target === ConfigurationTarget.USER_LOCAL) {
+		if (target === ConfigurationTarget.APPLICATION) {
+			isConfigured = !!configurationService.restrictedSettings.application?.includes(key);
+		} if (target === ConfigurationTarget.USER_LOCAL) {
 			isConfigured = !!configurationService.restrictedSettings.userLocal?.includes(key);
 		} else if (target === ConfigurationTarget.USER_REMOTE) {
 			isConfigured = !!configurationService.restrictedSettings.userRemote?.includes(key);
