@@ -293,6 +293,10 @@ function getAccessibleScopeDisplayMidSentenceText(completeScope: string, languag
 export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement, configurationService: IConfigurationService, languageService: ILanguageService): string {
 	const ariaLabelSections: string[] = [];
 
+	if (element.matchesScope(ConfigurationTarget.APPLICATION, false)) {
+		ariaLabelSections.push(localize('applicationSettingDescription', "Setting applies to all profiles."));
+	}
+
 	// Add other overrides text
 	const otherOverridesStart = element.isConfigured ?
 		localize('alsoConfiguredIn', "Also modified in") :
