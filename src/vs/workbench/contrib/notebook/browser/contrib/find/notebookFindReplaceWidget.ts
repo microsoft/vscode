@@ -485,7 +485,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._innerReplaceDomNode.appendChild(this._replaceBtn.domNode);
 		this._innerReplaceDomNode.appendChild(this._replaceAllBtn.domNode);
 
-		this._resizeSash = new Sash(this._domNode, { getVerticalSashLeft: () => 0 }, { orientation: Orientation.VERTICAL, size: 2 });
+		this._resizeSash = this._register(new Sash(this._domNode, { getVerticalSashLeft: () => 0 }, { orientation: Orientation.VERTICAL, size: 2 }));
 
 		this._sashListener.add(this._resizeSash.onDidStart(() => {
 			this._resizeOriginalWidth = this._getDomWidth();
@@ -642,6 +642,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 	override dispose() {
 		super.dispose();
+		this._sashListener.dispose();
 
 		if (this._domNode && this._domNode.parentElement) {
 			this._domNode.parentElement.removeChild(this._domNode);
@@ -790,14 +791,9 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.simple-fr-find-part .find-filter-button > .monaco-action-bar .action-label.notebook-filters.checked { background-color: ${inputActiveOptionBackgroundColor}; }`);
 	}
 
-	const resizeBorderBackground = theme.getColor(editorWidgetResizeBorder);
+	const resizeBorderBackground = theme.getColor(editorWidgetResizeBorder) ?? theme.getColor(editorWidgetBorder);
 	if (resizeBorderBackground) {
 		collector.addRule(`.monaco-workbench .simple-fr-find-part-wrapper .monaco-sash { background-color: ${resizeBorderBackground}; }`);
-	} else {
-		const border = theme.getColor(editorWidgetBorder);
-		if (border) {
-			collector.addRule(`.monaco-workbench .simple-fr-find-part-wrapper .monaco-sash { background-color: ${border}; }`);
-		}
 	}
 
 	collector.addRule(`
