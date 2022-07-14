@@ -290,6 +290,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._setTaskLRUCacheLimit();
 			return this._updateWorkspaceTasks(TaskRunSource.ConfigurationChange);
 		}));
+		this._register(this.onDidChangeTaskSystemInfo(async () => await this._restartTasks()));
 		this._taskRunningState = TASK_RUNNING_STATE.bindTo(_contextKeyService);
 		this._onDidStateChange = this._register(new Emitter());
 		this._registerCommands();
@@ -618,7 +619,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return infosCount > 0;
 	}
 
-	public async registerTaskSystem(key: string, info: ITaskSystemInfo): Promise<void> {
+	public registerTaskSystem(key: string, info: ITaskSystemInfo): void {
 		// Ideally the Web caller of registerRegisterTaskSystem would use the correct key.
 		// However, the caller doesn't know about the workspace folders at the time of the call, even though we know about them here.
 		if (info.platform === Platform.Platform.Web) {
@@ -638,7 +639,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 		if (this.hasTaskSystemInfo) {
 			this._onDidChangeTaskSystemInfo.fire();
-			await this._restartTasks();
 		}
 	}
 
