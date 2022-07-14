@@ -36,7 +36,6 @@ import { filterIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIc
 import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
 import { isSafari } from 'vs/base/common/platform';
 import { ISashEvent, Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
@@ -262,7 +261,6 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	protected _replaceAllBtn!: SimpleButton;
 
 	private readonly _resizeSash: Sash;
-	private readonly _sashListener = new DisposableStore();
 	private _resizeOriginalWidth = NOTEBOOK_FIND_WIDGET_INITIAL_WIDTH;
 
 	private _isVisible: boolean = false;
@@ -487,11 +485,11 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 		this._resizeSash = this._register(new Sash(this._domNode, { getVerticalSashLeft: () => 0 }, { orientation: Orientation.VERTICAL, size: 2 }));
 
-		this._sashListener.add(this._resizeSash.onDidStart(() => {
+		this._register(this._resizeSash.onDidStart(() => {
 			this._resizeOriginalWidth = this._getDomWidth();
 		}));
 
-		this._sashListener.add(this._resizeSash.onDidChange((evt: ISashEvent) => {
+		this._register(this._resizeSash.onDidChange((evt: ISashEvent) => {
 			let width = this._resizeOriginalWidth + evt.startX - evt.currentX;
 			if (width < NOTEBOOK_FIND_WIDGET_INITIAL_WIDTH) {
 				width = NOTEBOOK_FIND_WIDGET_INITIAL_WIDTH;
@@ -511,7 +509,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			this._findInput.inputBox.layout();
 		}));
 
-		this._sashListener.add(this._resizeSash.onDidReset(() => {
+		this._register(this._resizeSash.onDidReset(() => {
 			// users double click on the sash
 			// try to emulate what happens with editor findWidget
 			const currentWidth = this._getDomWidth();
@@ -642,7 +640,6 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 	override dispose() {
 		super.dispose();
-		this._sashListener.dispose();
 
 		if (this._domNode && this._domNode.parentElement) {
 			this._domNode.parentElement.removeChild(this._domNode);
