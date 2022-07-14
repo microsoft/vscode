@@ -37,11 +37,11 @@ export class SharedProcessRequestService implements IRequestService {
 	}
 
 	private getRequestService(): IRequestService {
-		if (this.configurationService.getValue('developer.sharedProcess.useBrowserRequestService') === true) {
-			this.logService.trace('Using browser request service');
-			return this.browserRequestService;
+		if (this.configurationService.getValue('developer.sharedProcess.redirectRequestsToMain') === true) {
+			this.logService.trace('Using main request service');
+			return this.mainRequestService;
 		}
-		this.logService.trace('Using main request service');
-		return this.mainRequestService;
+		this.logService.trace('Using browser request service');
+		return this.browserRequestService;
 	}
 }
