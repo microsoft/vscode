@@ -16,7 +16,6 @@
     "Programming Languages"
   ],
   "enabledApiProposals": [
-    "textEditorDrop",
     "documentPaste"
   ],
   "activationEvents": [
@@ -563,7 +562,8 @@
     "@types/picomatch": "^2.3.0",
     "@types/vscode-notebook-renderer": "^1.60.0",
     "@types/vscode-webview": "^1.57.0",
-    "lodash.throttle": "^4.1.1"
+    "lodash.throttle": "^4.1.1",
+    "vscode-languageserver-types": "^3.17.2"
   },
   "repository": {
     "type": "git",
