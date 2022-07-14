@@ -471,7 +471,8 @@ export class SettingsTreeModel {
 		protected _viewState: ISettingsEditorViewState,
 		private _isWorkspaceTrusted: boolean,
 		@IWorkbenchConfigurationService private readonly _configurationService: IWorkbenchConfigurationService,
-		@ILanguageService private readonly _languageService: ILanguageService
+		@ILanguageService private readonly _languageService: ILanguageService,
+		@IUserDataProfileService private readonly _userDataProfileService: IUserDataProfileService
 	) {
 	}
 
@@ -530,9 +531,17 @@ export class SettingsTreeModel {
 		this.updateSettings(arrays.flatten([...this._treeElementsBySettingName.values()]).filter(s => s.isUntrusted));
 	}
 
+	private getTargetToInspect(settingScope: ConfigurationScope | undefined): SettingsTarget {
+		if (!this._userDataProfileService.currentProfile.isDefault && settingScope === ConfigurationScope.APPLICATION) {
+			return ConfigurationTarget.APPLICATION;
+		} else {
+			return this._viewState.settingsTarget;
+		}
+	}
+
 	private updateSettings(settings: SettingsTreeSettingElement[]): void {
 		settings.forEach(element => {
-			const target = element.setting.scope === ConfigurationScope.APPLICATION ? ConfigurationTarget.APPLICATION : this._viewState.settingsTarget;
+			const target = this.getTargetToInspect(element.setting.scope);
 			const inspectResult = inspectSetting(element.setting.key, target, this._viewState.languageFilter, this._configurationService);
 			element.update(inspectResult, this._isWorkspaceTrusted);
 		});
@@ -569,7 +578,7 @@ export class SettingsTreeModel {
 	}
 
 	private createSettingsTreeSettingElement(setting: ISetting, parent: SettingsTreeGroupElement): SettingsTreeSettingElement {
-		const target = setting.scope === ConfigurationScope.APPLICATION ? ConfigurationTarget.APPLICATION : this._viewState.settingsTarget;
+		const target = this.getTargetToInspect(setting.scope);
 		const inspectResult = inspectSetting(setting.key, target, this._viewState.languageFilter, this._configurationService);
 		const element = new SettingsTreeSettingElement(setting, parent, inspectResult, this._isWorkspaceTrusted, this._languageService);
 
@@ -819,7 +828,7 @@ export class SearchResultModel extends SettingsTreeModel {
 		@IWorkbenchConfigurationService configurationService: IWorkbenchConfigurationService,
 		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
 		@ILanguageService languageService: ILanguageService,
-		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService
 	) {
 		super(viewState, isWorkspaceTrusted, configurationService, languageService, userDataProfileService);
 		this.update({ id: 'searchResultModel', label: '' });
