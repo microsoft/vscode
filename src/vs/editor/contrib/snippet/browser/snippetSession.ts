@@ -535,6 +535,17 @@ export class SnippetSession {
 		const parser = new SnippetParser();
 		const snippet = new TextmateSnippet();
 
+		// snippet variables resolver
+		const resolver = new CompositeSnippetVariableResolver([
+			editor.invokeWithinContext(accessor => new ModelBasedVariableResolver(accessor.get(ILabelService), model)),
+			new ClipboardBasedVariableResolver(() => clipboardText, 0, editor.getSelections().length, editor.getOption(EditorOption.multiCursorPaste) === 'spread'),
+			new SelectionBasedVariableResolver(model, editor.getSelection(), 0, overtypingCapturer),
+			new CommentBasedVariableResolver(model, editor.getSelection(), languageConfigurationService),
+			new TimeBasedVariableResolver,
+			new WorkspaceBasedVariableResolver(editor.invokeWithinContext(accessor => accessor.get(IWorkspaceContextService))),
+			new RandomBasedVariableResolver,
+		]);
+
 		//
 		snippetEdits = snippetEdits.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
 		let offset = 0;
@@ -553,6 +564,7 @@ export class SnippetSession {
 			}
 
 			parser.parseFragment(template, snippet);
+			snippet.resolveVariables(resolver);
 
 			const snippetText = snippet.toString();
 			const snippetFragmentText = snippetText.slice(offset);
@@ -567,19 +579,6 @@ export class SnippetSession {
 
 		//
 		parser.ensureFinalTabstop(snippet, enforceFinalTabstop, true);
-
-		// snippet variables resolver
-		const resolver = new CompositeSnippetVariableResolver([
-			editor.invokeWithinContext(accessor => new ModelBasedVariableResolver(accessor.get(ILabelService), model)),
-			new ClipboardBasedVariableResolver(() => clipboardText, 0, editor.getSelections().length, editor.getOption(EditorOption.multiCursorPaste) === 'spread'),
-			new SelectionBasedVariableResolver(model, editor.getSelection(), 0, overtypingCapturer),
-			new CommentBasedVariableResolver(model, editor.getSelection(), languageConfigurationService),
-			new TimeBasedVariableResolver,
-			new WorkspaceBasedVariableResolver(editor.invokeWithinContext(accessor => accessor.get(IWorkspaceContextService))),
-			new RandomBasedVariableResolver,
-		]);
-		snippet.resolveVariables(resolver);
-
 
 		return {
 			edits,
