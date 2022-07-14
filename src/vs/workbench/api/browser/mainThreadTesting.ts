@@ -19,6 +19,7 @@ import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResu
 import { IMainThreadTestController, ITestRootProvider, ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { ExtHostContext, ExtHostTestingShape, ILocationDto, ITestControllerPatch, MainContext, MainThreadTestingShape } from '../common/extHost.protocol';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 @extHostNamedCustomer(MainContext.MainThreadTesting)
 export class MainThreadTesting extends Disposable implements MainThreadTestingShape, ITestRootProvider {
@@ -42,7 +43,13 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 
 		const prevResults = resultService.results.map(r => r.toJSON()).filter(isDefined);
 		if (prevResults.length) {
-			this.proxy.$publishTestResults(prevResults);
+			try {
+				this.proxy.$publishTestResults(prevResults);
+			} catch (err) {
+				// See https://github.com/microsoft/vscode/issues/151147
+				// Trying to send more than 1GB of data can cause the method to throw.
+				onUnexpectedError(err);
+			}
 		}
 
 		this._register(this.testService.onDidCancelTestRun(({ runId }) => {
