@@ -39,6 +39,7 @@ import { IColorScheme, IOpenedWindow, IOpenEmptyWindowOptions, IOpenWindowOption
 import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -603,12 +604,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return clipboard.writeFindText(text);
 	}
 
-	async writeClipboardBuffer(windowId: number | undefined, format: string, buffer: Uint8Array, type?: 'selection' | 'clipboard'): Promise<void> {
-		return clipboard.writeBuffer(format, Buffer.from(buffer), type);
+	async writeClipboardBuffer(windowId: number | undefined, format: string, buffer: VSBuffer, type?: 'selection' | 'clipboard'): Promise<void> {
+		return clipboard.writeBuffer(format, Buffer.from(buffer.buffer), type);
 	}
 
-	async readClipboardBuffer(windowId: number | undefined, format: string): Promise<Uint8Array> {
-		return clipboard.readBuffer(format);
+	async readClipboardBuffer(windowId: number | undefined, format: string): Promise<VSBuffer> {
+		return VSBuffer.wrap(clipboard.readBuffer(format));
 	}
 
 	async hasClipboard(windowId: number | undefined, format: string, type?: 'selection' | 'clipboard'): Promise<boolean> {

@@ -35,17 +35,17 @@ export interface ISubmenuItem {
 	rememberDefaultAction?: boolean;	// for dropdown menu: if true the last executed action is remembered as the default action
 }
 
-export function isIMenuItem(item: IMenuItem | ISubmenuItem): item is IMenuItem {
+export function isIMenuItem(item: any): item is IMenuItem {
 	return (item as IMenuItem).command !== undefined;
 }
 
-export function isISubmenuItem(item: IMenuItem | ISubmenuItem): item is ISubmenuItem {
+export function isISubmenuItem(item: any): item is ISubmenuItem {
 	return (item as ISubmenuItem).submenu !== undefined;
 }
 
 export class MenuId {
 
-	private static readonly _idPool = new Set<string>();
+	private static readonly _instances = new Map<string, MenuId>();
 
 	static readonly CommandPalette = new MenuId('CommandPalette');
 	static readonly DebugBreakpointsContext = new MenuId('DebugBreakpointsContext');
@@ -162,14 +162,25 @@ export class MenuId {
 	static readonly NewFile = new MenuId('NewFile');
 	static readonly MergeToolbar = new MenuId('MergeToolbar');
 
+	/**
+	 * Create or reuse a `MenuId` with the given identifier
+	 */
+	static for(identifier: string): MenuId {
+		return MenuId._instances.get(identifier) ?? new MenuId(identifier);
+	}
 
 	readonly id: string;
 
+	/**
+	 * Create a new `MenuId` with the unique identifier. Will throw if a menu
+	 * with the identifier already exists, use `MenuId.for(ident)` or a unique
+	 * identifier
+	 */
 	constructor(identifier: string) {
-		if (MenuId._idPool.has(identifier)) {
-			throw new Error(`Duplicate menu identifier ${identifier}`);
+		if (MenuId._instances.has(identifier)) {
+			throw new TypeError(`MenuId with identifier '${identifier}' already exists. Use MenuId.for(ident) or a unique identifier`);
 		}
-		MenuId._idPool.add(identifier);
+		MenuId._instances.set(identifier, this);
 		this.id = identifier;
 	}
 }
@@ -196,7 +207,18 @@ export interface IMenuService {
 
 	readonly _serviceBrand: undefined;
 
+	/**
+	 * Create a new menu for the given menu identifier. A menu sends events when it's entries
+	 * have changed (placement, enablement, checked-state). By default it does not send events for
+	 * submenu entries. That is more expensive and must be explicitly enabled with the
+	 * `emitEventsForSubmenuChanges` flag.
+	 */
 	createMenu(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuCreateOptions): IMenu;
+
+	/**
+	 * Reset **all** menu item hidden states.
+	 */
+	resetHiddenStates(): void;
 }
 
 export type ICommandsMap = Map<string, ICommandAction>;
@@ -328,6 +350,7 @@ export class SubmenuItemAction extends SubmenuAction {
 
 	constructor(
 		readonly item: ISubmenuItem,
+		readonly hideActions: MenuItemActionManageActions,
 		private readonly _menuService: IMenuService,
 		private readonly _contextKeyService: IContextKeyService,
 		private readonly _options?: IMenuActionOptions
@@ -355,13 +378,13 @@ export class SubmenuItemAction extends SubmenuAction {
 
 export class MenuItemActionManageActions {
 	constructor(
-		private readonly _hideThis: IAction,
-		private readonly _toggleAny: IAction[][],
+		readonly hideThis: IAction,
+		readonly toggleAny: readonly IAction[][],
 	) { }
 
 	asList(): IAction[] {
-		let result: IAction[] = [this._hideThis];
-		for (const n of this._toggleAny) {
+		let result: IAction[] = [this.hideThis];
+		for (const n of this.toggleAny) {
 			result.push(new Separator());
 			result = result.concat(n);
 		}

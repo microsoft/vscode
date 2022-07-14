@@ -717,7 +717,7 @@ submenusExtensionPoint.setHandler(extensions => {
 			}
 
 			const item: IRegisteredSubmenu = {
-				id: new MenuId(`api:${submenuInfo.id}`),
+				id: MenuId.for(`api:${submenuInfo.id}`),
 				label: submenuInfo.label,
 				icon: absoluteIcon
 			};

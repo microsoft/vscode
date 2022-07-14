@@ -6,7 +6,7 @@
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IMenu, IMenuActionOptions, IMenuCreateOptions, IMenuItem, IMenuService, isIMenuItem, ISubmenuItem, MenuId, MenuItemAction, MenuItemActionManageActions, MenuRegistry, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenu, IMenuActionOptions, IMenuCreateOptions, IMenuItem, IMenuService, isIMenuItem, isISubmenuItem, ISubmenuItem, MenuId, MenuItemAction, MenuItemActionManageActions, MenuRegistry, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { ICommandAction, ILocalizedString } from 'vs/platform/action/common/action';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -28,14 +28,12 @@ export class MenuService implements IMenuService {
 		this._hiddenStates = new PersistedMenuHideState(storageService);
 	}
 
-	/**
-	 * Create a new menu for the given menu identifier. A menu sends events when it's entries
-	 * have changed (placement, enablement, checked-state). By default it does not send events for
-	 * submenu entries. That is more expensive and must be explicitly enabled with the
-	 * `emitEventsForSubmenuChanges` flag.
-	 */
 	createMenu(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuCreateOptions): IMenu {
 		return new Menu(id, this._hiddenStates, { emitEventsForSubmenuChanges: false, eventDebounceDelay: 50, ...options }, this._commandService, contextKeyService, this);
+	}
+
+	resetHiddenStates(): void {
+		this._hiddenStates.reset();
 	}
 }
 
@@ -107,6 +105,11 @@ class PersistedMenuHideState {
 				}
 			}
 		}
+		this._persist();
+	}
+
+	reset(): void {
+		this._data = Object.create(null);
 		this._persist();
 	}
 
@@ -248,25 +251,23 @@ class Menu implements IMenu {
 			for (const item of items) {
 				if (this._contextKeyService.contextMatchesRules(item.when)) {
 					let action: MenuItemAction | SubmenuItemAction | undefined;
-					if (isIMenuItem(item)) {
+					const isMenuItem = isIMenuItem(item);
+					const hideActions = new MenuItemActionManageActions(new HideMenuItemAction(this._id, isMenuItem ? item.command : item, this._hiddenStates), allToggleActions);
+
+					if (isMenuItem) {
 						if (!this._hiddenStates.isHidden(this._id, item.command.id)) {
-							action = new MenuItemAction(
-								item.command, item.alt, options,
-								new MenuItemActionManageActions(new HideMenuItemAction(this._id, item.command, this._hiddenStates), allToggleActions),
-								this._contextKeyService, this._commandService
-							);
+							action = new MenuItemAction(item.command, item.alt, options, hideActions, this._contextKeyService, this._commandService);
 						}
 						// add toggle commmand
 						toggleActions.push(new ToggleMenuItemAction(this._id, item.command, this._hiddenStates));
 					} else {
-						action = new SubmenuItemAction(item, this._menuService, this._contextKeyService, options);
+						action = new SubmenuItemAction(item, hideActions, this._menuService, this._contextKeyService, options);
 						if (action.actions.length === 0) {
 							action.dispose();
 							action = undefined;
 						}
-						// add toggle submenu
+						// add toggle submenu - this re-creates ToggleMenuItemAction-instances for submenus but that's OK...
 						if (action) {
-							// todo@jrieken this isn't good and O(n2) because this recurses for each submenu...
 							const makeToggleCommand = (id: MenuId, action: IAction): IAction => {
 								if (action instanceof SubmenuItemAction) {
 									return new SubmenuAction(action.id, action.label, action.actions.map(a => makeToggleCommand(action.item.submenu, a)));
@@ -395,10 +396,11 @@ class HideMenuItemAction implements IAction {
 
 	run: () => void;
 
-	constructor(id: MenuId, command: ICommandAction, hiddenStates: PersistedMenuHideState) {
-		this.id = `hide/${id.id}/${command.id}`;
+	constructor(menu: MenuId, command: ICommandAction | ISubmenuItem, hiddenStates: PersistedMenuHideState) {
+		const id = isISubmenuItem(command) ? command.submenu.id : command.id;
+		this.id = `hide/${menu.id}/${id}`;
 		this.label = localize('hide.label', 'Hide \'{0}\'', typeof command.title === 'string' ? command.title : command.title.value);
-		this.run = () => { hiddenStates.updateHidden(id, command.id, true); };
+		this.run = () => { hiddenStates.updateHidden(menu, id, true); };
 	}
 
 	dispose(): void {

@@ -31,6 +31,7 @@ import { IUserDataInitializationService } from 'vs/workbench/services/userData/b
 import { IAutomatedWindow } from 'vs/platform/log/browser/log';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { dedupExtensions } from 'vs/workbench/services/extensions/common/extensionsUtil';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -49,7 +50,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
-		@IWebExtensionsScannerService webExtensionsScannerService: IWebExtensionsScannerService,
+		@IWebExtensionsScannerService private readonly _webExtensionsScannerService: IWebExtensionsScannerService,
 		@ILogService logService: ILogService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@ILifecycleService lifecycleService: ILifecycleService,
@@ -69,7 +70,6 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			contextService,
 			configurationService,
 			extensionManifestPropertiesService,
-			webExtensionsScannerService,
 			logService,
 			remoteAgentService,
 			lifecycleService,
@@ -190,6 +190,20 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				return null;
 			}
 		}
+	}
+
+	private async _scanWebExtensions(): Promise<IExtensionDescription[]> {
+		const system: IExtensionDescription[] = [], user: IExtensionDescription[] = [], development: IExtensionDescription[] = [];
+		try {
+			await Promise.all([
+				this._webExtensionsScannerService.scanSystemExtensions().then(extensions => system.push(...extensions.map(e => toExtensionDescription(e)))),
+				this._webExtensionsScannerService.scanUserExtensions(this._userDataProfileService.currentProfile.extensionsResource, { skipInvalidExtensions: true }).then(extensions => user.push(...extensions.map(e => toExtensionDescription(e)))),
+				this._webExtensionsScannerService.scanExtensionsUnderDevelopment().then(extensions => development.push(...extensions.map(e => toExtensionDescription(e, true))))
+			]);
+		} catch (error) {
+			this._logService.error(error);
+		}
+		return dedupExtensions(system, user, development, this._logService);
 	}
 
 	protected async _scanAndHandleExtensions(): Promise<void> {
