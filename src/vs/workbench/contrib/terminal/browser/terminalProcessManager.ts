@@ -113,10 +113,10 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	readonly onRestoreCommands = this._onRestoreCommands.event;
 
 	get persistentProcessId(): number | undefined { return this._process?.id; }
-	get shouldPersist(): boolean { return this.reconnectionOwner || (this._process ? this._process.shouldPersist : false); }
+	get shouldPersist(): boolean { return !!this.reconnectionOwner || (this._process ? this._process.shouldPersist : false); }
 	get hasWrittenData(): boolean { return this._hasWrittenData; }
 	get hasChildProcesses(): boolean { return this._hasChildProcesses; }
-	get reconnectionOwner(): boolean { return this._shellLaunchConfig?.attachPersistentProcess?.reconnectionOwner || this._shellLaunchConfig?.reconnectionOwner || false; }
+	get reconnectionOwner(): string | undefined { return this._shellLaunchConfig?.attachPersistentProcess?.reconnectionOwner || this._shellLaunchConfig?.reconnectionOwner || undefined; }
 
 	constructor(
 		private readonly _instanceId: number,
@@ -246,7 +246,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				// this is a copy of what the merged environment collection is on the remote side
 				const env = await this._resolveEnvironment(backend, variableResolver, shellLaunchConfig);
 
-				const shouldPersist = (shellLaunchConfig.reconnectionOwner || !shellLaunchConfig.isFeatureTerminal) && this._configHelper.config.enablePersistentSessions && !shellLaunchConfig.isTransient;
+				const shouldPersist = (!!shellLaunchConfig.reconnectionOwner || !shellLaunchConfig.isFeatureTerminal) && this._configHelper.config.enablePersistentSessions && !shellLaunchConfig.isTransient;
 				if (shellLaunchConfig.attachPersistentProcess) {
 					const result = await backend.attachToProcess(shellLaunchConfig.attachPersistentProcess.id);
 					if (result) {
@@ -462,7 +462,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			windowsEnableConpty: this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled,
 			environmentVariableCollections: this._extEnvironmentVariableCollection ? serializeEnvironmentVariableCollections(this._extEnvironmentVariableCollection.collections) : undefined
 		};
-		const shouldPersist = this._configHelper.config.enablePersistentSessions && (this.reconnectionOwner || !shellLaunchConfig.isFeatureTerminal);
+		const shouldPersist = this._configHelper.config.enablePersistentSessions && (!!this.reconnectionOwner || !shellLaunchConfig.isFeatureTerminal);
 		return await backend.createProcess(shellLaunchConfig, initialCwd, cols, rows, this._configHelper.config.unicodeVersion, env, options, shouldPersist);
 	}
 
