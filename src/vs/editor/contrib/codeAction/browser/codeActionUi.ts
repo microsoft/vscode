@@ -8,6 +8,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import { IPosition } from 'vs/editor/common/core/position';
 import { CodeActionTriggerType } from 'vs/editor/common/languages';
 import { CodeActionItem, CodeActionSet } from 'vs/editor/contrib/codeAction/browser/codeAction';
@@ -158,3 +159,15 @@ export class CodeActionUi extends Disposable {
 		this._codeActionWidget.getValue().show(trigger, actions, at, options);
 	}
 }
+
+// registerEditorCommand(new SuggestCommand({
+// 	id: 'hideSuggestWidget',
+// 	precondition: SuggestContext.Visible,
+// 	handler: x => x.cancelSuggestWidget(),
+// 	kbOpts: {
+// 		weight: weight,
+// 		kbExpr: EditorContextKeys.textInputFocus,
+// 		primary: KeyCode.Escape,
+// 		secondary: [KeyMod.Shift | KeyCode.Escape]
+// 	}
+// }));

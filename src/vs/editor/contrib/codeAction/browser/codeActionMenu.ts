@@ -306,11 +306,8 @@ export class CodeActionMenu extends Disposable {
 		}
 
 		inputArray.forEach((item, index) => {
-			// const tooltip = item.tooltip ? item.tooltip : '';
 			this.options.push(<ICodeActionMenuItem>{ title: item.label, detail: item.tooltip, action: inputArray[index], isEnabled: item.enabled, isSeparator: item.class === 'separator' });
 		});
-
-		// const w = dom.$('.monaco-list-row').innerWidth();
 
 		this.codeActionList.splice(0, this.codeActionList.length, this.options);
 		this.codeActionList.layout(height);
