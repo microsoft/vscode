@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isObject } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -55,6 +55,7 @@ const SETTINGS_EDITOR_COMMAND_FOCUS_CONTROL = 'settings.action.focusSettingContr
 const SETTINGS_EDITOR_COMMAND_FOCUS_UP = 'settings.action.focusLevelUp';
 
 const SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON = 'settings.switchToJSON';
+const SETTINGS_EDITOR_COMMAND_SWITCH_TO_APPLICATION_JSON = 'settings.switchToApplicationJSON';
 const SETTINGS_EDITOR_COMMAND_FILTER_ONLINE = 'settings.filterByOnline';
 const SETTINGS_EDITOR_COMMAND_FILTER_TELEMETRY = 'settings.filterByTelemetry';
 const SETTINGS_EDITOR_COMMAND_FILTER_UNTRUSTED = 'settings.filterUntrusted';
@@ -267,31 +268,89 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				}
 			});
 		};
-		registerOpenUserSettingsEditorFromJsonAction();
-		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => registerOpenUserSettingsEditorFromJsonAction()));
 
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON,
+		const openJsonFromUserSettingsDisposableStore = this._register(new DisposableStore());
+		const registerOpenJsonFromUserSettingsEditorAction = () => {
+			openJsonFromUserSettingsDisposableStore.clear();
+			if (!this.userDataProfileService.currentProfile.isDefault) {
+				const submenuId = MenuId.for('PreferencesSubMenu');
+				openJsonFromUserSettingsDisposableStore.add(registerAction2(class extends Action2 {
+					constructor() {
+						super({
+							id: SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON,
+							title: { value: nls.localize('openProfileSettings', "Open Profile Settings (JSON)"), original: 'Open Profile Settings (JSON)' },
+							f1: true,
+							menu: [{ id: submenuId }]
+						});
+					}
+					run(accessor: ServicesAccessor) {
+						const editorPane = accessor.get(IEditorService).activeEditorPane;
+						if (editorPane instanceof SettingsEditor2) {
+							return editorPane.switchToSettingsFile();
+						}
+						return null;
+					}
+				}));
+				openJsonFromUserSettingsDisposableStore.add(registerAction2(class extends Action2 {
+					constructor() {
+						super({
+							id: SETTINGS_EDITOR_COMMAND_SWITCH_TO_APPLICATION_JSON,
+							title: { value: nls.localize('openApplicationSettings', "Open Non-Profile Specific Settings (JSON)"), original: 'Open Non-Profile Specific Settings (JSON)' },
+							f1: true,
+							menu: [{ id: submenuId }]
+						});
+					}
+					run(accessor: ServicesAccessor) {
+						const editorPane = accessor.get(IEditorService).activeEditorPane;
+						if (editorPane instanceof SettingsEditor2) {
+							return editorPane.switchToApplicationSettingsFile();
+						}
+						return null;
+					}
+				}));
+				openJsonFromUserSettingsDisposableStore.add(MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 					title: { value: nls.localize('openSettingsJson', "Open Settings (JSON)"), original: 'Open Settings (JSON)' },
+					submenu: submenuId,
 					icon: preferencesOpenSettingsIcon,
-					menu: [{
-						id: MenuId.EditorTitle,
-						when: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_JSON_EDITOR.toNegated()),
-						group: 'navigation',
-						order: 1
-					}]
-				});
+					when: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_JSON_EDITOR.toNegated()),
+					group: 'navigation',
+					order: 1
+				}));
+			} else {
+				openJsonFromUserSettingsDisposableStore.add(registerAction2(class extends Action2 {
+					constructor() {
+						super({
+							id: SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON,
+							title: { value: nls.localize('openSettingsJson', "Open Settings (JSON)"), original: 'Open Settings (JSON)' },
+							icon: preferencesOpenSettingsIcon,
+							menu: [{
+								id: MenuId.EditorTitle,
+
+								when: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_JSON_EDITOR.toNegated()),
+								group: 'navigation',
+								order: 1
+							}]
+						});
+					}
+					run(accessor: ServicesAccessor) {
+						const editorPane = accessor.get(IEditorService).activeEditorPane;
+						if (editorPane instanceof SettingsEditor2) {
+							return editorPane.switchToSettingsFile();
+						}
+						return null;
+					}
+				}));
 			}
-			run(accessor: ServicesAccessor) {
-				const editorPane = accessor.get(IEditorService).activeEditorPane;
-				if (editorPane instanceof SettingsEditor2) {
-					return editorPane.switchToSettingsFile();
-				}
-				return null;
-			}
-		});
+		};
+
+		registerOpenUserSettingsEditorFromJsonAction();
+		registerOpenJsonFromUserSettingsEditorAction();
+
+		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => {
+			registerOpenUserSettingsEditorFromJsonAction();
+			registerOpenJsonFromUserSettingsEditorAction();
+		}));
+
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
