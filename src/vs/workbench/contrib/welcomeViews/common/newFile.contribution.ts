@@ -164,6 +164,7 @@ class NewFileTemplatesManager extends Disposable {
 
 		disposables.add(qp.onDidChangeValue((val: string) => {
 			if (val === '') {
+				refreshQp(entries);
 				return;
 			}
 			const currentTextEntry: NewFileItem = {
