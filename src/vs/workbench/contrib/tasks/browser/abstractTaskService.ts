@@ -339,6 +339,23 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._onDidRegisterSupportedExecutions.fire();
 	}
 
+	private async _restartTasks(): Promise<void> {
+		const recentlyUsedTasks = await this.readRecentTasks();
+		if (!recentlyUsedTasks) {
+			return;
+		}
+		for (const task of recentlyUsedTasks) {
+			if (ConfiguringTask.is(task)) {
+				const resolved = await this.tryResolveTask(task);
+				if (resolved) {
+					this.run(resolved, undefined, TaskRunSource.Reconnect);
+				}
+			} else {
+				this.run(task, undefined, TaskRunSource.Reconnect);
+			}
+		}
+	}
+
 	public get onDidStateChange(): Event<ITaskEvent> {
 		return this._onDidStateChange.event;
 	}
@@ -405,7 +422,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				this._runTerminateCommand(arg);
 			}
 		});
-
 		CommandsRegistry.registerCommand('workbench.action.tasks.showLog', () => {
 			if (!this._canRunCommand()) {
 				return;
@@ -602,7 +618,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return infosCount > 0;
 	}
 
-	public registerTaskSystem(key: string, info: ITaskSystemInfo): void {
+	public async registerTaskSystem(key: string, info: ITaskSystemInfo): Promise<void> {
 		// Ideally the Web caller of registerRegisterTaskSystem would use the correct key.
 		// However, the caller doesn't know about the workspace folders at the time of the call, even though we know about them here.
 		if (info.platform === Platform.Platform.Web) {
@@ -622,6 +638,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 		if (this.hasTaskSystemInfo) {
 			this._onDidChangeTaskSystemInfo.fire();
+			await this._restartTasks();
 		}
 	}
 
@@ -661,7 +678,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 			}
 		}
-
 		return result;
 	}
 
@@ -917,7 +933,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				map.get(folder).push(task);
 			}
 		}
-
 		for (const entry of recentlyUsedTasks.entries()) {
 			const key = entry[0];
 			const task = JSON.parse(entry[1]);
@@ -926,6 +941,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 
 		const readTasksMap: Map<string, (Task | ConfiguringTask)> = new Map();
+
 		async function readTasks(that: AbstractTaskService, map: Map<string, any>, isWorkspaceFile: boolean) {
 			for (const key of map.keys()) {
 				const custom: CustomTask[] = [];
@@ -954,7 +970,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		await readTasks(this, folderToTasksMap, false);
 		await readTasks(this, workspaceToTaskMap, true);
-
 		for (const key of recentlyUsedTasks.keys()) {
 			if (readTasksMap.has(key)) {
 				tasks.push(readTasksMap.get(key)!);
@@ -1749,8 +1764,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				? await this.getTask(taskFolder, taskIdentifier) : task) ?? task;
 		}
 		await ProblemMatcherRegistry.onReady();
-		const executeResult = this._getTaskSystem().run(taskToRun, resolver);
-		return this._handleExecuteResult(executeResult, runSource);
+		const executeResult = runSource === TaskRunSource.Reconnect ? this._getTaskSystem().reconnect(taskToRun, resolver) : this._getTaskSystem().run(taskToRun, resolver);
+		if (executeResult) {
+			return this._handleExecuteResult(executeResult, runSource);
+		}
+		return { exitCode: 0 };
 	}
 
 	private async _handleExecuteResult(executeResult: ITaskExecuteResult, runSource?: TaskRunSource): Promise<ITaskSummary> {
@@ -1781,6 +1799,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is already a task running. Terminate it first before executing another task.'), TaskErrors.RunningTask);
 			}
 		}
+		this._setRecentlyUsedTask(executeResult.task);
 		return executeResult.promise;
 	}
 
