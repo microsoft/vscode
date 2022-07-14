@@ -64,7 +64,7 @@ export type RestrictedSettings = {
 export const IWorkbenchConfigurationService = refineServiceDecorator<IConfigurationService, IWorkbenchConfigurationService>(IConfigurationService);
 export interface IWorkbenchConfigurationService extends IConfigurationService {
 	/**
-	 * Restricted settings defined in each configuraiton target
+	 * Restricted settings defined in each configuration target
 	 */
 	readonly restrictedSettings: RestrictedSettings;
 
