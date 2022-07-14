@@ -60,7 +60,7 @@ export interface IProcessDetails {
 	color: string | undefined;
 	fixedDimensions: IFixedTerminalDimensions | undefined;
 	environmentVariableCollections: ISerializableEnvironmentVariableCollections | undefined;
-	reconnectionOwner?: boolean;
+	reconnectionOwner?: string;
 	task?: { label: string; id: string; lastTask?: string; group?: string };
 }
 

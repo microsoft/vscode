@@ -84,14 +84,10 @@ export class TerminalService implements ITerminalService {
 		return this._terminalGroupService.instances.concat(this._terminalEditorService.instances);
 	}
 
-	/**
-	 * The task system is created after reconnection has occurred,
-	 * so it will later ask for the terminals that should be reconnected
-	 * to tasks
-	 */
-	private _taskReconnectedTerminals: ITerminalInstance[] = [];
-	get taskReconnectedTerminals(): ITerminalInstance[] {
-		return this._taskReconnectedTerminals;
+
+	private _reconnectedTerminals: Map<string, ITerminalInstance[]> = new Map();
+	getReconnectedTerminals(reconnectionOwner: string): ITerminalInstance[] | undefined {
+		return this._reconnectedTerminals.get(reconnectionOwner);
 	}
 
 	get defaultLocation(): TerminalLocation { return this.configHelper.config.defaultLocation === TerminalLocationString.Editor ? TerminalLocation.Editor : TerminalLocation.Panel; }
@@ -1049,10 +1045,19 @@ export class TerminalService implements ITerminalService {
 			shellLaunchConfig.parentTerminalId = parent.instanceId;
 			instance = group.split(shellLaunchConfig);
 		}
-		if (instance.reconnectionOwner) {
-			this._taskReconnectedTerminals.push(instance);
-		}
+		this._addToReconnected(instance);
 		return instance;
+	}
+
+	private _addToReconnected(instance: ITerminalInstance): void {
+		if (instance.reconnectionOwner) {
+			const reconnectedTerminals = this._reconnectedTerminals.get(instance.reconnectionOwner);
+			if (reconnectedTerminals) {
+				reconnectedTerminals.push(instance);
+			} else {
+				this._reconnectedTerminals.set(instance.reconnectionOwner, [instance]);
+			}
+		}
 	}
 
 	private _createTerminal(shellLaunchConfig: IShellLaunchConfig, location: TerminalLocation, options?: ICreateTerminalOptions): ITerminalInstance {
@@ -1067,9 +1072,7 @@ export class TerminalService implements ITerminalService {
 			const group = this._terminalGroupService.createGroup(shellLaunchConfig);
 			instance = group.terminalInstances[0];
 		}
-		if (instance.reconnectionOwner) {
-			this._taskReconnectedTerminals.push(instance);
-		}
+		this._addToReconnected(instance);
 		return instance;
 	}
 

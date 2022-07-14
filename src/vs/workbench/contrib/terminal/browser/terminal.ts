@@ -132,7 +132,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	isProcessSupportRegistered: boolean;
 	readonly connectionState: TerminalConnectionState;
 	readonly defaultLocation: TerminalLocation;
-	readonly taskReconnectedTerminals: ITerminalInstance[];
+
 
 	initializeTerminals(): Promise<void>;
 	onDidChangeActiveGroup: Event<ITerminalGroup | undefined>;
@@ -164,6 +164,11 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	getInstanceFromId(terminalId: number): ITerminalInstance | undefined;
 	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
 
+	/**
+	 * An owner of terminals might be created after reconnection has occurred,
+	 * so store them to be requested/adopted later
+	 */
+	getReconnectedTerminals(reconnectionOwner: string): ITerminalInstance[] | undefined;
 
 	getActiveOrCreateInstance(): Promise<ITerminalInstance>;
 	moveToEditor(source: ITerminalInstance): void;
@@ -440,7 +445,7 @@ export interface ITerminalInstance {
 	readonly fixedRows?: number;
 	readonly icon?: TerminalIcon;
 	readonly color?: string;
-	readonly reconnectionOwner?: boolean;
+	readonly reconnectionOwner?: string;
 	readonly processName: string;
 	readonly sequence?: string;
 	readonly staticTitle?: string;

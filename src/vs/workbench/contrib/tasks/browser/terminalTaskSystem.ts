@@ -270,8 +270,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	}
 
 	public reconnect(task: Task, resolver: ITaskResolver, trigger: string = Triggers.command): ITaskExecuteResult | undefined {
-		if (!this._hasReconnected && this._terminalService.taskReconnectedTerminals.length > 0) {
-			this._reconnectToTerminals(this._terminalService.taskReconnectedTerminals);
+		const terminals = this._terminalService.getReconnectedTerminals('Task');
+		if (!this._hasReconnected && terminals && terminals.length > 0) {
+			this._reconnectToTerminals(terminals);
 			this._hasReconnected = true;
 		}
 		if (this._tasksToReconnect.includes(task._id)) {
@@ -1399,7 +1400,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		this._terminalCreationQueue = this._terminalCreationQueue.then(() => this._doCreateTerminal(group, launchConfigs!));
 		const result: ITerminalInstance = (await this._terminalCreationQueue)!;
 		result.shellLaunchConfig.task = { lastTask: taskKey, group, label: task._label, id: task._id };
-		result.shellLaunchConfig.reconnectionOwner = true;
+		result.shellLaunchConfig.reconnectionOwner = 'Task';
 		const terminalKey = result.instanceId.toString();
 		result.onDisposed(() => {
 			const terminalData = this._terminals[terminalKey];
