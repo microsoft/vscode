@@ -37,7 +37,7 @@ import { settingsEditIcon, settingsScopeDropDownIcon } from 'vs/workbench/contri
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+
 
 export class FolderSettingsActionViewItem extends BaseActionViewItem {
 
@@ -235,22 +235,13 @@ export class SettingsTargetsWidget extends Widget {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@ILanguageService private readonly languageService: ILanguageService,
-		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService
+		@ILanguageService private readonly languageService: ILanguageService
 	) {
 		super();
 		this.options = options ?? {};
 		this.create(parent);
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.onWorkbenchStateChanged()));
 		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.update()));
-		this._register(this.userDataProfileService.onDidChangeCurrentProfile((e) => {
-			if (!e.profile.isDefault) {
-				this.userLocalSettings.label = localize('profileSettings', "Profile") + ` [${e.profile.name}]`;
-			} else {
-				this.userLocalSettings.label = localize('userSettings', "User");
-			}
-			this.update();
-		}));
 	}
 
 	private resetLabels() {
