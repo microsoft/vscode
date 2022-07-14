@@ -104,6 +104,8 @@ import { PolicyChannel } from 'vs/platform/policy/common/policyIpc';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 import { IDefaultExtensionsProfileInitService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { DefaultExtensionsProfileInitHandler } from 'vs/platform/extensionManagement/electron-main/defaultExtensionsProfileInit';
+import { RequestChannel } from 'vs/platform/request/common/requestIpc';
+import { IRequestService } from 'vs/platform/request/common/request';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -727,6 +729,10 @@ export class CodeApplication extends Disposable {
 		const userDataProfilesService = ProxyChannel.fromService(accessor.get(IUserDataProfilesMainService));
 		mainProcessElectronServer.registerChannel('userDataProfiles', userDataProfilesService);
 		sharedProcessClient.then(client => client.registerChannel('userDataProfiles', userDataProfilesService));
+
+		// Request
+		const requestService = new RequestChannel(accessor.get(IRequestService));
+		sharedProcessClient.then(client => client.registerChannel('request', requestService));
 
 		// Update
 		const updateChannel = new UpdateChannel(accessor.get(IUpdateService));

@@ -153,9 +153,6 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		// alias from us for --disable-gpu
 		'disable-hardware-acceleration',
 
-		// provided by Electron
-		'disable-color-correct-rendering',
-
 		// override for the color profile to use
 		'force-color-profile'
 	];
@@ -247,9 +244,7 @@ function readArgvConfigSync() {
 
 	// Fallback to default
 	if (!argvConfig) {
-		argvConfig = {
-			'disable-color-correct-rendering': true // Force pre-Chrome-60 color profile handling (for https://github.com/microsoft/vscode/issues/51791)
-		};
+		argvConfig = {};
 	}
 
 	return argvConfig;
@@ -279,11 +274,7 @@ function createDefaultArgvConfigSync(argvConfigPath) {
 			'{',
 			'	// Use software rendering instead of hardware accelerated rendering.',
 			'	// This can help in cases where you see rendering issues in VS Code.',
-			'	// "disable-hardware-acceleration": true,',
-			'',
-			'	// Enabled by default by VS Code to resolve color issues in the renderer',
-			'	// See https://github.com/microsoft/vscode/issues/51791 for details',
-			'	"disable-color-correct-rendering": true',
+			'	// "disable-hardware-acceleration": true',
 			'}'
 		];
 

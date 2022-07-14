@@ -466,6 +466,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': 'both',
 				'description': localize('layoutControlType', "Controls whether the layout control in the custom title bar is displayed as a single menu button or with multiple UI toggles."),
 			},
+			'workbench.editor.dropIntoEditor.enabled': {
+				'type': 'boolean',
+				'default': true,
+				'markdownDescription': localize('dropIntoEditor', "Controls whether you can drag and drop a file into a text editor by holding down `shift` (instead of opening the file in an editor)."),
+			},
 			'workbench.experimental.layoutControl.enabled': {
 				'type': 'boolean',
 				'tags': ['experimental'],
@@ -486,12 +491,6 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('layoutControlType', "Controls whether the layout control in the custom title bar is displayed as a single menu button or with multiple UI toggles."),
 				'markdownDeprecationMessage': localize({ key: 'layoutControlTypeDeprecation', comment: ['{0} is a placeholder for a setting identifier.'] }, "This setting has been deprecated in favor of {0}", '`#workbench.layoutControl.type#`')
 			},
-			'workbench.experimental.editor.dropIntoEditor.enabled': {
-				'type': 'boolean',
-				'default': true,
-				'tags': ['experimental'],
-				'markdownDescription': localize('dropIntoEditor', "Controls whether you can drag and drop a file into a text editor by holding down `shift` (instead of opening the file in an editor)."),
-			}
 		}
 	});
 
