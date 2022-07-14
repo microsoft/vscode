@@ -472,7 +472,7 @@ export class SettingsTreeModel {
 		private _isWorkspaceTrusted: boolean,
 		@IWorkbenchConfigurationService private readonly _configurationService: IWorkbenchConfigurationService,
 		@ILanguageService private readonly _languageService: ILanguageService,
-		@IUserDataProfileService private readonly _userDataProfileService: IUserDataProfileService
+		@IUserDataProfileService private readonly _userDataProfileService: IUserDataProfileService,
 	) {
 	}
 
@@ -614,7 +614,7 @@ export function inspectSetting(key: string, target: SettingsTarget, languageFilt
 	if (!isConfigured) {
 		if (target === ConfigurationTarget.APPLICATION) {
 			isConfigured = !!configurationService.restrictedSettings.application?.includes(key);
-		} if (target === ConfigurationTarget.USER_LOCAL) {
+		} else if (target === ConfigurationTarget.USER_LOCAL) {
 			isConfigured = !!configurationService.restrictedSettings.userLocal?.includes(key);
 		} else if (target === ConfigurationTarget.USER_REMOTE) {
 			isConfigured = !!configurationService.restrictedSettings.userRemote?.includes(key);
@@ -828,7 +828,7 @@ export class SearchResultModel extends SettingsTreeModel {
 		@IWorkbenchConfigurationService configurationService: IWorkbenchConfigurationService,
 		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
 		@ILanguageService languageService: ILanguageService,
-		@IUserDataProfileService userDataProfileService: IUserDataProfileService
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 	) {
 		super(viewState, isWorkspaceTrusted, configurationService, languageService, userDataProfileService);
 		this.update({ id: 'searchResultModel', label: '' });

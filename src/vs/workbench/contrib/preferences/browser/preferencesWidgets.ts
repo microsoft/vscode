@@ -38,7 +38,6 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 
-
 export class FolderSettingsActionViewItem extends BaseActionViewItem {
 
 	private _folder: IWorkspaceFolder | null;
