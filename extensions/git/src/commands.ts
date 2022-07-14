@@ -53,7 +53,7 @@ class CheckoutTagItem extends CheckoutItem {
 
 class CheckoutRemoteHeadItem extends CheckoutItem {
 
-	override get label(): string { return `$(git-branch) ${this.ref.name || this.shortCommit}`; }
+	override get label(): string { return `$(cloud) ${this.ref.name || this.shortCommit}`; }
 	override get description(): string {
 		return localize('remote branch at', "Remote branch at {0}", this.shortCommit);
 	}
