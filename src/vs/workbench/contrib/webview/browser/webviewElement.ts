@@ -113,6 +113,8 @@ export interface WebviewInitInfo {
 
 interface WebviewActionContext {
 	webview?: string;
+	item?: string;
+	itemElement?: string;
 }
 
 export class WebviewElement extends Disposable implements IWebview, WebviewFindDelegate {
@@ -330,7 +332,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			this.handleKeyEvent('keyup', data);
 		}));
 
-		this._register(this.on(WebviewMessageChannels.didContextMenu, (data: { clientX: number; clientY: number }) => {
+		this._register(this.on(WebviewMessageChannels.didContextMenu, (data: { clientX: number; clientY: number; context: { item: string | undefined; itemElement: string | undefined } }) => {
 			if (!this.element) {
 				return;
 			}
@@ -342,6 +344,8 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 				getActions: () => {
 					const contextKeyService = this._contextKeyService!.createOverlay([
 						['webview', this.providedId],
+						['webviewItem', data.context.item],
+						['webviewItemElement', data.context.itemElement],
 					]);
 
 					const result: IAction[] = [];
@@ -350,7 +354,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 					menu.dispose();
 					return result;
 				},
-				getActionsContext: (): WebviewActionContext => ({ webview: this.providedId }),
+				getActionsContext: (): WebviewActionContext => ({ webview: this.providedId, item: data.context.item, itemElement: data.context.itemElement }),
 				getAnchor: () => ({
 					x: elementBox.x + data.clientX,
 					y: elementBox.y + data.clientY

@@ -1053,9 +1053,19 @@
 						}
 
 						e.preventDefault();
+
+						// Search self/ancestors for the closest "item" data attribute
+						const item = e.target?.closest('[data-vscode-context-menu-item]');
+						// Search self/ancestors for the nearest "item-element" data attribute, but don't go any further than the closest "item" data attribute
+						const element = e.target?.closest('[data-vscode-context-menu-item],[data-vscode-context-menu-item-element]') ?? item;
+
 						hostMessaging.postMessage('did-context-menu', {
 							clientX: e.clientX,
 							clientY: e.clientY,
+							context: {
+								item: item?.dataset.vscodeContextMenuItem,
+								itemElement: element?.dataset.vscodeContextMenuItemElement
+							}
 						});
 					});
 
