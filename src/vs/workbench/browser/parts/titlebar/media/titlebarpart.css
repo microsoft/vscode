@@ -133,6 +133,7 @@
 
 	/* width */
 	width: 16px;
+	flex-shrink: 0;
 }
 
 .monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center .action-item.quickopen>.action-label {
