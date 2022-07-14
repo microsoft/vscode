@@ -345,7 +345,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	private async _reconnectTasks(): Promise<void> {
 		const recentlyUsedTasks = await this.readRecentTasks();
-		if (!recentlyUsedTasks) {
+		if (!recentlyUsedTasks.length) {
 			return;
 		}
 		for (const task of recentlyUsedTasks) {
