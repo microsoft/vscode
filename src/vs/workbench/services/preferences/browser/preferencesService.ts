@@ -250,6 +250,14 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.editorGroupService.activeGroup.activeEditorPane!;
 	}
 
+	openApplicationSettings(options: IOpenSettingsOptions = {}): Promise<IEditorPane | undefined> {
+		options = {
+			...options,
+			target: ConfigurationTarget.USER_LOCAL,
+		};
+		return this.open(this.userDataProfilesService.defaultProfile.settingsResource, options);
+	}
+
 	openUserSettings(options: IOpenSettingsOptions = {}): Promise<IEditorPane | undefined> {
 		options = {
 			...options,

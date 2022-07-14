@@ -61,7 +61,8 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { SettingsSearchFilterDropdownMenuActionViewItem } from 'vs/workbench/contrib/preferences/browser/settingsSearchMenu';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ISettingOverrideClickEvent } from 'vs/workbench/contrib/preferences/browser/settingsEditorSettingIndicators';
-import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export const enum SettingsFocusContext {
 	Search,
@@ -697,6 +698,13 @@ export class SettingsEditor2 extends EditorPane {
 
 		const openOptions: IOpenSettingsOptions = { jsonEditor: true, ...options };
 		if (currentSettingsTarget === ConfigurationTarget.USER_LOCAL) {
+			if (options?.revealSetting) {
+				const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
+				const configurationScope = configurationProperties[options?.revealSetting.key]?.scope;
+				if (configurationScope === ConfigurationScope.APPLICATION) {
+					return this.preferencesService.openApplicationSettings(openOptions);
+				}
+			}
 			return this.preferencesService.openUserSettings(openOptions);
 		} else if (currentSettingsTarget === ConfigurationTarget.USER_REMOTE) {
 			return this.preferencesService.openRemoteSettings(openOptions);
@@ -1024,10 +1032,7 @@ export class SettingsEditor2 extends EditorPane {
 	private updateChangedSetting(key: string, value: any, manualReset: boolean, languageFilter: string | undefined, scope: ConfigurationScope | undefined): Promise<void> {
 		// ConfigurationService displays the error if this fails.
 		// Force a render afterwards because onDidConfigurationUpdate doesn't fire if the update doesn't result in an effective setting value change.
-
-		// Application-scoped settings could appear alongside profile settings even though they are saved in separate files, so check specifically if the setting
-		// is an application-scoped setting, otherwise default to the original behaviour.
-		const settingsTarget = scope === ConfigurationScope.APPLICATION ? ConfigurationTarget.APPLICATION : this.settingsTargetsWidget.settingsTarget;
+		const settingsTarget = this.settingsTargetsWidget.settingsTarget;
 		const resource = URI.isUri(settingsTarget) ? settingsTarget : undefined;
 		const configurationTarget = <ConfigurationTarget | null>(resource ? ConfigurationTarget.WORKSPACE_FOLDER : settingsTarget) ?? ConfigurationTarget.USER_LOCAL;
 		const overrides: IConfigurationUpdateOverrides = { resource, overrideIdentifiers: languageFilter ? [languageFilter] : undefined };

@@ -233,6 +233,7 @@ export interface IPreferencesService {
 
 	openRawDefaultSettings(): Promise<IEditorPane | undefined>;
 	openSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
+	openApplicationSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
 	openUserSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
 	openRemoteSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
 	openWorkspaceSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
