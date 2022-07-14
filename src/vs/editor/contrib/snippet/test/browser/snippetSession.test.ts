@@ -781,5 +781,23 @@ suite('SnippetSession', function () {
 			assert.strictEqual(result.snippets.length, 1);
 			assert.strictEqual(result.snippets[0].isTrivialSnippet, false);
 		});
+
+		test('with $SELECTION variable', function () {
+			editor.getModel().setValue('Some text and a selection');
+			editor.setSelections([new Selection(1, 17, 1, 26)]);
+
+			const result = SnippetSession.createEditsAndSnippetsFromEdits(
+				editor,
+				[{ range: new Range(1, 17, 1, 26), template: 'wrapped <$SELECTION>' }],
+				true, true, undefined, undefined, languageConfigurationService
+			);
+
+			assert.strictEqual(result.edits.length, 1);
+			assert.deepStrictEqual(result.edits[0].range, new Range(1, 17, 1, 26));
+			assert.deepStrictEqual(result.edits[0].text, 'wrapped <selection>');
+
+			assert.strictEqual(result.snippets.length, 1);
+			assert.strictEqual(result.snippets[0].isTrivialSnippet, true);
+		});
 	});
 });
