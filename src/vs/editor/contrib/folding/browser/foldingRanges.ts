@@ -252,18 +252,13 @@ export class FoldingRegions {
 		rangesB: FoldingRegions | FoldRange[],
 		maxLineNumber: number | undefined): FoldRange[] {
 		maxLineNumber = maxLineNumber ?? Number.MAX_VALUE;
-		let result = this._trySanitizeAndMerge(1, rangesA, rangesB, maxLineNumber);
-		if (!result) { // try again, converting hidden ranges to manually selected
-			result = this._trySanitizeAndMerge(2, rangesA, rangesB, maxLineNumber);
-		}
-		return result!;
+		return this._trySanitizeAndMerge(rangesA, rangesB, maxLineNumber);
 	}
 
 	private static _trySanitizeAndMerge(
-		passNumber: number, // it can take two passes to get this done
 		rangesA: FoldingRegions | FoldRange[],
 		rangesB: FoldingRegions | FoldRange[],
-		maxLineNumber: number): FoldRange[] | null {
+		maxLineNumber: number): FoldRange[] {
 
 		const getIndexedFunction = (r: FoldingRegions | FoldRange[], limit: number) => {
 			return Array.isArray(r)
@@ -281,7 +276,6 @@ export class FoldingRegions {
 		let topStackedRange: FoldRange | undefined;
 		let prevLineNumber = 0;
 		const resultRanges: FoldRange[] = [];
-		let numberAutoExpand = 0;
 
 		while (nextA || nextB) {
 
@@ -300,11 +294,14 @@ export class FoldingRegions {
 						useRange.type = nextA.type;
 					}
 					nextA = getA(++indexA); // not necessary, just for speed
-				} else if (nextB.isCollapsed && !nextB.isManualSelection && passNumber === 1) {
-					if (++numberAutoExpand > 1) {
-						// do second pass keeping these, assuming something like an unmatched /*
-						return null;
-					}
+				} else if (nextA
+					&& nextA.startLineNumber === nextB.startLineNumber
+					&& nextA.endLineNumber > nextB.endLineNumber) {
+					// the range got expanded
+					useRange = nextA;
+					nextA = getA(++indexA);
+
+				} else if (nextB.isCollapsed && !nextB.isManualSelection) {
 					// skip nextB (auto expand) by not setting useRange, assuming it was edited
 				} else { // use nextB
 					useRange = nextB;
@@ -325,7 +322,7 @@ export class FoldingRegions {
 						break; // no conflict, use this nextA
 					}
 					if (prescanB.endLineNumber > nextA!.endLineNumber
-						&& (!prescanB.isCollapsed || prescanB.isManualSelection || passNumber === 2)) {
+						&& (!prescanB.isCollapsed || prescanB.isManualSelection)) {
 						break; // without setting nextResult, so this nextA gets skipped
 					}
 					prescanB = getB(++scanIndex);

@@ -14,7 +14,7 @@ const markers: FoldingMarkers = {
 	end: /^\s*#endregion\b/
 };
 
-suite('FoldingRanges', () => {
+suite.only('FoldingRanges', () => {
 
 	const foldRange = (from: number, to: number, collapsed: boolean | undefined = undefined, manual: boolean | undefined = undefined, type: string | undefined = undefined) =>
 		<FoldRange>{
