@@ -509,12 +509,12 @@ export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 
 		const elementsToReplace = getElementsToOperateOn(tree, this.fileMatch);
 
-		const currFocusElement = elementsToReplace.result[elementsToReplace.result.length - 1];
-		const nextFocusElement = this.getElementToFocusAfterRemoved(tree, currFocusElement);
-
 		await Promise.all(elementsToReplace.result.map(async (elem) =>
 			await elem.parent().replace(<any>elem)
 		));
+
+		const currFocusElement = elementsToReplace.result[elementsToReplace.result.length - 1];
+		const nextFocusElement = elementIsEqualOrParent(currFocusElement, this.fileMatch) ? this.getElementToFocusAfterRemoved(tree, currFocusElement) : null;
 
 		if (nextFocusElement) {
 			tree.setFocus([nextFocusElement], getSelectionKeyboardEvent());
@@ -571,30 +571,33 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 		const elementsToReplace = getElementsToOperateOn(this.viewer, this.element);
 		let currentBottomFocusElement;
 
-		elementsToReplace.result.forEach((elem) =>
-			elem.parent().replace(<any>elem)
-		);
-
 		if (elementsToReplace.usingMultiselect) {
 			currentBottomFocusElement = <Match>elementsToReplace.result[elementsToReplace.result.length - 1];
 		} else {
 			currentBottomFocusElement = <Match>this.viewer.getFocus()[0];
 		}
 
-		const elementToFocus = this.getElementToFocusAfterReplace(currentBottomFocusElement);
+		const elementToFocus = elementIsEqualOrParent(currentBottomFocusElement, this.element) ? this.getElementToFocusAfterReplace(currentBottomFocusElement) : null;
+
+		elementsToReplace.result.forEach((elem) =>
+			elem.parent().replace(<any>elem)
+		);
+
 		if (elementToFocus) {
 			this.viewer.setFocus([elementToFocus], getSelectionKeyboardEvent());
 			this.viewer.setSelection([elementToFocus], getSelectionKeyboardEvent());
 		}
 
-		const elementToShowReplacePreview = this.getElementToShowReplacePreview(elementToFocus);
 		this.viewer.domFocus();
 
-		const useReplacePreview = this.configurationService.getValue<ISearchConfiguration>().search.useReplacePreview;
-		if (!useReplacePreview || !elementToShowReplacePreview || this.hasToOpenFile()) {
-			this.viewlet.open(currentBottomFocusElement, true);
-		} else {
-			this.replaceService.openReplacePreview(elementToShowReplacePreview, true);
+		if (elementToFocus) {
+			const elementToShowReplacePreview = this.getElementToShowReplacePreview(elementToFocus);
+			const useReplacePreview = this.configurationService.getValue<ISearchConfiguration>().search.useReplacePreview;
+			if (!useReplacePreview || !elementToShowReplacePreview || this.hasToOpenFile()) {
+				this.viewlet.open(currentBottomFocusElement, true);
+			} else {
+				this.replaceService.openReplacePreview(elementToShowReplacePreview, true);
+			}
 		}
 	}
 
