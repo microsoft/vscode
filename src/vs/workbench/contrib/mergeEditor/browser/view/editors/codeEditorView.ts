@@ -24,7 +24,7 @@ export abstract class CodeEditorView extends Disposable {
 	readonly model = this._viewModel.map(m => /** @description model */ m?.model);
 
 	protected readonly htmlElements = h('div.code-view', [
-		h('div.title', [
+		h('div.title', { $: 'header' }, [
 			h('span.title', { $: 'title' }),
 			h('span.description', { $: 'description' }),
 			h('span.detail', { $: 'detail' }),
@@ -48,7 +48,7 @@ export abstract class CodeEditorView extends Disposable {
 			setStyle(this.htmlElements.root, { width, height, top, left });
 			this.editor.layout({
 				width: width - this.htmlElements.gutterDiv.clientWidth,
-				height: height - this.htmlElements.title.clientHeight,
+				height: height - this.htmlElements.header.clientHeight,
 			});
 		}
 		// preferredWidth?: number | undefined;

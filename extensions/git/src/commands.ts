@@ -9,7 +9,7 @@ import { Command, commands, Disposable, LineChange, MessageOptions, Position, Pr
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
-import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, PostCommitCommand } from './api/git';
+import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher } from './api/git';
 import { Git, Stash } from './git';
 import { Model } from './model';
 import { Repository, Resource, ResourceGroupType } from './repository';
@@ -53,7 +53,7 @@ class CheckoutTagItem extends CheckoutItem {
 
 class CheckoutRemoteHeadItem extends CheckoutItem {
 
-	override get label(): string { return `$(git-branch) ${this.ref.name || this.shortCommit}`; }
+	override get label(): string { return `$(cloud) ${this.ref.name || this.shortCommit}`; }
 	override get description(): string {
 		return localize('remote branch at', "Remote branch at {0}", this.shortCommit);
 	}
@@ -418,6 +418,7 @@ export class CommandCenter {
 			return;
 		}
 
+		const isRebasing = Boolean(repo.rebaseCommit);
 
 		type InputData = { uri: Uri; title?: string; detail?: string; description?: string };
 		const mergeUris = toMergeUris(uri);
@@ -425,14 +426,17 @@ export class CommandCenter {
 		const theirs: InputData = { uri: mergeUris.theirs, title: localize('Theirs', 'Theirs') };
 
 		try {
-			const [head, mergeHead] = await Promise.all([repo.getCommit('HEAD'), repo.getCommit('MERGE_HEAD')]);
+			const [head, rebaseOrMergeHead] = await Promise.all([
+				repo.getCommit('HEAD'),
+				isRebasing ? repo.getCommit('REBASE_HEAD') : repo.getCommit('MERGE_HEAD')
+			]);
 			// ours (current branch and commit)
 			ours.detail = head.refNames.map(s => s.replace(/^HEAD ->/, '')).join(', ');
 			ours.description = head.hash.substring(0, 7);
 
 			// theirs
-			theirs.detail = mergeHead.refNames.join(', ');
-			theirs.description = mergeHead.hash.substring(0, 7);
+			theirs.detail = rebaseOrMergeHead.refNames.join(', ');
+			theirs.description = rebaseOrMergeHead.hash.substring(0, 7);
 
 		} catch (error) {
 			// not so bad, can continue with just uris
@@ -442,8 +446,8 @@ export class CommandCenter {
 
 		const options = {
 			base: mergeUris.base,
-			input1: theirs,
-			input2: ours,
+			input1: isRebasing ? ours : theirs,
+			input2: isRebasing ? theirs : ours,
 			output: uri
 		};
 
@@ -1623,12 +1627,11 @@ export class CommandCenter {
 
 		await repository.commit(message, opts);
 
-		const postCommitCommand = config.get<'none' | 'push' | 'sync'>('postCommitCommand');
-		if ((opts.postCommitCommand === undefined && postCommitCommand === 'push') || opts.postCommitCommand === 'push') {
-			await this._push(repository, { pushType: PushType.Push });
-		}
-		if ((opts.postCommitCommand === undefined && postCommitCommand === 'sync') || opts.postCommitCommand === 'sync') {
-			await this.sync(repository);
+		// Execute post commit command
+		if (opts.postCommitCommand?.length) {
+			await commands.executeCommand(
+				opts.postCommitCommand,
+				new ApiRepository(repository));
 		}
 
 		return true;
@@ -1677,7 +1680,7 @@ export class CommandCenter {
 	}
 
 	@command('git.commit', { repository: true })
-	async commit(repository: Repository, postCommitCommand?: PostCommitCommand): Promise<void> {
+	async commit(repository: Repository, postCommitCommand?: string): Promise<void> {
 		await this.commitWithAnyInput(repository, { postCommitCommand });
 	}
 

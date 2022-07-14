@@ -159,7 +159,7 @@ configurationRegistry.registerConfiguration({
 								'type': 'string', // expression ({ "**/*.js": { "when": "$(basename).js" } })
 								'pattern': '\\w*\\$\\(basename\\)\\w*',
 								'default': '$(basename).ext',
-								'markdownDescription': nls.localize('files.exclude.when', "Additional check on the siblings of a matching file. Use \\$(basename) as variable for the matching file name.")
+								'markdownDescription': nls.localize({ key: 'files.exclude.when', comment: ['\\$(basename) should not be translated'] }, "Additional check on the siblings of a matching file. Use \\$(basename) as variable for the matching file name.")
 							}
 						}
 					}
@@ -404,7 +404,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'explorer.expandSingleFolderWorkspaces': {
 			'type': 'boolean',
-			'description': nls.localize('expandSingleFolderWorkspaces', "Controls whether the explorer should expand multi-root workspaces containing only one folder during initilization"),
+			'description': nls.localize('expandSingleFolderWorkspaces', "Controls whether the explorer should expand multi-root workspaces containing only one folder during initialization"),
 			'default': true
 		},
 		'explorer.sortOrder': {

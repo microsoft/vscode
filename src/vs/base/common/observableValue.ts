@@ -5,17 +5,28 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+//@ts-ignore
+import type { IObservable } from 'vs/base/common/observable';
 
+/**
+ * @deprecated Use {@link IObservable} instead.
+ */
 export interface IObservableValue<T> {
 	onDidChange: Event<T>;
 	readonly value: T;
 }
 
+/**
+ * @deprecated Use {@link IObservable} instead.
+ */
 export const staticObservableValue = <T>(value: T): IObservableValue<T> => ({
 	onDidChange: Event.None,
 	value,
 });
 
+/**
+ * @deprecated Use {@link IObservable} instead.
+ */
 export class MutableObservableValue<T> extends Disposable implements IObservableValue<T> {
 	private readonly changeEmitter = this._register(new Emitter<T>());
 

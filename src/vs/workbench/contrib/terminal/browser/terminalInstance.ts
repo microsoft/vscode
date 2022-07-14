@@ -276,6 +276,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	// TODO: Should this be an event as it can fire twice?
 	get processReady(): Promise<void> { return this._processManager.ptyProcessReady; }
 	get hasChildProcesses(): boolean { return this.shellLaunchConfig.attachPersistentProcess?.hasChildProcesses || this._processManager.hasChildProcesses; }
+	get reconnectionOwner(): string | undefined { return this.shellLaunchConfig.attachPersistentProcess?.reconnectionOwner || this.shellLaunchConfig.reconnectionOwner; }
 	get areLinksReady(): boolean { return this._areLinksReady; }
 	get initialDataEvents(): string[] | undefined { return this._initialDataEvents; }
 	get exitCode(): number | undefined { return this._exitCode; }
@@ -1236,7 +1237,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _setShellIntegrationContextKey(): void {
-		console.log('set', this.xterm?.shellIntegration.status === ShellIntegrationStatus.VSCode);
 		if (this.xterm) {
 			this._terminalShellIntegrationEnabledContextKey.set(this.xterm.shellIntegration.status === ShellIntegrationStatus.VSCode);
 		}
@@ -1487,12 +1487,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async sendText(text: string, addNewLine: boolean): Promise<void> {
-		// Apply bracketed paste sequences if the terminal has the mode enabled, this will prevent
-		// the text from triggering keybindings https://github.com/microsoft/vscode/issues/153592
-		if (this.xterm?.raw.modes.bracketedPasteMode) {
-			text = `\x1b[200~${text}\x1b[201~`;
-		}
-
 		// Normalize line endings to 'enter' press.
 		text = text.replace(/\r?\n/g, '\r');
 		if (addNewLine && text[text.length - 1] !== '\r') {
@@ -1733,7 +1727,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this._isExiting) {
 			return;
 		}
-
 		const parsedExitResult = parseExitResult(exitCodeOrError, this.shellLaunchConfig, this._processManager.processState, this._initialCwd);
 
 		if (this._usedShellIntegrationInjection && this._processManager.processState === ProcessState.KilledDuringLaunch && parsedExitResult?.code !== 0) {
@@ -2362,7 +2355,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			info.requiresAction &&
 			this._configHelper.config.environmentChangesRelaunch &&
 			!this._processManager.hasWrittenData &&
-			!this._shellLaunchConfig.isFeatureTerminal &&
+			(this.reconnectionOwner || !this._shellLaunchConfig.isFeatureTerminal) &&
 			!this._shellLaunchConfig.customPtyImplementation
 			&& !this._shellLaunchConfig.isExtensionOwnedTerminal &&
 			!this._shellLaunchConfig.attachPersistentProcess

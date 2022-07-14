@@ -89,6 +89,7 @@ export interface NativeParsedArgs {
 	'logsPath'?: string;
 	'__enable-file-policy'?: boolean;
 	editSessionId?: string;
+	'shell-integration'?: string;
 
 	// chromium command line args: https://electronjs.org/docs/all#supported-chrome-command-line-switches
 	'no-proxy-server'?: boolean;

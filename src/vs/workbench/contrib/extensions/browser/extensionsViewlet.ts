@@ -33,7 +33,6 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService, ContextKeyExpr, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -60,6 +59,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { coalesce } from 'vs/base/common/arrays';
 import { extractEditorsAndFilesDropData } from 'vs/platform/dnd/browser/dnd';
 import { extname } from 'vs/base/common/resources';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 
 const SearchMarketplaceExtensionsContext = new RawContextKey<boolean>('searchMarketplaceExtensions', false);
 const SearchIntalledExtensionsContext = new RawContextKey<boolean>('searchInstalledExtensions', false);
@@ -807,12 +807,11 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 	}
 
 	private checkForMaliciousExtensions(): Promise<void> {
-		return this.extensionsManagementService.getExtensionsControlManifest().then(report => {
-			const maliciousSet = getMaliciousExtensionsSet(report);
+		return this.extensionsManagementService.getExtensionsControlManifest().then(extensionsControlManifest => {
 
 			return this.extensionsManagementService.getInstalled(ExtensionType.User).then(installed => {
 				const maliciousExtensions = installed
-					.filter(e => maliciousSet.has(e.identifier.id));
+					.filter(e => extensionsControlManifest.malicious.some(identifier => areSameExtensions(e.identifier, identifier)));
 
 				if (maliciousExtensions.length) {
 					return Promises.settled(maliciousExtensions.map(e => this.extensionsManagementService.uninstall(e).then(() => {

@@ -519,6 +519,10 @@ export class TestMenuService implements IMenuService {
 			getActions: () => []
 		};
 	}
+
+	resetHiddenStates(): void {
+		// nothing
+	}
 }
 
 export class TestHistoryService implements IHistoryService {

@@ -576,8 +576,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			createLanguageStatusItem(id: string, selector: vscode.DocumentSelector): vscode.LanguageStatusItem {
 				return extHostLanguages.createLanguageStatusItem(extension, id, selector);
 			},
-			registerDocumentOnDropEditProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentOnDropEditProvider): vscode.Disposable {
-				checkProposedApiEnabled(extension, 'textEditorDrop');
+			registerDocumentDropEditProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentDropEditProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerDocumentOnDropEditProvider(extension, selector, provider);
 			}
 		};
@@ -1348,6 +1347,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TabInputNotebookDiff: extHostTypes.NotebookDiffEditorTabInput,
 			TabInputWebview: extHostTypes.WebviewEditorTabInput,
 			TabInputTerminal: extHostTypes.TerminalEditorTabInput,
+			TabInputInteractiveWindow: extHostTypes.InteractiveWindowInput,
 			TerminalExitReason: extHostTypes.TerminalExitReason
 		};
 	};

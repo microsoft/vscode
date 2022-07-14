@@ -46,7 +46,7 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 		this._languageFeaturesService.documentOnDropEditProvider.register('*', new DefaultOnDropProvider(workspaceContextService));
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('workbench.experimental.editor.dropIntoEditor.enabled')) {
+			if (e.affectsConfiguration('workbench.editor.dropIntoEditor.enabled')) {
 				this.updateEditorOptions(editor);
 			}
 		}));
@@ -56,7 +56,7 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 
 	private updateEditorOptions(editor: ICodeEditor) {
 		editor.updateOptions({
-			enableDropIntoEditor: this._configurationService.getValue('workbench.experimental.editor.dropIntoEditor.enabled')
+			enableDropIntoEditor: this._configurationService.getValue('workbench.editor.dropIntoEditor.enabled')
 		});
 	}
 
