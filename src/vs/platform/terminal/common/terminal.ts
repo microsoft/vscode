@@ -544,7 +544,7 @@ export interface IShellLaunchConfig {
 	/**
 	 * The task associated with this terminal
 	 */
-	task?: { lastTask?: string; group?: string; label: string; id: string };
+	task?: { lastTask: string; group?: string; label: string; id: string };
 }
 
 export interface ICreateContributedTerminalProfileOptions {
