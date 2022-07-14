@@ -249,7 +249,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	private _reconnectToTerminals(terminals: ITerminalInstance[]): void {
 		for (const terminal of terminals) {
-			console.log('reconnecting to terminals');
 			const taskForTerminal = terminal.shellLaunchConfig.attachPersistentProcess?.task;
 			if (taskForTerminal?.id && taskForTerminal?.lastTask) {
 				this._tasksToReconnect.push(taskForTerminal.id);
@@ -258,7 +257,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				this._logService.trace(`Could not reconnect to terminal ${terminal.instanceId} with process details ${terminal.shellLaunchConfig.attachPersistentProcess}`);
 			}
 		}
-		console.log('reconnected', terminals.length);
 		this._hasReconnected = true;
 	}
 
@@ -276,6 +274,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	public reconnect(task: Task, resolver: ITaskResolver, trigger: string = Triggers.command): ITaskExecuteResult | undefined {
 		const terminals = this._terminalService.getReconnectedTerminals(ReconnectionType);
+		if (!terminals || terminals?.length === 0) {
+			return;
+		}
 		if (!this._hasReconnected && terminals && terminals.length > 0) {
 			this._reviveTerminals();
 			this._reconnectToTerminals(terminals);
