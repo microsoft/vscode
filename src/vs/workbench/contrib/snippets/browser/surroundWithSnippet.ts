@@ -20,7 +20,8 @@ import { ITextModel } from 'vs/editor/common/model';
 import { CodeAction, CodeActionProvider, CodeActionContext, CodeActionList } from 'vs/editor/common/languages';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/browser/types';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
+import { URI } from 'vs/base/common/uri';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Snippet } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -45,15 +46,23 @@ const options = {
 
 const MAX_SNIPPETS_ON_CODE_ACTIONS_MENU = 6;
 
-function makeCodeActionForSnippet(snippet: Snippet): CodeAction {
+function makeCodeActionForSnippet(snippet: Snippet, resource: URI, range: IRange): CodeAction {
 	const title = localize('codeAction', "Surround With Snippet: {0}", snippet.name);
 	return {
 		title,
-		command: {
-			id: 'editor.action.insertSnippet',
-			title,
-			arguments: [{ name: snippet.name }]
-		},
+		edit: {
+			edits: [
+				{
+					versionId: undefined,
+					resource: resource,
+					textEdit: {
+						insertAsSnippet: true,
+						text: snippet.body,
+						range: range
+					}
+				}
+			]
+		}
 	};
 }
 
@@ -153,7 +162,7 @@ export class SurroundWithSnippetCodeActionProvider extends Disposable implements
 		}
 		return {
 			actions: snippets.length <= MAX_SNIPPETS_ON_CODE_ACTIONS_MENU
-				? snippets.map(x => makeCodeActionForSnippet(x))
+				? snippets.map(x => makeCodeActionForSnippet(x, model.uri, range))
 				: [SurroundWithSnippetCodeActionProvider.codeAction],
 			dispose: () => { }
 		};
