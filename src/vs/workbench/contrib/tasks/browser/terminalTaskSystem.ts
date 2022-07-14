@@ -277,6 +277,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	public reconnect(task: Task, resolver: ITaskResolver, trigger: string = Triggers.command): ITaskExecuteResult | undefined {
 		const terminals = this._terminalService.getReconnectedTerminals(ReconnectionType);
 		if (!this._hasReconnected && terminals && terminals.length > 0) {
+			this._reviveTerminals();
 			this._reconnectToTerminals(terminals);
 		}
 		if (this._tasksToReconnect.includes(task._id)) {
@@ -453,12 +454,14 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 	}
 
-	private _removeFromActiveTasks(task: Task): void {
-		if (!this._activeTasks[task.getMapKey()]) {
+	private _removeFromActiveTasks(task: Task | string): void {
+		const key = typeof task === 'string' ? task : task.getMapKey();
+		if (!this._activeTasks[key]) {
 			return;
 		}
-		delete this._activeTasks[task.getMapKey()];
-		this._removeInstances(task);
+		const taskToRemove = this._activeTasks[key];
+		delete this._activeTasks[key];
+		this._removeInstances(taskToRemove.task);
 	}
 
 	private _fireTaskEvent(event: ITaskEvent) {
@@ -1293,24 +1296,40 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	}
 
 	private _reviveTerminals(): void {
-		if (Object.entries(this._terminals).length === 0) {
-			const terminals = this._terminalService.getReconnectedTerminals(ReconnectionType)?.filter(t => !t.isDisposed);
-			if (!terminals?.length) {
-				return;
+		if (Object.entries(this._terminals).length > 0) {
+			return;
+		}
+		const terminals = this._terminalService.getReconnectedTerminals(ReconnectionType)?.filter(t => !t.isDisposed);
+		if (!terminals?.length) {
+			return;
+		}
+		for (const terminal of terminals) {
+			const task = terminal.shellLaunchConfig.attachPersistentProcess?.task;
+			if (!task) {
+				continue;
 			}
-			console.log('reviving terminals', terminals.map(t => t.shellLaunchConfig?.attachPersistentProcess?.task));
-			for (const terminal of terminals) {
-				if (terminal.shellLaunchConfig.attachPersistentProcess?.task?.lastTask) {
-					this._terminals[terminal.instanceId] = { lastTask: terminal.shellLaunchConfig.attachPersistentProcess.task.lastTask, group: terminal.shellLaunchConfig.attachPersistentProcess.task.group, terminal };
-				}
-			}
+			const terminalData = { lastTask: task.lastTask, group: task.group, terminal };
+			this._terminals[terminal.instanceId] = terminalData;
+			terminal.onDisposed(() => this._deleteTaskAndTerminal(terminal, terminalData));
+		}
+	}
+
+	private _deleteTaskAndTerminal(terminal: ITerminalInstance, terminalData: ITerminalData): void {
+		delete this._terminals[terminal.instanceId];
+		delete this._sameTaskTerminals[terminalData.lastTask];
+		this._idleTaskTerminals.delete(terminalData.lastTask);
+		// Delete the task now as a work around for cases when the onExit isn't fired.
+		// This can happen if the terminal wasn't shutdown with an "immediate" flag and is expected.
+		// For correct terminal re-use, the task needs to be deleted immediately.
+		// Note that this shouldn't be a problem anymore since user initiated terminal kills are now immediate.
+		const mapKey = terminalData.lastTask;
+		this._removeFromActiveTasks(mapKey);
+		if (this._busyTasks[mapKey]) {
+			delete this._busyTasks[mapKey];
 		}
 	}
 
 	private async _createTerminal(task: CustomTask | ContributedTask, resolver: VariableResolver, workspaceFolder: IWorkspaceFolder | undefined): Promise<[ITerminalInstance | undefined, TaskError | undefined]> {
-		if (!this._hasReconnected) {
-			this._reviveTerminals();
-		}
 		const platform = resolver.taskSystemInfo ? resolver.taskSystemInfo.platform : Platform.platform;
 		const options = await this._resolveOptions(resolver, task.command.options);
 		const presentationOptions = task.command.presentation;
@@ -1409,29 +1428,14 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 
 		this._terminalCreationQueue = this._terminalCreationQueue.then(() => this._doCreateTerminal(group, launchConfigs!));
-		const result: ITerminalInstance = (await this._terminalCreationQueue)!;
-		result.shellLaunchConfig.task = { lastTask: taskKey, group, label: task._label, id: task._id };
-		result.shellLaunchConfig.reconnectionOwner = ReconnectionType;
-		const terminalKey = result.instanceId.toString();
-		result.onDisposed(() => {
-			const terminalData = this._terminals[terminalKey];
-			if (terminalData) {
-				delete this._terminals[terminalKey];
-				delete this._sameTaskTerminals[terminalData.lastTask];
-				this._idleTaskTerminals.delete(terminalData.lastTask);
-				// Delete the task now as a work around for cases when the onExit isn't fired.
-				// This can happen if the terminal wasn't shutdown with an "immediate" flag and is expected.
-				// For correct terminal re-use, the task needs to be deleted immediately.
-				// Note that this shouldn't be a problem anymore since user initiated terminal kills are now immediate.
-				const mapKey = task.getMapKey();
-				this._removeFromActiveTasks(task);
-				if (this._busyTasks[mapKey]) {
-					delete this._busyTasks[mapKey];
-				}
-			}
-		});
-		this._terminals[terminalKey] = { terminal: result, lastTask: taskKey, group };
-		return [result, undefined];
+		const terminal: ITerminalInstance = (await this._terminalCreationQueue)!;
+		terminal.shellLaunchConfig.task = { lastTask: taskKey, group, label: task._label, id: task._id };
+		terminal.shellLaunchConfig.reconnectionOwner = ReconnectionType;
+		const terminalKey = terminal.instanceId.toString();
+		const terminalData = { terminal: terminal, lastTask: taskKey, group };
+		terminal.onDisposed(() => this._deleteTaskAndTerminal(terminal, terminalData));
+		this._terminals[terminalKey] = terminalData;
+		return [terminal, undefined];
 	}
 
 	private _buildShellCommandLine(platform: Platform.Platform, shellExecutable: string, shellOptions: IShellConfiguration | undefined, command: CommandString, originalCommand: CommandString | undefined, args: CommandString[]): string {

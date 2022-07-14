@@ -61,7 +61,7 @@ export interface IProcessDetails {
 	fixedDimensions: IFixedTerminalDimensions | undefined;
 	environmentVariableCollections: ISerializableEnvironmentVariableCollections | undefined;
 	reconnectionOwner?: string;
-	task?: { label: string; id: string; lastTask?: string; group?: string };
+	task?: { label: string; id: string; lastTask: string; group?: string };
 }
 
 export type ITerminalTabLayoutInfoDto = IRawTerminalTabLayoutInfo<IProcessDetails>;
