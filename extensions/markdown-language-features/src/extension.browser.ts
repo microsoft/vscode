@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { LanguageClient, LanguageClientOptions } from 'vscode-languageclient/browser';
+import { BaseLanguageClient, LanguageClient, LanguageClientOptions } from 'vscode-languageclient/browser';
 import { startClient } from './client';
 import { activateShared } from './extension.shared';
 import { VsCodeOutputLogger } from './logging';
@@ -13,7 +13,7 @@ import { getMarkdownExtensionContributions } from './markdownExtensions';
 import { githubSlugifier } from './slugify';
 import { IMdWorkspace, VsCodeMdWorkspace } from './workspace';
 
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
 	const contributions = getMarkdownExtensionContributions(context);
 	context.subscriptions.push(contributions);
 
@@ -25,15 +25,15 @@ export function activate(context: vscode.ExtensionContext) {
 	const workspace = new VsCodeMdWorkspace();
 	context.subscriptions.push(workspace);
 
-	activateShared(context, workspace, engine, logger, contributions);
-	startServer(context, workspace, engine);
+	const client = await startServer(context, workspace, engine);
+	activateShared(context, client, workspace, engine, logger, contributions);
 }
 
-async function startServer(context: vscode.ExtensionContext, workspace: IMdWorkspace, parser: IMdParser): Promise<void> {
+function startServer(context: vscode.ExtensionContext, workspace: IMdWorkspace, parser: IMdParser): Promise<BaseLanguageClient> {
 	const serverMain = vscode.Uri.joinPath(context.extensionUri, 'server/dist/browser/main.js');
 	const worker = new Worker(serverMain.toString());
 
-	await startClient((id: string, name: string, clientOptions: LanguageClientOptions) => {
+	return startClient((id: string, name: string, clientOptions: LanguageClientOptions) => {
 		return new LanguageClient(id, name, clientOptions, worker);
 	}, workspace, parser);
 }

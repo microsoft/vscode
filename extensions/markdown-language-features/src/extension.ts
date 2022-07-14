@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { LanguageClient, ServerOptions, TransportKind } from 'vscode-languageclient/node';
+import { BaseLanguageClient, LanguageClient, ServerOptions, TransportKind } from 'vscode-languageclient/node';
 import { startClient } from './client';
 import { activateShared } from './extension.shared';
 import { VsCodeOutputLogger } from './logging';
@@ -13,7 +13,7 @@ import { getMarkdownExtensionContributions } from './markdownExtensions';
 import { githubSlugifier } from './slugify';
 import { IMdWorkspace, VsCodeMdWorkspace } from './workspace';
 
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
 	const contributions = getMarkdownExtensionContributions(context);
 	context.subscriptions.push(contributions);
 
@@ -25,11 +25,11 @@ export function activate(context: vscode.ExtensionContext) {
 	const workspace = new VsCodeMdWorkspace();
 	context.subscriptions.push(workspace);
 
-	activateShared(context, workspace, engine, logger, contributions);
-	startServer(context, workspace, engine);
+	const client = await startServer(context, workspace, engine);
+	activateShared(context, client, workspace, engine, logger, contributions);
 }
 
-async function startServer(context: vscode.ExtensionContext, workspace: IMdWorkspace, parser: IMdParser): Promise<void> {
+function startServer(context: vscode.ExtensionContext, workspace: IMdWorkspace, parser: IMdParser): Promise<BaseLanguageClient> {
 	const clientMain = vscode.extensions.getExtension('vscode.markdown-language-features')?.packageJSON?.main || '';
 
 	const serverMain = `./server/${clientMain.indexOf('/dist/') !== -1 ? 'dist' : 'out'}/node/main`;
@@ -44,7 +44,7 @@ async function startServer(context: vscode.ExtensionContext, workspace: IMdWorks
 		run: { module: serverModule, transport: TransportKind.ipc },
 		debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
 	};
-	await startClient((id, name, clientOptions) => {
+	return startClient((id, name, clientOptions) => {
 		return new LanguageClient(id, name, serverOptions, clientOptions);
 	}, workspace, parser);
 }

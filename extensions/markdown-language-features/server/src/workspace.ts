@@ -8,9 +8,10 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import * as md from 'vscode-markdown-languageservice';
 import { ContainingDocumentContext } from 'vscode-markdown-languageservice/out/workspace';
 import { URI } from 'vscode-uri';
+import { LsConfiguration } from './config';
 import * as protocol from './protocol';
 import { coalesce } from './util/arrays';
-import { isMarkdownDocument, looksLikeMarkdownPath } from './util/file';
+import { isMarkdownFile, looksLikeMarkdownPath } from './util/file';
 import { Limiter } from './util/limiter';
 import { ResourceMap } from './util/resourceMap';
 import { Schemes } from './util/schemes';
@@ -34,6 +35,7 @@ export class VsCodeClientWorkspace implements md.IWorkspace {
 
 	constructor(
 		private readonly connection: Connection,
+		private readonly config: LsConfiguration,
 		private readonly documents: TextDocuments<TextDocument>,
 		private readonly notebooks: NotebookDocuments<TextDocument>,
 	) {
@@ -141,7 +143,7 @@ export class VsCodeClientWorkspace implements md.IWorkspace {
 			return matchingDocument;
 		}
 
-		if (!looksLikeMarkdownPath(resource)) {
+		if (!looksLikeMarkdownPath(this.config, resource)) {
 			return undefined;
 		}
 
@@ -182,6 +184,6 @@ export class VsCodeClientWorkspace implements md.IWorkspace {
 	}
 
 	private isRelevantMarkdownDocument(doc: TextDocument) {
-		return isMarkdownDocument(doc) && URI.parse(doc.uri).scheme !== 'vscode-bulkeditpreview';
+		return isMarkdownFile(doc) && URI.parse(doc.uri).scheme !== 'vscode-bulkeditpreview';
 	}
 }

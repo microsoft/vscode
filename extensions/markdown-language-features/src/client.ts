@@ -24,15 +24,17 @@ export type LanguageClientConstructor = (name: string, description: string, clie
 
 export async function startClient(factory: LanguageClientConstructor, workspace: IMdWorkspace, parser: IMdParser): Promise<BaseLanguageClient> {
 
-	const documentSelector = ['markdown'];
 	const mdFileGlob = `**/*.{${markdownFileExtensions.join(',')}}`;
 
 	const clientOptions: LanguageClientOptions = {
-		documentSelector,
+		documentSelector: [{ language: 'markdown' }],
 		synchronize: {
 			configurationSection: ['markdown'],
 			fileEvents: vscode.workspace.createFileSystemWatcher(mdFileGlob),
 		},
+		initializationOptions: {
+			markdownFileExtensions,
+		}
 	};
 
 	const client = factory('markdown', localize('markdownServer.name', 'Markdown Language Server'), clientOptions);
