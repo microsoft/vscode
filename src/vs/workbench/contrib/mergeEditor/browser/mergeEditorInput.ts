@@ -173,21 +173,25 @@ class MergeEditorCloseHandler implements IEditorCloseHandler {
 		return !this._ignoreUnhandledConflicts && this._model.hasUnhandledConflicts.get();
 	}
 
-	async confirm(editors?: readonly IEditorIdentifier[] | undefined): Promise<ConfirmResult> {
+	async confirm(editors: readonly IEditorIdentifier[]): Promise<ConfirmResult> {
 
-		const handler: MergeEditorCloseHandler[] = [this];
-		editors?.forEach(candidate => candidate.editor.closeHandler instanceof MergeEditorCloseHandler && handler.push(candidate.editor.closeHandler));
+		const handler: MergeEditorCloseHandler[] = [];
+		let someAreDirty = false;
 
-		const inputsWithUnhandledConflicts = handler
-			.filter(input => input._model && input._model.hasUnhandledConflicts.get());
+		for (const { editor } of editors) {
+			if (editor.closeHandler instanceof MergeEditorCloseHandler && editor.closeHandler._model.hasUnhandledConflicts.get()) {
+				handler.push(editor.closeHandler);
+				someAreDirty = someAreDirty || editor.isDirty();
+			}
+		}
 
-		if (inputsWithUnhandledConflicts.length === 0) {
+		if (handler.length === 0) {
 			// shouldn't happen
 			return ConfirmResult.SAVE;
 		}
 
 		const actions: string[] = [
-			localize('unhandledConflicts.ignore', "Continue with Conflicts"),
+			someAreDirty ? localize('unhandledConflicts.saveAndIgnore', "Save & Continue with Conflicts") : localize('unhandledConflicts.ignore', "Continue with Conflicts"),
 			localize('unhandledConflicts.discard', "Discard Merge Changes"),
 			localize('unhandledConflicts.cancel', "Cancel"),
 		];
