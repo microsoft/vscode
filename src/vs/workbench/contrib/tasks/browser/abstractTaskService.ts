@@ -200,6 +200,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	private static _nextHandle: number = 0;
 
+	private _tasksReconnected: boolean = false;
 	private _schemaVersion: JsonSchemaVersion | undefined;
 	private _executionEngine: ExecutionEngine | undefined;
 	private _workspaceFolders: IWorkspaceFolder[] | undefined;
@@ -290,7 +291,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._setTaskLRUCacheLimit();
 			return this._updateWorkspaceTasks(TaskRunSource.ConfigurationChange);
 		}));
-		this._register(this.onDidChangeTaskSystemInfo(async () => await this._restartTasks()));
 		this._taskRunningState = TASK_RUNNING_STATE.bindTo(_contextKeyService);
 		this._onDidStateChange = this._register(new Emitter());
 		this._registerCommands();
@@ -338,9 +338,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			processContext.set(process && !isVirtual);
 		}
 		this._onDidRegisterSupportedExecutions.fire();
+		if (this._jsonTasksSupported && !this._tasksReconnected) {
+			this._reconnectTasks();
+		}
 	}
 
-	private async _restartTasks(): Promise<void> {
+	private async _reconnectTasks(): Promise<void> {
 		const recentlyUsedTasks = await this.readRecentTasks();
 		if (!recentlyUsedTasks) {
 			return;
@@ -355,6 +358,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				this.run(task, undefined, TaskRunSource.Reconnect);
 			}
 		}
+		this._tasksReconnected = true;
 	}
 
 	public get onDidStateChange(): Event<ITaskEvent> {

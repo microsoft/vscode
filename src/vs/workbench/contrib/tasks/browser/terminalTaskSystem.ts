@@ -249,6 +249,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	private _reconnectToTerminals(terminals: ITerminalInstance[]): void {
 		for (const terminal of terminals) {
+			console.log('reconnecting to terminals');
 			const taskForTerminal = terminal.shellLaunchConfig.attachPersistentProcess?.task;
 			if (taskForTerminal?.id && taskForTerminal?.lastTask) {
 				this._tasksToReconnect.push(taskForTerminal.id);
@@ -257,6 +258,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				this._logService.trace(`Could not reconnect to terminal ${terminal.instanceId} with process details ${terminal.shellLaunchConfig.attachPersistentProcess}`);
 			}
 		}
+		console.log('reconnected', terminals.length);
+		this._hasReconnected = true;
 	}
 
 	public get onDidStateChange(): Event<ITaskEvent> {
@@ -275,7 +278,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		const terminals = this._terminalService.getReconnectedTerminals(ReconnectionType);
 		if (!this._hasReconnected && terminals && terminals.length > 0) {
 			this._reconnectToTerminals(terminals);
-			this._hasReconnected = true;
 		}
 		if (this._tasksToReconnect.includes(task._id)) {
 			this._lastTask = new VerifiedTask(task, resolver, trigger);
@@ -1296,6 +1298,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			if (!terminals?.length) {
 				return;
 			}
+			console.log('reviving terminals', terminals.map(t => t.shellLaunchConfig?.attachPersistentProcess?.task));
 			for (const terminal of terminals) {
 				if (terminal.shellLaunchConfig.attachPersistentProcess?.task?.lastTask) {
 					this._terminals[terminal.instanceId] = { lastTask: terminal.shellLaunchConfig.attachPersistentProcess.task.lastTask, group: terminal.shellLaunchConfig.attachPersistentProcess.task.group, terminal };
