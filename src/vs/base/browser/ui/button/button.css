@@ -38,12 +38,21 @@
 	cursor: pointer;
 }
 
+.monaco-button-dropdown.disabled {
+	cursor: default;
+}
+
 .monaco-button-dropdown > .monaco-button:focus {
 	outline-offset: -1px !important;
 }
 
+.monaco-button-dropdown.disabled .monaco-button-dropdown-separator {
+	opacity: 0.4;
+}
+
 .monaco-button-dropdown .monaco-button-dropdown-separator {
 	padding: 4px 0;
+	cursor: default;
 }
 
 .monaco-button-dropdown .monaco-button-dropdown-separator > div {

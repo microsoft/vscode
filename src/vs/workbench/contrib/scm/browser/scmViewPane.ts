@@ -2644,19 +2644,11 @@ export class SCMActionButton implements IDisposable {
 			return;
 		}
 
-		const executeButtonAction = async (commandId: string, ...args: any[]) => {
-			try {
-				await this.commandService.executeCommand(commandId, ...args);
-			} catch (ex) {
-				this.notificationService.error(ex);
-			}
-		};
-
 		if (button.secondaryCommands?.length) {
 			const actions: IAction[] = [];
 			for (let index = 0; index < button.secondaryCommands.length; index++) {
 				for (const command of button.secondaryCommands[index]) {
-					actions.push(new Action(command.id, command.title, undefined, true, async () => await executeButtonAction(command.id, ...(command.arguments || []))));
+					actions.push(new Action(command.id, command.title, undefined, true, async () => await this.executeCommand(command.id, ...(command.arguments || []))));
 				}
 				if (index !== button.secondaryCommands.length - 1) {
 					actions.push(new Separator());
@@ -2668,6 +2660,7 @@ export class SCMActionButton implements IDisposable {
 				actions: actions,
 				addPrimaryActionToDropdown: false,
 				contextMenuProvider: this.contextMenuService,
+				title: button.command.tooltip,
 				supportIcons: true
 			});
 		} else if (button.description) {
@@ -2681,8 +2674,7 @@ export class SCMActionButton implements IDisposable {
 
 		this.button.enabled = button.enabled;
 		this.button.label = button.command.title;
-		this.button.element.title = button.command.tooltip ?? '';
-		this.button.onDidClick(async () => await executeButtonAction(button.command.id, ...(button.command.arguments || [])), null, this.disposables.value);
+		this.button.onDidClick(async () => await this.executeCommand(button.command.id, ...(button.command.arguments || [])), null, this.disposables.value);
 
 		this.disposables.value!.add(this.button);
 		this.disposables.value!.add(attachButtonStyler(this.button, this.themeService));
@@ -2696,5 +2688,13 @@ export class SCMActionButton implements IDisposable {
 		this.disposables.value = new DisposableStore();
 		this.button = undefined;
 		clearNode(this.container);
+	}
+
+	private async executeCommand(commandId: string, ...args: any[]): Promise<void> {
+		try {
+			await this.commandService.executeCommand(commandId, ...args);
+		} catch (ex) {
+			this.notificationService.error(ex);
+		}
 	}
 }

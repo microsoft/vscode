@@ -78,6 +78,7 @@ import { isWeb } from 'vs/base/common/platform';
 import { ExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import product from 'vs/platform/product/common/product';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
@@ -316,13 +317,17 @@ CommandsRegistry.registerCommand({
 							'type': 'boolean',
 							'description': localize('workbench.extensions.installExtension.option.donotSync', "When enabled, VS Code do not sync this extension when Settings Sync is on."),
 							default: false
+						},
+						'context': {
+							'type': 'object',
+							'description': localize('workbench.extensions.installExtension.option.context', "Context for the installation. This is a JSON object that can be used to pass any information to the installation handlers. i.e. `{skipWalkthrough: true}` will skip opening the walkthrough upon install."),
 						}
 					}
 				}
 			}
 		]
 	},
-	handler: async (accessor, arg: string | UriComponents, options?: { installOnlyNewlyAddedFromExtensionPackVSIX?: boolean; installPreReleaseVersion?: boolean; donotSync?: boolean }) => {
+	handler: async (accessor, arg: string | UriComponents, options?: { installOnlyNewlyAddedFromExtensionPackVSIX?: boolean; installPreReleaseVersion?: boolean; donotSync?: boolean; context?: IStringDictionary<any> }) => {
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		try {
 			if (typeof arg === 'string') {
@@ -332,7 +337,8 @@ CommandsRegistry.registerCommand({
 					const installOptions: InstallOptions = {
 						isMachineScoped: options?.donotSync ? true : undefined, /* do not allow syncing extensions automatically while installing through the command */
 						installPreReleaseVersion: options?.installPreReleaseVersion,
-						installGivenVersion: !!version
+						installGivenVersion: !!version,
+						context: options?.context
 					};
 					if (version) {
 						await extensionsWorkbenchService.installVersion(extension, version, installOptions);
@@ -446,7 +452,7 @@ async function runAction(action: IAction): Promise<void> {
 }
 
 interface IExtensionActionOptions extends IAction2Options {
-	menuTitles?: { [id: number]: string };
+	menuTitles?: { [id: string]: string };
 	run(accessor: ServicesAccessor, ...args: any[]): Promise<any>;
 }
 
