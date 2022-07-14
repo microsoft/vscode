@@ -82,6 +82,7 @@ export interface WebviewOptions {
 	readonly enableFindWidget?: boolean;
 	readonly tryRestoreScrollPosition?: boolean;
 	readonly retainContextWhenHidden?: boolean;
+	readonly preventDefaultContextMenuItems?: boolean;
 	transformCssVariables?(styles: WebviewStyles): WebviewStyles;
 }
 

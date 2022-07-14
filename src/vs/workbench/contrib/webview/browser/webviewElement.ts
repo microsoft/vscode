@@ -36,6 +36,7 @@ import { asWebviewUri, decodeAuthority, webviewGenericCspSource, webviewRootReso
 import { loadLocalResource, WebviewResourceResponse } from 'vs/workbench/contrib/webview/browser/resourceLoading';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { areWebviewContentOptionsEqual, IWebview, WebviewContentOptions, WebviewExtensionDescription, WebviewMessageReceivedEvent, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
+import { PreventDefaultContextMenuItemsContextKeyName } from 'vs/workbench/contrib/webview/browser/webview.contribution';
 import { WebviewFindDelegate, WebviewFindWidget } from 'vs/workbench/contrib/webview/browser/webviewFindWidget';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
@@ -343,6 +344,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			contextMenuService.showContextMenu({
 				getActions: () => {
 					const contextKeyService = this._contextKeyService!.createOverlay([
+						[PreventDefaultContextMenuItemsContextKeyName, this.options.preventDefaultContextMenuItems],
 						['webview', this.providedId],
 						['webviewItem', data.context.item],
 						['webviewItemElement', data.context.itemElement],

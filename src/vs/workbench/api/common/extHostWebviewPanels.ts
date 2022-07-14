@@ -12,6 +12,7 @@ import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { serializeWebviewOptions, ExtHostWebview, ExtHostWebviews, toExtensionData, shouldSerializeBuffersForPostMessage } from 'vs/workbench/api/common/extHostWebview';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
 import * as extHostProtocol from './extHost.protocol';
 import * as extHostTypes from './extHostTypes';
@@ -197,6 +198,10 @@ export class ExtHostWebviewPanels implements extHostProtocol.ExtHostWebviewPanel
 		showOptions: vscode.ViewColumn | { viewColumn: vscode.ViewColumn; preserveFocus?: boolean },
 		options: (vscode.WebviewPanelOptions & vscode.WebviewOptions) = {},
 	): vscode.WebviewPanel {
+		if (options.preventDefaultContextMenuItems) {
+			checkProposedApiEnabled(extension, 'webviewContextMenus');
+		}
+
 		const viewColumn = typeof showOptions === 'object' ? showOptions.viewColumn : showOptions;
 		const webviewShowOptions = {
 			viewColumn: typeConverters.ViewColumn.from(viewColumn),
@@ -317,5 +322,6 @@ function serializeWebviewPanelOptions(options: vscode.WebviewPanelOptions): extH
 	return {
 		enableFindWidget: options.enableFindWidget,
 		retainContextWhenHidden: options.retainContextWhenHidden,
+		preventDefaultContextMenuItems: options.preventDefaultContextMenuItems,
 	};
 }
