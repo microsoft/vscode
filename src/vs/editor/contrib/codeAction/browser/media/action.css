@@ -14,14 +14,11 @@
 	overflow: auto;
 	font-size: 13px;
 	border-radius: 5px;
-	min-width: 320px;
+	min-width: 160px;
 	z-index: 40;
 	display: block;
 	/* flex-direction: column;
 	flex: 0 1 auto; */
-
-
-
 	width: 100%;
 	border-style: solid;
 	border-width: 1px;

@@ -11,14 +11,16 @@ import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { canceled } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, dispose, MutableDisposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/action';
 import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
+import { EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { ScrollType } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CodeAction, Command } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { codeActionCommandId, CodeActionItem, CodeActionSet, fixAllCommandId, organizeImportsCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
@@ -39,7 +41,8 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 // const $ = dom.$;
 
 export const Context = {
-	Visible: new RawContextKey<boolean>('codeActionMenuWidgetIsVisible', false, localize('codeActionMenuWidgetIsVisible', "Whether the Code Action Menu is visible.")),
+	Visible: new RawContextKey<boolean>('CodeActionMenuVisible', false, localize('CodeActionMenuVisible', "Whether suggestion are visible"))
+
 	// HasFocusedSuggestion: new RawContextKey<boolean>('suggestWidgetHasFocusedSuggestion', false, localize('suggestWidgetHasSelection', "Whether any suggestion is focused")),
 	// DetailsVisible: new RawContextKey<boolean>('suggestWidgetDetailsVisible', false, localize('suggestWidgetDetailsVisible', "Whether suggestion details are visible")),
 	// MultipleSuggestions: new RawContextKey<boolean>('suggestWidgetMultipleSuggestions', false, localize('suggestWidgetMultipleSuggestions', "Whether there are multiple suggestions to pick from")),
@@ -183,6 +186,11 @@ export class CodeActionMenu extends Disposable {
 	private readonly _ctxMenuWidgetVisible: IContextKey<boolean>;
 	private element!: HTMLElement;
 
+	public static readonly ID: string = 'editor.contrib.codeActionMenu';
+
+	public static get(editor: ICodeEditor): CodeActionMenu | null {
+		return editor.getContribution<CodeActionMenu>(CodeActionMenu.ID);
+	}
 
 	// private _onDidCancel = this._register(new Emitter<void>({ onFirstListenerAdd: () => this.cancelHasListener = true }));
 	// readonly onDidCancel = this._onDidCancel.event;
@@ -284,7 +292,6 @@ export class CodeActionMenu extends Disposable {
 		const height = inputArray.length * 25;
 		renderMenu.style.height = String(height) + 'px';
 
-
 		renderMenu.id = 'testMenu';
 		renderMenu.classList.add('testMenu');
 
@@ -311,8 +318,29 @@ export class CodeActionMenu extends Disposable {
 
 		this.codeActionList.splice(0, this.codeActionList.length, this.options);
 		this.codeActionList.layout(height);
+
+
+		this.codeActionList.getElementID(2);
+
+		const temp = this.codeActionList.getElementID(0);
+		console.log(temp);
+
+		const arr: number[] = [];
+		this.options.forEach((item, index) => {
+			const element = document.getElementById(this.codeActionList.getElementID(index))?.getElementsByTagName('span')[0].offsetWidth;
+			arr.push(Number(element));
+		});
+
+		const maxWidth = Math.max(...arr);
+		renderMenu.style.width = maxWidth + 20 + 'px';
+		this.codeActionList.layout(height, maxWidth);
+
+		// resize observer
+		// supports dynamic height but not width
 		this.codeActionList.domFocus();
 		this.codeActionList.getHTMLElement().style.border = 'none !important';
+		this.codeActionList.setFocus([0]);
+		//multiselect false
 
 		const focusTracker = dom.trackFocus(element);
 		const blurListener = focusTracker.onDidBlur(() => {
@@ -328,8 +356,14 @@ export class CodeActionMenu extends Disposable {
 
 	}
 
+	arrowOnAvailableItems() {
+		this.codeActionList.setFocus([0]);
+		this.codeActionList.setSelection([0]);
+
+	}
+
 	override dispose() {
-		this._ctxMenuWidgetVisible.reset();
+		// this._ctxMenuWidgetVisible.reset();
 		this.codeActionList.dispose();
 		this.options = [];
 		this._contextViewService.hideContextView();
@@ -550,13 +584,28 @@ export class CodeActionKeybindingResolver {
 	}
 }
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'codeActionMenu.selectEditor',
-	weight: KeybindingWeight.WorkbenchContrib + 1,
-	primary: KeyCode.Escape,
-	when: ContextKeyExpr.and(Context.Visible),
-	handler(accessor) {
-		console.log('hello hi');
+const CodeActionCommand = EditorCommand.bindToContribution<CodeActionMenu>(CodeActionMenu.get);
+
+const weight = KeybindingWeight.EditorContrib + 90;
+
+registerEditorCommand(new CodeActionCommand({
+	id: 'hideCodeActionMenuWidget',
+	precondition: Context.Visible,
+	handler: x => x.dispose(),
+	kbOpts: {
+		weight: weight,
+		primary: KeyCode.Escape,
+		secondary: [KeyMod.Shift | KeyCode.Escape]
 	}
-});
+}));
+
+// KeybindingsRegistry.registerCommandAndKeybindingRule({
+// 	id: 'codeActionMenu.selectEditor',
+// 	weight: KeybindingWeight.WorkbenchContrib + 1,
+// 	primary: KeyCode.Escape,
+// 	when: ContextKeyExpr.and(Context.Visible),
+// 	handler(accessor) {
+// 		console.log('hello hi');
+// 	}
+// });
 
