@@ -917,7 +917,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 		const launch = manager.getLaunches().find(l => l.uri.toString() === launchUri) || manager.selectedConfiguration.launch;
 		if (launch) {
-			const { editor, created } = await launch.openConfigFile(false);
+			const { editor, created } = await launch.openConfigFile({ preserveFocus: false });
 			if (editor && !created) {
 				const codeEditor = <ICodeEditor>editor.getControl();
 				if (codeEditor) {

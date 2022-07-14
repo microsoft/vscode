@@ -927,7 +927,7 @@ export interface ILaunch {
 	/**
 	 * Opens the launch.json file. Creates if it does not exist.
 	 */
-	openConfigFile(preserveFocus: boolean, type?: string, token?: CancellationToken): Promise<{ editor: IEditorPane | null; created: boolean }>;
+	openConfigFile(options: { preserveFocus: boolean; type?: string; useInitialConfigs?: boolean }, token?: CancellationToken): Promise<{ editor: IEditorPane | null; created: boolean }>;
 }
 
 // Debug service interfaces
