@@ -454,22 +454,12 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 	}
 
 	override run(): Promise<any> {
-
-		let elementsToRemove: RenderableMatch[] = [];
-		const currentSelection: RenderableMatch[] = [];
-
-		this.viewer.getSelection().forEach((elem) => {
-			currentSelection.push(<RenderableMatch>elem);
-		});
-
+		const elementsToRemove = getElementsToOperateOn(this.viewer, this.element);
 		let currentBottomFocusElement;
 
-		// if you're using multiselect and you click to remove one element from the tree, remove all selected
-		if (currentSelection.length > 1 && currentSelection.includes(this.element)) {
-			elementsToRemove = currentSelection;
-			currentBottomFocusElement = currentSelection[currentSelection.length - 1];
+		if (elementsToRemove.usingMultiselect) {
+			currentBottomFocusElement = elementsToRemove.result[elementsToRemove.result.length - 1];
 		} else {
-			elementsToRemove.push(this.element);
 			currentBottomFocusElement = this.viewer.getFocus()[0];
 		}
 
@@ -483,8 +473,8 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 			this.viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
 		}
 
-		elementsToRemove.forEach((currentElement, index) =>
-			currentElement?.parent().remove(<any>currentElement)
+		elementsToRemove.result.forEach((currentElement) =>
+			currentElement.parent().remove(<any>currentElement)
 		);
 		this.viewer.domFocus();
 
@@ -514,36 +504,26 @@ export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 		super(Constants.ReplaceAllInFileActionId, appendKeyBindingLabel(ReplaceAllAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceAllInFileActionId), keyBindingService), ThemeIcon.asClassName(searchReplaceAllIcon));
 	}
 
-	override run(): Promise<any> {
+	override async run(): Promise<any> {
 		const tree = this.viewlet.getControl();
 
-		let elementsToReplace: RenderableMatch[] = [];
-		const currentSelection: RenderableMatch[] = [];
+		const elementsToReplace = getElementsToOperateOn(tree, this.fileMatch);
 
-		this.viewlet.getControl().getSelection().forEach((elem) => {
-			currentSelection.push(<RenderableMatch>elem);
-		});
-
-		// if you're using multiselect and you click to replace one element from the tree, replace all selected
-		if (currentSelection.length > 1 && currentSelection.includes(this.fileMatch)) {
-			elementsToReplace = currentSelection;
-		} else {
-			elementsToReplace.push(this.fileMatch);
-		}
-		const currFocusElement = elementsToReplace[elementsToReplace.length - 1];
+		const currFocusElement = elementsToReplace.result[elementsToReplace.result.length - 1];
 		const nextFocusElement = this.getElementToFocusAfterRemoved(tree, currFocusElement);
 
-		return Promise.all(elementsToReplace.map(async (elem) => {
-			await elem.parent().replace(<any>elem);
-		})).then(() => {
-			if (nextFocusElement) {
-				tree.setFocus([nextFocusElement], getSelectionKeyboardEvent());
-				tree.setSelection([nextFocusElement], getSelectionKeyboardEvent());
-			}
+		await Promise.all(elementsToReplace.result.map(async (elem) =>
+			await elem.parent().replace(<any>elem)
+		));
 
-			tree.domFocus();
-			this.viewlet.open(this.fileMatch, true);
-		});
+		if (nextFocusElement) {
+			tree.setFocus([nextFocusElement], getSelectionKeyboardEvent());
+			tree.setSelection([nextFocusElement], getSelectionKeyboardEvent());
+		}
+
+		tree.domFocus();
+
+		return this.viewlet.open(this.fileMatch, true);
 	}
 }
 
@@ -587,25 +567,19 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 
 	override async run(): Promise<any> {
 		this.enabled = false;
-		let elementsToReplace: RenderableMatch[] = [];
-		const currentSelection: RenderableMatch[] = [];
 
-		this.viewer.getSelection().forEach((elem) => {
-			currentSelection.push(<RenderableMatch>elem);
-		});
+		const elementsToReplace = getElementsToOperateOn(this.viewer, this.element);
+		let currentBottomFocusElement;
 
-		// if you're using multiselect and you click to replace one element from the tree, replace all selected
-		if (currentSelection.length > 1 && currentSelection.includes(this.element)) {
-			elementsToReplace = currentSelection;
-		} else {
-			elementsToReplace.push(this.element);
-		}
-
-		elementsToReplace.forEach(async (elem) =>
-			await elem.parent().replace(<any>elem)
+		elementsToReplace.result.forEach((elem) =>
+			elem.parent().replace(<any>elem)
 		);
 
-		const currentBottomFocusElement = <Match>currentSelection[currentSelection.length - 1];
+		if (elementsToReplace.usingMultiselect) {
+			currentBottomFocusElement = <Match>elementsToReplace.result[elementsToReplace.result.length - 1];
+		} else {
+			currentBottomFocusElement = <Match>this.viewer.getFocus()[0];
+		}
 
 		const elementToFocus = this.getElementToFocusAfterReplace(currentBottomFocusElement);
 		if (elementToFocus) {
@@ -823,3 +797,16 @@ export const focusSearchListCommand: ICommandHandler = accessor => {
 		}
 	});
 };
+
+function getElementsToOperateOn(viewer: WorkbenchObjectTree<RenderableMatch, void>, currElement: RenderableMatch): { result: RenderableMatch[]; usingMultiselect: boolean } {
+	let elementsToRemove: RenderableMatch[] = viewer.getSelection().filter((x): x is RenderableMatch => x !== null);
+
+	const usingMultiselect: boolean = elementsToRemove.length > 1 && elementsToRemove.includes(currElement);
+
+	// if you're using multiselect and you click to remove one element from the tree, remove all selected
+	if (!usingMultiselect) {
+		elementsToRemove = [currElement];
+	}
+
+	return { result: elementsToRemove, usingMultiselect };
+}
