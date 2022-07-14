@@ -134,7 +134,7 @@ registerAction2(class SurroundWithSnippetEditorAction extends EditorAction2 {
 });
 
 export class SurroundWithSnippetCodeActionProvider extends Disposable implements CodeActionProvider, IWorkbenchContribution {
-	private static readonly codeAction: CodeAction = {
+	private static readonly overflowCodeAction: CodeAction = {
 		kind: CodeActionKind.Refactor.value,
 		title: options.title.value,
 		command: {
@@ -163,7 +163,7 @@ export class SurroundWithSnippetCodeActionProvider extends Disposable implements
 		return {
 			actions: snippets.length <= MAX_SNIPPETS_ON_CODE_ACTIONS_MENU
 				? snippets.map(x => makeCodeActionForSnippet(x, model.uri, range))
-				: [SurroundWithSnippetCodeActionProvider.codeAction],
+				: [SurroundWithSnippetCodeActionProvider.overflowCodeAction],
 			dispose: () => { }
 		};
 	}
