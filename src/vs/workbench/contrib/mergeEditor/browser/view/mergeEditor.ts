@@ -452,7 +452,6 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 
 	protected computeEditorViewState(resource: URI): IMergeEditorViewState | undefined {
 		if (!isEqual(this.model?.result.uri, resource)) {
-			// TODO@bpasero Why not check `input#resource` and don't ask me for "forgein" resources?
 			return undefined;
 		}
 		const result = this.inputResultView.editor.saveViewState();
