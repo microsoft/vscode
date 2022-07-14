@@ -11,6 +11,7 @@ import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { canceled } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, dispose, MutableDisposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/action';
@@ -25,10 +26,11 @@ import { CodeActionModel } from 'vs/editor/contrib/codeAction/browser/codeAction
 import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionKind, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/browser/types';
 import { ICancelEvent } from 'vs/editor/contrib/suggest/browser/suggestModel';
 import { localize } from 'vs/nls';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { historyNavigationVisible } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -37,7 +39,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 // const $ = dom.$;
 
 export const Context = {
-	Visible: historyNavigationVisible,
+	Visible: new RawContextKey<boolean>('codeActionMenuWidgetIsVisible', false, localize('codeActionMenuWidgetIsVisible', "Whether the Code Action Menu is visible.")),
 	// HasFocusedSuggestion: new RawContextKey<boolean>('suggestWidgetHasFocusedSuggestion', false, localize('suggestWidgetHasSelection', "Whether any suggestion is focused")),
 	// DetailsVisible: new RawContextKey<boolean>('suggestWidgetDetailsVisible', false, localize('suggestWidgetDetailsVisible', "Whether suggestion details are visible")),
 	// MultipleSuggestions: new RawContextKey<boolean>('suggestWidgetMultipleSuggestions', false, localize('suggestWidgetMultipleSuggestions', "Whether there are multiple suggestions to pick from")),
@@ -213,6 +215,8 @@ export class CodeActionMenu extends Disposable {
 			this.dispose();
 		}
 
+		// this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.Escape).on(e => this.onEscape(e), this));
+
 		// this.onDidCancel(() => this._contextViewService.hideContextView(true));
 
 	}
@@ -298,6 +302,7 @@ export class CodeActionMenu extends Disposable {
 
 		if (this.codeActionList) {
 			renderDisposables.add(this.codeActionList.onDidChangeSelection(e => this._onListSelection(e)));
+			renderDisposables.add(this.codeActionList.onDidChangeFocus(e => this._onListFocus(e)));
 		}
 
 		inputArray.forEach((item, index) => {
@@ -310,8 +315,7 @@ export class CodeActionMenu extends Disposable {
 		this.codeActionList.splice(0, this.codeActionList.length, this.options);
 		this.codeActionList.layout(height);
 		this.codeActionList.domFocus();
-
-
+		this.codeActionList.getHTMLElement().style.border = 'none !important';
 
 		const focusTracker = dom.trackFocus(element);
 		const blurListener = focusTracker.onDidBlur(() => {
@@ -548,4 +552,14 @@ export class CodeActionKeybindingResolver {
 			}, undefined as ResolveCodeActionKeybinding | undefined);
 	}
 }
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'codeActionMenu.selectEditor',
+	weight: KeybindingWeight.WorkbenchContrib + 1,
+	primary: KeyCode.Escape,
+	when: ContextKeyExpr.and(Context.Visible),
+	handler(accessor) {
+		console.log('hello hi');
+	}
+});
 
