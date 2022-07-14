@@ -10,7 +10,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
-import { CompareInput1WithBaseCommand, CompareInput2WithBaseCommand, GoToNextConflict, GoToPreviousConflict, OpenBaseFile, OpenMergeEditor, SetColumnLayout, SetMixedLayout, ToggleActiveConflictInput1, ToggleActiveConflictInput2 } from 'vs/workbench/contrib/mergeEditor/browser/commands/commands';
+import { CompareInput1WithBaseCommand, CompareInput2WithBaseCommand, GoToNextConflict, GoToPreviousConflict, OpenBaseFile, OpenMergeEditor, OpenResultResource, SetColumnLayout, SetMixedLayout, ToggleActiveConflictInput1, ToggleActiveConflictInput2 } from 'vs/workbench/contrib/mergeEditor/browser/commands/commands';
 import { MergeEditorCopyContentsToJSON, MergeEditorOpenContents } from 'vs/workbench/contrib/mergeEditor/browser/commands/devCommands';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { MergeEditor, MergeEditorOpenHandlerContribution } from 'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor';
@@ -33,6 +33,7 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 	MergeEditorSerializer
 );
 
+registerAction2(OpenResultResource);
 registerAction2(SetMixedLayout);
 registerAction2(SetColumnLayout);
 registerAction2(OpenMergeEditor);
