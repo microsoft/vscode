@@ -19,7 +19,7 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 
 	private static readonly COLLAPSED_VISUAL_DECORATION = ModelDecorationOptions.register({
 		description: 'folding-collapsed-visual-decoration',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
 		afterContentClassName: 'inline-folded',
 		isWholeLine: true,
 		firstLineDecorationClassName: ThemeIcon.asClassName(foldingCollapsedIcon)
@@ -27,7 +27,7 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 
 	private static readonly COLLAPSED_HIGHLIGHTED_VISUAL_DECORATION = ModelDecorationOptions.register({
 		description: 'folding-collapsed-highlighted-visual-decoration',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
 		afterContentClassName: 'inline-folded',
 		className: 'folded-background',
 		isWholeLine: true,
@@ -36,7 +36,7 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 
 	private static readonly MANUALLY_COLLAPSED_VISUAL_DECORATION = ModelDecorationOptions.register({
 		description: 'folding-manually-collapsed-visual-decoration',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
 		afterContentClassName: 'inline-folded',
 		isWholeLine: true,
 		firstLineDecorationClassName: ThemeIcon.asClassName(foldingManualIcon)
@@ -44,7 +44,7 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 
 	private static readonly MANUALLY_COLLAPSED_HIGHLIGHTED_VISUAL_DECORATION = ModelDecorationOptions.register({
 		description: 'folding-manually-collapsed-highlighted-visual-decoration',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
 		afterContentClassName: 'inline-folded',
 		className: 'folded-background',
 		isWholeLine: true,

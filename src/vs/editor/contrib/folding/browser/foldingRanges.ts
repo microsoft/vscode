@@ -237,11 +237,10 @@ export class FoldingRegions {
 	 * Two inputs, each a FoldingRegions or a FoldRange[], are merged.
 	 * Each input must be pre-sorted on startLineNumber.
 	 * The first list is assumed to always include all regions currently defined by range providers.
-	 * The second list only contains hidden ranges.
+	 * The second list only contains the previously hidden ranges.
+	 * If the line position matches, the range of the new range is taken, and the range is no longer manual
 	 * When an entry in one list overlaps an entry in the other, the second list's entry "wins" and
-	 * overlapping entries in the first list are discarded. With one exception: when there is just
-	 * one such second list entry and it is not manual it is discarded, on the assumption that
-	 * user editing has resulted in the range no longer existing.
+	 * overlapping entries in the first list are discarded.
 	 * Invalid entries are discarded. An entry is invalid if:
 	 * 		the start and end line numbers aren't a valid range of line numbers,
 	 * 		it is out of sequence or has the same start line as a preceding entry,
@@ -281,34 +280,15 @@ export class FoldingRegions {
 
 			let useRange: FoldRange | undefined = undefined;
 			if (nextB && (!nextA || nextA.startLineNumber >= nextB.startLineNumber)) {
-				// nextB is next
-				if (nextA
-					&& nextA.startLineNumber === nextB.startLineNumber
-					&& nextA.endLineNumber === nextB.endLineNumber) {
+				if (nextA && nextA.startLineNumber === nextB.startLineNumber) {
 					// same range in both lists, merge the details
-					useRange = nextB;
-					useRange.isCollapsed = useRange.isCollapsed || nextA.isCollapsed;
-					// next line removes manual flag when range provider has matching range
-					useRange.isManualSelection = nextA.isManualSelection && nextB.isManualSelection;
-					if (!useRange.type) {
-						useRange.type = nextA.type;
-					}
-					nextA = getA(++indexA); // not necessary, just for speed
-				} else if (nextA
-					&& nextA.startLineNumber === nextB.startLineNumber
-					&& nextA.endLineNumber > nextB.endLineNumber) {
-					// the range got expanded
 					useRange = nextA;
-					nextA = getA(++indexA);
-
-				} else if (nextB.isCollapsed && !nextB.isManualSelection) {
-					// skip nextB (auto expand) by not setting useRange, assuming it was edited
+					useRange.isCollapsed = true;
+					useRange.isManualSelection = false;
+					nextA = getA(++indexA); // not necessary, just for speed
 				} else { // use nextB
 					useRange = nextB;
-					if (useRange.isCollapsed) {
-						// doesn't match nextA, convert to a manual selection if it wasn't already
-						useRange.isManualSelection = true;
-					}
+					useRange.isManualSelection = true;
 				}
 				nextB = getB(++indexB);
 			} else {
@@ -321,8 +301,7 @@ export class FoldingRegions {
 						useRange = nextA;
 						break; // no conflict, use this nextA
 					}
-					if (prescanB.endLineNumber > nextA!.endLineNumber
-						&& (!prescanB.isCollapsed || prescanB.isManualSelection)) {
+					if (prescanB.isManualSelection && prescanB.endLineNumber > nextA!.endLineNumber) {
 						break; // without setting nextResult, so this nextA gets skipped
 					}
 					prescanB = getB(++scanIndex);

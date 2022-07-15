@@ -99,8 +99,8 @@ export class FoldingModel {
 	}
 
 	public update(newRegions: FoldingRegions, blockedLineNumers: number[] = []): void {
-		const hiddenRanges = this._currentHiddenRegions(blockedLineNumers);
-		const newRanges = FoldingRegions.sanitizeAndMerge(newRegions, hiddenRanges, this._textModel.getLineCount());
+		const foldedRanges = this._currentFoldedRanges(blockedLineNumers);
+		const newRanges = FoldingRegions.sanitizeAndMerge(newRegions, foldedRanges, this._textModel.getLineCount());
 		this.updatePost(FoldingRegions.fromFoldRanges(newRanges));
 	}
 
@@ -128,7 +128,7 @@ export class FoldingModel {
 		this._updateEventEmitter.fire({ model: this });
 	}
 
-	private _currentHiddenRegions(blockedLineNumers: number[] = []): FoldRange[] {
+	private _currentFoldedRanges(blockedLineNumers: number[] = []): FoldRange[] {
 
 		const isBlocked = (startLineNumber: number, endLineNumber: number) => {
 			for (const blockedLineNumber of blockedLineNumers) {
@@ -139,7 +139,7 @@ export class FoldingModel {
 			return false;
 		};
 
-		const hiddenRanges: FoldRange[] = [];
+		const foldedRanges: FoldRange[] = [];
 		for (let i = 0, limit = this._regions.length; i < limit; i++) {
 			if (this.regions.isCollapsed(i)) {
 				const hiddenRange = this._regions.toFoldRange(i);
@@ -149,7 +149,7 @@ export class FoldingModel {
 					// if not same length user has modified it, skip and auto-expand
 					&& decRange.endLineNumber - decRange.startLineNumber
 					=== hiddenRange.endLineNumber - hiddenRange.startLineNumber) {
-					hiddenRanges.push({
+					foldedRanges.push({
 						startLineNumber: decRange.startLineNumber,
 						endLineNumber: decRange.endLineNumber,
 						type: hiddenRange.type,
@@ -160,17 +160,17 @@ export class FoldingModel {
 			}
 		}
 
-		return hiddenRanges;
+		return foldedRanges;
 	}
 
 	/**
 	 * Collapse state memento, for persistence only
 	 */
 	public getMemento(): CollapseMemento | undefined {
-		const hiddenRegions = this._currentHiddenRegions();
+		const foldedRanges = this._currentFoldedRanges();
 		const result: ILineMemento[] = [];
-		for (let i = 0, limit = hiddenRegions.length; i < limit; i++) {
-			const range = hiddenRegions[i];
+		for (let i = 0, limit = foldedRanges.length; i < limit; i++) {
+			const range = foldedRanges[i];
 			const checksum = this._getLinesChecksum(range.startLineNumber + 1, range.endLineNumber);
 			result.push({
 				startLineNumber: range.startLineNumber,
@@ -188,7 +188,7 @@ export class FoldingModel {
 		if (!Array.isArray(state)) {
 			return;
 		}
-		const hiddenRanges: FoldRange[] = [];
+		const foldedRanges: FoldRange[] = [];
 		const maxLineNumber = this._textModel.getLineCount();
 		for (const range of state) {
 			if (range.startLineNumber >= range.endLineNumber || range.startLineNumber < 1 || range.endLineNumber > maxLineNumber) {
@@ -196,7 +196,7 @@ export class FoldingModel {
 			}
 			const checksum = this._getLinesChecksum(range.startLineNumber + 1, range.endLineNumber);
 			if (!range.checksum || checksum === range.checksum) {
-				hiddenRanges.push({
+				foldedRanges.push({
 					startLineNumber: range.startLineNumber,
 					endLineNumber: range.endLineNumber,
 					type: undefined,
@@ -206,7 +206,7 @@ export class FoldingModel {
 			}
 		}
 
-		const newRanges = FoldingRegions.sanitizeAndMerge(this._regions, hiddenRanges, maxLineNumber);
+		const newRanges = FoldingRegions.sanitizeAndMerge(this._regions, foldedRanges, maxLineNumber);
 		this.updatePost(FoldingRegions.fromFoldRanges(newRanges));
 	}
 
