@@ -22,8 +22,8 @@ export class SelectSnippetForEmptyFile extends SnippetsAction {
 		super({
 			id: 'workbench.action.populateFromSnippet',
 			title: {
-				value: localize('label', 'Populate File from Snippet'),
-				original: 'Populate File from Snippet'
+				value: localize('label', 'Populate from Snippet'),
+				original: 'Populate from Snippet'
 			},
 			f1: true,
 		});
