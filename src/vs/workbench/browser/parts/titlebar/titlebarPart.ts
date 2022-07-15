@@ -36,6 +36,7 @@ import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
 import { CommandCenterControl } from 'vs/workbench/browser/parts/titlebar/commandCenterControl';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -327,6 +328,27 @@ export class TitlebarPart extends Part implements ITitleService {
 		}, true /* use capture to know the currently active element properly */));
 
 		this.updateStyles();
+
+		const that = this;
+		registerAction2(class FocusTitleBar extends Action2 {
+
+			constructor() {
+				super({
+					id: `workbench.action.focusTitleBar`,
+					title: { value: localize('focusTitleBar', "Focus Title Bar"), original: 'Focus Title Bar' },
+					category: CATEGORIES.View,
+					f1: true,
+				});
+			}
+
+			run(accessor: ServicesAccessor, ...args: any[]): void {
+				if (that.customMenubar) {
+					that.customMenubar.toggleFocus();
+				} else {
+					(that.element.querySelector('[tabindex]:not([tabindex="-1"])') as HTMLElement).focus();
+				}
+			}
+		});
 
 		return this.element;
 	}
