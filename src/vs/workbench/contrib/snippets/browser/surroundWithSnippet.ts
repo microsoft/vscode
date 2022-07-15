@@ -116,7 +116,12 @@ class SurroundWithSnippetCodeActionProvider implements CodeActionProvider, IWork
 
 	async provideCodeActions(model: ITextModel, range: Range | Selection): Promise<CodeActionList | undefined> {
 
-		const snippets = await getSurroundableSnippets(this._snippetService, model, range.getEndPosition());
+		if (range.isEmpty()) {
+			return undefined;
+		}
+
+		const position = Selection.isISelection(range) ? range.getPosition() : range.getStartPosition();
+		const snippets = await getSurroundableSnippets(this._snippetService, model, position);
 		if (!snippets.length) {
 			return undefined;
 		}
