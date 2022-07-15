@@ -134,7 +134,7 @@ async function getLinksForFile(file: vscode.Uri): Promise<vscode.DocumentLink[]>
 		}
 	});
 
-	test.skip('Should navigate to fragment within current untitled file', async () => { // TODO: skip for now for ls migration
+	test('Should navigate to fragment within current untitled file', async () => { // TODO: skip for now for ls migration
 		const testFile = workspaceFile('x.md').with({ scheme: 'untitled' });
 		await withFileContents(testFile, joinLines(
 			'[](#second)',
