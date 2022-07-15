@@ -465,10 +465,6 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 			}
 		}
 
-		opInfo.elementsToRemove.forEach((currentElement) =>
-			currentElement.parent().remove(<(FolderMatch | FileMatch)[] & Match & FileMatch[]>currentElement)
-		);
-
 		if (opInfo.willRemoveCurrElement) {
 			const nextFocusElement = !currentBottomFocusElement || currentBottomFocusElement instanceof SearchResult || elementIsEqualOrParent(currentBottomFocusElement, this.element) ?
 				this.getElementToFocusAfterRemoved(this.viewer, <any>currentBottomFocusElement) :
@@ -479,6 +475,11 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 				this.viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
 			}
 		}
+
+		opInfo.elementsToRemove.forEach((currentElement) =>
+			currentElement.parent().remove(<(FolderMatch | FileMatch)[] & Match & FileMatch[]>currentElement)
+		);
+
 		this.viewer.domFocus();
 		return Promise.resolve();
 	}
@@ -494,9 +495,6 @@ function elementIsEqualOrParent(element: RenderableMatch, testParent: Renderable
 	return false;
 }
 
-export function replaceAndShiftFocus() {
-
-}
 export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 
 	static readonly LABEL = nls.localize('file.replaceAll.label', "Replace All");
@@ -608,6 +606,9 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 				this.viewer.setSelection([elementToFocus], getSelectionKeyboardEvent());
 
 				const elementToShowReplacePreview = this.getElementToShowReplacePreview(elementToFocus);
+
+				this.viewer.domFocus();
+
 				const useReplacePreview = this.configurationService.getValue<ISearchConfiguration>().search.useReplacePreview;
 				if (!useReplacePreview || !elementToShowReplacePreview || this.hasToOpenFile()) {
 					this.viewlet.open(currentBottomFocusElement, true);
@@ -615,9 +616,10 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 					this.replaceService.openReplacePreview(elementToShowReplacePreview, true);
 				}
 			}
+		} else {
+			this.viewer.domFocus();
 		}
 
-		this.viewer.domFocus();
 
 	}
 
