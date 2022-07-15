@@ -63,7 +63,7 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 						tooltip: localize('customizeLaunchConfig', "Configure Launch Configuration")
 					}],
 					trigger: () => {
-						config.launch.openConfigFile(false);
+						config.launch.openConfigFile({ preserveFocus: false, useInitialConfigs: false });
 
 						return TriggerAction.CLOSE_PICKER;
 					},

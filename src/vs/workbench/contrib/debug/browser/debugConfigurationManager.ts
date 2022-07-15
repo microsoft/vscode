@@ -215,7 +215,7 @@ export class ConfigurationManager implements IConfigurationManager {
 						disposables.add(input.onDidTriggerItemButton(async (context) => {
 							resolve(undefined);
 							const { launch, config } = context.item;
-							await launch.openConfigFile(false, config.type);
+							await launch.openConfigFile({ preserveFocus: false, type: config.type });
 							// Only Launch have a pin trigger button
 							await (launch as Launch).writeConfiguration(config);
 							await this.selectConfiguration(launch, config.name);
@@ -521,11 +521,13 @@ abstract class AbstractLaunch {
 		return configuration;
 	}
 
-	async getInitialConfigurationContent(folderUri?: uri, type?: string, token?: CancellationToken): Promise<string> {
+	async getInitialConfigurationContent(folderUri?: uri, type?: string, useInitialConfigs?: boolean, token?: CancellationToken): Promise<string> {
 		let content = '';
 		const adapter = type ? this.adapterManager.getEnabledDebugger(type) : await this.adapterManager.guessDebugger(true);
 		if (adapter) {
-			const initialConfigs = await this.configurationManager.provideDebugConfigurations(folderUri, adapter.type, token || CancellationToken.None);
+			const initialConfigs = useInitialConfigs ?
+				await this.configurationManager.provideDebugConfigurations(folderUri, adapter.type, token || CancellationToken.None) :
+				[];
 			content = await adapter.getInitialConfigurationContent(initialConfigs);
 		}
 		return content;
@@ -562,7 +564,7 @@ class Launch extends AbstractLaunch implements ILaunch {
 		return this.configurationService.inspect<IGlobalConfig>('launch', { resource: this.workspace.uri }).workspaceFolderValue;
 	}
 
-	async openConfigFile(preserveFocus: boolean, type?: string, token?: CancellationToken): Promise<{ editor: IEditorPane | null; created: boolean }> {
+	async openConfigFile({ preserveFocus, type, useInitialConfigs }: { preserveFocus: boolean; type?: string; useInitialConfigs?: boolean }, token?: CancellationToken): Promise<{ editor: IEditorPane | null; created: boolean }> {
 		const resource = this.uri;
 		let created = false;
 		let content = '';
@@ -571,7 +573,7 @@ class Launch extends AbstractLaunch implements ILaunch {
 			content = fileContent.value.toString();
 		} catch {
 			// launch.json not found: create one by collecting launch configs from debugConfigProviders
-			content = await this.getInitialConfigurationContent(this.workspace.uri, type, token);
+			content = await this.getInitialConfigurationContent(this.workspace.uri, type, useInitialConfigs, token);
 			if (!content) {
 				// Cancelled
 				return { editor: null, created: false };
@@ -647,11 +649,11 @@ class WorkspaceLaunch extends AbstractLaunch implements ILaunch {
 		return this.configurationService.inspect<IGlobalConfig>('launch').workspaceValue;
 	}
 
-	async openConfigFile(preserveFocus: boolean, type?: string, token?: CancellationToken): Promise<{ editor: IEditorPane | null; created: boolean }> {
+	async openConfigFile({ preserveFocus, type, useInitialConfigs }: { preserveFocus: boolean; type?: string; useInitialConfigs?: boolean }, token?: CancellationToken): Promise<{ editor: IEditorPane | null; created: boolean }> {
 		const launchExistInFile = !!this.getConfig();
 		if (!launchExistInFile) {
 			// Launch property in workspace config not found: create one by collecting launch configs from debugConfigProviders
-			const content = await this.getInitialConfigurationContent(undefined, type, token);
+			const content = await this.getInitialConfigurationContent(undefined, type, useInitialConfigs, token);
 			if (content) {
 				await this.configurationService.updateValue('launch', json.parse(content), ConfigurationTarget.WORKSPACE);
 			} else {
@@ -702,7 +704,7 @@ class UserLaunch extends AbstractLaunch implements ILaunch {
 		return this.configurationService.inspect<IGlobalConfig>('launch').userValue;
 	}
 
-	async openConfigFile(preserveFocus: boolean): Promise<{ editor: IEditorPane | null; created: boolean }> {
+	async openConfigFile({ preserveFocus, type, useInitialContent }: { preserveFocus: boolean; type?: string; useInitialContent?: boolean }): Promise<{ editor: IEditorPane | null; created: boolean }> {
 		const editor = await this.preferencesService.openUserSettings({ jsonEditor: true, preserveFocus, revealSetting: { key: 'launch' } });
 		return ({
 			editor: withUndefinedAsNull(editor),

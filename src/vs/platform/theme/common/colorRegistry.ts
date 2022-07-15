@@ -401,7 +401,7 @@ export const editorLightBulbAutoFixForeground = registerColor('editorLightBulbAu
 /**
  * Diff Editor Colors
  */
-export const defaultInsertColor = new Color(new RGBA(155, 185, 85, 0.2));
+export const defaultInsertColor = new Color(new RGBA(53, 175, 34, 0.24));
 export const defaultRemoveColor = new Color(new RGBA(255, 0, 0, 0.2));
 
 export const diffInserted = registerColor('diffEditor.insertedTextBackground', { dark: defaultInsertColor, light: defaultInsertColor, hcDark: null, hcLight: null }, nls.localize('diffEditorInserted', 'Background color for text that got inserted. The color must not be opaque so as not to hide underlying decorations.'), true);
