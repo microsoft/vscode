@@ -1765,7 +1765,7 @@ export class CommandCenter {
 		const shouldPrompt = config.get<boolean>('confirmEmptyCommits') === true;
 
 		if (shouldPrompt) {
-			const message = localize('confirm emtpy commit', "Are you sure you want to create an empty commit?");
+			const message = localize('confirm empty commit', "Are you sure you want to create an empty commit?");
 			const yes = localize('yes', "Yes");
 			const neverAgain = localize('yes never again', "Yes, Don't Show Again");
 			const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
@@ -1971,7 +1971,7 @@ export class CommandCenter {
 		}
 
 		// 5 attempts to generate a random branch name
-		for (let index = 0; index < 5; index++) {
+		for (let index = 0;index < 5;index++) {
 			const randomName = uniqueNamesGenerator({
 				dictionaries,
 				length: dictionaries.length,

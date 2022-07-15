@@ -580,10 +580,10 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	private compareFolders(currentFolders: IWorkspaceFolder[], newFolders: IWorkspaceFolder[]): IWorkspaceFoldersChangeEvent {
 		const result: IWorkspaceFoldersChangeEvent = { added: [], removed: [], changed: [] };
 		result.added = newFolders.filter(newFolder => !currentFolders.some(currentFolder => newFolder.uri.toString() === currentFolder.uri.toString()));
-		for (let currentIndex = 0; currentIndex < currentFolders.length; currentIndex++) {
+		for (let currentIndex = 0;currentIndex < currentFolders.length;currentIndex++) {
 			const currentFolder = currentFolders[currentIndex];
 			let newIndex = 0;
-			for (newIndex = 0; newIndex < newFolders.length && currentFolder.uri.toString() !== newFolders[newIndex].uri.toString(); newIndex++) { }
+			for (newIndex = 0;newIndex < newFolders.length && currentFolder.uri.toString() !== newFolders[newIndex].uri.toString();newIndex++) { }
 			if (newIndex < newFolders.length) {
 				if (currentIndex !== newIndex || currentFolder.name !== newFolders[newIndex].name) {
 					result.changed.push(currentFolder);
@@ -906,12 +906,12 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	private async onWorkspaceFolderConfigurationChanged(folder: IWorkspaceFolder): Promise<void> {
 		const [folderConfiguration] = await this.loadFolderConfigurations([folder]);
 		const previous = { data: this._configuration.toData(), workspace: this.workspace };
-		const folderConfiguraitonChange = this._configuration.compareAndUpdateFolderConfiguration(folder.uri, folderConfiguration);
+		const folderConfigurationChange = this._configuration.compareAndUpdateFolderConfiguration(folder.uri, folderConfiguration);
 		if (this.getWorkbenchState() === WorkbenchState.FOLDER) {
 			const workspaceConfigurationChange = this._configuration.compareAndUpdateWorkspaceConfiguration(folderConfiguration);
-			this.triggerConfigurationChange(mergeChanges(folderConfiguraitonChange, workspaceConfigurationChange), previous, ConfigurationTarget.WORKSPACE);
+			this.triggerConfigurationChange(mergeChanges(folderConfigurationChange, workspaceConfigurationChange), previous, ConfigurationTarget.WORKSPACE);
 		} else {
-			this.triggerConfigurationChange(folderConfiguraitonChange, previous, ConfigurationTarget.WORKSPACE_FOLDER);
+			this.triggerConfigurationChange(folderConfigurationChange, previous, ConfigurationTarget.WORKSPACE_FOLDER);
 		}
 		this.updateRestrictedSettings();
 	}
