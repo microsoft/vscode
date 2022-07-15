@@ -162,7 +162,10 @@ export class VsCodeClientWorkspace implements md.IWorkspace {
 		}
 	}
 
-	stat(resource: URI): Promise<md.FileStat | undefined> {
+	async stat(resource: URI): Promise<md.FileStat | undefined> {
+		if (this._documentCache.has(resource) || this.documents.get(resource.toString())) {
+			return { isDirectory: false };
+		}
 		return this.connection.sendRequest(protocol.statFileRequestType, { uri: resource.toString() });
 	}
 
