@@ -18,9 +18,11 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 
 export class SelectSnippetForEmptyFile extends SnippetsAction {
 
+	static readonly Id = 'workbench.action.populateFromSnippet';
+
 	constructor() {
 		super({
-			id: 'workbench.action.populateFromSnippet',
+			id: SelectSnippetForEmptyFile.Id,
 			title: {
 				value: localize('label', 'Populate from Snippet'),
 				original: 'Populate from Snippet'
