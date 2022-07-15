@@ -15,6 +15,7 @@ import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/te
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { generateUuid } from 'vs/base/common/uuid';
 
 class SimpleSnippetService implements ISnippetsService {
 	declare readonly _serviceBrand: undefined;
@@ -32,6 +33,9 @@ class SimpleSnippetService implements ISnippetsService {
 		throw new Error();
 	}
 	updateEnablement(): void {
+		throw new Error();
+	}
+	updateUsageTimestamp(snippet: Snippet): void {
 		throw new Error();
 	}
 }
@@ -59,7 +63,8 @@ suite('SnippetsService', function () {
 			'',
 			'barCodeSnippet',
 			'',
-			SnippetSource.User
+			SnippetSource.User,
+			generateUuid()
 		), new Snippet(
 			['fooLang'],
 			'bazzTest',
@@ -67,7 +72,8 @@ suite('SnippetsService', function () {
 			'',
 			'bazzCodeSnippet',
 			'',
-			SnippetSource.User
+			SnippetSource.User,
+			generateUuid()
 		)]);
 	});
 
@@ -128,7 +134,8 @@ suite('SnippetsService', function () {
 			'',
 			's1',
 			'',
-			SnippetSource.User
+			SnippetSource.User,
+			generateUuid()
 		), new Snippet(
 			['fooLang'],
 			'name',
@@ -136,7 +143,8 @@ suite('SnippetsService', function () {
 			'',
 			's2',
 			'',
-			SnippetSource.User
+			SnippetSource.User,
+			generateUuid()
 		)]);
 
 		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
@@ -206,7 +214,8 @@ suite('SnippetsService', function () {
 			'',
 			'insert me',
 			'',
-			SnippetSource.User
+			SnippetSource.User,
+			generateUuid()
 		)]);
 
 		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
@@ -241,7 +250,8 @@ suite('SnippetsService', function () {
 			'',
 			'<foo>$0</foo>',
 			'',
-			SnippetSource.User
+			SnippetSource.User,
+			generateUuid()
 		)]);
 
 		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
@@ -263,7 +273,8 @@ suite('SnippetsService', function () {
 			'',
 			'second',
 			'',
-			SnippetSource.Extension
+			SnippetSource.Extension,
+			generateUuid()
 		), new Snippet(
 			['fooLang'],
 			'first',
@@ -271,7 +282,8 @@ suite('SnippetsService', function () {
 			'',
 			'first',
 			'',
-			SnippetSource.User
+			SnippetSource.User,
+			generateUuid()
 		)]);
 
 		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
@@ -299,7 +311,8 @@ suite('SnippetsService', function () {
 			'',
 			'second',
 			'',
-			SnippetSource.User
+			SnippetSource.User,
+			generateUuid()
 		)]);
 		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
 
@@ -323,7 +336,8 @@ suite('SnippetsService', function () {
 			'',
 			'second',
 			'',
-			SnippetSource.User
+			SnippetSource.User,
+			generateUuid()
 		)]);
 
 		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
@@ -342,7 +356,8 @@ suite('SnippetsService', function () {
 			'',
 			'second',
 			'',
-			SnippetSource.User
+			SnippetSource.User,
+			generateUuid()
 		)]);
 
 		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
@@ -361,7 +376,8 @@ suite('SnippetsService', function () {
 			'',
 			'second',
 			'',
-			SnippetSource.User
+			SnippetSource.User,
+			generateUuid()
 		)]);
 
 		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
@@ -384,7 +400,8 @@ suite('SnippetsService', function () {
 			'',
 			'second',
 			'',
-			SnippetSource.User
+			SnippetSource.User,
+			generateUuid()
 		)]);
 
 		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
@@ -408,7 +425,8 @@ suite('SnippetsService', function () {
 			'',
 			'second',
 			'',
-			SnippetSource.User
+			SnippetSource.User,
+			generateUuid()
 		)]);
 
 		const provider = new SnippetCompletionProvider(languageService, snippetService, languageConfigurationService);
@@ -427,7 +445,8 @@ suite('SnippetsService', function () {
 			'',
 			'second',
 			'',
-			SnippetSource.User
+			SnippetSource.User,
+			generateUuid()
 		)]);
 
 		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
@@ -446,7 +465,8 @@ suite('SnippetsService', function () {
 			'',
 			'<= #dly"',
 			'',
-			SnippetSource.User
+			SnippetSource.User,
+			generateUuid()
 		), new Snippet(
 			['fooLang'],
 			'noblockwdelay',
@@ -454,7 +474,8 @@ suite('SnippetsService', function () {
 			'',
 			'eleven',
 			'',
-			SnippetSource.User
+			SnippetSource.User,
+			generateUuid()
 		)]);
 
 		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
@@ -484,7 +505,8 @@ suite('SnippetsService', function () {
 			'',
 			'not word snippet',
 			'',
-			SnippetSource.User
+			SnippetSource.User,
+			generateUuid()
 		)]);
 
 		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
@@ -526,7 +548,8 @@ suite('SnippetsService', function () {
 			'',
 			'<span></span>',
 			'',
-			SnippetSource.User
+			SnippetSource.User,
+			generateUuid()
 		)]);
 
 		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
@@ -558,7 +581,8 @@ suite('SnippetsService', function () {
 			'',
 			'[PSCustomObject] @{ Key = Value }',
 			'',
-			SnippetSource.User
+			SnippetSource.User,
+			generateUuid()
 		)]);
 
 		const provider = new SnippetCompletionProvider(languageService, snippetService, languageConfigurationService);
@@ -583,7 +607,8 @@ suite('SnippetsService', function () {
 			'',
 			'~\\cite{$CLIPBOARD}',
 			'',
-			SnippetSource.User
+			SnippetSource.User,
+			generateUuid()
 		)]);
 
 		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
@@ -602,9 +627,9 @@ suite('SnippetsService', function () {
 	test('still show suggestions in string when disable string suggestion #136611', async function () {
 
 		snippetService = new SimpleSnippetService([
-			new Snippet(['fooLang'], 'aaa', 'aaa', '', 'value', '', SnippetSource.User),
-			new Snippet(['fooLang'], 'bbb', 'bbb', '', 'value', '', SnippetSource.User),
-			// new Snippet(['fooLang'], '\'ccc', '\'ccc', '', 'value', '', SnippetSource.User)
+			new Snippet(['fooLang'], 'aaa', 'aaa', '', 'value', '', SnippetSource.User, generateUuid()),
+			new Snippet(['fooLang'], 'bbb', 'bbb', '', 'value', '', SnippetSource.User, generateUuid()),
+			// new Snippet(['fooLang'], '\'ccc', '\'ccc', '', 'value', '', SnippetSource.User, generateUuid())
 		]);
 
 		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
@@ -624,9 +649,9 @@ suite('SnippetsService', function () {
 	test('still show suggestions in string when disable string suggestion #136611', async function () {
 
 		snippetService = new SimpleSnippetService([
-			new Snippet(['fooLang'], 'aaa', 'aaa', '', 'value', '', SnippetSource.User),
-			new Snippet(['fooLang'], 'bbb', 'bbb', '', 'value', '', SnippetSource.User),
-			new Snippet(['fooLang'], '\'ccc', '\'ccc', '', 'value', '', SnippetSource.User)
+			new Snippet(['fooLang'], 'aaa', 'aaa', '', 'value', '', SnippetSource.User, generateUuid()),
+			new Snippet(['fooLang'], 'bbb', 'bbb', '', 'value', '', SnippetSource.User, generateUuid()),
+			new Snippet(['fooLang'], '\'ccc', '\'ccc', '', 'value', '', SnippetSource.User, generateUuid())
 		]);
 
 		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
@@ -645,9 +670,9 @@ suite('SnippetsService', function () {
 
 	test('Snippet suggestions are too eager #138707 (word)', async function () {
 		snippetService = new SimpleSnippetService([
-			new Snippet(['fooLang'], 'tys', 'tys', '', 'value', '', SnippetSource.User),
-			new Snippet(['fooLang'], 'hell_or_tell', 'hell_or_tell', '', 'value', '', SnippetSource.User),
-			new Snippet(['fooLang'], '^y', '^y', '', 'value', '', SnippetSource.User),
+			new Snippet(['fooLang'], 'tys', 'tys', '', 'value', '', SnippetSource.User, generateUuid()),
+			new Snippet(['fooLang'], 'hell_or_tell', 'hell_or_tell', '', 'value', '', SnippetSource.User, generateUuid()),
+			new Snippet(['fooLang'], '^y', '^y', '', 'value', '', SnippetSource.User, generateUuid()),
 		]);
 
 		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
@@ -666,9 +691,9 @@ suite('SnippetsService', function () {
 
 	test('Snippet suggestions are too eager #138707 (no word)', async function () {
 		snippetService = new SimpleSnippetService([
-			new Snippet(['fooLang'], 'tys', 'tys', '', 'value', '', SnippetSource.User),
-			new Snippet(['fooLang'], 't', 't', '', 'value', '', SnippetSource.User),
-			new Snippet(['fooLang'], '^y', '^y', '', 'value', '', SnippetSource.User),
+			new Snippet(['fooLang'], 'tys', 'tys', '', 'value', '', SnippetSource.User, generateUuid()),
+			new Snippet(['fooLang'], 't', 't', '', 'value', '', SnippetSource.User, generateUuid()),
+			new Snippet(['fooLang'], '^y', '^y', '', 'value', '', SnippetSource.User, generateUuid()),
 		]);
 
 		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
@@ -687,8 +712,8 @@ suite('SnippetsService', function () {
 
 	test('Snippet suggestions are too eager #138707 (word/word)', async function () {
 		snippetService = new SimpleSnippetService([
-			new Snippet(['fooLang'], 'async arrow function', 'async arrow function', '', 'value', '', SnippetSource.User),
-			new Snippet(['fooLang'], 'foobarrrrrr', 'foobarrrrrr', '', 'value', '', SnippetSource.User),
+			new Snippet(['fooLang'], 'async arrow function', 'async arrow function', '', 'value', '', SnippetSource.User, generateUuid()),
+			new Snippet(['fooLang'], 'foobarrrrrr', 'foobarrrrrr', '', 'value', '', SnippetSource.User, generateUuid()),
 		]);
 
 		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
@@ -707,7 +732,7 @@ suite('SnippetsService', function () {
 
 	test('Strange and useless autosuggestion #region/#endregion PHP #140039', async function () {
 		snippetService = new SimpleSnippetService([
-			new Snippet(['fooLang'], 'reg', '#region', '', 'value', '', SnippetSource.User),
+			new Snippet(['fooLang'], 'reg', '#region', '', 'value', '', SnippetSource.User, generateUuid()),
 		]);
 
 
@@ -725,9 +750,9 @@ suite('SnippetsService', function () {
 
 	test.skip('Snippets disappear with . key #145960', async function () {
 		snippetService = new SimpleSnippetService([
-			new Snippet(['fooLang'], 'div', 'div', '', 'div', '', SnippetSource.User),
-			new Snippet(['fooLang'], 'div.', 'div.', '', 'div.', '', SnippetSource.User),
-			new Snippet(['fooLang'], 'div#', 'div#', '', 'div#', '', SnippetSource.User),
+			new Snippet(['fooLang'], 'div', 'div', '', 'div', '', SnippetSource.User, generateUuid()),
+			new Snippet(['fooLang'], 'div.', 'div.', '', 'div.', '', SnippetSource.User, generateUuid()),
+			new Snippet(['fooLang'], 'div#', 'div#', '', 'div#', '', SnippetSource.User, generateUuid()),
 		]);
 
 		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());

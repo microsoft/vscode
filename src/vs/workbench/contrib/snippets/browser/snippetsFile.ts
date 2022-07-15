@@ -113,7 +113,7 @@ export class Snippet {
 		readonly body: string,
 		readonly source: string,
 		readonly snippetSource: SnippetSource,
-		readonly snippetIdentifier?: string,
+		readonly snippetIdentifier: string,
 		readonly extensionId?: ExtensionIdentifier,
 	) {
 		this.prefixLow = prefix.toLowerCase();
@@ -138,24 +138,6 @@ export class Snippet {
 
 	get usesSelection(): boolean {
 		return this._bodyInsights.value.usesSelectionVariable;
-	}
-
-	static compare(a: Snippet, b: Snippet): number {
-		if (a.snippetSource < b.snippetSource) {
-			return -1;
-		} else if (a.snippetSource > b.snippetSource) {
-			return 1;
-		} else if (a.source < b.source) {
-			return -1;
-		} else if (a.source > b.source) {
-			return 1;
-		} else if (a.name > b.name) {
-			return 1;
-		} else if (a.name < b.name) {
-			return -1;
-		} else {
-			return 0;
-		}
 	}
 }
 
@@ -195,7 +177,7 @@ export class SnippetFile {
 		public defaultScopes: string[] | undefined,
 		private readonly _extension: IExtensionDescription | undefined,
 		private readonly _fileService: IFileService,
-		private readonly _extensionResourceLoaderService: IExtensionResourceLoaderService
+		private readonly _extensionResourceLoaderService: IExtensionResourceLoaderService,
 	) {
 		this.isGlobalSnippets = extname(location.path) === '.code-snippets';
 		this.isUserSnippets = !this._extension;
@@ -330,7 +312,7 @@ export class SnippetFile {
 				body,
 				source,
 				this.source,
-				this._extension && `${relativePath(this._extension.extensionLocation, this.location)}/${name}`,
+				this._extension ? `${relativePath(this._extension.extensionLocation, this.location)}/${name}` : `${basename(this.location.path)}/${name}`,
 				this._extension?.identifier,
 			));
 		}
