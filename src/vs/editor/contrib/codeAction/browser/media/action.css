@@ -9,7 +9,7 @@
 	min-width: 160px;
 }
 
-.testMenu {
+.codeActionMenuWidget {
 	padding: 10px 0px 10px 0px;
 	overflow: auto;
 	font-size: 13px;
@@ -26,7 +26,7 @@
 	background-color: var(--vscode-editorSuggestWidget-background);
 }
 
-.testMenu .monaco-list:not(.element-focused):focus:before {
+.codeActionMenuWidget .monaco-list:not(.element-focused):focus:before {
 	position: absolute;
 	top: 0;
 	left: 0;
@@ -41,7 +41,7 @@
 	outline-offset: 0px;
 }
 
-.testMenu .monaco-list {
+.codeActionMenuWidget .monaco-list {
 	user-select: none;
 	-webkit-user-select: none;
 	-ms-user-select: none;
@@ -49,21 +49,21 @@
 	border-width: 0px !important;
 }
 
-/* .testMenu .monaco-list:not(.element-focus) {
+/* .codeActionMenuWidget .monaco-list:not(.element-focus) {
 	border: none !important;
 	border-width: 0px !important;
 } */
 
-.testMenu .monaco-list .monaco-scrollable-element .monaco-list-rows {
+.codeActionMenuWidget .monaco-list .monaco-scrollable-element .monaco-list-rows {
 	height: 100% !important;
 }
 
-.testMenu .monaco-list .monaco-scrollable-element {
+.codeActionMenuWidget .monaco-list .monaco-scrollable-element {
 	overflow: visible;
 }
 /** Styles for each row in the list element **/
 
-.testMenu .monaco-list .monaco-list-row:not(.separator) {
+.codeActionMenuWidget .monaco-list .monaco-list-row:not(.separator) {
 	display: flex;
 	-mox-box-sizing: border-box;
 	box-sizing: border-box;
@@ -78,14 +78,14 @@
 
 
 
-.testMenu .monaco-list .monaco-list-row:hover:not(.option-disabled),
-.testMenu .monaco-list .monaco-list-row .focused:not(.option-disabled) {
+.codeActionMenuWidget .monaco-list .monaco-list-row:hover:not(.option-disabled),
+.codeActionMenuWidget .monaco-list .monaco-list-row .focused:not(.option-disabled) {
 	color: var(--vscode-editorSuggestWidget-selectedForeground);
 	background-color: rgb(4, 57, 94) !important;
 }
 
-.testMenu .monaco-list .option-disabled,
-.testMenu .monaco-list .option-disabled .focused {
+.codeActionMenuWidget .monaco-list .option-disabled,
+.codeActionMenuWidget .monaco-list .option-disabled .focused {
 	pointer-events: none;
 	-webkit-touch-callout: none;
 	-webkit-user-select: none;
@@ -95,7 +95,7 @@
 	user-select: none;
 }
 
-.testMenu .monaco-list .separator {
+.codeActionMenuWidget .monaco-list .separator {
 	border-bottom: 1px solid var(--vscode-menu-separatorBackground);
 	padding-top: 10px !important;
 	/* padding: 30px; */
