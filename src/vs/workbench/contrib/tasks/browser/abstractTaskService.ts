@@ -57,7 +57,7 @@ import {
 	TaskSettingId,
 	TasksSchemaProperties
 } from 'vs/workbench/contrib/tasks/common/tasks';
-import { ITaskService, ITaskProvider, IProblemMatcherRunOptions, ICustomizationProperties, ITaskFilter, IWorkspaceFolderTaskResult, CustomExecutionSupportedContext, ShellExecutionSupportedContext, ProcessExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
+import { ITaskService, ITaskProvider, IProblemMatcherRunOptions, ICustomizationProperties, ITaskFilter, IWorkspaceFolderTaskResult, CustomExecutionSupportedContext, ShellExecutionSupportedContext, ProcessExecutionSupportedContext, TaskCommandsRegistered } from 'vs/workbench/contrib/tasks/common/taskService';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/common/taskTemplates';
 
 import * as TaskConfig from '../common/taskConfiguration';
@@ -491,6 +491,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				this._openTaskFile(resource, TaskSourceKind.WorkspaceFile);
 			}
 		});
+		TaskCommandsRegistered.bindTo(this._contextKeyService).set(true);
 	}
 
 	private get workspaceFolders(): IWorkspaceFolder[] {
