@@ -192,6 +192,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private _terminals: IStringDictionary<ITerminalData>;
 	private _idleTaskTerminals: LinkedMap<string, string>;
 	private _sameTaskTerminals: IStringDictionary<string>;
+	private _terminalForTask: ITerminalInstance | undefined;
 	private _taskSystemInfoResolver: ITaskSystemInfoResolver;
 	private _lastTask: VerifiedTask | undefined;
 	// Should always be set in run
@@ -282,8 +283,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			this._reconnectToTerminals(terminals);
 		}
 		if (this._tasksToReconnect.includes(task._id)) {
-			this._lastTask = new VerifiedTask(task, resolver, trigger);
-			this.rerun();
+			this._terminalForTask = terminals.find(t => t.shellLaunchConfig.attachPersistentProcess?.task?.id === task._id);
+			this.run(task, resolver, trigger);
 		}
 		return undefined;
 	}
@@ -305,7 +306,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 
 		try {
-			const executeResult = { kind: TaskExecuteKind.Started, task, started: {}, promise: this._executeTask(task, resolver, trigger, new Set()) };
+			const executeResult = { kind: TaskExecuteKind.Started, task, started: {}, promise: this._executeTask(task, resolver, trigger, new Set(), undefined) };
 			executeResult.promise.then(summary => {
 				this._lastTask = this._currentTask;
 			});
@@ -880,7 +881,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			}));
 			watchingProblemMatcher.aboutToStart();
 			let delayer: Async.Delayer<any> | undefined = undefined;
-			[terminal, error] = await this._createTerminal(task, resolver, workspaceFolder);
+			[terminal, error] = this._terminalForTask ? [this._terminalForTask, undefined] : await this._createTerminal(task, resolver, workspaceFolder);
 
 			if (error) {
 				return Promise.reject(new Error((<TaskError>error).message));
@@ -962,7 +963,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				});
 			});
 		} else {
-			[terminal, error] = await this._createTerminal(task, resolver, workspaceFolder);
+			[terminal, error] = this._terminalForTask ? [this._terminalForTask, undefined] : await this._createTerminal(task, resolver, workspaceFolder);
 
 			if (error) {
 				return Promise.reject(new Error((<TaskError>error).message));
