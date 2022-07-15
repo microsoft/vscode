@@ -2949,6 +2949,7 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	const contrastBorderColor = theme.getColor(contrastBorder);
 	if (contrastBorderColor) {
 		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action:not(.disabled) { border: 1px solid ${contrastBorderColor}; }`);
+		collector.addRule(`.monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator { border-top: 1px solid ${contrastBorderColor}; border-bottom: 1px solid ${contrastBorderColor}; }`);
 	}
 
 	const errorColor = theme.getColor(editorErrorForeground);
