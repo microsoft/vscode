@@ -7,7 +7,7 @@ import { reset } from 'vs/base/browser/dom';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -20,6 +20,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import * as colors from 'vs/platform/theme/common/colorRegistry';
 import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
 import { MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_FOREGROUND, PANEL_BORDER, TITLE_BAR_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
@@ -42,6 +43,7 @@ export class CommandCenterControl {
 		@IMenuService menuService: IMenuService,
 		@IQuickInputService quickInputService: IQuickInputService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		this.element.classList.add('command-center');
 
@@ -129,6 +131,10 @@ export class CommandCenterControl {
 		}));
 		this._disposables.add(quickInputService.onShow(this._setVisibility.bind(this, false)));
 		this._disposables.add(quickInputService.onHide(this._setVisibility.bind(this, true)));
+
+		titleToolbar.actionRunner.onDidRun(e => {
+			telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: 'commandCenter' });
+		});
 	}
 
 	private _setVisibility(show: boolean): void {
