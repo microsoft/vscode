@@ -326,7 +326,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	public registerSupportedExecutions(custom?: boolean, shell?: boolean, process?: boolean) {
-		TaskCommandsRegistered.bindTo(this._contextKeyService);
 		if (custom !== undefined) {
 			const customContext = CustomExecutionSupportedContext.bindTo(this._contextKeyService);
 			customContext.set(custom);
