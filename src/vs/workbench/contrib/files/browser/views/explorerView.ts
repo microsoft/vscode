@@ -80,6 +80,18 @@ function hasExpandedRootChild(tree: WorkbenchCompressibleAsyncDataTree<ExplorerI
 	return false;
 }
 
+/**
+ * Whether or not any of the nodes in the tree are expanded
+ */
+function hasExpandedNode(tree: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>, treeInput: ExplorerItem[]): boolean {
+	for (const folder of treeInput) {
+		if (tree.hasNode(folder) && !tree.isCollapsed(folder)) {
+			return true;
+		}
+	}
+	return false;
+}
+
 const identityProvider = {
 	getId: (stat: ExplorerItem) => {
 		if (stat instanceof NewExplorerItem) {
@@ -779,15 +791,6 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			this.tree.domFocus();
 		}
 
-		const treeInput = this.tree.getInput();
-		if (Array.isArray(treeInput)) {
-			treeInput.forEach(folder => {
-				folder.children.forEach(child => this.tree.hasNode(child) && this.tree.expand(child, true));
-			});
-
-			return;
-		}
-
 		this.tree.expandAll();
 	}
 
@@ -864,9 +867,9 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		if (treeInput === undefined) {
 			return;
 		}
-		const treeInputArray = Array.isArray(treeInput) ? treeInput : [treeInput];
+		const treeInputArray = Array.isArray(treeInput) ? treeInput : Array.from(treeInput.children.values());
 		// Has collapsible root when anything is expanded
-		this.viewHasSomeCollapsibleRootItem.set(hasExpandedRootChild(this.tree, treeInputArray));
+		this.viewHasSomeCollapsibleRootItem.set(hasExpandedNode(this.tree, treeInputArray));
 	}
 
 	styleListDropBackground(styles: IExplorerViewStyles): void {
