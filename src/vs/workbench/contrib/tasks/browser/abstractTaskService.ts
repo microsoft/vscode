@@ -493,7 +493,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				this._openTaskFile(resource, TaskSourceKind.WorkspaceFile);
 			}
 		});
-		console.log('registered commands', TaskCommandsRegistered.getValue(this._contextKeyService));
+TaskCommandsRegistered.getValue(this._contextKeyService));
 	}
 
 	private get workspaceFolders(): IWorkspaceFolder[] {
