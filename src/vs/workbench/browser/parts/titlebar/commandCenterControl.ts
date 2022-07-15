@@ -65,15 +65,14 @@ export class CommandCenterControl {
 							searchIcon.classList.add('search-icon');
 
 							this.workspaceTitle.classList.add('search-label');
-							this._updateFromWindowTitle();
+							this.updateTooltip();
 							reset(this.label, searchIcon, this.workspaceTitle);
 							// this._renderAllQuickPickItem(container);
 
-							this._store.add(windowTitle.onDidChange(this._updateFromWindowTitle, this));
+							this._store.add(windowTitle.onDidChange(this.updateTooltip, this));
 						}
 
-						private _updateFromWindowTitle() {
-
+						override getTooltip() {
 							// label: just workspace name and optional decorations
 							const { prefix, suffix } = windowTitle.getTitleDecorations();
 							let label = windowTitle.workspaceName;
@@ -93,7 +92,8 @@ export class CommandCenterControl {
 							const title = kb
 								? localize('title', "Search {0} ({1}) \u2014 {2}", windowTitle.workspaceName, kb, windowTitle.value)
 								: localize('title2', "Search {0} \u2014 {1}", windowTitle.workspaceName, windowTitle.value);
-							this._applyUpdateTooltip(title);
+
+							return title;
 						}
 					}
 					return instantiationService.createInstance(InputLikeViewItem, action, { hoverDelegate });

@@ -231,7 +231,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		}
 	}
 
-	override updateTooltip(): void {
+	override getTooltip() {
 		const keybinding = this._keybindingService.lookupKeybinding(this._commandAction.id, this._contextKeyService);
 		const keybindingLabel = keybinding && keybinding.getLabel();
 
@@ -249,7 +249,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 
 			title = localize('titleAndKbAndAlt', "{0}\n[{1}] {2}", title, UILabelProvider.modifierLabels[OS].altKey, altTitleSection);
 		}
-		this._applyUpdateTooltip(title);
+		return title;
 	}
 
 	override updateClass(): void {
