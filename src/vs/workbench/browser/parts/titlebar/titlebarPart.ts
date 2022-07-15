@@ -17,7 +17,7 @@ import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER, WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
-import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform';
+import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common/platform';
 import { Color } from 'vs/base/common/color';
 import { EventType, EventHelper, Dimension, isAncestor, append, $, addDisposableListener, runAtThisOrScheduleAtNextAnimationFrame, prepend, reset } from 'vs/base/browser/dom';
 import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
@@ -369,7 +369,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 	}
 
-	private onContextMenu(e: MouseEvent, menuId: MenuId): void {
+	protected onContextMenu(e: MouseEvent, menuId: MenuId): void {
 		// Find target anchor
 		const event = new StandardMouseEvent(e);
 		const anchor = { x: event.posx, y: event.posy };
@@ -385,7 +385,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			getAnchor: () => anchor,
 			getActions: () => actions,
 			onHide: () => dispose(actionsDisposable),
-			domForShadowRoot: event.target
+			domForShadowRoot: isMacintosh && isNative ? event.target : undefined
 		});
 	}
 
