@@ -11,21 +11,28 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { randomPath } from 'vs/base/common/extpath';
 import { join, sep } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
-import { Promises, RimRafMode, rimrafSync, SymlinkSupport, writeFileSync } from 'vs/base/node/pfs';
+import { configureFlushOnWrite, Promises, RimRafMode, rimrafSync, SymlinkSupport, writeFileSync } from 'vs/base/node/pfs';
 import { flakySuite, getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
+
+configureFlushOnWrite(false); // speed up all unit tests by disabling flush on write
 
 flakySuite('PFS', function () {
 
 	let testDir: string;
 
 	setup(() => {
+		configureFlushOnWrite(true); // but enable flushing for the purpose of these tests
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'pfs');
 
 		return Promises.mkdir(testDir, { recursive: true });
 	});
 
-	teardown(() => {
-		return Promises.rm(testDir);
+	teardown(async () => {
+		try {
+			await Promises.rm(testDir);
+		} finally {
+			configureFlushOnWrite(false);
+		}
 	});
 
 	test('writeFile', async () => {

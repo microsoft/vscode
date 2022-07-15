@@ -1788,10 +1788,21 @@ export function h(tag: string, ...args: [] | [attributes: { $: string } & DomNod
 		children = args[1];
 	}
 
-	const [tagName, className] = tag.split('.');
+	const match = SELECTOR_REGEX.exec(tag);
+
+	if (!match) {
+		throw new Error('Bad use of h');
+	}
+
+	const tagName = match[1] || 'div';
 	const el = document.createElement(tagName);
-	if (className) {
-		el.className = className;
+
+	if (match[3]) {
+		el.id = match[3];
+	}
+
+	if (match[4]) {
+		el.className = match[4].replace(/\./g, ' ').trim();
 	}
 
 	const result: Record<string, HTMLElement> = {};

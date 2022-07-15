@@ -57,7 +57,7 @@ import {
 	TaskSettingId,
 	TasksSchemaProperties
 } from 'vs/workbench/contrib/tasks/common/tasks';
-import { ITaskService, ITaskProvider, IProblemMatcherRunOptions, ICustomizationProperties, ITaskFilter, IWorkspaceFolderTaskResult, CustomExecutionSupportedContext, ShellExecutionSupportedContext, ProcessExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
+import { ITaskService, ITaskProvider, IProblemMatcherRunOptions, ICustomizationProperties, ITaskFilter, IWorkspaceFolderTaskResult, CustomExecutionSupportedContext, ShellExecutionSupportedContext, ProcessExecutionSupportedContext, TaskCommandsRegistered } from 'vs/workbench/contrib/tasks/common/taskService';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/common/taskTemplates';
 
 import * as TaskConfig from '../common/taskConfiguration';
@@ -200,6 +200,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	private static _nextHandle: number = 0;
 
+	private _tasksReconnected: boolean = false;
 	private _schemaVersion: JsonSchemaVersion | undefined;
 	private _executionEngine: ExecutionEngine | undefined;
 	private _workspaceFolders: IWorkspaceFolder[] | undefined;
@@ -337,11 +338,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			processContext.set(process && !isVirtual);
 		}
 		this._onDidRegisterSupportedExecutions.fire();
+		if (this._jsonTasksSupported && !this._tasksReconnected) {
+			this._reconnectTasks();
+		}
 	}
 
-	private async _restartTasks(): Promise<void> {
+	private async _reconnectTasks(): Promise<void> {
 		const recentlyUsedTasks = await this.readRecentTasks();
-		if (!recentlyUsedTasks) {
+		if (!recentlyUsedTasks.length) {
 			return;
 		}
 		for (const task of recentlyUsedTasks) {
@@ -354,6 +358,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				this.run(task, undefined, TaskRunSource.Reconnect);
 			}
 		}
+		this._tasksReconnected = true;
 	}
 
 	public get onDidStateChange(): Event<ITaskEvent> {
@@ -486,6 +491,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				this._openTaskFile(resource, TaskSourceKind.WorkspaceFile);
 			}
 		});
+		TaskCommandsRegistered.bindTo(this._contextKeyService).set(true);
 	}
 
 	private get workspaceFolders(): IWorkspaceFolder[] {
@@ -618,7 +624,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return infosCount > 0;
 	}
 
-	public async registerTaskSystem(key: string, info: ITaskSystemInfo): Promise<void> {
+	public registerTaskSystem(key: string, info: ITaskSystemInfo): void {
 		// Ideally the Web caller of registerRegisterTaskSystem would use the correct key.
 		// However, the caller doesn't know about the workspace folders at the time of the call, even though we know about them here.
 		if (info.platform === Platform.Platform.Web) {
@@ -638,7 +644,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 		if (this.hasTaskSystemInfo) {
 			this._onDidChangeTaskSystemInfo.fire();
-			await this._restartTasks();
 		}
 	}
 
