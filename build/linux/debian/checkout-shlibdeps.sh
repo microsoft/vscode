@@ -1,9 +1,6 @@
-# Do a sparse checkout.
-# Ref https://stackoverflow.com/a/13738951
-mkdir chromium
+# Do a sparse checkout. Ref https://stackoverflow.com/a/63786181
+git clone --filter=blob:none --no-checkout --depth 1 --sparse https://github.com/chromium/chromium.git
 cd chromium
-git init
-git remote add -f origin https://github.com/chromium/chromium.git
-git config core.sparseCheckout true
-echo "third_party/dpkg-shlibdeps" >> .git/info/sparse-checkout
-git pull origin main
+git sparse-checkout init --cone
+git sparse-checkout add third_party/dpkg-shlibdeps
+git checkout
