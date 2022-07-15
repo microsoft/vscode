@@ -226,6 +226,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	xterm?: XtermTerminal;
 	disableLayout: boolean = false;
 
+	get waitOnExit(): boolean | string | ((exitCode: number) => string) | undefined { return this._shellLaunchConfig.attachPersistentProcess?.waitOnExit || this._shellLaunchConfig.waitOnExit; }
+
+	type(): string | undefined { return this.shellLaunchConfig.attachPersistentProcess?.type || this.shellLaunchConfig.type; }
+
 	get target(): TerminalLocation | undefined { return this._target; }
 	set target(value: TerminalLocation | undefined) {
 		if (this.xterm) {
@@ -303,8 +307,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get description(): string | undefined {
 		if (this._description) {
 			return this._description;
-		} else if (this._shellLaunchConfig.type) {
-			if (this._shellLaunchConfig.type === 'Task') {
+		} else if (this.shellLaunchConfig.attachPersistentProcess?.type || this.type()) {
+			if (this.type() === 'Task') {
 				return nls.localize('terminalTypeTask', "Task");
 			} else {
 				return nls.localize('terminalTypeLocal', "Local");
@@ -390,7 +394,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@ICommandService private readonly _commandService: ICommandService
 	) {
 		super();
-
+		console.log(_shellLaunchConfig.attachPersistentProcess);
 		this._skipTerminalCommands = [];
 		this._isExiting = false;
 		this._hadFocusOnExit = false;
@@ -1747,18 +1751,19 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// Only trigger wait on exit when the exit was *not* triggered by the
 		// user (via the `workbench.action.terminal.kill` command).
-		if (this._shellLaunchConfig.waitOnExit && this._processManager.processState !== ProcessState.KilledByUser) {
+		const waitOnExit = this.waitOnExit;
+		if (waitOnExit && this._processManager.processState !== ProcessState.KilledByUser) {
 			this._xtermReadyPromise.then(xterm => {
 				if (exitMessage) {
 					xterm.raw.write(formatMessageForTerminal(exitMessage));
 				}
-				switch (typeof this._shellLaunchConfig.waitOnExit) {
+				switch (typeof waitOnExit) {
 					case 'string':
-						xterm.raw.write(formatMessageForTerminal(this._shellLaunchConfig.waitOnExit, { excludeLeadingNewLine: true }));
+						xterm.raw.write(formatMessageForTerminal(waitOnExit, { excludeLeadingNewLine: true }));
 						break;
 					case 'function':
 						if (this.exitCode !== undefined) {
-							xterm.raw.write(formatMessageForTerminal(this._shellLaunchConfig.waitOnExit(this.exitCode), { excludeLeadingNewLine: true }));
+							xterm.raw.write(formatMessageForTerminal(waitOnExit(this.exitCode), { excludeLeadingNewLine: true }));
 						}
 						break;
 				}
@@ -2715,14 +2720,15 @@ export class TerminalLabelComputer extends Disposable {
 		labelType: TerminalLabelType,
 		reset?: boolean
 	) {
+		const type = this._instance.shellLaunchConfig.attachPersistentProcess?.type || this._instance.shellLaunchConfig.type;
 		const templateProperties: ITerminalLabelTemplateProperties = {
 			cwd: this._instance.cwd || this._instance.initialCwd || '',
 			cwdFolder: '',
 			workspaceFolder: this._instance.workspaceFolder ? path.basename(this._instance.workspaceFolder.uri.fsPath) : undefined,
-			local: this._instance.shellLaunchConfig.type === 'Local' ? this._instance.shellLaunchConfig.type : undefined,
+			local: type === 'Local' ? type : undefined,
 			process: this._instance.processName,
 			sequence: this._instance.sequence,
-			task: this._instance.shellLaunchConfig.type === 'Task' ? this._instance.shellLaunchConfig.type : undefined,
+			task: type === 'Task' ? type : undefined,
 			fixedDimensions: this._instance.fixedCols
 				? (this._instance.fixedRows ? `\u2194${this._instance.fixedCols} \u2195${this._instance.fixedRows}` : `\u2194${this._instance.fixedCols}`)
 				: (this._instance.fixedRows ? `\u2195${this._instance.fixedRows}` : ''),

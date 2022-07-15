@@ -62,6 +62,7 @@ export interface IProcessDetails {
 	environmentVariableCollections: ISerializableEnvironmentVariableCollections | undefined;
 	reconnectionOwner?: string;
 	task?: { label: string; id: string; lastTask: string; group?: string };
+	waitOnExit?: boolean | string | ((exitCode: number) => string);
 }
 
 export type ITerminalTabLayoutInfoDto = IRawTerminalTabLayoutInfo<IProcessDetails>;
