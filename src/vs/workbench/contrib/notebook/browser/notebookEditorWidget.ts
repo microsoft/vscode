@@ -190,6 +190,7 @@ export function getDefaultNotebookCreationOptions(): INotebookEditorCreationOpti
 		menuIds: {
 			notebookToolbar: MenuId.NotebookToolbar,
 			cellTitleToolbar: MenuId.NotebookCellTitle,
+			cellDeleteToolbar: MenuId.NotebookCellDelete,
 			cellInsertToolbar: MenuId.NotebookCellBetween,
 			cellTopInsertToolbar: MenuId.NotebookCellListTop,
 			cellExecuteToolbar: MenuId.NotebookCellExecute,

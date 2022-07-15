@@ -27,7 +27,7 @@ export async function pickSnippet(accessor: ServicesAccessor, languageIdOrSnippe
 		snippets = (await snippetService.getSnippets(languageIdOrSnippets, { includeDisabledSnippets: true, includeNoPrefixSnippets: true }));
 	}
 
-	snippets.sort(Snippet.compare);
+	snippets.sort((a, b) => a.snippetSource - b.snippetSource);
 
 	const makeSnippetPicks = () => {
 		const result: QuickPickInput<ISnippetPick>[] = [];

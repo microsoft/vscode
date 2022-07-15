@@ -38,8 +38,15 @@ suite('SnippetSession', function () {
 		languageConfigurationService = new TestLanguageConfigurationService();
 		const serviceCollection = new ServiceCollection(
 			[ILabelService, new class extends mock<ILabelService>() { }],
-			[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { }],
-			[ILanguageConfigurationService, languageConfigurationService]
+			[ILanguageConfigurationService, languageConfigurationService],
+			[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
+				override getWorkspace() {
+					return {
+						id: 'workspace-id',
+						folders: [],
+					};
+				}
+			}],
 		);
 		editor = createTestCodeEditor(model, { serviceCollection }) as IActiveCodeEditor;
 		editor.setSelections([new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5)]);
@@ -773,6 +780,24 @@ suite('SnippetSession', function () {
 
 			assert.strictEqual(result.snippets.length, 1);
 			assert.strictEqual(result.snippets[0].isTrivialSnippet, false);
+		});
+
+		test('with $SELECTION variable', function () {
+			editor.getModel().setValue('Some text and a selection');
+			editor.setSelections([new Selection(1, 17, 1, 26)]);
+
+			const result = SnippetSession.createEditsAndSnippetsFromEdits(
+				editor,
+				[{ range: new Range(1, 17, 1, 26), template: 'wrapped <$SELECTION>' }],
+				true, true, undefined, undefined, languageConfigurationService
+			);
+
+			assert.strictEqual(result.edits.length, 1);
+			assert.deepStrictEqual(result.edits[0].range, new Range(1, 17, 1, 26));
+			assert.deepStrictEqual(result.edits[0].text, 'wrapped <selection>');
+
+			assert.strictEqual(result.snippets.length, 1);
+			assert.strictEqual(result.snippets[0].isTrivialSnippet, true);
 		});
 	});
 });
