@@ -3,41 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
+import { Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { CodeAction, CodeActionList, CodeActionProvider } from 'vs/editor/common/languages';
+import { ITextModel } from 'vs/editor/common/model';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { CodeActionKind } from 'vs/editor/contrib/codeAction/browser/types';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { localize } from 'vs/nls';
-import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { SnippetEditorAction } from 'vs/workbench/contrib/snippets/browser/commands/abstractSnippetsActions';
 import { pickSnippet } from 'vs/workbench/contrib/snippets/browser/snippetPicker';
-import { ISnippetsService } from './snippets.contribution';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ITextModel } from 'vs/editor/common/model';
-import { CodeAction, CodeActionProvider, CodeActionList } from 'vs/editor/common/languages';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/browser/types';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
 import { Snippet } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Position } from 'vs/editor/common/core/position';
+import { ISnippetsService } from '../snippets';
 
-async function getSurroundableSnippets(snippetsService: ISnippetsService, model: ITextModel, position: Position): Promise<Snippet[]> {
+async function getSurroundableSnippets(snippetsService: ISnippetsService, model: ITextModel, position: Position, includeDisabledSnippets: boolean): Promise<Snippet[]> {
 
 	const { lineNumber, column } = position;
 	model.tokenization.tokenizeIfCheap(lineNumber);
 	const languageId = model.getLanguageIdAtPosition(lineNumber, column);
 
-	const allSnippets = await snippetsService.getSnippets(languageId, { includeNoPrefixSnippets: true, includeDisabledSnippets: true });
+	const allSnippets = await snippetsService.getSnippets(languageId, { includeNoPrefixSnippets: true, includeDisabledSnippets });
 	return allSnippets.filter(snippet => snippet.usesSelection);
 }
 
-class SurroundWithSnippetEditorAction extends EditorAction2 {
+export class SurroundWithSnippetEditorAction extends SnippetEditorAction {
 
 	static readonly options = {
 		id: 'editor.action.surroundWithSnippet',
@@ -67,7 +64,7 @@ class SurroundWithSnippetEditorAction extends EditorAction2 {
 		const snippetsService = accessor.get(ISnippetsService);
 		const clipboardService = accessor.get(IClipboardService);
 
-		const snippets = await getSurroundableSnippets(snippetsService, editor.getModel(), editor.getPosition());
+		const snippets = await getSurroundableSnippets(snippetsService, editor.getModel(), editor.getPosition(), true);
 		if (!snippets.length) {
 			return;
 		}
@@ -88,7 +85,7 @@ class SurroundWithSnippetEditorAction extends EditorAction2 {
 }
 
 
-class SurroundWithSnippetCodeActionProvider implements CodeActionProvider, IWorkbenchContribution {
+export class SurroundWithSnippetCodeActionProvider implements CodeActionProvider, IWorkbenchContribution {
 
 	private static readonly _MAX_CODE_ACTIONS = 4;
 
@@ -116,7 +113,12 @@ class SurroundWithSnippetCodeActionProvider implements CodeActionProvider, IWork
 
 	async provideCodeActions(model: ITextModel, range: Range | Selection): Promise<CodeActionList | undefined> {
 
-		const snippets = await getSurroundableSnippets(this._snippetService, model, range.getEndPosition());
+		if (range.isEmpty()) {
+			return undefined;
+		}
+
+		const position = Selection.isISelection(range) ? range.getPosition() : range.getStartPosition();
+		const snippets = await getSurroundableSnippets(this._snippetService, model, position, false);
 		if (!snippets.length) {
 			return undefined;
 		}
@@ -155,6 +157,3 @@ class SurroundWithSnippetCodeActionProvider implements CodeActionProvider, IWork
 		};
 	}
 }
-
-registerAction2(SurroundWithSnippetEditorAction);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SurroundWithSnippetCodeActionProvider, LifecyclePhase.Restored);
