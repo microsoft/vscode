@@ -15,6 +15,7 @@ export const ISnippetsService = createDecorator<ISnippetsService>('snippetServic
 export interface ISnippetGetOptions {
 	includeDisabledSnippets?: boolean;
 	includeNoPrefixSnippets?: boolean;
+	noRecencySort?: boolean;
 }
 
 export interface ISnippetsService {
@@ -26,6 +27,8 @@ export interface ISnippetsService {
 	isEnabled(snippet: Snippet): boolean;
 
 	updateEnablement(snippet: Snippet, enabled: boolean): void;
+
+	updateUsageTimestamp(snippet: Snippet): void;
 
 	getSnippets(languageId: string, opt?: ISnippetGetOptions): Promise<Snippet[]>;
 
