@@ -83,7 +83,7 @@ class SurroundWithSnippetEditorAction extends EditorAction2 {
 		}
 
 		SnippetController2.get(editor)?.insert(snippet.codeSnippet, { clipboardText });
-		snippetService.updateUsageTimestamp(snippet);
+		snippetsService.updateUsageTimestamp(snippet);
 	}
 }
 
