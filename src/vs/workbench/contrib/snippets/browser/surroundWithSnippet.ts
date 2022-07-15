@@ -27,13 +27,13 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWo
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 
-async function getSurroundableSnippets(snippetsService: ISnippetsService, model: ITextModel, position: Position): Promise<Snippet[]> {
+async function getSurroundableSnippets(snippetsService: ISnippetsService, model: ITextModel, position: Position, includeDisabledSnippets: boolean): Promise<Snippet[]> {
 
 	const { lineNumber, column } = position;
 	model.tokenization.tokenizeIfCheap(lineNumber);
 	const languageId = model.getLanguageIdAtPosition(lineNumber, column);
 
-	const allSnippets = await snippetsService.getSnippets(languageId, { includeNoPrefixSnippets: true, includeDisabledSnippets: true });
+	const allSnippets = await snippetsService.getSnippets(languageId, { includeNoPrefixSnippets: true, includeDisabledSnippets });
 	return allSnippets.filter(snippet => snippet.usesSelection);
 }
 
@@ -67,7 +67,7 @@ class SurroundWithSnippetEditorAction extends EditorAction2 {
 		const snippetsService = accessor.get(ISnippetsService);
 		const clipboardService = accessor.get(IClipboardService);
 
-		const snippets = await getSurroundableSnippets(snippetsService, editor.getModel(), editor.getPosition());
+		const snippets = await getSurroundableSnippets(snippetsService, editor.getModel(), editor.getPosition(), true);
 		if (!snippets.length) {
 			return;
 		}
@@ -121,7 +121,7 @@ class SurroundWithSnippetCodeActionProvider implements CodeActionProvider, IWork
 		}
 
 		const position = Selection.isISelection(range) ? range.getPosition() : range.getStartPosition();
-		const snippets = await getSurroundableSnippets(this._snippetService, model, position);
+		const snippets = await getSurroundableSnippets(this._snippetService, model, position, false);
 		if (!snippets.length) {
 			return undefined;
 		}
