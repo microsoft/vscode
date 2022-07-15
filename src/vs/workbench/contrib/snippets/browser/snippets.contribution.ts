@@ -16,6 +16,7 @@ export interface ISnippetGetOptions {
 	includeDisabledSnippets?: boolean;
 	includeNoPrefixSnippets?: boolean;
 	noRecencySort?: boolean;
+	topLevelSnippets?: boolean;
 }
 
 export interface ISnippetsService {
@@ -30,7 +31,7 @@ export interface ISnippetsService {
 
 	updateUsageTimestamp(snippet: Snippet): void;
 
-	getSnippets(languageId: string, opt?: ISnippetGetOptions): Promise<Snippet[]>;
+	getSnippets(languageId: string | undefined, opt?: ISnippetGetOptions): Promise<Snippet[]>;
 
 	getSnippetsSync(languageId: string, opt?: ISnippetGetOptions): Snippet[];
 }
@@ -41,6 +42,10 @@ const snippetSchemaProperties: IJSONSchemaMap = {
 	prefix: {
 		description: nls.localize('snippetSchema.json.prefix', 'The prefix to use when selecting the snippet in intellisense'),
 		type: ['string', 'array']
+	},
+	isTopLevel: {
+		description: nls.localize('snippetSchema.json.isTopLevel', 'The snippet is only applicable to empty files.'),
+		type: 'string'
 	},
 	body: {
 		markdownDescription: nls.localize('snippetSchema.json.body', 'The snippet content. Use `$1`, `${1:defaultText}` to define cursor positions, use `$0` for the final cursor position. Insert variable values with `${varName}` and `${varName:defaultText}`, e.g. `This is file: $TM_FILENAME`.'),
