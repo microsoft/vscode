@@ -22,6 +22,7 @@ export interface DidChangeUserDataProfileEvent {
 export const IUserDataProfileService = createDecorator<IUserDataProfileService>('IUserDataProfileService');
 export interface IUserDataProfileService {
 	readonly _serviceBrand: undefined;
+	readonly onDidUpdateCurrentProfile: Event<void>;
 	readonly onDidChangeCurrentProfile: Event<DidChangeUserDataProfileEvent>;
 	readonly currentProfile: IUserDataProfile;
 	updateCurrentProfile(currentProfile: IUserDataProfile, preserveData: boolean): Promise<void>;
@@ -33,6 +34,7 @@ export interface IUserDataProfileManagementService {
 
 	createAndEnterProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags, fromExisting?: boolean): Promise<IUserDataProfile>;
 	removeProfile(profile: IUserDataProfile): Promise<void>;
+	renameProfile(profile: IUserDataProfile, name: string): Promise<void>;
 	switchProfile(profile: IUserDataProfile): Promise<void>;
 
 }
