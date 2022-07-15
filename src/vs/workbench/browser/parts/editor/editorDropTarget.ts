@@ -32,7 +32,7 @@ interface IDropOperation {
 }
 
 function isDropIntoEditorEnabledGlobally(configurationService: IConfigurationService) {
-	return configurationService.getValue<boolean>('workbench.experimental.editor.dropIntoEditor.enabled');
+	return configurationService.getValue<boolean>('workbench.editor.dropIntoEditor.enabled');
 }
 
 function isDragIntoEditorEvent(e: DragEvent): boolean {

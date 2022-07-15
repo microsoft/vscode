@@ -202,4 +202,13 @@ suite('MenuService', function () {
 		assert.strictEqual(foundA, true);
 		assert.strictEqual(foundB, true);
 	});
+
+	test('Extension contributed submenus missing with errors in output #155030', function () {
+
+		const id = generateUuid();
+		const menu = new MenuId(id);
+
+		assert.throws(() => new MenuId(id));
+		assert.ok(menu === MenuId.for(id));
+	});
 });

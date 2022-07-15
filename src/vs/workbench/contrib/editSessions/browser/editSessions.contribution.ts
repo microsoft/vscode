@@ -85,6 +85,12 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		super();
 
 		if (this.environmentService.editSessionId !== undefined) {
+			type ResumeEvent = {};
+			type ResumeClassification = {
+				owner: 'joyceerhl'; comment: 'Reporting when an action is resumed from an edit session identifier.';
+			};
+			this.telemetryService.publicLog2<ResumeEvent, ResumeClassification>('editSessions.continue.resume');
+
 			void this.resumeEditSession(this.environmentService.editSessionId).finally(() => this.environmentService.editSessionId = undefined);
 		}
 
@@ -148,6 +154,12 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			}
 
 			async run(accessor: ServicesAccessor, workspaceUri: URI | undefined): Promise<void> {
+				type ContinueEditSessionEvent = {};
+				type ContinueEditSessionClassification = {
+					owner: 'joyceerhl'; comment: 'Reporting when the continue edit session action is run.';
+				};
+				that.telemetryService.publicLog2<ContinueEditSessionEvent, ContinueEditSessionClassification>('editSessions.continue.store');
+
 				let uri = workspaceUri ?? await that.pickContinueEditSessionDestination();
 				if (uri === undefined) { return; }
 
@@ -187,7 +199,15 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				await that.progressService.withProgress({
 					location: ProgressLocation.Notification,
 					title: localize('resuming edit session', 'Resuming edit session...')
-				}, async () => await that.resumeEditSession());
+				}, async () => {
+					type ResumeEvent = {};
+					type ResumeClassification = {
+						owner: 'joyceerhl'; comment: 'Reporting when the resume edit session action is invoked.';
+					};
+					that.telemetryService.publicLog2<ResumeEvent, ResumeClassification>('editSessions.resume');
+
+					await that.resumeEditSession();
+				});
 			}
 		}));
 	}
@@ -208,7 +228,15 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				await that.progressService.withProgress({
 					location: ProgressLocation.Notification,
 					title: localize('storing edit session', 'Storing edit session...')
-				}, async () => await that.storeEditSession(true));
+				}, async () => {
+					type StoreEvent = {};
+					type StoreClassification = {
+						owner: 'joyceerhl'; comment: 'Reporting when the store edit session action is invoked.';
+					};
+					that.telemetryService.publicLog2<StoreEvent, StoreClassification>('editSessions.store');
+
+					await that.storeEditSession(true);
+				});
 			}
 		}));
 	}
@@ -242,7 +270,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				const folderRoot = this.contextService.getWorkspace().folders.find((f) => f.name === folder.name);
 				if (!folderRoot) {
 					this.logService.info(`Skipping applying ${folder.workingChanges.length} changes from edit session with ref ${ref} as no corresponding workspace folder named ${folder.name} is currently open.`);
-					continue;
+					return;
 				}
 
 				for (const repository of this.scmService.repositories) {

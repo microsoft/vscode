@@ -45,7 +45,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-type NewFileItem = { commandID: string; title: string; from: string; group: string };
+type NewFileItem = { commandID: string; title: string; from: string; group: string; commandArgs?: any };
 class NewFileTemplatesManager extends Disposable {
 	static Instance: NewFileTemplatesManager | undefined;
 
@@ -162,12 +162,27 @@ class NewFileTemplatesManager extends Disposable {
 
 		disposables.add(this.menu.onDidChange(() => refreshQp(this.allEntries())));
 
+		disposables.add(qp.onDidChangeValue((val: string) => {
+			if (val === '') {
+				refreshQp(entries);
+				return;
+			}
+			const currentTextEntry: NewFileItem = {
+				commandID: 'workbench.action.files.newUntitledFile',
+				commandArgs: { languageId: undefined, viewType: undefined, path: val },
+				title: localize('miNewFileWithName', "New File ({0})", val),
+				group: 'file',
+				from: builtInSource,
+			};
+			refreshQp([currentTextEntry, ...entries]);
+		}));
+
 		disposables.add(qp.onDidAccept(async e => {
 			const selected = qp.selectedItems[0] as (IQuickPickItem & NewFileItem);
 			resolveResult(!!selected);
 
 			qp.hide();
-			if (selected) { await this.commandService.executeCommand(selected.commandID); }
+			if (selected) { await this.commandService.executeCommand(selected.commandID, selected.commandArgs); }
 		}));
 
 		disposables.add(qp.onDidHide(() => {

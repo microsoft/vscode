@@ -160,6 +160,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 			titleToolbarContainer,
 			rootClassDelegate,
 			this.notebookEditor.creationOptions.menuIds.cellTitleToolbar,
+			this.notebookEditor.creationOptions.menuIds.cellDeleteToolbar,
 			this.notebookEditor));
 		const focusIndicatorBottom = new FastDomNode(DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-bottom')));
 
@@ -299,6 +300,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			titleToolbarContainer,
 			rootClassDelegate,
 			this.notebookEditor.creationOptions.menuIds.cellTitleToolbar,
+			this.notebookEditor.creationOptions.menuIds.cellDeleteToolbar,
 			this.notebookEditor));
 
 		const focusIndicatorPart = templateDisposables.add(new CellFocusIndicator(this.notebookEditor, titleToolbar, focusIndicatorTop, focusIndicatorLeft, focusIndicatorRight, focusIndicatorBottom));
