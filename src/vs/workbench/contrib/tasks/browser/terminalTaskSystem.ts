@@ -282,13 +282,13 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			this._reconnectToTerminals(terminals);
 		}
 		if (this._tasksToReconnect.includes(task._id)) {
-			this._lastTask = new VerifiedTask(task, resolver, trigger);
-			this.rerun();
+			const terminalForTask = terminals.find(t => t.shellLaunchConfig.attachPersistentProcess?.task?.id === task._id);
+			this.run(task, resolver, trigger, terminalForTask);
 		}
 		return undefined;
 	}
 
-	public run(task: Task, resolver: ITaskResolver, trigger: string = Triggers.command): ITaskExecuteResult {
+	public run(task: Task, resolver: ITaskResolver, trigger: string = Triggers.command, terminalToUse?: ITerminalInstance): ITaskExecuteResult {
 		task = task.clone(); // A small amount of task state is stored in the task (instance) and tasks passed in to run may have that set already.
 		const recentTaskKey = task.getRecentlyUsedKey() ?? '';
 		const validInstance = task.runOptions && task.runOptions.instanceLimit && this._instances[recentTaskKey] && this._instances[recentTaskKey].instances < task.runOptions.instanceLimit;
@@ -305,7 +305,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 
 		try {
-			const executeResult = { kind: TaskExecuteKind.Started, task, started: {}, promise: this._executeTask(task, resolver, trigger, new Set()) };
+			const executeResult = { kind: TaskExecuteKind.Started, task, started: {}, promise: this._executeTask(task, resolver, trigger, new Set(), undefined, terminalToUse) };
 			executeResult.promise.then(summary => {
 				this._lastTask = this._currentTask;
 			});
@@ -529,7 +529,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		this._showOutput();
 	}
 
-	private async _executeTask(task: Task, resolver: ITaskResolver, trigger: string, encounteredDependencies: Set<string>, alreadyResolved?: Map<string, string>): Promise<ITaskSummary> {
+	private async _executeTask(task: Task, resolver: ITaskResolver, trigger: string, encounteredDependencies: Set<string>, alreadyResolved?: Map<string, string>, terminalToUse?: ITerminalInstance): Promise<ITaskSummary> {
 		if (encounteredDependencies.has(task.getCommonTaskId())) {
 			this._showDependencyCycleMessage(task);
 			return {};
@@ -583,9 +583,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					}
 				}
 				if (this._isRerun) {
-					return this._reexecuteCommand(task, trigger, alreadyResolved!);
+					return this._reexecuteCommand(task, trigger, alreadyResolved!, terminalToUse);
 				} else {
-					return this._executeCommand(task, trigger, alreadyResolved!);
+					return this._executeCommand(task, trigger, alreadyResolved!, terminalToUse);
 				}
 			});
 		} else {
@@ -640,15 +640,15 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		return this._createInactiveDependencyPromise(task.task);
 	}
 
-	private async _executeDependencyTask(task: Task, resolver: ITaskResolver, trigger: string, encounteredDependencies: Set<string>, alreadyResolved?: Map<string, string>): Promise<ITaskSummary> {
+	private async _executeDependencyTask(task: Task, resolver: ITaskResolver, trigger: string, encounteredDependencies: Set<string>, alreadyResolved?: Map<string, string>, terminalToUse?: ITerminalInstance): Promise<ITaskSummary> {
 		// If the task is a background task with a watching problem matcher, we don't wait for the whole task to finish,
 		// just for the problem matcher to go inactive.
 		if (!task.configurationProperties.isBackground) {
-			return this._executeTask(task, resolver, trigger, encounteredDependencies, alreadyResolved);
+			return this._executeTask(task, resolver, trigger, encounteredDependencies, alreadyResolved, terminalToUse);
 		}
 
 		const inactivePromise = this._createInactiveDependencyPromise(task);
-		return Promise.race([inactivePromise, this._executeTask(task, resolver, trigger, encounteredDependencies, alreadyResolved)]);
+		return Promise.race([inactivePromise, this._executeTask(task, resolver, trigger, encounteredDependencies, alreadyResolved, terminalToUse)]);
 	}
 
 	private async _resolveAndFindExecutable(systemInfo: ITaskSystemInfo | undefined, workspaceFolder: IWorkspaceFolder | undefined, task: CustomTask | ContributedTask, cwd: string | undefined, envPath: string | undefined): Promise<string> {
@@ -769,7 +769,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 	}
 
-	private _executeCommand(task: CustomTask | ContributedTask, trigger: string, alreadyResolved: Map<string, string>): Promise<ITaskSummary> {
+	private _executeCommand(task: CustomTask | ContributedTask, trigger: string, alreadyResolved: Map<string, string>, terminalToUse?: ITerminalInstance): Promise<ITaskSummary> {
 		const taskWorkspaceFolder = task.getWorkspaceFolder();
 		let workspaceFolder: IWorkspaceFolder | undefined;
 		if (taskWorkspaceFolder) {
@@ -787,7 +787,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		return resolvedVariables.then((resolvedVariables) => {
 			if (resolvedVariables && !this._isTaskEmpty(task)) {
 				this._currentTask.resolvedVariables = resolvedVariables;
-				return this._executeInTerminal(task, trigger, new VariableResolver(workspaceFolder, systemInfo, resolvedVariables.variables, this._configurationResolverService), workspaceFolder);
+				return this._executeInTerminal(task, trigger, new VariableResolver(workspaceFolder, systemInfo, resolvedVariables.variables, this._configurationResolverService), workspaceFolder, terminalToUse);
 			} else {
 				// Allows the taskExecutions array to be updated in the extension host
 				this._fireTaskEvent(TaskEvent.create(TaskEventKind.End, task));
@@ -803,7 +803,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		return !((task.command !== undefined) && task.command.runtime && (isCustomExecution || (task.command.name !== undefined)));
 	}
 
-	private _reexecuteCommand(task: CustomTask | ContributedTask, trigger: string, alreadyResolved: Map<string, string>): Promise<ITaskSummary> {
+	private _reexecuteCommand(task: CustomTask | ContributedTask, trigger: string, alreadyResolved: Map<string, string>, terminalToUse?: ITerminalInstance): Promise<ITaskSummary> {
 		const lastTask = this._lastTask;
 		if (!lastTask) {
 			return Promise.reject(new Error('No task previously run'));
@@ -828,17 +828,17 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					return { exitCode: 0 };
 				}
 				this._currentTask.resolvedVariables = resolvedVariables;
-				return this._executeInTerminal(task, trigger, new VariableResolver(lastTask.getVerifiedTask().workspaceFolder, lastTask.getVerifiedTask().systemInfo, resolvedVariables.variables, this._configurationResolverService), workspaceFolder!);
+				return this._executeInTerminal(task, trigger, new VariableResolver(lastTask.getVerifiedTask().workspaceFolder, lastTask.getVerifiedTask().systemInfo, resolvedVariables.variables, this._configurationResolverService), workspaceFolder!, terminalToUse);
 			}, reason => {
 				return Promise.reject(reason);
 			});
 		} else {
 			this._currentTask.resolvedVariables = lastTask.getVerifiedTask().resolvedVariables;
-			return this._executeInTerminal(task, trigger, new VariableResolver(lastTask.getVerifiedTask().workspaceFolder, lastTask.getVerifiedTask().systemInfo, lastTask.getVerifiedTask().resolvedVariables.variables, this._configurationResolverService), workspaceFolder!);
+			return this._executeInTerminal(task, trigger, new VariableResolver(lastTask.getVerifiedTask().workspaceFolder, lastTask.getVerifiedTask().systemInfo, lastTask.getVerifiedTask().resolvedVariables.variables, this._configurationResolverService), workspaceFolder!, terminalToUse);
 		}
 	}
 
-	private async _executeInTerminal(task: CustomTask | ContributedTask, trigger: string, resolver: VariableResolver, workspaceFolder: IWorkspaceFolder | undefined): Promise<ITaskSummary> {
+	private async _executeInTerminal(task: CustomTask | ContributedTask, trigger: string, resolver: VariableResolver, workspaceFolder: IWorkspaceFolder | undefined, terminalToUse?: ITerminalInstance): Promise<ITaskSummary> {
 		let terminal: ITerminalInstance | undefined = undefined;
 		let error: TaskError | undefined = undefined;
 		let promise: Promise<ITaskSummary> | undefined = undefined;
@@ -880,7 +880,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			}));
 			watchingProblemMatcher.aboutToStart();
 			let delayer: Async.Delayer<any> | undefined = undefined;
-			[terminal, error] = await this._createTerminal(task, resolver, workspaceFolder);
+			[terminal, error] = terminalToUse ? [terminalToUse, undefined] : await this._createTerminal(task, resolver, workspaceFolder);
 
 			if (error) {
 				return Promise.reject(new Error((<TaskError>error).message));
@@ -962,7 +962,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				});
 			});
 		} else {
-			[terminal, error] = await this._createTerminal(task, resolver, workspaceFolder);
+			[terminal, error] = [terminalToUse, undefined] || await this._createTerminal(task, resolver, workspaceFolder);
 
 			if (error) {
 				return Promise.reject(new Error((<TaskError>error).message));
