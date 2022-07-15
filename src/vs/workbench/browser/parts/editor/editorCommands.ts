@@ -68,7 +68,7 @@ export const DIFF_FOCUS_PRIMARY_SIDE = 'workbench.action.compareEditor.focusPrim
 export const DIFF_FOCUS_SECONDARY_SIDE = 'workbench.action.compareEditor.focusSecondarySide';
 export const DIFF_FOCUS_OTHER_SIDE = 'workbench.action.compareEditor.focusOtherSide';
 export const TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE = 'toggle.diff.ignoreTrimWhitespace';
-export const TOGGLE_BRACKET_PAIR_COLORIZATION_ENABLE = 'toggle.bracketPairColorization.enable';
+export const TOGGLE_BRACKET_PAIR_COLORIZATION_ENABLED = 'toggle.bracketPairColorization.enabled';
 
 export const SPLIT_EDITOR_UP = 'workbench.action.splitEditorUp';
 export const SPLIT_EDITOR_DOWN = 'workbench.action.splitEditorDown';
@@ -476,7 +476,7 @@ function registerDiffEditorCommands(): void {
 	});
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: TOGGLE_BRACKET_PAIR_COLORIZATION_ENABLE,
+		id: TOGGLE_BRACKET_PAIR_COLORIZATION_ENABLED,
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: undefined,
 		primary: undefined,
