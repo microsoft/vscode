@@ -454,30 +454,32 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 	}
 
 	override run(): Promise<any> {
-		const elementsToRemove = getElementsToOperateOn(this.viewer, this.element);
+		const opInfo = getElementsToOperateOnInfo(this.viewer, this.element);
+
 		let currentBottomFocusElement;
-
-		if (elementsToRemove.usingMultiselect) {
-			currentBottomFocusElement = elementsToRemove.result[elementsToRemove.result.length - 1];
-		} else {
-			currentBottomFocusElement = this.viewer.getFocus()[0];
+		if (opInfo.willRemoveCurrElement) {
+			if (opInfo.usingMultiselect) {
+				currentBottomFocusElement = opInfo.elementsToRemove[opInfo.elementsToRemove.length - 1];
+			} else {
+				currentBottomFocusElement = this.viewer.getFocus()[0];
+			}
 		}
 
-		const nextFocusElement = !currentBottomFocusElement || currentBottomFocusElement instanceof SearchResult || elementIsEqualOrParent(currentBottomFocusElement, this.element) ?
-			this.getElementToFocusAfterRemoved(this.viewer, <any>currentBottomFocusElement) :
-			null;
-
-		if (nextFocusElement) {
-			this.viewer.reveal(nextFocusElement);
-			this.viewer.setFocus([nextFocusElement], getSelectionKeyboardEvent());
-			this.viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
-		}
-
-		elementsToRemove.result.forEach((currentElement) =>
-			currentElement.parent().remove(<any>currentElement)
+		opInfo.elementsToRemove.forEach((currentElement) =>
+			currentElement.parent().remove(<(FolderMatch | FileMatch)[] & Match & FileMatch[]>currentElement)
 		);
-		this.viewer.domFocus();
 
+		if (opInfo.willRemoveCurrElement) {
+			const nextFocusElement = !currentBottomFocusElement || currentBottomFocusElement instanceof SearchResult || elementIsEqualOrParent(currentBottomFocusElement, this.element) ?
+				this.getElementToFocusAfterRemoved(this.viewer, <any>currentBottomFocusElement) :
+				null;
+			if (nextFocusElement) {
+				this.viewer.reveal(nextFocusElement);
+				this.viewer.setFocus([nextFocusElement], getSelectionKeyboardEvent());
+				this.viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
+			}
+		}
+		this.viewer.domFocus();
 		return Promise.resolve();
 	}
 }
@@ -492,6 +494,9 @@ function elementIsEqualOrParent(element: RenderableMatch, testParent: Renderable
 	return false;
 }
 
+export function replaceAndShiftFocus() {
+
+}
 export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 
 	static readonly LABEL = nls.localize('file.replaceAll.label', "Replace All");
@@ -507,18 +512,28 @@ export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 	override async run(): Promise<any> {
 		const tree = this.viewlet.getControl();
 
-		const elementsToReplace = getElementsToOperateOn(tree, this.fileMatch);
+		const opInfo = getElementsToOperateOnInfo(tree, this.fileMatch);
 
-		await Promise.all(elementsToReplace.result.map(async (elem) =>
-			await elem.parent().replace(<any>elem)
-		));
+		await Promise.all(opInfo.elementsToRemove.map(async (elem) => {
+			const parent = elem.parent();
+			if (parent instanceof FileMatch && opInfo.elementsToRemove.includes(<FileMatch>parent)) {
+				return;
+			}
+			if (parent instanceof FolderMatch && elem instanceof FileMatch) {
+				await (<FolderMatch>(elem.parent())).replace(<FileMatch>elem);
+			} else if (parent instanceof FileMatch && elem instanceof Match) {
+				await (<FileMatch>(elem.parent())).replace(<Match>elem);
+			}
+		}));
 
-		const currFocusElement = elementsToReplace.result[elementsToReplace.result.length - 1];
-		const nextFocusElement = elementIsEqualOrParent(currFocusElement, this.fileMatch) ? this.getElementToFocusAfterRemoved(tree, currFocusElement) : null;
+		if (opInfo.willRemoveCurrElement) {
+			const currFocusElement = opInfo.elementsToRemove[opInfo.elementsToRemove.length - 1];
+			const nextFocusElement = elementIsEqualOrParent(currFocusElement, this.fileMatch) ? this.getElementToFocusAfterRemoved(tree, currFocusElement) : null;
 
-		if (nextFocusElement) {
-			tree.setFocus([nextFocusElement], getSelectionKeyboardEvent());
-			tree.setSelection([nextFocusElement], getSelectionKeyboardEvent());
+			if (nextFocusElement) {
+				tree.setFocus([nextFocusElement], getSelectionKeyboardEvent());
+				tree.setSelection([nextFocusElement], getSelectionKeyboardEvent());
+			}
 		}
 
 		tree.domFocus();
@@ -568,37 +583,42 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 	override async run(): Promise<any> {
 		this.enabled = false;
 
-		const elementsToReplace = getElementsToOperateOn(this.viewer, this.element);
-		let currentBottomFocusElement;
+		const opInfo = getElementsToOperateOnInfo(this.viewer, this.element);
 
-		if (elementsToReplace.usingMultiselect) {
-			currentBottomFocusElement = <Match>elementsToReplace.result[elementsToReplace.result.length - 1];
-		} else {
-			currentBottomFocusElement = <Match>this.viewer.getFocus()[0];
-		}
+		await Promise.all(opInfo.elementsToRemove.map(async (elem) => {
+			const parent = elem.parent();
+			if (parent instanceof FileMatch && opInfo.elementsToRemove.includes(<FileMatch>parent)) {
+				return;
+			}
+			if (parent instanceof FolderMatch && elem instanceof FileMatch) {
+				await (<FolderMatch>(elem.parent())).replace(<FileMatch>elem);
+			} else if (parent instanceof FileMatch && elem instanceof Match) {
+				await (<FileMatch>(elem.parent())).replace(<Match>elem);
+			}
+		}));
 
-		const elementToFocus = elementIsEqualOrParent(currentBottomFocusElement, this.element) ? this.getElementToFocusAfterReplace(currentBottomFocusElement) : null;
+		const currentBottomFocusElement = opInfo.elementsToRemove[opInfo.elementsToRemove.length - 1];
 
-		elementsToReplace.result.forEach((elem) =>
-			elem.parent().replace(<any>elem)
-		);
+		if (opInfo.willRemoveCurrElement && currentBottomFocusElement instanceof Match) {
+			// only focus on next if last element is Match
+			const elementToFocus = elementIsEqualOrParent(currentBottomFocusElement, this.element) ? this.getElementToFocusAfterReplace(currentBottomFocusElement) : null;
 
-		if (elementToFocus) {
-			this.viewer.setFocus([elementToFocus], getSelectionKeyboardEvent());
-			this.viewer.setSelection([elementToFocus], getSelectionKeyboardEvent());
+			if (elementToFocus) {
+				this.viewer.setFocus([elementToFocus], getSelectionKeyboardEvent());
+				this.viewer.setSelection([elementToFocus], getSelectionKeyboardEvent());
+
+				const elementToShowReplacePreview = this.getElementToShowReplacePreview(elementToFocus);
+				const useReplacePreview = this.configurationService.getValue<ISearchConfiguration>().search.useReplacePreview;
+				if (!useReplacePreview || !elementToShowReplacePreview || this.hasToOpenFile()) {
+					this.viewlet.open(currentBottomFocusElement, true);
+				} else {
+					this.replaceService.openReplacePreview(elementToShowReplacePreview, true);
+				}
+			}
 		}
 
 		this.viewer.domFocus();
 
-		if (elementToFocus) {
-			const elementToShowReplacePreview = this.getElementToShowReplacePreview(elementToFocus);
-			const useReplacePreview = this.configurationService.getValue<ISearchConfiguration>().search.useReplacePreview;
-			if (!useReplacePreview || !elementToShowReplacePreview || this.hasToOpenFile()) {
-				this.viewlet.open(currentBottomFocusElement, true);
-			} else {
-				this.replaceService.openReplacePreview(elementToShowReplacePreview, true);
-			}
-		}
 	}
 
 	private getElementToFocusAfterReplace(currElement: Match): RenderableMatch {
@@ -801,7 +821,7 @@ export const focusSearchListCommand: ICommandHandler = accessor => {
 	});
 };
 
-function getElementsToOperateOn(viewer: WorkbenchObjectTree<RenderableMatch, void>, currElement: RenderableMatch): { result: RenderableMatch[]; usingMultiselect: boolean } {
+function getElementsToOperateOnInfo(viewer: WorkbenchObjectTree<RenderableMatch, void>, currElement: RenderableMatch): { elementsToRemove: RenderableMatch[]; usingMultiselect: boolean; willRemoveCurrElement: boolean } {
 	let elementsToRemove: RenderableMatch[] = viewer.getSelection().filter((x): x is RenderableMatch => x !== null);
 
 	const usingMultiselect: boolean = elementsToRemove.length > 1 && elementsToRemove.includes(currElement);
@@ -811,5 +831,7 @@ function getElementsToOperateOn(viewer: WorkbenchObjectTree<RenderableMatch, voi
 		elementsToRemove = [currElement];
 	}
 
-	return { result: elementsToRemove, usingMultiselect };
+	const willRemoveCurrElement: boolean = elementsToRemove.includes(currElement);
+
+	return { elementsToRemove, usingMultiselect, willRemoveCurrElement };
 }
