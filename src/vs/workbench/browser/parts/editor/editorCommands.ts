@@ -475,6 +475,17 @@ function registerDiffEditorCommands(): void {
 		handler: accessor => toggleDiffIgnoreTrimWhitespace(accessor)
 	});
 
+	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+		command: {
+			id: TOGGLE_BRACKET_PAIR_COLORIZATION_ENABLED,
+			title: {
+				value: localize('toggleBracketPairColorization', "Toggle Bracket Pair Colorization"),
+				original: 'Toggle Bracket Pair Colorization'
+			},
+			category: CATEGORIES.View
+		}
+	});
+
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: TOGGLE_BRACKET_PAIR_COLORIZATION_ENABLED,
 		weight: KeybindingWeight.WorkbenchContrib,
