@@ -44,7 +44,7 @@ import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/vie
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellKind, CellUri, INotebookDiffEditorModel, INotebookEditorModel, INotebookSearchOptions, IOutputDto, IResolvedNotebookEditorModel, NotebookCellExecutionState, NotebookCellMetadata, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionStateChangedEvent, INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionStateChangedEvent, INotebookCellExecution, INotebookExecutionStateService, INotebookFailStateChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
@@ -405,11 +405,17 @@ class TestCellExecution implements INotebookCellExecution {
 }
 
 class TestNotebookExecutionStateService implements INotebookExecutionStateService {
+
+	getLastFailedCellForNotebook(notebook: URI): number | undefined {
+		return;
+	}
+
 	_serviceBrand: undefined;
 
 	private _executions = new ResourceMap<INotebookCellExecution>();
 
 	onDidChangeCellExecution = new Emitter<ICellExecutionStateChangedEvent>().event;
+	onDidChangeLastRunFailState = new Emitter<INotebookFailStateChangedEvent>().event;
 
 	forceCancelNotebookExecutions(notebookUri: URI): void {
 	}
