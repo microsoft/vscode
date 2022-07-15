@@ -31,6 +31,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { insertInto } from 'vs/base/common/arrays';
 
 namespace snippetExt {
 
@@ -265,16 +266,25 @@ class SnippetsService implements ISnippetsService {
 		return this._files.values();
 	}
 
-	async getSnippets(languageId: string, opts?: ISnippetGetOptions): Promise<Snippet[]> {
+	async getSnippets(languageId: string | undefined, opts?: ISnippetGetOptions): Promise<Snippet[]> {
 		await this._joinSnippets();
 
 		const result: Snippet[] = [];
 		const promises: Promise<any>[] = [];
 
-		if (this._languageService.isRegisteredLanguageId(languageId)) {
+		if (languageId) {
+			if (this._languageService.isRegisteredLanguageId(languageId)) {
+				for (const file of this._files.values()) {
+					promises.push(file.load()
+						.then(file => file.select(languageId, result))
+						.catch(err => this._logService.error(err, file.location.toString()))
+					);
+				}
+			}
+		} else {
 			for (const file of this._files.values()) {
 				promises.push(file.load()
-					.then(file => file.select(languageId, result))
+					.then(file => insertInto(result, result.length, file.data))
 					.catch(err => this._logService.error(err, file.location.toString()))
 				);
 			}
@@ -297,10 +307,25 @@ class SnippetsService implements ISnippetsService {
 	}
 
 	private _filterAndSortSnippets(snippets: Snippet[], opts?: ISnippetGetOptions): Snippet[] {
-		const result = snippets.filter(snippet => {
-			return (snippet.prefix || opts?.includeNoPrefixSnippets) // prefix or no-prefix wanted
-				&& (this.isEnabled(snippet) || opts?.includeDisabledSnippets); // enabled or disabled wanted
-		});
+
+		const result: Snippet[] = [];
+
+		for (const snippet of snippets) {
+			if (!snippet.prefix && !opts?.includeNoPrefixSnippets) {
+				// prefix or no-prefix wanted
+				continue;
+			}
+			if (!this.isEnabled(snippet) && !opts?.includeDisabledSnippets) {
+				// enabled or disabled wanted
+				continue;
+			}
+			if (typeof opts?.topLevelSnippets === 'boolean' && opts.topLevelSnippets !== snippet.isTopLevel) {
+				// isTopLevel requested but mismatching
+				continue;
+			}
+			result.push(snippet);
+		}
+
 
 		return result.sort((a, b) => {
 			let result = 0;

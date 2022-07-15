@@ -95,6 +95,7 @@ class InsertSnippetAction extends EditorAction {
 
 			if (snippet) {
 				return resolve(new Snippet(
+					false,
 					[],
 					'',
 					'',
