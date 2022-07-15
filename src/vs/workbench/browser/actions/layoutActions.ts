@@ -584,8 +584,8 @@ if (isWindows || isLinux || isWeb) {
 					group: '2_workbench_layout',
 					order: 0
 				}, {
-						id: MenuId.TitleBarContext,
-						order: 0
+					id: MenuId.TitleBarContext,
+					order: 0
 				}]
 			});
 		}
