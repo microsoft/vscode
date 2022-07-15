@@ -53,7 +53,6 @@ class DeprecatedExtensionMigratorContribution {
 
 		await this.extensionsWorkbenchService.setEnablement(extension, EnablementState.DisabledGlobally);
 
-
 		const nativeBracketPairColorizationEnabledKey = 'editor.bracketPairColorization.enabled';
 		const bracketPairColorizationEnabled = !!this.configurationService.inspect(nativeBracketPairColorizationEnabledKey).user;
 
