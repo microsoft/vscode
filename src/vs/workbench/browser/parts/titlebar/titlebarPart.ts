@@ -497,6 +497,6 @@ registerAction2(class ToogleCommandCenter extends ToogleConfigAction {
 
 registerAction2(class ToogleLayoutControl extends ToogleConfigAction {
 	constructor() {
-		super('workbench.layoutControl.enabled', localize('toggle.layout', 'Show Layout Controls'), 1);
+		super('workbench.layoutControl.enabled', localize('toggle.layout', 'Show Layout Controls'), 2);
 	}
 });
