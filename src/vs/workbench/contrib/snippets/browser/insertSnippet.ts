@@ -102,6 +102,7 @@ class InsertSnippetAction extends EditorAction {
 					snippet,
 					'',
 					SnippetSource.User,
+					`random/${Math.random()}`
 				));
 			}
 
@@ -143,6 +144,7 @@ class InsertSnippetAction extends EditorAction {
 			clipboardText = await clipboardService.readText();
 		}
 		SnippetController2.get(editor)?.insert(snippet.codeSnippet, { clipboardText });
+		snippetService.updateUsageTimestamp(snippet);
 	}
 }
 
