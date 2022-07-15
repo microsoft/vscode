@@ -34,6 +34,7 @@ export const EXECUTE_CELL_COMMAND_ID = 'notebook.cell.execute';
 export const DETECT_CELL_LANGUAGE = 'notebook.cell.detectLanguage';
 export const CHANGE_CELL_LANGUAGE = 'notebook.cell.changeLanguage';
 export const QUIT_EDIT_CELL_COMMAND_ID = 'notebook.cell.quitEdit';
+export const FINISH_EDIT_CELL_COMMAND_ID = 'notebook.cell.finishEdit';
 export const EXPAND_CELL_OUTPUT_COMMAND_ID = 'notebook.cell.expandCellOutput';
 
 

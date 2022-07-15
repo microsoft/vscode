@@ -1033,21 +1033,22 @@ var requirejs = (function() {
 			return this.createMarkupPreview(initialization);
 		}
 
-		const sameContent = initialization.content === entry.content;
-		if (!sameContent || !entry.visible) {
+		const sameVersionId = initialization.versionId === entry.versionId;
+		if (!sameVersionId || !entry.visible) {
 			this._sendMessageToWebview({
 				type: 'showMarkupCell',
 				id: initialization.cellId,
 				handle: initialization.cellHandle,
-				// If the content has not changed, we still want to make sure the
+				// If the versionId has not changed, we still want to make sure the
 				// preview is visible but don't need to send anything over
-				content: sameContent ? undefined : initialization.content,
+				content: sameVersionId ? undefined : initialization.content,
 				top: initialization.offset
 			});
 		}
 
 		entry.content = initialization.content;
 		entry.offset = initialization.offset;
+		entry.versionId = initialization.versionId;
 		entry.visible = true;
 	}
 
