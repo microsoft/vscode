@@ -160,7 +160,7 @@ import { ExtensionIdentifier, ExtensionType, IExtension, IExtensionDescription, 
 import { ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { ILayoutOffsetInfo } from 'vs/platform/layout/browser/layoutService';
-import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfilesService, toUserDataProfile, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { EnablementState, IExtensionManagementServer, IScannedExtension, IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -2004,6 +2004,14 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	async updateExtensionScope(local: ILocalExtension, isMachineScoped: boolean): Promise<ILocalExtension> { return local; }
 	registerParticipant(pariticipant: IExtensionManagementParticipant): void { }
 	async getTargetPlatform(): Promise<TargetPlatform> { return TargetPlatform.UNDEFINED; }
+}
+
+export class TestUserDataProfileService implements IUserDataProfileService {
+
+	readonly _serviceBrand: undefined;
+	readonly onDidChangeCurrentProfile = Event.None;
+	readonly currentProfile = toUserDataProfile('test', URI.file('tests').with({ scheme: 'vscode-tests' }));
+	async updateCurrentProfile(): Promise<void> { }
 }
 
 export class TestWebExtensionsScannerService implements IWebExtensionsScannerService {
