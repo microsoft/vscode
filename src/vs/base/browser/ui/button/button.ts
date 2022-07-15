@@ -341,12 +341,10 @@ export class ButtonWithDescription extends Button implements IButtonWithDescript
 
 		this._labelElement = document.createElement('div');
 		this._labelElement.classList.add('monaco-button-label');
-		this._labelElement.tabIndex = -1;
 		this._element.appendChild(this._labelElement);
 
 		this._descriptionElement = document.createElement('div');
 		this._descriptionElement.classList.add('monaco-button-description');
-		this._descriptionElement.tabIndex = -1;
 		this._element.appendChild(this._descriptionElement);
 	}
 
