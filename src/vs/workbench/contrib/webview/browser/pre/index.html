@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-y4zzqsZ75Zn7IApZauCntS56qk4RDsyhUsqLC++0trE=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-eXErLcEiWxrcroB1VRT7lRNHk5UG7UyPtpD575hubtc=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -1065,6 +1065,7 @@
 							clientY: e.clientY,
 							context: {
 								item: item?.dataset.vscodeContextMenuItem,
+								itemValue: item?.dataset.vscodeContextMenuItemValue,
 								itemElement: element?.dataset.vscodeContextMenuItemElement
 							}
 						});
