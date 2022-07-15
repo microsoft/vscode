@@ -82,7 +82,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	private readonly windowTitle: WindowTitle;
 
-	private readonly contextMenu: IMenu;
+	private readonly titleContextMenu: IMenu;
 
 	constructor(
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
@@ -99,7 +99,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	) {
 		super(Parts.TITLEBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 		this.windowTitle = this._register(instantiationService.createInstance(WindowTitle));
-		this.contextMenu = this._register(menuService.createMenu(MenuId.TitleBarContext, contextKeyService));
+		this.titleContextMenu = this._register(menuService.createMenu(MenuId.TitleBarTitleContext, contextKeyService));
 
 		this.titleBarStyle = getTitleBarStyle(this.configurationService);
 
@@ -387,7 +387,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		// Fill in contributed actions
 		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this.contextMenu, undefined, actions);
+		const actionsDisposable = createAndFillInContextMenuActions(this.titleContextMenu, undefined, actions);
 
 		// Show it
 		this.contextMenuService.showContextMenu({
