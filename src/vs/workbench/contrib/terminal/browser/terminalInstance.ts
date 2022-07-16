@@ -91,6 +91,8 @@ import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { showWithPinnedItems } from 'vs/platform/quickinput/browser/quickPickPin';
 import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
+import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
+import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 
 const enum Constants {
 	/**
@@ -226,6 +228,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	readonly capabilities = new TerminalCapabilityStoreMultiplexer();
 	readonly statusList: ITerminalStatusList;
+
+	readonly findState = new FindReplaceState();
+	readonly findWidget: TerminalFindWidget = this._instantiationService.createInstance(TerminalFindWidget, this.findState, this);
+	private _findWidgetVisible: IContextKey<boolean>;
 
 	xterm?: XtermTerminal;
 	disableLayout: boolean = false;
@@ -447,6 +453,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._terminalA11yTreeFocusContextKey = TerminalContextKeys.a11yTreeFocus.bindTo(this._contextKeyService);
 		this._navigationModeActiveContextKey = TerminalContextKeys.navigationModeActive.bindTo(this._contextKeyService);
 		this._terminalAltBufferActiveContextKey = TerminalContextKeys.altBufferActive.bindTo(this._contextKeyService);
+		this._findWidgetVisible = TerminalContextKeys.findVisible.bindTo(this._contextKeyService);
 
 		this._logService.trace(`terminalInstance#ctor (instanceId: ${this.instanceId})`, this._shellLaunchConfig);
 		this._register(this.capabilities.onDidAddCapability(e => {
@@ -528,7 +535,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		});
 
-		this.addDisposable(this._configurationService.onDidChangeConfiguration(async e => {
+		this._register(this._configurationService.onDidChangeConfiguration(async e => {
 			if (e.affectsConfiguration('terminal.integrated')) {
 				this.updateConfig();
 				this.setVisible(this._isVisible);
@@ -559,7 +566,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._labelComputer?.refreshLabel();
 			}
 		}));
-		this.addDisposable(this._workspaceContextService.onDidChangeWorkspaceFolders(() => this._labelComputer?.refreshLabel()));
+		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(() => this._labelComputer?.refreshLabel()));
 
 		// Clear out initial data events after 10 seconds, hopefully extension hosts are up and
 		// running at that point.
@@ -572,6 +579,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				window.clearTimeout(initialDataEventsTimeout);
 			}
 		}));
+
+		this._register(this.findWidget.focusTracker.onDidFocus(() => this._container?.classList.toggle('find-focused', true)));
+		this._register(this.findWidget.focusTracker.onDidBlur(() => this._container?.classList.toggle('find-focused', false)));
+		this._register(this.findWidget.onDidChangeVisibility(() => this._updateFindWidgetVisibleContextKey()));
 	}
 
 	private _getIcon(): TerminalIcon | undefined {
@@ -1107,6 +1118,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._container = container;
 		if (this._wrapperElement) {
 			this._container.appendChild(this._wrapperElement);
+			this._container.appendChild(this.findWidget.getDomNode());
 		}
 		setTimeout(() => this._initDragAndDrop(container));
 	}
@@ -1131,6 +1143,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._wrapperElement.appendChild(xtermElement);
 
 		this._container.appendChild(this._wrapperElement);
+		this._container.appendChild(this.findWidget.getDomNode());
 
 		const xterm = this.xterm;
 
@@ -1139,14 +1152,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		const screenElement = xterm.attachToElement(xtermElement);
 
-		xterm.onDidChangeFindResults((results) => this._onDidChangeFindResults.fire(results));
-		xterm.shellIntegration.onDidChangeStatus(() => {
+		this._register(xterm.onDidChangeFindResults(() => this.findWidget.updateResultCount()));
+		this._register(xterm.shellIntegration.onDidChangeStatus(() => {
 			if (this.hasFocus) {
 				this._setShellIntegrationContextKey();
 			} else {
 				this._terminalShellIntegrationEnabledContextKey.reset();
 			}
-		});
+		}));
 
 		if (!xterm.raw.element || !xterm.raw.textarea) {
 			throw new Error('xterm elements not set after open');
@@ -1280,12 +1293,21 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _setFocus(focused?: boolean): void {
 		if (focused) {
 			this._terminalFocusContextKey.set(true);
+			this._updateFindWidgetVisibleContextKey();
 			this._setShellIntegrationContextKey();
 			this._onDidFocus.fire(this);
 		} else {
 			this.resetFocusContextKey();
 			this._onDidBlur.fire(this);
 			this._refreshSelectionContextKey();
+		}
+	}
+
+	private _updateFindWidgetVisibleContextKey(): void {
+		if (this.findWidget.isVisible()) {
+			this._findWidgetVisible.set(true);
+		} else {
+			this._findWidgetVisible.reset();
 		}
 	}
 
@@ -1367,19 +1389,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this.xterm?.raw.selectAll();
 	}
 
-	notifyFindWidgetFocusChanged(isFocused: boolean): void {
-		if (!this.xterm) {
-			return;
-		}
-		const terminalFocused = !isFocused && (document.activeElement === this.xterm.raw.textarea || document.activeElement === this.xterm.raw.element);
-		this._terminalFocusContextKey.set(terminalFocused);
-		if (terminalFocused) {
-			this._setShellIntegrationContextKey();
-		} else {
-			this._terminalShellIntegrationEnabledContextKey.reset();
-		}
-	}
-
 	private _refreshAltBufferContextKey() {
 		this._terminalAltBufferActiveContextKey.set(!!(this.xterm && this.xterm.raw.buffer.active === this.xterm.raw.buffer.alternate));
 	}
@@ -1438,6 +1447,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		dispose(this._linkManager);
 		this._linkManager = undefined;
 		dispose(this._widgetManager);
+		dispose(this.findWidget);
 
 		if (this.xterm?.raw.element) {
 			this._hadFocusOnExit = this.hasFocus;

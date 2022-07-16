@@ -238,6 +238,10 @@ export abstract class SimpleFindWidget extends Widget {
 		}
 	}
 
+	public isVisible(): boolean {
+		return this._isVisible;
+	}
+
 	public getDomNode() {
 		return this._domNode;
 	}

@@ -16,6 +16,7 @@ import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProc
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditableData } from 'vs/workbench/common/views';
+import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { INavigationMode, IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalBackend, ITerminalConfigHelper, ITerminalFont, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
@@ -149,7 +150,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	onDidInputInstanceData: Event<ITerminalInstance>;
 	onDidRegisterProcessSupport: Event<void>;
 	onDidChangeConnectionState: Event<void>;
-	onDidRequestHideFindWidget: Event<void>;
 
 	/**
 	 * Creates a terminal.
@@ -210,7 +210,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 
 	getDefaultInstanceHost(): ITerminalInstanceHost;
 	getInstanceHost(target: ITerminalLocationOptions | undefined): ITerminalInstanceHost;
-	getFindHost(instance?: ITerminalInstance): ITerminalFindHost;
 
 	resolveLocation(location?: ITerminalLocationOptions): TerminalLocation | undefined;
 	setNativeDelegate(nativeCalls: ITerminalServiceNativeDelegate): void;
@@ -230,7 +229,7 @@ export interface ITerminalServiceNativeDelegate {
  * This service is responsible for integrating with the editor service and managing terminal
  * editors.
  */
-export interface ITerminalEditorService extends ITerminalInstanceHost, ITerminalFindHost {
+export interface ITerminalEditorService extends ITerminalInstanceHost {
 	readonly _serviceBrand: undefined;
 
 	/** Gets all _terminal editor_ instances. */
@@ -304,7 +303,7 @@ export interface TerminalEditorLocation {
  * This service is responsible for managing terminal groups, that is the terminals that are hosted
  * within the terminal panel, not in an editor.
  */
-export interface ITerminalGroupService extends ITerminalInstanceHost, ITerminalFindHost {
+export interface ITerminalGroupService extends ITerminalInstanceHost {
 	readonly _serviceBrand: undefined;
 
 	/** Gets all _terminal view_ instances, ie. instances contained within terminal groups. */
@@ -374,14 +373,6 @@ export interface ITerminalInstanceHost {
 	 * when you only know about a terminal's URI. (a URI's instance ID may not be this window's instance ID)
 	 */
 	getInstanceFromResource(resource: URI | undefined): ITerminalInstance | undefined;
-}
-
-export interface ITerminalFindHost {
-	focusFindWidget(): void;
-	hideFindWidget(): void;
-	getFindState(): FindReplaceState;
-	findNext(): void;
-	findPrevious(): void;
 }
 
 /**
@@ -459,6 +450,9 @@ export interface ITerminalInstance {
 	readonly capabilities: ITerminalCapabilityStore;
 
 	readonly statusList: ITerminalStatusList;
+
+	readonly findState: FindReplaceState;
+	readonly findWidget: TerminalFindWidget;
 
 	/**
 	 * The process ID of the shell process, this is undefined when there is no process associated
@@ -722,11 +716,6 @@ export interface ITerminalInstance {
 	 * Select all text in the terminal.
 	 */
 	selectAll(): void;
-
-	/**
-	 * Notifies the terminal that the find widget's focus state has been changed.
-	 */
-	notifyFindWidgetFocusChanged(isFocused: boolean): void;
 
 	/**
 	 * Focuses the terminal instance if it's able to (xterm.js instance exists).
