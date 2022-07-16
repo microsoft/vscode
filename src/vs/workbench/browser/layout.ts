@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { EventType, addDisposableListener, getClientArea, Dimension, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, getClientArea, Dimension, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, detectFullscreen } from 'vs/base/browser/dom';
 import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { isWindows, isLinux, isMacintosh, isWeb, isNative, isIOS } from 'vs/base/common/platform';
@@ -301,8 +301,31 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
+	// See #150790
+	private isTrulyFullscreen(): boolean {
+		const detected = detectFullscreen();
+		const stated = isFullscreen();
+		if (isWeb) {
+			return stated;
+		}
+
+		if (stated === false || detected === null) {
+			return false;
+		}
+
+		return stated;
+	}
+
 	private onFullscreenChanged(): void {
-		this.windowState.runtime.fullscreen = isFullscreen();
+		this.windowState.runtime.fullscreen = this.isTrulyFullscreen();
+
+		if (isFullscreen() !== this.isTrulyFullscreen()) {
+			setTimeout(() => {
+				if (isFullscreen() === this.isTrulyFullscreen()) {
+					this.onFullscreenChanged();
+				}
+			}, 50);
+		}
 
 		// Apply as CSS class
 		if (this.windowState.runtime.fullscreen) {
@@ -467,7 +490,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Window Runtime State
 		const windowRuntimeState: IWorkbenchLayoutWindowRuntimeState = {
-			fullscreen: isFullscreen(),
+			fullscreen: this.isTrulyFullscreen(),
 			hasFocus: this.hostService.hasFocus,
 			maximized: false,
 			windowBorder: false,
