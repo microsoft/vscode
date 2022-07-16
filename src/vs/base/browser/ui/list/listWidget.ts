@@ -453,7 +453,7 @@ class TypeNavigationController<T> implements IDisposable {
 			.filter(() => this.mode === TypeNavigationMode.Automatic || this.triggered)
 			.map(event => new StandardKeyboardEvent(event))
 			.filter(e => this.delegate.mightProducePrintableCharacter(e))
-			.forEach(e => e.preventDefault())
+			.forEach(e => { e.preventDefault(); e.stopPropagation(); })
 			.map(event => event.browserEvent.key)
 			.event;
 

@@ -125,12 +125,12 @@ export const WorkbenchTreeElementHasParent = new RawContextKey<boolean>('treeEle
 export const WorkbenchTreeElementCanExpand = new RawContextKey<boolean>('treeElementCanExpand', false);
 export const WorkbenchTreeElementHasChild = new RawContextKey<boolean>('treeElementHasChild', false);
 export const WorkbenchTreeFindOpen = new RawContextKey<boolean>('treeFindOpen', false);
-export const WorkbenchListTypeNavigationModeKey = 'listTypeNavigationMode';
+const WorkbenchListTypeNavigationModeKey = 'listTypeNavigationMode';
 
 /**
  * @deprecated in favor of WorkbenchListTypeNavigationModeKey
  */
-export const WorkbenchListAutomaticKeyboardNavigationLegacyKey = 'listAutomaticKeyboardNavigation';
+const WorkbenchListAutomaticKeyboardNavigationLegacyKey = 'listAutomaticKeyboardNavigation';
 
 function createScopedContextKeyService(contextKeyService: IContextKeyService, widget: ListWidget): IContextKeyService {
 	const result = contextKeyService.createScoped(widget.getHTMLElement());
@@ -1078,7 +1078,7 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 	const contextKeyService = accessor.get(IContextKeyService);
 
 	const getTypeNavigationMode = () => {
-		// give priority to the context key value to disable this completely
+		// give priority to the context key value to specify a value
 		const modeString = contextKeyService.getContextKeyValue<'automatic' | 'trigger'>(WorkbenchListTypeNavigationModeKey);
 
 		if (modeString === 'automatic') {
@@ -1087,10 +1087,10 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 			return TypeNavigationMode.Trigger;
 		}
 
-		// try the deprecated one as well
-		const modeBoolean = Boolean(contextKeyService.getContextKeyValue(WorkbenchListAutomaticKeyboardNavigationLegacyKey));
+		// also check the deprecated context key to set the mode to 'trigger'
+		const modeBoolean = contextKeyService.getContextKeyValue<boolean>(WorkbenchListAutomaticKeyboardNavigationLegacyKey);
 
-		if (!modeBoolean) {
+		if (modeBoolean === false) {
 			return TypeNavigationMode.Trigger;
 		}
 
