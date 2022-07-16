@@ -15,7 +15,6 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { autorunWithStore, IObservable } from 'vs/base/common/observable';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
 import 'vs/css!./media/mergeEditor';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -28,7 +27,7 @@ import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/men
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IEditorOptions, IResourceEditorInput, ITextEditorOptions, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, ITextEditorOptions, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -37,7 +36,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
 import { AbstractTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { EditorInputWithOptions, IEditorOpenContext, isResourceEditorInput, registerMergeEditorFactory } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorInputWithOptions, IEditorOpenContext, IResourceMergeEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
@@ -503,7 +502,7 @@ export class MergeEditorOpenHandlerContribution extends Disposable {
 	}
 }
 
-export class MergeEditorFactoryContribution extends Disposable {
+export class MergeEditorResolverContribution extends Disposable {
 
 	constructor(
 		@IEditorResolverService editorResolverService: IEditorResolverService,
@@ -511,51 +510,40 @@ export class MergeEditorFactoryContribution extends Disposable {
 	) {
 		super();
 
-		registerMergeEditorFactory({
-			createMergeEditorInput: inputs => {
-				const mergeInputs = inputs.filter(input => isResourceEditorInput(input)) as IResourceEditorInput[];
-				if (mergeInputs.length !== 4) {
-					return undefined; // require exactly 4 inputs
-				}
-
-				const uuid = generateUuid();
-				const disposable = editorResolverService.registerEditor(
-					`mergeEditor:/${uuid}`,
-					{
-						id: uuid,
-						label: 'Merge Editor',
-						priority: RegisteredEditorPriority.exclusive
-					},
-					{},
-					(): EditorInputWithOptions => {
-						disposable.dispose(); // one time registration only
-
-						return {
-							editor: instantiationService.createInstance(
-								MergeEditorInput,
-								mergeInputs[0].resource,
-								{
-									uri: mergeInputs[2].resource,
-									title: localize('input2Title', "Theirs"),
-									description: '',
-									detail: ''
-								},
-								{
-									uri: mergeInputs[1].resource,
-									title: localize('input1Title', "Yours"),
-									description: '',
-									detail: ''
-								},
-								mergeInputs[3].resource
-							),
-							options: { pinned: true }
-						};
-					}
-				);
-
-				return { resource: URI.parse(`mergeEditor:/${uuid}`) };
+		this._register(editorResolverService.registerEditor(
+			`*`,
+			{
+				id: MergeEditorInput.ID,
+				label: localize('editor.mergeEditor.label', "Merge Editor"),
+				detail: DEFAULT_EDITOR_ASSOCIATION.providerDisplayName,
+				priority: RegisteredEditorPriority.builtin
+			},
+			{},
+			() => undefined!,
+			undefined,
+			undefined,
+			(mergeEditor: IResourceMergeEditorInput): EditorInputWithOptions => {
+				return {
+					editor: instantiationService.createInstance(
+						MergeEditorInput,
+						mergeEditor.base.resource,
+						{
+							uri: mergeEditor.remote.resource,
+							title: localize('input2Title', "Theirs"),
+							description: '',
+							detail: ''
+						},
+						{
+							uri: mergeEditor.local.resource,
+							title: localize('input1Title', "Yours"),
+							description: '',
+							detail: ''
+						},
+						mergeEditor.merged.resource
+					)
+				};
 			}
-		});
+		));
 	}
 }
 

@@ -10,7 +10,7 @@ import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions, IPathData, IFileToOpen, IWorkspaceToOpen, IFolderToOpen } from 'vs/platform/window/common/window';
-import { isResourceEditorInput, mergeEditorFactory, pathsToEditors } from 'vs/workbench/common/editor';
+import { isResourceEditorInput, pathsToEditors } from 'vs/workbench/common/editor';
 import { whenEditorClosed } from 'vs/workbench/browser/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -263,10 +263,13 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 					// Same Window: open via editor service in current window
 					if (this.shouldReuse(options, true /* file */)) {
-						const mergeEditor = mergeEditorFactory?.createMergeEditorInput(editors);
-						if (mergeEditor) {
-							editorService.openEditor(mergeEditor);
-						}
+						editorService.openEditor({
+							base: { resource: editors[0].resource },
+							local: { resource: editors[1].resource },
+							remote: { resource: editors[2].resource },
+							merged: { resource: editors[3].resource },
+							options: { pinned: true, override: 'mergeEditor.Input' } // TODO@bpasero remove the override once the resolver is ready
+						});
 					}
 
 					// New Window: open into empty window

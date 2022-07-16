@@ -9,7 +9,7 @@ import { EventType, addDisposableListener, getClientArea, Dimension, position, s
 import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { isWindows, isLinux, isMacintosh, isWeb, isNative, isIOS } from 'vs/base/common/platform';
-import { IUntypedEditorInput, mergeEditorFactory, pathsToEditors } from 'vs/workbench/common/editor';
+import { isResourceEditorInput, IUntypedEditorInput, pathsToEditors } from 'vs/workbench/common/editor';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
@@ -571,11 +571,16 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			// Files to merge is exclusive over others
 			return pathsToEditors(initialFilesToOpen.filesToMerge, fileService).then(filesToMerge => {
-				if (filesToMerge.length === 4) {
-					const mergeEditorInput = mergeEditorFactory?.createMergeEditorInput(filesToMerge);
-					if (mergeEditorInput) {
-						return [mergeEditorInput];
-					}
+				if (filesToMerge.length === 4 && isResourceEditorInput(filesToMerge[0]) && isResourceEditorInput(filesToMerge[1]) && isResourceEditorInput(filesToMerge[2]) && isResourceEditorInput(filesToMerge[3])) {
+					const mergeEditorInput: IUntypedEditorInput[] = [{
+						base: { resource: filesToMerge[0].resource },
+						local: { resource: filesToMerge[1].resource },
+						remote: { resource: filesToMerge[2].resource },
+						merged: { resource: filesToMerge[3].resource },
+						options: { pinned: true, override: 'mergeEditor.Input' } // TODO@bpasero remove the override once the resolver is ready
+					}];
+
+					return mergeEditorInput;
 				}
 
 				// Files to diff is exclusive over normal opening

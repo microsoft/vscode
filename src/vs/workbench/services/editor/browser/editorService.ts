@@ -5,7 +5,7 @@
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceEditorInput, IEditorOptions, EditorActivation, EditorResolution, IResourceEditorInputIdentifier, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { SideBySideEditor, IEditorPane, GroupIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, EditorInputWithOptions, isEditorInputWithOptions, IEditorIdentifier, IEditorCloseEvent, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, EditorInputCapabilities, isResourceDiffEditorInput, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isEditorInputWithOptionsAndGroup, IFindEditorOptions } from 'vs/workbench/common/editor';
+import { SideBySideEditor, IEditorPane, GroupIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, EditorInputWithOptions, isEditorInputWithOptions, IEditorIdentifier, IEditorCloseEvent, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, EditorInputCapabilities, isResourceDiffEditorInput, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isEditorInputWithOptionsAndGroup, IFindEditorOptions, isResourceMergeEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { ResourceMap } from 'vs/base/common/map';
@@ -641,13 +641,34 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					}
 
 					diffMode = editor.editor instanceof DiffEditorInput;
-					mergeMode = editor.editor.typeId === 'mergeEditor.Input'; // TODO@bpasero hack until we settled on https://github.com/microsoft/vscode/issues/153963
 				}
 			}
 
 			// Untyped editor
 			else {
-				if (isResourceDiffEditorInput(editor)) {
+				if (isResourceMergeEditorInput(editor)) {
+					const baseResourceEditor = editor.base;
+					if (URI.isUri(baseResourceEditor.resource)) {
+						resources.set(baseResourceEditor.resource, true);
+					}
+
+					const localResourceEditor = editor.local;
+					if (URI.isUri(localResourceEditor.resource)) {
+						resources.set(localResourceEditor.resource, true);
+					}
+
+					const remoteResourceEditor = editor.remote;
+					if (URI.isUri(remoteResourceEditor.resource)) {
+						resources.set(remoteResourceEditor.resource, true);
+					}
+
+					const mergedResourceEditor = editor.merged;
+					if (URI.isUri(mergedResourceEditor.resource)) {
+						resources.set(mergedResourceEditor.resource, true);
+					}
+
+					mergeMode = true;
+				} if (isResourceDiffEditorInput(editor)) {
 					const originalResourceEditor = editor.original;
 					if (URI.isUri(originalResourceEditor.resource)) {
 						resources.set(originalResourceEditor.resource, true);
@@ -661,8 +682,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					diffMode = true;
 				} else if (isResourceEditorInput(editor)) {
 					resources.set(editor.resource, true);
-
-					mergeMode = editor.resource.scheme === 'mergeEditor'; // TODO@bpasero hack until we settled on https://github.com/microsoft/vscode/issues/153963
 				}
 			}
 		}

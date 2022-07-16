@@ -484,6 +484,36 @@ export interface IResourceDiffEditorInput extends IBaseUntypedEditorInput {
 	readonly modified: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
 }
 
+/**
+ * A resource merge editor input compares multiple editors
+ * highlighting the differences for merging.
+ *
+ * Note: all sides must be resolvable to the same editor, or
+ * a text based presentation will be used as fallback.
+ */
+export interface IResourceMergeEditorInput extends IBaseUntypedEditorInput {
+
+	/**
+	 * The common ancestor of the merge.
+	 */
+	readonly base: IResourceEditorInput | ITextResourceEditorInput;
+
+	/**
+	 * The local changes to merge.
+	 */
+	readonly local: IResourceEditorInput | ITextResourceEditorInput;
+
+	/**
+	 * The remote changes to merge.
+	 */
+	readonly remote: IResourceEditorInput | ITextResourceEditorInput;
+
+	/**
+	 * The result of the merge.
+	 */
+	readonly merged: IResourceEditorInput | ITextResourceEditorInput;
+}
+
 export function isResourceEditorInput(editor: unknown): editor is IResourceEditorInput {
 	if (isEditorInput(editor)) {
 		return false; // make sure to not accidentally match on typed editor inputs
@@ -529,6 +559,16 @@ export function isUntitledResourceEditorInput(editor: unknown): editor is IUntit
 	}
 
 	return candidate.resource === undefined || candidate.resource.scheme === Schemas.untitled || candidate.forceUntitled === true;
+}
+
+export function isResourceMergeEditorInput(editor: unknown): editor is IResourceMergeEditorInput {
+	if (isEditorInput(editor)) {
+		return false; // make sure to not accidentally match on typed editor inputs
+	}
+
+	const candidate = editor as IResourceMergeEditorInput | undefined;
+
+	return candidate?.base !== undefined && candidate.local !== undefined && candidate.remote !== undefined && candidate.merged !== undefined;
 }
 
 export const enum Verbosity {
@@ -695,7 +735,7 @@ export const enum EditorInputCapabilities {
 	CanDropIntoEditor = 1 << 7,
 }
 
-export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceSideBySideEditorInput;
+export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceSideBySideEditorInput | IResourceMergeEditorInput;
 
 export abstract class AbstractEditorInput extends Disposable {
 	// Marker class for implementing `isEditorInput`
@@ -1141,7 +1181,7 @@ class EditorResourceAccessorImpl {
 		}
 
 		// Original URI is the `preferredResource` of an editor if any
-		const originalResource = isEditorInputWithPreferredResource(editor) ? editor.preferredResource : editor.resource;
+		const originalResource = isEditorInputWithPreferredResource(editor) ? editor.preferredResource : isResourceMergeEditorInput(editor) ? editor.merged.resource : editor.resource;
 		if (!originalResource || !options || !options.filterByScheme) {
 			return originalResource;
 		}
@@ -1204,7 +1244,7 @@ class EditorResourceAccessorImpl {
 		}
 
 		// Canonical URI is the `resource` of an editor
-		const canonicalResource = editor.resource;
+		const canonicalResource = isResourceMergeEditorInput(editor) ? editor.merged.resource : editor.resource;
 		if (!canonicalResource || !options || !options.filterByScheme) {
 			return canonicalResource;
 		}
@@ -1397,16 +1437,3 @@ export function isTextEditorViewState(candidate: unknown): candidate is IEditorV
 
 	return !!(codeEditorViewState.contributionsState && codeEditorViewState.viewState && Array.isArray(codeEditorViewState.cursorState));
 }
-
-//#region Merge Editor (TODO@bpasero hack until we settled on https://github.com/microsoft/vscode/issues/153963)
-
-export interface IMergeEditorFactory {
-	createMergeEditorInput: (inputs: IUntypedEditorInput[]) => IUntypedEditorInput | undefined;
-}
-
-export let mergeEditorFactory: IMergeEditorFactory | undefined = undefined;
-export function registerMergeEditorFactory(factory: IMergeEditorFactory): void {
-	mergeEditorFactory = factory;
-}
-
-//#endregion
