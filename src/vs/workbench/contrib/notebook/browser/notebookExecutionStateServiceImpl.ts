@@ -108,6 +108,7 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 		if (!exe) {
 			exe = this._createNotebookCellExecution(notebook, cellHandle);
 			notebookExecutionMap.set(cellHandle, exe);
+			exe.initialize();
 			this._onDidChangeCellExecution.fire(new NotebookExecutionEvent(notebookUri, cellHandle, exe));
 		}
 
@@ -279,6 +280,9 @@ class CellExecution extends Disposable implements INotebookCellExecution {
 	) {
 		super();
 		this._logService.debug(`CellExecution#ctor ${this.getCellLog()}`);
+	}
+
+	initialize() {
 		const startExecuteEdit: ICellEditOperation = {
 			editType: CellEditType.PartialInternalMetadata,
 			handle: this.cellHandle,

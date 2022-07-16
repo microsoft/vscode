@@ -93,7 +93,8 @@ class ExecutionStateCellStatusBarItem extends Disposable {
 
 	private _currentItemIds: string[] = [];
 
-	private _currentExecutingStateTimer: IDisposable | undefined;
+	private _showedExecutingStateTime: number | undefined;
+	private _clearExecutingStateTimer: IDisposable | undefined;
 
 	constructor(
 		private readonly _notebookViewModel: INotebookViewModel,
@@ -123,23 +124,27 @@ class ExecutionStateCellStatusBarItem extends Disposable {
 	 */
 	private _getItemsForCell(): INotebookCellStatusBarItem[] | undefined {
 		const runState = this._executionStateService.getCellExecution(this._cell.uri);
-		if (this._currentExecutingStateTimer && !runState?.isPaused) {
-			return;
+		// Show the execution spinner for a minimum time
+		if (runState?.state === NotebookCellExecutionState.Executing && typeof this._showedExecutingStateTime !== 'number') {
+			this._showedExecutingStateTime = Date.now();
+		} else if (runState?.state !== NotebookCellExecutionState.Executing && typeof this._showedExecutingStateTime === 'number') {
+			const timeUntilMin = ExecutionStateCellStatusBarItem.MIN_SPINNER_TIME - (Date.now() - this._showedExecutingStateTime);
+			if (timeUntilMin > 0) {
+				if (!this._clearExecutingStateTimer) {
+					this._clearExecutingStateTimer = disposableTimeout(() => {
+						this._showedExecutingStateTime = undefined;
+						this._clearExecutingStateTimer = undefined;
+						this._update();
+					}, timeUntilMin);
+				}
+
+				return undefined;
+			} else {
+				this._showedExecutingStateTime = undefined;
+			}
 		}
 
 		const item = this._getItemForState(runState, this._cell.internalMetadata);
-
-		// Show the execution spinner for a minimum time
-		if (runState?.state === NotebookCellExecutionState.Executing) {
-			this._currentExecutingStateTimer = this._register(disposableTimeout(() => {
-				const runState = this._executionStateService.getCellExecution(this._cell.uri);
-				this._currentExecutingStateTimer = undefined;
-				if (runState?.state !== NotebookCellExecutionState.Executing) {
-					this._update();
-				}
-			}, ExecutionStateCellStatusBarItem.MIN_SPINNER_TIME));
-		}
-
 		return item ? [item] : [];
 	}
 
@@ -203,11 +208,15 @@ export class TimerCellStatusBarContrib extends Disposable implements INotebookEd
 }
 registerNotebookContribution(TimerCellStatusBarContrib.id, TimerCellStatusBarContrib);
 
+const UPDATE_TIMER_GRACE_PERIOD = 200;
+
 class TimerCellStatusBarItem extends Disposable {
 	private static UPDATE_INTERVAL = 100;
 	private _currentItemIds: string[] = [];
 
 	private _scheduler: RunOnceScheduler;
+
+	private _deferredUpdate: IDisposable | undefined;
 
 	constructor(
 		private readonly _notebookViewModel: INotebookViewModel,
@@ -243,7 +252,18 @@ class TimerCellStatusBarItem extends Disposable {
 		}
 
 		const items = item ? [item] : [];
-		this._currentItemIds = this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this._cell.handle, items }]);
+		if (!items.length && !!runState) {
+			if (!this._deferredUpdate) {
+				this._deferredUpdate = disposableTimeout(() => {
+					this._deferredUpdate = undefined;
+					this._currentItemIds = this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this._cell.handle, items }]);
+				}, UPDATE_TIMER_GRACE_PERIOD);
+			}
+		} else {
+			this._deferredUpdate?.dispose();
+			this._deferredUpdate = undefined;
+			this._currentItemIds = this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this._cell.handle, items }]);
+		}
 	}
 
 	private _getTimeItem(startTime: number, endTime: number, adjustment: number = 0): INotebookCellStatusBarItem {
@@ -258,6 +278,7 @@ class TimerCellStatusBarItem extends Disposable {
 	override dispose() {
 		super.dispose();
 
+		this._deferredUpdate?.dispose();
 		this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this._cell.handle, items: [] }]);
 	}
 }
