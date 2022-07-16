@@ -22,6 +22,7 @@ export interface IWindowsMainService {
 
 	readonly onDidOpenWindow: Event<ICodeWindow>;
 	readonly onDidSignalReadyWindow: Event<ICodeWindow>;
+	readonly onDidTriggerSystemContextMenu: Event<{ window: ICodeWindow; x: number; y: number }>;
 	readonly onDidDestroyWindow: Event<ICodeWindow>;
 
 	open(openConfig: IOpenConfiguration): ICodeWindow[];

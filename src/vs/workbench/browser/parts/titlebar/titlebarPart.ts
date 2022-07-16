@@ -11,23 +11,23 @@ import { getZoomFactor } from 'vs/base/browser/browser';
 import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility } from 'vs/platform/window/common/window';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IAction, toAction } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER, WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
-import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform';
+import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common/platform';
 import { Color } from 'vs/base/common/color';
 import { EventType, EventHelper, Dimension, isAncestor, append, $, addDisposableListener, runAtThisOrScheduleAtNextAnimationFrame, prepend, reset } from 'vs/base/browser/dom';
 import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { createActionViewItem, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { Action2, IMenuService, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { Codicon } from 'vs/base/common/codicons';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
@@ -36,6 +36,7 @@ import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
 import { CommandCenterControl } from 'vs/workbench/browser/parts/titlebar/commandCenterControl';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -82,8 +83,6 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	private readonly windowTitle: WindowTitle;
 
-	private readonly contextMenu: IMenu;
-
 	constructor(
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
@@ -99,7 +98,6 @@ export class TitlebarPart extends Part implements ITitleService {
 	) {
 		super(Parts.TITLEBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 		this.windowTitle = this._register(instantiationService.createInstance(WindowTitle));
-		this.contextMenu = this._register(menuService.createMenu(MenuId.TitleBarContext, contextKeyService));
 
 		this.titleBarStyle = getTitleBarStyle(this.configurationService);
 
@@ -276,13 +274,6 @@ export class TitlebarPart extends Part implements ITitleService {
 				allowContextMenu: true
 			});
 
-			this._register(addDisposableListener(this.layoutControls, EventType.CONTEXT_MENU, e => {
-				EventHelper.stop(e);
-
-				this.onLayoutControlContextMenu(e, this.layoutControls!);
-			}));
-
-
 			const menu = this._register(this.menuService.createMenu(MenuId.LayoutControlMenu, this.contextKeyService));
 			const updateLayoutMenu = () => {
 				if (!this.layoutToolbar) {
@@ -305,11 +296,10 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		// Context menu on title
 		[EventType.CONTEXT_MENU, EventType.MOUSE_DOWN].forEach(event => {
-			this._register(addDisposableListener(this.title, event, e => {
+			this._register(addDisposableListener(this.rootContainer, event, e => {
 				if (e.type === EventType.CONTEXT_MENU || e.metaKey) {
 					EventHelper.stop(e);
-
-					this.onContextMenu(e);
+					this.onContextMenu(e, e.target === this.title ? MenuId.TitleBarTitleContext : MenuId.TitleBarContext);
 				}
 			}));
 		});
@@ -338,6 +328,27 @@ export class TitlebarPart extends Part implements ITitleService {
 		}, true /* use capture to know the currently active element properly */));
 
 		this.updateStyles();
+
+		const that = this;
+		registerAction2(class FocusTitleBar extends Action2 {
+
+			constructor() {
+				super({
+					id: `workbench.action.focusTitleBar`,
+					title: { value: localize('focusTitleBar', "Focus Title Bar"), original: 'Focus Title Bar' },
+					category: CATEGORIES.View,
+					f1: true,
+				});
+			}
+
+			run(accessor: ServicesAccessor, ...args: any[]): void {
+				if (that.customMenubar) {
+					that.customMenubar.toggleFocus();
+				} else {
+					(that.element.querySelector('[tabindex]:not([tabindex="-1"])') as HTMLElement).focus();
+				}
+			}
+		});
 
 		return this.element;
 	}
@@ -380,42 +391,23 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 	}
 
-	private onContextMenu(e: MouseEvent): void {
+	protected onContextMenu(e: MouseEvent, menuId: MenuId): void {
 		// Find target anchor
 		const event = new StandardMouseEvent(e);
 		const anchor = { x: event.posx, y: event.posy };
 
 		// Fill in contributed actions
+		const menu = this.menuService.createMenu(menuId, this.contextKeyService);
 		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this.contextMenu, undefined, actions);
+		const actionsDisposable = createAndFillInContextMenuActions(menu, undefined, actions);
+		menu.dispose();
 
 		// Show it
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => actions,
-			onHide: () => dispose(actionsDisposable)
-		});
-	}
-
-	private onLayoutControlContextMenu(e: MouseEvent, el: HTMLElement): void {
-		// Find target anchor
-		const event = new StandardMouseEvent(e);
-		const anchor = { x: event.posx, y: event.posy };
-
-		const actions: IAction[] = [];
-		actions.push(toAction({
-			id: 'layoutControl.hide',
-			label: localize('layoutControl.hide', "Hide Layout Control"),
-			run: () => {
-				this.configurationService.updateValue('workbench.layoutControl.enabled', false);
-			}
-		}));
-
-		// Show it
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => anchor,
-			getActions: () => actions,
-			domForShadowRoot: el
+			onHide: () => dispose(actionsDisposable),
+			domForShadowRoot: isMacintosh && isNative ? event.target : undefined
 		});
 	}
 
@@ -497,5 +489,36 @@ registerThemingParticipant((theme, collector) => {
 				color: ${titlebarInactiveFg};
 			}
 		`);
+	}
+});
+
+
+class ToogleConfigAction extends Action2 {
+
+	constructor(private readonly section: string, title: string, order: number) {
+		super({
+			id: `toggle.${section}`,
+			title,
+			toggled: ContextKeyExpr.equals(`config.${section}`, true),
+			menu: { id: MenuId.TitleBarContext, order }
+		});
+	}
+
+	run(accessor: ServicesAccessor, ...args: any[]): void {
+		const configService = accessor.get(IConfigurationService);
+		const value = configService.getValue(this.section);
+		configService.updateValue(this.section, !value);
+	}
+}
+
+registerAction2(class ToogleCommandCenter extends ToogleConfigAction {
+	constructor() {
+		super('window.commandCenter', localize('toggle.commandCenter', 'Show Command Center'), 1);
+	}
+});
+
+registerAction2(class ToogleLayoutControl extends ToogleConfigAction {
+	constructor() {
+		super('workbench.layoutControl.enabled', localize('toggle.layout', 'Show Layout Controls'), 2);
 	}
 });
