@@ -175,7 +175,12 @@ const editorConfiguration: IConfigurationNode = {
 				nls.localize('wordWrap.on', "Lines will wrap at the viewport width."),
 				nls.localize('wordWrap.inherit', "Lines will wrap according to the `#editor.wordWrap#` setting."),
 			]
-		}
+		},
+		'diffEditor.keepLine': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('keepLine', "Keep cursor on the same line when focus changes.")
+		},
 	}
 };
 

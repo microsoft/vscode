@@ -37,6 +37,7 @@ import { IEditorResolverService } from 'vs/workbench/services/editor/common/edit
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { extname } from 'vs/base/common/resources';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -384,19 +385,39 @@ function registerDiffEditorCommands(): void {
 		const activeTextDiffEditor = getActiveTextDiffEditor(accessor);
 
 		if (activeTextDiffEditor) {
+			const original = activeTextDiffEditor.getControl()?.getOriginalEditor();
+			const modified = activeTextDiffEditor.getControl()?.getModifiedEditor();
+
+			let source: ICodeEditor | undefined;
+			let destination: ICodeEditor | undefined;
 			switch (mode) {
 				case FocusTextDiffEditorMode.Original:
-					activeTextDiffEditor.getControl()?.getOriginalEditor().focus();
+					source = modified;
+					destination = original;
 					break;
 				case FocusTextDiffEditorMode.Modified:
-					activeTextDiffEditor.getControl()?.getModifiedEditor().focus();
+					source = original;
+					destination = modified;
 					break;
 				case FocusTextDiffEditorMode.Toggle:
-					if (activeTextDiffEditor.getControl()?.getModifiedEditor().hasWidgetFocus()) {
+					if (modified?.hasWidgetFocus()) {
 						return focusInDiffEditor(accessor, FocusTextDiffEditorMode.Original);
 					} else {
 						return focusInDiffEditor(accessor, FocusTextDiffEditorMode.Modified);
 					}
+			}
+
+			if (destination) {
+				destination.focus();
+
+				const configurationService = accessor.get(IConfigurationService);
+				const keepLine = configurationService.getValue<boolean>('diffEditor.keepLine');
+				if (keepLine) {
+					const position = source?.getPosition();
+					if (position) {
+						destination.setPosition(position);
+					}
+				}
 			}
 		}
 	}
