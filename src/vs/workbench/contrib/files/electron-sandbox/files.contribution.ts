@@ -10,6 +10,9 @@ import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/file
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
 import { NativeTextFileEditor } from 'vs/workbench/contrib/files/electron-sandbox/textFileEditor';
+import { InstallationFolderUseDetectionContribution } from 'vs/workbench/contrib/files/electron-sandbox/installationFolderUseDetectionContribution';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 // Register file editor
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -22,3 +25,6 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 		new SyncDescriptor(FileEditorInput)
 	]
 );
+
+// Register Installation Folder Use Detection
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(InstallationFolderUseDetectionContribution, LifecyclePhase.Ready);
