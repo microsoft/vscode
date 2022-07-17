@@ -548,18 +548,18 @@ export class MergeEditorResolverContribution extends Disposable {
 						MergeEditorInput,
 						mergeEditor.base.resource,
 						{
-							uri: mergeEditor.remote.resource,
-							title: localize('input2Title', "Theirs"),
+							uri: mergeEditor.input1.resource,
+							title: localize('input1Title', "First Version"),
 							description: '',
 							detail: ''
 						},
 						{
-							uri: mergeEditor.local.resource,
-							title: localize('input1Title', "Yours"),
+							uri: mergeEditor.input2.resource,
+							title: localize('input2Title', "Second Version"),
 							description: '',
 							detail: ''
 						},
-						mergeEditor.merged.resource
+						mergeEditor.result.resource
 					)
 				};
 			}

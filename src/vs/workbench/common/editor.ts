@@ -494,24 +494,24 @@ export interface IResourceDiffEditorInput extends IBaseUntypedEditorInput {
 export interface IResourceMergeEditorInput extends IBaseUntypedEditorInput {
 
 	/**
-	 * The common ancestor of the merge.
+	 * The one changed version of the file.
+	 */
+	readonly input1: IResourceEditorInput | ITextResourceEditorInput;
+
+	/**
+	 * The second changed version of the file.
+	 */
+	readonly input2: IResourceEditorInput | ITextResourceEditorInput;
+
+	/**
+	 * The base common ancestor of the file to merge.
 	 */
 	readonly base: IResourceEditorInput | ITextResourceEditorInput;
 
 	/**
-	 * The local changes to merge.
+	 * The resulting output of the merge.
 	 */
-	readonly local: IResourceEditorInput | ITextResourceEditorInput;
-
-	/**
-	 * The remote changes to merge.
-	 */
-	readonly remote: IResourceEditorInput | ITextResourceEditorInput;
-
-	/**
-	 * The result of the merge.
-	 */
-	readonly merged: IResourceEditorInput | ITextResourceEditorInput;
+	readonly result: IResourceEditorInput | ITextResourceEditorInput;
 }
 
 export function isResourceEditorInput(editor: unknown): editor is IResourceEditorInput {
@@ -568,7 +568,7 @@ export function isResourceMergeEditorInput(editor: unknown): editor is IResource
 
 	const candidate = editor as IResourceMergeEditorInput | undefined;
 
-	return candidate?.base !== undefined && candidate.local !== undefined && candidate.remote !== undefined && candidate.merged !== undefined;
+	return candidate?.base !== undefined && candidate.input1 !== undefined && candidate.input2 !== undefined && candidate.result !== undefined;
 }
 
 export const enum Verbosity {
@@ -1162,7 +1162,7 @@ class EditorResourceAccessorImpl {
 
 		// Merge editors are handled with `merged` result editor
 		if (isResourceMergeEditorInput(editor)) {
-			return EditorResourceAccessor.getOriginalUri(editor.merged, options);
+			return EditorResourceAccessor.getOriginalUri(editor.result, options);
 		}
 
 		// Optionally support side-by-side editors
@@ -1231,7 +1231,7 @@ class EditorResourceAccessorImpl {
 
 		// Merge editors are handled with `merged` result editor
 		if (isResourceMergeEditorInput(editor)) {
-			return EditorResourceAccessor.getCanonicalUri(editor.merged, options);
+			return EditorResourceAccessor.getCanonicalUri(editor.result, options);
 		}
 
 		// Optionally support side-by-side editors

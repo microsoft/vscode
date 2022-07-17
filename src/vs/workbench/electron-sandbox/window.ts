@@ -858,10 +858,10 @@ export class NativeWindow extends Disposable {
 
 		if (mergeMode && isResourceEditorInput(resources[0]) && isResourceEditorInput(resources[1]) && isResourceEditorInput(resources[2]) && isResourceEditorInput(resources[3])) {
 			const mergeEditor: IResourceMergeEditorInput = {
-				base: { resource: resources[0].resource },
-				local: { resource: resources[1].resource },
-				remote: { resource: resources[2].resource },
-				merged: { resource: resources[3].resource },
+				input1: { resource: resources[0].resource },
+				input2: { resource: resources[1].resource },
+				base: { resource: resources[2].resource },
+				result: { resource: resources[3].resource },
 				options: { pinned: true, override: 'mergeEditor.Input' } // TODO@bpasero remove the override once the resolver is ready
 			};
 			editors.push(mergeEditor);

@@ -647,20 +647,20 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			// Untyped editor
 			else {
 				if (isResourceMergeEditorInput(editor)) {
+					if (URI.isUri(editor.input1)) {
+						resources.set(editor.input1, true);
+					}
+
+					if (URI.isUri(editor.input2)) {
+						resources.set(editor.input2, true);
+					}
+
 					if (URI.isUri(editor.base)) {
 						resources.set(editor.base, true);
 					}
 
-					if (URI.isUri(editor.local)) {
-						resources.set(editor.local, true);
-					}
-
-					if (URI.isUri(editor.remote)) {
-						resources.set(editor.remote, true);
-					}
-
-					if (URI.isUri(editor.merged)) {
-						resources.set(editor.merged, true);
+					if (URI.isUri(editor.result)) {
+						resources.set(editor.result, true);
 					}
 
 					mergeMode = true;

@@ -337,16 +337,16 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	@memoize
 	get filesToMerge(): IPath[] | undefined {
 		if (this.payload) {
+			const fileToMerge1 = this.payload.get('mergeFile1');
+			const fileToMerge2 = this.payload.get('mergeFile2');
 			const fileToMergeBase = this.payload.get('mergeFileBase');
-			const fileToMergeLocal = this.payload.get('mergeFileLocal');
-			const fileToMergeRemote = this.payload.get('mergeFileRemote');
-			const fileToMergeMerged = this.payload.get('mergeFileMerged');
-			if (fileToMergeBase && fileToMergeLocal && fileToMergeRemote && fileToMergeMerged) {
+			const fileToMergeResult = this.payload.get('mergeFileResult');
+			if (fileToMerge1 && fileToMerge2 && fileToMergeBase && fileToMergeResult) {
 				return coalesce([
+					{ fileUri: URI.parse(fileToMerge1) },
+					{ fileUri: URI.parse(fileToMerge2) },
 					{ fileUri: URI.parse(fileToMergeBase) },
-					{ fileUri: URI.parse(fileToMergeLocal) },
-					{ fileUri: URI.parse(fileToMergeRemote) },
-					{ fileUri: URI.parse(fileToMergeMerged) }
+					{ fileUri: URI.parse(fileToMergeResult) }
 				]);
 			}
 		}

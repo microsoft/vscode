@@ -573,10 +573,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			const filesToMerge = await pathsToEditors(initialFilesToOpen.filesToMerge, fileService);
 			if (filesToMerge.length === 4 && isResourceEditorInput(filesToMerge[0]) && isResourceEditorInput(filesToMerge[1]) && isResourceEditorInput(filesToMerge[2]) && isResourceEditorInput(filesToMerge[3])) {
 				return [{
-					base: { resource: filesToMerge[0].resource },
-					local: { resource: filesToMerge[1].resource },
-					remote: { resource: filesToMerge[2].resource },
-					merged: { resource: filesToMerge[3].resource },
+					input1: { resource: filesToMerge[0].resource },
+					input2: { resource: filesToMerge[1].resource },
+					base: { resource: filesToMerge[2].resource },
+					result: { resource: filesToMerge[3].resource },
 					options: { pinned: true, override: 'mergeEditor.Input' } // TODO@bpasero remove the override once the resolver is ready
 				}];
 			}

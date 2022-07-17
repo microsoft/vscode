@@ -344,14 +344,14 @@ suite('Workbench editor utils', () => {
 		}
 
 		const fileMerge: IResourceMergeEditorInput = {
+			input1: { resource: URI.file('/some/remote.txt') },
+			input2: { resource: URI.file('/some/local.txt') },
 			base: { resource: URI.file('/some/base.txt') },
-			local: { resource: URI.file('/some/local.txt') },
-			remote: { resource: URI.file('/some/remote.txt') },
-			merged: { resource: URI.file('/some/merged.txt') }
+			result: { resource: URI.file('/some/merged.txt') }
 		};
 
-		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(fileMerge)?.toString(), fileMerge.merged.resource.toString());
-		assert.strictEqual(EditorResourceAccessor.getOriginalUri(fileMerge)?.toString(), fileMerge.merged.resource.toString());
+		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(fileMerge)?.toString(), fileMerge.result.resource.toString());
+		assert.strictEqual(EditorResourceAccessor.getOriginalUri(fileMerge)?.toString(), fileMerge.result.resource.toString());
 	});
 
 	test('isEditorIdentifier', () => {

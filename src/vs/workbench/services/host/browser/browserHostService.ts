@@ -264,10 +264,10 @@ export class BrowserHostService extends Disposable implements IHostService {
 					// Same Window: open via editor service in current window
 					if (this.shouldReuse(options, true /* file */)) {
 						editorService.openEditor({
-							base: { resource: editors[0].resource },
-							local: { resource: editors[1].resource },
-							remote: { resource: editors[2].resource },
-							merged: { resource: editors[3].resource },
+							input1: { resource: editors[0].resource },
+							input2: { resource: editors[1].resource },
+							base: { resource: editors[2].resource },
+							result: { resource: editors[3].resource },
 							options: { pinned: true, override: 'mergeEditor.Input' } // TODO@bpasero remove the override once the resolver is ready
 						});
 					}
@@ -275,10 +275,10 @@ export class BrowserHostService extends Disposable implements IHostService {
 					// New Window: open into empty window
 					else {
 						const environment = new Map<string, string>();
-						environment.set('mergeFileBase', editors[0].resource.toString());
-						environment.set('mergeFileLocal', editors[1].resource.toString());
-						environment.set('mergeFileRemote', editors[2].resource.toString());
-						environment.set('mergeFileMerged', editors[3].resource.toString());
+						environment.set('mergeFile1', editors[0].resource.toString());
+						environment.set('mergeFile2', editors[1].resource.toString());
+						environment.set('mergeFileBase', editors[2].resource.toString());
+						environment.set('mergeFileResult', editors[3].resource.toString());
 
 						this.doOpen(undefined, { payload: Array.from(environment.entries()) });
 					}
