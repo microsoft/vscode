@@ -286,6 +286,7 @@ export class OutlinePane extends ViewPane {
 		};
 		updateTree();
 		this._editorControlDisposables.add(newOutline.onDidChange(updateTree));
+		tree.findMode = this._outlineViewState.filterOnType ? TreeFindMode.Filter : TreeFindMode.Highlight;
 
 		// feature: apply panel background to tree
 		this._editorControlDisposables.add(this.viewDescriptorService.onDidChangeLocation(({ views }) => {
@@ -328,7 +329,7 @@ export class OutlinePane extends ViewPane {
 		this._editorControlDisposables.add(this._outlineViewState.onDidChange((e: { followCursor?: boolean; sortBy?: boolean; filterOnType?: boolean }) => {
 			this._outlineViewState.persist(this._storageService);
 			if (e.filterOnType) {
-				tree.findMode = e.filterOnType ? TreeFindMode.Filter : TreeFindMode.Highlight;
+				tree.findMode = this._outlineViewState.filterOnType ? TreeFindMode.Filter : TreeFindMode.Highlight;
 			}
 			if (e.followCursor) {
 				revealActiveElement();
