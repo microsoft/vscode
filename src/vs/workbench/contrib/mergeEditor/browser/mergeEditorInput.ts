@@ -137,8 +137,8 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 	override toUntyped(): IResourceMergeEditorInput {
 		return {
 			base: { resource: this.base },
-			local: { resource: this.input1.uri, label: this.input1.title, description: this.input1.description },
-			remote: { resource: this.input2.uri, label: this.input2.title, description: this.input2.description },
+			local: { resource: this.input2.uri, label: this.input2.title, description: this.input2.description },
+			remote: { resource: this.input1.uri, label: this.input1.title, description: this.input1.description },
 			merged: { resource: this.result },
 			options: {
 				override: this.typeId

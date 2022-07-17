@@ -516,10 +516,30 @@ export class MergeEditorResolverContribution extends Disposable {
 				id: MergeEditorInput.ID,
 				label: localize('editor.mergeEditor.label', "Merge Editor"),
 				detail: DEFAULT_EDITOR_ASSOCIATION.providerDisplayName,
-				priority: RegisteredEditorPriority.builtin
+				priority: RegisteredEditorPriority.option
 			},
 			{},
-			() => undefined!,
+			(editor) => {
+				return {
+					editor: instantiationService.createInstance(
+						MergeEditorInput,
+						editor.resource,
+						{
+							uri: editor.resource,
+							title: '',
+							description: '',
+							detail: ''
+						},
+						{
+							uri: editor.resource,
+							title: '',
+							description: '',
+							detail: ''
+						},
+						editor.resource
+					)
+				};
+			},
 			undefined,
 			undefined,
 			(mergeEditor: IResourceMergeEditorInput): EditorInputWithOptions => {

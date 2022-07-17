@@ -1154,9 +1154,15 @@ class EditorResourceAccessorImpl {
 	getOriginalUri(editor: EditorInput | IUntypedEditorInput | undefined | null): URI | undefined;
 	getOriginalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY | SideBySideEditor.ANY }): URI | undefined;
 	getOriginalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide: SideBySideEditor.BOTH }): URI | { primary?: URI; secondary?: URI } | undefined;
+	getOriginalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options?: IEditorResourceAccessorOptions): URI | { primary?: URI; secondary?: URI } | undefined;
 	getOriginalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options?: IEditorResourceAccessorOptions): URI | { primary?: URI; secondary?: URI } | undefined {
 		if (!editor) {
 			return undefined;
+		}
+
+		// Merge editors are handled with `merged` result editor
+		if (isResourceMergeEditorInput(editor)) {
+			return EditorResourceAccessor.getOriginalUri(editor.merged, options);
 		}
 
 		// Optionally support side-by-side editors
@@ -1176,12 +1182,12 @@ class EditorResourceAccessorImpl {
 			}
 		}
 
-		if (isResourceDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor)) {
-			return;
+		if (isResourceDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
+			return undefined;
 		}
 
 		// Original URI is the `preferredResource` of an editor if any
-		const originalResource = isEditorInputWithPreferredResource(editor) ? editor.preferredResource : isResourceMergeEditorInput(editor) ? editor.merged.resource : editor.resource;
+		const originalResource = isEditorInputWithPreferredResource(editor) ? editor.preferredResource : editor.resource;
 		if (!originalResource || !options || !options.filterByScheme) {
 			return originalResource;
 		}
@@ -1217,9 +1223,15 @@ class EditorResourceAccessorImpl {
 	getCanonicalUri(editor: EditorInput | IUntypedEditorInput | undefined | null): URI | undefined;
 	getCanonicalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY | SideBySideEditor.ANY }): URI | undefined;
 	getCanonicalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide: SideBySideEditor.BOTH }): URI | { primary?: URI; secondary?: URI } | undefined;
+	getCanonicalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options?: IEditorResourceAccessorOptions): URI | { primary?: URI; secondary?: URI } | undefined;
 	getCanonicalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options?: IEditorResourceAccessorOptions): URI | { primary?: URI; secondary?: URI } | undefined {
 		if (!editor) {
 			return undefined;
+		}
+
+		// Merge editors are handled with `merged` result editor
+		if (isResourceMergeEditorInput(editor)) {
+			return EditorResourceAccessor.getCanonicalUri(editor.merged, options);
 		}
 
 		// Optionally support side-by-side editors
@@ -1239,12 +1251,12 @@ class EditorResourceAccessorImpl {
 			}
 		}
 
-		if (isResourceDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor)) {
-			return;
+		if (isResourceDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
+			return undefined;
 		}
 
 		// Canonical URI is the `resource` of an editor
-		const canonicalResource = isResourceMergeEditorInput(editor) ? editor.merged.resource : editor.resource;
+		const canonicalResource = editor.resource;
 		if (!canonicalResource || !options || !options.filterByScheme) {
 			return canonicalResource;
 		}

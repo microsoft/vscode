@@ -647,36 +647,30 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			// Untyped editor
 			else {
 				if (isResourceMergeEditorInput(editor)) {
-					const baseResourceEditor = editor.base;
-					if (URI.isUri(baseResourceEditor.resource)) {
-						resources.set(baseResourceEditor.resource, true);
+					if (URI.isUri(editor.base)) {
+						resources.set(editor.base, true);
 					}
 
-					const localResourceEditor = editor.local;
-					if (URI.isUri(localResourceEditor.resource)) {
-						resources.set(localResourceEditor.resource, true);
+					if (URI.isUri(editor.local)) {
+						resources.set(editor.local, true);
 					}
 
-					const remoteResourceEditor = editor.remote;
-					if (URI.isUri(remoteResourceEditor.resource)) {
-						resources.set(remoteResourceEditor.resource, true);
+					if (URI.isUri(editor.remote)) {
+						resources.set(editor.remote, true);
 					}
 
-					const mergedResourceEditor = editor.merged;
-					if (URI.isUri(mergedResourceEditor.resource)) {
-						resources.set(mergedResourceEditor.resource, true);
+					if (URI.isUri(editor.merged)) {
+						resources.set(editor.merged, true);
 					}
 
 					mergeMode = true;
 				} if (isResourceDiffEditorInput(editor)) {
-					const originalResourceEditor = editor.original;
-					if (URI.isUri(originalResourceEditor.resource)) {
-						resources.set(originalResourceEditor.resource, true);
+					if (URI.isUri(editor.original)) {
+						resources.set(editor.original, true);
 					}
 
-					const modifiedResourceEditor = editor.modified;
-					if (URI.isUri(modifiedResourceEditor.resource)) {
-						resources.set(modifiedResourceEditor.resource, true);
+					if (URI.isUri(editor.modified)) {
+						resources.set(editor.modified, true);
 					}
 
 					diffMode = true;

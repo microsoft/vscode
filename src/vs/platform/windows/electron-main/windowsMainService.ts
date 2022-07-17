@@ -803,7 +803,12 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			ignoreFileNotFound: true,
 			gotoLineMode: cli.goto,
 			remoteAuthority: cli.remote || undefined,
-			forceOpenWorkspaceAsFile: cli.diff && cli._.length === 2 // special case diff mode to force open workspace as file (https://github.com/microsoft/vscode/issues/149731)
+			forceOpenWorkspaceAsFile:
+				// special case diff / merge mode to force open
+				// workspace as file
+				// https://github.com/microsoft/vscode/issues/149731
+				cli.diff && cli._.length === 2 ||
+				cli.merge && cli._.length === 4
 		};
 
 		// folder uris
