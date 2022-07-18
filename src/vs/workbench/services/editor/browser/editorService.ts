@@ -8,7 +8,7 @@ import { IResourceEditorInput, IEditorOptions, EditorActivation, EditorResolutio
 import { SideBySideEditor, IEditorPane, GroupIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, EditorInputWithOptions, isEditorInputWithOptions, IEditorIdentifier, IEditorCloseEvent, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, EditorInputCapabilities, isResourceDiffEditorInput, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isEditorInputWithOptionsAndGroup, IFindEditorOptions, isResourceMergeEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { ResourceMap } from 'vs/base/common/map';
+import { ResourceMap, ResourceSet } from 'vs/base/common/map';
 import { IFileService, FileOperationEvent, FileOperation, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
@@ -176,7 +176,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	private readonly activeOutOfWorkspaceWatchers = new ResourceMap<IDisposable>();
 
 	private handleVisibleEditorsChange(): void {
-		const visibleOutOfWorkspaceResources = new ResourceMap<URI>();
+		const visibleOutOfWorkspaceResources = new ResourceSet();
 
 		for (const editor of this.visibleEditors) {
 			const resources = distinct(coalesce([
@@ -186,14 +186,14 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 			for (const resource of resources) {
 				if (this.fileService.hasProvider(resource) && !this.contextService.isInsideWorkspace(resource)) {
-					visibleOutOfWorkspaceResources.set(resource, resource);
+					visibleOutOfWorkspaceResources.add(resource);
 				}
 			}
 		}
 
 		// Handle no longer visible out of workspace resources
 		for (const resource of this.activeOutOfWorkspaceWatchers.keys()) {
-			if (!visibleOutOfWorkspaceResources.get(resource)) {
+			if (!visibleOutOfWorkspaceResources.has(resource)) {
 				dispose(this.activeOutOfWorkspaceWatchers.get(resource));
 				this.activeOutOfWorkspaceWatchers.delete(resource);
 			}
@@ -620,7 +620,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	}
 
 	private extractEditorResources(editors: Array<EditorInputWithOptions | IUntypedEditorInput>): { resources: URI[]; diffMode?: boolean; mergeMode?: boolean } {
-		const resources = new ResourceMap<boolean>();
+		const resources = new ResourceSet();
 		let diffMode = false;
 		let mergeMode = false;
 
@@ -630,14 +630,14 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			if (isEditorInputWithOptions(editor)) {
 				const resource = EditorResourceAccessor.getOriginalUri(editor.editor, { supportSideBySide: SideBySideEditor.BOTH });
 				if (URI.isUri(resource)) {
-					resources.set(resource, true);
+					resources.add(resource);
 				} else if (resource) {
 					if (resource.primary) {
-						resources.set(resource.primary, true);
+						resources.add(resource.primary);
 					}
 
 					if (resource.secondary) {
-						resources.set(resource.secondary, true);
+						resources.add(resource.secondary);
 					}
 
 					diffMode = editor.editor instanceof DiffEditorInput;
@@ -648,34 +648,34 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			else {
 				if (isResourceMergeEditorInput(editor)) {
 					if (URI.isUri(editor.input1)) {
-						resources.set(editor.input1, true);
+						resources.add(editor.input1);
 					}
 
 					if (URI.isUri(editor.input2)) {
-						resources.set(editor.input2, true);
+						resources.add(editor.input2);
 					}
 
 					if (URI.isUri(editor.base)) {
-						resources.set(editor.base, true);
+						resources.add(editor.base);
 					}
 
 					if (URI.isUri(editor.result)) {
-						resources.set(editor.result, true);
+						resources.add(editor.result);
 					}
 
 					mergeMode = true;
 				} if (isResourceDiffEditorInput(editor)) {
 					if (URI.isUri(editor.original)) {
-						resources.set(editor.original, true);
+						resources.add(editor.original);
 					}
 
 					if (URI.isUri(editor.modified)) {
-						resources.set(editor.modified, true);
+						resources.add(editor.modified);
 					}
 
 					diffMode = true;
 				} else if (isResourceEditorInput(editor)) {
-					resources.set(editor.resource, true);
+					resources.add(editor.resource);
 				}
 			}
 		}
