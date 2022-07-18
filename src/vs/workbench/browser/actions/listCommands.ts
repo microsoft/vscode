@@ -615,13 +615,6 @@ CommandsRegistry.registerCommand({
 	}
 });
 
-/** @deprecated */
-CommandsRegistry.registerCommand({
-	id: 'list.toggleKeyboardNavigation',
-	handler: (accessor) =>
-		accessor.get(ICommandService).executeCommand('list.triggerTypeNavigation')
-});
-
 CommandsRegistry.registerCommand({
 	id: 'list.toggleFindMode',
 	handler: (accessor) => {
@@ -634,12 +627,9 @@ CommandsRegistry.registerCommand({
 	}
 });
 
-/** @deprecated */
-CommandsRegistry.registerCommand({
-	id: 'list.toggleFilterOnType',
-	handler: (accessor) =>
-		accessor.get(ICommandService).executeCommand('list.toggleFindMode')
-});
+// Deprecated commands
+CommandsRegistry.registerCommandAlias('list.toggleKeyboardNavigation', 'list.triggerTypeNavigation');
+CommandsRegistry.registerCommandAlias('list.toggleFilterOnType', 'list.toggleFindMode');
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.find',
