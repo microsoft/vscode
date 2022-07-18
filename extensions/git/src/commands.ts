@@ -1452,7 +1452,7 @@ export class CommandCenter {
 	private async smartCommit(
 		repository: Repository,
 		getCommitMessage: () => Promise<string | undefined>,
-		opts?: CommitOptions
+		opts: CommitOptions
 	): Promise<boolean> {
 		const config = workspace.getConfiguration('git', Uri.file(repository.root));
 		let promptToSaveFilesBeforeCommit = config.get<'always' | 'staged' | 'never'>('promptToSaveFilesBeforeCommit');
@@ -1498,14 +1498,8 @@ export class CommandCenter {
 			}
 		}
 
-		if (!opts) {
-			opts = { all: noStagedChanges };
-		} else if (!opts.all && noStagedChanges && !opts.empty) {
-			opts = { ...opts, all: true };
-		}
-
 		// no changes, and the user has not configured to commit all in this case
-		if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit && !opts.empty) {
+		if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit && !opts.empty && !opts.all) {
 			const suggestSmartCommit = config.get<boolean>('suggestSmartCommit') === true;
 
 			if (!suggestSmartCommit) {
@@ -1527,6 +1521,12 @@ export class CommandCenter {
 			} else if (pick !== yes) {
 				return false; // do not commit on cancel
 			}
+		}
+
+		if (opts.all === undefined) {
+			opts = { all: noStagedChanges };
+		} else if (!opts.all && noStagedChanges && !opts.empty) {
+			opts = { ...opts, all: true };
 		}
 
 		// enable signing of commits if configured
@@ -1642,7 +1642,7 @@ export class CommandCenter {
 		return true;
 	}
 
-	private async commitWithAnyInput(repository: Repository, opts?: CommitOptions): Promise<void> {
+	private async commitWithAnyInput(repository: Repository, opts: CommitOptions): Promise<void> {
 		const message = repository.inputBox.value;
 		const root = Uri.file(repository.root);
 		const config = workspace.getConfiguration('git', root);
