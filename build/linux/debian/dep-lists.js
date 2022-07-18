@@ -67,6 +67,7 @@ exports.referenceGeneratedDepsByArch = {
         'libxfixes3',
         'libxkbcommon0 (>= 0.4.1)',
         'libxkbfile1',
+        'libxrandr2',
         'xdg-utils (>= 1.0.2)'
     ],
     'armhf': [
@@ -108,6 +109,7 @@ exports.referenceGeneratedDepsByArch = {
         'libxfixes3',
         'libxkbcommon0 (>= 0.4.1)',
         'libxkbfile1',
+        'libxrandr2',
         'xdg-utils (>= 1.0.2)'
     ],
     'arm64': [
@@ -148,6 +150,7 @@ exports.referenceGeneratedDepsByArch = {
         'libxfixes3',
         'libxkbcommon0 (>= 0.4.1)',
         'libxkbfile1',
+        'libxrandr2',
         'xdg-utils (>= 1.0.2)'
     ]
 };

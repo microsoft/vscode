@@ -51,9 +51,9 @@ function getDependencies(buildDir, applicationName, arch, sysroot) {
     });
     const referenceGeneratedDeps = dep_lists_1.referenceGeneratedDepsByArch[arch];
     if (JSON.stringify(sortedDependencies) !== JSON.stringify(referenceGeneratedDeps)) {
-        const failMessage = 'The dependencies list has changed. '
-            + 'Printing newer dependencies list that one can use to compare against referenceGeneratedDeps:'
-            + sortedDependencies.join('\n');
+        const failMessage = 'The dependencies list has changed.'
+            + '\nOld:\n' + referenceGeneratedDeps.join('\n')
+            + '\nNew:\n' + sortedDependencies.join('\n');
         if (FAIL_BUILD_FOR_NEW_DEPENDENCIES) {
             throw new Error(failMessage);
         }
