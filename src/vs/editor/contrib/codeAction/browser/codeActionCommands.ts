@@ -525,7 +525,7 @@ registerEditorCommand(new CodeActionContribution({
 	},
 	kbOpts: {
 		weight: weight + 100000,
-		primary: KeyCode.KeyH,
+		primary: KeyCode.UpArrow,
 		// secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow],
 	}
 }));
@@ -538,7 +538,7 @@ registerEditorCommand(new CodeActionContribution({
 	},
 	kbOpts: {
 		weight: weight + 100000,
-		primary: KeyCode.KeyK,
+		primary: KeyCode.DownArrow,
 		// secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow],
 	}
 }));

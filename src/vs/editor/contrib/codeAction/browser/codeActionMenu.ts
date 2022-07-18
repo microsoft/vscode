@@ -257,7 +257,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 			getTemplateId(element) {
 				return 'codeActionWidget';
 			}
-		}, [this.listRenderer],
+		}, [this.listRenderer], { keyboardSupport: false }
 		);
 
 		if (this.codeActionList) {
@@ -288,6 +288,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 
 		// resize observer - supports dynamic height but not width
 		this.codeActionList.domFocus();
+		this.codeActionList.setFocus([this.viewItems[0].index]);
 		const focusTracker = dom.trackFocus(element);
 		const blurListener = focusTracker.onDidBlur(() => {
 			this.hideCodeActionWidget();
