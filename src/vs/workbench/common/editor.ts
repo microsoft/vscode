@@ -568,7 +568,7 @@ export function isResourceMergeEditorInput(editor: unknown): editor is IResource
 
 	const candidate = editor as IResourceMergeEditorInput | undefined;
 
-	return URI.isUri(candidate?.base.resource) && URI.isUri(candidate?.input1.resource) && URI.isUri(candidate?.input2.resource) && URI.isUri(candidate?.result.resource);
+	return URI.isUri(candidate?.base?.resource) && URI.isUri(candidate?.input1?.resource) && URI.isUri(candidate?.input2?.resource) && URI.isUri(candidate?.result?.resource);
 }
 
 export const enum Verbosity {

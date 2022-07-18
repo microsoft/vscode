@@ -95,7 +95,7 @@ suite('Workbench editor utils', () => {
 		assert.ok(!isResourceMergeEditorInput(undefined));
 		assert.ok(!isResourceMergeEditorInput({}));
 		assert.ok(!isResourceMergeEditorInput({ resource: URI.file('/') }));
-		assert.ok(isResourceMergeEditorInput({ local: { resource: URI.file('/') }, remote: { resource: URI.file('/') }, base: { resource: URI.file('/') }, merged: { resource: URI.file('/') } }));
+		assert.ok(isResourceMergeEditorInput({ input1: { resource: URI.file('/') }, input2: { resource: URI.file('/') }, base: { resource: URI.file('/') }, result: { resource: URI.file('/') } }));
 	});
 
 	test('EditorInputCapabilities', () => {
