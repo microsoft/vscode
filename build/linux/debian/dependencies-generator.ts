@@ -95,7 +95,7 @@ function calculatePackageDeps(binaryPath: string, arch: ArchString, sysroot: str
 	if (result.status !== 0) {
 		throw new Error('Cannot retrieve dpkg-shlibdeps. Stderr:\n' + result.stderr);
 	}
-	const dpkgShlibdepsScriptLocation = `${tmp}/chromium/third_party/dpkg-shlibdeps/dpkg-shlibdeps.pl`;
+	const dpkgShlibdepsScriptLocation = `${tmp}/dpkg-shlibdeps.pl`;
 	const cmd = [dpkgShlibdepsScriptLocation, '--ignore-weak-undefined'];
 	switch (arch) {
 		case 'amd64':
