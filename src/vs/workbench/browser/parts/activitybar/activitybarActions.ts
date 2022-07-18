@@ -39,6 +39,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
+import { IViewsService } from 'vs/workbench/common/views';
 
 export class ViewContainerActivityAction extends ActivityAction {
 
@@ -410,7 +411,23 @@ registerAction2(
 			layoutService.focusPart(Parts.ACTIVITYBAR_PART);
 		}
 	});
+registerAction2(
+	class OpenSideBarViewAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.openSideBarView',
+				title: { value: localize('openSideBarView', "Open Side Bar View"), original: 'Open Side Bar View' },
+				category: CATEGORIES.View,
+				f1: true
+			});
+		}
 
+		async run(accessor: ServicesAccessor, viewId: string): Promise<void> {
+			const viewsService = accessor.get(IViewsService);
+			viewsService.openView(viewId, true);
+		}
+	}
+);
 registerThemingParticipant((theme, collector) => {
 	const activityBarForegroundColor = theme.getColor(ACTIVITY_BAR_FOREGROUND);
 	if (activityBarForegroundColor) {
