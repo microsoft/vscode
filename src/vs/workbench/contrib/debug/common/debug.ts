@@ -651,6 +651,7 @@ export interface IDebugConfiguration {
 		showSourceCode: boolean;
 	};
 	autoExpandLazyVariables: boolean;
+	enableStatusBarColor: boolean;
 }
 
 export interface IGlobalConfig {
