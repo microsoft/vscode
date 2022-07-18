@@ -157,7 +157,8 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 				&& isEqual(this.result, otherInput.result);
 		}
 		if (isResourceMergeEditorInput(otherInput)) {
-			return isEqual(this.base, otherInput.base.resource)
+			return this.editorId === otherInput.options?.override
+				&& isEqual(this.base, otherInput.base.resource)
 				&& isEqual(this.input1.uri, otherInput.input1.resource)
 				&& isEqual(this.input2.uri, otherInput.input2.resource)
 				&& isEqual(this.result, otherInput.result.resource);
