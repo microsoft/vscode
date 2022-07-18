@@ -457,26 +457,26 @@ class ReplaceActionRunner {
 	async performReplace(element: FolderMatch | FileMatch | Match): Promise<any> {
 		// since multiple elements can be selected, we need to check the type of the FolderMatch/FileMatch/Match before we perform the replace.
 
-		const opInfo = getElementsToOperateOnInfo(this.viewer, element);
+		const elementsToReplace = getElementsToOperateOnInfo(this.viewer, element);
 
-		await Promise.all(opInfo.elementsToRemove.map(async (elem) => {
+		await Promise.all(elementsToReplace.map(async (elem) => {
 			const parent = elem.parent();
 
-			if ((parent instanceof FolderMatch || parent instanceof FileMatch) && arrayContainsElementOrParent(parent, opInfo.elementsToRemove)) {
+			if ((parent instanceof FolderMatch || parent instanceof FileMatch) && arrayContainsElementOrParent(parent, elementsToReplace)) {
 				// skip any children who have parents in the array
 				return;
 			}
 
 			if (parent instanceof FolderMatch && elem instanceof FileMatch) {
-				await (<FolderMatch>(elem.parent())).replace(<FileMatch>elem);
+				await (elem.parent()).replace(elem);
 			} else if (parent instanceof FileMatch && elem instanceof Match) {
-				await (<FileMatch>(elem.parent())).replace(<Match>elem);
+				await (elem.parent()).replace(elem);
 			} else if (elem instanceof FolderMatch) {
 				await elem.replaceAll();
 			}
 		}));
 
-		const currentBottomFocusElement = opInfo.elementsToRemove[opInfo.elementsToRemove.length - 1];
+		const currentBottomFocusElement = elementsToReplace[elementsToReplace.length - 1];
 
 		if (currentBottomFocusElement instanceof Match) {
 			const elementToFocus = this.getElementToFocusAfterReplace(currentBottomFocusElement);
@@ -587,16 +587,12 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 	}
 
 	override run(): Promise<any> {
-		const opInfo = getElementsToOperateOnInfo(this.viewer, this.element);
+		const elementsToRemove = getElementsToOperateOnInfo(this.viewer, this.element);
 
-		let currentBottomFocusElement;
-		if (opInfo.usingMultiselect) {
-			currentBottomFocusElement = opInfo.elementsToRemove[opInfo.elementsToRemove.length - 1];
-		} else {
-			currentBottomFocusElement = this.viewer.getFocus()[0];
-		}
+		const currentBottomFocusElement = elementsToRemove[elementsToRemove.length - 1];
 
-		const nextFocusElement = !currentBottomFocusElement || currentBottomFocusElement instanceof SearchResult || arrayContainsElementOrParent(currentBottomFocusElement, opInfo.elementsToRemove) ?
+
+		const nextFocusElement = !currentBottomFocusElement || currentBottomFocusElement instanceof SearchResult || arrayContainsElementOrParent(currentBottomFocusElement, elementsToRemove) ?
 			this.getElementToFocusAfterRemoved(this.viewer, <any>currentBottomFocusElement) :
 			null;
 
@@ -606,7 +602,7 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 			this.viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
 		}
 
-		opInfo.elementsToRemove.forEach((currentElement) =>
+		elementsToRemove.forEach((currentElement) =>
 			currentElement.parent().remove(<(FolderMatch | FileMatch)[] & Match & FileMatch[]>currentElement)
 		);
 
@@ -831,15 +827,13 @@ export const focusSearchListCommand: ICommandHandler = accessor => {
 	});
 };
 
-function getElementsToOperateOnInfo(viewer: WorkbenchObjectTree<RenderableMatch, void>, currElement: RenderableMatch): { elementsToRemove: RenderableMatch[]; usingMultiselect: boolean } {
-	let elementsToRemove: RenderableMatch[] = viewer.getSelection().filter((x): x is RenderableMatch => x !== null);
+function getElementsToOperateOnInfo(viewer: WorkbenchObjectTree<RenderableMatch, void>, currElement: RenderableMatch): RenderableMatch[] {
+	let elements: RenderableMatch[] = viewer.getSelection().filter((x): x is RenderableMatch => x !== null);
 
-	const usingMultiselect: boolean = elementsToRemove.length > 1 && elementsToRemove.includes(currElement);
-
-	// if you're using multiselect and you click to remove one element from the tree, remove all selected
-	if (!usingMultiselect) {
-		elementsToRemove = [currElement];
+	// if selection doesn't include multiple elements, just return current focus element.
+	if (!(elements.length > 1 && elements.includes(currElement))) {
+		elements = [currElement];
 	}
 
-	return { elementsToRemove, usingMultiselect };
+	return elements;
 }
