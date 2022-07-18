@@ -36,10 +36,9 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { ViewContainerLocation, IViewsService } from 'vs/workbench/common/views';
 import { IPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
-import { IViewsService } from 'vs/workbench/common/views';
 
 export class ViewContainerActivityAction extends ActivityAction {
 
