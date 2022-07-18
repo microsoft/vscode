@@ -293,9 +293,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}));
 		this._taskRunningState = TASK_RUNNING_STATE.bindTo(_contextKeyService);
 		this._onDidStateChange = this._register(new Emitter());
-		this._registerCommands().then(() => {
-			TaskCommandsRegistered.bindTo(this._contextKeyService).set(true);
-		});
+		this._registerCommands();
 		this._configurationResolverService.contributeVariable('defaultBuildTask', async (): Promise<string | undefined> => {
 			let tasks = await this._getTasksForGroup(TaskGroup.Build);
 			if (tasks.length > 0) {
@@ -493,6 +491,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				this._openTaskFile(resource, TaskSourceKind.WorkspaceFile);
 			}
 		});
+		TaskCommandsRegistered.bindTo(this._contextKeyService).set(true);
 	}
 
 	private get workspaceFolders(): IWorkspaceFolder[] {
@@ -2174,7 +2173,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private get _jsonTasksSupported(): boolean {
-		return ShellExecutionSupportedContext.getValue(this._contextKeyService) === true && ProcessExecutionSupportedContext.getValue(this._contextKeyService) === true && !Platform.isWeb;
+		return !!ShellExecutionSupportedContext.getValue(this._contextKeyService) && !!ProcessExecutionSupportedContext.getValue(this._contextKeyService);
 	}
 
 	private _computeWorkspaceFolderTasks(workspaceFolder: IWorkspaceFolder, runSource: TaskRunSource = TaskRunSource.User): Promise<IWorkspaceFolderTaskResult> {
