@@ -44,6 +44,7 @@ import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 
 import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 interface IWorkspaceFolderConfigurationResult {
 	workspaceFolder: IWorkspaceFolder;
@@ -85,7 +86,8 @@ export class TaskService extends AbstractTaskService {
 		@IWorkspaceTrustRequestService workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@ILogService logService: ILogService,
-		@IThemeService themeService: IThemeService) {
+		@IThemeService themeService: IThemeService,
+		@IInstantiationService instantiationService: IInstantiationService) {
 		super(configurationService,
 			markerService,
 			outputService,
@@ -118,7 +120,8 @@ export class TaskService extends AbstractTaskService {
 			workspaceTrustRequestService,
 			workspaceTrustManagementService,
 			logService,
-			themeService);
+			themeService,
+		);
 		this._register(lifecycleService.onBeforeShutdown(event => event.veto(this.beforeShutdown(), 'veto.tasks')));
 	}
 

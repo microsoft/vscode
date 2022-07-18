@@ -33,7 +33,7 @@ import { NotebooKernelActionViewItem } from 'vs/workbench/contrib/notebook/brows
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import { clearMarks, getAndClearMarks, mark } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
+import { NotebookPerfMarks } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
 import { IEditorDropService } from 'vs/workbench/services/editor/browser/editorDropService';
 import { GroupsOrder, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -172,8 +172,8 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 
 	override async setInput(input: NotebookEditorInput, options: INotebookEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken, noRetry?: boolean): Promise<void> {
 		try {
-			clearMarks(input.resource);
-			mark(input.resource, 'startTime');
+			const perf = new NotebookPerfMarks();
+			perf.mark('startTime');
 			const group = this.group!;
 
 			this._inputListener.value = input.onDidChangeCapabilities(() => this._onDidChangeInputCapabilities(input));
@@ -203,8 +203,8 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 			// only now `setInput` and yield/await. this is AFTER the actual widget is ready. This is very important
 			// so that others synchronously receive a notebook editor with the correct widget being set
 			await super.setInput(input, options, context, token);
-			const model = await input.resolve();
-			mark(input.resource, 'inputLoaded');
+			const model = await input.resolve(perf);
+			perf.mark('inputLoaded');
 
 			// Check for cancellation
 			if (token.isCancellationRequested) {
@@ -230,7 +230,7 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 			const viewState = options?.viewState ?? this._loadNotebookEditorViewState(input);
 
 			this._widget.value?.setParentContextKeyService(this._contextKeyService);
-			await this._widget.value!.setModel(model.notebook, viewState);
+			await this._widget.value!.setModel(model.notebook, viewState, perf);
 			const isReadOnly = input.hasCapability(EditorInputCapabilities.Readonly);
 			await this._widget.value!.setOptions({ ...options, isReadOnly });
 			this._widgetDisposableStore.add(this._widget.value!.onDidFocusWidget(() => this._onDidFocusWidget.fire()));
@@ -240,10 +240,11 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 				containsGroup: (group) => this.group?.id === group.id
 			}));
 
-			mark(input.resource, 'editorLoaded');
+			perf.mark('editorLoaded');
 
 			type WorkbenchNotebookOpenClassification = {
 				owner: 'rebornix';
+				comment: 'The notebook file open metrics. Used to get a better understanding of the performance of notebook file opening';
 				scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 				ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 				viewType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
@@ -265,8 +266,7 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 				editorLoaded: number;
 			};
 
-			const perfMarks = getAndClearMarks(input.resource);
-
+			const perfMarks = perf.value;
 			if (perfMarks) {
 				const startTime = perfMarks['startTime'];
 				const extensionActivated = perfMarks['extensionActivated'];

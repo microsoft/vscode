@@ -35,6 +35,7 @@ import { revive } from 'vs/base/common/marshalling';
 import { IExtensionsProfileScannerService, IScannedProfileExtension } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 
 export type IScannedExtensionManifest = IRelaxedExtensionManifest & { __metadata?: Metadata };
 
@@ -793,13 +794,23 @@ class ExtensionsScanner extends Disposable {
 					if (translated === undefined && originalMessages) {
 						translated = originalMessages[messageKey];
 					}
-					let message: string | undefined = typeof translated === 'string' ? translated : (typeof translated?.message === 'string' ? translated.message : undefined);
+					let message: string | undefined = typeof translated === 'string' ? translated : translated.message;
 					if (message !== undefined) {
 						if (pseudo) {
 							// FF3B and FF3D is the Unicode zenkaku representation for [ and ]
 							message = '\uFF3B' + message.replace(/[aouei]/g, '$&$&') + '\uFF3D';
 						}
-						obj[key] = command && (key === 'title' || key === 'category') && originalMessages ? { value: message, original: originalMessages[messageKey] } : message;
+						// This branch returns ILocalizedString's instead of Strings so that the Command Palette can contain both the localized and the original value.
+						if (command && originalMessages && (key === 'title' || key === 'category')) {
+							const originalMessage = originalMessages[messageKey];
+							const localizedString: ILocalizedString = {
+								value: message,
+								original: typeof originalMessage === 'string' ? originalMessage : originalMessage?.message
+							};
+							obj[key] = localizedString;
+						} else {
+							obj[key] = message;
+						}
 					} else {
 						this.logService.warn(this.formatMessage(extensionLocation, localize('missingNLSKey', "Couldn't find message for key {0}.", messageKey)));
 					}

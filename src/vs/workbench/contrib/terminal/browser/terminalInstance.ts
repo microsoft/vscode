@@ -46,7 +46,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalCapabilityStoreMultiplexer } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { IProcessDataEvent, IProcessPropertyMap, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, PosixShellType, ProcessPropertyType, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalSettingId, TerminalShellType, TitleEventSource, WindowsShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessPropertyMap, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, PosixShellType, ProcessPropertyType, ShellIntegrationStatus, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalSettingId, TerminalShellType, TitleEventSource, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 import { escapeNonWindowsPath, collapseTildePath } from 'vs/platform/terminal/common/terminalEnvironment';
 import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -276,6 +276,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	// TODO: Should this be an event as it can fire twice?
 	get processReady(): Promise<void> { return this._processManager.ptyProcessReady; }
 	get hasChildProcesses(): boolean { return this.shellLaunchConfig.attachPersistentProcess?.hasChildProcesses || this._processManager.hasChildProcesses; }
+	get reconnectionOwner(): string | undefined { return this.shellLaunchConfig.attachPersistentProcess?.reconnectionOwner || this.shellLaunchConfig.reconnectionOwner; }
 	get areLinksReady(): boolean { return this._areLinksReady; }
 	get initialDataEvents(): string[] | undefined { return this._initialDataEvents; }
 	get exitCode(): number | undefined { return this._exitCode; }
@@ -358,6 +359,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		private readonly _terminalShellTypeContextKey: IContextKey<string>,
 		private readonly _terminalAltBufferActiveContextKey: IContextKey<boolean>,
 		private readonly _terminalInRunCommandPicker: IContextKey<boolean>,
+		private readonly _terminalShellIntegrationEnabledContextKey: IContextKey<boolean>,
 		private readonly _configHelper: TerminalConfigHelper,
 		private _shellLaunchConfig: IShellLaunchConfig,
 		resource: URI | undefined,
@@ -1085,6 +1087,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const screenElement = xterm.attachToElement(xtermElement);
 
 		xterm.onDidChangeFindResults((results) => this._onDidChangeFindResults.fire(results));
+		xterm.shellIntegration.onDidChangeStatus(() => {
+			if (this.hasFocus) {
+				this._setShellIntegrationContextKey();
+			} else {
+				this._terminalShellIntegrationEnabledContextKey.reset();
+			}
+		});
 
 		if (!xterm.raw.element || !xterm.raw.textarea) {
 			throw new Error('xterm elements not set after open');
@@ -1218,16 +1227,24 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _setFocus(focused?: boolean): void {
 		if (focused) {
 			this._terminalFocusContextKey.set(true);
+			this._setShellIntegrationContextKey();
 			this._onDidFocus.fire(this);
 		} else {
-			this._terminalFocusContextKey.reset();
+			this.resetFocusContextKey();
 			this._onDidBlur.fire(this);
 			this._refreshSelectionContextKey();
 		}
 	}
 
+	private _setShellIntegrationContextKey(): void {
+		if (this.xterm) {
+			this._terminalShellIntegrationEnabledContextKey.set(this.xterm.shellIntegration.status === ShellIntegrationStatus.VSCode);
+		}
+	}
+
 	resetFocusContextKey(): void {
 		this._terminalFocusContextKey.reset();
+		this._terminalShellIntegrationEnabledContextKey.reset();
 	}
 
 	private _initDragAndDrop(container: HTMLElement) {
@@ -1303,6 +1320,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		const terminalFocused = !isFocused && (document.activeElement === this.xterm.raw.textarea || document.activeElement === this.xterm.raw.element);
 		this._terminalFocusContextKey.set(terminalFocused);
+		if (terminalFocused) {
+			this._setShellIntegrationContextKey();
+		} else {
+			this._terminalShellIntegrationEnabledContextKey.reset();
+		}
 	}
 
 	private _refreshAltBufferContextKey() {
@@ -1382,7 +1404,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// as 'blur' event in xterm.raw.textarea is not triggered on xterm.dispose()
 		// See https://github.com/microsoft/vscode/issues/138358
 		if (isFirefox) {
-			this._terminalFocusContextKey.reset();
+			this.resetFocusContextKey();
 			this._terminalHasTextContextKey.reset();
 			this._onDidBlur.fire(this);
 		}
@@ -1465,12 +1487,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async sendText(text: string, addNewLine: boolean): Promise<void> {
-		// Apply bracketed paste sequences if the terminal has the mode enabled, this will prevent
-		// the text from triggering keybindings https://github.com/microsoft/vscode/issues/153592
-		if (this.xterm?.raw.modes.bracketedPasteMode) {
-			text = `\x1b[200~${text}\x1b[201~`;
-		}
-
 		// Normalize line endings to 'enter' press.
 		text = text.replace(/\r?\n/g, '\r');
 		if (addNewLine && text[text.length - 1] !== '\r') {
@@ -1711,7 +1727,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this._isExiting) {
 			return;
 		}
-
 		const parsedExitResult = parseExitResult(exitCodeOrError, this.shellLaunchConfig, this._processManager.processState, this._initialCwd);
 
 		if (this._usedShellIntegrationInjection && this._processManager.processState === ProcessState.KilledDuringLaunch && parsedExitResult?.code !== 0) {
@@ -2340,7 +2355,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			info.requiresAction &&
 			this._configHelper.config.environmentChangesRelaunch &&
 			!this._processManager.hasWrittenData &&
-			!this._shellLaunchConfig.isFeatureTerminal &&
+			(this.reconnectionOwner || !this._shellLaunchConfig.isFeatureTerminal) &&
 			!this._shellLaunchConfig.customPtyImplementation
 			&& !this._shellLaunchConfig.isExtensionOwnedTerminal &&
 			!this._shellLaunchConfig.attachPersistentProcess

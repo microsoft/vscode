@@ -334,8 +334,6 @@ export class MenuBar extends Disposable {
 					triggerKeys.push(KeyCode.RightArrow);
 				} else if (this.options.compactMode === Direction.Left) {
 					triggerKeys.push(KeyCode.LeftArrow);
-				} else if (this.options.compactMode === Direction.Down) {
-					triggerKeys.push(KeyCode.DownArrow);
 				}
 			}
 
@@ -475,6 +473,11 @@ export class MenuBar extends Disposable {
 			return;
 		}
 
+		const overflowMenuOnlyClass = 'overflow-menu-only';
+
+		// Remove overflow only restriction to allow the most space
+		this.container.classList.toggle(overflowMenuOnlyClass, false);
+
 		const sizeAvailable = this.container.offsetWidth;
 		let currentSize = 0;
 		let full = this.isCompact;
@@ -499,6 +502,18 @@ export class MenuBar extends Disposable {
 			if (full) {
 				menuBarMenu.buttonElement.style.visibility = 'hidden';
 			}
+		}
+
+
+		// If below minimium menu threshold, show the overflow menu only as hamburger menu
+		if (this.numMenusShown - 1 <= showableMenus.length / 2) {
+			for (const menuBarMenu of showableMenus) {
+				menuBarMenu.buttonElement.style.visibility = 'hidden';
+			}
+
+			full = true;
+			this.numMenusShown = 0;
+			currentSize = 0;
 		}
 
 		// Overflow
@@ -540,6 +555,9 @@ export class MenuBar extends Disposable {
 			this.container.appendChild(this.overflowMenu.buttonElement);
 			this.overflowMenu.buttonElement.style.visibility = 'hidden';
 		}
+
+		// If we are only showing the overflow, add this class to avoid taking up space
+		this.container.classList.toggle(overflowMenuOnlyClass, this.numMenusShown === 0);
 	}
 
 	private updateLabels(titleElement: HTMLElement, buttonElement: HTMLElement, label: string): void {
