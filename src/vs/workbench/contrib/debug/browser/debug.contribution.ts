@@ -102,7 +102,6 @@ Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQui
 	helpEntries: [{ description: nls.localize('sessionsQuickAccessHelp', "Show All Debug Sessions"), commandId: SELECT_DEBUG_SESSION_ID }]
 });
 
-
 registerEditorContribution('editor.contrib.callStack', CallStackEditorContribution);
 registerEditorContribution(BREAKPOINT_EDITOR_CONTRIBUTION_ID, BreakpointEditorContribution);
 registerEditorContribution(EDITOR_CONTRIBUTION_ID, DebugEditorContribution);
