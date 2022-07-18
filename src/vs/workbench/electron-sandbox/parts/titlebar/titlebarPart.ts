@@ -196,10 +196,11 @@ export class TitlebarPart extends BrowserTitleBarPart {
 
 			this._register(this.layoutService.onDidChangeWindowMaximized(maximized => this.onDidChangeWindowMaximized(maximized)));
 			this.onDidChangeWindowMaximized(this.layoutService.isWindowMaximized());
+		}
 
-			// Window System Context Menu
-			// See https://github.com/electron/electron/issues/24893
-			if (isWindows) {
+		// Window System Context Menu
+		// See https://github.com/electron/electron/issues/24893
+		if (isWindows && getTitleBarStyle(this.configurationService) === 'custom') {
 				this._register(this.nativeHostService.onDidTriggerSystemContextMenu(({ windowId, x, y }) => {
 					if (this.nativeHostService.windowId !== windowId) {
 						return;
@@ -208,7 +209,6 @@ export class TitlebarPart extends BrowserTitleBarPart {
 					const zoomFactor = getZoomFactor();
 					this.onContextMenu(new MouseEvent('mouseup', { clientX: x / zoomFactor, clientY: y / zoomFactor }), MenuId.TitleBarContext);
 				}));
-			}
 		}
 
 		return ret;
