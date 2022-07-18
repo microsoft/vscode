@@ -1734,18 +1734,27 @@ export function computeClippingRect(elementOrRect: HTMLElement | DOMRectReadOnly
 	return { top, right, bottom, left };
 }
 
-interface DomNodeAttributes {
-	role?: string;
-	ariaHidden?: boolean;
-	style?: StyleAttributes;
-}
+type HTMLElementAttributeKeys<T> = Partial<{ [K in keyof T]: T[K] extends Function ? never : T[K] extends object ? HTMLElementAttributeKeys<T[K]> : T[K] }>;
+type ElementAttributes<T> = HTMLElementAttributeKeys<T> & Record<string, any>;
+type RemoveHTMLElement<T> = T extends HTMLElement ? never : T;
+type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends ((k: infer I) => void) ? I : never;
+type ArrayToObj<T extends any[]> = UnionToIntersection<RemoveHTMLElement<T[number]>>;
 
-interface StyleAttributes {
-	height?: number | string;
-	width?: number | string;
-}
-
-//<div role="presentation" aria-hidden="true" class="scroll-decoration"></div>
+type TagToElement<T> = T extends `.${string}`
+	? HTMLDivElement
+	: T extends `#${string}`
+	? HTMLDivElement
+	: T extends `${infer TStart}#${string}`
+	? TStart extends keyof HTMLElementTagNameMap
+	? HTMLElementTagNameMap[TStart]
+	: HTMLElement
+	: T extends `${infer TStart}.${string}`
+	? TStart extends keyof HTMLElementTagNameMap
+	? HTMLElementTagNameMap[TStart]
+	: HTMLElement
+	: T extends keyof HTMLElementTagNameMap
+	? HTMLElementTagNameMap[T]
+	: HTMLElement;
 
 /**
  * A helper function to create nested dom nodes.
@@ -1762,22 +1771,25 @@ interface StyleAttributes {
  * private readonly editor = createEditor(this.htmlElements.editor);
  * ```
 */
+export function h<TTag extends string>(
+	tag: TTag
+): (Record<'root', TagToElement<TTag>>) extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
 export function h<TTag extends string, TId extends string>(
 	tag: TTag,
-	attributes: { $: TId } & DomNodeAttributes
+	attributes: { $: TId } & Partial<ElementAttributes<TagToElement<TTag>>>
 ): Record<TId | 'root', TagToElement<TTag>>;
-export function h<TTag extends string>(tag: TTag, attributes: DomNodeAttributes): Record<'root', TagToElement<TTag>>;
 export function h<TTag extends string, T extends (HTMLElement | string | Record<string, HTMLElement>)[]>(
 	tag: TTag,
 	children: T
 ): (ArrayToObj<T> & Record<'root', TagToElement<TTag>>) extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
+export function h<TTag extends string>(tag: TTag, attributes: Partial<ElementAttributes<TagToElement<TTag>>>): Record<'root', TagToElement<TTag>>;
 export function h<TTag extends string, TId extends string, T extends (HTMLElement | string | Record<string, HTMLElement>)[]>(
 	tag: TTag,
-	attributes: { $: TId } & DomNodeAttributes,
+	attributes: { $: TId } & Partial<ElementAttributes<TagToElement<TTag>>>,
 	children: T
 ): (ArrayToObj<T> & Record<TId, TagToElement<TTag>>) extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
-export function h(tag: string, ...args: [] | [attributes: { $: string } & DomNodeAttributes | Record<string, any>, children?: any[]] | [children: any[]]): Record<string, HTMLElement> {
-	let attributes: { $?: string } & DomNodeAttributes;
+export function h(tag: string, ...args: [] | [attributes: { $: string } & Partial<ElementAttributes<HTMLElement>> | Record<string, any>, children?: any[]] | [children: any[]]): Record<string, HTMLElement> {
+	let attributes: { $?: string } & Partial<ElementAttributes<HTMLElement>>;
 	let children: (Record<string, HTMLElement> | HTMLElement)[] | undefined;
 
 	if (Array.isArray(args[0])) {
@@ -1845,24 +1857,3 @@ export function h(tag: string, ...args: [] | [attributes: { $: string } & DomNod
 function camelCaseToHyphenCase(str: string) {
 	return str.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
 }
-
-type RemoveHTMLElement<T> = T extends HTMLElement ? never : T;
-
-type ArrayToObj<T extends any[]> = UnionToIntersection<RemoveHTMLElement<T[number]>>;
-
-
-type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends ((k: infer I) => void) ? I : never;
-
-type HTMLElementsByTagName = {
-	div: HTMLDivElement;
-	span: HTMLSpanElement;
-	a: HTMLAnchorElement;
-};
-
-type TagToElement<T> = T extends `${infer TStart}.${string}`
-	? TStart extends keyof HTMLElementsByTagName
-	? HTMLElementsByTagName[TStart]
-	: HTMLElement
-	: T extends keyof HTMLElementsByTagName
-	? HTMLElementsByTagName[T]
-	: HTMLElement;
