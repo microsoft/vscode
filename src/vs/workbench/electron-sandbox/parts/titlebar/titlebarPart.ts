@@ -43,7 +43,8 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		if (!isMacintosh) {
 			return super.minimumHeight;
 		}
-		return (this.isCommandCenterVisible ? 35 : this.getMacTitlebarSize()) / getZoomFactor();
+
+		return (this.isCommandCenterVisible ? 35 : this.getMacTitlebarSize()) / (this.useCounterZoom ? getZoomFactor() : 1);
 	}
 	override get maximumHeight(): number { return this.minimumHeight; }
 
