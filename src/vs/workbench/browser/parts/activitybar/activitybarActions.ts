@@ -426,7 +426,7 @@ registerAction2(
 			viewsService.openView(viewId, true);
 		}
 	}
-);;
+);
 registerThemingParticipant((theme, collector) => {
 	const activityBarForegroundColor = theme.getColor(ACTIVITY_BAR_FOREGROUND);
 	if (activityBarForegroundColor) {
