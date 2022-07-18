@@ -18,7 +18,7 @@ import * as nls from 'vs/nls';
 import { ContextScopedReplaceInput, registerAndCreateHistoryNavigationContext } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { editorWidgetBackground, editorWidgetForeground, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { editorWidgetBackground, editorWidgetBorder, editorWidgetForeground, editorWidgetResizeBorder, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { registerIcon, widgetClose } from 'vs/platform/theme/common/iconRegistry';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IColorTheme, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -35,6 +35,8 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { filterIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
 import { isSafari } from 'vs/base/common/platform';
+import { ISashEvent, Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
+import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -55,6 +57,8 @@ const NOTEBOOK_FIND_IN_MARKUP_PREVIEW = nls.localize('notebook.find.filter.findI
 const NOTEBOOK_FIND_IN_CODE_INPUT = nls.localize('notebook.find.filter.findInCodeInput', "Code Cell Source");
 const NOTEBOOK_FIND_IN_CODE_OUTPUT = nls.localize('notebook.find.filter.findInCodeOutput', "Cell Output");
 
+const NOTEBOOK_FIND_WIDGET_INITIAL_WIDTH = 318;
+const NOTEBOOK_FIND_WIDGET_INITIAL_HORIZONTAL_PADDING = 4;
 class NotebookFindFilterActionViewItem extends DropdownMenuActionViewItem {
 	constructor(readonly filters: NotebookFindFilters, action: IAction, actionRunner: IActionRunner, @IContextMenuService contextMenuService: IContextMenuService) {
 		super(action,
@@ -256,6 +260,8 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	protected _replaceBtn!: SimpleButton;
 	protected _replaceAllBtn!: SimpleButton;
 
+	private readonly _resizeSash: Sash;
+	private _resizeOriginalWidth = NOTEBOOK_FIND_WIDGET_INITIAL_WIDTH;
 
 	private _isVisible: boolean = false;
 	private _isReplaceVisible: boolean = false;
@@ -274,7 +280,8 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		@IMenuService readonly menuService: IMenuService,
 		@IContextMenuService readonly contextMenuService: IContextMenuService,
 		@IInstantiationService readonly instantiationService: IInstantiationService,
-		protected readonly _state: FindReplaceState<NotebookFindFilters> = new FindReplaceState<NotebookFindFilters>()
+		protected readonly _state: FindReplaceState<NotebookFindFilters> = new FindReplaceState<NotebookFindFilters>(),
+		protected readonly _notebookEditor: INotebookEditor,
 	) {
 		super();
 
@@ -339,7 +346,8 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 						this.updateButtons(this.foundMatch);
 						return { content: e.message };
 					}
-				}
+				},
+				flexibleWidth: true,
 			}
 		));
 
@@ -474,6 +482,58 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 		this._innerReplaceDomNode.appendChild(this._replaceBtn.domNode);
 		this._innerReplaceDomNode.appendChild(this._replaceAllBtn.domNode);
+
+		this._resizeSash = this._register(new Sash(this._domNode, { getVerticalSashLeft: () => 0 }, { orientation: Orientation.VERTICAL, size: 2 }));
+
+		this._register(this._resizeSash.onDidStart(() => {
+			this._resizeOriginalWidth = this._getDomWidth();
+		}));
+
+		this._register(this._resizeSash.onDidChange((evt: ISashEvent) => {
+			let width = this._resizeOriginalWidth + evt.startX - evt.currentX;
+			if (width < NOTEBOOK_FIND_WIDGET_INITIAL_WIDTH) {
+				width = NOTEBOOK_FIND_WIDGET_INITIAL_WIDTH;
+			}
+
+			const maxWidth = this._getMaxWidth();
+			if (width > maxWidth) {
+				width = maxWidth;
+			}
+
+			this._domNode.style.width = `${width}px`;
+
+			if (this._isReplaceVisible) {
+				this._replaceInput.width = dom.getTotalWidth(this._findInput.domNode);
+			}
+
+			this._findInput.inputBox.layout();
+		}));
+
+		this._register(this._resizeSash.onDidReset(() => {
+			// users double click on the sash
+			// try to emulate what happens with editor findWidget
+			const currentWidth = this._getDomWidth();
+			let width = NOTEBOOK_FIND_WIDGET_INITIAL_WIDTH;
+
+			if (currentWidth <= NOTEBOOK_FIND_WIDGET_INITIAL_WIDTH) {
+				width = this._getMaxWidth();
+			}
+
+			this._domNode.style.width = `${width}px`;
+			if (this._isReplaceVisible) {
+				this._replaceInput.width = dom.getTotalWidth(this._findInput.domNode);
+			}
+
+			this._findInput.inputBox.layout();
+		}));
+	}
+
+	private _getMaxWidth() {
+		return this._notebookEditor.getLayoutInfo().width - 64;
+	}
+
+	private _getDomWidth() {
+		return dom.getTotalWidth(this._domNode) - (NOTEBOOK_FIND_WIDGET_INITIAL_HORIZONTAL_PADDING * 2);
 	}
 
 	getCellToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IAction[] } {
@@ -727,4 +787,16 @@ registerThemingParticipant((theme, collector) => {
 	if (inputActiveOptionBackgroundColor) {
 		collector.addRule(`.simple-fr-find-part .find-filter-button > .monaco-action-bar .action-label.notebook-filters.checked { background-color: ${inputActiveOptionBackgroundColor}; }`);
 	}
+
+	const resizeBorderBackground = theme.getColor(editorWidgetResizeBorder) ?? theme.getColor(editorWidgetBorder);
+	if (resizeBorderBackground) {
+		collector.addRule(`.monaco-workbench .simple-fr-find-part-wrapper .monaco-sash { background-color: ${resizeBorderBackground}; }`);
+	}
+
+	collector.addRule(`
+	:root {
+		--notebook-find-width: ${NOTEBOOK_FIND_WIDGET_INITIAL_WIDTH}px;
+		--notebook-find-horizontal-padding: ${NOTEBOOK_FIND_WIDGET_INITIAL_HORIZONTAL_PADDING}px;
+	}
+	`);
 });

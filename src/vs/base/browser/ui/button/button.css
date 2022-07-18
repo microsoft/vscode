@@ -46,7 +46,9 @@
 	outline-offset: -1px !important;
 }
 
-.monaco-button-dropdown.disabled .monaco-button-dropdown-separator {
+.monaco-button-dropdown.disabled > .monaco-button.disabled,
+.monaco-button-dropdown.disabled > .monaco-button.disabled:focus,
+.monaco-button-dropdown.disabled > .monaco-button-dropdown-separator {
 	opacity: 0.4;
 }
 

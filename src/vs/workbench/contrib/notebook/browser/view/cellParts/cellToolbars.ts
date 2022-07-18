@@ -18,7 +18,6 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { DeleteCellAction } from 'vs/workbench/contrib/notebook/browser/controller/editActions';
 import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellActionView';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
@@ -93,22 +92,23 @@ export interface ICssClassDelegate {
 
 export class CellTitleToolbarPart extends CellPart {
 	private _toolbar: ToolBar;
-	private _deleteToolbar: ToolBar;
 	private _titleMenu: IMenu;
-	private _actionsDisposables = this._register(new DisposableStore());
-
-	private _hasActions = false;
+	private _deleteToolbar: ToolBar;
+	private _deleteMenu: IMenu;
+	private _toolbarActionsDisposables = this._register(new DisposableStore());
+	private _deleteActionsDisposables = this._register(new DisposableStore());
 	private readonly _onDidUpdateActions: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidUpdateActions: Event<void> = this._onDidUpdateActions.event;
 
 	get hasActions(): boolean {
-		return this._hasActions;
+		return this._toolbar.getItemsLength() + this._deleteToolbar.getItemsLength() > 0;
 	}
 
 	constructor(
 		private readonly toolbarContainer: HTMLElement,
 		private readonly _rootClassDelegate: ICssClassDelegate,
 		toolbarId: MenuId,
+		deleteToolbarId: MenuId,
 		private readonly _notebookEditor: INotebookEditorDelegate,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService menuService: IMenuService,
@@ -120,11 +120,14 @@ export class CellTitleToolbarPart extends CellPart {
 		this._titleMenu = this._register(menuService.createMenu(toolbarId, contextKeyService));
 
 		this._deleteToolbar = this._register(instantiationService.invokeFunction(accessor => createToolbar(accessor, toolbarContainer, 'cell-delete-toolbar')));
+		this._deleteMenu = this._register(menuService.createMenu(deleteToolbarId, contextKeyService));
 		if (!this._notebookEditor.creationOptions.isReadOnly) {
-			this._deleteToolbar.setActions([instantiationService.createInstance(DeleteCellAction)]);
+			const deleteActions = getCellToolbarActions(this._deleteMenu);
+			this._deleteToolbar.setActions(deleteActions.primary, deleteActions.secondary);
 		}
 
-		this.setupChangeListeners();
+		this.setupChangeListeners(this._toolbar, this._titleMenu, this._toolbarActionsDisposables);
+		this.setupChangeListeners(this._deleteToolbar, this._deleteMenu, this._deleteActionsDisposables);
 	}
 
 	override didRenderCell(element: ICellViewModel): void {
@@ -143,22 +146,22 @@ export class CellTitleToolbarPart extends CellPart {
 		this._deleteToolbar.context = toolbarContext;
 	}
 
-	private setupChangeListeners(): void {
+	private setupChangeListeners(toolbar: ToolBar, menu: IMenu, actionDisposables: DisposableStore): void {
 		// #103926
 		let dropdownIsVisible = false;
 		let deferredUpdate: (() => void) | undefined;
 
-		this.updateActions();
-		this._register(this._titleMenu.onDidChange(() => {
+		this.updateActions(toolbar, menu, actionDisposables);
+		this._register(menu.onDidChange(() => {
 			if (dropdownIsVisible) {
-				deferredUpdate = () => this.updateActions();
+				deferredUpdate = () => this.updateActions(toolbar, menu, actionDisposables);
 				return;
 			}
 
-			this.updateActions();
+			this.updateActions(toolbar, menu, actionDisposables);
 		}));
 		this._rootClassDelegate.toggle('cell-toolbar-dropdown-active', false);
-		this._register(this._toolbar.onDidChangeDropdownVisibility(visible => {
+		this._register(toolbar.onDidChangeDropdownVisibility(visible => {
 			dropdownIsVisible = visible;
 			this._rootClassDelegate.toggle('cell-toolbar-dropdown-active', visible);
 
@@ -172,24 +175,22 @@ export class CellTitleToolbarPart extends CellPart {
 		}));
 	}
 
-	private updateActions() {
-		this._actionsDisposables.clear();
-		const actions = getCellToolbarActions(this._titleMenu);
-		this._actionsDisposables.add(actions.disposable);
+	private updateActions(toolbar: ToolBar, menu: IMenu, actionDisposables: DisposableStore) {
+		actionDisposables.clear();
+		const actions = getCellToolbarActions(menu);
+		actionDisposables.add(actions.disposable);
 
-		const hadFocus = DOM.isAncestor(document.activeElement, this._toolbar.getElement());
-		this._toolbar.setActions(actions.primary, actions.secondary);
+		const hadFocus = DOM.isAncestor(document.activeElement, toolbar.getElement());
+		toolbar.setActions(actions.primary, actions.secondary);
 		if (hadFocus) {
 			this._notebookEditor.focus();
 		}
 
 		if (actions.primary.length || actions.secondary.length) {
 			this._rootClassDelegate.toggle('cell-has-toolbar-actions', true);
-			this._hasActions = true;
 			this._onDidUpdateActions.fire();
 		} else {
 			this._rootClassDelegate.toggle('cell-has-toolbar-actions', false);
-			this._hasActions = false;
 			this._onDidUpdateActions.fire();
 		}
 	}

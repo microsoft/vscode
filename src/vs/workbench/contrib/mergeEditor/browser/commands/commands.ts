@@ -167,6 +167,35 @@ const mergeEditorCategory: ILocalizedString = {
 	original: 'Merge Editor',
 };
 
+export class OpenResultResource extends Action2 {
+	constructor() {
+		super({
+			id: 'merge.openResult',
+			icon: Codicon.goToFile,
+			title: {
+				value: localize('openfile', 'Open File'),
+				original: 'Open File',
+			},
+			category: mergeEditorCategory,
+			menu: [{
+				id: MenuId.EditorTitle,
+				when: ctxIsMergeEditor,
+				group: 'navigation',
+				order: 1,
+			}],
+			precondition: ctxIsMergeEditor,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const opener = accessor.get(IOpenerService);
+		const { activeEditor } = accessor.get(IEditorService);
+		if (activeEditor instanceof MergeEditorInput) {
+			await opener.open(activeEditor.result);
+		}
+	}
+}
+
 export class GoToNextConflict extends Action2 {
 	constructor() {
 		super({
@@ -182,6 +211,7 @@ export class GoToNextConflict extends Action2 {
 					id: MenuId.EditorTitle,
 					when: ctxIsMergeEditor,
 					group: 'navigation',
+					order: 3
 				},
 			],
 			f1: true,
@@ -215,6 +245,7 @@ export class GoToPreviousConflict extends Action2 {
 					id: MenuId.EditorTitle,
 					when: ctxIsMergeEditor,
 					group: 'navigation',
+					order: 2
 				},
 			],
 			f1: true,

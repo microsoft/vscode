@@ -55,6 +55,8 @@ export interface ICommonNativeHostService {
 
 	readonly onDidChangePassword: Event<{ service: string; account: string }>;
 
+	readonly onDidTriggerSystemContextMenu: Event<{ windowId: number; x: number; y: number }>;
+
 	// Window
 	getWindows(): Promise<IOpenedWindow[]>;
 	getWindowCount(): Promise<number>;
