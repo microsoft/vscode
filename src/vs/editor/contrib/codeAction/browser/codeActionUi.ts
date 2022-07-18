@@ -66,6 +66,15 @@ export class CodeActionUi extends Disposable implements IEditorContribution {
 		this._codeActionWidget.getValue().dispose();
 	}
 
+	public navigateList(navUp: Boolean) {
+		if (navUp) {
+			this._codeActionWidget.getValue().navigateListWithKeysUp();
+		} else {
+			this._codeActionWidget.getValue().navigateListWithKeysDown();
+		}
+
+	}
+
 	public async update(newState: CodeActionsState.State): Promise<void> {
 		if (newState.type !== CodeActionsState.Type.Triggered) {
 			this._lightBulbWidget.rawValue?.hide();

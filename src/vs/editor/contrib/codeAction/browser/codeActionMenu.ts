@@ -85,7 +85,8 @@ export interface ICodeActionMenuItem {
 	action: IAction;
 	decoratorRight?: string;
 	isSeparator?: boolean;
-	isEnabled?: boolean;
+	isEnabled: boolean;
+	index: number;
 	disposables?: IDisposable[];
 }
 
@@ -165,6 +166,8 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	private readonly _ctxMenuWidgetIsFocused?: IContextKey<boolean>;
 	private _ctxMenuWidgetVisible!: IContextKey<boolean>;
 	private readonly editor: ICodeEditor;
+	private viewItems: ICodeActionMenuItem[] = [];
+	private focusedItem!: number | undefined;
 
 	public static readonly ID: string = 'editor.contrib.codeActionMenu';
 
@@ -263,7 +266,11 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		}
 
 		inputArray.forEach((item, index) => {
-			this.options.push(<ICodeActionMenuItem>{ title: item.label, detail: item.tooltip, action: inputArray[index], isEnabled: item.enabled, isSeparator: item.class === 'separator' });
+			const menuItem = <ICodeActionMenuItem>{ title: item.label, detail: item.tooltip, action: inputArray[index], isEnabled: item.enabled, isSeparator: item.class === 'separator', index };
+			if (item.enabled) {
+				this.viewItems.push(menuItem);
+			}
+			this.options.push(menuItem);
 		});
 
 		this.codeActionList.splice(0, this.codeActionList.length, this.options);
@@ -281,10 +288,9 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 
 		// resize observer - supports dynamic height but not width
 		this.codeActionList.domFocus();
-		this.codeActionList.setFocus([0]);
 		const focusTracker = dom.trackFocus(element);
 		const blurListener = focusTracker.onDidBlur(() => {
-			this.dispose();
+			this.hideCodeActionWidget();
 			this._contextViewService.hideContextView({ source: this });
 		});
 
@@ -293,20 +299,69 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		// this._ctxMenuWidgetVisible = Context.Visible.bindTo(this._contextKeyService.createScoped(element));
 		this._ctxMenuWidgetVisible.set(true);
 		return renderDisposables;
-
 	}
 
-	arrowOnAvailableItems() {
-		this.codeActionList.setFocus([0]);
-		this.codeActionList.setSelection([0]);
+	protected focusPrevious(forceLoop?: Boolean) {
+		if (typeof this.focusedItem === 'undefined') {
+			this.focusedItem = this.viewItems[0].index;
+		} else if (this.viewItems.length <= 1) {
+			return false;
+		}
+
+		const startIndex = this.focusedItem;
+		let item: ICodeActionMenuItem;
+
+		do {
+			this.focusedItem = this.focusedItem - 1;
+			if (this.focusedItem < 0) {
+				this.focusedItem = this.viewItems.length - 1;
+			}
+			item = this.viewItems[this.focusedItem];
+			this.codeActionList.setFocus([item.index]);
+		} while (this.focusedItem !== startIndex && ((!item.isEnabled) || item.action.id === Separator.ID));
+
+		return true;
+	}
+
+	protected focusNext(forceLoop?: Boolean) {
+		if (typeof this.focusedItem === 'undefined') {
+			this.focusedItem = this.viewItems.length - 1;
+		} else if (this.viewItems.length <= 1) {
+			return false;
+		}
+
+		const startIndex = this.focusedItem;
+		let item: ICodeActionMenuItem;
+
+		do {
+			this.focusedItem = (this.focusedItem + 1) % this.viewItems.length;
+			item = this.viewItems[this.focusedItem];
+			this.codeActionList.setFocus([item.index]);
+		} while (this.focusedItem !== startIndex && ((!item.isEnabled) || item.action.id === Separator.ID));
+
+		return true;
+	}
+
+	public navigateListWithKeysUp() {
+		this.focusPrevious();
+	}
+
+	public navigateListWithKeysDown() {
+		this.focusNext();
 	}
 
 	override dispose() {
-		this._ctxMenuWidgetVisible.reset();
 		this.codeActionList.dispose();
-		this.options = [];
-		this._contextViewService.hideContextView();
 		this._disposables.dispose();
+	}
+
+	hideCodeActionWidget() {
+		this._ctxMenuWidgetVisible.reset();
+		this.options = [];
+		this.viewItems = [];
+		this.focusedItem = undefined;
+		this._contextViewService.hideContextView();
+		this.dispose();
 	}
 
 	public async show(trigger: CodeActionTrigger, codeActions: CodeActionSet, at: IAnchor | IPosition, options: CodeActionShowOptions): Promise<void> {
