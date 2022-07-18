@@ -20,6 +20,16 @@ async function copyVscodeDevLink(gitAPI: GitAPI, useSelection: boolean) {
 	}
 }
 
+async function openVscodeDevLink(gitAPI: GitAPI): Promise<vscode.Uri | undefined> {
+	try {
+		const permalink = getPermalink(gitAPI, true, 'https://vscode.dev/github');
+		return permalink ? vscode.Uri.parse(permalink) : undefined;
+	} catch (err) {
+		vscode.window.showErrorMessage(err.message);
+		return undefined;
+	}
+}
+
 export function registerCommands(gitAPI: GitAPI): vscode.Disposable {
 	const disposables = new DisposableStore();
 
@@ -37,6 +47,10 @@ export function registerCommands(gitAPI: GitAPI): vscode.Disposable {
 
 	disposables.add(vscode.commands.registerCommand('github.copyVscodeDevLinkFile', async () => {
 		return copyVscodeDevLink(gitAPI, false);
+	}));
+
+	disposables.add(vscode.commands.registerCommand('github.openOnVscodeDev', async () => {
+		return openVscodeDevLink(gitAPI);
 	}));
 
 	return disposables;

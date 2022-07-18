@@ -148,6 +148,7 @@ export class Toggle extends Widget {
 				this.checked = !this._checked;
 				this._onChange.fire(true);
 				keyboardEvent.preventDefault();
+				keyboardEvent.stopPropagation();
 				return;
 			}
 
