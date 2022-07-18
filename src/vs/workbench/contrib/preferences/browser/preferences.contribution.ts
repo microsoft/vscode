@@ -295,7 +295,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					constructor() {
 						super({
 							id: SETTINGS_EDITOR_COMMAND_SWITCH_TO_APPLICATION_JSON,
-							title: { value: nls.localize('openApplicationSettings', "Open Default Profile Settings (JSON)"), original: 'Open Default Profile Settings (JSON)' },
+							title: { value: nls.localize('openApplicationSettings', "Open User Settings (JSON)"), original: 'Open User Settings (JSON)' },
 							f1: true,
 							menu: [{ id: submenuId }]
 						});
