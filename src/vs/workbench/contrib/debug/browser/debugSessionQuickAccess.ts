@@ -25,22 +25,15 @@ export class DebugSessionQuickAccess extends PickerQuickAccessProvider<IPickerQu
 
 	protected _getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Picks<IPickerQuickAccessItem> | Promise<Picks<IPickerQuickAccessItem>> | FastAndSlowPicks<IPickerQuickAccessItem> | null {
 		const debugConsolePicks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
-		let currHeader: string | undefined;
 		this._debugService.getModel().getSessions(false).forEach((session, index) => {
-
-
-
 			if (!session.parentSession) {
-				currHeader = session.name;
-				debugConsolePicks.push({ type: 'separator', label: session.name });
-			} else {
-				const pick = this._createPick(session, filter, currHeader);
-				if (pick) {
-					debugConsolePicks.push(pick);
-				}
+				debugConsolePicks.push({ type: 'separator' });
+			}
+			const pick = this._createPick(session, filter);
+			if (pick) {
+				debugConsolePicks.push(pick);
 			}
 		});
-
 
 		if (debugConsolePicks.length > 0) {
 			debugConsolePicks.push({ type: 'separator' });
@@ -55,53 +48,33 @@ export class DebugSessionQuickAccess extends PickerQuickAccessProvider<IPickerQu
 		return debugConsolePicks;
 	}
 
-	private _getNonRootParent(session: IDebugSession) {
-
-		// don't return a parent if it's the launch task nane
-		if (session.parentSession) {
-			if (session.parentSession.parentSession) {
-				return session.parentSession;
-			}
-		}
-		return undefined;
-
-	}
-	private _getSessionParentString(session: IDebugSession): { description: string; ariaLabel: string } {
-		const parentName = this._getNonRootParent(session)?.configuration.name;
-		let desc;
+	private _getSessionInfo(session: IDebugSession): { label: string; description: string; ariaLabel: string } {
+		const label = session.configuration.name.length === 0 ? session.name : session.configuration.name;
+		const parentName = session.parentSession?.configuration.name;
+		let description;
 		let ariaLabel;
 		if (parentName) {
 			const prefixAriaString = localize("workbench.action.debug.spawnFrom", "which was spawn from");
 			ariaLabel = `${prefixAriaString} ${parentName}`;
-			desc = parentName;
+			description = parentName;
 		} else {
-			desc = '';
+			description = '';
 			ariaLabel = '';
 		}
 
-		return { description: desc, ariaLabel: ariaLabel };
+		return { label, description, ariaLabel };
 	}
 
-	private _createPick(session: IDebugSession, filter: string, header: string | undefined): IPickerQuickAccessItem | undefined {
-		let label = session.configuration.name;
-
-		if (label.length === 0) {
-			if (header) {
-				label = session.name.replace(`${header}: `, '');
-			} else {
-				label = session.name;
-			}
-
-		}
-		const labels = this._getSessionParentString(session);
-		const highlights = matchesFuzzy(filter, label, true);
+	private _createPick(session: IDebugSession, filter: string): IPickerQuickAccessItem | undefined {
+		const pickInfo = this._getSessionInfo(session);
+		const highlights = matchesFuzzy(filter, pickInfo.label, true);
 		if (highlights) {
 			return {
-				label,
-				description: labels.description,
-				ariaLabel: labels.ariaLabel,
+				label: pickInfo.label,
+				description: pickInfo.description,
+				ariaLabel: pickInfo.ariaLabel,
 				highlights: { label: highlights },
-				accept: (keyMod, event) => {
+				accept: () => {
 					this._debugService.focusStackFrame(undefined, undefined, session, { explicit: true });
 					if (!this._viewsService.isViewVisible(REPL_VIEW_ID)) {
 						this._viewsService.openView(REPL_VIEW_ID, true);
