@@ -54,6 +54,7 @@ type WelcomeActionClassification = {
 	owner: 'joaomoreno';
 	viewId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 	uri: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	comment: 'This is used to know when users click on the welcome view buttons.';
 };
 
 const viewPaneContainerExpandedIcon = registerIcon('view-pane-container-expanded', Codicon.chevronDown, nls.localize('viewPaneContainerExpandedIcon', 'Icon for an expanded view pane container.'));

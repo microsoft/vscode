@@ -21,6 +21,7 @@ export function createUpdateURL(platform: string, quality: string, productServic
 export type UpdateNotAvailableClassification = {
 	owner: 'joaomoreno';
 	explicit: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+	comment: 'This is used to understand how often VS Code pings the update server for an update and there\'s none available. It includes whether the user has manually checked for updates, or this was an automatic check.';
 };
 
 export abstract class AbstractUpdateService implements IUpdateService {
