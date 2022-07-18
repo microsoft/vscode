@@ -52,8 +52,8 @@ export interface IViewPaneOptions extends IPaneOptions {
 
 type WelcomeActionClassification = {
 	owner: 'joaomoreno';
-	viewId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-	uri: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	viewId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The view ID in which the welcome view button was clicked.' };
+	uri: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The URI of the command ran by the result of clicking the button.' };
 	comment: 'This is used to know when users click on the welcome view buttons.';
 };
 
