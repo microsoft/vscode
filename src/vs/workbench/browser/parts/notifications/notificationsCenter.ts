@@ -11,7 +11,7 @@ import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, 
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { Emitter } from 'vs/base/common/event';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { NotificationsCenterVisibleContext, INotificationsCenterController } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
+import { INotificationsCenterController } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { NotificationsList } from 'vs/workbench/browser/parts/notifications/notificationsList';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { isAncestor, Dimension } from 'vs/base/browser/dom';
@@ -19,10 +19,12 @@ import { widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { localize } from 'vs/nls';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ClearAllNotificationsAction, HideNotificationsCenterAction, NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsActions';
+import { ClearAllNotificationsAction, HideNotificationsCenterAction, NotificationActionRunner, ToggleDoNotDisturbAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
 import { IAction } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { assertAllDefined, assertIsDefined } from 'vs/base/common/types';
+import { NotificationsCenterVisibleContext } from 'vs/workbench/common/contextkeys';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class NotificationsCenter extends Themable implements INotificationsCenterController {
 
@@ -39,6 +41,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 	private workbenchDimensions: Dimension | undefined;
 	private readonly notificationsCenterVisibleContextKey = NotificationsCenterVisibleContext.bindTo(this.contextKeyService);
 	private clearAllAction: ClearAllNotificationsAction | undefined;
+	private toggleDoNotDisturbAction: ToggleDoNotDisturbAction | undefined;
 
 	constructor(
 		private readonly container: HTMLElement,
@@ -48,7 +51,8 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super(themeService);
 
@@ -60,6 +64,11 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 	private registerListeners(): void {
 		this._register(this.model.onDidChangeNotification(e => this.onDidChangeNotification(e)));
 		this._register(this.layoutService.onDidLayout(dimension => this.layout(Dimension.lift(dimension))));
+		this._register(this.notificationService.onDidChangeDoNotDisturbMode(() => this.onDidChangeDoNotDisturbMode()));
+	}
+
+	private onDidChangeDoNotDisturbMode(): void {
+		this.hide(); // hide the notification center when do not disturb is toggled
 	}
 
 	get isVisible(): boolean {
@@ -153,11 +162,16 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		this.clearAllAction = this._register(this.instantiationService.createInstance(ClearAllNotificationsAction, ClearAllNotificationsAction.ID, ClearAllNotificationsAction.LABEL));
 		notificationsToolBar.push(this.clearAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.clearAllAction) });
 
+		this.toggleDoNotDisturbAction = this._register(this.instantiationService.createInstance(ToggleDoNotDisturbAction, ToggleDoNotDisturbAction.ID, ToggleDoNotDisturbAction.LABEL));
+		notificationsToolBar.push(this.toggleDoNotDisturbAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.toggleDoNotDisturbAction) });
+
 		const hideAllAction = this._register(this.instantiationService.createInstance(HideNotificationsCenterAction, HideNotificationsCenterAction.ID, HideNotificationsCenterAction.LABEL));
 		notificationsToolBar.push(hideAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(hideAllAction) });
 
 		// Notifications List
-		this.notificationsList = this.instantiationService.createInstance(NotificationsList, this.notificationsCenterContainer, {});
+		this.notificationsList = this.instantiationService.createInstance(NotificationsList, this.notificationsCenterContainer, {
+			widgetAriaLabel: localize('notificationsCenterWidgetAriaLabel', "Notifications Center")
+		});
 		this.container.appendChild(this.notificationsCenterContainer);
 	}
 
@@ -268,8 +282,8 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		this.workbenchDimensions = dimension;
 
 		if (this._isVisible && this.notificationsCenterContainer) {
-			let maxWidth = NotificationsCenter.MAX_DIMENSIONS.width;
-			let maxHeight = NotificationsCenter.MAX_DIMENSIONS.height;
+			const maxWidth = NotificationsCenter.MAX_DIMENSIONS.width;
+			const maxHeight = NotificationsCenter.MAX_DIMENSIONS.height;
 
 			let availableWidth = maxWidth;
 			let availableHeight = maxHeight;
@@ -312,6 +326,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		}
 	}
 }
+
 
 registerThemingParticipant((theme, collector) => {
 	const notificationBorderColor = theme.getColor(NOTIFICATIONS_BORDER);

@@ -34,6 +34,7 @@ suite('UndoRedoService', () => {
 			type: UndoRedoElementType.Resource,
 			resource: resource,
 			label: 'typing 1',
+			code: 'typing',
 			undo: () => { undoCall1++; },
 			redo: () => { redoCall1++; }
 		};
@@ -68,6 +69,7 @@ suite('UndoRedoService', () => {
 			type: UndoRedoElementType.Resource,
 			resource: resource,
 			label: 'typing 2',
+			code: 'typing',
 			undo: () => { undoCall2++; },
 			redo: () => { redoCall2++; }
 		};
@@ -99,6 +101,7 @@ suite('UndoRedoService', () => {
 			type: UndoRedoElementType.Resource,
 			resource: resource,
 			label: 'typing 2',
+			code: 'typing',
 			undo: () => { undoCall3++; },
 			redo: () => { redoCall3++; }
 		};
@@ -146,6 +149,7 @@ suite('UndoRedoService', () => {
 			type: UndoRedoElementType.Workspace,
 			resources: [resource1, resource2],
 			label: 'typing 1',
+			code: 'typing',
 			undo: () => { undoCall1++; },
 			redo: () => { redoCall1++; },
 			split: () => {
@@ -154,6 +158,7 @@ suite('UndoRedoService', () => {
 						type: UndoRedoElementType.Resource,
 						resource: resource1,
 						label: 'typing 1.1',
+						code: 'typing',
 						undo: () => { undoCall11++; },
 						redo: () => { redoCall11++; }
 					},
@@ -161,6 +166,7 @@ suite('UndoRedoService', () => {
 						type: UndoRedoElementType.Resource,
 						resource: resource2,
 						label: 'typing 1.2',
+						code: 'typing',
 						undo: () => { undoCall12++; },
 						redo: () => { redoCall12++; }
 					}

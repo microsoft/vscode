@@ -10,7 +10,7 @@ suite('HighlightedLabel', () => {
 	let label: HighlightedLabel;
 
 	setup(() => {
-		label = new HighlightedLabel(document.createElement('div'), true);
+		label = new HighlightedLabel(document.createElement('div'), { supportIcons: true });
 	});
 
 	test('empty label', function () {

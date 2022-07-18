@@ -12,9 +12,9 @@ import { Range } from 'vs/editor/common/core/range';
 import { localize } from 'vs/nls';
 import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
 import { IObservableValue, MutableObservableValue, staticObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { IRichLocation, ISerializedTestResults, ITestItem, ITestMessage, ITestOutputMessage, ITestRunTask, ITestTaskState, ResolvedTestRunRequest, TestItemExpandState, TestMessageType, TestResultItem, TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
+import { IRichLocation, ISerializedTestResults, ITestItem, ITestMessage, ITestOutputMessage, ITestRunTask, ITestTaskState, ResolvedTestRunRequest, TestItemExpandState, TestMessageType, TestResultItem, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
-import { maxPriority, statesInOrder } from 'vs/workbench/contrib/testing/common/testingStates';
+import { maxPriority, statesInOrder, terminalStatePriorities } from 'vs/workbench/contrib/testing/common/testingStates';
 
 export interface ITestRunTaskResults extends ITestRunTask {
 	/**
@@ -230,19 +230,16 @@ const itemToNode = (controllerId: string, item: ITestItem, parent: string | null
 	tasks: [],
 	ownComputedState: TestResultState.Unset,
 	computedState: TestResultState.Unset,
-	retired: false,
 });
 
 export const enum TestResultItemChangeReason {
-	Retired,
-	ParentRetired,
 	ComputedStateChange,
 	OwnStateChange,
 }
 
 export type TestResultItemChange = { item: TestResultItem; result: ITestResult } & (
-	| { reason: TestResultItemChangeReason.Retired | TestResultItemChangeReason.ParentRetired | TestResultItemChangeReason.ComputedStateChange }
-	| { reason: TestResultItemChangeReason.OwnStateChange; previous: TestResultState }
+	| { reason: TestResultItemChangeReason.ComputedStateChange }
+	| { reason: TestResultItemChangeReason.OwnStateChange; previousState: TestResultState; previousOwnDuration: number | undefined }
 );
 
 /**
@@ -324,7 +321,7 @@ export class LiveTestResult implements ITestResult {
 			location,
 			message: output.toString(),
 			offset: this.output.offset,
-			type: TestMessageType.Info,
+			type: TestMessageType.Output,
 		};
 
 		const index = this.mustGetTaskIndex(taskId);
@@ -379,12 +376,18 @@ export class LiveTestResult implements ITestResult {
 		}
 
 		const index = this.mustGetTaskIndex(taskId);
-		if (duration !== undefined) {
-			entry.tasks[index].duration = duration;
-			entry.ownDuration = Math.max(entry.ownDuration || 0, duration);
+
+		const oldTerminalStatePrio = terminalStatePriorities[entry.tasks[index].state];
+		const newTerminalStatePrio = terminalStatePriorities[state];
+
+		// Ignore requests to set the state from one terminal state back to a
+		// "lower" one, e.g. from failed back to passed:
+		if (oldTerminalStatePrio !== undefined &&
+			(newTerminalStatePrio === undefined || newTerminalStatePrio < oldTerminalStatePrio)) {
+			return;
 		}
 
-		this.fireUpdateAndRefresh(entry, index, state);
+		this.fireUpdateAndRefresh(entry, index, state, duration);
 	}
 
 	/**
@@ -401,7 +404,8 @@ export class LiveTestResult implements ITestResult {
 			item: entry,
 			result: this,
 			reason: TestResultItemChangeReason.OwnStateChange,
-			previous: entry.ownComputedState,
+			previousState: entry.ownComputedState,
+			previousOwnDuration: entry.ownDuration,
 		});
 	}
 
@@ -410,33 +414,6 @@ export class LiveTestResult implements ITestResult {
 	 */
 	public getOutput() {
 		return this.output.read();
-	}
-
-	/**
-	 * Marks a test as retired. This can trigger it to be rerun in live mode.
-	 */
-	public retire(testId: string) {
-		const root = this.testById.get(testId);
-		if (!root || root.retired) {
-			return;
-		}
-
-		const queue = [[root]];
-		while (queue.length) {
-			for (const entry of queue.pop()!) {
-				if (!entry.retired) {
-					entry.retired = true;
-					queue.push(entry.children);
-					this.changeEmitter.fire({
-						result: this,
-						item: entry,
-						reason: entry === root
-							? TestResultItemChangeReason.Retired
-							: TestResultItemChangeReason.ParentRetired
-					});
-				}
-			}
-		}
 	}
 
 	/**
@@ -488,11 +465,28 @@ export class LiveTestResult implements ITestResult {
 		}
 	}
 
-	private fireUpdateAndRefresh(entry: TestResultItem, taskIndex: number, newState: TestResultState) {
+	private fireUpdateAndRefresh(entry: TestResultItem, taskIndex: number, newState: TestResultState, newOwnDuration?: number) {
 		const previousOwnComputed = entry.ownComputedState;
+		const previousOwnDuration = entry.ownDuration;
+		const changeEvent: TestResultItemChange = {
+			item: entry,
+			result: this,
+			reason: TestResultItemChangeReason.OwnStateChange,
+			previousState: previousOwnComputed,
+			previousOwnDuration: previousOwnDuration,
+		};
+
 		entry.tasks[taskIndex].state = newState;
+		if (newOwnDuration !== undefined) {
+			entry.tasks[taskIndex].duration = newOwnDuration;
+			entry.ownDuration = Math.max(entry.ownDuration || 0, newOwnDuration);
+		}
+
 		const newOwnComputed = maxPriority(...entry.tasks.map(t => t.state));
 		if (newOwnComputed === previousOwnComputed) {
+			if (newOwnDuration !== previousOwnDuration) {
+				this.changeEmitter.fire(changeEvent); // fire manually since state change won't do it
+			}
 			return;
 		}
 
@@ -500,11 +494,11 @@ export class LiveTestResult implements ITestResult {
 		this.counts[previousOwnComputed]--;
 		this.counts[newOwnComputed]++;
 		refreshComputedState(this.computedStateAccessor, entry).forEach(t =>
-			this.changeEmitter.fire(
-				t === entry
-					? { item: entry, result: this, reason: TestResultItemChangeReason.OwnStateChange, previous: previousOwnComputed }
-					: { item: t, result: this, reason: TestResultItemChangeReason.ComputedStateChange }
-			),
+			this.changeEmitter.fire(t === entry ? changeEvent : {
+				item: t,
+				result: this,
+				reason: TestResultItemChangeReason.ComputedStateChange,
+			}),
 		);
 	}
 
@@ -541,12 +535,7 @@ export class LiveTestResult implements ITestResult {
 		tasks: this.tasks.map(t => ({ id: t.id, name: t.name, messages: t.otherMessages })),
 		name: this.name,
 		request: this.request,
-		items: [...this.testById.values()].map(entry => ({
-			...entry,
-			retired: undefined,
-			src: undefined,
-			children: [...entry.children.map(c => c.item.extId)],
-		})),
+		items: [...this.testById.values()].map(e => TestResultItem.serialize(e, [...e.children.map(c => c.item.extId)])),
 	}));
 }
 
@@ -619,7 +608,7 @@ export class HydratedTestResult implements ITestResult {
 		this.request = serialized.request;
 
 		for (const item of serialized.items) {
-			const cast: TestResultItem = { ...item, retired: true };
+			const cast: TestResultItem = { ...item } as any;
 			cast.item.uri = URI.revive(cast.item.uri);
 
 			for (const task of cast.tasks) {

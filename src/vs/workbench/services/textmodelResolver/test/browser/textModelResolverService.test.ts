@@ -18,29 +18,33 @@ import { Event } from 'vs/base/common/event';
 import { timeout } from 'vs/base/common/async';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('Workbench - TextModelResolverService', () => {
 
+	let disposables: DisposableStore;
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 	let model: TextFileEditorModel;
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
+		disposables = new DisposableStore();
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 	});
 
 	teardown(() => {
 		model?.dispose();
 		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
+		disposables.dispose();
 	});
 
 	test('resolve resource', async () => {
 		const disposable = accessor.textModelResolverService.registerTextModelContentProvider('test', {
 			provideTextContent: async function (resource: URI): Promise<ITextModel | null> {
 				if (resource.scheme === 'test') {
-					let modelContent = 'Hello Test';
-					let languageSelection = accessor.modeService.create('json');
+					const modelContent = 'Hello Test';
+					const languageSelection = accessor.languageService.createById('json');
 
 					return accessor.modelService.createModel(modelContent, languageSelection, resource);
 				}
@@ -49,14 +53,14 @@ suite('Workbench - TextModelResolverService', () => {
 			}
 		});
 
-		let resource = URI.from({ scheme: 'test', authority: null!, path: 'thePath' });
-		let input = instantiationService.createInstance(TextResourceEditorInput, resource, 'The Name', 'The Description', undefined, undefined);
+		const resource = URI.from({ scheme: 'test', authority: null!, path: 'thePath' });
+		const input = instantiationService.createInstance(TextResourceEditorInput, resource, 'The Name', 'The Description', undefined, undefined);
 
 		const model = await input.resolve();
 		assert.ok(model);
 		assert.strictEqual(snapshotToString(((model as TextResourceEditorModel).createSnapshot()!)), 'Hello Test');
 		let disposed = false;
-		let disposedPromise = new Promise<void>(resolve => {
+		const disposedPromise = new Promise<void>(resolve => {
 			Event.once(model.onWillDispose)(() => {
 				disposed = true;
 				resolve();
@@ -168,14 +172,14 @@ suite('Workbench - TextModelResolverService', () => {
 
 	test('even loading documents should be refcounted', async () => {
 		let resolveModel!: Function;
-		let waitForIt = new Promise(resolve => resolveModel = resolve);
+		const waitForIt = new Promise(resolve => resolveModel = resolve);
 
 		const disposable = accessor.textModelResolverService.registerTextModelContentProvider('test', {
 			provideTextContent: async (resource: URI): Promise<ITextModel> => {
 				await waitForIt;
 
-				let modelContent = 'Hello Test';
-				let languageSelection = accessor.modeService.create('json');
+				const modelContent = 'Hello Test';
+				const languageSelection = accessor.languageService.createById('json');
 				return accessor.modelService.createModel(modelContent, languageSelection, resource);
 			}
 		});
@@ -199,7 +203,7 @@ suite('Workbench - TextModelResolverService', () => {
 		modelRef1.dispose();
 		assert(!textModel.isDisposed(), 'the text model should still not be disposed');
 
-		let p1 = new Promise<void>(resolve => textModel.onWillDispose(resolve));
+		const p1 = new Promise<void>(resolve => textModel.onWillDispose(resolve));
 		modelRef2.dispose();
 
 		await p1;

@@ -126,6 +126,10 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			this.selectElement.setAttribute('aria-label', this.selectBoxOptions.ariaLabel);
 		}
 
+		if (typeof this.selectBoxOptions.ariaDescription === 'string') {
+			this.selectElement.setAttribute('aria-description', this.selectBoxOptions.ariaDescription);
+		}
+
 		this._onDidSelect = new Emitter<ISelectData>();
 		this._register(this._onDidSelect);
 
@@ -164,8 +168,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		this.selectionDetailsPane = dom.append(this.selectDropDownContainer, $('.select-box-details-pane'));
 
 		// Create span flex box item/div we can measure and control
-		let widthControlOuterDiv = dom.append(this.selectDropDownContainer, $('.select-box-dropdown-container-width-control'));
-		let widthControlInnerDiv = dom.append(widthControlOuterDiv, $('.width-control-div'));
+		const widthControlOuterDiv = dom.append(this.selectDropDownContainer, $('.select-box-dropdown-container-width-control'));
+		const widthControlInnerDiv = dom.append(widthControlOuterDiv, $('.width-control-div'));
 		this.widthControlElement = document.createElement('span');
 		this.widthControlElement.className = 'option-text-width-control';
 		dom.append(widthControlInnerDiv, this.widthControlElement);
@@ -175,6 +179,12 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 		// Inline stylesheet for themes
 		this.styleElement = dom.createStyleSheet(this.selectDropDownContainer);
+
+		// Prevent dragging of dropdown #114329
+		this.selectDropDownContainer.setAttribute('draggable', 'true');
+		this._register(dom.addDisposableListener(this.selectDropDownContainer, dom.EventType.DRAG_START, (e) => {
+			dom.EventHelper.stop(e, true);
+		}));
 	}
 
 	private registerListeners() {
@@ -207,6 +217,23 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 		this._register(dom.addDisposableListener(this.selectElement, dom.EventType.MOUSE_DOWN, (e) => {
 			dom.EventHelper.stop(e);
+		}));
+
+		// Intercept touch events
+		// The following implementation is slightly different from the mouse event handlers above.
+		// Use the following helper variable, otherwise the list flickers.
+		let listIsVisibleOnTouchStart: boolean;
+		this._register(dom.addDisposableListener(this.selectElement, 'touchstart', (e) => {
+			listIsVisibleOnTouchStart = this._isVisible;
+		}));
+		this._register(dom.addDisposableListener(this.selectElement, 'touchend', (e) => {
+			dom.EventHelper.stop(e);
+
+			if (listIsVisibleOnTouchStart) {
+				this.hideSelectDropDown(true);
+			} else {
+				this.showSelectDropDown();
+			}
 		}));
 
 		// Intercept keyboard handling
@@ -263,9 +290,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 		// Mirror options in drop-down
 		// Populate select list for non-native select mode
-		if (this.selectList) {
-			this.selectList.splice(0, this.selectList.length, this.options);
-		}
+		this.selectList?.splice(0, this.selectList.length, this.options);
 	}
 
 	public select(index: number): void {
@@ -411,7 +436,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	}
 
 	private createOption(value: string, index: number, disabled?: boolean): HTMLOptionElement {
-		let option = document.createElement('option');
+		const option = document.createElement('option');
 		option.value = value;
 		option.text = value;
 		option.disabled = !!disabled;
@@ -751,14 +776,10 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.PageUp).on(this.onPageUp, this));
 		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.Home).on(this.onHome, this));
 		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.End).on(this.onEnd, this));
-		this._register(onSelectDropDownKeyDown.filter(e => (e.keyCode >= KeyCode.KEY_0 && e.keyCode <= KeyCode.KEY_Z) || (e.keyCode >= KeyCode.US_SEMICOLON && e.keyCode <= KeyCode.NUMPAD_DIVIDE)).on(this.onCharacter, this));
+		this._register(onSelectDropDownKeyDown.filter(e => (e.keyCode >= KeyCode.Digit0 && e.keyCode <= KeyCode.KeyZ) || (e.keyCode >= KeyCode.Semicolon && e.keyCode <= KeyCode.NumpadDivide)).on(this.onCharacter, this));
 
 		// SetUp list mouse controller - control navigation, disabled items, focus
-
-		const onMouseUp = this._register(new DomEmitter(this.selectList.getHTMLElement(), 'mouseup'));
-		this._register(Event.chain(onMouseUp.event)
-			.filter(() => this.selectList.length > 0)
-			.on(e => this.onMouseUp(e), this));
+		this._register(dom.addDisposableListener(this.selectList.getHTMLElement(), dom.EventType.POINTER_UP, e => this.onPointerUp(e)));
 
 		this._register(this.selectList.onMouseOver(e => typeof e.index !== 'undefined' && this.selectList.setFocus([e.index])));
 		this._register(this.selectList.onDidChangeFocus(e => this.onListFocus(e)));
@@ -779,7 +800,12 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	// List methods
 
 	// List mouse controller - active exit, select option, fire onDidSelect if change, return focus to parent select
-	private onMouseUp(e: MouseEvent): void {
+	// Also takes in touchend events
+	private onPointerUp(e: PointerEvent): void {
+
+		if (!this.selectList.length) {
+			return;
+		}
 
 		dom.EventHelper.stop(e);
 
@@ -789,7 +815,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		}
 
 		// Check our mouse event is on an option (not scrollbar)
-		if (!!target.classList.contains('slider')) {
+		if (target.classList.contains('slider')) {
 			return;
 		}
 
@@ -874,12 +900,13 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 	private updateDetail(selectedIndex: number): void {
 		this.selectionDetailsPane.innerText = '';
-		const description = this.options[selectedIndex].description;
-		const descriptionIsMarkdown = this.options[selectedIndex].descriptionIsMarkdown;
+		const option = this.options[selectedIndex];
+		const description = option?.description ?? '';
+		const descriptionIsMarkdown = option?.descriptionIsMarkdown ?? false;
 
 		if (description) {
 			if (descriptionIsMarkdown) {
-				const actionHandler = this.options[selectedIndex].descriptionMarkdownActionHandler;
+				const actionHandler = option.descriptionMarkdownActionHandler;
 				this.selectionDetailsPane.appendChild(this.renderDescriptionMarkdown(description, actionHandler));
 			} else {
 				this.selectionDetailsPane.innerText = description;

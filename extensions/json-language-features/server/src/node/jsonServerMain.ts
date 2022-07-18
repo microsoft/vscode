@@ -5,8 +5,7 @@
 
 import { createConnection, Connection, Disposable } from 'vscode-languageserver/node';
 import { formatError } from '../utils/runner';
-import { RuntimeEnvironment, startServer } from '../jsonServer';
-import { RequestService } from '../requests';
+import { RequestService, RuntimeEnvironment, startServer } from '../jsonServer';
 
 import { xhr, XHRResponse, configure as configureHttpRequests, getErrorStatusDescription } from 'request-light';
 import { URI as Uri } from 'vscode-uri';
@@ -37,7 +36,7 @@ function getHTTPRequestService(): RequestService {
 
 function getFileRequestService(): RequestService {
 	return {
-		getContent(location: string, encoding?: string) {
+		getContent(location: string, encoding?: BufferEncoding) {
 			return new Promise((c, e) => {
 				const uri = Uri.parse(location);
 				fs.readFile(uri.fsPath, encoding, (err, buf) => {

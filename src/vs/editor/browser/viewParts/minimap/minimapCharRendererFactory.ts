@@ -80,7 +80,7 @@ export class MinimapCharRendererFactory {
 			throw new Error('Unexpected source in MinimapCharRenderer');
 		}
 
-		let charData = MinimapCharRendererFactory._downsample(source, scale);
+		const charData = MinimapCharRendererFactory._downsample(source, scale);
 		return new MinimapCharRenderer(charData, scale);
 	}
 

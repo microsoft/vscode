@@ -8,7 +8,6 @@
   "engines": {
     "vscode": "0.10.x"
   },
-  "enableProposedApi": true,
   "icon": "images/npm_icon.png",
   "categories": [
     "Other"
@@ -22,14 +21,14 @@
     "find-yarn-workspace-root": "^2.0.0",
     "jsonc-parser": "^2.2.1",
     "minimatch": "^3.0.4",
-    "request-light": "^0.5.4",
+    "request-light": "^0.5.7",
     "vscode-nls": "^5.0.0",
     "which": "^2.0.2",
     "which-pm": "^2.0.0"
   },
   "devDependencies": {
     "@types/minimatch": "^3.0.3",
-    "@types/node": "14.x",
+    "@types/node": "16.x",
     "@types/which": "^2.0.0"
   },
   "resolutions": {
@@ -38,7 +37,7 @@
   "main": "./out/npmMain",
   "browser": "./dist/browser/npmBrowserMain",
   "activationEvents": [
-    "onCommand:workbench.action.tasks.runTask",
+    "onTaskType:npm",
     "onCommand:npm.runScriptFromFolder",
     "onLanguage:json",
     "workspaceContains:package.json",
@@ -73,7 +72,8 @@
           "name": "%view.name%",
           "when": "npm:showScriptExplorer",
           "icon": "$(json)",
-          "visibility": "hidden"
+          "visibility": "hidden",
+          "contextualTitle": "%view.name%"
         }
       ]
     },
@@ -111,7 +111,7 @@
       },
       {
         "command": "npm.packageManager",
-        "title": "%command.packageManager"
+        "title": "%command.packageManager%"
       }
     ],
     "menus": {
@@ -280,6 +280,15 @@
           "markdownDescription": "%config.npm.scriptExplorerAction%",
           "scope": "window",
           "default": "open"
+        },
+        "npm.scriptExplorerExclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "%config.npm.scriptExplorerExclude%",
+          "scope": "resource",
+          "default": []
         },
         "npm.fetchOnlinePackageInfo": {
           "type": "boolean",

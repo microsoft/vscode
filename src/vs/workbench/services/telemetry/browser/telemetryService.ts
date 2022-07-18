@@ -3,108 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ApplicationInsights } from '@microsoft/applicationinsights-web';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IObservableValue } from 'vs/base/common/observableValue';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILoggerService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { OneDataSystemWebAppender } from 'vs/platform/telemetry/browser/1dsAppender';
 import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
-import { ITelemetryData, ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryData, ITelemetryInfo, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryLogAppender } from 'vs/platform/telemetry/common/telemetryLogAppender';
 import { ITelemetryServiceConfig, TelemetryService as BaseTelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { combinedAppender, ITelemetryAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { ITelemetryAppender, NullTelemetryService, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { resolveWorkbenchCommonProperties } from 'vs/workbench/services/telemetry/browser/workbenchCommonProperties';
-
-class WebAppInsightsAppender implements ITelemetryAppender {
-	private _aiClient: ApplicationInsights | undefined;
-	private _aiClientLoaded = false;
-	private _telemetryCache: { eventName: string, data: any }[] = [];
-
-	constructor(private _eventPrefix: string, aiKey: string) {
-		const endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
-		import('@microsoft/applicationinsights-web').then(aiLibrary => {
-			this._aiClient = new aiLibrary.ApplicationInsights({
-				config: {
-					instrumentationKey: aiKey,
-					endpointUrl,
-					disableAjaxTracking: true,
-					disableExceptionTracking: true,
-					disableFetchTracking: true,
-					disableCorrelationHeaders: true,
-					disableCookiesUsage: true,
-					autoTrackPageVisitTime: false,
-					emitLineDelimitedJson: true,
-				},
-			});
-			this._aiClient.loadAppInsights();
-			// Client is loaded we can now flush the cached events
-			this._aiClientLoaded = true;
-			this._telemetryCache.forEach(cacheEntry => this.log(cacheEntry.eventName, cacheEntry.data));
-			this._telemetryCache = [];
-
-			// If we cannot access the endpoint this most likely means it's being blocked
-			// and we should not attempt to send any telemetry.
-			fetch(endpointUrl).catch(() => (this._aiClient = undefined));
-		}).catch(err => {
-			console.error(err);
-		});
-	}
-
-	/**
-	 * Logs a telemetry event with eventName and data
-	 * @param eventName The event name
-	 * @param data The data associated with the events
-	 */
-	public log(eventName: string, data: any): void {
-		if (!this._aiClient && this._aiClientLoaded) {
-			return;
-		} else if (!this._aiClient && !this._aiClientLoaded) {
-			this._telemetryCache.push({ eventName, data });
-			return;
-		}
-
-		// undefined assertion is ok since above two if statements cover both cases
-		this._aiClient!.trackEvent({ name: this._eventPrefix + '/' + eventName }, data);
-	}
-
-	/**
-	 * Flushes all the telemetry data still in the buffer
-	 */
-	public flush(): Promise<any> {
-		if (this._aiClient) {
-			this._aiClient.flush();
-			this._aiClient = undefined;
-		}
-		return Promise.resolve(undefined);
-	}
-}
-
-class WebTelemetryAppender implements ITelemetryAppender {
-
-	constructor(private _appender: ITelemetryAppender) { }
-
-	log(eventName: string, data: any): void {
-		this._appender.log(eventName, data);
-	}
-
-	flush(): Promise<void> {
-		return this._appender.flush();
-	}
-}
 
 export class TelemetryService extends Disposable implements ITelemetryService {
 
 	declare readonly _serviceBrand: undefined;
 
 	private impl: ITelemetryService;
-	public readonly sendErrorTelemetry = false;
+	public readonly sendErrorTelemetry = true;
 
 	constructor(
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService,
 		@ILoggerService loggerService: ILoggerService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
@@ -113,31 +37,30 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 	) {
 		super();
 
-		if (!!productService.enableTelemetry && productService.aiConfig?.asimovKey && environmentService.isBuilt) {
+		if (supportsTelemetry(productService, environmentService) && productService.aiConfig?.ariaKey) {
 			// If remote server is present send telemetry through that, else use the client side appender
-			const telemetryProvider: ITelemetryAppender = remoteAgentService.getConnection() !== null ? { log: remoteAgentService.logTelemetry.bind(remoteAgentService), flush: remoteAgentService.flushTelemetry.bind(remoteAgentService) } : new WebAppInsightsAppender('monacoworkbench', productService.aiConfig?.asimovKey);
+			const appenders = [];
+			const telemetryProvider: ITelemetryAppender = remoteAgentService.getConnection() !== null ? { log: remoteAgentService.logTelemetry.bind(remoteAgentService), flush: remoteAgentService.flushTelemetry.bind(remoteAgentService) } : new OneDataSystemWebAppender(configurationService, 'monacoworkbench', null, productService.aiConfig?.ariaKey);
+			appenders.push(telemetryProvider);
+			appenders.push(new TelemetryLogAppender(loggerService, environmentService));
 			const config: ITelemetryServiceConfig = {
-				appender: combinedAppender(new WebTelemetryAppender(telemetryProvider), new TelemetryLogAppender(loggerService, environmentService)),
-				commonProperties: resolveWorkbenchCommonProperties(storageService, productService.commit, productService.version, environmentService.remoteAuthority, productService.embedderIdentifier, environmentService.options && environmentService.options.resolveCommonTelemetryProperties),
-				sendErrorTelemetry: false,
+				appenders,
+				commonProperties: resolveWorkbenchCommonProperties(storageService, productService.commit, productService.version, environmentService.remoteAuthority, productService.embedderIdentifier, productService.removeTelemetryMachineId, environmentService.options && environmentService.options.resolveCommonTelemetryProperties),
+				sendErrorTelemetry: this.sendErrorTelemetry,
 			};
 
-			this.impl = this._register(new BaseTelemetryService(config, configurationService));
+			this.impl = this._register(new BaseTelemetryService(config, configurationService, productService));
 		} else {
 			this.impl = NullTelemetryService;
 		}
-	}
-
-	setEnabled(value: boolean): void {
-		return this.impl.setEnabled(value);
 	}
 
 	setExperimentProperty(name: string, value: string): void {
 		return this.impl.setExperimentProperty(name, value);
 	}
 
-	get isOptedIn(): boolean {
-		return this.impl.isOptedIn;
+	get telemetryLevel(): IObservableValue<TelemetryLevel> {
+		return this.impl.telemetryLevel;
 	}
 
 	publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<void> {

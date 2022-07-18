@@ -6,7 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { Color } from 'vs/base/common/color';
 import { UILabelProvider } from 'vs/base/common/keybindingLabels';
-import { ResolvedKeybinding, ResolvedKeybindingPart } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, ResolvedKeybindingPart } from 'vs/base/common/keybindings';
 import { equals } from 'vs/base/common/objects';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IThemable } from 'vs/base/common/styler';
@@ -89,7 +89,7 @@ export class KeybindingLabel implements IThemable {
 		this.clear();
 
 		if (this.keybinding) {
-			let [firstPart, chordPart] = this.keybinding.getParts();
+			const [firstPart, chordPart] = this.keybinding.getParts();
 			if (firstPart) {
 				this.renderPart(this.domNode, firstPart, this.matches ? this.matches.firstPart : null);
 			}

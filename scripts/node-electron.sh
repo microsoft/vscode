@@ -26,9 +26,11 @@ export VSCODE_DEV=1
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	ulimit -n 4096 ; ELECTRON_RUN_AS_NODE=1 \
 		"$CODE" \
-		"$@"
+		"$@" \
+		--ms-enable-electron-run-as-node
 else
 	ELECTRON_RUN_AS_NODE=1 \
 		"$CODE" \
-		"$@"
+		"$@" \
+		--ms-enable-electron-run-as-node
 fi

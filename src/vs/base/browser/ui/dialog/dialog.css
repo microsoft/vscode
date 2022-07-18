@@ -127,7 +127,6 @@
 .monaco-dialog-box > .dialog-buttons-row {
 	display: flex;
 	align-items: center;
-	justify-content: flex-end;
 	padding-right: 1px;
 	overflow: hidden; /* buttons row should never overflow */
 }
@@ -141,11 +140,10 @@
 /** Dialog: Buttons */
 .monaco-dialog-box > .dialog-buttons-row > .dialog-buttons {
 	display: flex;
+	width: 100%;
+	justify-content: flex-end;
 	overflow: hidden;
-}
-
-.monaco-dialog-box > .dialog-buttons-row > .dialog-buttons.centered {
-	justify-content: center;
+	margin-left: 67px; /* for long buttons, force align with text */
 }
 
 .monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button {

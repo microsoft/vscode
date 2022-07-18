@@ -11,9 +11,9 @@ import { ICustomEditorModel, ICustomEditorModelManager } from 'vs/workbench/cont
 export class CustomEditorModelManager implements ICustomEditorModelManager {
 
 	private readonly _references = new Map<string, {
-		readonly viewType: string,
-		readonly model: Promise<ICustomEditorModel>,
-		counter: number
+		readonly viewType: string;
+		readonly model: Promise<ICustomEditorModel>;
+		counter: number;
 	}>();
 
 	public async getAllModels(resource: URI): Promise<ICustomEditorModel[]> {

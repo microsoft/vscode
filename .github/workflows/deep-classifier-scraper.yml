@@ -2,6 +2,7 @@ name: "Deep Classifier: Scraper"
 on:
   schedule:
     - cron: 0 0 15 * * # 15th of the month
+  workflow_dispatch:
   repository_dispatch:
     types: [trigger-deep-classifier-scraper]
 
@@ -10,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Actions
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           repository: "microsoft/vscode-github-triage-actions"
           ref: stable

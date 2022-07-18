@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AbstractGotoLineQuickAccessProvider } from 'vs/editor/contrib/quickAccess/gotoLineQuickAccess';
+import { AbstractGotoLineQuickAccessProvider } from 'vs/editor/contrib/quickAccess/browser/gotoLineQuickAccess';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/quickAccess';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -29,24 +29,20 @@ export class StandaloneGotoLineQuickAccessProvider extends AbstractGotoLineQuick
 	}
 }
 
-Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
-	ctor: StandaloneGotoLineQuickAccessProvider,
-	prefix: StandaloneGotoLineQuickAccessProvider.PREFIX,
-	helpEntries: [{ description: GoToLineNLS.gotoLineActionLabel, needsEditor: true }]
-});
-
 export class GotoLineAction extends EditorAction {
+
+	static readonly ID = 'editor.action.gotoLine';
 
 	constructor() {
 		super({
-			id: 'editor.action.gotoLine',
+			id: GotoLineAction.ID,
 			label: GoToLineNLS.gotoLineActionLabel,
 			alias: 'Go to Line/Column...',
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_G,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_G },
+				primary: KeyMod.CtrlCmd | KeyCode.KeyG,
+				mac: { primary: KeyMod.WinCtrl | KeyCode.KeyG },
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -58,3 +54,9 @@ export class GotoLineAction extends EditorAction {
 }
 
 registerEditorAction(GotoLineAction);
+
+Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
+	ctor: StandaloneGotoLineQuickAccessProvider,
+	prefix: StandaloneGotoLineQuickAccessProvider.PREFIX,
+	helpEntries: [{ description: GoToLineNLS.gotoLineActionLabel, commandId: GotoLineAction.ID }]
+});

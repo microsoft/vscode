@@ -59,6 +59,7 @@ export interface IssueReporterData extends WindowData {
 	extensionId?: string;
 	experiments?: string;
 	restrictedMode: boolean;
+	isUnsupported: boolean;
 	githubAccessToken: string;
 	readonly issueTitle?: string;
 	readonly issueBody?: string;
@@ -102,7 +103,7 @@ export interface IssueReporterWindowConfiguration extends ISandboxConfiguration 
 		type: string;
 		arch: string;
 		release: string;
-	}
+	};
 }
 
 export interface ProcessExplorerWindowConfiguration extends ISandboxConfiguration {

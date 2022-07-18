@@ -16,12 +16,14 @@ import { IJSONEditingService } from 'vs/workbench/services/configuration/common/
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 
 interface AccessibilityMetrics {
 	enabled: boolean;
 }
 type AccessibilityMetricsClassification = {
-	enabled: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	owner: 'isidorn';
+	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 };
 
 export class NativeAccessibilityService extends AccessibilityService implements IAccessibilityService {
@@ -33,11 +35,12 @@ export class NativeAccessibilityService extends AccessibilityService implements 
 		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ILayoutService _layoutService: ILayoutService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
-		super(contextKeyService, configurationService);
-		this.setAccessibilitySupport(environmentService.configuration.accessibilitySupport ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
+		super(contextKeyService, _layoutService, configurationService);
+		this.setAccessibilitySupport(environmentService.window.accessibilitySupport ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
 	}
 
 	override async alwaysUnderlineAccessKeys(): Promise<boolean> {

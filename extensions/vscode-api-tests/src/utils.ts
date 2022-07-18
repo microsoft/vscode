@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { EOL } from 'os';
+import * as crypto from 'crypto';
 import * as vscode from 'vscode';
 import { TestFS } from './memfs';
 
 export function rndName() {
-	return Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10);
+	return crypto.randomBytes(8).toString('hex');
 }
 
 export const testFs = new TestFS('fake-fs', true);
@@ -147,5 +149,37 @@ export function testRepeat(n: number, description: string, callback: (this: any)
 export function suiteRepeat(n: number, description: string, callback: (this: any) => any): void {
 	for (let i = 0; i < n; i++) {
 		suite(`${description} (iteration ${i})`, callback);
+	}
+}
+
+export async function poll<T>(
+	fn: () => Thenable<T>,
+	acceptFn: (result: T) => boolean,
+	timeoutMessage: string,
+	retryCount: number = 200,
+	retryInterval: number = 100 // millis
+): Promise<T> {
+	let trial = 1;
+	let lastError: string = '';
+
+	while (true) {
+		if (trial > retryCount) {
+			throw new Error(`Timeout: ${timeoutMessage} after ${(retryCount * retryInterval) / 1000} seconds.\r${lastError}`);
+		}
+
+		let result;
+		try {
+			result = await fn();
+			if (acceptFn(result)) {
+				return result;
+			} else {
+				lastError = 'Did not pass accept function';
+			}
+		} catch (e: any) {
+			lastError = Array.isArray(e.stack) ? e.stack.join(EOL) : e.stack;
+		}
+
+		await new Promise(resolve => setTimeout(resolve, retryInterval));
+		trial++;
 	}
 }

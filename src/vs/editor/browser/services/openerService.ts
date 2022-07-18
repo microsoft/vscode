@@ -14,8 +14,8 @@ import { normalizePath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { EditorOpenContext } from 'vs/platform/editor/common/editor';
-import { IExternalOpener, IExternalUriResolver, IOpener, IOpenerService, IResolvedExternalUri, IValidator, matchesScheme, OpenOptions, ResolveExternalUriOptions } from 'vs/platform/opener/common/opener';
+import { EditorOpenSource } from 'vs/platform/editor/common/editor';
+import { extractSelection, IExternalOpener, IExternalUriResolver, IOpener, IOpenerService, IResolvedExternalUri, IValidator, matchesScheme, matchesSomeScheme, OpenOptions, ResolveExternalUriOptions } from 'vs/platform/opener/common/opener';
 
 class CommandOpener implements IOpener {
 
@@ -62,18 +62,8 @@ class EditorOpener implements IOpener {
 		if (typeof target === 'string') {
 			target = URI.parse(target);
 		}
-		let selection: { startLineNumber: number; startColumn: number; } | undefined = undefined;
-		const match = /^L?(\d+)(?:,(\d+))?/.exec(target.fragment);
-		if (match) {
-			// support file:///some/file.js#73,84
-			// support file:///some/file.js#L73
-			selection = {
-				startLineNumber: parseInt(match[1]),
-				startColumn: match[2] ? parseInt(match[2]) : 1
-			};
-			// remove fragment
-			target = target.with({ fragment: '' });
-		}
+		const { selection, uri } = extractSelection(target);
+		target = uri;
 
 		if (target.scheme === Schemas.file) {
 			target = normalizePath(target); // workaround for non-normalized paths (https://github.com/microsoft/vscode/issues/12954)
@@ -84,7 +74,7 @@ class EditorOpener implements IOpener {
 				resource: target,
 				options: {
 					selection,
-					context: options?.fromUserGesture ? EditorOpenContext.USER : EditorOpenContext.API,
+					source: options?.fromUserGesture ? EditorOpenSource.USER : EditorOpenSource.API,
 					...options?.editorOptions
 				}
 			},
@@ -119,7 +109,7 @@ export class OpenerService implements IOpenerService {
 				// to not trigger a navigation. Any other link is
 				// safe to be set as HREF to prevent a blank window
 				// from opening.
-				if (matchesScheme(href, Schemas.http) || matchesScheme(href, Schemas.https)) {
+				if (matchesSomeScheme(href, Schemas.http, Schemas.https)) {
 					dom.windowOpenNoOpener(href);
 				} else {
 					window.location.href = href;
@@ -131,7 +121,7 @@ export class OpenerService implements IOpenerService {
 		// Default opener: any external, maito, http(s), command, and catch-all-editors
 		this._openers.push({
 			open: async (target: URI | string, options?: OpenOptions) => {
-				if (options?.openExternal || matchesScheme(target, Schemas.mailto) || matchesScheme(target, Schemas.http) || matchesScheme(target, Schemas.https)) {
+				if (options?.openExternal || matchesSomeScheme(target, Schemas.mailto, Schemas.http, Schemas.https, Schemas.vsls)) {
 					// open externally
 					await this._doOpenExternal(target, options);
 					return true;

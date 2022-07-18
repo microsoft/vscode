@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { IMatch } from 'vs/base/common/filters';
 import { IItemAccessor } from 'vs/base/common/fuzzyScorer';
-import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
@@ -105,6 +105,13 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	quickNavigate?: IQuickNavigateConfiguration;
 
 	/**
+	 * Hides the input box from the picker UI. This is typically used
+	 * in combination with quick-navigation where no search UI should
+	 * be presented.
+	 */
+	hideInput?: boolean;
+
+	/**
 	 * a context key to set when this picker is active
 	 */
 	contextKey?: string;
@@ -156,7 +163,7 @@ export interface IInputOptions {
 	/**
 	 * an optional function that is used to validate user input.
 	 */
-	validateInput?: (input: string) => Promise<string | null | undefined | { content: string, severity: Severity }>;
+	validateInput?: (input: string) => Promise<string | null | undefined | { content: string; severity: Severity }>;
 }
 
 export enum QuickInputHideReason {
@@ -285,6 +292,13 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	matchOnLabel: boolean;
 
+	/**
+	 * The mode to filter label with. Fuzzy will use fuzzy searching and
+	 * contiguous will make filter entries that do not contain the exact string
+	 * (including whitespace). This defaults to `'fuzzy'`.
+	 */
+	matchOnLabelMode: 'fuzzy' | 'contiguous';
+
 	sortByLabel: boolean;
 
 	autoFocusOnList: boolean;
@@ -353,7 +367,7 @@ export interface IInputBox extends IQuickInput {
 
 export interface IQuickInputButton {
 	/** iconPath or iconClass required */
-	iconPath?: { dark: URI; light?: URI; };
+	iconPath?: { dark: URI; light?: URI };
 	/** iconPath or iconClass required */
 	iconClass?: string;
 	tooltip?: string;
@@ -382,7 +396,7 @@ export type IQuickPickItemWithResource = IQuickPickItem & { resource?: URI };
 
 export class QuickPickItemScorerAccessor implements IItemAccessor<IQuickPickItemWithResource> {
 
-	constructor(private options?: { skipDescription?: boolean, skipPath?: boolean }) { }
+	constructor(private options?: { skipDescription?: boolean; skipPath?: boolean }) { }
 
 	getItemLabel(entry: IQuickPickItemWithResource): string {
 		return entry.label;

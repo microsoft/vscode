@@ -5,13 +5,13 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
+import { IObservableValue } from 'vs/base/common/observableValue';
 
 export const ITelemetryService = createDecorator<ITelemetryService>('telemetryService');
 
 export interface ITelemetryInfo {
 	sessionId: string;
 	machineId: string;
-	instanceId: string;
 	firstSessionDate: string;
 	msftInternal?: boolean;
 }
@@ -32,24 +32,28 @@ export interface ITelemetryService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Sends a telemetry event that has been privacy approved.
-	 * Do not call this unless you have been given approval.
+	 * @deprecated Use publicLog2 and the typescript GDPR annotation where possible
 	 */
 	publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<void>;
 
+	/**
+	 * Sends a telemetry event that has been privacy approved.
+	 * Do not call this unless you have been given approval.
+	 */
 	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>, anonymizeFilePaths?: boolean): Promise<void>;
 
+	/**
+	 * @deprecated Use publicLogError2 and the typescript GDPR annotation where possible
+	 */
 	publicLogError(errorEventName: string, data?: ITelemetryData): Promise<void>;
 
 	publicLogError2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>): Promise<void>;
-
-	setEnabled(value: boolean): void;
 
 	getTelemetryInfo(): Promise<ITelemetryInfo>;
 
 	setExperimentProperty(name: string, value: string): void;
 
-	isOptedIn: boolean;
+	readonly telemetryLevel: IObservableValue<TelemetryLevel>;
 }
 
 export interface ITelemetryEndpoint {
@@ -68,7 +72,6 @@ export interface ICustomEndpointTelemetryService {
 }
 
 // Keys
-export const instanceStorageKey = 'telemetry.instanceId';
 export const currentSessionDateStorageKey = 'telemetry.currentSessionDate';
 export const firstSessionDateStorageKey = 'telemetry.firstSessionDate';
 export const lastSessionDateStorageKey = 'telemetry.lastSessionDate';
@@ -81,12 +84,14 @@ export const TELEMETRY_OLD_SETTING_ID = 'telemetry.enableTelemetry';
 
 export const enum TelemetryLevel {
 	NONE = 0,
-	LOG = 1,
-	USER = 2
+	CRASH = 1,
+	ERROR = 2,
+	USAGE = 3
 }
 
 export const enum TelemetryConfiguration {
 	OFF = 'off',
+	CRASH = 'crash',
 	ERROR = 'error',
-	ON = 'on'
+	ON = 'all'
 }

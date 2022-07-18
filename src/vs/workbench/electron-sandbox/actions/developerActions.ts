@@ -25,8 +25,8 @@ export class ToggleDevToolsAction extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 50,
 				when: IsDevelopmentContext,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I,
-				mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_I }
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI,
+				mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI }
 			},
 			menu: {
 				id: MenuId.MenubarHelpMenu,

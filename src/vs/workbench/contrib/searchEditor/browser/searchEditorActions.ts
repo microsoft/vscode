@@ -125,6 +125,13 @@ export const openNewSearchEditor =
 			}
 			const selection = activeModel?.getSelection();
 			selected = (selection && activeModel?.getModel()?.getValueInRange(selection)) ?? '';
+
+			if (selection?.isEmpty() && configurationService.getValue<ISearchConfigurationProperties>('search').seedWithNearestWord) {
+				const wordAtPosition = activeModel.getModel()?.getWordAtPosition(selection.getStartPosition());
+				if (wordAtPosition) {
+					selected = wordAtPosition.word;
+				}
+			}
 		} else {
 			if (editorService.activeEditor instanceof SearchEditorInput) {
 				const active = editorService.activeEditorPane as SearchEditor;
@@ -132,7 +139,7 @@ export const openNewSearchEditor =
 			}
 		}
 
-		telemetryService.publicLog2('searchEditor/openNewSearchEditor');
+		telemetryService.publicLog2<{}, { owner: 'roblourens' }>('searchEditor/openNewSearchEditor');
 
 		const seedSearchStringFromSelection = _args.location === 'new' || configurationService.getValue<IEditorOptions>('editor').find!.seedSearchStringFromSelection;
 		const args: OpenSearchEditorArgs = { query: seedSearchStringFromSelection ? selected : undefined };
@@ -182,7 +189,7 @@ export const createEditorFromSearchResult =
 		const sortOrder = configurationService.getValue<ISearchConfigurationProperties>('search').sortOrder;
 
 
-		telemetryService.publicLog2('searchEditor/createEditorFromSearchResult');
+		telemetryService.publicLog2<{}, { owner: 'roblourens' }>('searchEditor/createEditorFromSearchResult');
 
 		const labelFormatter = (uri: URI): string => labelService.getUriLabel(uri, { relative: true });
 

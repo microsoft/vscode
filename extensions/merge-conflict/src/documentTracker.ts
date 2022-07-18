@@ -17,12 +17,8 @@ class ScanTask {
 		this.delayTask = new Delayer<interfaces.IDocumentMergeConflict[]>(delayTime);
 	}
 
-	public addOrigin(name: string): boolean {
-		if (this.origins.has(name)) {
-			return false;
-		}
-
-		return false;
+	public addOrigin(name: string): void {
+		this.origins.add(name);
 	}
 
 	public hasOrigin(name: string): boolean {
@@ -54,7 +50,7 @@ export default class DocumentMergeConflictTracker implements vscode.Disposable, 
 	getConflicts(document: vscode.TextDocument, origin: string): PromiseLike<interfaces.IDocumentMergeConflict[]> {
 		// Attempt from cache
 
-		let key = this.getCacheKey(document);
+		const key = this.getCacheKey(document);
 
 		if (!key) {
 			// Document doesn't have a uri, can't cache it, so return
@@ -71,11 +67,9 @@ export default class DocumentMergeConflictTracker implements vscode.Disposable, 
 		}
 
 		return cacheItem.delayTask.trigger(() => {
-			let conflicts = this.getConflictsOrEmpty(document, Array.from(cacheItem!.origins));
+			const conflicts = this.getConflictsOrEmpty(document, Array.from(cacheItem!.origins));
 
-			if (this.cache) {
-				this.cache.delete(key!);
-			}
+			this.cache?.delete(key!);
 
 			return conflicts;
 		});
@@ -86,7 +80,7 @@ export default class DocumentMergeConflictTracker implements vscode.Disposable, 
 			return false;
 		}
 
-		let key = this.getCacheKey(document);
+		const key = this.getCacheKey(document);
 		if (!key) {
 			return false;
 		}
@@ -104,7 +98,7 @@ export default class DocumentMergeConflictTracker implements vscode.Disposable, 
 	}
 
 	forget(document: vscode.TextDocument) {
-		let key = this.getCacheKey(document);
+		const key = this.getCacheKey(document);
 
 		if (key) {
 			this.cache.delete(key);

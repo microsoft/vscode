@@ -2,9 +2,9 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
-			"label": "npm",
-			"command": "npm",
-			"args": ["run", "compile"],
+			"label": "yarn",
+			"command": "yarn",
+			"args": ["compile"],
 			"type": "shell",
 			"presentation": {
 				"reveal": "silent",

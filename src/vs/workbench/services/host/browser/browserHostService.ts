@@ -9,15 +9,14 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions, IPathData, IFileToOpen } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions, IPathData, IFileToOpen, IWorkspaceToOpen, IFolderToOpen } from 'vs/platform/window/common/window';
 import { pathsToEditors } from 'vs/workbench/common/editor';
 import { whenEditorClosed } from 'vs/workbench/browser/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ModifierKeyEmitter, trackFocus } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { memoize } from 'vs/base/common/decorators';
 import { parseLineAndColumnAware } from 'vs/base/common/extpath';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
@@ -32,7 +31,10 @@ import Severity from 'vs/base/common/severity';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DomEmitter } from 'vs/base/browser/event';
 import { isUndefined } from 'vs/base/common/types';
-import { IStorageService, WillSaveStateReason } from 'vs/platform/storage/common/storage';
+import { isTemporaryWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { Schemas } from 'vs/base/common/network';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 
 /**
  * A workspace to open in the workbench can either be:
@@ -40,7 +42,7 @@ import { IStorageService, WillSaveStateReason } from 'vs/platform/storage/common
  * - a single folder (via `folderUri`)
  * - empty (via `undefined`)
  */
-export type IWorkspace = { workspaceUri: URI } | { folderUri: URI } | undefined;
+export type IWorkspace = IWorkspaceToOpen | IFolderToOpen | undefined;
 
 export interface IWorkspaceProvider {
 
@@ -71,7 +73,7 @@ export interface IWorkspaceProvider {
 	 *
 	 * @returns true if successfully opened, false otherwise.
 	 */
-	open(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<boolean>;
+	open(workspace: IWorkspace, options?: { reuse?: boolean; payload?: object }): Promise<boolean>;
 }
 
 enum HostShutdownReason {
@@ -105,12 +107,12 @@ export class BrowserHostService extends Disposable implements IHostService {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFileService private readonly fileService: IFileService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILifecycleService private readonly lifecycleService: BrowserLifecycleService,
 		@ILogService private readonly logService: ILogService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IStorageService private readonly storageService: IStorageService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
 		super();
 
@@ -138,24 +140,17 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 	private onBeforeShutdown(e: BeforeShutdownEvent): void {
 
-		// Optimistically trigger a UI state flush
-		// without waiting for it. The browser does
-		// not guarantee that this is being executed
-		// but if a dialog opens, we have a chance
-		// to succeed.
-		this.storageService.flush(WillSaveStateReason.SHUTDOWN);
-
 		switch (this.shutdownReason) {
 
 			// Unknown / Keyboard shows veto depending on setting
 			case HostShutdownReason.Unknown:
-			case HostShutdownReason.Keyboard:
+			case HostShutdownReason.Keyboard: {
 				const confirmBeforeClose = this.configurationService.getValue('window.confirmBeforeClose');
 				if (confirmBeforeClose === 'always' || (confirmBeforeClose === 'keyboardOnly' && this.shutdownReason === HostShutdownReason.Keyboard)) {
 					e.veto(true, 'veto.confirmBeforeClose');
 				}
 				break;
-
+			}
 			// Api never shows veto
 			case HostShutdownReason.Api:
 				break;
@@ -248,16 +243,16 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 		// Handle Folders to Add
 		if (foldersToAdd.length > 0) {
-			this.instantiationService.invokeFunction(accessor => {
-				const workspaceEditingService: IWorkspaceEditingService = accessor.get(IWorkspaceEditingService);  // avoid heavy dependencies (https://github.com/microsoft/vscode/issues/108522)
+			this.withServices(accessor => {
+				const workspaceEditingService: IWorkspaceEditingService = accessor.get(IWorkspaceEditingService);
 				workspaceEditingService.addFolders(foldersToAdd);
 			});
 		}
 
 		// Handle Files
 		if (fileOpenables.length > 0) {
-			this.instantiationService.invokeFunction(async accessor => {
-				const editorService = accessor.get(IEditorService); // avoid heavy dependencies (https://github.com/microsoft/vscode/issues/108522)
+			this.withServices(async accessor => {
+				const editorService = accessor.get(IEditorService);
 
 				// Support diffMode
 				if (options?.diffMode && fileOpenables.length === 2) {
@@ -291,14 +286,16 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 						// Same Window: open via editor service in current window
 						if (this.shouldReuse(options, true /* file */)) {
-							let openables: IPathData[] = [];
+							let openables: IPathData<ITextEditorOptions>[] = [];
 
 							// Support: --goto parameter to open on line/col
 							if (options?.gotoLineMode) {
 								const pathColumnAware = parseLineAndColumnAware(openable.fileUri.path);
 								openables = [{
 									fileUri: openable.fileUri.with({ path: pathColumnAware.path }),
-									selection: !isUndefined(pathColumnAware.line) ? { startLineNumber: pathColumnAware.line, startColumn: pathColumnAware.column || 1 } : undefined
+									options: {
+										selection: !isUndefined(pathColumnAware.line) ? { startLineNumber: pathColumnAware.line, startColumn: pathColumnAware.column || 1 } : undefined
+									}
 								}];
 							} else {
 								openables = [openable];
@@ -335,6 +332,13 @@ export class BrowserHostService extends Disposable implements IHostService {
 				}
 			});
 		}
+	}
+
+	private withServices(fn: (accessor: ServicesAccessor) => unknown): void {
+		// Host service is used in a lot of contexts and some services
+		// need to be resolved dynamically to avoid cyclic dependencies
+		// (https://github.com/microsoft/vscode/issues/108522)
+		this.instantiationService.invokeFunction(accessor => fn(accessor));
 	}
 
 	private preservePayload(): Array<unknown> | undefined {
@@ -390,7 +394,21 @@ export class BrowserHostService extends Disposable implements IHostService {
 		return this.doOpen(undefined, { reuse: options?.forceReuseWindow });
 	}
 
-	private async doOpen(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<void> {
+	private async doOpen(workspace: IWorkspace, options?: { reuse?: boolean; payload?: object }): Promise<void> {
+
+		// When we are in a temporary workspace and are asked to open a local folder
+		// we swap that folder into the workspace to avoid a window reload. Access
+		// to local resources is only possible without a window reload because it
+		// needs user activation.
+		if (workspace && isFolderToOpen(workspace) && workspace.folderUri.scheme === Schemas.file && isTemporaryWorkspace(this.contextService.getWorkspace())) {
+			this.withServices(async accessor => {
+				const workspaceEditingService: IWorkspaceEditingService = accessor.get(IWorkspaceEditingService);
+
+				await workspaceEditingService.updateFolders(0, this.contextService.getWorkspace().folders.length, [{ uri: workspace.folderUri }]);
+			});
+
+			return;
+		}
 
 		// We know that `workspaceProvider.open` will trigger a shutdown
 		// with `options.reuse` so we handle this expected shutdown
@@ -469,10 +487,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 		this.shutdownReason = HostShutdownReason.Api;
 
 		// Signal shutdown reason to lifecycle
-		this.lifecycleService.withExpectedShutdown(reason);
-
-		// Ensure UI state is persisted
-		await this.storageService.flush(WillSaveStateReason.SHUTDOWN);
+		return this.lifecycleService.withExpectedShutdown(reason);
 	}
 
 	//#endregion

@@ -1,0 +1,119 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .merge-editor .code-view > .title {
+	padding: 0 10px;
+	height: 30px;
+	display: flex;
+	align-content: center;
+}
+
+.monaco-workbench .merge-editor .code-view > .title>SPAN {
+	align-self: center;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	padding-right: 6px;
+}
+
+.monaco-workbench .merge-editor .code-view > .title>SPAN.title {
+	flex-shrink: 0;
+}
+
+.monaco-workbench .merge-editor .code-view > .title>SPAN.description {
+	opacity: 0.7;
+	font-size: 90%;
+}
+
+.monaco-workbench .merge-editor .code-view > .title>SPAN.detail {
+	margin-left: auto;
+	flex-shrink: 0;
+}
+
+.monaco-workbench .merge-editor .code-view > .container {
+	display: flex;
+	flex-direction: row;
+}
+
+.monaco-workbench .merge-editor .code-view > .container > .gutter {
+	width: 24px;
+	position: relative;
+	overflow: hidden;
+
+	flex-shrink: 0;
+	flex-grow: 0;
+}
+
+.merge-editor-diff {
+	background-color: var(--vscode-mergeEditor-change-background);
+}
+
+.merge-editor-diff-word {
+	background-color: var(--vscode-mergeEditor-change-word-background);
+}
+
+.merge-editor-block {
+	border: 2px solid var(--vscode-mergeEditor-conflict-unhandledUnfocused-border);
+}
+
+.merge-editor-block.focused {
+	border: 2px solid var(--vscode-mergeEditor-conflict-unhandledFocused-border);
+}
+
+.merge-editor-block.handled {
+	border: 2px solid var(--vscode-mergeEditor-conflict-handledUnfocused-border);
+
+}
+
+.merge-editor-block.handled.focused {
+	border: 2px solid var(--vscode-mergeEditor-conflict-handledFocused-border);
+}
+
+.gutter-item {
+	position: absolute;
+}
+
+.merge-accept-gutter-marker {
+	width: 28px;
+	margin-left: 4px;
+}
+
+.merge-accept-gutter-marker .background {
+	height: 100%;
+	width: 50%;
+	position: absolute;
+}
+
+.merge-accept-gutter-marker.multi-line .background {
+	border: 1px solid var(--vscode-checkbox-border);
+	border-right: 0;
+	left: 8px;
+	width: 10px;
+}
+
+.merge-accept-gutter-marker .checkbox {
+	height: 100%;
+	width: 100%;
+	position: absolute;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+}
+
+.accept-conflict-group.monaco-custom-toggle {
+	height: 18px;
+	width: 18px;
+	border: 1px solid transparent;
+	border-radius: 3px;
+	margin-right: 0px;
+	margin-left: 0px;
+	padding: 0px;
+	opacity: 1;
+	background-size: 16px !important;
+	background-color: var(--vscode-checkbox-border);
+}
+
+.merge-accept-gutter-marker .checkbox-background {
+	background: var(--vscode-editor-background);
+}

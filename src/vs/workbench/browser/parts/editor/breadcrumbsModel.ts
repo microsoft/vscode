@@ -25,7 +25,7 @@ export class FileElement {
 	) { }
 }
 
-type FileInfo = { path: FileElement[], folder?: IWorkspaceFolder };
+type FileInfo = { path: FileElement[]; folder?: IWorkspaceFolder };
 
 export class OutlineElement2 {
 	constructor(
@@ -37,9 +37,8 @@ export class OutlineElement2 {
 export class BreadcrumbsModel {
 
 	private readonly _disposables = new DisposableStore();
-	private readonly _fileInfo: FileInfo;
+	private _fileInfo: FileInfo;
 
-	private readonly _cfgEnabled: BreadcrumbsConfig<boolean>;
 	private readonly _cfgFilePath: BreadcrumbsConfig<'on' | 'off' | 'last'>;
 	private readonly _cfgSymbolPath: BreadcrumbsConfig<'on' | 'off' | 'last'>;
 
@@ -56,28 +55,28 @@ export class BreadcrumbsModel {
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
 		@IOutlineService private readonly _outlineService: IOutlineService,
 	) {
-		this._cfgEnabled = BreadcrumbsConfig.IsEnabled.bindTo(configurationService);
 		this._cfgFilePath = BreadcrumbsConfig.FilePath.bindTo(configurationService);
 		this._cfgSymbolPath = BreadcrumbsConfig.SymbolPath.bindTo(configurationService);
 
 		this._disposables.add(this._cfgFilePath.onDidChange(_ => this._onDidUpdate.fire(this)));
 		this._disposables.add(this._cfgSymbolPath.onDidChange(_ => this._onDidUpdate.fire(this)));
+		this._workspaceService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspaceFolders, this, this._disposables);
 		this._fileInfo = this._initFilePathInfo(resource);
 
 		if (editor) {
 			this._bindToEditor(editor);
 			this._disposables.add(_outlineService.onDidChange(() => this._bindToEditor(editor)));
+			this._disposables.add(editor.onDidChangeControl(() => this._bindToEditor(editor)));
 		}
 		this._onDidUpdate.fire(this);
 	}
 
 	dispose(): void {
-		this._cfgEnabled.dispose();
+		this._disposables.dispose();
 		this._cfgFilePath.dispose();
 		this._cfgSymbolPath.dispose();
 		this._currentOutline.dispose();
 		this._outlineDisposables.dispose();
-		this._disposables.dispose();
 		this._onDidUpdate.dispose();
 	}
 
@@ -124,7 +123,7 @@ export class BreadcrumbsModel {
 			};
 		}
 
-		let info: FileInfo = {
+		const info: FileInfo = {
 			folder: withNullAsUndefined(this._workspaceService.getWorkspaceFolder(uri)),
 			path: []
 		};
@@ -135,7 +134,7 @@ export class BreadcrumbsModel {
 				break;
 			}
 			info.path.unshift(new FileElement(uriPrefix, info.path.length === 0 ? FileKind.FILE : FileKind.FOLDER));
-			let prevPathLength = uriPrefix.path.length;
+			const prevPathLength = uriPrefix.path.length;
 			uriPrefix = dirname(uriPrefix);
 			if (uriPrefix.path.length === prevPathLength) {
 				break;
@@ -146,6 +145,11 @@ export class BreadcrumbsModel {
 			info.path.unshift(new FileElement(info.folder.uri, FileKind.ROOT_FOLDER));
 		}
 		return info;
+	}
+
+	private _onDidChangeWorkspaceFolders() {
+		this._fileInfo = this._initFilePathInfo(this.resource);
+		this._onDidUpdate.fire(this);
 	}
 
 	private _bindToEditor(editor: IEditorPane): void {

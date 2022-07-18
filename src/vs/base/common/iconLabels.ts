@@ -10,6 +10,7 @@ import { ltrim } from 'vs/base/common/strings';
 export const iconStartMarker = '$(';
 
 const iconsRegex = new RegExp(`\\$\\(${CSSIcon.iconNameExpression}(?:${CSSIcon.iconModifierExpression})?\\)`, 'g'); // no capturing groups
+const iconNameCharacterRegexp = new RegExp(CSSIcon.iconNameCharacter);
 
 const escapeIconsRegex = new RegExp(`(\\\\)?${iconsRegex.source}`, 'g');
 export function escapeIcons(text: string): string {
@@ -103,7 +104,7 @@ function doParseLabelWithIcons(text: string, firstIconIndex: number): IParsedLab
 		// within icon
 		else if (currentIconStart !== -1) {
 			// Make sure this is a real icon name
-			if (/^[a-z0-9\-]$/i.test(char)) {
+			if (iconNameCharacterRegexp.test(char)) {
 				currentIconValue += char;
 			} else {
 				// This is not a real icon, treat it as text

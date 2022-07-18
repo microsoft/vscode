@@ -35,12 +35,6 @@
         "scopeName": "source.powershell",
         "path": "./syntaxes/powershell.tmLanguage.json"
       }
-    ],
-    "snippets": [
-      {
-        "language": "powershell",
-        "path": "./snippets/powershell.code-snippets"
-      }
     ]
   },
   "scripts": {

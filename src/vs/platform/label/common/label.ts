@@ -7,8 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspace, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export const ILabelService = createDecorator<ILabelService>('labelService');
 
@@ -22,7 +21,7 @@ export interface ILabelService {
 	 * If `noPrefix` is passed does not tildify the label and also does not prepand the root name for relative labels in a multi root scenario.
 	 * If `separator` is passed, will use that over the defined path separator of the formatter.
 	 */
-	getUriLabel(resource: URI, options?: { relative?: boolean, noPrefix?: boolean, endWithSeparator?: boolean, separator?: '/' | '\\' }): string;
+	getUriLabel(resource: URI, options?: { relative?: boolean; noPrefix?: boolean; separator?: '/' | '\\' }): string;
 	getUriBasenameLabel(resource: URI): string;
 	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | IWorkspace), options?: { verbose: boolean }): string;
 	getHostLabel(scheme: string, authority?: string): string;
@@ -31,6 +30,13 @@ export interface ILabelService {
 
 	registerFormatter(formatter: ResourceLabelFormatter): IDisposable;
 	onDidChangeFormatters: Event<IFormatterChangeEvent>;
+
+	/**
+	 * Registers a formatter that's cached for the machine beyond the lifecycle
+	 * of the current window. Disposing the formatter _will not_ remove it from
+	 * the cache.
+	 */
+	registerCachedFormatter(formatter: ResourceLabelFormatter): IDisposable;
 }
 
 export interface IFormatterChangeEvent {

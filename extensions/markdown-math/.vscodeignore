@@ -7,3 +7,4 @@ cgmanifest.json
 yarn.lock
 webpack.config.js
 tsconfig.json
+.gitignore

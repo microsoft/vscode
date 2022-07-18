@@ -5,7 +5,7 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebview } from 'vs/workbench/contrib/webview/browser/webview';
 
 /**
  * Allows webviews to monitor when an element in the VS Code editor is being dragged/dropped.
@@ -14,7 +14,7 @@ import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
  * event so it can handle editor element drag drop.
  */
 export class WebviewWindowDragMonitor extends Disposable {
-	constructor(getWebview: () => Webview | undefined) {
+	constructor(getWebview: () => IWebview | undefined) {
 		super();
 
 		this._register(DOM.addDisposableListener(window, DOM.EventType.DRAG_START, () => {

@@ -13,16 +13,22 @@ import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { IBackupMainService, IWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
+import { IWorkspaceBackupInfo, IFolderBackupInfo } from 'vs/platform/backup/common/backup';
+import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { EnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
+import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IRawFileWorkspaceFolder, IRawUriWorkspaceFolder, IStoredWorkspace, IStoredWorkspaceFolder, IWorkspaceFolderCreationData, IWorkspaceIdentifier, rewriteWorkspaceFileForNewLocation, WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
+import { StateMainService } from 'vs/platform/state/electron-main/stateMainService';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+import { UserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
+import { IRawFileWorkspaceFolder, IRawUriWorkspaceFolder, IWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspace/common/workspace';
+import { IStoredWorkspace, IStoredWorkspaceFolder, IWorkspaceFolderCreationData, rewriteWorkspaceFileForNewLocation } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 
 flakySuite('WorkspacesManagementMainService', () => {
@@ -46,15 +52,15 @@ flakySuite('WorkspacesManagementMainService', () => {
 
 		isHotExitEnabled(): boolean { throw new Error('Method not implemented.'); }
 		getWorkspaceBackups(): IWorkspaceBackupInfo[] { throw new Error('Method not implemented.'); }
-		getFolderBackupPaths(): URI[] { throw new Error('Method not implemented.'); }
+		getFolderBackupPaths(): IFolderBackupInfo[] { throw new Error('Method not implemented.'); }
 		getEmptyWindowBackupPaths(): IEmptyWindowBackupInfo[] { throw new Error('Method not implemented.'); }
 		registerWorkspaceBackupSync(workspace: IWorkspaceBackupInfo, migrateFrom?: string | undefined): string { throw new Error('Method not implemented.'); }
-		registerFolderBackupSync(folderUri: URI): string { throw new Error('Method not implemented.'); }
+		registerFolderBackupSync(folder: IFolderBackupInfo): string { throw new Error('Method not implemented.'); }
 		registerEmptyWindowBackupSync(backupFolder?: string | undefined, remoteAuthority?: string | undefined): string { throw new Error('Method not implemented.'); }
 		unregisterWorkspaceBackupSync(workspace: IWorkspaceIdentifier): void { throw new Error('Method not implemented.'); }
 		unregisterFolderBackupSync(folderUri: URI): void { throw new Error('Method not implemented.'); }
 		unregisterEmptyWindowBackupSync(backupFolder: string): void { throw new Error('Method not implemented.'); }
-		async getDirtyWorkspaces(): Promise<(IWorkspaceIdentifier | URI)[]> { return []; }
+		async getDirtyWorkspaces(): Promise<(IWorkspaceBackupInfo | IFolderBackupInfo)[]> { return []; }
 	}
 
 	function createUntitledWorkspace(folders: string[], names?: string[]) {
@@ -107,7 +113,9 @@ flakySuite('WorkspacesManagementMainService', () => {
 			}
 		};
 
-		service = new WorkspacesManagementMainService(environmentMainService, new NullLogService(), new TestBackupMainService(), new TestDialogMainService(), productService);
+		const logService = new NullLogService();
+		const fileService = new FileService(logService);
+		service = new WorkspacesManagementMainService(environmentMainService, logService, new UserDataProfilesMainService(new StateMainService(environmentMainService, logService, fileService), new UriIdentityService(fileService), environmentMainService, fileService, logService), new TestBackupMainService(), new TestDialogMainService(), productService);
 
 		return pfs.Promises.mkdir(untitledWorkspacesHomePath, { recursive: true });
 	});
@@ -357,7 +365,7 @@ flakySuite('WorkspacesManagementMainService', () => {
 		let origContent = fs.readFileSync(workspace.configPath.fsPath).toString();
 		origContent = `// this is a comment\n${origContent}`;
 
-		let newContent = rewriteWorkspaceFileForNewLocation(origContent, workspace.configPath, false, workspaceConfigPath, extUriBiasedIgnorePathCase);
+		const newContent = rewriteWorkspaceFileForNewLocation(origContent, workspace.configPath, false, workspaceConfigPath, extUriBiasedIgnorePathCase);
 		assert.strictEqual(0, newContent.indexOf('// this is a comment'));
 		service.deleteUntitledWorkspaceSync(workspace);
 	});
@@ -383,7 +391,7 @@ flakySuite('WorkspacesManagementMainService', () => {
 
 		const workspace = await createUntitledWorkspace([folder1Location, folder2Location, folder3Location]);
 		const workspaceConfigPath = URI.file(path.join(workspaceLocation, `myworkspace.${Date.now()}.${WORKSPACE_EXTENSION}`));
-		let origContent = fs.readFileSync(workspace.configPath.fsPath).toString();
+		const origContent = fs.readFileSync(workspace.configPath.fsPath).toString();
 		const newContent = rewriteWorkspaceFileForNewLocation(origContent, workspace.configPath, true, workspaceConfigPath, extUriBiasedIgnorePathCase);
 		const ws = (JSON.parse(newContent) as IStoredWorkspace);
 		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[0]).path, folder1Location);

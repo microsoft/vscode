@@ -7,14 +7,13 @@ import { localize } from 'vs/nls';
 import Severity from 'vs/base/common/severity';
 import { dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { IEditorIdentifier, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { EditorInputCapabilities, IEditorIdentifier, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
+import { EditorInput, IEditorCloseHandler } from 'vs/workbench/common/editor/editorInput';
+import { ITerminalInstance, ITerminalInstanceService, terminalEditorId } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IShellLaunchConfig, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, TerminalExitReason, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ConfirmOnKill } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -24,20 +23,21 @@ import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/termin
 import { ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { Emitter } from 'vs/base/common/event';
 
-export class TerminalEditorInput extends EditorInput {
-
-	protected readonly _onDidRequestAttach = this._register(new Emitter<ITerminalInstance>());
-	readonly onDidRequestAttach = this._onDidRequestAttach.event;
+export class TerminalEditorInput extends EditorInput implements IEditorCloseHandler {
 
 	static readonly ID = 'workbench.editors.terminal';
+
+	override readonly closeHandler = this;
 
 	private _isDetached = false;
 	private _isShuttingDown = false;
 	private _isReverted = false;
 	private _copyLaunchConfig?: IShellLaunchConfig;
 	private _terminalEditorFocusContextKey: IContextKey<boolean>;
-
 	private _group: IEditorGroup | undefined;
+
+	protected readonly _onDidRequestAttach = this._register(new Emitter<ITerminalInstance>());
+	readonly onDidRequestAttach = this._onDidRequestAttach.event;
 
 	setGroup(group: IEditorGroup | undefined) {
 		this._group = group;
@@ -52,7 +52,11 @@ export class TerminalEditorInput extends EditorInput {
 	}
 
 	override get editorId(): string | undefined {
-		return TerminalEditor.ID;
+		return terminalEditorId;
+	}
+
+	override get capabilities(): EditorInputCapabilities {
+		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton;
 	}
 
 	setTerminalInstance(instance: ITerminalInstance): void {
@@ -61,13 +65,6 @@ export class TerminalEditorInput extends EditorInput {
 		}
 		this._terminalInstance = instance;
 		this._setupInstanceListeners();
-
-		// Refresh dirty state when the confirm on kill setting is changed
-		this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TerminalSettingId.ConfirmOnKill)) {
-				this._onDidChangeDirty.fire();
-			}
-		});
 	}
 
 	override copy(): EditorInput {
@@ -92,7 +89,7 @@ export class TerminalEditorInput extends EditorInput {
 		return this._isDetached ? undefined : this._terminalInstance;
 	}
 
-	override isDirty(): boolean {
+	showConfirm(): boolean {
 		if (this._isReverted) {
 			return false;
 		}
@@ -103,7 +100,7 @@ export class TerminalEditorInput extends EditorInput {
 		return false;
 	}
 
-	override async confirm(terminals?: ReadonlyArray<IEditorIdentifier>): Promise<ConfirmResult> {
+	async confirm(terminals: ReadonlyArray<IEditorIdentifier>): Promise<ConfirmResult> {
 		const { choice } = await this._dialogService.show(
 			Severity.Warning,
 			localize('confirmDirtyTerminal.message', "Do you want to terminate running processes?"),
@@ -113,7 +110,7 @@ export class TerminalEditorInput extends EditorInput {
 			],
 			{
 				cancelId: 1,
-				detail: terminals && terminals.length > 1 ?
+				detail: terminals.length > 1 ?
 					terminals.map(terminal => terminal.editor.getName()).join('\n') + '\n\n' + localize('confirmDirtyTerminals.detail', "Closing will terminate the running processes in the terminals.") :
 					localize('confirmDirtyTerminal.detail', "Closing will terminate the running processes in this terminal.")
 			}
@@ -145,12 +142,6 @@ export class TerminalEditorInput extends EditorInput {
 
 		this._terminalEditorFocusContextKey = TerminalContextKeys.editorFocus.bindTo(_contextKeyService);
 
-		// Refresh dirty state when the confirm on kill setting is changed
-		this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TerminalSettingId.ConfirmOnKill)) {
-				this._onDidChangeDirty.fire();
-			}
-		});
 		if (_terminalInstance) {
 			this._setupInstanceListeners();
 		}
@@ -164,7 +155,9 @@ export class TerminalEditorInput extends EditorInput {
 
 		this._register(toDisposable(() => {
 			if (!this._isDetached && !this._isShuttingDown) {
-				instance.dispose();
+				// Will be ignored if triggered by onExit or onDisposed terminal events
+				// as disposed was already called
+				instance.dispose(TerminalExitReason.User);
 			}
 		}));
 
@@ -175,7 +168,6 @@ export class TerminalEditorInput extends EditorInput {
 			instance.onIconChanged(() => this._onDidChangeLabel.fire()),
 			instance.onDidFocus(() => this._terminalEditorFocusContextKey.set(true)),
 			instance.onDidBlur(() => this._terminalEditorFocusContextKey.reset()),
-			instance.onDidChangeHasChildProcesses(() => this._onDidChangeDirty.fire()),
 			instance.statusList.onDidChangePrimaryStatus(() => this._onDidChangeLabel.fire())
 		];
 
@@ -222,14 +214,14 @@ export class TerminalEditorInput extends EditorInput {
 	}
 
 	public override getDescription(): string | undefined {
-		return this._terminalInstance?.description || this._terminalInstance?.shellLaunchConfig.description;
+		return this._terminalInstance?.description;
 	}
 
 	public override toUntyped(): IUntypedEditorInput {
 		return {
 			resource: this.resource,
 			options: {
-				override: TerminalEditor.ID,
+				override: terminalEditorId,
 				pinned: true,
 				forceReload: true
 			}

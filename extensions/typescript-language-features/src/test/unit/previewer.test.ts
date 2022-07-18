@@ -30,7 +30,7 @@ suite('typescript.previewer', () => {
 			markdownDocumentation(
 				'x {@link http://www.example.com/foo} y {@link https://api.jquery.com/bind/#bind-eventType-eventData-handler} z',
 				[],
-				noopToResource
+				noopToResource, undefined
 			).value,
 			'x [http://www.example.com/foo](http://www.example.com/foo) y [https://api.jquery.com/bind/#bind-eventType-eventData-handler](https://api.jquery.com/bind/#bind-eventType-eventData-handler) z');
 	});
@@ -40,7 +40,7 @@ suite('typescript.previewer', () => {
 			markdownDocumentation(
 				'x {@link http://www.example.com/foo abc xyz} y {@link http://www.example.com/bar|b a z} z',
 				[],
-				noopToResource
+				noopToResource, undefined
 			).value,
 			'x [abc xyz](http://www.example.com/foo) y [b a z](http://www.example.com/bar) z');
 	});
@@ -50,7 +50,7 @@ suite('typescript.previewer', () => {
 			markdownDocumentation(
 				'x {@linkcode http://www.example.com/foo} y {@linkplain http://www.example.com/bar} z',
 				[],
-				noopToResource
+				noopToResource, undefined
 			).value,
 			'x [`http://www.example.com/foo`](http://www.example.com/foo) y [http://www.example.com/bar](http://www.example.com/bar) z');
 	});
@@ -71,7 +71,7 @@ suite('typescript.previewer', () => {
 			markdownDocumentation(
 				'x {@link http://www.example.com/foo y {@link http://www.example.com/bar bar} z',
 				[],
-				noopToResource
+				noopToResource, undefined
 			).value,
 			'x {@link http://www.example.com/foo y [bar](http://www.example.com/bar) z');
 	});
@@ -85,6 +85,54 @@ suite('typescript.previewer', () => {
 				}
 			], noopToResource),
 			'*@param* `parámetroConDiacríticos` — this will not');
+	});
+
+	test('Should render @example blocks as code', () => {
+		assert.strictEqual(
+			tagsMarkdownPreview([
+				{
+					name: 'example',
+					text: 'code();'
+				}
+			], noopToResource),
+			'*@example*  \n```\ncode();\n```'
+		);
+	});
+
+	test('Should not render @example blocks as code as if they contain a codeblock', () => {
+		assert.strictEqual(
+			tagsMarkdownPreview([
+				{
+					name: 'example',
+					text: 'Not code\n```\ncode();\n```'
+				}
+			], noopToResource),
+			'*@example*  \nNot code\n```\ncode();\n```'
+		);
+	});
+
+	test('Should render @example blocks as code if they contain a <caption>', () => {
+		assert.strictEqual(
+			tagsMarkdownPreview([
+				{
+					name: 'example',
+					text: '<caption>Not code</caption>\ncode();'
+				}
+			], noopToResource),
+			'*@example*  \nNot code\n```\ncode();\n```'
+		);
+	});
+
+	test('Should not render @example blocks as code if they contain a <caption> and a codeblock', () => {
+		assert.strictEqual(
+			tagsMarkdownPreview([
+				{
+					name: 'example',
+					text: '<caption>Not code</caption>\n```\ncode();\n```'
+				}
+			], noopToResource),
+			'*@example*  \nNot code\n```\ncode();\n```'
+		);
 	});
 
 	test('Should render @linkcode symbol name as code', async () => {
@@ -128,4 +176,3 @@ suite('typescript.previewer', () => {
 			'a [`husky`](file:///path/file.ts#L7%2C5) b');
 	});
 });
-

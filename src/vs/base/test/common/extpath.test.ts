@@ -200,4 +200,23 @@ suite('Paths', () => {
 		assert.strictEqual(res.line, undefined);
 		assert.strictEqual(res.column, undefined);
 	});
+
+	test('randomPath', () => {
+		let res = extpath.randomPath('/foo/bar');
+		assert.ok(res);
+
+		res = extpath.randomPath('/foo/bar', 'prefix-');
+		assert.ok(res.indexOf('prefix-'));
+
+		const r1 = extpath.randomPath('/foo/bar');
+		const r2 = extpath.randomPath('/foo/bar');
+
+		assert.notStrictEqual(r1, r2);
+
+		const r3 = extpath.randomPath('', '', 3);
+		assert.strictEqual(r3.length, 3);
+
+		const r4 = extpath.randomPath();
+		assert.ok(r4);
+	});
 });

@@ -7,11 +7,11 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { join } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IOutputChannelModelService, AbstractOutputChannelModelService } from 'vs/workbench/contrib/output/common/outputChannelModel';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { toLocalISOString } from 'vs/base/common/date';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { AbstractOutputChannelModelService, IOutputChannelModelService } from 'vs/workbench/contrib/output/common/outputChannelModelService';
 
 export class OutputChannelModelService extends AbstractOutputChannelModelService implements IOutputChannelModelService {
 

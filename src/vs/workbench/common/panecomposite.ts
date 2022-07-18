@@ -15,3 +15,4 @@ export interface IPaneComposite extends IComposite {
 	getViewPaneContainer(): IViewPaneContainer | undefined;
 	saveState(): void;
 }
+

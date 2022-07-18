@@ -42,7 +42,7 @@ export const renderSearchMessage = (
 		if (typeof node === 'string') {
 			dom.append(div, document.createTextNode(node));
 		} else {
-			const link = instantiationService.createInstance(Link, node, {
+			const link = instantiationService.createInstance(Link, div, node, {
 				opener: async href => {
 					if (!message.trusted) { return; }
 					const parsed = URI.parse(href, true);
@@ -62,7 +62,6 @@ export const renderSearchMessage = (
 					}
 				}
 			});
-			dom.append(div, link.el);
 			disposableStore.add(link);
 		}
 	}

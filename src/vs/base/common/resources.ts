@@ -90,7 +90,7 @@ export interface IExtUri {
 	 * @param pathFragment The path fragment to add to the URI path.
 	 * @returns The resulting URI.
 	 */
-	joinPath(resource: URI, ...pathFragment: string[]): URI
+	joinPath(resource: URI, ...pathFragment: string[]): URI;
 	/**
 	 * Normalizes the path part of a URI: Resolves `.` and `..` elements with directory names.
 	 *
@@ -240,7 +240,8 @@ export class ExtUri implements IExtUri {
 			const relativePath = paths.relative(originalFSPath(from), originalFSPath(to));
 			return isWindows ? extpath.toSlashes(relativePath) : relativePath;
 		}
-		let fromPath = from.path || '/', toPath = to.path || '/';
+		let fromPath = from.path || '/';
+		const toPath = to.path || '/';
 		if (this._ignorePathCasing(from)) {
 			// make casing of fromPath match toPath
 			let i = 0;
@@ -276,8 +277,8 @@ export class ExtUri implements IExtUri {
 		return !!resource.path && resource.path[0] === '/';
 	}
 
-	isEqualAuthority(a1: string, a2: string) {
-		return a1 === a2 || equalsIgnoreCase(a1, a2);
+	isEqualAuthority(a1: string | undefined, a2: string | undefined) {
+		return a1 === a2 || (a1 !== undefined && a2 !== undefined && equalsIgnoreCase(a1, a2));
 	}
 
 	hasTrailingPathSeparator(resource: URI, sep: string = paths.sep): boolean {

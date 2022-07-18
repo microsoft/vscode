@@ -13,8 +13,7 @@ import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { buttonBackground, buttonForeground, editorBackground, editorForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
+import { hasWorkspaceFileExtension, isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -23,7 +22,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IRange } from 'vs/editor/common/core/range';
-import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { TrackedRangeStickiness, IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -48,8 +47,11 @@ export class RangeHighlightDecorations extends Disposable {
 	}
 
 	removeHighlightRange() {
-		if (this.editor?.getModel() && this.rangeHighlightDecorationId) {
-			this.editor.deltaDecorations([this.rangeHighlightDecorationId], []);
+		if (this.editor && this.rangeHighlightDecorationId) {
+			const decorationId = this.rangeHighlightDecorationId;
+			this.editor.changeDecorations((accessor) => {
+				accessor.removeDecoration(decorationId);
+			});
 			this._onHighlightRemoved.fire();
 		}
 
@@ -150,7 +152,7 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 		super();
 
 		this._domNode = $('.floating-click-widget');
-		this._domNode.style.padding = '10px';
+		this._domNode.style.padding = '6px 11px';
 		this._domNode.style.cursor = 'pointer';
 
 		if (keyBindingAction) {
@@ -211,7 +213,7 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 
 export class OpenWorkspaceButtonContribution extends Disposable implements IEditorContribution {
 
-	static get(editor: ICodeEditor): OpenWorkspaceButtonContribution {
+	static get(editor: ICodeEditor): OpenWorkspaceButtonContribution | null {
 		return editor.getContribution<OpenWorkspaceButtonContribution>(OpenWorkspaceButtonContribution.ID);
 	}
 
@@ -255,8 +257,12 @@ export class OpenWorkspaceButtonContribution extends Disposable implements IEdit
 			return false; // we need a workspace file
 		}
 
-		if (!this.fileService.canHandleResource(model.uri)) {
+		if (!this.fileService.hasProvider(model.uri)) {
 			return false; // needs to be backed by a file service
+		}
+
+		if (isTemporaryWorkspace(this.contextService.getWorkspace())) {
+			return false; // unsupported in temporary workspaces
 		}
 
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {

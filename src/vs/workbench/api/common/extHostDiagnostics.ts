@@ -16,13 +16,12 @@ import { ResourceMap } from 'vs/base/common/map';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { IExtUri } from 'vs/base/common/resources';
-import { SkipList } from 'vs/base/common/skipList';
 
 export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
 	readonly #proxy: MainThreadDiagnosticsShape | undefined;
 	readonly #onDidChangeDiagnostics: Emitter<vscode.Uri[]>;
-	readonly #data: SkipList<URI, vscode.Diagnostic[]>;
+	readonly #data: ResourceMap<vscode.Diagnostic[]>;
 
 	private _isDisposed = false;
 
@@ -34,7 +33,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 		proxy: MainThreadDiagnosticsShape | undefined,
 		onDidChangeDiagnostics: Emitter<vscode.Uri[]>
 	) {
-		this.#data = new SkipList((a, b) => extUri.compare(a, b));
+		this.#data = new ResourceMap(uri => extUri.getComparisonKey(uri));
 		this.#proxy = proxy;
 		this.#onDidChangeDiagnostics = onDidChangeDiagnostics;
 	}
@@ -42,9 +41,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 	dispose(): void {
 		if (!this._isDisposed) {
 			this.#onDidChangeDiagnostics.fire([...this.#data.keys()]);
-			if (this.#proxy) {
-				this.#proxy.$clear(this._owner);
-			}
+			this.#proxy?.$clear(this._owner);
 			this.#data.clear();
 			this._isDisposed = true;
 		}
@@ -109,9 +106,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 					}
 				} else {
 					const currentDiagnostics = this.#data.get(uri);
-					if (currentDiagnostics) {
-						currentDiagnostics.push(...diagnostics);
-					}
+					currentDiagnostics?.push(...diagnostics);
 				}
 			}
 		}
@@ -124,7 +119,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 			return;
 		}
 		const entries: [URI, IMarkerData[]][] = [];
-		for (let uri of toSync) {
+		for (const uri of toSync) {
 			let marker: IMarkerData[] = [];
 			const diagnostics = this.#data.get(uri);
 			if (diagnostics) {
@@ -134,7 +129,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 					marker = [];
 					const order = [DiagnosticSeverity.Error, DiagnosticSeverity.Warning, DiagnosticSeverity.Information, DiagnosticSeverity.Hint];
 					orderLoop: for (let i = 0; i < 4; i++) {
-						for (let diagnostic of diagnostics) {
+						for (const diagnostic of diagnostics) {
 							if (diagnostic.severity === order[i]) {
 								const len = marker.push(converter.Diagnostic.from(diagnostic));
 								if (len === this._maxDiagnosticsPerFile) {
@@ -167,24 +162,27 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 		this._checkDisposed();
 		this.#onDidChangeDiagnostics.fire([uri]);
 		this.#data.delete(uri);
-		if (this.#proxy) {
-			this.#proxy.$changeMany(this._owner, [[uri, undefined]]);
-		}
+		this.#proxy?.$changeMany(this._owner, [[uri, undefined]]);
 	}
 
 	clear(): void {
 		this._checkDisposed();
 		this.#onDidChangeDiagnostics.fire([...this.#data.keys()]);
 		this.#data.clear();
-		if (this.#proxy) {
-			this.#proxy.$clear(this._owner);
-		}
+		this.#proxy?.$clear(this._owner);
 	}
 
 	forEach(callback: (uri: URI, diagnostics: ReadonlyArray<vscode.Diagnostic>, collection: DiagnosticCollection) => any, thisArg?: any): void {
 		this._checkDisposed();
-		for (let uri of this.#data.keys()) {
-			callback.apply(thisArg, [uri, this.get(uri), this]);
+		for (const [uri, values] of this) {
+			callback.call(thisArg, uri, values, this);
+		}
+	}
+
+	*[Symbol.iterator](): IterableIterator<[uri: vscode.Uri, diagnostics: readonly vscode.Diagnostic[]]> {
+		this._checkDisposed();
+		for (const uri of this.#data.keys()) {
+			yield [uri, this.get(uri)];
 		}
 	}
 
@@ -192,7 +190,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 		this._checkDisposed();
 		const result = this.#data.get(uri);
 		if (Array.isArray(result)) {
-			return <ReadonlyArray<vscode.Diagnostic>>Object.freeze(result.slice(0));
+			return Object.freeze(result.slice(0));
 		}
 		return [];
 	}
@@ -318,7 +316,7 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 
 	private _getDiagnostics(resource: vscode.Uri): ReadonlyArray<vscode.Diagnostic> {
 		let res: vscode.Diagnostic[] = [];
-		for (let collection of this._collections.values()) {
+		for (const collection of this._collections.values()) {
 			if (collection.has(resource)) {
 				res = res.concat(collection.get(resource));
 			}

@@ -16,10 +16,11 @@ import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/enviro
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { platform } from 'vs/base/common/process';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
-import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
+import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
+import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 
 export class WorkbenchIssueService implements IWorkbenchIssueService {
 	declare readonly _serviceBrand: undefined;
@@ -32,8 +33,9 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IProductService private readonly productService: IProductService,
-		@ITASExperimentService private readonly experimentService: ITASExperimentService,
-		@IAuthenticationService private readonly authenticationService: IAuthenticationService
+		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService,
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
+		@IIntegrityService private readonly integrityService: IIntegrityService
 	) { }
 
 	async openReporter(dataOverrides: Partial<IssueReporterData> = {}): Promise<void> {
@@ -82,6 +84,14 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 			// Ignore
 		}
 
+		// air on the side of caution and have false be the default
+		let isUnsupported = false;
+		try {
+			isUnsupported = !(await this.integrityService.isPure()).isPure;
+		} catch (e) {
+			// Ignore
+		}
+
 		const theme = this.themeService.getColorTheme();
 		const issueReporterData: IssueReporterData = Object.assign({
 			styles: getIssueReporterStyles(theme),
@@ -89,6 +99,7 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 			enabledExtensions: extensionData,
 			experiments: experiments?.join('\n'),
 			restrictedMode: !this.workspaceTrustManagementService.isWorkspaceTrusted(),
+			isUnsupported,
 			githubAccessToken,
 		}, dataOverrides);
 		return this.issueService.openReporter(issueReporterData);
@@ -97,7 +108,7 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 	openProcessExplorer(): Promise<void> {
 		const theme = this.themeService.getColorTheme();
 		const data: ProcessExplorerData = {
-			pid: this.environmentService.configuration.mainPid,
+			pid: this.environmentService.mainPid,
 			zoomLevel: getZoomLevel(),
 			styles: {
 				backgroundColor: getColor(theme, editorBackground),

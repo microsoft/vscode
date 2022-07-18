@@ -30,14 +30,18 @@ function hasNoContent(context: IRequestContext): boolean {
 }
 
 export async function asText(context: IRequestContext): Promise<string | null> {
-	if (!isSuccess(context)) {
-		throw new Error('Server returned ' + context.res.statusCode);
-	}
 	if (hasNoContent(context)) {
 		return null;
 	}
 	const buffer = await streamToBuffer(context.stream);
 	return buffer.toString();
+}
+
+export async function asTextOrError(context: IRequestContext): Promise<string | null> {
+	if (!isSuccess(context)) {
+		throw new Error('Server returned ' + context.res.statusCode);
+	}
+	return asText(context);
 }
 
 export async function asJson<T = {}>(context: IRequestContext): Promise<T | null> {

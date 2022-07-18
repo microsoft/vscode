@@ -23,26 +23,27 @@ import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget 
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ToggleCompositePinnedAction, ICompositeBarColors, ActivityAction, ICompositeActivity, IActivityHoverOptions } from 'vs/workbench/browser/parts/compositeBarActions';
-import { IViewDescriptorService, ViewContainer, IViewContainerModel, ViewContainerLocation, IViewsService, getEnabledViewContainerContextKey } from 'vs/workbench/common/views';
+import { IViewDescriptorService, ViewContainer, IViewContainerModel, ViewContainerLocation } from 'vs/workbench/common/views';
+import { getEnabledViewContainerContextKey } from 'vs/workbench/common/contextkeys';
 import { IContextKeyService, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { assertIsDefined, isString } from 'vs/base/common/types';
-import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { getMenuBarVisibility } from 'vs/platform/windows/common/windows';
+import { getMenuBarVisibility } from 'vs/platform/window/common/window';
 import { isNative } from 'vs/base/common/platform';
 import { Before2D } from 'vs/workbench/browser/dnd';
 import { Codicon } from 'vs/base/common/codicons';
 import { IAction, Separator, toAction } from 'vs/base/common/actions';
-import { Event } from 'vs/base/common/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { StringSHA1 } from 'vs/base/common/hash';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { GestureEvent } from 'vs/base/browser/touch';
+import { IPaneCompositePart, IPaneCompositeSelectorPart } from 'vs/workbench/browser/parts/paneCompositePart';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/userDataProfile/common/userDataProfileStorageRegistry';
 
 interface IPlaceholderViewContainer {
 	readonly id: string;
@@ -50,7 +51,7 @@ interface IPlaceholderViewContainer {
 	readonly iconUrl?: UriComponents;
 	readonly themeIcon?: ThemeIcon;
 	readonly isBuiltin?: boolean;
-	readonly views?: { when?: string; }[];
+	readonly views?: { when?: string }[];
 }
 
 interface IPinnedViewContainer {
@@ -68,10 +69,10 @@ interface ICachedViewContainer {
 	readonly order?: number;
 	visible: boolean;
 	isBuiltin?: boolean;
-	views?: { when?: string; }[];
+	views?: { when?: string }[];
 }
 
-export class ActivitybarPart extends Part implements IActivityBarService {
+export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -109,7 +110,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private readonly accountsActivity: ICompositeActivity[] = [];
 
-	private readonly compositeActions = new Map<string, { activityAction: ViewContainerActivityAction, pinnedAction: ToggleCompositePinnedAction; }>();
+	private readonly compositeActions = new Map<string, { activityAction: ViewContainerActivityAction; pinnedAction: ToggleCompositePinnedAction }>();
 	private readonly viewContainerDisposables = new Map<string, IDisposable>();
 
 	private readonly keyboardNavigationDisposables = this._register(new DisposableStore());
@@ -120,13 +121,13 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	private readonly enabledViewContainersContextKeys: Map<string, IContextKey<boolean>> = new Map<string, IContextKey<boolean>>();
 
 	constructor(
+		private readonly paneCompositePart: IPaneCompositePart,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
-		@IViewsService private readonly viewsService: IViewsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
@@ -141,6 +142,15 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.onDidRegisterViewContainers(this.getViewContainers());
 
 		this.registerListeners();
+
+		Registry.as<IProfileStorageRegistry>(Extensions.ProfileStorageRegistry)
+			.registerKeys([{
+				key: ActivitybarPart.PINNED_VIEW_CONTAINERS,
+				description: localize('pinned view containers', "Activity bar entries visibility customizations")
+			}, {
+				key: AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY,
+				description: localize('accounts visibility key', "Accounts entry visibility customization in the activity bar.")
+			}]);
 	}
 
 	private createCompositeBar() {
@@ -158,10 +168,12 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			orientation: ActionsOrientation.VERTICAL,
 			activityHoverOptions: this.getActivityHoverOptions(),
 			preventLoopNavigation: true,
-			openComposite: (compositeId, preserveFocus) => this.viewsService.openViewContainer(compositeId, !preserveFocus),
+			openComposite: async (compositeId, preserveFocus) => {
+				return (await this.paneCompositePart.openPaneComposite(compositeId, !preserveFocus)) ?? null;
+			},
 			getActivityAction: compositeId => this.getCompositeActions(compositeId).activityAction,
 			getCompositePinnedAction: compositeId => this.getCompositeActions(compositeId).pinnedAction,
-			getOnCompositeClickAction: compositeId => toAction({ id: compositeId, label: '', run: async () => this.viewsService.isViewContainerVisible(compositeId) ? this.viewsService.closeViewContainer(compositeId) : this.viewsService.openViewContainer(compositeId) }),
+			getOnCompositeClickAction: compositeId => toAction({ id: compositeId, label: '', run: async () => this.paneCompositePart.getActivePaneComposite()?.getId() === compositeId ? this.paneCompositePart.hideActivePaneComposite() : this.paneCompositePart.openPaneComposite(compositeId) }),
 			fillExtraContextMenuActions: (actions, e?: MouseEvent | GestureEvent) => {
 				// Menu
 				const menuBarVisibility = getMenuBarVisibility(this.configurationService);
@@ -187,10 +199,10 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 				actions.push(toAction({ id: ToggleActivityBarVisibilityAction.ID, label: localize('hideActivitBar', "Hide Activity Bar"), run: () => this.instantiationService.invokeFunction(accessor => new ToggleActivityBarVisibilityAction().run(accessor)) }));
 			},
 			getContextMenuActionsForComposite: compositeId => this.getContextMenuActionsForComposite(compositeId),
-			getDefaultCompositeId: () => this.viewDescriptorService.getDefaultViewContainer(this.location)!.id,
-			hidePart: () => this.layoutService.setSideBarHidden(true),
+			getDefaultCompositeId: () => this.viewDescriptorService.getDefaultViewContainer(this.location)?.id,
+			hidePart: () => this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART),
 			dndHandler: new CompositeDragAndDrop(this.viewDescriptorService, ViewContainerLocation.Sidebar,
-				(id: string, focus?: boolean) => this.viewsService.openViewContainer(id, focus),
+				async (id: string, focus?: boolean) => { return await this.paneCompositePart.openPaneComposite(id, focus) ?? null; },
 				(from: string, to: string, before?: Before2D) => this.compositeBar.move(from, to, before?.verticallyBefore),
 				() => this.compositeBar.getCompositeBarItems(),
 			),
@@ -234,10 +246,11 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this._register(this.viewDescriptorService.onDidChangeContainerLocation(({ viewContainer, from, to }) => this.onDidChangeViewContainerLocation(viewContainer, from, to)));
 
 		// View Container Visibility Changes
-		this._register(Event.filter(this.viewsService.onDidChangeViewContainerVisibility, e => e.location === this.location)(({ id, visible }) => this.onDidChangeViewContainerVisibility(id, visible)));
+		this.paneCompositePart.onDidPaneCompositeOpen(e => this.onDidChangeViewContainerVisibility(e.getId(), true));
+		this.paneCompositePart.onDidPaneCompositeClose(e => this.onDidChangeViewContainerVisibility(e.getId(), false));
 
 		// Extension registration
-		let disposables = this._register(new DisposableStore());
+		const disposables = this._register(new DisposableStore());
 		this._register(this.extensionService.onDidRegisterExtensions(() => {
 			disposables.clear();
 			this.onDidRegisterExtensions();
@@ -257,7 +270,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		}));
 	}
 
-	private onDidChangeViewContainers(added: readonly { container: ViewContainer, location: ViewContainerLocation; }[], removed: readonly { container: ViewContainer, location: ViewContainerLocation; }[]) {
+	private onDidChangeViewContainers(added: readonly { container: ViewContainer; location: ViewContainerLocation }[], removed: readonly { container: ViewContainer; location: ViewContainerLocation }[]) {
 		removed.filter(({ location }) => location === ViewContainerLocation.Sidebar).forEach(({ container }) => this.onDidDeregisterViewContainer(container));
 		this.onDidRegisterViewContainers(added.filter(({ location }) => location === ViewContainerLocation.Sidebar).map(({ container }) => container));
 	}
@@ -482,9 +495,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			this.keyboardNavigationDisposables.add(addDisposableListener(this.compositeBarContainer, EventType.KEY_DOWN, e => {
 				const kbEvent = new StandardKeyboardEvent(e);
 				if (kbEvent.equals(KeyCode.DownArrow) || kbEvent.equals(KeyCode.RightArrow)) {
-					if (this.globalActivityActionBar) {
-						this.globalActivityActionBar.focus(true);
-					}
+					this.globalActivityActionBar?.focus(true);
 				} else if (kbEvent.equals(KeyCode.UpArrow) || kbEvent.equals(KeyCode.LeftArrow)) {
 					if (this.menuBar) {
 						this.menuBar.toggleFocus();
@@ -498,9 +509,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			this.keyboardNavigationDisposables.add(addDisposableListener(this.globalActivitiesContainer, EventType.KEY_DOWN, e => {
 				const kbEvent = new StandardKeyboardEvent(e);
 				if (kbEvent.equals(KeyCode.UpArrow) || kbEvent.equals(KeyCode.LeftArrow)) {
-					if (this.compositeBar) {
-						this.compositeBar.focus(this.getVisibleViewContainerIds().length - 1);
-					}
+					this.compositeBar?.focus(this.getVisiblePaneCompositeIds().length - 1);
 				}
 			}));
 		}
@@ -545,6 +554,9 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private toggleAccountsActivity() {
+		if (!!this.accountsActivityAction === this.accountsVisibilityPreference) {
+			return;
+		}
 		if (this.globalActivityActionBar) {
 			if (this.accountsActivityAction) {
 				this.globalActivityActionBar.pull(ActivitybarPart.ACCOUNTS_ACTION_INDEX);
@@ -562,20 +574,20 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.updateGlobalActivity(ACCOUNTS_ACTIVITY_ID);
 	}
 
-	private getCompositeActions(compositeId: string): { activityAction: ViewContainerActivityAction, pinnedAction: ToggleCompositePinnedAction; } {
+	private getCompositeActions(compositeId: string): { activityAction: ViewContainerActivityAction; pinnedAction: ToggleCompositePinnedAction } {
 		let compositeActions = this.compositeActions.get(compositeId);
 		if (!compositeActions) {
 			const viewContainer = this.getViewContainer(compositeId);
 			if (viewContainer) {
 				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
 				compositeActions = {
-					activityAction: this.instantiationService.createInstance(ViewContainerActivityAction, this.toActivity(viewContainerModel)),
+					activityAction: this.instantiationService.createInstance(ViewContainerActivityAction, this.toActivity(viewContainerModel), this.paneCompositePart),
 					pinnedAction: new ToggleCompositePinnedAction(this.toActivity(viewContainerModel), this.compositeBar)
 				};
 			} else {
 				const cachedComposite = this.cachedViewContainers.filter(c => c.id === compositeId)[0];
 				compositeActions = {
-					activityAction: this.instantiationService.createInstance(PlaceHolderViewContainerActivityAction, ActivitybarPart.toActivity(compositeId, compositeId, cachedComposite?.icon, undefined)),
+					activityAction: this.instantiationService.createInstance(PlaceHolderViewContainerActivityAction, ActivitybarPart.toActivity(compositeId, compositeId, cachedComposite?.icon, undefined), this.paneCompositePart),
 					pinnedAction: new PlaceHolderToggleCompositePinnedAction(compositeId, this.compositeBar)
 				};
 			}
@@ -597,8 +609,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			}
 
 			// Active
-			const visibleViewContainer = this.viewsService.getVisibleViewContainer(this.location);
-			if (visibleViewContainer?.id === viewContainer.id) {
+			const visibleViewContainer = this.paneCompositePart.getActivePaneComposite();
+			if (visibleViewContainer?.getId() === viewContainer.id) {
 				this.compositeBar.activateComposite(viewContainer.id);
 			}
 
@@ -735,7 +747,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		}
 	}
 
-	getPinnedViewContainerIds(): string[] {
+	getPinnedPaneCompositeIds(): string[] {
 		const pinnedCompositeIds = this.compositeBar.getPinnedComposites().map(v => v.id);
 		return this.getViewContainers()
 			.filter(v => this.compositeBar.isPinned(v.id))
@@ -743,13 +755,13 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			.map(v => v.id);
 	}
 
-	getVisibleViewContainerIds(): string[] {
+	getVisiblePaneCompositeIds(): string[] {
 		return this.compositeBar.getVisibleComposites()
-			.filter(v => this.viewsService.getVisibleViewContainer(this.location)?.id === v.id || this.compositeBar.isPinned(v.id))
+			.filter(v => this.paneCompositePart.getActivePaneComposite()?.getId() === v.id || this.compositeBar.isPinned(v.id))
 			.map(v => v.id);
 	}
 
-	focusActivityBar(): void {
+	focus(): void {
 		this.compositeBar.focus();
 	}
 
@@ -807,7 +819,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private onDidStorageValueChange(e: IStorageValueChangeEvent): void {
-		if (e.key === ActivitybarPart.PINNED_VIEW_CONTAINERS && e.scope === StorageScope.GLOBAL
+		if (e.key === ActivitybarPart.PINNED_VIEW_CONTAINERS && e.scope === StorageScope.PROFILE
 			&& this.pinnedViewContainersValue !== this.getStoredPinnedViewContainersValue() /* This checks if current window changed the value or not */) {
 			this._pinnedViewContainersValue = undefined;
 			this._cachedViewContainers = undefined;
@@ -828,14 +840,20 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			for (let index = 0; index < compositeItems.length; index++) {
 				// Add items currently exists but does not exist in new.
 				if (!newCompositeItems.some(({ id }) => id === compositeItems[index].id)) {
-					newCompositeItems.splice(index, 0, compositeItems[index]);
+					const viewContainer = this.viewDescriptorService.getViewContainerById(compositeItems[index].id);
+					newCompositeItems.splice(index, 0, {
+						...compositeItems[index],
+						pinned: true,
+						visible: true,
+						order: viewContainer?.order,
+					});
 				}
 			}
 
 			this.compositeBar.setCompositeBarItems(newCompositeItems);
 		}
 
-		if (e.key === AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY && e.scope === StorageScope.GLOBAL) {
+		if (e.key === AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY && e.scope === StorageScope.PROFILE) {
 			this.toggleAccountsActivity();
 		}
 	}
@@ -848,7 +866,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			const viewContainer = this.getViewContainer(compositeItem.id);
 			if (viewContainer) {
 				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
-				const views: { when: string | undefined; }[] = [];
+				const views: { when: string | undefined }[] = [];
 				for (const { when } of viewContainerModel.allViewDescriptors) {
 					views.push({ when: when ? when.serialize() : undefined });
 				}
@@ -932,11 +950,11 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private getStoredPinnedViewContainersValue(): string {
-		return this.storageService.get(ActivitybarPart.PINNED_VIEW_CONTAINERS, StorageScope.GLOBAL, '[]');
+		return this.storageService.get(ActivitybarPart.PINNED_VIEW_CONTAINERS, StorageScope.PROFILE, '[]');
 	}
 
 	private setStoredPinnedViewContainersValue(value: string): void {
-		this.storageService.store(ActivitybarPart.PINNED_VIEW_CONTAINERS, value, StorageScope.GLOBAL, StorageTarget.USER);
+		this.storageService.store(ActivitybarPart.PINNED_VIEW_CONTAINERS, value, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	private getPlaceholderViewContainers(): IPlaceholderViewContainer[] {
@@ -964,19 +982,19 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private getStoredPlaceholderViewContainersValue(): string {
-		return this.storageService.get(ActivitybarPart.PLACEHOLDER_VIEW_CONTAINERS, StorageScope.GLOBAL, '[]');
+		return this.storageService.get(ActivitybarPart.PLACEHOLDER_VIEW_CONTAINERS, StorageScope.PROFILE, '[]');
 	}
 
 	private setStoredPlaceholderViewContainersValue(value: string): void {
-		this.storageService.store(ActivitybarPart.PLACEHOLDER_VIEW_CONTAINERS, value, StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this.storageService.store(ActivitybarPart.PLACEHOLDER_VIEW_CONTAINERS, value, StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
 	private get accountsVisibilityPreference(): boolean {
-		return this.storageService.getBoolean(AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, StorageScope.GLOBAL, true);
+		return this.storageService.getBoolean(AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, StorageScope.PROFILE, true);
 	}
 
 	private set accountsVisibilityPreference(value: boolean) {
-		this.storageService.store(AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, value, StorageScope.GLOBAL, StorageTarget.USER);
+		this.storageService.store(AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, value, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	toJSON(): object {
@@ -985,5 +1003,3 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		};
 	}
 }
-
-registerSingleton(IActivityBarService, ActivitybarPart);

@@ -78,13 +78,13 @@ export class NoTabsTitleControl extends TitleControl {
 		this._register(addDisposableListener(titleContainer, TouchEventType.Tap, (e: GestureEvent) => this.onTitleTap(e)));
 
 		// Context Menu
-		[EventType.CONTEXT_MENU, TouchEventType.Contextmenu].forEach(event => {
+		for (const event of [EventType.CONTEXT_MENU, TouchEventType.Contextmenu]) {
 			this._register(addDisposableListener(titleContainer, event, e => {
 				if (this.group.activeEditor) {
 					this.onContextMenu(this.group.activeEditor, e, titleContainer);
 				}
 			}));
-		});
+		}
 	}
 
 	private onTitleLabelClick(e: MouseEvent): void {

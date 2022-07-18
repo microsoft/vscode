@@ -43,18 +43,22 @@ export interface NativeParsedArgs {
 	extensionDevelopmentPath?: string[]; // undefined or array of 1 or more local paths or URIs
 	extensionTestsPath?: string; // either a local path or a URI
 	extensionDevelopmentKind?: string[];
+	extensionEnvironment?: string; // JSON-stringified Record<string, string> object
 	'inspect-extensions'?: string;
 	'inspect-brk-extensions'?: string;
 	debugId?: string;
 	debugRenderer?: boolean; // whether we expect a debugger (js-debug) to attach to the renderer, incl webviews+webworker
 	'inspect-search'?: string;
 	'inspect-brk-search'?: string;
+	'inspect-ptyhost'?: string;
+	'inspect-brk-ptyhost'?: string;
 	'disable-extensions'?: boolean;
 	'disable-extension'?: string[]; // undefined or array of 1 or more
 	'list-extensions'?: boolean;
 	'show-versions'?: boolean;
 	'category'?: string;
 	'install-extension'?: string[]; // undefined or array of 1 or more
+	'pre-release'?: boolean;
 	'install-builtin-extension'?: string[]; // undefined or array of 1 or more
 	'uninstall-extension'?: string[]; // undefined or array of 1 or more
 	'locate-extension'?: string[]; // undefined or array of 1 or more
@@ -75,16 +79,17 @@ export interface NativeParsedArgs {
 	'max-memory'?: string;
 	'file-write'?: boolean;
 	'file-chmod'?: boolean;
-	'driver'?: string;
-	'driver-verbose'?: boolean;
+	'enable-smoke-test-driver'?: boolean;
 	'remote'?: string;
 	'force'?: boolean;
 	'do-not-sync'?: boolean;
 	'force-user-env'?: boolean;
 	'force-disable-user-env'?: boolean;
 	'sync'?: 'on' | 'off';
-	'__sandbox'?: boolean;
 	'logsPath'?: string;
+	'__enable-file-policy'?: boolean;
+	editSessionId?: string;
+	'shell-integration'?: string;
 
 	// chromium command line args: https://electronjs.org/docs/all#supported-chrome-command-line-switches
 	'no-proxy-server'?: boolean;
@@ -103,4 +108,8 @@ export interface NativeParsedArgs {
 	'allow-insecure-localhost'?: boolean;
 	'log-net-log'?: string;
 	'vmodule'?: string;
+	'disable-dev-shm-usage'?: boolean;
+
+	// MS Build command line arg
+	'ms-enable-electron-run-as-node'?: boolean;
 }

@@ -11,7 +11,7 @@ const yarnrcPath = path.join(root, 'remote', '.yarnrc');
 const yarnrc = fs.readFileSync(yarnrcPath, 'utf8');
 const version = /^target\s+"([^"]+)"$/m.exec(yarnrc)[1];
 const platform = process.platform;
-const arch = platform === 'darwin' ? 'x64' : process.arch;
+const arch = process.arch;
 const node = platform === 'win32' ? 'node.exe' : 'node';
 const nodePath = path.join(root, '.build', 'node', `v${version}`, `${platform}-${arch}`, node);
 console.log(nodePath);

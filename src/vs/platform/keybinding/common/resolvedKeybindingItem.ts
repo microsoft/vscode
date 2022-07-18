@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CharCode } from 'vs/base/common/charCode';
-import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 
 export class ResolvedKeybindingItem {
@@ -38,7 +38,7 @@ export class ResolvedKeybindingItem {
 }
 
 export function removeElementsAfterNulls<T>(arr: (T | null)[]): T[] {
-	let result: T[] = [];
+	const result: T[] = [];
 	for (let i = 0, len = arr.length; i < len; i++) {
 		const element = arr[i];
 		if (!element) {

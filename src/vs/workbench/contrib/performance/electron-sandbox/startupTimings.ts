@@ -15,15 +15,15 @@ import { IUpdateService } from 'vs/platform/update/common/update';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import * as files from 'vs/workbench/contrib/files/common/files';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { didUseCachedData } from 'vs/workbench/services/timer/electron-sandbox/timerService';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
 
 export class StartupTimings implements IWorkbenchContribution {
 
@@ -32,8 +32,7 @@ export class StartupTimings implements IWorkbenchContribution {
 		@ITimerService private readonly _timerService: ITimerService,
 		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IViewletService private readonly _viewletService: IViewletService,
-		@IPanelService private readonly _panelService: IPanelService,
+		@IPaneCompositePartService private readonly _paneCompositeService: IPaneCompositePartService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IUpdateService private readonly _updateService: IUpdateService,
@@ -96,7 +95,7 @@ export class StartupTimings implements IWorkbenchContribution {
 		if (windowCount !== 1) {
 			return 'Expected window count : 1, Actual : ' + windowCount;
 		}
-		const activeViewlet = this._viewletService.getActiveViewlet();
+		const activeViewlet = this._paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 		if (!activeViewlet || activeViewlet.getId() !== files.VIEWLET_ID) {
 			return 'Explorer viewlet not visible';
 		}
@@ -107,9 +106,9 @@ export class StartupTimings implements IWorkbenchContribution {
 		if (!isCodeEditor(visibleEditorPanes[0].getControl())) {
 			return 'Active editor is not a text editor';
 		}
-		const activePanel = this._panelService.getActivePanel();
+		const activePanel = this._paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
 		if (activePanel) {
-			return 'Current active panel : ' + this._panelService.getPanel(activePanel.getId())?.name;
+			return 'Current active panel : ' + this._paneCompositeService.getPaneComposite(activePanel.getId(), ViewContainerLocation.Panel)?.name;
 		}
 		const noCachedData = this._environmentService.args['no-cached-data'];
 		if (!noCachedData && !didUseCachedData(this._productService, this._storageService, this._environmentService)) {

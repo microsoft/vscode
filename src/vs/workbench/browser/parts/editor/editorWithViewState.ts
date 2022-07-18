@@ -4,20 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
+import { Event } from 'vs/base/common/event';
 import { IEditorMemento, IEditorCloseEvent, IEditorOpenContext, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtUri } from 'vs/base/common/resources';
-import { MutableDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { CancellationToken } from 'vs/base/common/cancellation';
 
 /**
  * Base class of editors that want to store and restore view state.
@@ -27,6 +26,8 @@ export abstract class AbstractEditorWithViewState<T extends object> extends Edit
 	private viewState: IEditorMemento<T>;
 
 	private readonly groupListener = this._register(new MutableDisposable());
+
+	private editorViewStateDisposables: Map<EditorInput, IDisposable> | undefined;
 
 	constructor(
 		id: string,
@@ -62,14 +63,6 @@ export abstract class AbstractEditorWithViewState<T extends object> extends Edit
 		}
 	}
 
-	override async setInput(input: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-
-		// Preserve current input view state before opening new
-		this.updateEditorViewState(this.input);
-
-		await super.setInput(input, options, context, token);
-	}
-
 	override clearInput(): void {
 
 		// Preserve current input view state before clearing
@@ -94,6 +87,22 @@ export abstract class AbstractEditorWithViewState<T extends object> extends Edit
 		const resource = this.toEditorViewStateResource(input);
 		if (!resource) {
 			return; // we need a resource
+		}
+
+		// If we are not tracking disposed editor view state
+		// make sure to clear the view state once the editor
+		// is disposed.
+		if (!this.tracksDisposedEditorViewState()) {
+			if (!this.editorViewStateDisposables) {
+				this.editorViewStateDisposables = new Map<EditorInput, IDisposable>();
+			}
+
+			if (!this.editorViewStateDisposables.has(input)) {
+				this.editorViewStateDisposables.set(input, Event.once(input.onWillDispose)(() => {
+					this.clearEditorViewState(resource, this.group);
+					this.editorViewStateDisposables?.delete(input);
+				}));
+			}
 		}
 
 		// Clear the editor view state if:
@@ -179,6 +188,18 @@ export abstract class AbstractEditorWithViewState<T extends object> extends Edit
 		this.viewState.clearEditorState(resource, group);
 	}
 
+	override dispose(): void {
+		super.dispose();
+
+		if (this.editorViewStateDisposables) {
+			for (const [, disposables] of this.editorViewStateDisposables) {
+				disposables.dispose();
+			}
+
+			this.editorViewStateDisposables = undefined;
+		}
+	}
+
 	//#region Subclasses should/could override based on needs
 
 	/**
@@ -187,7 +208,9 @@ export abstract class AbstractEditorWithViewState<T extends object> extends Edit
 	 *
 	 * @param resource the expected `URI` for the view state. This
 	 * should be used as a way to ensure the view state in the
-	 * editor control is matching the resource expected.
+	 * editor control is matching the resource expected, for example
+	 * by comparing with the underlying model (this was a fix for
+	 * https://github.com/microsoft/vscode/issues/40114).
 	 */
 	protected abstract computeEditorViewState(resource: URI): T | undefined;
 

@@ -14,8 +14,9 @@ export interface ITelemetryData {
 }
 
 export type WorkbenchActionExecutedClassification = {
-	id: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
-	from: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+	owner: 'bpasero';
+	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	from: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 };
 
 export type WorkbenchActionExecutedEvent = {
@@ -29,7 +30,7 @@ export interface IAction extends IDisposable {
 	tooltip: string;
 	class: string | undefined;
 	enabled: boolean;
-	checked: boolean;
+	checked?: boolean;
 	run(event?: unknown): unknown;
 }
 
@@ -58,7 +59,7 @@ export class Action extends Disposable implements IAction {
 	protected _tooltip: string | undefined;
 	protected _cssClass: string | undefined;
 	protected _enabled: boolean = true;
-	protected _checked: boolean = false;
+	protected _checked?: boolean;
 	protected readonly _actionCallback?: (event?: unknown) => unknown;
 
 	constructor(id: string, label: string = '', cssClass: string = '', enabled: boolean = true, actionCallback?: (event?: unknown) => unknown) {
@@ -134,15 +135,15 @@ export class Action extends Disposable implements IAction {
 		}
 	}
 
-	get checked(): boolean {
+	get checked(): boolean | undefined {
 		return this._checked;
 	}
 
-	set checked(value: boolean) {
+	set checked(value: boolean | undefined) {
 		this._setChecked(value);
 	}
 
-	protected _setChecked(value: boolean): void {
+	protected _setChecked(value: boolean | undefined): void {
 		if (this._checked !== value) {
 			this._checked = value;
 			this._onDidChange.fire({ checked: value });
@@ -228,7 +229,7 @@ export class SubmenuAction implements IAction {
 	readonly class: string | undefined;
 	readonly tooltip: string = '';
 	readonly enabled: boolean = true;
-	readonly checked: boolean = false;
+	readonly checked: undefined = undefined;
 
 	private readonly _actions: readonly IAction[];
 	get actions(): readonly IAction[] { return this._actions; }
@@ -258,7 +259,7 @@ export class EmptySubmenuAction extends Action {
 	}
 }
 
-export function toAction(props: { id: string, label: string, enabled?: boolean, checked?: boolean, run: Function; }): IAction {
+export function toAction(props: { id: string; label: string; enabled?: boolean; checked?: boolean; run: Function }): IAction {
 	return {
 		id: props.id,
 		label: props.label,

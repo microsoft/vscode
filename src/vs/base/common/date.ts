@@ -12,7 +12,7 @@ const week = day * 7;
 const month = day * 30;
 const year = day * 365;
 
-export function fromNow(date: number | Date, appendAgoLabel?: boolean): string {
+export function fromNow(date: number | Date, appendAgoLabel?: boolean, useFullTimeWords?: boolean): string {
 	if (typeof date !== 'number') {
 		date = date.getTime();
 	}
@@ -31,39 +31,75 @@ export function fromNow(date: number | Date, appendAgoLabel?: boolean): string {
 		value = seconds;
 
 		if (appendAgoLabel) {
-			return value === 1
-				? localize('date.fromNow.seconds.singular.ago', '{0} sec ago', value)
-				: localize('date.fromNow.seconds.plural.ago', '{0} secs ago', value);
+			if (value === 1) {
+				return useFullTimeWords
+					? localize('date.fromNow.seconds.singular.ago.fullWord', '{0} second ago', value)
+					: localize('date.fromNow.seconds.singular.ago', '{0} sec ago', value);
+			} else {
+				return useFullTimeWords
+					? localize('date.fromNow.seconds.plural.ago.fullWord', '{0} seconds ago', value)
+					: localize('date.fromNow.seconds.plural.ago', '{0} secs ago', value);
+			}
 		} else {
-			return value === 1
-				? localize('date.fromNow.seconds.singular', '{0} sec', value)
-				: localize('date.fromNow.seconds.plural', '{0} secs', value);
+			if (value === 1) {
+				return useFullTimeWords
+					? localize('date.fromNow.seconds.singular.fullWord', '{0} second', value)
+					: localize('date.fromNow.seconds.singular', '{0} sec', value);
+			} else {
+				return useFullTimeWords
+					? localize('date.fromNow.seconds.plural.fullWord', '{0} seconds', value)
+					: localize('date.fromNow.seconds.plural', '{0} secs', value);
+			}
 		}
 	}
 
 	if (seconds < hour) {
 		value = Math.floor(seconds / minute);
 		if (appendAgoLabel) {
-			return value === 1
-				? localize('date.fromNow.minutes.singular.ago', '{0} min ago', value)
-				: localize('date.fromNow.minutes.plural.ago', '{0} mins ago', value);
+			if (value === 1) {
+				return useFullTimeWords
+					? localize('date.fromNow.minutes.singular.ago.fullWord', '{0} minute ago', value)
+					: localize('date.fromNow.minutes.singular.ago', '{0} min ago', value);
+			} else {
+				return useFullTimeWords
+					? localize('date.fromNow.minutes.plural.ago.fullWord', '{0} minutes ago', value)
+					: localize('date.fromNow.minutes.plural.ago', '{0} mins ago', value);
+			}
 		} else {
-			return value === 1
-				? localize('date.fromNow.minutes.singular', '{0} min', value)
-				: localize('date.fromNow.minutes.plural', '{0} mins', value);
+			if (value === 1) {
+				return useFullTimeWords
+					? localize('date.fromNow.minutes.singular.fullWord', '{0} minute', value)
+					: localize('date.fromNow.minutes.singular', '{0} min', value);
+			} else {
+				return useFullTimeWords
+					? localize('date.fromNow.minutes.plural.fullWord', '{0} minutes', value)
+					: localize('date.fromNow.minutes.plural', '{0} mins', value);
+			}
 		}
 	}
 
 	if (seconds < day) {
 		value = Math.floor(seconds / hour);
 		if (appendAgoLabel) {
-			return value === 1
-				? localize('date.fromNow.hours.singular.ago', '{0} hr ago', value)
-				: localize('date.fromNow.hours.plural.ago', '{0} hrs ago', value);
+			if (value === 1) {
+				return useFullTimeWords
+					? localize('date.fromNow.hours.singular.ago.fullWord', '{0} hour ago', value)
+					: localize('date.fromNow.hours.singular.ago', '{0} hr ago', value);
+			} else {
+				return useFullTimeWords
+					? localize('date.fromNow.hours.plural.ago.fullWord', '{0} hours ago', value)
+					: localize('date.fromNow.hours.plural.ago', '{0} hrs ago', value);
+			}
 		} else {
-			return value === 1
-				? localize('date.fromNow.hours.singular', '{0} hr', value)
-				: localize('date.fromNow.hours.plural', '{0} hrs', value);
+			if (value === 1) {
+				return useFullTimeWords
+					? localize('date.fromNow.hours.singular.fullWord', '{0} hour', value)
+					: localize('date.fromNow.hours.singular', '{0} hr', value);
+			} else {
+				return useFullTimeWords
+					? localize('date.fromNow.hours.plural.fullWord', '{0} hours', value)
+					: localize('date.fromNow.hours.plural', '{0} hrs', value);
+			}
 		}
 	}
 
@@ -83,38 +119,74 @@ export function fromNow(date: number | Date, appendAgoLabel?: boolean): string {
 	if (seconds < month) {
 		value = Math.floor(seconds / week);
 		if (appendAgoLabel) {
-			return value === 1
-				? localize('date.fromNow.weeks.singular.ago', '{0} wk ago', value)
-				: localize('date.fromNow.weeks.plural.ago', '{0} wks ago', value);
+			if (value === 1) {
+				return useFullTimeWords
+					? localize('date.fromNow.weeks.singular.ago.fullWord', '{0} week ago', value)
+					: localize('date.fromNow.weeks.singular.ago', '{0} wk ago', value);
+			} else {
+				return useFullTimeWords
+					? localize('date.fromNow.weeks.plural.ago.fullWord', '{0} weeks ago', value)
+					: localize('date.fromNow.weeks.plural.ago', '{0} wks ago', value);
+			}
 		} else {
-			return value === 1
-				? localize('date.fromNow.weeks.singular', '{0} wk', value)
-				: localize('date.fromNow.weeks.plural', '{0} wks', value);
+			if (value === 1) {
+				return useFullTimeWords
+					? localize('date.fromNow.weeks.singular.fullWord', '{0} week', value)
+					: localize('date.fromNow.weeks.singular', '{0} wk', value);
+			} else {
+				return useFullTimeWords
+					? localize('date.fromNow.weeks.plural.fullWord', '{0} weeks', value)
+					: localize('date.fromNow.weeks.plural', '{0} wks', value);
+			}
 		}
 	}
 
 	if (seconds < year) {
 		value = Math.floor(seconds / month);
 		if (appendAgoLabel) {
-			return value === 1
-				? localize('date.fromNow.months.singular.ago', '{0} mo ago', value)
-				: localize('date.fromNow.months.plural.ago', '{0} mos ago', value);
+			if (value === 1) {
+				return useFullTimeWords
+					? localize('date.fromNow.months.singular.ago.fullWord', '{0} month ago', value)
+					: localize('date.fromNow.months.singular.ago', '{0} mo ago', value);
+			} else {
+				return useFullTimeWords
+					? localize('date.fromNow.months.plural.ago.fullWord', '{0} months ago', value)
+					: localize('date.fromNow.months.plural.ago', '{0} mos ago', value);
+			}
 		} else {
-			return value === 1
-				? localize('date.fromNow.months.singular', '{0} mo', value)
-				: localize('date.fromNow.months.plural', '{0} mos', value);
+			if (value === 1) {
+				return useFullTimeWords
+					? localize('date.fromNow.months.singular.fullWord', '{0} month', value)
+					: localize('date.fromNow.months.singular', '{0} mo', value);
+			} else {
+				return useFullTimeWords
+					? localize('date.fromNow.months.plural.fullWord', '{0} months', value)
+					: localize('date.fromNow.months.plural', '{0} mos', value);
+			}
 		}
 	}
 
 	value = Math.floor(seconds / year);
 	if (appendAgoLabel) {
-		return value === 1
-			? localize('date.fromNow.years.singular.ago', '{0} yr ago', value)
-			: localize('date.fromNow.years.plural.ago', '{0} yrs ago', value);
+		if (value === 1) {
+			return useFullTimeWords
+				? localize('date.fromNow.years.singular.ago.fullWord', '{0} year ago', value)
+				: localize('date.fromNow.years.singular.ago', '{0} yr ago', value);
+		} else {
+			return useFullTimeWords
+				? localize('date.fromNow.years.plural.ago.fullWord', '{0} years ago', value)
+				: localize('date.fromNow.years.plural.ago', '{0} yrs ago', value);
+		}
 	} else {
-		return value === 1
-			? localize('date.fromNow.years.singular', '{0} yr', value)
-			: localize('date.fromNow.years.plural', '{0} yrs', value);
+		if (value === 1) {
+			return useFullTimeWords
+				? localize('date.fromNow.years.singular.fullWord', '{0} year', value)
+				: localize('date.fromNow.years.singular', '{0} yr', value);
+		} else {
+			return useFullTimeWords
+				? localize('date.fromNow.years.plural.fullWord', '{0} years', value)
+				: localize('date.fromNow.years.plural', '{0} yrs', value);
+		}
 	}
 }
 

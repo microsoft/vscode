@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
+import { IUpdatableHoverOptions } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
@@ -12,7 +13,7 @@ export interface IHoverDelegateTarget extends IDisposable {
 	x?: number;
 }
 
-export interface IHoverDelegateOptions {
+export interface IHoverDelegateOptions extends IUpdatableHoverOptions {
 	content: IMarkdownString | string | HTMLElement;
 	target: IHoverDelegateTarget | HTMLElement;
 	hoverPosition?: HoverPosition;
@@ -21,7 +22,7 @@ export interface IHoverDelegateOptions {
 }
 
 export interface IHoverDelegate {
-	showHover(options: IHoverDelegateOptions): IHoverWidget | undefined;
+	showHover(options: IHoverDelegateOptions, focus?: boolean): IHoverWidget | undefined;
 	onDidHideHover?: () => void;
 	delay: number;
 	placement?: 'mouse' | 'element';

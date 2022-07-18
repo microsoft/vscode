@@ -14,7 +14,7 @@ export interface IMarcoPoloEvent {
 export interface ITestService {
 	onMarco: Event<IMarcoPoloEvent>;
 	marco(): Promise<string>;
-	pong(ping: string): Promise<{ incoming: string, outgoing: string }>;
+	pong(ping: string): Promise<{ incoming: string; outgoing: string }>;
 	cancelMe(): Promise<boolean>;
 }
 
@@ -28,7 +28,7 @@ export class TestService implements ITestService {
 		return Promise.resolve('polo');
 	}
 
-	pong(ping: string): Promise<{ incoming: string, outgoing: string }> {
+	pong(ping: string): Promise<{ incoming: string; outgoing: string }> {
 		return Promise.resolve({ incoming: ping, outgoing: 'pong' });
 	}
 
@@ -69,7 +69,7 @@ export class TestServiceClient implements ITestService {
 		return this.channel.call('marco');
 	}
 
-	pong(ping: string): Promise<{ incoming: string, outgoing: string }> {
+	pong(ping: string): Promise<{ incoming: string; outgoing: string }> {
 		return this.channel.call('pong', ping);
 	}
 

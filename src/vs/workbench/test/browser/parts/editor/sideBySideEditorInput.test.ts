@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { EditorResourceAccessor, IResourceSideBySideEditorInput, isResourceSideBySideEditorInput, isSideBySideEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
@@ -11,6 +12,16 @@ import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEdit
 import { TestFileEditorInput, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('SideBySideEditorInput', () => {
+
+	let disposables: DisposableStore;
+
+	setup(() => {
+		disposables = new DisposableStore();
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
 
 	class MyEditorInput extends EditorInput {
 
@@ -48,7 +59,7 @@ suite('SideBySideEditorInput', () => {
 	}
 
 	test('basics', () => {
-		const instantiationService = workbenchInstantiationService();
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
 
 		let counter = 0;
 		const input = new MyEditorInput(URI.file('/fake'));
@@ -86,10 +97,10 @@ suite('SideBySideEditorInput', () => {
 	});
 
 	test('events dispatching', () => {
-		const instantiationService = workbenchInstantiationService();
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
 
-		let input = new MyEditorInput();
-		let otherInput = new MyEditorInput();
+		const input = new MyEditorInput();
+		const otherInput = new MyEditorInput();
 
 		const sideBySideInut = instantiationService.createInstance(SideBySideEditorInput, 'name', 'description', otherInput, input);
 
@@ -120,7 +131,7 @@ suite('SideBySideEditorInput', () => {
 	});
 
 	test('toUntyped', () => {
-		const instantiationService = workbenchInstantiationService();
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
 
 		const primaryInput = new MyEditorInput(URI.file('/fake'));
 		const secondaryInput = new MyEditorInput(URI.file('/fake2'));
@@ -132,7 +143,7 @@ suite('SideBySideEditorInput', () => {
 	});
 
 	test('untyped matches', () => {
-		const instantiationService = workbenchInstantiationService();
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
 
 		const primaryInput = new TestFileEditorInput(URI.file('/fake'), 'primaryId');
 		const secondaryInput = new TestFileEditorInput(URI.file('/fake2'), 'secondaryId');

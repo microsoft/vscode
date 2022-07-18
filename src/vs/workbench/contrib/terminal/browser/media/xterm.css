@@ -40,9 +40,10 @@
  */
 
 .xterm {
-	font-feature-settings: "liga" 0;
+	cursor: text;
 	position: relative;
 	user-select: none;
+	-ms-user-select: none;
 	-webkit-user-select: none;
 }
 
@@ -128,16 +129,13 @@
 	line-height: normal;
 }
 
-.xterm {
-	cursor: text;
-}
-
 .xterm.enable-mouse-events {
 	/* When mouse events are enabled (eg. tmux), revert to the standard pointer cursor */
 	cursor: default;
 }
 
-.xterm.xterm-cursor-pointer {
+.xterm.xterm-cursor-pointer,
+.xterm .xterm-cursor-pointer {
 	cursor: pointer;
 }
 
@@ -175,4 +173,22 @@
 
 .xterm-strikethrough {
 	text-decoration: line-through;
+}
+
+.xterm-screen .xterm-decoration-container .xterm-decoration {
+	z-index: 6;
+	position: absolute;
+}
+
+.xterm-decoration-overview-ruler {
+	z-index: 7;
+	position: absolute;
+	top: 0;
+	right: 0;
+	pointer-events: none;
+}
+
+.xterm-decoration-top {
+	z-index: 2;
+	position: relative;
 }

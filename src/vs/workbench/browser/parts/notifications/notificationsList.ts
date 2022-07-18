@@ -15,12 +15,17 @@ import { contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegis
 import { INotificationViewItem } from 'vs/workbench/common/notifications';
 import { NotificationsListDelegate, NotificationRenderer } from 'vs/workbench/browser/parts/notifications/notificationsViewer';
 import { NotificationActionRunner, CopyNotificationMessageAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
-import { NotificationFocusedContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 import { Codicon } from 'vs/base/common/codicons';
+import { NotificationFocusedContext } from 'vs/workbench/common/contextkeys';
+
+export interface INotificationsListOptions extends IListOptions<INotificationViewItem> {
+	widgetAriaLabel?: string;
+}
 
 export class NotificationsList extends Themable {
+
 	private listContainer: HTMLElement | undefined;
 	private list: WorkbenchList<INotificationViewItem> | undefined;
 	private listDelegate: NotificationsListDelegate | undefined;
@@ -29,7 +34,7 @@ export class NotificationsList extends Themable {
 
 	constructor(
 		private readonly container: HTMLElement,
-		private readonly options: IListOptions<INotificationViewItem>,
+		private readonly options: INotificationsListOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService
@@ -75,6 +80,7 @@ export class NotificationsList extends Themable {
 
 		// List
 		const listDelegate = this.listDelegate = new NotificationsListDelegate(this.listContainer);
+		const options = this.options;
 		const list = this.list = <WorkbenchList<INotificationViewItem>>this._register(this.instantiationService.createInstance(
 			WorkbenchList,
 			'NotificationsList',
@@ -82,7 +88,7 @@ export class NotificationsList extends Themable {
 			listDelegate,
 			[renderer],
 			{
-				...this.options,
+				...options,
 				setRowLineHeight: false,
 				horizontalScrolling: false,
 				overrideStyles: {
@@ -97,7 +103,7 @@ export class NotificationsList extends Themable {
 						return localize('notificationWithSourceAriaLabel', "{0}, source: {1}, notification", element.message.raw, element.source);
 					},
 					getWidgetAriaLabel(): string {
-						return localize('notificationsList', "Notifications List");
+						return options.widgetAriaLabel ?? localize('notificationsList', "Notifications List");
 					},
 					getRole(): string {
 						return 'dialog'; // https://github.com/microsoft/vscode/issues/82728
@@ -295,10 +301,9 @@ registerThemingParticipant((theme, collector) => {
 	// Notification Error Icon
 	const notificationErrorIconForegroundColor = theme.getColor(NOTIFICATIONS_ERROR_ICON_FOREGROUND);
 	if (notificationErrorIconForegroundColor) {
-		const errorCodiconSelector = Codicon.error.cssSelector;
 		collector.addRule(`
-		.monaco-workbench .notifications-center ${errorCodiconSelector},
-		.monaco-workbench .notifications-toasts ${errorCodiconSelector} {
+		.monaco-workbench .notifications-center ${Codicon.error.cssSelector},
+		.monaco-workbench .notifications-toasts ${Codicon.error.cssSelector} {
 			color: ${notificationErrorIconForegroundColor};
 		}`);
 	}
@@ -306,10 +311,9 @@ registerThemingParticipant((theme, collector) => {
 	// Notification Warning Icon
 	const notificationWarningIconForegroundColor = theme.getColor(NOTIFICATIONS_WARNING_ICON_FOREGROUND);
 	if (notificationWarningIconForegroundColor) {
-		const warningCodiconSelector = Codicon.warning.cssSelector;
 		collector.addRule(`
-		.monaco-workbench .notifications-center ${warningCodiconSelector},
-		.monaco-workbench .notifications-toasts ${warningCodiconSelector} {
+		.monaco-workbench .notifications-center ${Codicon.warning.cssSelector},
+		.monaco-workbench .notifications-toasts ${Codicon.warning.cssSelector} {
 			color: ${notificationWarningIconForegroundColor};
 		}`);
 	}
@@ -317,10 +321,9 @@ registerThemingParticipant((theme, collector) => {
 	// Notification Info Icon
 	const notificationInfoIconForegroundColor = theme.getColor(NOTIFICATIONS_INFO_ICON_FOREGROUND);
 	if (notificationInfoIconForegroundColor) {
-		const infoCodiconSelector = Codicon.info.cssSelector;
 		collector.addRule(`
-		.monaco-workbench .notifications-center ${infoCodiconSelector},
-		.monaco-workbench .notifications-toasts ${infoCodiconSelector} {
+		.monaco-workbench .notifications-center ${Codicon.info.cssSelector},
+		.monaco-workbench .notifications-toasts ${Codicon.info.cssSelector} {
 			color: ${notificationInfoIconForegroundColor};
 		}`);
 	}

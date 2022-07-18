@@ -24,7 +24,7 @@ quickAccessRegistry.registerQuickAccessProvider({
 	ctor: HelpQuickAccessProvider,
 	prefix: HelpQuickAccessProvider.PREFIX,
 	placeholder: localize('helpQuickAccessPlaceholder', "Type '{0}' to get help on the actions you can take from here.", HelpQuickAccessProvider.PREFIX),
-	helpEntries: [{ description: localize('helpQuickAccess', "Show all Quick Access Providers"), needsEditor: false }]
+	helpEntries: [{ description: localize('helpQuickAccess', "Show all Quick Access Providers") }]
 });
 
 quickAccessRegistry.registerQuickAccessProvider({
@@ -32,7 +32,7 @@ quickAccessRegistry.registerQuickAccessProvider({
 	prefix: ViewQuickAccessProvider.PREFIX,
 	contextKey: 'inViewsPicker',
 	placeholder: localize('viewQuickAccessPlaceholder', "Type the name of a view, output channel or terminal to open."),
-	helpEntries: [{ description: localize('viewQuickAccess', "Open View"), needsEditor: false }]
+	helpEntries: [{ description: localize('viewQuickAccess', "Open View"), commandId: OpenViewPickerAction.ID }]
 });
 
 quickAccessRegistry.registerQuickAccessProvider({
@@ -40,7 +40,7 @@ quickAccessRegistry.registerQuickAccessProvider({
 	prefix: CommandsQuickAccessProvider.PREFIX,
 	contextKey: 'inCommandsPicker',
 	placeholder: localize('commandsQuickAccessPlaceholder', "Type the name of a command to run."),
-	helpEntries: [{ description: localize('commandsQuickAccess', "Show and Run Commands"), needsEditor: false }]
+	helpEntries: [{ description: localize('commandsQuickAccess', "Show and Run Commands"), commandId: ShowAllCommandsAction.ID }]
 });
 
 //#endregion
@@ -55,6 +55,15 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 		title: localize({ key: 'miCommandPalette', comment: ['&& denotes a mnemonic'] }, "&&Command Palette...")
 	},
 	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+	group: '1_welcome',
+	command: {
+		id: ShowAllCommandsAction.ID,
+		title: localize({ key: 'miShowAllCommands', comment: ['&& denotes a mnemonic'] }, "Show All Commands")
+	},
+	order: 2
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {

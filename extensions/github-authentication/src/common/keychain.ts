@@ -5,28 +5,8 @@
 
 // keytar depends on a native module shipped in vscode, so this is
 // how we load it
-import type * as keytarType from 'keytar';
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import { Log } from './logger';
-
-const localize = nls.loadMessageBundle();
-
-function getKeytar(): Keytar | undefined {
-	try {
-		return require('keytar');
-	} catch (err) {
-		console.log(err);
-	}
-
-	return undefined;
-}
-
-export type Keytar = {
-	getPassword: typeof keytarType['getPassword'];
-	setPassword: typeof keytarType['setPassword'];
-	deletePassword: typeof keytarType['deletePassword'];
-};
 
 export class Keychain {
 	constructor(
@@ -41,11 +21,6 @@ export class Keychain {
 		} catch (e) {
 			// Ignore
 			this.Logger.error(`Setting token failed: ${e}`);
-			const troubleshooting = localize('troubleshooting', "Troubleshooting Guide");
-			const result = await vscode.window.showErrorMessage(localize('keychainWriteError', "Writing login information to the keychain failed with error '{0}'.", e.message), troubleshooting);
-			if (result === troubleshooting) {
-				vscode.env.openExternal(vscode.Uri.parse('https://code.visualstudio.com/docs/editor/settings-sync#_troubleshooting-keychain-issues'));
-			}
 		}
 	}
 
@@ -69,27 +44,6 @@ export class Keychain {
 		} catch (e) {
 			// Ignore
 			this.Logger.error(`Deleting token failed: ${e}`);
-			return Promise.resolve(undefined);
-		}
-	}
-
-	async tryMigrate(): Promise<string | null | undefined> {
-		try {
-			const keytar = getKeytar();
-			if (!keytar) {
-				throw new Error('keytar unavailable');
-			}
-
-			const oldValue = await keytar.getPassword(`${vscode.env.uriScheme}-github.login`, 'account');
-			if (oldValue) {
-				this.Logger.trace('Attempting to migrate from keytar to secret store...');
-				await this.setToken(oldValue);
-				await keytar.deletePassword(`${vscode.env.uriScheme}-github.login`, 'account');
-			}
-
-			return oldValue;
-		} catch (_) {
-			// Ignore
 			return Promise.resolve(undefined);
 		}
 	}

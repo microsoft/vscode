@@ -54,12 +54,12 @@ export class LanguagePackCachedDataCleaner extends Disposable {
 	}
 
 	private async cleanUpLanguagePackCache(): Promise<void> {
-		this.logService.info('[language pack cache cleanup]: Starting to clean up unused language packs.');
+		this.logService.trace('[language pack cache cleanup]: Starting to clean up unused language packs.');
 
 		try {
 			const installed: IStringDictionary<boolean> = Object.create(null);
 			const metaData: ILanguagePackFile = JSON.parse(await Promises.readFile(join(this.environmentService.userDataPath, 'languagepacks.json'), 'utf8'));
-			for (let locale of Object.keys(metaData)) {
+			for (const locale of Object.keys(metaData)) {
 				const entry = metaData[locale];
 				installed[`${entry.hash}.${locale}`] = true;
 			}
@@ -74,11 +74,11 @@ export class LanguagePackCachedDataCleaner extends Disposable {
 			const entries = await Promises.readdir(cacheDir);
 			for (const entry of entries) {
 				if (installed[entry]) {
-					this.logService.info(`[language pack cache cleanup]: Skipping folder ${entry}. Language pack still in use.`);
+					this.logService.trace(`[language pack cache cleanup]: Skipping folder ${entry}. Language pack still in use.`);
 					continue;
 				}
 
-				this.logService.info(`[language pack cache cleanup]: Removing unused language pack: ${entry}`);
+				this.logService.trace(`[language pack cache cleanup]: Removing unused language pack: ${entry}`);
 
 				await Promises.rm(join(cacheDir, entry));
 			}
@@ -95,7 +95,7 @@ export class LanguagePackCachedDataCleaner extends Disposable {
 					const candidate = join(folder, entry);
 					const stat = await Promises.stat(candidate);
 					if (stat.isDirectory() && (now - stat.mtime.getTime()) > this._DataMaxAge) {
-						this.logService.info(`[language pack cache cleanup]: Removing language pack cache folder: ${join(packEntry, entry)}`);
+						this.logService.trace(`[language pack cache cleanup]: Removing language pack cache folder: ${join(packEntry, entry)}`);
 
 						await Promises.rm(candidate);
 					}

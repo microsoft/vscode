@@ -49,6 +49,7 @@ class ExcludeHintItem {
 		this._item.show();
 		/* __GDPR__
 			"js.hintProjectExcludes" : {
+				"owner": "mjbvz",
 				"${include}": [
 					"${TypeScriptCommonProperties}"
 				]

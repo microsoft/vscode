@@ -9,11 +9,11 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import { MainThreadTestCollection } from 'vs/workbench/contrib/testing/common/mainThreadTestCollection';
-import { TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
+import { testStubs } from 'vs/workbench/contrib/testing/test/common/testStubs';
 
-type SerializedTree = { e: string; children?: SerializedTree[], data?: string };
+type SerializedTree = { e: string; children?: SerializedTree[]; data?: string };
 
 const element = document.createElement('div');
 element.style.height = '1000px';
@@ -55,7 +55,7 @@ export class TestObjectTree<T> extends ObjectTree<T, any> {
 	public getRendered(getProperty?: string) {
 		const elements = element.querySelectorAll<HTMLElement>('.monaco-tl-contents');
 		const sorted = [...elements].sort((a, b) => pos(a) - pos(b));
-		let chain: SerializedTree[] = [{ e: '', children: [] }];
+		const chain: SerializedTree[] = [{ e: '', children: [] }];
 		for (const element of sorted) {
 			const [depthStr, label] = element.textContent!.split(':');
 			const depth = Number(depthStr);

@@ -14,14 +14,14 @@ export interface ITelemetryLog {
 
 export class TelemetryAppenderChannel implements IServerChannel {
 
-	constructor(private appender: ITelemetryAppender) { }
+	constructor(private appenders: ITelemetryAppender[]) { }
 
 	listen<T>(_: unknown, event: string): Event<T> {
 		throw new Error(`Event not found: ${event}`);
 	}
 
 	call(_: unknown, command: string, { eventName, data }: ITelemetryLog): Promise<any> {
-		this.appender.log(eventName, data);
+		this.appenders.forEach(a => a.log(eventName, data));
 		return Promise.resolve(null);
 	}
 }

@@ -5,41 +5,46 @@
 
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ProgressLocation, UnmanagedProgress } from 'vs/platform/progress/common/progress';
-import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
-import { TestStateCount } from 'vs/workbench/contrib/testing/common/testResult';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { AutoOpenTesting, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
+import { Testing } from 'vs/workbench/contrib/testing/common/constants';
+import { TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
+import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
+import { LiveTestResult, TestResultItemChangeReason, TestStateCount } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 export interface ITestingProgressUiService {
 	readonly _serviceBrand: undefined;
 	readonly onCountChange: Event<CountSummary>;
 	readonly onTextChange: Event<string>;
+
+	update(): void;
 }
 
 export const ITestingProgressUiService = createDecorator<ITestingProgressUiService>('testingProgressUiService');
 
-export class TestingProgressUiService extends Disposable implements ITestingProgressUiService {
-	declare _serviceBrand: undefined;
-
-	private readonly current = this._register(new MutableDisposable<UnmanagedProgress>());
-	private readonly updateCountsEmitter = new Emitter<CountSummary>();
-	private readonly updateTextEmitter = new Emitter<string>();
-
-	public readonly onCountChange = this.updateCountsEmitter.event;
-	public readonly onTextChange = this.updateTextEmitter.event;
-
+/** Workbench contribution that triggers updates in the TestingProgressUi service */
+export class TestingProgressTrigger extends Disposable {
 	constructor(
-		@ITestResultService private readonly resultService: ITestResultService,
-		@IInstantiationService private readonly instantiaionService: IInstantiationService,
+		@ITestResultService resultService: ITestResultService,
+		@ITestingProgressUiService progressService: ITestingProgressUiService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 	) {
 		super();
 
-		const scheduler = this._register(new RunOnceScheduler(() => this.updateProgress(), 200));
+		const scheduler = this._register(new RunOnceScheduler(() => progressService.update(), 200));
 
-		this._register(resultService.onResultsChanged(() => {
+		this._register(resultService.onResultsChanged((e) => {
+			if ('started' in e) {
+				this.attachAutoOpenForNewResults(e.started);
+			}
 			if (!scheduler.isScheduled()) {
 				scheduler.schedule();
 			}
@@ -52,7 +57,57 @@ export class TestingProgressUiService extends Disposable implements ITestingProg
 		}));
 	}
 
-	private updateProgress() {
+	private attachAutoOpenForNewResults(result: LiveTestResult) {
+		if (result.request.isUiTriggered === false) {
+			return;
+		}
+
+		const cfg = getTestingConfiguration(this.configurationService, TestingConfigKeys.OpenTesting);
+		if (cfg === AutoOpenTesting.NeverOpen) {
+			return;
+		}
+
+		if (cfg === AutoOpenTesting.OpenOnTestStart) {
+			return this.openTestView();
+		}
+
+		// open on failure
+		const disposable = new DisposableStore();
+		disposable.add(result.onComplete(() => disposable.dispose()));
+		disposable.add(result.onChange(e => {
+			if (e.reason === TestResultItemChangeReason.OwnStateChange && isFailedState(e.item.ownComputedState)) {
+				this.openTestView();
+				disposable.dispose();
+			}
+		}));
+	}
+
+	private openTestView() {
+		this.paneCompositeService.openPaneComposite(Testing.ViewletId, ViewContainerLocation.Sidebar);
+	}
+}
+
+export class TestingProgressUiService extends Disposable implements ITestingProgressUiService {
+	declare _serviceBrand: undefined;
+
+	private readonly windowProg = this._register(new MutableDisposable<UnmanagedProgress>());
+	private readonly testViewProg = this._register(new MutableDisposable<UnmanagedProgress>());
+	private readonly updateCountsEmitter = new Emitter<CountSummary>();
+	private readonly updateTextEmitter = new Emitter<string>();
+	private lastRunSoFar = 0;
+
+	public readonly onCountChange = this.updateCountsEmitter.event;
+	public readonly onTextChange = this.updateTextEmitter.event;
+
+	constructor(
+		@ITestResultService private readonly resultService: ITestResultService,
+		@IInstantiationService private readonly instantiaionService: IInstantiationService,
+	) {
+		super();
+	}
+
+	/** @inheritdoc */
+	public update() {
 		const allResults = this.resultService.results;
 		const running = allResults.filter(r => r.completedAt === undefined);
 		if (!running.length) {
@@ -65,12 +120,20 @@ export class TestingProgressUiService extends Disposable implements ITestingProg
 				this.updateCountsEmitter.fire(collectTestStateCounts(false));
 			}
 
-			this.current.clear();
+			this.windowProg.clear();
+			this.testViewProg.clear();
+			this.lastRunSoFar = 0;
 			return;
 		}
 
-		if (!this.current.value) {
-			this.current.value = this.instantiaionService.createInstance(UnmanagedProgress, { location: ProgressLocation.Window });
+		if (!this.windowProg.value) {
+			this.windowProg.value = this.instantiaionService.createInstance(UnmanagedProgress, {
+				location: ProgressLocation.Window,
+			});
+			this.testViewProg.value = this.instantiaionService.createInstance(UnmanagedProgress, {
+				location: Testing.ViewletId,
+				total: 100,
+			});
 		}
 
 		const collected = collectTestStateCounts(true, ...running.map(r => r.counts));
@@ -78,7 +141,9 @@ export class TestingProgressUiService extends Disposable implements ITestingProg
 
 		const message = getTestProgressText(true, collected);
 		this.updateTextEmitter.fire(message);
-		this.current.value.report({ message });
+		this.windowProg.value.report({ message });
+		this.testViewProg.value!.report({ increment: collected.runSoFar - this.lastRunSoFar, total: collected.totalWillBeRun });
+		this.lastRunSoFar = collected.runSoFar;
 	}
 }
 
@@ -110,7 +175,7 @@ const collectTestStateCounts = (isRunning: boolean, ...counts: ReadonlyArray<Tes
 	};
 };
 
-const getTestProgressText = (running: boolean, { passed, runSoFar, skipped, failed }: CountSummary) => {
+const getTestProgressText = (running: boolean, { passed, runSoFar, totalWillBeRun, skipped, failed }: CountSummary) => {
 	let percent = passed / runSoFar * 100;
 	if (failed > 0) {
 		// fix: prevent from rounding to 100 if there's any failed test
@@ -121,11 +186,11 @@ const getTestProgressText = (running: boolean, { passed, runSoFar, skipped, fail
 
 	if (running) {
 		if (runSoFar === 0) {
-			return localize('testProgress.runningInitial', 'Running tests...', passed, runSoFar, percent.toPrecision(3));
+			return localize('testProgress.runningInitial', 'Running tests...');
 		} else if (skipped === 0) {
-			return localize('testProgress.running', 'Running tests, {0}/{1} passed ({2}%)', passed, runSoFar, percent.toPrecision(3));
+			return localize('testProgress.running', 'Running tests, {0}/{1} passed ({2}%)', passed, totalWillBeRun, percent.toPrecision(3));
 		} else {
-			return localize('testProgressWithSkip.running', 'Running tests, {0}/{1} tests passed ({2}%, {3} skipped)', passed, runSoFar, percent.toPrecision(3), skipped);
+			return localize('testProgressWithSkip.running', 'Running tests, {0}/{1} tests passed ({2}%, {3} skipped)', passed, totalWillBeRun, percent.toPrecision(3), skipped);
 		}
 	} else {
 		if (skipped === 0) {

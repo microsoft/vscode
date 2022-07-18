@@ -38,7 +38,7 @@ suite('EditorsObserver', function () {
 	});
 
 	async function createPart(): Promise<[TestEditorPart, IInstantiationService]> {
-		const instantiationService = workbenchInstantiationService();
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
 
 		const part = await createEditorPart(instantiationService, disposables);

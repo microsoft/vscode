@@ -15,10 +15,22 @@
 	position: relative;
 }
 
+.test-explorer .test-item .label,
+.test-output-peek-tree .test-peek-item .name {
+	display: flex;
+	align-items: center;
+	flex-grow: 1;
+	gap: 0.15em;
+	width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+}
+
 .test-explorer .test-item,
 .test-output-peek-tree .test-peek-item {
 	display: flex;
 	align-items: center;
+	color: var(--vscode-editor-foreground);
 }
 
 .test-output-peek-tree .monaco-list-row .monaco-action-bar,
@@ -62,11 +74,6 @@
 .test-explorer .computed-state,
 .test-output-peek-tree .computed-state {
 	margin-right: 0.25em;
-}
-
-.test-explorer .computed-state.retired,
-.testing-run-glyph.retired {
-	opacity: 0.7  !important;
 }
 
 .test-explorer .test-is-hidden {
@@ -146,6 +153,10 @@
 	margin-bottom: 0;
 }
 
+.monaco-editor .zone-widget.test-output-peek .preview-text a {
+	cursor: pointer;
+}
+
 /** -- filter  */
 .testing-filter-action-bar {
 	flex-shrink: 0;
@@ -204,7 +215,16 @@
 
 .test-message-inline-content {
 	font-family: var(--testMessageDecorationFontFamily);
-	padding: 0px 12px 0px 24px;
 	font-size: var(--testMessageDecorationFontSize);
+}
+
+.test-message-inline-content-clickable {
 	cursor: pointer;
+}
+
+.test-label-description {
+	opacity: .7;
+	margin-left: 0.5em;
+	font-size: .9em;
+	white-space: pre;
 }

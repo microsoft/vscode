@@ -12,17 +12,23 @@ export interface ILanguageDetectionService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * @param modeId The modeId to check if language detection is currently enabled.
-	 * @returns whether or not language detection is on for this language mode.
+	 * @param languageId The languageId to check if language detection is currently enabled.
+	 * @returns whether or not language detection is on for this language.
 	 */
-	isEnabledForMode(modeId: string): boolean;
+	isEnabledForLanguage(languageId: string): boolean;
 
 	/**
 	 * @param resource The resource to detect the language for.
-	 * @returns the language mode for the given resource or undefined if the model is not confident enough.
+	 * @param supportedLangs Optional. When populated, the model will only return languages from the provided list
+	 * @returns the language id for the given resource or undefined if the model is not confident enough.
 	 */
-	detectLanguage(resource: URI): Promise<string | undefined>;
+	detectLanguage(resource: URI, supportedLangs?: string[]): Promise<string | undefined>;
 }
+
+export type LanguageDetectionHintConfig = {
+	untitledEditors: boolean;
+	notebookEditors: boolean;
+};
 
 //#region Telemetry events
 
@@ -31,11 +37,17 @@ export const AutomaticLanguageDetectionLikelyWrongId = 'automaticlanguagedetecti
 export interface IAutomaticLanguageDetectionLikelyWrongData {
 	currentLanguageId: string;
 	nextLanguageId: string;
+	lineCount: number;
+	modelPreference: string;
 }
 
 export type AutomaticLanguageDetectionLikelyWrongClassification = {
-	currentLanguageId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' },
-	nextLanguageId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' }
+	owner: 'TylerLeonhardt,JacksonKearl';
+	comment: 'Used to determine how often language detection is likely wrong.';
+	currentLanguageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language id we guessed.' };
+	nextLanguageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language id the user chose.' };
+	lineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of lines in the file.' };
+	modelPreference: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What the user\'s model preference is.' };
 };
 
 export const LanguageDetectionStatsId = 'automaticlanguagedetection.stats';
@@ -47,9 +59,11 @@ export interface ILanguageDetectionStats {
 }
 
 export type LanguageDetectionStatsClassification = {
-	languages: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	confidences: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	timeSpent: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	owner: 'TylerLeonhardt,JacksonKearl';
+	comment: 'Used to determine how definitive language detection is and how long it takes.';
+	languages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The languages the model supports.' };
+	confidences: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The confidences of those languages.' };
+	timeSpent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How long the operation took.' };
 };
 
 //#endregion

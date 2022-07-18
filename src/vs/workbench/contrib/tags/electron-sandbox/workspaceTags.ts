@@ -7,7 +7,7 @@ import { sha1Hex } from 'vs/base/browser/hash';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { IFileService, IFileStat } from 'vs/platform/files/common/files';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ITextFileService, } from 'vs/workbench/services/textfile/common/textfiles';
@@ -36,7 +36,7 @@ export class WorkspaceTags implements IWorkbenchContribution {
 		@IProductService private readonly productService: IProductService,
 		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
-		if (this.telemetryService.isOptedIn) {
+		if (this.telemetryService.telemetryLevel.value === TelemetryLevel.USAGE) {
 			this.report();
 		}
 	}
@@ -67,7 +67,7 @@ export class WorkspaceTags implements IWorkbenchContribution {
 			value = 'Unknown';
 		}
 
-		this.telemetryService.publicLog2<{ edition: string }, { edition: { classification: 'SystemMetaData', purpose: 'BusinessInsight' } }>('windowsEdition', { edition: value });
+		this.telemetryService.publicLog2<{ edition: string }, { owner: 'sbatten'; edition: { classification: 'SystemMetaData'; purpose: 'BusinessInsight' } }>('windowsEdition', { edition: value });
 	}
 
 	private async getWorkspaceInformation(): Promise<IWorkspaceInformation> {
@@ -80,6 +80,7 @@ export class WorkspaceTags implements IWorkbenchContribution {
 				telemetryId,
 				rendererSessionId: info.sessionId,
 				folders: workspace.folders,
+				transient: workspace.transient,
 				configuration: workspace.configuration
 			};
 		});
@@ -88,6 +89,7 @@ export class WorkspaceTags implements IWorkbenchContribution {
 	private reportWorkspaceTags(tags: Tags): void {
 		/* __GDPR__
 			"workspce.tags" : {
+				"owner": "lramos15",
 				"${include}": [
 					"${WorkspaceTags}"
 				]
@@ -115,6 +117,7 @@ export class WorkspaceTags implements IWorkbenchContribution {
 			set.forEach(item => list.push(item));
 			/* __GDPR__
 				"workspace.remotes" : {
+					"owner": "lramos15",
 					"domains" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}
 			*/
@@ -125,14 +128,7 @@ export class WorkspaceTags implements IWorkbenchContribution {
 	private reportRemotes(workspaceUris: URI[]): void {
 		Promise.all<string[]>(workspaceUris.map(workspaceUri => {
 			return this.workspaceTagsService.getHashedRemotesFromUri(workspaceUri, true);
-		})).then(hashedRemotes => {
-			/* __GDPR__
-					"workspace.hashedRemotes" : {
-						"remotes" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					}
-				*/
-			this.telemetryService.publicLog('workspace.hashedRemotes', { remotes: hashedRemotes });
-		}, onUnexpectedError);
+		})).then(() => { }, onUnexpectedError);
 	}
 
 	/* __GDPR__FRAGMENT__
@@ -198,6 +194,7 @@ export class WorkspaceTags implements IWorkbenchContribution {
 			if (Object.keys(tags).length) {
 				/* __GDPR__
 					"workspace.azure" : {
+						"owner": "lramos15",
 						"${include}": [
 							"${AzureTags}"
 						]
@@ -228,10 +225,6 @@ export class WorkspaceTags implements IWorkbenchContribution {
 				if (['DIRECT', 'PROXY', 'HTTPS', 'SOCKS', 'EMPTY'].indexOf(type) === -1) {
 					type = 'UNKNOWN';
 				}
-				type ResolveProxyStatsClassification = {
-					type: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-				};
-				this.telemetryService.publicLog2<{ type: String }, ResolveProxyStatsClassification>('resolveProxy.stats', { type });
 			}).then(undefined, onUnexpectedError);
 	}
 }

@@ -12,13 +12,14 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
 import { ConfigurationSyncStore } from 'vs/base/common/product';
 import { URI } from 'vs/base/common/uri';
+import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { NullLogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IRequestService } from 'vs/platform/request/common/request';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUserDataSyncStore, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, SyncResource, UserDataSyncErrorCode, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
 import { RequestsSession, UserDataSyncStoreManagementService, UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
@@ -45,7 +46,7 @@ suite('UserDataSyncStoreManagementService', () => {
 			canSwitch: false,
 			authenticationProviders: { 'configuredAuthProvider': { scopes: [] } }
 		};
-		await client.instantiationService.get(IFileService).writeFile(client.instantiationService.get(IEnvironmentService).settingsResource, VSBuffer.fromString(JSON.stringify({
+		await client.instantiationService.get(IFileService).writeFile(client.instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource, VSBuffer.fromString(JSON.stringify({
 			'configurationSync.store': configuredStore
 		})));
 		await client.instantiationService.get(IConfigurationService).reloadConfiguration();
@@ -395,19 +396,22 @@ suite('UserDataSyncStoreService', () => {
 	});
 
 	test('test donotMakeRequestsUntil is reset after retry time is finished', async () => {
-		const client = disposableStore.add(new UserDataSyncClient(new UserDataSyncTestServer(1, 0.25)));
-		await client.setUp();
-		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const client = disposableStore.add(new UserDataSyncClient(new UserDataSyncTestServer(1, 0.25)));
+			await client.setUp();
+			const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 
-		await testObject.manifest(null);
-		try {
 			await testObject.manifest(null);
-		} catch (e) { }
+			try {
+				await testObject.manifest(null);
+				assert.fail('should fail');
+			} catch (e) { }
 
-		const promise = Event.toPromise(testObject.onDidChangeDonotMakeRequestsUntil);
-		await timeout(300);
-		await promise;
-		assert.ok(!testObject.donotMakeRequestsUntil);
+			const promise = Event.toPromise(testObject.onDidChangeDonotMakeRequestsUntil);
+			await timeout(300);
+			await promise;
+			assert.ok(!testObject.donotMakeRequestsUntil);
+		});
 	});
 
 	test('test donotMakeRequestsUntil is retrieved', async () => {
@@ -425,18 +429,21 @@ suite('UserDataSyncStoreService', () => {
 	});
 
 	test('test donotMakeRequestsUntil is checked and reset after retreived', async () => {
-		const client = disposableStore.add(new UserDataSyncClient(new UserDataSyncTestServer(1, 0.25)));
-		await client.setUp();
-		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const client = disposableStore.add(new UserDataSyncClient(new UserDataSyncTestServer(1, 0.25)));
+			await client.setUp();
+			const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 
-		await testObject.manifest(null);
-		try {
 			await testObject.manifest(null);
-		} catch (e) { }
+			try {
+				await testObject.manifest(null);
+				assert.fail('should fail');
+			} catch (e) { }
 
-		await timeout(300);
-		const target = disposableStore.add(client.instantiationService.createInstance(UserDataSyncStoreService));
-		assert.ok(!target.donotMakeRequestsUntil);
+			await timeout(300);
+			const target = disposableStore.add(client.instantiationService.createInstance(UserDataSyncStoreService));
+			assert.ok(!target.donotMakeRequestsUntil);
+		});
 	});
 
 	test('test read resource request handles 304', async () => {
@@ -477,17 +484,17 @@ suite('UserDataSyncRequestsSession', () => {
 		assert.fail('Should fail with limit exceeded');
 	});
 
-	test('requests are handled after session is expired', async () => {
-		const testObject = new RequestsSession(1, 500, requestService, new NullLogService());
+	test('requests are handled after session is expired', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const testObject = new RequestsSession(1, 100, requestService, new NullLogService());
 		await testObject.request('url', {}, CancellationToken.None);
-		await timeout(600);
+		await timeout(125);
 		await testObject.request('url', {}, CancellationToken.None);
-	});
+	}));
 
-	test('too many requests are thrown after session is expired', async () => {
-		const testObject = new RequestsSession(1, 500, requestService, new NullLogService());
+	test('too many requests are thrown after session is expired', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const testObject = new RequestsSession(1, 100, requestService, new NullLogService());
 		await testObject.request('url', {}, CancellationToken.None);
-		await timeout(600);
+		await timeout(125);
 		await testObject.request('url', {}, CancellationToken.None);
 
 		try {
@@ -498,6 +505,6 @@ suite('UserDataSyncRequestsSession', () => {
 			return;
 		}
 		assert.fail('Should fail with limit exceeded');
-	});
+	}));
 
 });

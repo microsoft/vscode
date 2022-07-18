@@ -18,7 +18,7 @@ import { TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices'
 
 suite('WorkingCopyEditorService', () => {
 
-	let disposables = new DisposableStore();
+	const disposables = new DisposableStore();
 
 	setup(() => {
 		disposables.add(registerTestResourceEditor());
@@ -52,7 +52,7 @@ suite('WorkingCopyEditorService', () => {
 	test('findEditor', async () => {
 		const disposables = new DisposableStore();
 
-		const instantiationService = workbenchInstantiationService();
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const part = await createEditorPart(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, part);
 

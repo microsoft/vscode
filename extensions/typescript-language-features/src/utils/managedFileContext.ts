@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { ActiveJsTsEditorTracker } from './activeJsTsEditorTracker';
 import { Disposable } from './dispose';
 import { isJsConfigOrTsConfigFileName } from './languageDescription';
-import { isSupportedLanguageMode } from './languageModeIds';
+import { isSupportedLanguageMode } from './languageIds';
 
 /**E
  * When clause context set when the current file is managed by vscode's built-in typescript extension.

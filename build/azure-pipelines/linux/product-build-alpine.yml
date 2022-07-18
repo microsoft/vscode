@@ -1,18 +1,14 @@
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "14.x"
-
-  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
-    inputs:
-      versionSpec: "1.x"
+      versionSpec: "16.x"
 
   - task: AzureKeyVault@1
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
       azureSubscription: "vscode-builds-subscription"
       KeyVaultName: vscode
-      SecretsFilter: 'github-distro-mixin-password'
+      SecretsFilter: "github-distro-mixin-password"
 
   - task: DownloadPipelineArtifact@2
     inputs:
@@ -48,6 +44,14 @@ steps:
 
   - script: |
       set -e
+      git fetch https://github.com/$(VSCODE_MIXIN_REPO).git $VSCODE_DISTRO_REF
+      echo "##vso[task.setvariable variable=VSCODE_DISTRO_COMMIT;]$(git rev-parse FETCH_HEAD)"
+      git checkout FETCH_HEAD
+    condition: and(succeeded(), ne(variables.VSCODE_DISTRO_REF, ' '))
+    displayName: Checkout override commit
+
+  - script: |
+      set -e
       git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
     displayName: Merge distro
 
@@ -58,7 +62,7 @@ steps:
 
   - task: Cache@2
     inputs:
-      key: 'nodeModules | $(Agent.OS) | .build/yarnlockhash'
+      key: "nodeModules | $(Agent.OS) | .build/yarnlockhash"
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Restore node_modules cache
@@ -73,13 +77,14 @@ steps:
       set -e
       npx https://aka.ms/enablesecurefeed standAlone
     timeoutInMinutes: 5
+    retryCountOnTaskFailure: 3
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
     displayName: Switch to Terrapin packages
 
   - script: |
       set -e
       for i in {1..3}; do # try 3 times, for Terrapin
-        yarn --frozen-lockfile && break
+        yarn --frozen-lockfile --check-files --check-files && break
         if [ $i -eq 3 ]; then
           echo "Yarn failed too many times" >&2
           exit 1
@@ -104,15 +109,18 @@ steps:
   - script: |
       set -e
       node build/azure-pipelines/mixin
+      node build/azure-pipelines/mixin --server
     displayName: Mix in quality
 
   - script: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-    displayName: 'Register Docker QEMU'
+    displayName: "Register Docker QEMU"
     condition: eq(variables['VSCODE_ARCH'], 'arm64')
 
   - script: |
       set -e
-      docker run -e VSCODE_QUALITY -v $(pwd):/root/vscode -v ~/.netrc:/root/.netrc vscodehub.azurecr.io/vscode-linux-build-agent:alpine-$(VSCODE_ARCH) /root/vscode/build/azure-pipelines/linux/alpine/install-dependencies.sh
+      docker run -e VSCODE_QUALITY -e GITHUB_TOKEN -v $(pwd):/root/vscode -v ~/.netrc:/root/.netrc vscodehub.azurecr.io/vscode-linux-build-agent:alpine-$(VSCODE_ARCH) /root/vscode/build/azure-pipelines/linux/scripts/install-remote-dependencies.sh
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Prebuild
 
   - script: |

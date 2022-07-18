@@ -296,6 +296,12 @@
 			}
 		},
 		{
+			"scope": "markup.strikethrough",
+			"settings": {
+				"fontStyle": "strikethrough"
+			}
+		},
+		{
 			"name": "Code",
 			"scope": "markup.inline.raw",
 			"settings": {

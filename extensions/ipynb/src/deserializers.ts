@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { nbformat } from '@jupyterlab/coreutils';
+import * as nbformat from '@jupyterlab/nbformat';
 import { extensions, NotebookCellData, NotebookCellExecutionSummary, NotebookCellKind, NotebookCellOutput, NotebookCellOutputItem, NotebookData } from 'vscode';
-import { CellOutputMetadata } from './common';
+import { CellMetadata, CellOutputMetadata } from './common';
 
 const jupyterLanguageToMonacoLanguageMapping = new Map([
 	['c#', 'csharp'],
@@ -22,7 +22,10 @@ export function getPreferredLanguage(metadata?: nbformat.INotebookMetadata) {
 		(metadata?.kernelspec as any)?.language;
 
 	// Default to python language only if the Python extension is installed.
-	const defaultLanguage = extensions.getExtension('ms-python.python') ? 'python' : 'plaintext';
+	const defaultLanguage =
+		extensions.getExtension('ms-python.python')
+			? 'python'
+			: (extensions.getExtension('ms-dotnettools.dotnet-interactive-vscode') ? 'csharp' : 'python');
 
 	// Note, whatever language is returned here, when the user selects a kernel, the cells (of blank documents) get updated based on that kernel selection.
 	return translateKernelLanguageToMonaco(jupyterLanguage || defaultLanguage);
@@ -93,7 +96,7 @@ enum CellOutputMimeTypes {
 	stdout = 'application/vnd.code.notebook.stdout'
 }
 
-const textMimeTypes = ['text/plain', 'text/markdown', CellOutputMimeTypes.stderr, CellOutputMimeTypes.stdout];
+export const textMimeTypes = ['text/plain', 'text/markdown', 'text/latex', CellOutputMimeTypes.stderr, CellOutputMimeTypes.stdout];
 
 function concatMultilineString(str: string | string[], trim?: boolean): string {
 	const nonLineFeedWhiteSpaceTrim = /(^[\t\f\v\r ]+|[\t\f\v\r ]+$)/g;
@@ -146,21 +149,6 @@ function convertJupyterOutputToBuffer(mime: string, value: unknown): NotebookCel
 	}
 }
 
-/**
- * Metadata we store in VS Code cells.
- * This contains the original metadata from the Jupyuter cells.
- */
-interface CellMetadata {
-	/**
-	 * Stores attachments for cells.
-	 */
-	attachments?: nbformat.IAttachments;
-	/**
-	 * Stores cell metadata.
-	 */
-	metadata?: Partial<nbformat.ICellMetadata>;
-}
-
 function getNotebookCellMetadata(cell: nbformat.IBaseCell): CellMetadata {
 	// We put this only for VSC to display in diff view.
 	// Else we don't use this.
@@ -171,6 +159,9 @@ function getNotebookCellMetadata(cell: nbformat.IBaseCell): CellMetadata {
 			custom[propertyToClone] = JSON.parse(JSON.stringify(cell[propertyToClone]));
 		}
 	});
+	if ('id' in cell && typeof cell.id === 'string') {
+		custom.id = cell.id;
+	}
 	return custom;
 }
 function getOutputMetadata(output: nbformat.IOutput): CellOutputMetadata {
@@ -317,7 +308,9 @@ function createNotebookCellDataFromCodeCell(cell: nbformat.ICodeCell, cellLangua
 		? { executionOrder: cell.execution_count as number }
 		: {};
 
-	const cellData = new NotebookCellData(NotebookCellKind.Code, source, cellLanguage);
+	const vscodeCustomMetadata = cell.metadata['vscode'] as { [key: string]: any } | undefined;
+	const cellLanguageId = vscodeCustomMetadata && vscodeCustomMetadata.languageId && typeof vscodeCustomMetadata.languageId === 'string' ? vscodeCustomMetadata.languageId : cellLanguage;
+	const cellData = new NotebookCellData(NotebookCellKind.Code, source, cellLanguageId);
 
 	cellData.outputs = outputs;
 	cellData.metadata = { custom: getNotebookCellMetadata(cell) };

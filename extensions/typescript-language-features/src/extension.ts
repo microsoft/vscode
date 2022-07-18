@@ -8,15 +8,14 @@ import * as vscode from 'vscode';
 import { Api, getExtensionApi } from './api';
 import { CommandManager } from './commands/commandManager';
 import { registerBaseCommands } from './commands/index';
-import { LanguageConfigurationManager } from './languageFeatures/languageConfiguration';
 import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
 import { nodeRequestCancellerFactory } from './tsServer/cancellation.electron';
 import { NodeLogDirectoryProvider } from './tsServer/logDirectoryProvider.electron';
-import { ChildServerProcess } from './tsServer/serverProcess.electron';
+import { ElectronServiceProcessFactory } from './tsServer/serverProcess.electron';
 import { DiskTypeScriptVersionProvider } from './tsServer/versionProvider.electron';
 import { ActiveJsTsEditorTracker } from './utils/activeJsTsEditorTracker';
 import { ElectronServiceConfigurationProvider } from './utils/configuration.electron';
-import { onCaseInsenitiveFileSystem } from './utils/fileSystem.electron';
+import { onCaseInsensitiveFileSystem } from './utils/fileSystem.electron';
 import { PluginManager } from './utils/plugins';
 import * as temp from './utils/temp.electron';
 
@@ -35,18 +34,16 @@ export function activate(
 	const logDirectoryProvider = new NodeLogDirectoryProvider(context);
 	const versionProvider = new DiskTypeScriptVersionProvider();
 
-	context.subscriptions.push(new LanguageConfigurationManager());
-
 	const activeJsTsEditorTracker = new ActiveJsTsEditorTracker();
 	context.subscriptions.push(activeJsTsEditorTracker);
 
-	const lazyClientHost = createLazyClientHost(context, onCaseInsenitiveFileSystem(), {
+	const lazyClientHost = createLazyClientHost(context, onCaseInsensitiveFileSystem(), {
 		pluginManager,
 		commandManager,
 		logDirectoryProvider,
 		cancellerFactory: nodeRequestCancellerFactory,
 		versionProvider,
-		processFactory: ChildServerProcess,
+		processFactory: new ElectronServiceProcessFactory(),
 		activeJsTsEditorTracker,
 		serviceConfigurationProvider: new ElectronServiceConfigurationProvider(),
 	}, item => {
@@ -69,5 +66,5 @@ export function activate(
 }
 
 export function deactivate() {
-	fs.rmdirSync(temp.getInstanceTempDir(), { recursive: true });
+	fs.rmSync(temp.getInstanceTempDir(), { recursive: true, force: true });
 }

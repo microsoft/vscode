@@ -58,7 +58,7 @@
 	position: absolute;
 	bottom: 0;
 	left: 0;
-	z-index: 5;
+	z-index: 9;
 	pointer-events: none;
 	background-color: var(--title-border-bottom-color);
 	width: 100%;

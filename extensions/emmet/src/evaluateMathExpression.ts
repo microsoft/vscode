@@ -42,7 +42,7 @@ export function evaluateMathExpression(): Thenable<boolean> {
 				}
 			} catch (err) {
 				vscode.window.showErrorMessage('Could not evaluate expression');
-				// Ignore error since most likely it’s because of non-math expression
+				// Ignore error since most likely it's because of non-math expression
 				console.warn('Math evaluation error', err);
 			}
 		});

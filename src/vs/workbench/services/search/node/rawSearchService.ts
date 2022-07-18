@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as gracefulFs from 'graceful-fs';
 import * as arrays from 'vs/base/common/arrays';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -19,8 +17,6 @@ import { ICachedSearchStats, IFileQuery, IFileSearchProgressItem, IFileSearchSta
 import { Engine as FileSearchEngine } from 'vs/workbench/services/search/node/fileSearch';
 import { TextSearchEngineAdapter } from 'vs/workbench/services/search/node/textSearchAdapter';
 
-gracefulFs.gracefulify(fs);
-
 export type IProgressCallback = (p: ISerializedSearchProgressItem) => void;
 export type IFileProgressCallback = (p: IFileSearchProgressItem) => void;
 
@@ -28,7 +24,7 @@ export class SearchService implements IRawSearchService {
 
 	private static readonly BATCH_SIZE = 512;
 
-	private caches: { [cacheKey: string]: Cache; } = Object.create(null);
+	private caches: { [cacheKey: string]: Cache } = Object.create(null);
 
 	constructor(private readonly processType: IFileSearchStats['type'] = 'searchProcess') { }
 
@@ -87,7 +83,7 @@ export class SearchService implements IRawSearchService {
 		return this.doFileSearchWithEngine(FileSearchEngine, config, progressCallback, token);
 	}
 
-	doFileSearchWithEngine(EngineClass: { new(config: IFileQuery): ISearchEngine<IRawFileMatch>; }, config: IFileQuery, progressCallback: IProgressCallback, token?: CancellationToken, batchSize = SearchService.BATCH_SIZE): Promise<ISerializedSearchSuccess> {
+	doFileSearchWithEngine(EngineClass: { new(config: IFileQuery): ISearchEngine<IRawFileMatch> }, config: IFileQuery, progressCallback: IProgressCallback, token?: CancellationToken, batchSize = SearchService.BATCH_SIZE): Promise<ISerializedSearchSuccess> {
 		let resultCount = 0;
 		const fileProgressCallback: IFileProgressCallback = progress => {
 			if (Array.isArray(progress)) {
@@ -338,9 +334,7 @@ export class SearchService implements IRawSearchService {
 	private doSearch(engine: ISearchEngine<IRawFileMatch>, progressCallback: IFileProgressCallback, batchSize: number, token?: CancellationToken): Promise<ISearchEngineSuccess> {
 		return new Promise<ISearchEngineSuccess>((c, e) => {
 			let batch: IRawFileMatch[] = [];
-			if (token) {
-				token.onCancellationRequested(() => engine.cancel());
-			}
+			token?.onCancellationRequested(() => engine.cancel());
 
 			engine.search((match) => {
 				if (match) {
@@ -407,7 +401,7 @@ interface ICacheRow {
 
 class Cache {
 
-	resultsToSearchCache: { [searchValue: string]: ICacheRow; } = Object.create(null);
+	resultsToSearchCache: { [searchValue: string]: ICacheRow } = Object.create(null);
 
 	scorerCache: FuzzyScorerCache = Object.create(null);
 }

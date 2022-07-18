@@ -16,8 +16,8 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { IUpdateService, State as UpdateState, StateType, IUpdate } from 'vs/platform/update/common/update';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ReleaseNotesManager } from './releaseNotesEditor';
+import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
+import { ReleaseNotesManager } from 'vs/workbench/contrib/update/browser/releaseNotesEditor';
 import { isWindows } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -27,7 +27,7 @@ import { ShowCurrentReleaseNotesActionId, CheckForVSCodeUpdateActionId } from 'v
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
-import { IUserDataAutoSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, SyncStatus, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, SyncStatus, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { Promises } from 'vs/base/common/async';
 import { IUserDataSyncWorkbenchService } from 'vs/workbench/services/userDataSync/common/userDataSync';
@@ -152,7 +152,7 @@ export class ProductContribution implements IWorkbenchContribution {
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@INotificationService notificationService: INotificationService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService,
 		@IOpenerService openerService: IOpenerService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHostService hostService: IHostService,
@@ -163,7 +163,7 @@ export class ProductContribution implements IWorkbenchContribution {
 				return;
 			}
 
-			const lastVersion = parseVersion(storageService.get(ProductContribution.KEY, StorageScope.GLOBAL, ''));
+			const lastVersion = parseVersion(storageService.get(ProductContribution.KEY, StorageScope.APPLICATION, ''));
 			const currentVersion = parseVersion(productService.version);
 			const shouldShowReleaseNotes = configurationService.getValue<boolean>('update.showReleaseNotes');
 			const releaseNotesUrl = productService.releaseNotesUrl;
@@ -186,7 +186,7 @@ export class ProductContribution implements IWorkbenchContribution {
 					});
 			}
 
-			storageService.store(ProductContribution.KEY, productService.version, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			storageService.store(ProductContribution.KEY, productService.version, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		});
 	}
 }
@@ -224,12 +224,12 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		*/
 
 		const currentVersion = this.productService.commit;
-		const lastKnownVersion = this.storageService.get('update/lastKnownVersion', StorageScope.GLOBAL);
+		const lastKnownVersion = this.storageService.get('update/lastKnownVersion', StorageScope.APPLICATION);
 
 		// if current version != stored version, clear both fields
 		if (currentVersion !== lastKnownVersion) {
-			this.storageService.remove('update/lastKnownVersion', StorageScope.GLOBAL);
-			this.storageService.remove('update/updateNotificationTime', StorageScope.GLOBAL);
+			this.storageService.remove('update/lastKnownVersion', StorageScope.APPLICATION);
+			this.storageService.remove('update/updateNotificationTime', StorageScope.APPLICATION);
 		}
 
 		this.registerGlobalActivityActions();
@@ -400,15 +400,15 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	private shouldShowNotification(): boolean {
 		const currentVersion = this.productService.commit;
 		const currentMillis = new Date().getTime();
-		const lastKnownVersion = this.storageService.get('update/lastKnownVersion', StorageScope.GLOBAL);
+		const lastKnownVersion = this.storageService.get('update/lastKnownVersion', StorageScope.APPLICATION);
 
 		// if version != stored version, save version and date
 		if (currentVersion !== lastKnownVersion) {
-			this.storageService.store('update/lastKnownVersion', currentVersion!, StorageScope.GLOBAL, StorageTarget.MACHINE);
-			this.storageService.store('update/updateNotificationTime', currentMillis, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.storageService.store('update/lastKnownVersion', currentVersion!, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			this.storageService.store('update/updateNotificationTime', currentMillis, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		}
 
-		const updateNotificationMillis = this.storageService.getNumber('update/updateNotificationTime', StorageScope.GLOBAL, currentMillis);
+		const updateNotificationMillis = this.storageService.getNumber('update/updateNotificationTime', StorageScope.APPLICATION, currentMillis);
 		const diffDays = (currentMillis - updateNotificationMillis) / (1000 * 60 * 60 * 24);
 
 		return diffDays > 5;
@@ -494,7 +494,7 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 
 	constructor(
 		@IProductService private readonly productService: IProductService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService
 	) {
 		super();
 
@@ -524,7 +524,7 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 
 				async run(accessor: ServicesAccessor): Promise<void> {
 					const dialogService = accessor.get(IDialogService);
-					const userDataAutoSyncEnablementService = accessor.get(IUserDataAutoSyncEnablementService);
+					const userDataSyncEnablementService = accessor.get(IUserDataSyncEnablementService);
 					const userDataSyncStoreManagementService = accessor.get(IUserDataSyncStoreManagementService);
 					const storageService = accessor.get(IStorageService);
 					const userDataSyncWorkbenchService = accessor.get(IUserDataSyncWorkbenchService);
@@ -535,13 +535,13 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 						const selectSettingsSyncServiceDialogShownKey = 'switchQuality.selectSettingsSyncServiceDialogShown';
 						const userDataSyncStore = userDataSyncStoreManagementService.userDataSyncStore;
 						let userDataSyncStoreType: UserDataSyncStoreType | undefined;
-						if (userDataSyncStore && isSwitchingToInsiders && userDataAutoSyncEnablementService.isEnabled()
-							&& !storageService.getBoolean(selectSettingsSyncServiceDialogShownKey, StorageScope.GLOBAL, false)) {
+						if (userDataSyncStore && isSwitchingToInsiders && userDataSyncEnablementService.isEnabled()
+							&& !storageService.getBoolean(selectSettingsSyncServiceDialogShownKey, StorageScope.APPLICATION, false)) {
 							userDataSyncStoreType = await this.selectSettingsSyncService(dialogService);
 							if (!userDataSyncStoreType) {
 								return;
 							}
-							storageService.store(selectSettingsSyncServiceDialogShownKey, true, StorageScope.GLOBAL, StorageTarget.USER);
+							storageService.store(selectSettingsSyncServiceDialogShownKey, true, StorageScope.APPLICATION, StorageTarget.USER);
 							if (userDataSyncStoreType === 'stable') {
 								// Update the stable service type in the current window, so that it uses stable service after switched to insiders version (after reload).
 								await userDataSyncStoreManagementService.switch(userDataSyncStoreType);
@@ -552,8 +552,8 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 							type: 'info',
 							message: nls.localize('relaunchMessage', "Changing the version requires a reload to take effect"),
 							detail: newQuality === 'insider' ?
-								nls.localize('relaunchDetailInsiders', "Press the reload button to switch to the nightly pre-production version of VSCode.") :
-								nls.localize('relaunchDetailStable', "Press the reload button to switch to the monthly released stable version of VSCode."),
+								nls.localize('relaunchDetailInsiders', "Press the reload button to switch to the Insiders version of VS Code.") :
+								nls.localize('relaunchDetailStable', "Press the reload button to switch to the Stable version of VS Code."),
 							primaryButton: nls.localize('reload', "&&Reload")
 						});
 
@@ -576,7 +576,7 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 						} else {
 							// Reset
 							if (userDataSyncStoreType) {
-								storageService.remove(selectSettingsSyncServiceDialogShownKey, StorageScope.GLOBAL);
+								storageService.remove(selectSettingsSyncServiceDialogShownKey, StorageScope.APPLICATION);
 							}
 						}
 					} catch (error) {

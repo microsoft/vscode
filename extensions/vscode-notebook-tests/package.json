@@ -9,7 +9,16 @@
     "*"
   ],
   "main": "./out/extension",
-  "enableProposedApi": true,
+  "enabledApiProposals": [
+    "notebookCellExecutionState",
+    "notebookContentProvider",
+    "notebookControllerKind",
+    "notebookDebugOptions",
+    "notebookDeprecated",
+    "notebookLiveShare",
+    "notebookMessaging",
+    "notebookMime"
+  ],
   "engines": {
     "vscode": "^1.25.0"
   },
@@ -20,7 +29,7 @@
   },
   "dependencies": {},
   "devDependencies": {
-    "@types/node": "14.x"
+    "@types/node": "16.x"
   },
   "contributes": {
     "commands": [

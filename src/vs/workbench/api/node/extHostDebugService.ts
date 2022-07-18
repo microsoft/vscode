@@ -3,28 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import type * as vscode from 'vscode';
+import { createCancelablePromise, firstParallel } from 'vs/base/common/async';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
-import { DebugAdapterExecutable, ThemeIcon } from 'vs/workbench/api/common/extHostTypes';
-import { ExecutableDebugAdapter, SocketDebugAdapter, NamedPipeDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
-import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
-import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
-import { IExtHostDocumentsAndEditors, ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { IAdapterDescriptor } from 'vs/workbench/contrib/debug/common/debug';
-import { IExtHostConfiguration, ExtHostConfigProvider } from '../common/extHostConfiguration';
-import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
-import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { ExtHostDebugServiceBase, ExtHostDebugSession, ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostDebugService';
+import * as nls from 'vs/nls';
+import { IExternalTerminalService } from 'vs/platform/externalTerminal/common/externalTerminal';
+import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from 'vs/platform/externalTerminal/node/externalTerminalService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/node/signService';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
-import { createCancelablePromise, firstParallel } from 'vs/base/common/async';
-import { hasChildProcesses, prepareCommand, runInExternalTerminal } from 'vs/workbench/contrib/debug/node/terminals';
+import { ExtHostDebugServiceBase, ExtHostDebugSession } from 'vs/workbench/api/common/extHostDebugService';
 import { IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
+import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
+import { DebugAdapterExecutable, ThemeIcon } from 'vs/workbench/api/common/extHostTypes';
+import { IExtHostVariableResolverProvider } from 'vs/workbench/api/common/extHostVariableResolverService';
+import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
+import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
+import { IAdapterDescriptor } from 'vs/workbench/contrib/debug/common/debug';
+import { ExecutableDebugAdapter, NamedPipeDebugAdapter, SocketDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
+import { hasChildProcesses, prepareCommand } from 'vs/workbench/contrib/debug/node/terminals';
+import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
+import type * as vscode from 'vscode';
+import { ExtHostConfigProvider, IExtHostConfiguration } from '../common/extHostConfiguration';
 
 export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
@@ -37,12 +38,12 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 		@IExtHostRpcService extHostRpcService: IExtHostRpcService,
 		@IExtHostWorkspace workspaceService: IExtHostWorkspace,
 		@IExtHostExtensionService extensionService: IExtHostExtensionService,
-		@IExtHostDocumentsAndEditors editorsService: IExtHostDocumentsAndEditors,
 		@IExtHostConfiguration configurationService: IExtHostConfiguration,
 		@IExtHostTerminalService private _terminalService: IExtHostTerminalService,
-		@IExtHostEditorTabs editorTabs: IExtHostEditorTabs
+		@IExtHostEditorTabs editorTabs: IExtHostEditorTabs,
+		@IExtHostVariableResolverProvider variableResolver: IExtHostVariableResolverProvider,
 	) {
-		super(extHostRpcService, workspaceService, extensionService, editorsService, configurationService, editorTabs);
+		super(extHostRpcService, workspaceService, extensionService, configurationService, editorTabs, variableResolver);
 	}
 
 	protected override createDebugAdapter(adapter: IAdapterDescriptor, session: ExtHostDebugSession): AbstractDebugAdapter | undefined {
@@ -151,10 +152,24 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 		}
 		return super.$runInTerminal(args, sessionId);
 	}
+}
 
-	protected createVariableResolver(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfigProvider): AbstractVariableResolverService {
-		return new ExtHostVariableResolverService(folders, editorService, configurationService, this._editorTabs, this._workspaceService);
+let externalTerminalService: IExternalTerminalService | undefined = undefined;
+
+export function runInExternalTerminal(args: DebugProtocol.RunInTerminalRequestArguments, configProvider: ExtHostConfigProvider): Promise<number | undefined> {
+	if (!externalTerminalService) {
+		if (platform.isWindows) {
+			externalTerminalService = new WindowsExternalTerminalService();
+		} else if (platform.isMacintosh) {
+			externalTerminalService = new MacExternalTerminalService();
+		} else if (platform.isLinux) {
+			externalTerminalService = new LinuxExternalTerminalService();
+		} else {
+			throw new Error('external terminals not supported on this platform');
+		}
 	}
+	const config = configProvider.getConfiguration('terminal');
+	return externalTerminalService.runInTerminal(args.title!, args.cwd, args.args, args.env || {}, config.external || {});
 }
 
 class DebugTerminalCollection {
@@ -163,7 +178,7 @@ class DebugTerminalCollection {
 	 */
 	private static minUseDelay = 1000;
 
-	private _terminalInstances = new Map<vscode.Terminal, { lastUsedAt: number, config: string }>();
+	private _terminalInstances = new Map<vscode.Terminal, { lastUsedAt: number; config: string }>();
 
 	public async checkout(config: string, name: string) {
 		const entries = [...this._terminalInstances.entries()];

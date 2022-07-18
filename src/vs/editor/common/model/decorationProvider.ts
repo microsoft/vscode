@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Event } from 'vs/base/common/event';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration } from 'vs/editor/common/model';
 
@@ -25,5 +25,5 @@ export interface DecorationProvider {
 	 */
 	getAllDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
 
-	onDidChangeDecorations(listener: () => void): IDisposable;
+	onDidChange: Event<void>;
 }

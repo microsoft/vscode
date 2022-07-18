@@ -1,11 +1,7 @@
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "14.x"
-
-  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
-    inputs:
-      versionSpec: "1.x"
+      versionSpec: "16.x"
 
   - task: DownloadPipelineArtifact@0
     displayName: "Download Pipeline Artifact"
@@ -22,6 +18,13 @@ steps:
       # Make sure we get latest packages
       sudo apt-get update
       sudo apt-get upgrade -y
+      sudo apt-get install -y curl apt-transport-https ca-certificates
+
+      # Yarn
+      curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | sudo apt-key add -
+      echo "deb https://dl.yarnpkg.com/debian/ stable main" | sudo tee /etc/apt/sources.list.d/yarn.list
+      sudo apt-get update
+      sudo apt-get install -y yarn
 
       # Define variables
       REPO="$(pwd)"

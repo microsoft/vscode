@@ -14,17 +14,20 @@ export class NativeLogService extends LogService {
 
 		const disposables = new DisposableStore();
 
-		// Extension development test CLI: forward everything to main side
 		const loggers: ILogger[] = [];
+
+		// Always log to file
+		loggers.push(disposables.add(loggerService.createLogger(environmentService.logFile, { name })));
+
+		// Extension development test CLI: forward everything to main side
 		if (environmentService.isExtensionDevelopment && !!environmentService.extensionTestsLocationURI) {
 			loggers.push(loggerService.createConsoleMainLogger());
 		}
 
-		// Normal logger: spdylog and console
+		// Normal mode: Log to console
 		else {
 			loggers.push(
 				disposables.add(new ConsoleLogger(logLevel)),
-				disposables.add(loggerService.createLogger(environmentService.logFile, { name }))
 			);
 		}
 

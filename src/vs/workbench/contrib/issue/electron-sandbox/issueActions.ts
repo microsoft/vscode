@@ -37,7 +37,7 @@ export class ReportPerformanceIssueUsingReporterAction extends Action2 {
 	constructor() {
 		super({
 			id: ReportPerformanceIssueUsingReporterAction.ID,
-			title: { value: localize({ key: 'reportPerformanceIssue', comment: [`Here, 'issue' means problem or bug`] }, "Report Performance Issue"), original: 'Report Performance Issue' },
+			title: { value: localize({ key: 'reportPerformanceIssue', comment: [`Here, 'issue' means problem or bug`] }, "Report Performance Issue..."), original: 'Report Performance Issue' },
 			category: CATEGORIES.Help,
 			f1: true
 		});

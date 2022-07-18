@@ -22,7 +22,7 @@ export class CharacterClassifier<T extends number> {
 	protected _defaultValue: number;
 
 	constructor(_defaultValue: T) {
-		let defaultValue = toUint8(_defaultValue);
+		const defaultValue = toUint8(_defaultValue);
 
 		this._defaultValue = defaultValue;
 		this._asciiMap = CharacterClassifier._createAsciiMap(defaultValue);
@@ -30,7 +30,7 @@ export class CharacterClassifier<T extends number> {
 	}
 
 	private static _createAsciiMap(defaultValue: number): Uint8Array {
-		let asciiMap: Uint8Array = new Uint8Array(256);
+		const asciiMap: Uint8Array = new Uint8Array(256);
 		for (let i = 0; i < 256; i++) {
 			asciiMap[i] = defaultValue;
 		}
@@ -38,7 +38,7 @@ export class CharacterClassifier<T extends number> {
 	}
 
 	public set(charCode: number, _value: T): void {
-		let value = toUint8(_value);
+		const value = toUint8(_value);
 
 		if (charCode >= 0 && charCode < 256) {
 			this._asciiMap[charCode] = value;

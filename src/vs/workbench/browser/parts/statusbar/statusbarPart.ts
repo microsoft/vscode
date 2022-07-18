@@ -5,15 +5,15 @@
 
 import 'vs/css!./media/statusbarpart';
 import { localize } from 'vs/nls';
-import { dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Part } from 'vs/workbench/browser/part';
 import { EventType as TouchEventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { StatusbarAlignment, IStatusbarService, IStatusbarEntry, IStatusbarEntryAccessor } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { StatusbarAlignment, IStatusbarService, IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarStyleOverride, isStatusbarEntryLocation, IStatusbarEntryLocation } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IAction, Separator, toAction } from 'vs/base/common/actions';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ITEM_ACTIVE_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND, STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND, STATUS_BAR_BORDER, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER } from 'vs/workbench/common/theme';
+import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ITEM_ACTIVE_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND, STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND, STATUS_BAR_BORDER, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER, STATUS_BAR_ITEM_COMPACT_HOVER_BACKGROUND, STATUS_BAR_ITEM_FOCUS_BORDER, STATUS_BAR_FOCUS_BORDER } from 'vs/workbench/common/theme';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { EventHelper, createStyleSheet, addDisposableListener, EventType, clearNode } from 'vs/base/browser/dom';
@@ -25,14 +25,15 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ToggleStatusbarVisibilityAction } from 'vs/workbench/browser/actions/layoutActions';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { hash } from 'vs/base/common/hash';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IHoverDelegate, IHoverDelegateOptions, IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { CONTEXT_STATUS_BAR_FOCUSED, HideStatusbarEntryAction, ToggleStatusbarEntryVisibilityAction } from 'vs/workbench/browser/parts/statusbar/statusbarActions';
-import { IStatusbarEntryPriority, IStatusbarEntryLocation, IStatusbarViewModelEntry, StatusbarViewModel, isStatusbarEntryLocation } from 'vs/workbench/browser/parts/statusbar/statusbarModel';
+import { HideStatusbarEntryAction, ToggleStatusbarEntryVisibilityAction } from 'vs/workbench/browser/parts/statusbar/statusbarActions';
+import { IStatusbarEntryPriority, IStatusbarViewModelEntry, StatusbarViewModel } from 'vs/workbench/browser/parts/statusbar/statusbarModel';
 import { StatusbarEntryItem } from 'vs/workbench/browser/parts/statusbar/statusbarItem';
+import { StatusBarFocused } from 'vs/workbench/common/contextkeys';
 
 interface IPendingStatusbarEntry {
 	readonly id: string;
@@ -86,14 +87,20 @@ export class StatusbarPart extends Part implements IStatusbarService {
 			private readonly hoverService: IHoverService
 		) { }
 
-		showHover(options: IHoverDelegateOptions): IHoverWidget | undefined {
-			return this.hoverService.showHover(options);
+		showHover(options: IHoverDelegateOptions, focus?: boolean): IHoverWidget | undefined {
+			return this.hoverService.showHover({
+				...options,
+				hideOnKeyDown: true
+			}, focus);
 		}
 
 		onDidHideHover(): void {
 			this.lastHoverHideTime = Date.now();
 		}
 	}(this.configurationService, this.hoverService);
+
+	private readonly compactEntriesDisposable = this._register(new MutableDisposable<DisposableStore>());
+	private readonly styleOverrides = new Set<IStatusbarStyleOverride>();
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -114,7 +121,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	private registerListeners(): void {
 
 		// Entry visibility changes
-		this._register(this.onDidChangeEntryVisibility(() => this.updateClasses()));
+		this._register(this.onDidChangeEntryVisibility(() => this.updateCompactEntries()));
 
 		// Workbench state changes
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateStyles()));
@@ -176,6 +183,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 			readonly labelContainer = item.labelContainer;
 
 			get name() { return item.name; }
+			get hasCommand() { return item.hasCommand; }
 		};
 
 		// Add to view model
@@ -281,7 +289,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 		// Track focus within container
 		const scopedContextKeyService = this.contextKeyService.createScoped(this.element);
-		CONTEXT_STATUS_BAR_FOCUSED.bindTo(scopedContextKeyService).set(true);
+		StatusBarFocused.bindTo(scopedContextKeyService).set(true);
 
 		// Left items container
 		this.leftItemsContainer = document.createElement('div');
@@ -337,8 +345,8 @@ export class StatusbarPart extends Part implements IStatusbarService {
 			target.appendChild(entry.container);
 		}
 
-		// Update CSS classes
-		this.updateClasses();
+		// Update compact entries
+		this.updateCompactEntries();
 	}
 
 	private appendStatusbarEntry(entry: IStatusbarViewModelEntry): void {
@@ -357,14 +365,14 @@ export class StatusbarPart extends Part implements IStatusbarService {
 			target.insertBefore(entry.container, entries[index + 1].container); // insert before next element otherwise
 		}
 
-		// Update CSS classes
-		this.updateClasses();
+		// Update compact entries
+		this.updateCompactEntries();
 	}
 
-	private updateClasses(): void {
+	private updateCompactEntries(): void {
 		const entries = this.viewModel.entries;
 
-		// Clear compact related CSS classes if any
+		// Find visible entries and clear compact related CSS classes if any
 		const mapIdToVisibleEntry = new Map<string, IStatusbarViewModelEntry>();
 		for (const entry of entries) {
 			if (!this.viewModel.isHidden(entry.id)) {
@@ -374,21 +382,60 @@ export class StatusbarPart extends Part implements IStatusbarService {
 			entry.container.classList.remove('compact-left', 'compact-right');
 		}
 
-		// Update entries with compact related CSS classes as needed
+		// Figure out groups of entries with `compact` alignment
+		const compactEntryGroups = new Map<string, Set<IStatusbarViewModelEntry>>();
 		for (const entry of mapIdToVisibleEntry.values()) {
 			if (
 				isStatusbarEntryLocation(entry.priority.primary) && // entry references another entry as location
 				entry.priority.primary.compact						// entry wants to be compact
 			) {
-				const location = mapIdToVisibleEntry.get(entry.priority.primary.id);
-				if (location) {
-					if (entry.priority.primary.alignment === StatusbarAlignment.LEFT) {
-						location.container.classList.add('compact-left');
-						entry.container.classList.add('compact-right');
-					} else {
-						location.container.classList.add('compact-right');
-						entry.container.classList.add('compact-left');
+				const locationId = entry.priority.primary.id;
+				const location = mapIdToVisibleEntry.get(locationId);
+				if (!location) {
+					continue; // skip if location does not exist
+				}
+
+				// Build a map of entries that are compact among each other
+				let compactEntryGroup = compactEntryGroups.get(locationId);
+				if (!compactEntryGroup) {
+					compactEntryGroup = new Set<IStatusbarViewModelEntry>([entry, location]);
+					compactEntryGroups.set(locationId, compactEntryGroup);
+				} else {
+					compactEntryGroup.add(entry);
+				}
+
+				// Adjust CSS classes to move compact items closer together
+				if (entry.priority.primary.alignment === StatusbarAlignment.LEFT) {
+					location.container.classList.add('compact-left');
+					entry.container.classList.add('compact-right');
+				} else {
+					location.container.classList.add('compact-right');
+					entry.container.classList.add('compact-left');
+				}
+			}
+		}
+
+
+		// Install mouse listeners to update hover feedback for
+		// all compact entries that belong to each other
+		const statusBarItemHoverBackground = this.getColor(STATUS_BAR_ITEM_HOVER_BACKGROUND)?.toString();
+		const statusBarItemCompactHoverBackground = this.getColor(STATUS_BAR_ITEM_COMPACT_HOVER_BACKGROUND)?.toString();
+		this.compactEntriesDisposable.value = new DisposableStore();
+		if (statusBarItemHoverBackground && statusBarItemCompactHoverBackground && !isHighContrast(this.theme.type)) {
+			for (const [, compactEntryGroup] of compactEntryGroups) {
+				for (const compactEntry of compactEntryGroup) {
+					if (!compactEntry.hasCommand) {
+						continue; // only show hover feedback when we have a command
 					}
+
+					this.compactEntriesDisposable.value.add(addDisposableListener(compactEntry.labelContainer, EventType.MOUSE_OVER, () => {
+						compactEntryGroup.forEach(compactEntry => compactEntry.labelContainer.style.backgroundColor = statusBarItemHoverBackground);
+						compactEntry.labelContainer.style.backgroundColor = statusBarItemCompactHoverBackground;
+					}));
+
+					this.compactEntriesDisposable.value.add(addDisposableListener(compactEntry.labelContainer, EventType.MOUSE_OUT, () => {
+						compactEntryGroup.forEach(compactEntry => compactEntry.labelContainer.style.backgroundColor = '');
+					}));
 				}
 			}
 		}
@@ -456,14 +503,17 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		super.updateStyles();
 
 		const container = assertIsDefined(this.getContainer());
+		const styleOverride: IStatusbarStyleOverride | undefined = [...this.styleOverrides].sort((a, b) => a.priority - b.priority)[0];
 
-		// Background colors
-		const backgroundColor = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND) || '';
+		// Background / foreground colors
+		const backgroundColor = this.getColor(styleOverride?.background ?? (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND)) || '';
 		container.style.backgroundColor = backgroundColor;
-		container.style.color = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND) || '';
+		const foregroundColor = this.getColor(styleOverride?.foreground ?? (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND)) || '';
+		container.style.color = foregroundColor;
+		const itemBorderColor = this.getColor(STATUS_BAR_ITEM_FOCUS_BORDER);
 
 		// Border color
-		const borderColor = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BORDER : STATUS_BAR_NO_FOLDER_BORDER) || this.getColor(contrastBorder);
+		const borderColor = this.getColor(styleOverride?.border ?? (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BORDER : STATUS_BAR_NO_FOLDER_BORDER)) || this.getColor(contrastBorder);
 		if (borderColor) {
 			container.classList.add('status-border-top');
 			container.style.setProperty('--status-border-top-color', borderColor.toString());
@@ -472,17 +522,45 @@ export class StatusbarPart extends Part implements IStatusbarService {
 			container.style.removeProperty('--status-border-top-color');
 		}
 
-		// Notification Beak
+		// Colors and focus outlines via dynamic stylesheet
+
+		const statusBarFocusColor = this.getColor(STATUS_BAR_FOCUS_BORDER);
+
 		if (!this.styleElement) {
 			this.styleElement = createStyleSheet(container);
 		}
 
-		this.styleElement.textContent = `.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak:before { border-bottom-color: ${backgroundColor}; }`;
+		this.styleElement.textContent = `
+				/* Status bar focus outline */
+				.monaco-workbench .part.statusbar:focus {
+					outline-color: ${statusBarFocusColor};
+				}
+
+				/* Status bar item focus outline */
+				.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:focus-visible:not(.disabled) {
+					outline: 1px solid ${this.getColor(activeContrastBorder) ?? itemBorderColor};
+					outline-offset: ${borderColor ? '-2px' : '-1px'};
+				}
+				/* Notification Beak */
+				.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak:before {
+					border-bottom-color: ${backgroundColor};
+					}
+			`;
 	}
 
-	override layout(width: number, height: number): void {
-		super.layout(width, height);
+	override layout(width: number, height: number, top: number, left: number): void {
+		super.layout(width, height, top, left);
 		super.layoutContents(width, height);
+	}
+
+	overrideStyle(style: IStatusbarStyleOverride): IDisposable {
+		this.styleOverrides.add(style);
+		this.updateStyles();
+
+		return toDisposable(() => {
+			this.styleOverrides.delete(style);
+			this.updateStyles();
+		});
 	}
 
 	toJSON(): object {
@@ -493,23 +571,22 @@ export class StatusbarPart extends Part implements IStatusbarService {
 }
 
 registerThemingParticipant((theme, collector) => {
-	if (theme.type !== ColorScheme.HIGH_CONTRAST) {
+	if (!isHighContrast(theme.type)) {
 		const statusBarItemHoverBackground = theme.getColor(STATUS_BAR_ITEM_HOVER_BACKGROUND);
 		if (statusBarItemHoverBackground) {
 			collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:hover:not(.disabled) { background-color: ${statusBarItemHoverBackground}; }`);
-			collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:focus:not(.disabled) { background-color: ${statusBarItemHoverBackground}; }`);
 		}
 
 		const statusBarItemActiveBackground = theme.getColor(STATUS_BAR_ITEM_ACTIVE_BACKGROUND);
 		if (statusBarItemActiveBackground) {
-			collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:active:not(.disabled) { background-color: ${statusBarItemActiveBackground}; }`);
+			// using !important for this rule to win over any background color that is set via JS code for compact items in a group
+			collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:active:not(.disabled) { background-color: ${statusBarItemActiveBackground} !important; }`);
 		}
 	}
 
 	const activeContrastBorderColor = theme.getColor(activeContrastBorder);
 	if (activeContrastBorderColor) {
 		collector.addRule(`
-			.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:focus:not(.disabled),
 			.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:active:not(.disabled) {
 				outline: 1px solid ${activeContrastBorderColor} !important;
 				outline-offset: -1px;

@@ -7,7 +7,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import { WorkbenchListFocusContextKey, IListService, WorkbenchListSupportsMultiSelectContextKey, ListWidget, WorkbenchListHasSelectionOrFocus, getSelectionKeyboardEvent, WorkbenchListWidget, WorkbenchListSelectionNavigation } from 'vs/platform/list/browser/listService';
+import { WorkbenchListFocusContextKey, IListService, WorkbenchListSupportsMultiSelectContextKey, ListWidget, WorkbenchListHasSelectionOrFocus, getSelectionKeyboardEvent, WorkbenchListWidget, WorkbenchListSelectionNavigation, WorkbenchTreeElementCanCollapse, WorkbenchTreeElementHasParent, WorkbenchTreeElementHasChild, WorkbenchTreeElementCanExpand } from 'vs/platform/list/browser/listService';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { equals, range } from 'vs/base/common/arrays';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -61,6 +61,7 @@ async function navigate(widget: WorkbenchListWidget | undefined, updateFocusFn: 
 		widget.reveal(listFocus[0]);
 	}
 
+	widget.setAnchor(listFocus[0]);
 	ensureDOMFocus(widget);
 }
 
@@ -71,7 +72,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyCode.DownArrow,
 	mac: {
 		primary: KeyCode.DownArrow,
-		secondary: [KeyMod.WinCtrl | KeyCode.KEY_N]
+		secondary: [KeyMod.WinCtrl | KeyCode.KeyN]
 	},
 	handler: (accessor, arg2) => {
 		navigate(accessor.get(IListService).lastFocusedList, async widget => {
@@ -88,7 +89,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyCode.UpArrow,
 	mac: {
 		primary: KeyCode.UpArrow,
-		secondary: [KeyMod.WinCtrl | KeyCode.KEY_P]
+		secondary: [KeyMod.WinCtrl | KeyCode.KeyP]
 	},
 	handler: (accessor, arg2) => {
 		navigate(accessor.get(IListService).lastFocusedList, async widget => {
@@ -251,7 +252,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.collapse',
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: WorkbenchListFocusContextKey,
+	when: ContextKeyExpr.and(WorkbenchListFocusContextKey, ContextKeyExpr.or(WorkbenchTreeElementCanCollapse, WorkbenchTreeElementHasParent)),
 	primary: KeyCode.LeftArrow,
 	mac: {
 		primary: KeyCode.LeftArrow,
@@ -335,7 +336,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.expand',
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: WorkbenchListFocusContextKey,
+	when: ContextKeyExpr.and(WorkbenchListFocusContextKey, ContextKeyExpr.or(WorkbenchTreeElementCanExpand, WorkbenchTreeElementHasChild)),
 	primary: KeyCode.RightArrow,
 	handler: (accessor) => {
 		const widget = accessor.get(IListService).lastFocusedList;
@@ -404,6 +405,7 @@ function selectElement(accessor: ServicesAccessor, retainCurrentFocus: boolean):
 	if (focused instanceof List || focused instanceof PagedList || focused instanceof Table) {
 		const list = focused;
 		list.setSelection(list.getFocus(), fakeKeyboardEvent);
+		list.setAnchor(list.getFocus()[0]);
 	}
 
 	// Trees
@@ -425,6 +427,7 @@ function selectElement(accessor: ServicesAccessor, retainCurrentFocus: boolean):
 			}
 		}
 		tree.setSelection(focus, fakeKeyboardEvent);
+		tree.setAnchor(focus[0]);
 	}
 }
 
@@ -455,7 +458,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.selectAll',
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(WorkbenchListFocusContextKey, WorkbenchListSupportsMultiSelectContextKey),
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_A,
+	primary: KeyMod.CtrlCmd | KeyCode.KeyA,
 	handler: (accessor) => {
 		const focused = accessor.get(IListService).lastFocusedList;
 
@@ -583,9 +586,22 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			return;
 		}
 
+		const selection = widget.getSelection();
 		const fakeKeyboardEvent = new KeyboardEvent('keydown');
-		widget.setSelection([], fakeKeyboardEvent);
-		widget.setFocus([], fakeKeyboardEvent);
+
+		if (selection.length > 1) {
+			const useSelectionNavigation = WorkbenchListSelectionNavigation.getValue(widget.contextKeyService);
+			if (useSelectionNavigation) {
+				const focus = widget.getFocus();
+				widget.setSelection([focus[0]], fakeKeyboardEvent);
+			} else {
+				widget.setSelection([], fakeKeyboardEvent);
+			}
+		} else {
+			widget.setSelection([], fakeKeyboardEvent);
+			widget.setFocus([], fakeKeyboardEvent);
+		}
+
 		widget.setAnchor(undefined);
 	}
 });

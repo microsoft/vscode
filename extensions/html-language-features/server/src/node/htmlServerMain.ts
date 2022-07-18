@@ -6,7 +6,7 @@
 import { createConnection, Connection, Disposable } from 'vscode-languageserver/node';
 import { formatError } from '../utils/runner';
 import { RuntimeEnvironment, startServer } from '../htmlServer';
-import { getNodeFSRequestService } from './nodeFs';
+import { getNodeFileFS } from './nodeFs';
 
 
 // Create a connection for the server.
@@ -30,7 +30,7 @@ const runtime: RuntimeEnvironment = {
 			return { dispose: () => clearTimeout(handle) };
 		}
 	},
-	file: getNodeFSRequestService()
+	fileFs: getNodeFileFS()
 };
 
 startServer(connection, runtime);
