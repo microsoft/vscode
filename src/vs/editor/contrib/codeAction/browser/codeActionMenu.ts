@@ -16,7 +16,7 @@ import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, dispose, MutableDisposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/action';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
+import { EditorCommand, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
@@ -30,6 +30,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -128,7 +129,7 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 		const isSeparator = element.isSeparator;
 
 		data.text.textContent = text;
-		data.detail.textContent = detail;
+		// data.detail.textContent = detail;
 
 		if (!isEnabled) {
 			data.root.classList.add('option-disabled');
@@ -161,7 +162,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	// private readonly _onDidCancel = new Emitter<ICancelEvent>();
 	readonly onDidHideContextMenu = this._onDidHideContextMenu.event;
 	private readonly _ctxMenuWidgetIsFocused?: IContextKey<boolean>;
-	private readonly _ctxMenuWidgetVisible: IContextKey<boolean>;
+	private _ctxMenuWidgetVisible!: IContextKey<boolean>;
 	private readonly editor: ICodeEditor;
 
 	public static readonly ID: string = 'editor.contrib.codeActionMenu';
@@ -178,7 +179,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		private readonly _delegate: CodeActionWidgetDelegate,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IContextKeyService _contextKeyService: IContextKeyService,
+		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -193,11 +194,12 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 			getKeybindings: () => keybindingService.getKeybindings()
 		});
 
-		this._ctxMenuWidgetVisible = Context.Visible.bindTo(_contextKeyService);
 
 		if (this.codeActionList && !this.codeActionList.isDOMFocused()) {
 			this.dispose();
 		}
+
+		this._ctxMenuWidgetVisible = Context.Visible.bindTo(_contextKeyService);
 	}
 
 	allowEditorOverflow?: boolean | undefined;
@@ -217,8 +219,6 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		if (e.elements.length) {
 			e.elements.forEach(element => {
 				if (element.isEnabled) {
-					const itemAction = element;
-					console.log(itemAction);
 					element.action.run();
 				}
 			});
@@ -241,8 +241,8 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		const height = inputArray.length * 25;
 		renderMenu.style.height = String(height) + 'px';
 
-		renderMenu.id = 'codeActioniMenuWidget';
-		renderMenu.classList.add('codeActioniMenuWidget');
+		renderMenu.id = 'codeActionMenuWidget';
+		renderMenu.classList.add('codeActionMenuWidget');
 
 		element.appendChild(renderMenu);
 
@@ -268,11 +268,6 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		this.codeActionList.splice(0, this.codeActionList.length, this.options);
 		this.codeActionList.layout(height);
 
-		this.codeActionList.getElementID(2);
-
-		const temp = this.codeActionList.getElementID(0);
-		console.log(temp);
-
 		const arr: number[] = [];
 		this.options.forEach((item, index) => {
 			const element = document.getElementById(this.codeActionList.getElementID(index))?.getElementsByTagName('span')[0].offsetWidth;
@@ -285,7 +280,6 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 
 		// resize observer - supports dynamic height but not width
 		this.codeActionList.domFocus();
-		this.codeActionList.getHTMLElement().style.border = 'none !important';
 		this.codeActionList.setFocus([0]);
 		const focusTracker = dom.trackFocus(element);
 		const blurListener = focusTracker.onDidBlur(() => {
@@ -295,7 +289,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 
 		renderDisposables.add(blurListener);
 		renderDisposables.add(focusTracker);
-
+		// this._ctxMenuWidgetVisible = Context.Visible.bindTo(this._contextKeyService.createScoped(element));
 		this._ctxMenuWidgetVisible.set(true);
 		return renderDisposables;
 
@@ -372,46 +366,46 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 
 			},
 		},
-			//this._editor.getDomNode(), if we use shadow dom ( + shadow dom param)
+			this._editor.getDomNode()!, false,
 		);
 		// }
 
 
 
-		this._contextMenuService.showContextMenu({
-			domForShadowRoot: useShadowDOM ? this._editor.getDomNode()! : undefined,
-			getAnchor: () => anchor,
-			getActions: () => menuActions,
-			onHide: (didCancel) => {
-				const openedFromString = (options.fromLightbulb) ? CodeActionTriggerSource.Lightbulb : trigger.triggerAction;
+		// this._contextMenuService.showContextMenu({
+		// 	domForShadowRoot: useShadowDOM ? this._editor.getDomNode()! : undefined,
+		// 	getAnchor: () => anchor,
+		// 	getActions: () => menuActions,
+		// 	onHide: (didCancel) => {
+		// 		const openedFromString = (options.fromLightbulb) ? CodeActionTriggerSource.Lightbulb : trigger.triggerAction;
 
-				type ApplyCodeActionEvent = {
-					codeActionFrom: CodeActionTriggerSource;
-					validCodeActions: number;
-					cancelled: boolean;
-				};
+		// 		type ApplyCodeActionEvent = {
+		// 			codeActionFrom: CodeActionTriggerSource;
+		// 			validCodeActions: number;
+		// 			cancelled: boolean;
+		// 		};
 
-				type ApplyCodeEventClassification = {
-					codeActionFrom: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of action used to opened the code action.' };
-					validCodeActions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The total number of valid actions that are highlighted and can be used.' };
-					cancelled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The indicator if the menu was selected or cancelled.' };
-					owner: 'mjbvz';
-					comment: 'Event used to gain insights into how code actions are being triggered';
-				};
+		// 		type ApplyCodeEventClassification = {
+		// 			codeActionFrom: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of action used to opened the code action.' };
+		// 			validCodeActions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The total number of valid actions that are highlighted and can be used.' };
+		// 			cancelled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The indicator if the menu was selected or cancelled.' };
+		// 			owner: 'mjbvz';
+		// 			comment: 'Event used to gain insights into how code actions are being triggered';
+		// 		};
 
-				this._telemetryService.publicLog2<ApplyCodeActionEvent, ApplyCodeEventClassification>('codeAction.applyCodeAction', {
-					codeActionFrom: openedFromString,
-					validCodeActions: codeActions.validActions.length,
-					cancelled: didCancel,
+		// 		this._telemetryService.publicLog2<ApplyCodeActionEvent, ApplyCodeEventClassification>('codeAction.applyCodeAction', {
+		// 			codeActionFrom: openedFromString,
+		// 			validCodeActions: codeActions.validActions.length,
+		// 			cancelled: didCancel,
 
-				});
+		// 		});
 
-				this._visible = false;
-				this._editor.focus();
-			},
-			autoSelectFirstItem: true,
-			getKeyBinding: action => action instanceof CodeActionAction ? resolver(action.action) : undefined,
-		});
+		// 		this._visible = false;
+		// 		this._editor.focus();
+		// 	},
+		// 	autoSelectFirstItem: true,
+		// 	getKeyBinding: action => action instanceof CodeActionAction ? resolver(action.action) : undefined,
+		// });
 	}
 
 	private getMenuActions(
@@ -537,6 +531,7 @@ export class CodeActionKeybindingResolver {
 	}
 }
 
+// registerEditorContribution(CodeActionMenu.ID, CodeActionMenu);
 const CodeActionCommand = EditorCommand.bindToContribution<CodeActionMenu>(CodeActionMenu.get);
 
 const weight = KeybindingWeight.EditorContrib + 90;
@@ -544,13 +539,26 @@ const weight = KeybindingWeight.EditorContrib + 90;
 registerEditorCommand(new CodeActionCommand({
 	id: 'hideCodeActionMenuWidget',
 	precondition: Context.Visible,
-	handler: x => x.dispose(),
+	handler(x) {
+		console.log('hello hi');
+	},
 	kbOpts: {
 		weight: weight,
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape]
 	}
 }));
+
+/**
+ *
+ * need to create a new constructor/new class for the code action menu controller?
+ *
+ *
+ *
+ *
+ */
+
+
 
 // KeybindingsRegistry.registerCommandAndKeybindingRule({
 // 	id: 'codeActionMenu.selectEditor',

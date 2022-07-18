@@ -1800,7 +1800,6 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 	}
 
 	getElementID(index: number): string {
-		console.log(index);
 		return this.view.getElementDomId(index);
 	}
 

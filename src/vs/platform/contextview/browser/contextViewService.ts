@@ -35,7 +35,7 @@ export class ContextViewService extends Disposable implements IContextViewServic
 
 	showContextView(delegate: IContextViewDelegate, container?: HTMLElement, shadowRoot?: boolean): IDisposable {
 		if (container) {
-			if (container !== this.container) {
+			if (container !== this.container || true) {
 				this.container = container;
 				this.setContainer(container, shadowRoot ? ContextViewDOMPosition.FIXED_SHADOW : ContextViewDOMPosition.FIXED);
 			}
