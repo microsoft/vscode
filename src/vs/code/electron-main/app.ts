@@ -1139,7 +1139,6 @@ export class CodeApplication extends Disposable {
 				shuttingdown: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the application is shutting down when the crash happens.' };
 				owner: 'bpasero';
 				comment: 'Event which fires whenever an error occurs in the shared process';
-
 			};
 			type SharedProcessErrorEvent = {
 				type: WindowError;

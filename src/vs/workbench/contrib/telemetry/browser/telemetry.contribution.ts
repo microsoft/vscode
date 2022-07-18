@@ -87,6 +87,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 			restoredViewlet?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 			restoredEditors: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 			startupKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+			comment: 'Tracks the environment of a workspace load, for example editors that open and layout.';
 		};
 
 		type WorkspaceLoadEvent = {
@@ -139,12 +140,14 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 			type SettingsReadClassification = {
 				owner: 'bpasero';
 				settingsType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+				comment: 'Tracks when settings are read.';
 			};
 
 			this.telemetryService.publicLog2<{ settingsType: string }, SettingsReadClassification>('settingsRead', { settingsType }); // Do not log read to user settings.json and .vscode folder as a fileGet event as it ruins our JSON usage data
 		} else {
 			type FileGetClassification = {
 				owner: 'bpasero';
+				comment: 'Tracks when files are read, e.g. by opening in an editor.';
 			} & FileTelemetryDataFragment;
 
 			this.telemetryService.publicLog2<TelemetryData, FileGetClassification>('fileGet', this.getTelemetryData(e.model.resource, e.reason));
@@ -156,12 +159,14 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		if (settingsType) {
 			type SettingsWrittenClassification = {
 				owner: 'bpasero';
+				comment: 'Tracks when settings are written.';
 				settingsType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 			};
 			this.telemetryService.publicLog2<{ settingsType: string }, SettingsWrittenClassification>('settingsWritten', { settingsType }); // Do not log write to user settings.json and .vscode folder as a filePUT event as it ruins our JSON usage data
 		} else {
 			type FilePutClassfication = {
 				owner: 'bpasero';
+				comment: 'Tracks when files are written, e.g. when saving an editor.';
 			} & FileTelemetryDataFragment;
 			this.telemetryService.publicLog2<TelemetryData, FilePutClassfication>('filePUT', this.getTelemetryData(e.model.resource, e.reason));
 		}

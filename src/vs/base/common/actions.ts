@@ -17,6 +17,7 @@ export type WorkbenchActionExecutedClassification = {
 	owner: 'bpasero';
 	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 	from: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	comment: 'Tracks when actions are fired and how they were fired.';
 };
 
 export type WorkbenchActionExecutedEvent = {

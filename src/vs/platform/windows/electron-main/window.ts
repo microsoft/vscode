@@ -582,7 +582,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The reason of the window crash to understand the nature of the crash better.' };
 			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; omment: 'The exit code of the window process to understand the nature of the crash better' };
 			owner: 'bpasero';
-			comment: 'Provides insight into reasons the vscode window crashes.';
+			comment: 'Event which fires whenever an error occurs in the workbench window.';
 		};
 		type WindowErrorEvent = {
 			type: WindowError;
