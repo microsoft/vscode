@@ -38,6 +38,7 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { extname } from 'vs/base/common/resources';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { Position } from 'vs/editor/common/core/position';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -383,10 +384,11 @@ function registerDiffEditorCommands(): void {
 
 	function focusInDiffEditor(accessor: ServicesAccessor, mode: FocusTextDiffEditorMode): void {
 		const activeTextDiffEditor = getActiveTextDiffEditor(accessor);
+		const control = activeTextDiffEditor?.getControl();
 
-		if (activeTextDiffEditor) {
-			const original = activeTextDiffEditor.getControl()?.getOriginalEditor();
-			const modified = activeTextDiffEditor.getControl()?.getModifiedEditor();
+		if (control) {
+			const original = control.getOriginalEditor();
+			const modified = control.getModifiedEditor();
 
 			let source: ICodeEditor | undefined;
 			let destination: ICodeEditor | undefined;
@@ -412,10 +414,18 @@ function registerDiffEditorCommands(): void {
 
 				const configurationService = accessor.get(IConfigurationService);
 				const keepLine = configurationService.getValue<boolean>('diffEditor.keepLine');
-				if (keepLine) {
-					const position = source?.getPosition();
+
+				if (keepLine && source) {
+					const position = source.getPosition();
+
 					if (position) {
-						destination.setPosition(position);
+						const equivalentLineNumber = mode === FocusTextDiffEditorMode.Original ?
+							control.getDiffLineInformationForModified(position.lineNumber)?.equivalentLineNumber :
+							control.getDiffLineInformationForOriginal(position.lineNumber)?.equivalentLineNumber;
+
+						if (equivalentLineNumber !== undefined) {
+							destination.setPosition(new Position(equivalentLineNumber, position.column));
+						}
 					}
 				}
 			}
