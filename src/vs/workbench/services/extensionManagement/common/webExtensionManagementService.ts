@@ -103,10 +103,16 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 	}
 
 	protected doCreateInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: ServerInstallOptions): IInstallExtensionTask {
+		if (!options.profileLocation) {
+			options = { ...options, profileLocation: this.userDataProfileService.currentProfile.extensionsResource };
+		}
 		return new InstallExtensionTask(manifest, extension, options, this.webExtensionsScannerService);
 	}
 
 	protected doCreateUninstallExtensionTask(extension: ILocalExtension, options: ServerUninstallOptions): IUninstallExtensionTask {
+		if (!options.profileLocation) {
+			options = { ...options, profileLocation: this.userDataProfileService.currentProfile.extensionsResource };
+		}
 		return new UninstallExtensionTask(extension, options, this.webExtensionsScannerService);
 	}
 
