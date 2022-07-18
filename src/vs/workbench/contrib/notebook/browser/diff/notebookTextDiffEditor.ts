@@ -158,11 +158,11 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		// throw new Error('Method not implemented.');
 	}
 
-	focusNotebookCell(cell: IGenericCellViewModel, focus: 'output' | 'editor' | 'container'): void {
+	async focusNotebookCell(cell: IGenericCellViewModel, focus: 'output' | 'editor' | 'container'): Promise<void> {
 		// throw new Error('Method not implemented.');
 	}
 
-	focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'output' | 'editor' | 'container'): void {
+	async focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'output' | 'editor' | 'container'): Promise<void> {
 		// throw new Error('Method not implemented.');
 	}
 
@@ -202,6 +202,9 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	didDropMarkupCell(cellId: string) {
 		// throw new Error('Method not implemented.');
 	}
+	didResizeOutput(cellId: string): void {
+		// throw new Error('Method not implemented.');
+	}
 
 	protected createEditor(parent: HTMLElement): void {
 		this._rootElement = DOM.append(parent, DOM.$('.notebook-text-diff-editor'));
@@ -229,7 +232,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 				keyboardSupport: false,
 				mouseSupport: true,
 				multipleSelectionSupport: false,
-				enableKeyboardNavigation: true,
+				typeNavigationEnabled: true,
 				additionalScrollHeight: 0,
 				// transformOptimization: (isMacintosh && isNative) || getTitleBarStyle(this.configurationService, this.environmentService) === 'native',
 				styleController: (_suffix: string) => { return this._list!; },

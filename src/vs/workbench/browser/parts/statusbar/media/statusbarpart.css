@@ -127,7 +127,7 @@
 }
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-right > a {
-	padding: 0 3px 0 5px;
+	padding: 0 3px;
 }
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item > a:hover:not(.disabled) {

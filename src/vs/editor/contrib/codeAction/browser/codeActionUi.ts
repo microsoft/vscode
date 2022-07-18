@@ -31,7 +31,7 @@ export class CodeActionUi extends Disposable {
 		quickFixActionId: string,
 		preferredFixActionId: string,
 		private readonly delegate: {
-			applyCodeAction: (action: CodeActionItem, regtriggerAfterApply: boolean) => Promise<void>;
+			applyCodeAction: (action: CodeActionItem, regtriggerAfterApply: boolean, preview: boolean) => Promise<void>;
 		},
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
@@ -39,15 +39,15 @@ export class CodeActionUi extends Disposable {
 
 		this._codeActionWidget = new Lazy(() => {
 			return this._register(instantiationService.createInstance(CodeActionMenu, this._editor, {
-				onSelectCodeAction: async (action) => {
-					this.delegate.applyCodeAction(action, /* retrigger */ true);
+				onSelectCodeAction: async (action, trigger) => {
+					this.delegate.applyCodeAction(action, /* retrigger */ true, Boolean(trigger.preview));
 				}
 			}));
 		});
 
 		this._lightBulbWidget = new Lazy(() => {
 			const widget = this._register(instantiationService.createInstance(LightBulbWidget, this._editor, quickFixActionId, preferredFixActionId));
-			this._register(widget.onClick(e => this.showCodeActionList(e.trigger, e.actions, e, { includeDisabledActions: false })));
+			this._register(widget.onClick(e => this.showCodeActionList(e.trigger, e.actions, e, { includeDisabledActions: false, fromLightbulb: true })));
 			return widget;
 		});
 	}
@@ -85,7 +85,7 @@ export class CodeActionUi extends Disposable {
 				if (validActionToApply) {
 					try {
 						this._lightBulbWidget.getValue().hide();
-						await this.delegate.applyCodeAction(validActionToApply, false);
+						await this.delegate.applyCodeAction(validActionToApply, false, false);
 					} finally {
 						actions.dispose();
 					}
@@ -114,7 +114,7 @@ export class CodeActionUi extends Disposable {
 			}
 
 			this._activeCodeActions.value = actions;
-			this._codeActionWidget.getValue().show(newState.trigger, actions, newState.position, { includeDisabledActions });
+			this._codeActionWidget.getValue().show(newState.trigger, actions, newState.position, { includeDisabledActions, fromLightbulb: false });
 		} else {
 			// auto magically triggered
 			if (this._codeActionWidget.getValue().isVisible) {

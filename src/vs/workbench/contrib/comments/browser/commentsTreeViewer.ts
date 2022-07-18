@@ -13,17 +13,18 @@ import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { CommentNode, CommentsModel, ResourceWithCommentThreads } from 'vs/workbench/contrib/comments/common/commentModel';
 import { IAsyncDataSource, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { WorkbenchAsyncDataTree, IListService, IWorkbenchAsyncDataTreeOptions } from 'vs/platform/list/browser/listService';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IColorMapping } from 'vs/platform/theme/common/styler';
 import { TimestampWidget } from 'vs/workbench/contrib/comments/browser/timestamp';
 import { Codicon } from 'vs/base/common/codicons';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { commentViewThreadStateColorVar, getCommentThreadStateColor } from 'vs/workbench/contrib/comments/browser/commentColors';
+import { CommentThreadState } from 'vs/editor/common/languages';
+import { Color } from 'vs/base/common/color';
 
 export const COMMENTS_VIEW_ID = 'workbench.panel.comments';
 export const COMMENTS_VIEW_TITLE = 'Comments';
@@ -50,11 +51,12 @@ interface IResourceTemplateData {
 
 interface ICommentThreadTemplateData {
 	threadMetadata: {
-		icon?: HTMLElement;
+		icon: HTMLElement;
 		userNames: HTMLSpanElement;
 		timestamp: TimestampWidget;
 		separator: HTMLElement;
 		commentPreview: HTMLSpanElement;
+		range: HTMLSpanElement;
 	};
 	repliesMetadata: {
 		container: HTMLElement;
@@ -121,7 +123,8 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 
 	constructor(
 		@IOpenerService private readonly openerService: IOpenerService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IThemeService private themeService: IThemeService
 	) { }
 
 	renderTemplate(container: HTMLElement) {
@@ -134,7 +137,8 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			userNames: dom.append(metadataContainer, dom.$('.user')),
 			timestamp: new TimestampWidget(this.configurationService, dom.append(metadataContainer, dom.$('.timestamp-container'))),
 			separator: dom.append(metadataContainer, dom.$('.separator')),
-			commentPreview: dom.append(metadataContainer, dom.$('.text'))
+			commentPreview: dom.append(metadataContainer, dom.$('.text')),
+			range: dom.append(metadataContainer, dom.$('.range'))
 		};
 		data.threadMetadata.separator.innerText = '\u00b7';
 
@@ -182,14 +186,32 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		return renderedComment;
 	}
 
+	private getIcon(commentCount: number, threadState?: CommentThreadState): Codicon {
+		if (threadState === CommentThreadState.Unresolved) {
+			return Codicon.commentUnresolved;
+		} else if (commentCount === 1) {
+			return Codicon.comment;
+		} else {
+			return Codicon.commentDiscussion;
+		}
+	}
+
 	renderElement(node: ITreeNode<CommentNode>, index: number, templateData: ICommentThreadTemplateData, height: number | undefined): void {
 		const commentCount = node.element.replies.length + 1;
-		templateData.threadMetadata.icon?.classList.add(...ThemeIcon.asClassNameArray((commentCount === 1) ? Codicon.comment : Codicon.commentDiscussion));
+		templateData.threadMetadata.icon.classList.remove(...Array.from(templateData.threadMetadata.icon.classList.values())
+			.filter(value => value.startsWith('codicon')));
+		templateData.threadMetadata.icon.classList.add(...ThemeIcon.asClassNameArray(this.getIcon(commentCount, node.element.threadState)));
+		if (node.element.threadState !== undefined) {
+			const color = this.getCommentThreadWidgetStateColor(node.element.threadState, this.themeService.getColorTheme());
+			templateData.threadMetadata.icon.style.setProperty(commentViewThreadStateColorVar, `${color}`);
+			templateData.threadMetadata.icon.style.color = `var(${commentViewThreadStateColorVar}`;
+		}
 		templateData.threadMetadata.userNames.textContent = node.element.comment.userName;
 		templateData.threadMetadata.timestamp.setTimestamp(node.element.comment.timestamp ? new Date(node.element.comment.timestamp) : undefined);
 		const originalComment = node.element;
 
 		templateData.threadMetadata.commentPreview.innerText = '';
+		templateData.threadMetadata.commentPreview.style.height = '22px';
 		if (typeof originalComment.comment.body === 'string') {
 			templateData.threadMetadata.commentPreview.innerText = originalComment.comment.body;
 		} else {
@@ -201,6 +223,12 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			templateData.threadMetadata.commentPreview.title = renderedComment.element.textContent ?? '';
 		}
 
+		if (node.element.range.startLineNumber === node.element.range.endLineNumber) {
+			templateData.threadMetadata.range.textContent = nls.localize('commentLine', "[Ln {0}]", node.element.range.startLineNumber);
+		} else {
+			templateData.threadMetadata.range.textContent = nls.localize('commentRange', "[Ln {0}-{1}]", node.element.range.startLineNumber, node.element.range.endLineNumber);
+		}
+
 		if (!node.element.hasReply()) {
 			templateData.repliesMetadata.container.style.display = 'none';
 			return;
@@ -208,9 +236,13 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 
 		templateData.repliesMetadata.container.style.display = '';
 		templateData.repliesMetadata.count.textContent = this.getCountString(commentCount);
-		templateData.repliesMetadata.lastReplyDetail.textContent = nls.localize('lastReplyFrom', "Last reply from {0}", node.element.replies[node.element.replies.length - 1].comment.userName);
-		templateData.repliesMetadata.timestamp.setTimestamp(originalComment.comment.timestamp ? new Date(originalComment.comment.timestamp) : undefined);
+		const lastComment = node.element.replies[node.element.replies.length - 1].comment;
+		templateData.repliesMetadata.lastReplyDetail.textContent = nls.localize('lastReplyFrom', "Last reply from {0}", lastComment.userName);
+		templateData.repliesMetadata.timestamp.setTimestamp(lastComment.timestamp ? new Date(lastComment.timestamp) : undefined);
+	}
 
+	private getCommentThreadWidgetStateColor(state: CommentThreadState | undefined, theme: IColorTheme): Color | undefined {
+		return (state !== undefined) ? getCommentThreadStateColor(state, theme) : undefined;
 	}
 
 	disposeTemplate(templateData: ICommentThreadTemplateData): void {
@@ -232,8 +264,6 @@ export class CommentsList extends WorkbenchAsyncDataTree<any, any> {
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IAccessibilityService accessibilityService: IAccessibilityService
 	) {
 		const delegate = new CommentsModelVirualDelegate();
 		const dataSource = new CommentsAsyncDataSource();
@@ -277,12 +307,11 @@ export class CommentsList extends WorkbenchAsyncDataTree<any, any> {
 				},
 				overrideStyles: options.overrideStyles
 			},
+			instantiationService,
 			contextKeyService,
 			listService,
 			themeService,
-			configurationService,
-			keybindingService,
-			accessibilityService
+			configurationService
 		);
 	}
 }

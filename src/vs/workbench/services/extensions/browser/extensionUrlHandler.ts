@@ -45,7 +45,7 @@ function isExtensionId(value: string): boolean {
 class UserTrustedExtensionIdStorage {
 
 	get extensions(): string[] {
-		const userTrustedExtensionIdsJson = this.storageService.get(USER_TRUSTED_EXTENSIONS_STORAGE_KEY, StorageScope.GLOBAL, '[]');
+		const userTrustedExtensionIdsJson = this.storageService.get(USER_TRUSTED_EXTENSIONS_STORAGE_KEY, StorageScope.PROFILE, '[]');
 
 		try {
 			return JSON.parse(userTrustedExtensionIdsJson);
@@ -65,7 +65,7 @@ class UserTrustedExtensionIdStorage {
 	}
 
 	set(ids: string[]): void {
-		this.storageService.store(USER_TRUSTED_EXTENSIONS_STORAGE_KEY, JSON.stringify(ids), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this.storageService.store(USER_TRUSTED_EXTENSIONS_STORAGE_KEY, JSON.stringify(ids), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 }
 
@@ -82,7 +82,9 @@ export interface ExtensionUrlHandlerEvent {
 }
 
 export interface ExtensionUrlHandlerClassification extends GDPRClassification<ExtensionUrlHandlerEvent> {
-	readonly extensionId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
+	owner: 'joaomoreno';
+	readonly extensionId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The ID of the extension that should handle the URI' };
+	comment: 'This is used to understand the drop funnel of extension URI handling by the OS & VS Code.';
 }
 
 /**

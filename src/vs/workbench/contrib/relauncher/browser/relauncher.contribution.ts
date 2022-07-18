@@ -6,7 +6,7 @@
 import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWindowsConfiguration } from 'vs/platform/window/common/window';
+import { IWindowsConfiguration, IWindowSettings } from 'vs/platform/window/common/window';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
@@ -15,7 +15,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
-import { isMacintosh, isNative, isLinux } from 'vs/base/common/platform';
+import { isMacintosh, isNative, isLinux, isWindows } from 'vs/base/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -26,17 +26,22 @@ interface IConfiguration extends IWindowsConfiguration {
 	debug?: { console?: { wordWrap?: boolean } };
 	editor?: { accessibilitySupport?: 'on' | 'off' | 'auto' };
 	security?: { workspace?: { trust?: { enabled?: boolean } } };
+	window: IWindowSettings & { experimental?: { windowControlsOverlay?: { enabled?: boolean }; useSandbox?: boolean } };
+	workbench?: { experimental?: { settingsProfiles?: { enabled?: boolean } } };
 }
 
 export class SettingsChangeRelauncher extends Disposable implements IWorkbenchContribution {
 
 	private titleBarStyle: 'native' | 'custom' | undefined;
+	private windowControlsOverlayEnabled: boolean | undefined;
+	private windowSandboxEnabled: boolean | undefined;
 	private nativeTabs: boolean | undefined;
 	private nativeFullScreen: boolean | undefined;
 	private clickThroughInactive: boolean | undefined;
 	private updateMode: string | undefined;
 	private accessibilitySupport: 'on' | 'off' | 'auto' | undefined;
 	private workspaceTrustEnabled: boolean | undefined;
+	private settingsProfilesEnabled: boolean | undefined;
 
 	constructor(
 		@IHostService private readonly hostService: IHostService,
@@ -61,6 +66,18 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 				changed = true;
 			}
 
+			// Windows: Window Controls Overlay
+			if (isWindows && typeof config.window?.experimental?.windowControlsOverlay?.enabled === 'boolean' && config.window.experimental.windowControlsOverlay.enabled !== this.windowControlsOverlayEnabled) {
+				this.windowControlsOverlayEnabled = config.window.experimental.windowControlsOverlay.enabled;
+				changed = true;
+			}
+
+			// Windows: Sandbox
+			if (typeof config.window?.experimental?.useSandbox === 'boolean' && config.window.experimental.useSandbox !== this.windowSandboxEnabled) {
+				this.windowSandboxEnabled = config.window.experimental.useSandbox;
+				changed = true;
+			}
+
 			// macOS: Native tabs
 			if (isMacintosh && typeof config.window?.nativeTabs === 'boolean' && config.window.nativeTabs !== this.nativeTabs) {
 				this.nativeTabs = config.window.nativeTabs;
@@ -82,6 +99,12 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 			// Update channel
 			if (typeof config.update?.mode === 'string' && config.update.mode !== this.updateMode) {
 				this.updateMode = config.update.mode;
+				changed = true;
+			}
+
+			// Profiles
+			if (typeof config.workbench?.experimental?.settingsProfiles?.enabled === 'boolean' && config.workbench.experimental.settingsProfiles.enabled !== this.settingsProfilesEnabled) {
+				this.settingsProfilesEnabled = config.workbench.experimental.settingsProfiles.enabled;
 				changed = true;
 			}
 

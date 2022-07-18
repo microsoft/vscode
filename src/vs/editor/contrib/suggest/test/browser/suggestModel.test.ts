@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
 import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
@@ -15,7 +15,8 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { Handler } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { CompletionItemKind, CompletionItemProvider, CompletionList, CompletionTriggerKind, EncodedTokenizationResult, IState, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/languages';
+import { CompletionItemKind, CompletionItemProvider, CompletionList, CompletionTriggerKind, EncodedTokenizationResult, IState, TokenizationRegistry } from 'vs/editor/common/languages';
+import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { NullState } from 'vs/editor/common/languages/nullTokenize';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -26,7 +27,6 @@ import { LineContext, SuggestModel } from 'vs/editor/contrib/suggest/browser/sug
 import { ISelectedSuggestion } from 'vs/editor/contrib/suggest/browser/suggestWidget';
 import { createTestCodeEditor, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createModelServices, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
-import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
@@ -61,6 +61,7 @@ function createMockEditor(model: TextModel, languageFeaturesService: ILanguageFe
 		),
 	});
 	editor.registerAndInstantiateContribution(SnippetController2.ID, SnippetController2);
+	editor.hasWidgetFocus = () => true;
 	return editor;
 }
 
@@ -68,12 +69,14 @@ suite('SuggestModel - Context', function () {
 	const OUTER_LANGUAGE_ID = 'outerMode';
 	const INNER_LANGUAGE_ID = 'innerMode';
 
-	class OuterMode extends MockMode {
+	class OuterMode extends Disposable {
+		public readonly languageId = OUTER_LANGUAGE_ID;
 		constructor(
 			@ILanguageService languageService: ILanguageService,
 			@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
 		) {
-			super(OUTER_LANGUAGE_ID);
+			super();
+			this._register(languageService.registerLanguage({ id: this.languageId }));
 			this._register(languageConfigurationService.register(this.languageId, {}));
 
 			this._register(TokenizationRegistry.register(this.languageId, {
@@ -102,11 +105,14 @@ suite('SuggestModel - Context', function () {
 		}
 	}
 
-	class InnerMode extends MockMode {
+	class InnerMode extends Disposable {
+		public readonly languageId = INNER_LANGUAGE_ID;
 		constructor(
+			@ILanguageService languageService: ILanguageService,
 			@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService
 		) {
-			super(INNER_LANGUAGE_ID);
+			super();
+			this._register(languageService.registerLanguage({ id: this.languageId }));
 			this._register(languageConfigurationService.register(this.languageId, {}));
 		}
 	}
@@ -194,7 +200,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 	let disposables: DisposableStore;
 	let model: TextModel;
 	const languageFeaturesService = new LanguageFeaturesService();
-	let registry = languageFeaturesService.completionProvider;
+	const registry = languageFeaturesService.completionProvider;
 
 	setup(function () {
 		disposables = new DisposableStore();
@@ -247,7 +253,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			return Promise.all([
 
 				assertEvent(model.onDidTrigger, function () {
-					model.trigger({ auto: true, shy: false });
+					model.trigger({ auto: true, shy: false, noSelect: false });
 				}, function (event) {
 					assert.strictEqual(event.auto, true);
 
@@ -259,13 +265,13 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				}),
 
 				assertEvent(model.onDidTrigger, function () {
-					model.trigger({ auto: true, shy: false });
+					model.trigger({ auto: true, shy: false, noSelect: false });
 				}, function (event) {
 					assert.strictEqual(event.auto, true);
 				}),
 
 				assertEvent(model.onDidTrigger, function () {
-					model.trigger({ auto: false, shy: false });
+					model.trigger({ auto: false, shy: false, noSelect: false });
 				}, function (event) {
 					assert.strictEqual(event.auto, false);
 				})
@@ -281,12 +287,12 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 		return withOracle(model => {
 			return Promise.all([
 				assertEvent(model.onDidCancel, function () {
-					model.trigger({ auto: true, shy: false });
+					model.trigger({ auto: true, shy: false, noSelect: false });
 				}, function (event) {
 					assert.strictEqual(event.retrigger, false);
 				}),
 				assertEvent(model.onDidSuggest, function () {
-					model.trigger({ auto: false, shy: false });
+					model.trigger({ auto: false, shy: false, noSelect: false });
 				}, function (event) {
 					assert.strictEqual(event.auto, false);
 					assert.strictEqual(event.isFrozen, false);
@@ -337,7 +343,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 			return assertEvent(model.onDidSuggest, () => {
 				// make sure completionModel starts here!
-				model.trigger({ auto: true, shy: false });
+				model.trigger({ auto: true, shy: false, noSelect: false });
 			}, event => {
 
 				return assertEvent(model.onDidSuggest, () => {
@@ -437,7 +443,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			editor.setPosition({ lineNumber: 1, column: 3 });
 
 			return assertEvent(model.onDidSuggest, () => {
-				model.trigger({ auto: false, shy: false });
+				model.trigger({ auto: false, shy: false, noSelect: false });
 			}, event => {
 				assert.strictEqual(event.auto, false);
 				assert.strictEqual(event.isFrozen, false);
@@ -462,7 +468,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			editor.setPosition({ lineNumber: 1, column: 3 });
 
 			return assertEvent(model.onDidSuggest, () => {
-				model.trigger({ auto: false, shy: false });
+				model.trigger({ auto: false, shy: false, noSelect: false });
 			}, event => {
 				assert.strictEqual(event.auto, false);
 				assert.strictEqual(event.isFrozen, false);
@@ -499,7 +505,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			editor.setPosition({ lineNumber: 1, column: 4 });
 
 			return assertEvent(model.onDidSuggest, () => {
-				model.trigger({ auto: false, shy: false });
+				model.trigger({ auto: false, shy: false, noSelect: false });
 			}, event => {
 				assert.strictEqual(event.auto, false);
 				assert.strictEqual(event.completionModel.incomplete.size, 1);
@@ -536,7 +542,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			editor.setPosition({ lineNumber: 1, column: 4 });
 
 			return assertEvent(model.onDidSuggest, () => {
-				model.trigger({ auto: false, shy: false });
+				model.trigger({ auto: false, shy: false, noSelect: false });
 			}, event => {
 				assert.strictEqual(event.auto, false);
 				assert.strictEqual(event.completionModel.incomplete.size, 1);
@@ -695,7 +701,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 			await assertEvent(sugget.onDidSuggest, () => {
 				editor.setPosition({ lineNumber: 1, column: 3 });
-				sugget.trigger({ auto: false, shy: false });
+				sugget.trigger({ auto: false, shy: false, noSelect: false });
 			}, event => {
 
 				assert.strictEqual(event.completionModel.items.length, 1);
@@ -919,6 +925,21 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			}, event => {
 				assert.strictEqual(event.auto, true);
 				assert.strictEqual(event.completionModel.items.length, 2);
+			});
+		});
+	});
+
+	test('noSelect-flag makes it from request to suggest event', function () {
+
+		disposables.add(registry.register({ scheme: 'test' }, alwaysSomethingSupport));
+
+		return withOracle((model, editor) => {
+			return assertEvent(model.onDidSuggest, () => {
+				model.trigger({ auto: false, noSelect: true, shy: false });
+			}, event => {
+				assert.strictEqual(event.noSelect, true);
+				assert.strictEqual(event.auto, false);
+				assert.strictEqual(event.shy, false);
 			});
 		});
 	});

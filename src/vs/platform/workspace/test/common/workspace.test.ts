@@ -28,7 +28,7 @@ suite('Workspace', () => {
 
 	test('getFolder returns the folder with given uri', () => {
 		const expected = new WorkspaceFolder({ uri: testFolderUri, name: '', index: 2 });
-		let testObject = new Workspace('', [new WorkspaceFolder({ uri: mainFolderUri, name: '', index: 0 }), expected, new WorkspaceFolder({ uri: URI.file('/src/code'), name: '', index: 2 })], false, null, () => !isLinux);
+		const testObject = new Workspace('', [new WorkspaceFolder({ uri: mainFolderUri, name: '', index: 0 }), expected, new WorkspaceFolder({ uri: URI.file('/src/code'), name: '', index: 2 })], false, null, () => !isLinux);
 
 		const actual = testObject.getFolder(expected.uri);
 
@@ -37,7 +37,7 @@ suite('Workspace', () => {
 
 	test('getFolder returns the folder if the uri is sub', () => {
 		const expected = new WorkspaceFolder({ uri: testFolderUri, name: '', index: 0 });
-		let testObject = new Workspace('', [expected, new WorkspaceFolder({ uri: mainFolderUri, name: '', index: 1 }), new WorkspaceFolder({ uri: URI.file('/src/code'), name: '', index: 2 })], false, null, () => !isLinux);
+		const testObject = new Workspace('', [expected, new WorkspaceFolder({ uri: mainFolderUri, name: '', index: 1 }), new WorkspaceFolder({ uri: URI.file('/src/code'), name: '', index: 2 })], false, null, () => !isLinux);
 
 		const actual = testObject.getFolder(URI.file(join(fileFolder, 'test/a')));
 
@@ -46,7 +46,7 @@ suite('Workspace', () => {
 
 	test('getFolder returns the closest folder if the uri is sub', () => {
 		const expected = new WorkspaceFolder({ uri: testFolderUri, name: '', index: 2 });
-		let testObject = new Workspace('', [new WorkspaceFolder({ uri: mainFolderUri, name: '', index: 0 }), new WorkspaceFolder({ uri: URI.file('/src/code'), name: '', index: 1 }), expected], false, null, () => !isLinux);
+		const testObject = new Workspace('', [new WorkspaceFolder({ uri: mainFolderUri, name: '', index: 0 }), new WorkspaceFolder({ uri: URI.file('/src/code'), name: '', index: 1 }), expected], false, null, () => !isLinux);
 
 		const actual = testObject.getFolder(URI.file(join(fileFolder, 'test/a')));
 
@@ -55,7 +55,7 @@ suite('Workspace', () => {
 
 	test('getFolder returns the folder even if the uri has query path', () => {
 		const expected = new WorkspaceFolder({ uri: testFolderUri, name: '', index: 2 });
-		let testObject = new Workspace('', [new WorkspaceFolder({ uri: mainFolderUri, name: '', index: 0 }), new WorkspaceFolder({ uri: URI.file('/src/code'), name: '', index: 1 }), expected], false, null, () => !isLinux);
+		const testObject = new Workspace('', [new WorkspaceFolder({ uri: mainFolderUri, name: '', index: 0 }), new WorkspaceFolder({ uri: URI.file('/src/code'), name: '', index: 1 }), expected], false, null, () => !isLinux);
 
 		const actual = testObject.getFolder(URI.file(join(fileFolder, 'test/a')).with({ query: 'somequery' }));
 
@@ -63,7 +63,7 @@ suite('Workspace', () => {
 	});
 
 	test('getFolder returns null if the uri is not sub', () => {
-		let testObject = new Workspace('', [new WorkspaceFolder({ uri: testFolderUri, name: '', index: 0 }), new WorkspaceFolder({ uri: URI.file('/src/code'), name: '', index: 1 })], false, null, () => !isLinux);
+		const testObject = new Workspace('', [new WorkspaceFolder({ uri: testFolderUri, name: '', index: 0 }), new WorkspaceFolder({ uri: URI.file('/src/code'), name: '', index: 1 })], false, null, () => !isLinux);
 
 		const actual = testObject.getFolder(URI.file(join(fileFolder, 'main/a')));
 

@@ -22,7 +22,6 @@ import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/termin
 import { TerminalLinkDetectorAdapter } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkDetectorAdapter';
 import { TerminalLocalFileLinkOpener, TerminalLocalFolderInWorkspaceLinkOpener, TerminalLocalFolderOutsideWorkspaceLinkOpener, TerminalSearchLinkOpener, TerminalUrlLinkOpener } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkOpeners';
 import { lineAndColumnClause, TerminalLocalLinkDetector, unixLocalLinkClause, winDrivePrefix, winLocalLinkClause } from 'vs/workbench/contrib/terminal/browser/links/terminalLocalLinkDetector';
-import { TerminalShellIntegrationLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalShellIntegrationLinkDetector';
 import { TerminalUriLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalUriLinkDetector';
 import { TerminalWordLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalWordLinkDetector';
 import { ITerminalExternalLinkProvider, TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -58,6 +57,8 @@ export class TerminalLinkManager extends DisposableStore {
 	// both local and remote terminals are present
 	private readonly _resolvedLinkCache = new LinkCache();
 
+	private _lastTopLine: number | undefined;
+
 	constructor(
 		private readonly _xterm: Terminal,
 		private readonly _processManager: ITerminalProcessManager,
@@ -75,7 +76,6 @@ export class TerminalLinkManager extends DisposableStore {
 		if (this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).enableFileLinks) {
 			this._setupLinkDetector(TerminalLocalLinkDetector.id, this._instantiationService.createInstance(TerminalLocalLinkDetector, this._xterm, capabilities, this._processManager.os || OS, this._resolvePath.bind(this)));
 		}
-		this._setupLinkDetector(TerminalShellIntegrationLinkDetector.id, this._instantiationService.createInstance(TerminalShellIntegrationLinkDetector, this._xterm));
 		this._setupLinkDetector(TerminalWordLinkDetector.id, this._instantiationService.createInstance(TerminalWordLinkDetector, this._xterm));
 
 		capabilities.get(TerminalCapability.CwdDetection)?.onDidChangeCwd(cwd => {
@@ -88,7 +88,7 @@ export class TerminalLinkManager extends DisposableStore {
 		this._openers.set(TerminalBuiltinLinkType.LocalFile, localFileOpener);
 		this._openers.set(TerminalBuiltinLinkType.LocalFolderInWorkspace, localFolderInWorkspaceOpener);
 		this._openers.set(TerminalBuiltinLinkType.LocalFolderOutsideWorkspace, this._instantiationService.createInstance(TerminalLocalFolderOutsideWorkspaceLinkOpener));
-		this._openers.set(TerminalBuiltinLinkType.Search, this._instantiationService.createInstance(TerminalSearchLinkOpener, capabilities, localFileOpener, localFolderInWorkspaceOpener, this._processManager.os || OS));
+		this._openers.set(TerminalBuiltinLinkType.Search, this._instantiationService.createInstance(TerminalSearchLinkOpener, capabilities, this._processManager.getInitialCwd(), localFileOpener, localFolderInWorkspaceOpener, this._processManager.os || OS));
 		this._openers.set(TerminalBuiltinLinkType.Url, this._instantiationService.createInstance(TerminalUrlLinkOpener, !!this._processManager.remoteAuthority));
 
 		this._registerStandardLinkProviders();
@@ -143,12 +143,20 @@ export class TerminalLinkManager extends DisposableStore {
 		return links[0];
 	}
 
-	async getLinks(): Promise<IDetectedLinks> {
+	async getLinks(extended?: boolean): Promise<IDetectedLinks> {
 		const wordResults: ILink[] = [];
 		const webResults: ILink[] = [];
 		const fileResults: ILink[] = [];
-
-		for (let i = this._xterm.buffer.active.length - 1; i >= this._xterm.buffer.active.viewportY; i--) {
+		let noMoreResults: boolean = false;
+		let topLine = !extended ? this._xterm.buffer.active.viewportY - Math.min(this._xterm.rows, 50) : this._lastTopLine! - 1000;
+		if (topLine < 0 || topLine - Math.min(this._xterm.rows, 50) < 0) {
+			noMoreResults = true;
+		}
+		if (topLine < 0) {
+			topLine = 0;
+		}
+		this._lastTopLine = topLine;
+		for (let i = this._xterm.buffer.active.length - 1; i >= topLine; i--) {
 			const links = await this._getLinksForLine(i);
 			if (links) {
 				const { wordLinks, webLinks, fileLinks } = links;
@@ -163,11 +171,11 @@ export class TerminalLinkManager extends DisposableStore {
 				}
 			}
 		}
-		return { webLinks: webResults, fileLinks: fileResults, wordLinks: wordResults };
+		return { webLinks: webResults, fileLinks: fileResults, wordLinks: wordResults, noMoreResults };
 	}
 
 	private async _getLinksForLine(y: number): Promise<IDetectedLinks | undefined> {
-		let unfilteredWordLinks = await this._getLinksForType(y, 'word');
+		const unfilteredWordLinks = await this._getLinksForType(y, 'word');
 		const webLinks = await this._getLinksForType(y, 'url');
 		const fileLinks = await this._getLinksForType(y, 'localFile');
 		const words = new Set();
@@ -471,6 +479,7 @@ export interface IDetectedLinks {
 	wordLinks?: ILink[];
 	webLinks?: ILink[];
 	fileLinks?: ILink[];
+	noMoreResults?: boolean;
 }
 
 const enum LinkCacheConstants {

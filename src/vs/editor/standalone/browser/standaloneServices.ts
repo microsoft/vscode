@@ -29,18 +29,18 @@ import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService 
 import { ITextResourceConfigurationService, ITextResourcePropertiesService, ITextResourceConfigurationChangeEvent } from 'vs/editor/common/services/textResourceConfiguration';
 import { CommandsRegistry, ICommandEvent, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationModel, IConfigurationValue, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { Configuration, ConfigurationModel, DefaultConfigurationModel, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
+import { Configuration, ConfigurationModel, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
 import { IContextKeyService, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IInputResult, IShowResult } from 'vs/platform/dialogs/common/dialogs';
 import { createDecorator, IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
-import { IKeybindingEvent, IKeybindingService, IKeyboardEvent, KeybindingSource, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingService, IKeyboardEvent, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingItem, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { ILabelService, ResourceLabelFormatter, IFormatterChangeEvent } from 'vs/platform/label/common/label';
-import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification, IStatusMessageOptions, NotificationsFilter } from 'vs/platform/notification/common/notification';
+import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification, IStatusMessageOptions } from 'vs/platform/notification/common/notification';
 import { IProgressRunner, IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { ITelemetryInfo, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -85,8 +85,10 @@ import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
+import { staticObservableValue } from 'vs/base/common/observableValue';
 
 import 'vs/editor/common/services/languageFeaturesService';
+import { DefaultConfigurationModel } from 'vs/platform/configuration/common/configurations';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -230,7 +232,11 @@ export class StandaloneNotificationService implements INotificationService {
 
 	readonly onDidRemoveNotification: Event<INotification> = Event.None;
 
+	readonly onDidChangeDoNotDisturbMode: Event<void> = Event.None;
+
 	public _serviceBrand: undefined;
+
+	public doNotDisturbMode: boolean = false;
 
 	private static readonly NO_OP: INotificationHandle = new NoOpNotification();
 
@@ -269,8 +275,6 @@ export class StandaloneNotificationService implements INotificationService {
 	public status(message: string | Error, options?: IStatusMessageOptions): IDisposable {
 		return Disposable.None;
 	}
-
-	public setFilter(filter: NotificationsFilter): void { }
 }
 
 export class StandaloneCommandService implements ICommandService {
@@ -408,7 +412,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 					const kb = this._dynamicKeybindings[i];
 					if (kb.command === commandId) {
 						this._dynamicKeybindings.splice(i, 1);
-						this.updateResolver({ source: KeybindingSource.Default });
+						this.updateResolver();
 						return;
 					}
 				}
@@ -417,14 +421,14 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 
 		toDispose.add(CommandsRegistry.registerCommand(commandId, handler));
 
-		this.updateResolver({ source: KeybindingSource.Default });
+		this.updateResolver();
 
 		return toDispose;
 	}
 
-	private updateResolver(event: IKeybindingEvent): void {
+	private updateResolver(): void {
 		this._cachedResolver = null;
-		this._onDidUpdateKeybindings.fire(event);
+		this._onDidUpdateKeybindings.fire();
 	}
 
 	protected _getResolver(): KeybindingResolver {
@@ -520,7 +524,7 @@ export class StandaloneConfigurationService implements IConfigurationService {
 	private readonly _configuration: Configuration;
 
 	constructor() {
-		this._configuration = new Configuration(new DefaultConfigurationModel(), new ConfigurationModel());
+		this._configuration = new Configuration(new DefaultConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
 	}
 
 	getValue<T>(): T;
@@ -581,6 +585,8 @@ export class StandaloneConfigurationService implements IConfigurationService {
 		};
 		return {
 			defaults: emptyModel,
+			policy: emptyModel,
+			application: emptyModel,
 			user: emptyModel,
 			workspace: emptyModel,
 			folders: []
@@ -640,7 +646,7 @@ class StandaloneResourcePropertiesService implements ITextResourcePropertiesServ
 class StandaloneTelemetryService implements ITelemetryService {
 	declare readonly _serviceBrand: undefined;
 
-	public telemetryLevel = TelemetryLevel.NONE;
+	public telemetryLevel = staticObservableValue(TelemetryLevel.NONE);
 	public sendErrorTelemetry = false;
 
 	public setEnabled(value: boolean): void {
@@ -768,7 +774,7 @@ class StandaloneBulkEditService implements IBulkEditService {
 
 		const textEdits = new Map<ITextModel, ISingleEditOperation[]>();
 
-		for (let edit of edits) {
+		for (const edit of edits) {
 			if (!(edit instanceof ResourceTextEdit)) {
 				throw new Error('bad edit - only text edits are supported');
 			}
@@ -831,6 +837,10 @@ class StandaloneUriLabelService implements ILabelService {
 
 	public registerFormatter(formatter: ResourceLabelFormatter): IDisposable {
 		throw new Error('Not implemented');
+	}
+
+	public registerCachedFormatter(formatter: ResourceLabelFormatter): IDisposable {
+		return this.registerFormatter(formatter);
 	}
 
 	public getHostLabel(): string {

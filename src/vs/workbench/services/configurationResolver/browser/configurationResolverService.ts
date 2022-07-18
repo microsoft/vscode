@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { BaseConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/baseConfigurationResolverService';
+import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 export class ConfigurationResolverService extends BaseConfigurationResolverService {
 
@@ -23,11 +24,12 @@ export class ConfigurationResolverService extends BaseConfigurationResolverServi
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IQuickInputService quickInputService: IQuickInputService,
 		@ILabelService labelService: ILabelService,
-		@IPathService pathService: IPathService
+		@IPathService pathService: IPathService,
+		@IExtensionService extensionService: IExtensionService,
 	) {
 		super({ getAppRoot: () => undefined, getExecPath: () => undefined },
 			Promise.resolve(Object.create(null)), editorService, configurationService,
-			commandService, workspaceContextService, quickInputService, labelService, pathService);
+			commandService, workspaceContextService, quickInputService, labelService, pathService, extensionService);
 	}
 }
 

@@ -13,7 +13,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { DiffNavigator, IDiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
 import { ApplyUpdateResult, ConfigurationChangedEvent, EditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
-import { EditorType } from 'vs/editor/common/editorCommon';
+import { EditorType, IDiffEditor } from 'vs/editor/common/editorCommon';
 import { FindMatch, ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
 import * as languages from 'vs/editor/common/languages';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
@@ -50,6 +50,33 @@ export function onDidCreateEditor(listener: (codeEditor: ICodeEditor) => void): 
 	return codeEditorService.onCodeEditorAdd((editor) => {
 		listener(<ICodeEditor>editor);
 	});
+}
+
+/**
+ * Emitted when an diff editor is created.
+ * @event
+ */
+export function onDidCreateDiffEditor(listener: (diffEditor: IDiffEditor) => void): IDisposable {
+	const codeEditorService = StandaloneServices.get(ICodeEditorService);
+	return codeEditorService.onDiffEditorAdd((editor) => {
+		listener(<IDiffEditor>editor);
+	});
+}
+
+/**
+ * Get all the created editors.
+ */
+export function getEditors(): readonly ICodeEditor[] {
+	const codeEditorService = StandaloneServices.get(ICodeEditorService);
+	return codeEditorService.listCodeEditors();
+}
+
+/**
+ * Get all the created diff editors.
+ */
+export function getDiffEditors(): readonly IDiffEditor[] {
+	const codeEditorService = StandaloneServices.get(ICodeEditorService);
+	return codeEditorService.listDiffEditors();
 }
 
 /**
@@ -105,6 +132,14 @@ export function setModelMarkers(model: ITextModel, owner: string, markers: IMark
 		const markerService = StandaloneServices.get(IMarkerService);
 		markerService.changeOne(owner, model.uri, markers);
 	}
+}
+
+/**
+ * Remove all markers of an owner.
+ */
+export function removeAllMarkers(owner: string) {
+	const markerService = StandaloneServices.get(IMarkerService);
+	markerService.changeAll(owner, []);
 }
 
 /**
@@ -283,7 +318,10 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 	return {
 		// methods
 		create: <any>create,
+		getEditors: <any>getEditors,
+		getDiffEditors: <any>getDiffEditors,
 		onDidCreateEditor: <any>onDidCreateEditor,
+		onDidCreateDiffEditor: <any>onDidCreateDiffEditor,
 		createDiffEditor: <any>createDiffEditor,
 		createDiffNavigator: <any>createDiffNavigator,
 
@@ -291,6 +329,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		setModelLanguage: <any>setModelLanguage,
 		setModelMarkers: <any>setModelMarkers,
 		getModelMarkers: <any>getModelMarkers,
+		removeAllMarkers: removeAllMarkers,
 		onDidChangeMarkers: <any>onDidChangeMarkers,
 		getModels: <any>getModels,
 		getModel: <any>getModel,

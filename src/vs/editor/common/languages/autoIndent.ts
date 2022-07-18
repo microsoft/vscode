@@ -14,9 +14,11 @@ import { getScopedLineTokens, ILanguageConfigurationService } from 'vs/editor/co
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 
 export interface IVirtualModel {
-	getLineTokens(lineNumber: number): LineTokens;
-	getLanguageId(): string;
-	getLanguageIdAtPosition(lineNumber: number, column: number): string;
+	tokenization: {
+		getLineTokens(lineNumber: number): LineTokens;
+		getLanguageId(): string;
+		getLanguageIdAtPosition(lineNumber: number, column: number): string;
+	};
 	getLineContent(lineNumber: number): string;
 }
 
@@ -34,13 +36,13 @@ export interface IIndentConverter {
  * else: nearest preceding line of the same language
  */
 function getPrecedingValidLine(model: IVirtualModel, lineNumber: number, indentRulesSupport: IndentRulesSupport) {
-	const languageId = model.getLanguageIdAtPosition(lineNumber, 0);
+	const languageId = model.tokenization.getLanguageIdAtPosition(lineNumber, 0);
 	if (lineNumber > 1) {
 		let lastLineNumber: number;
 		let resultLineNumber = -1;
 
 		for (lastLineNumber = lineNumber - 1; lastLineNumber >= 1; lastLineNumber--) {
-			if (model.getLanguageIdAtPosition(lastLineNumber, 0) !== languageId) {
+			if (model.tokenization.getLanguageIdAtPosition(lastLineNumber, 0) !== languageId) {
 				return resultLineNumber;
 			}
 			const text = model.getLineContent(lastLineNumber);
@@ -79,7 +81,7 @@ export function getInheritIndentForLine(
 		return null;
 	}
 
-	const indentRulesSupport = languageConfigurationService.getLanguageConfiguration(model.getLanguageId()).indentRulesSupport;
+	const indentRulesSupport = languageConfigurationService.getLanguageConfiguration(model.tokenization.getLanguageId()).indentRulesSupport;
 	if (!indentRulesSupport) {
 		return null;
 	}
@@ -283,8 +285,8 @@ export function getIndentForEnter(
 	if (autoIndent < EditorAutoIndentStrategy.Full) {
 		return null;
 	}
-	model.forceTokenization(range.startLineNumber);
-	const lineTokens = model.getLineTokens(range.startLineNumber);
+	model.tokenization.forceTokenization(range.startLineNumber);
+	const lineTokens = model.tokenization.getLineTokens(range.startLineNumber);
 	const scopedLineTokens = createScopedLineTokens(lineTokens, range.startColumn - 1);
 	const scopedLineText = scopedLineTokens.getLineContent();
 
@@ -315,14 +317,16 @@ export function getIndentForEnter(
 	const beforeEnterIndent = strings.getLeadingWhitespace(beforeEnterText);
 
 	const virtualModel: IVirtualModel = {
-		getLineTokens: (lineNumber: number) => {
-			return model.getLineTokens(lineNumber);
-		},
-		getLanguageId: () => {
-			return model.getLanguageId();
-		},
-		getLanguageIdAtPosition: (lineNumber: number, column: number) => {
-			return model.getLanguageIdAtPosition(lineNumber, column);
+		tokenization: {
+			getLineTokens: (lineNumber: number) => {
+				return model.tokenization.getLineTokens(lineNumber);
+			},
+			getLanguageId: () => {
+				return model.getLanguageId();
+			},
+			getLanguageIdAtPosition: (lineNumber: number, column: number) => {
+				return model.getLanguageIdAtPosition(lineNumber, column);
+			},
 		},
 		getLineContent: (lineNumber: number) => {
 			if (lineNumber === range.startLineNumber) {

@@ -70,7 +70,7 @@ import 'vs/workbench/contrib/notebook/browser/controller/foldingController';
 
 // Editor Contribution
 import 'vs/workbench/contrib/notebook/browser/contrib/clipboard/notebookClipboard';
-import 'vs/workbench/contrib/notebook/browser/contrib/find/findController';
+import 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFind';
 import 'vs/workbench/contrib/notebook/browser/contrib/format/formatting';
 import 'vs/workbench/contrib/notebook/browser/contrib/gettingStarted/notebookGettingStarted';
 import 'vs/workbench/contrib/notebook/browser/contrib/layout/layoutActions';
@@ -846,9 +846,10 @@ configurationRegistry.registerConfiguration({
 		[NotebookSetting.showFoldingControls]: {
 			description: nls.localize('notebook.showFoldingControls.description', "Controls when the Markdown header folding arrow is shown."),
 			type: 'string',
-			enum: ['always', 'mouseover'],
+			enum: ['always', 'never', 'mouseover'],
 			enumDescriptions: [
 				nls.localize('showFoldingControls.always', "The folding controls are always visible."),
+				nls.localize('showFoldingControls.never', "Never show the folding controls and reduce the gutter size."),
 				nls.localize('showFoldingControls.mouseover', "The folding controls are visible only on mouseover."),
 			],
 			default: 'mouseover',
@@ -880,7 +881,7 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout']
 		},
 		[NotebookSetting.markupFontSize]: {
-			markdownDescription: nls.localize('notebook.markup.fontSize', "Controls the font size in pixels of rendered markup in notebooks. When set to `0`, 120% of `#editor.fontSize#` is used."),
+			markdownDescription: nls.localize('notebook.markup.fontSize', "Controls the font size in pixels of rendered markup in notebooks. When set to {0}, 120% of {1} is used.", '`0`', '`#editor.fontSize#`'),
 			type: 'number',
 			default: 0,
 			tags: ['notebookLayout']
@@ -891,6 +892,23 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['always', 'never', 'fromEditor'],
 			default: 'fromEditor'
+		},
+		[NotebookSetting.outputLineHeight]: {
+			markdownDescription: nls.localize('notebook.outputLineHeight', "Line height of the output text for notebook cells.\n - Values between 0 and 8 will be used as a multiplier with the font size.\n - Values greater than or equal to 8 will be used as effective values."),
+			type: 'number',
+			default: 22,
+			tags: ['notebookLayout']
+		},
+		[NotebookSetting.outputFontSize]: {
+			markdownDescription: nls.localize('notebook.outputFontSize', "Font size for the output text for notebook cells. When set to {0}, {1} is used.", '`0`', '`#editor.fontSize#`'),
+			type: 'number',
+			default: 0,
+			tags: ['notebookLayout']
+		},
+		[NotebookSetting.outputFontFamily]: {
+			markdownDescription: nls.localize('notebook.outputFontFamily', "The font family for the output text for notebook cells. When set to empty, the {0} is used.", '`#editor.fontFamily#`'),
+			type: 'string',
+			tags: ['notebookLayout']
 		},
 	}
 });

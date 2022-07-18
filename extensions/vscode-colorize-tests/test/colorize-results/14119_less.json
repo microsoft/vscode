@@ -8,7 +8,7 @@
 			"dark_vs": "source.css.less entity.other.attribute-name.id: #D7BA7D",
 			"light_vs": "source.css.less entity.other.attribute-name.id: #800000",
 			"hc_black": "source.css.less entity.other.attribute-name.id: #D7BA7D",
-			"hc_light": "source.css.less entity.other.attribute-name.id: #800000"
+			"hc_light": "source.css.less entity.other.attribute-name.id: #0F4A85"
 		}
 	},
 	{
@@ -20,7 +20,7 @@
 			"dark_vs": "source.css.less entity.other.attribute-name.id: #D7BA7D",
 			"light_vs": "source.css.less entity.other.attribute-name.id: #800000",
 			"hc_black": "source.css.less entity.other.attribute-name.id: #D7BA7D",
-			"hc_light": "source.css.less entity.other.attribute-name.id: #800000"
+			"hc_light": "source.css.less entity.other.attribute-name.id: #0F4A85"
 		}
 	},
 	{
@@ -92,7 +92,7 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"hc_light": "string: #A31515"
+			"hc_light": "string: #0F4A85"
 		}
 	},
 	{
@@ -104,7 +104,7 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"hc_light": "string: #A31515"
+			"hc_light": "string: #0F4A85"
 		}
 	},
 	{
@@ -116,7 +116,7 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"hc_light": "string: #A31515"
+			"hc_light": "string: #0F4A85"
 		}
 	},
 	{
@@ -176,7 +176,7 @@
 			"dark_vs": "entity.name.tag.css: #D7BA7D",
 			"light_vs": "entity.name.tag: #800000",
 			"hc_black": "entity.name.tag.css: #D7BA7D",
-			"hc_light": "entity.name.tag: #800000"
+			"hc_light": "entity.name.tag: #0F4A85"
 		}
 	},
 	{
@@ -212,7 +212,7 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"hc_light": "string: #A31515"
+			"hc_light": "string: #0F4A85"
 		}
 	},
 	{
@@ -224,7 +224,7 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"hc_light": "string: #A31515"
+			"hc_light": "string: #0F4A85"
 		}
 	},
 	{

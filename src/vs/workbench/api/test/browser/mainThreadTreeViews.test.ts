@@ -57,7 +57,7 @@ suite('MainThreadHostTreeView', function () {
 			id: testTreeViewId,
 			ctorDescriptor: null!,
 			name: 'Test View 1',
-			treeView: instantiationService.createInstance(CustomTreeView, 'testTree', 'Test Title'),
+			treeView: instantiationService.createInstance(CustomTreeView, 'testTree', 'Test Title', 'extension.id'),
 		};
 		ViewsRegistry.registerViews([viewDescriptor], container);
 
@@ -67,6 +67,7 @@ suite('MainThreadHostTreeView', function () {
 			new class implements IExtHostContext {
 				remoteAuthority = '';
 				extensionHostKind = ExtensionHostKind.LocalProcess;
+				dispose() { }
 				assertRegistered() { }
 				set(v: any): any { return null; }
 				getProxy(): any {

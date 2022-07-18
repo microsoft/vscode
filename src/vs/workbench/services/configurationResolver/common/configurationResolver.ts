@@ -14,7 +14,7 @@ export const IConfigurationResolverService = createDecorator<IConfigurationResol
 export interface IConfigurationResolverService {
 	readonly _serviceBrand: undefined;
 
-	resolveWithEnvironment(environment: IProcessEnvironment, folder: IWorkspaceFolder | undefined, value: string): string;
+	resolveWithEnvironment(environment: IProcessEnvironment, folder: IWorkspaceFolder | undefined, value: string): Promise<string>;
 
 	resolveAsync(folder: IWorkspaceFolder | undefined, value: string): Promise<string>;
 	resolveAsync(folder: IWorkspaceFolder | undefined, value: string[]): Promise<string[]>;

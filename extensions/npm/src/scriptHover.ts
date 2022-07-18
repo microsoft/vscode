@@ -52,7 +52,7 @@ export class NpmScriptHoverProvider implements HoverProvider {
 
 		cachedScripts?.scripts.forEach(({ name, nameRange }) => {
 			if (nameRange.contains(position)) {
-				let contents: MarkdownString = new MarkdownString();
+				const contents: MarkdownString = new MarkdownString();
 				contents.isTrusted = true;
 				contents.appendMarkdown(this.createRunScriptMarkdown(name, document.uri));
 				contents.appendMarkdown(this.createDebugScriptMarkdown(name, document.uri));
@@ -63,7 +63,7 @@ export class NpmScriptHoverProvider implements HoverProvider {
 	}
 
 	private createRunScriptMarkdown(script: string, documentUri: Uri): string {
-		let args = {
+		const args = {
 			documentUri: documentUri,
 			script: script,
 		};
@@ -90,7 +90,7 @@ export class NpmScriptHoverProvider implements HoverProvider {
 	}
 
 	private createMarkdownLink(label: string, cmd: string, args: any, tooltip: string, separator?: string): string {
-		let encodedArgs = encodeURIComponent(JSON.stringify(args));
+		const encodedArgs = encodeURIComponent(JSON.stringify(args));
 		let prefix = '';
 		if (separator) {
 			prefix = ` ${separator} `;
@@ -99,19 +99,19 @@ export class NpmScriptHoverProvider implements HoverProvider {
 	}
 
 	public async runScriptFromHover(args: any) {
-		let script = args.script;
-		let documentUri = args.documentUri;
-		let folder = workspace.getWorkspaceFolder(documentUri);
+		const script = args.script;
+		const documentUri = args.documentUri;
+		const folder = workspace.getWorkspaceFolder(documentUri);
 		if (folder) {
-			let task = await createTask(await getPackageManager(this.context, folder.uri), script, ['run', script], folder, documentUri);
+			const task = await createTask(await getPackageManager(this.context, folder.uri), script, ['run', script], folder, documentUri);
 			await tasks.executeTask(task);
 		}
 	}
 
 	public debugScriptFromHover(args: { script: string; documentUri: Uri }) {
-		let script = args.script;
-		let documentUri = args.documentUri;
-		let folder = workspace.getWorkspaceFolder(documentUri);
+		const script = args.script;
+		const documentUri = args.documentUri;
+		const folder = workspace.getWorkspaceFolder(documentUri);
 		if (folder) {
 			startDebugging(this.context, script, dirname(documentUri.fsPath), folder);
 		}

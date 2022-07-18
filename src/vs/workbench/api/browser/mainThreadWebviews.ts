@@ -65,8 +65,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 	public async $postMessage(handle: extHostProtocol.WebviewHandle, jsonMessage: string, ...buffers: VSBuffer[]): Promise<boolean> {
 		const webview = this.getWebview(handle);
 		const { message, arrayBuffers } = deserializeWebviewMessage(jsonMessage, buffers);
-		webview.postMessage(message, arrayBuffers);
-		return true;
+		return webview.postMessage(message, arrayBuffers);
 	}
 
 	private hookupWebviewEventDelegate(handle: extHostProtocol.WebviewHandle, webview: IOverlayWebview, options: { serializeBuffersForPostMessage: boolean }) {

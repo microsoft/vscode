@@ -70,12 +70,13 @@ import { Codicon } from 'vs/base/common/codicons';
 import { restoreWalkthroughsConfigurationKey, RestoreWalkthroughsConfigurationValue } from 'vs/workbench/contrib/welcomeGettingStarted/browser/startupPage';
 import { GettingStartedDetailsRenderer } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedDetailsRenderer';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
 
-export const allWalkthroughsHiddenContext = new RawContextKey('allWalkthroughsHidden', false);
-export const inWelcomeContext = new RawContextKey('inWelcome', false);
+export const allWalkthroughsHiddenContext = new RawContextKey<boolean>('allWalkthroughsHidden', false);
+export const inWelcomeContext = new RawContextKey<boolean>('inWelcome', false);
 export const embedderIdentifierContext = new RawContextKey<string | undefined>('embedderIdentifier', undefined);
 
 export interface IWelcomePageStartEntry {
@@ -99,12 +100,16 @@ const parsedStartEntries: IWelcomePageStartEntry[] = startEntries.map((e, i) => 
 }));
 
 type GettingStartedActionClassification = {
-	command: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; owner: 'JacksonKearl'; comment: 'Help understand what actions are most commonly taken on the getting started page' };
-	argument: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; owner: 'JacksonKearl'; comment: 'As above' };
+	command: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The command being executed on the getting started page.' };
+	walkthroughId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The walkthrough which the command is in' };
+	argument: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The arguments being passed to the command' };
+	owner: 'lramos15';
+	comment: 'Help understand what actions are most commonly taken on the getting started page';
 };
 
 type GettingStartedActionEvent = {
 	command: string;
+	walkthroughId: string | undefined;
 	argument: string | undefined;
 };
 
@@ -343,7 +348,7 @@ export class GettingStartedPage extends EditorPane {
 
 	private async runDispatchCommand(command: string, argument: string) {
 		this.commandService.executeCommand('workbench.action.keepEditor');
-		this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command, argument });
+		this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command, argument, walkthroughId: this.currentWalkthrough?.id });
 		switch (command) {
 			case 'scrollPrev': {
 				this.scrollPrev();
@@ -465,14 +470,14 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private getHiddenCategories(): Set<string> {
-		return new Set(JSON.parse(this.storageService.get(hiddenEntriesConfigurationKey, StorageScope.GLOBAL, '[]')));
+		return new Set(JSON.parse(this.storageService.get(hiddenEntriesConfigurationKey, StorageScope.PROFILE, '[]')));
 	}
 
 	private setHiddenCategories(hidden: string[]) {
 		this.storageService.store(
 			hiddenEntriesConfigurationKey,
 			JSON.stringify(hidden),
-			StorageScope.GLOBAL,
+			StorageScope.PROFILE,
 			StorageTarget.USER);
 	}
 
@@ -511,7 +516,7 @@ export class GettingStartedPage extends EditorPane {
 				if (hrefs.length === 1) {
 					const href = hrefs[0];
 					if (href.startsWith('http')) {
-						this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'runStepAction', argument: href });
+						this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'runStepAction', argument: href, walkthroughId: this.currentWalkthrough?.id });
 						this.openerService.open(href);
 					}
 				}
@@ -525,7 +530,7 @@ export class GettingStartedPage extends EditorPane {
 			this.stepsContent.classList.remove('markdown');
 
 			const media = stepToExpand.media;
-			const webview = this.stepDisposables.add(this.webviewService.createWebviewElement(this.webviewID, {}, {}, undefined));
+			const webview = this.stepDisposables.add(this.webviewService.createWebviewElement({ id: this.webviewID, options: {}, contentOptions: {}, extension: undefined }));
 			webview.mountTo(this.stepMediaComponent);
 
 			webview.html = await this.detailsRenderer.renderSVG(media.path);
@@ -546,7 +551,7 @@ export class GettingStartedPage extends EditorPane {
 				if (hrefs.length === 1) {
 					const href = hrefs[0];
 					if (href.startsWith('http')) {
-						this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'runStepAction', argument: href });
+						this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'runStepAction', argument: href, walkthroughId: this.currentWalkthrough?.id });
 						this.openerService.open(href);
 					}
 				}
@@ -566,7 +571,7 @@ export class GettingStartedPage extends EditorPane {
 
 			const media = stepToExpand.media;
 
-			const webview = this.stepDisposables.add(this.webviewService.createWebviewElement(this.webviewID, {}, { localResourceRoots: [media.root], allowScripts: true }, undefined));
+			const webview = this.stepDisposables.add(this.webviewService.createWebviewElement({ id: this.webviewID, options: {}, contentOptions: { localResourceRoots: [media.root], allowScripts: true }, extension: undefined }));
 			webview.mountTo(this.stepMediaComponent);
 
 			const rawHTML = await this.detailsRenderer.renderMarkdown(media.path, media.base);
@@ -639,8 +644,13 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	async selectStepLoose(id: string) {
-		const toSelect = this.editorInput.selectedCategory + '#' + id;
-		this.selectStep(toSelect);
+		// Allow passing in id with a category appended or with just the id of the step
+		if (id.startsWith(`${this.editorInput.selectedCategory}#`)) {
+			this.selectStep(id);
+		} else {
+			const toSelect = this.editorInput.selectedCategory + '#' + id;
+			this.selectStep(toSelect);
+		}
 	}
 
 	private async selectStep(id: string | undefined, delayFocus = true, forceRebuild = false) {
@@ -723,10 +733,10 @@ export class GettingStartedPage extends EditorPane {
 		const showOnStartupLabel = $('label.caption', { for: 'showOnStartup' }, localize('welcomePage.showOnStartup', "Show welcome page on startup"));
 		const onShowOnStartupChanged = () => {
 			if (showOnStartupCheckbox.checked) {
-				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'showOnStartupChecked', argument: undefined });
+				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'showOnStartupChecked', argument: undefined, walkthroughId: this.currentWalkthrough?.id });
 				this.configurationService.updateValue(configurationKey, 'welcomePage');
 			} else {
-				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'showOnStartupUnchecked', argument: undefined });
+				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'showOnStartupUnchecked', argument: undefined, walkthroughId: this.currentWalkthrough?.id });
 				this.configurationService.updateValue(configurationKey, 'none');
 			}
 		};
@@ -791,9 +801,9 @@ export class GettingStartedPage extends EditorPane {
 				await this.gettingStartedService.installedExtensionsRegistered;
 				this.container.classList.remove('loading');
 				this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
+				this.currentWalkthrough = this.gettingStartedCategories.find(category => category.id === this.editorInput.selectedCategory);
 			}
 
-			this.currentWalkthrough = this.gettingStartedCategories.find(category => category.id === this.editorInput.selectedCategory);
 			if (!this.currentWalkthrough) {
 				console.error('Could not restore to category ' + this.editorInput.selectedCategory + ' as it was not found');
 				this.editorInput.selectedCategory = undefined;
@@ -811,7 +821,7 @@ export class GettingStartedPage extends EditorPane {
 			this.buildTelemetryFooter(telemetryNotice);
 			footer.appendChild(telemetryNotice);
 		} else if (!this.productService.openToWelcomeMainPage && !someStepsComplete && !this.hasScrolledToFirstCategory) {
-			const firstSessionDateString = this.storageService.get(firstSessionDateStorageKey, StorageScope.GLOBAL) || new Date().toUTCString();
+			const firstSessionDateString = this.storageService.get(firstSessionDateStorageKey, StorageScope.APPLICATION) || new Date().toUTCString();
 			const daysSinceFirstSession = ((+new Date()) - (+new Date(firstSessionDateString))) / 1000 / 60 / 60 / 24;
 			const fistContentBehaviour = daysSinceFirstSession < 1 ? 'openToFirstCategory' : 'index';
 
@@ -852,7 +862,7 @@ export class GettingStartedPage extends EditorPane {
 			link.title = fullPath;
 			link.setAttribute('aria-label', localize('welcomePage.openFolderWithPath', "Open folder {0} with path {1}", name, parentPath));
 			link.addEventListener('click', e => {
-				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'openRecent', argument: undefined });
+				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'openRecent', argument: undefined, walkthroughId: this.currentWalkthrough?.id });
 				this.hostService.openWindow([windowOpenable], {
 					forceNewWindow: e.ctrlKey || e.metaKey,
 					remoteAuthority: recent.remoteAuthority || null // local window if remoteAuthority is not set or can not be deducted from the openable
@@ -959,7 +969,7 @@ export class GettingStartedPage extends EditorPane {
 
 			if (category.isFeatured) {
 				reset(featuredBadge, $('.featured', {}, $('span.featured-icon.codicon.codicon-star-empty')));
-				reset(descriptionContent, category.description);
+				reset(descriptionContent, ...renderLabelWithIcons(category.description));
 			}
 
 			return $('button.getting-started-category' + (category.isFeatured ? '.featured' : ''),
@@ -1092,7 +1102,7 @@ export class GettingStartedPage extends EditorPane {
 		const toSide = href.startsWith('command:toSide:');
 		const command = href.replace(/command:(toSide:)?/, 'command:');
 
-		this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'runStepAction', argument: href });
+		this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'runStepAction', argument: href, walkthroughId: this.currentWalkthrough?.id });
 
 		const fullSize = this.groupsService.contentDimension;
 
@@ -1148,7 +1158,7 @@ export class GettingStartedPage extends EditorPane {
 					this.storageService.store(
 						restoreWalkthroughsConfigurationKey,
 						JSON.stringify(restoreData),
-						StorageScope.GLOBAL, StorageTarget.MACHINE);
+						StorageScope.PROFILE, StorageTarget.MACHINE);
 					this.hostService.openWindow([{ folderUri: toOpen }]);
 				}
 			});
@@ -1183,7 +1193,7 @@ export class GettingStartedPage extends EditorPane {
 				if (isCommand) {
 					const keybindingLabel = this.getKeybindingLabel(command);
 					if (keybindingLabel) {
-						container.appendChild($('span.shortcut-message', {}, 'Tip: Use keyboard shortcut ', $('span.keybinding', {}, keybindingLabel)));
+						container.appendChild($('span.shortcut-message', {}, localize('gettingStarted.keyboardTip', 'Tip: Use keyboard shortcut '), $('span.keybinding', {}, keybindingLabel)));
 					}
 				}
 
@@ -1228,7 +1238,7 @@ export class GettingStartedPage extends EditorPane {
 				this.iconWidgetFor(category),
 				$('.category-description-container', {},
 					$('h2.category-title.max-lines-3', { 'x-category-title-for': category.id }, category.title),
-					$('.category-description.description.max-lines-3', { 'x-category-description-for': category.id }, category.description)));
+					$('.category-description.description.max-lines-3', { 'x-category-description-for': category.id }, ...renderLabelWithIcons(category.description))));
 
 		const stepListContainer = $('.step-list-container');
 

@@ -216,10 +216,6 @@
 	font-size: 11px;
 }
 
-.debug-pane .monaco-list-row .expression {
-	display: flex;
-}
-
 .debug-pane .monaco-list-row .expression .actionbar-spacer {
 	flex-grow: 1;
 }
@@ -320,4 +316,13 @@
 .debug-pane .debug-breakpoints .breakpoint .name {
 	overflow: hidden;
 	text-overflow: ellipsis
+}
+
+.debug-pane .pane-header .breakpoint-warning {
+	margin-left: 3px;
+}
+
+.debug-pane .pane-header .breakpoint-warning .monaco-icon-label .codicon {
+	display: flex;
+	align-items: center;
 }

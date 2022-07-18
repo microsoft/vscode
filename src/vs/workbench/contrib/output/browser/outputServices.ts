@@ -9,8 +9,7 @@ import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IOutputChannel, IOutputService, OUTPUT_VIEW_ID, OUTPUT_SCHEME, LOG_SCHEME, LOG_MIME, OUTPUT_MIME, OutputChannelUpdateMode } from 'vs/workbench/contrib/output/common/output';
-import { IOutputChannelDescriptor, Extensions, IOutputChannelRegistry } from 'vs/workbench/services/output/common/output';
+import { IOutputChannel, IOutputService, OUTPUT_VIEW_ID, OUTPUT_SCHEME, LOG_SCHEME, LOG_MIME, OUTPUT_MIME, OutputChannelUpdateMode, IOutputChannelDescriptor, Extensions, IOutputChannelRegistry } from 'vs/workbench/services/output/common/output';
 import { OutputLinkProvider } from 'vs/workbench/contrib/output/browser/outputLinkProvider';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { ITextModel } from 'vs/editor/common/model';
@@ -49,7 +48,7 @@ class OutputChannel extends Disposable implements IOutputChannel {
 	}
 
 	update(mode: OutputChannelUpdateMode, till?: number): void {
-		this.model.update(mode, till);
+		this.model.update(mode, till, true);
 	}
 
 	clear(): void {
@@ -146,9 +145,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 			this.setActiveChannel(channel);
 			this._onActiveOutputChannel.fire(channelId);
 			const outputView = this.viewsService.getActiveViewWithId<OutputViewPane>(OUTPUT_VIEW_ID);
-			if (outputView) {
-				outputView.showChannel(channel, true);
-			}
+			outputView?.showChannel(channel, true);
 		}
 	}
 
@@ -205,7 +202,7 @@ export class LogContentProvider {
 
 	provideTextContent(resource: URI): Promise<ITextModel> | null {
 		if (resource.scheme === LOG_SCHEME) {
-			let channelModel = this.getChannelModel(resource);
+			const channelModel = this.getChannelModel(resource);
 			if (channelModel) {
 				return channelModel.loadModel();
 			}

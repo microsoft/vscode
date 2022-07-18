@@ -36,9 +36,14 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return instantiationService.invokeFunction(accessor => {
 			// If it's an untitled file we must populate the untitledDocumentData
 			const untitledString = accessor.get(IUntitledTextEditorService).getValue(resource);
-			let untitledDocumentData = untitledString ? VSBuffer.fromString(untitledString) : undefined;
+			const untitledDocumentData = untitledString ? VSBuffer.fromString(untitledString) : undefined;
 			const id = generateUuid();
-			const webview = accessor.get(IWebviewService).createWebviewOverlay(id, { customClasses: options?.customClasses }, {}, undefined);
+			const webview = accessor.get(IWebviewService).createWebviewOverlay({
+				id,
+				options: { customClasses: options?.customClasses },
+				contentOptions: {},
+				extension: undefined,
+			});
 			const input = instantiationService.createInstance(CustomEditorInput, resource, viewType, id, webview, { untitledDocumentData: untitledDocumentData, oldResource: options?.oldResource });
 			if (typeof group !== 'undefined') {
 				input.updateGroup(group);
@@ -123,6 +128,8 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	public override get capabilities(): EditorInputCapabilities {
 		let capabilities = EditorInputCapabilities.None;
+
+		capabilities |= EditorInputCapabilities.CanDropIntoEditor;
 
 		if (!this.customEditorService.getCustomEditorCapabilities(this.viewType)?.supportsMultipleEditorsPerDocument) {
 			capabilities |= EditorInputCapabilities.Singleton;

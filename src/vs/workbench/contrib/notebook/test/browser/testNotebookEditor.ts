@@ -44,7 +44,7 @@ import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/vie
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellKind, CellUri, INotebookDiffEditorModel, INotebookEditorModel, INotebookSearchOptions, IOutputDto, IResolvedNotebookEditorModel, NotebookCellExecutionState, NotebookCellMetadata, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionStateChangedEvent, INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionStateChangedEvent, INotebookCellExecution, INotebookExecutionStateService, INotebookFailStateChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
@@ -366,7 +366,6 @@ export function createNotebookCellList(instantiationService: TestInstantiationSe
 		{
 			supportDynamicHeights: true,
 			multipleSelectionSupport: true,
-			enableKeyboardNavigation: true,
 			focusNextPreviousDelegate: {
 				onFocusNext: (applyFocusNext: () => void) => { applyFocusNext(); },
 				onFocusPrevious: (applyFocusPrevious: () => void) => { applyFocusPrevious(); },
@@ -405,11 +404,17 @@ class TestCellExecution implements INotebookCellExecution {
 }
 
 class TestNotebookExecutionStateService implements INotebookExecutionStateService {
+
+	getLastFailedCellForNotebook(notebook: URI): number | undefined {
+		return;
+	}
+
 	_serviceBrand: undefined;
 
 	private _executions = new ResourceMap<INotebookCellExecution>();
 
 	onDidChangeCellExecution = new Emitter<ICellExecutionStateChangedEvent>().event;
+	onDidChangeLastRunFailState = new Emitter<INotebookFailStateChangedEvent>().event;
 
 	forceCancelNotebookExecutions(notebookUri: URI): void {
 	}
@@ -422,7 +427,7 @@ class TestNotebookExecutionStateService implements INotebookExecutionStateServic
 		return this._executions.get(cellUri);
 	}
 
-	createCellExecution(controllerId: string, notebook: URI, cellHandle: number): INotebookCellExecution {
+	createCellExecution(notebook: URI, cellHandle: number): INotebookCellExecution {
 		const onComplete = () => this._executions.delete(CellUri.generate(notebook, cellHandle));
 		const exe = new TestCellExecution(notebook, cellHandle, onComplete);
 		this._executions.set(CellUri.generate(notebook, cellHandle), exe);

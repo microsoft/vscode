@@ -3,10 +3,10 @@
 #   Licensed under the MIT License. See License.txt in the project root for license information.
 # ---------------------------------------------------------------------------------------------
 
-param(
-	[Parameter(HelpMessage="Hides the shell integration welcome message")]
-	[switch] $HideWelcome = $False
-)
+# Prevent installing more than once per session
+if (Test-Path variable:global:__VSCodeOriginalPrompt) {
+	return;
+}
 
 $Global:__VSCodeOriginalPrompt = $function:Prompt
 
@@ -73,7 +73,18 @@ if (Get-Module -Name PSReadLine) {
 # Set IsWindows property
 [Console]::Write("`e]633;P;IsWindows=$($IsWindows)`a")
 
-# Show the welcome message
-if ($HideWelcome -eq $False) {
-	Write-Host "`e[1mShell integration activated`e[0m" -ForegroundColor Green
+# Set always on key handlers which map to default VS Code keybindings
+function Set-MappedKeyHandler {
+	param ([string[]] $Chord, [string[]]$Sequence)
+	$Handler = $(Get-PSReadLineKeyHandler -Chord $Chord)
+	if ($Handler) {
+		Set-PSReadLineKeyHandler -Chord $Sequence -Function $Handler.Function
+	}
 }
+function Set-MappedKeyHandlers {
+	Set-MappedKeyHandler -Chord Ctrl+Spacebar -Sequence 'F12,a'
+	Set-MappedKeyHandler -Chord Alt+Spacebar -Sequence 'F12,b'
+	Set-MappedKeyHandler -Chord Shift+Enter -Sequence 'F12,c'
+	Set-MappedKeyHandler -Chord Shift+End -Sequence 'F12,d'
+}
+Set-MappedKeyHandlers

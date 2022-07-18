@@ -30,3 +30,12 @@
 	left: -1px;
 	width: 1px;
 }
+
+/* 0.5s fade in/out for the minimap */
+.minimap.autohide {
+	opacity: 0.0;
+	transition: opacity 0.5s;
+}
+.minimap.autohide:hover {
+	opacity: 1.0;
+}

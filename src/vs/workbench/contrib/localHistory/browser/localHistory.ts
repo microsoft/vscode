@@ -8,8 +8,22 @@ import { Codicon } from 'vs/base/common/codicons';
 import { language } from 'vs/base/common/platform';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { IdleValue } from 'vs/base/common/async';
 
-export const LOCAL_HISTORY_DATE_FORMATTER = new Intl.DateTimeFormat(language, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' });
+export const LOCAL_HISTORY_DATE_FORMATTER: IdleValue<{ format: (timestamp: number) => string }> = new IdleValue(() => {
+	const options: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' };
+
+	let formatter: Intl.DateTimeFormat;
+	try {
+		formatter = new Intl.DateTimeFormat(language, options);
+	} catch (error) {
+		formatter = new Intl.DateTimeFormat(undefined, options); // error can happen when language is invalid (https://github.com/microsoft/vscode/issues/147086)
+	}
+
+	return {
+		format: date => formatter.format(date)
+	};
+});
 
 export const LOCAL_HISTORY_MENU_CONTEXT_VALUE = 'localHistory:item';
 export const LOCAL_HISTORY_MENU_CONTEXT_KEY = ContextKeyExpr.equals('timelineItem', LOCAL_HISTORY_MENU_CONTEXT_VALUE);

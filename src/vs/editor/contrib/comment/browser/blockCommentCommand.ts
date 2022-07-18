@@ -121,7 +121,7 @@ export class BlockCommentCommand implements ICommand {
 	}
 
 	public static _createRemoveBlockCommentOperations(r: Range, startToken: string, endToken: string): ISingleEditOperation[] {
-		let res: ISingleEditOperation[] = [];
+		const res: ISingleEditOperation[] = [];
 
 		if (!Range.isEmpty(r)) {
 			// Remove block comment start
@@ -147,7 +147,7 @@ export class BlockCommentCommand implements ICommand {
 	}
 
 	public static _createAddBlockCommentOperations(r: Range, startToken: string, endToken: string, insertSpace: boolean): ISingleEditOperation[] {
-		let res: ISingleEditOperation[] = [];
+		const res: ISingleEditOperation[] = [];
 
 		if (!Range.isEmpty(r)) {
 			// Insert block comment start
@@ -170,7 +170,7 @@ export class BlockCommentCommand implements ICommand {
 		const startLineNumber = this._selection.startLineNumber;
 		const startColumn = this._selection.startColumn;
 
-		model.tokenizeIfCheap(startLineNumber);
+		model.tokenization.tokenizeIfCheap(startLineNumber);
 		const languageId = model.getLanguageIdAtPosition(startLineNumber, startColumn);
 		const config = this.languageConfigurationService.getLanguageConfiguration(languageId).comments;
 		if (!config || !config.blockCommentStartToken || !config.blockCommentEndToken) {
