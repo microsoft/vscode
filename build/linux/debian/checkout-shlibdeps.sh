@@ -1,3 +1,9 @@
+#!/bin/sh
+
+# Get add-apt-repository command
+sudo apt update
+sudo apt install software-properties-common
+
 # Get a newer version of git
 sudo add-apt-repository ppa:git-core/ppa
 sudo apt update
