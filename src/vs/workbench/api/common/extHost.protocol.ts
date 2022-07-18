@@ -620,6 +620,7 @@ export const enum TabInputKind {
 	UnknownInput,
 	TextInput,
 	TextDiffInput,
+	TextMergeInput,
 	NotebookInput,
 	NotebookDiffInput,
 	CustomEditorInput,
@@ -648,6 +649,14 @@ export interface TextDiffInputDto {
 	kind: TabInputKind.TextDiffInput;
 	original: UriComponents;
 	modified: UriComponents;
+}
+
+export interface TextMergeInputDto {
+	kind: TabInputKind.TextMergeInput;
+	base: UriComponents;
+	input1: UriComponents;
+	input2: UriComponents;
+	result: UriComponents;
 }
 
 export interface NotebookInputDto {
@@ -684,7 +693,7 @@ export interface TabInputDto {
 	kind: TabInputKind.TerminalEditorInput;
 }
 
-export type AnyInputDto = UnknownInputDto | TextInputDto | TextDiffInputDto | NotebookInputDto | NotebookDiffInputDto | CustomInputDto | WebviewInputDto | InteractiveEditorInputDto | TabInputDto;
+export type AnyInputDto = UnknownInputDto | TextInputDto | TextDiffInputDto | TextMergeInputDto | NotebookInputDto | NotebookDiffInputDto | CustomInputDto | WebviewInputDto | InteractiveEditorInputDto | TabInputDto;
 
 export interface MainThreadEditorTabsShape extends IDisposable {
 	// manage tabs: move, close, rearrange etc

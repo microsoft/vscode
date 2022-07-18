@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText } from 'vscode';
+import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
@@ -1103,21 +1103,26 @@ export class CommandCenter {
 			return;
 		}
 
+		const { activeTab } = window.tabGroups.activeTabGroup;
+		if (!activeTab) {
+			return;
+		}
+
+		// make sure to save the merged document
 		const doc = workspace.textDocuments.find(doc => doc.uri.toString() === uri.toString());
 		if (!doc) {
 			console.log(`FAILED to accept merge because uri ${uri.toString()} doesn't match a document`);
 			return;
 		}
+		if (doc.isDirty) {
+			await doc.save();
+		}
 
-		await doc.save();
-
-		// TODO@jrieken there isn't a `TabInputTextMerge` instance yet, till now the merge editor
-		// uses the `TabInputText` for the out-resource and we use that to identify and CLOSE the tab
-		// see https://github.com/microsoft/vscode/issues/153213
-		const { activeTab } = window.tabGroups.activeTabGroup;
+		// find the merge editor tabs for the resource in question and close them all
 		let didCloseTab = false;
-		if (activeTab && activeTab?.input instanceof TabInputText && activeTab.input.uri.toString() === uri.toString()) {
-			didCloseTab = await window.tabGroups.close(activeTab, true);
+		const mergeEditorTabs = window.tabGroups.all.map(group => group.tabs.filter(tab => tab.input instanceof TabInputTextMerge && tab.input.result.toString() === uri.toString())).flat();
+		if (mergeEditorTabs.includes(activeTab)) {
+			didCloseTab = await window.tabGroups.close(mergeEditorTabs, true);
 		}
 
 		// Only stage if the merge editor has been successfully closed. That means all conflicts have been
