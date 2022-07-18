@@ -60,6 +60,7 @@ interface InstalledExtensionsEvent {
 }
 interface ExtensionsLoadClassification extends GDPRClassification<InstalledExtensionsEvent> {
 	owner: 'digitarald';
+	comment: 'Helps to understand which extensions are the most actively used.',
 	readonly extensionIds: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
 	readonly count: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
 }
