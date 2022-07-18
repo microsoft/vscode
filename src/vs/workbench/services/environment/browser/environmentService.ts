@@ -18,7 +18,6 @@ import { LogLevelToString } from 'vs/platform/log/common/log';
 import { isUndefined } from 'vs/base/common/types';
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { coalesce } from 'vs/base/common/arrays';
 
 export const IBrowserWorkbenchEnvironmentService = refineServiceDecorator<IEnvironmentService, IBrowserWorkbenchEnvironmentService>(IEnvironmentService);
 
@@ -342,12 +341,12 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 			const fileToMergeBase = this.payload.get('mergeFileBase');
 			const fileToMergeResult = this.payload.get('mergeFileResult');
 			if (fileToMerge1 && fileToMerge2 && fileToMergeBase && fileToMergeResult) {
-				return coalesce([
+				return [
 					{ fileUri: URI.parse(fileToMerge1) },
 					{ fileUri: URI.parse(fileToMerge2) },
 					{ fileUri: URI.parse(fileToMergeBase) },
 					{ fileUri: URI.parse(fileToMergeResult) }
-				]);
+				];
 			}
 		}
 
