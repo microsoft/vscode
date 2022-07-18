@@ -3,9 +3,10 @@
 # Get add-apt-repository command
 sudo apt-get update
 sudo apt-get install -y software-properties-common
-sudo apt-get update
 
 # Get a newer version of git
+sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys E1DD270288B4E6030699E45FA1715D88E1DF1F24
+sudo apt-get update
 sudo add-apt-repository ppa:git-core/ppa
 sudo apt-get update
 sudo apt-get install -y git
