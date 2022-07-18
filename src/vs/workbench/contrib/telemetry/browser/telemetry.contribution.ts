@@ -63,7 +63,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 	) {
 		super();
 
-		const { filesToOpenOrCreate, filesToDiff } = environmentService;
+		const { filesToOpenOrCreate, filesToDiff, filesToMerge } = environmentService;
 		const activeViewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 
 		type WindowSizeFragment = {
@@ -80,6 +80,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 			windowSize: WindowSizeFragment;
 			'workbench.filesToOpenOrCreate': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 			'workbench.filesToDiff': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+			'workbench.filesToMerge': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 			customKeybindingsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 			theme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 			language: { classification: 'SystemMetaData'; purpose: 'BusinessInsight' };
@@ -95,6 +96,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 			emptyWorkbench: boolean;
 			'workbench.filesToOpenOrCreate': number;
 			'workbench.filesToDiff': number;
+			'workbench.filesToMerge': number;
 			customKeybindingsCount: number;
 			theme: string;
 			language: string;
@@ -110,6 +112,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 			emptyWorkbench: contextService.getWorkbenchState() === WorkbenchState.EMPTY,
 			'workbench.filesToOpenOrCreate': filesToOpenOrCreate && filesToOpenOrCreate.length || 0,
 			'workbench.filesToDiff': filesToDiff && filesToDiff.length || 0,
+			'workbench.filesToMerge': filesToMerge && filesToMerge.length || 0,
 			customKeybindingsCount: keybindingsService.customKeybindingsCount(),
 			theme: themeService.getColorTheme().id,
 			language,

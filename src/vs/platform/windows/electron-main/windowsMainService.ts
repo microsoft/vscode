@@ -118,6 +118,8 @@ interface IFilesToOpen {
 
 	filesToOpenOrCreate: IPath[];
 	filesToDiff: IPath[];
+	filesToMerge: IPath[];
+
 	filesToWait?: IPathsToWaitFor;
 }
 
@@ -296,7 +298,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				workspacesToOpen.push(path);
 			} else if (path.fileUri) {
 				if (!filesToOpen) {
-					filesToOpen = { filesToOpenOrCreate: [], filesToDiff: [], remoteAuthority: path.remoteAuthority };
+					filesToOpen = { filesToOpenOrCreate: [], filesToDiff: [], filesToMerge: [], remoteAuthority: path.remoteAuthority };
 				}
 				filesToOpen.filesToOpenOrCreate.push(path);
 			} else if (path.backupPath) {
@@ -312,9 +314,16 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			filesToOpen.filesToOpenOrCreate = [];
 		}
 
+		// When run with --merge, take the first 4 files to open as files to merge
+		if (openConfig.mergeMode && filesToOpen && filesToOpen.filesToOpenOrCreate.length === 4) {
+			filesToOpen.filesToMerge = filesToOpen.filesToOpenOrCreate.slice(0, 4);
+			filesToOpen.filesToOpenOrCreate = [];
+			filesToOpen.filesToDiff = [];
+		}
+
 		// When run with --wait, make sure we keep the paths to wait for
 		if (filesToOpen && openConfig.waitMarkerFileURI) {
-			filesToOpen.filesToWait = { paths: [...filesToOpen.filesToDiff, ...filesToOpen.filesToOpenOrCreate], waitMarkerFileUri: openConfig.waitMarkerFileURI };
+			filesToOpen.filesToWait = { paths: [...filesToOpen.filesToDiff, filesToOpen.filesToMerge[3] /* [3] is the resulting merge file */, ...filesToOpen.filesToOpenOrCreate], waitMarkerFileUri: openConfig.waitMarkerFileURI };
 		}
 
 		// These are windows to restore because of hot-exit or from previous session (only performed once on startup!)
@@ -384,9 +393,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}
 
 		// Remember in recent document list (unless this opens for extension development)
-		// Also do not add paths when files are opened for diffing, only if opened individually
+		// Also do not add paths when files are opened for diffing or merging, only if opened individually
 		const isDiff = filesToOpen && filesToOpen.filesToDiff.length > 0;
-		if (!usedWindows.some(window => window.isExtensionDevelopmentHost) && !isDiff && !openConfig.noRecentEntry) {
+		const isMerge = filesToOpen && filesToOpen.filesToMerge.length > 0;
+		if (!usedWindows.some(window => window.isExtensionDevelopmentHost) && !isDiff && !isMerge && !openConfig.noRecentEntry) {
 			const recents: IRecent[] = [];
 			for (const pathToOpen of pathsToOpen) {
 				if (isWorkspacePathToOpen(pathToOpen) && !pathToOpen.transient /* never add transient workspaces to history */) {
@@ -461,13 +471,13 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			}
 		}
 
-		// Handle files to open/diff or to create when we dont open a folder and we do not restore any
+		// Handle files to open/diff/merge or to create when we dont open a folder and we do not restore any
 		// folder/untitled from hot-exit by trying to open them in the window that fits best
 		const potentialNewWindowsCount = foldersToOpen.length + workspacesToOpen.length + emptyToRestore.length;
 		if (filesToOpen && potentialNewWindowsCount === 0) {
 
 			// Find suitable window or folder path to open files in
-			const fileToCheck = filesToOpen.filesToOpenOrCreate[0] || filesToOpen.filesToDiff[0];
+			const fileToCheck = filesToOpen.filesToOpenOrCreate[0] || filesToOpen.filesToDiff[0] || filesToOpen.filesToMerge[3] /* [3] is the resulting merge file */;
 
 			// only look at the windows with correct authority
 			const windows = this.getWindows().filter(window => filesToOpen && isEqualAuthority(window.remoteAuthority, filesToOpen.remoteAuthority));
@@ -625,6 +635,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		const params: INativeOpenFileRequest = {
 			filesToOpenOrCreate: filesToOpen?.filesToOpenOrCreate,
 			filesToDiff: filesToOpen?.filesToDiff,
+			filesToMerge: filesToOpen?.filesToMerge,
 			filesToWait: filesToOpen?.filesToWait,
 			termProgram: configuration?.userEnv?.['TERM_PROGRAM']
 		};
@@ -792,7 +803,12 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			ignoreFileNotFound: true,
 			gotoLineMode: cli.goto,
 			remoteAuthority: cli.remote || undefined,
-			forceOpenWorkspaceAsFile: cli.diff && cli._.length === 2 // special case diff mode to force open workspace as file (https://github.com/microsoft/vscode/issues/149731)
+			forceOpenWorkspaceAsFile:
+				// special case diff / merge mode to force open
+				// workspace as file
+				// https://github.com/microsoft/vscode/issues/149731
+				cli.diff && cli._.length === 2 ||
+				cli.merge && cli._.length === 4
 		};
 
 		// folder uris
@@ -1323,6 +1339,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			filesToOpenOrCreate: options.filesToOpen?.filesToOpenOrCreate,
 			filesToDiff: options.filesToOpen?.filesToDiff,
+			filesToMerge: options.filesToOpen?.filesToMerge,
 			filesToWait: options.filesToOpen?.filesToWait,
 
 			logLevel: this.logService.getLevel(),

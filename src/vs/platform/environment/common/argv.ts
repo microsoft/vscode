@@ -18,6 +18,7 @@ export interface NativeParsedArgs {
 	wait?: boolean;
 	waitMarkerFilePath?: string;
 	diff?: boolean;
+	merge?: boolean;
 	add?: boolean;
 	goto?: boolean;
 	'new-window'?: boolean;
