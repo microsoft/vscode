@@ -30,12 +30,6 @@ export class CodeActionUi extends Disposable implements IEditorContribution {
 
 	#disposed = false;
 
-	public static readonly ID: string = 'editor.contrib.codeActionMenu';
-
-	static get(editor: ICodeEditor): CodeActionUi | null {
-		return editor.getContribution<CodeActionUi>(CodeActionUi.ID);
-	}
-
 	constructor(
 		private readonly _editor: ICodeEditor,
 		quickFixActionId: string,
@@ -65,6 +59,11 @@ export class CodeActionUi extends Disposable implements IEditorContribution {
 	override dispose() {
 		this.#disposed = true;
 		super.dispose();
+
+	}
+
+	public hideCodeActionWidget() {
+		this._codeActionWidget.getValue().dispose();
 	}
 
 	public async update(newState: CodeActionsState.State): Promise<void> {
@@ -168,21 +167,3 @@ export class CodeActionUi extends Disposable implements IEditorContribution {
 		this._codeActionWidget.getValue().show(trigger, actions, at, options);
 	}
 }
-
-// registerEditorContribution(CodeActionUi.ID, CodeActionUi);
-const CodeActionCommand = EditorCommand.bindToContribution<CodeActionUi>(CodeActionUi.get);
-
-const weight = KeybindingWeight.EditorContrib + 90;
-
-registerEditorCommand(new CodeActionCommand({
-	id: 'hideCodeActionMenuWidget-fromUI',
-	precondition: Context.Visible,
-	handler(x) {
-		console.log('hello hi');
-	},
-	kbOpts: {
-		weight: weight,
-		primary: KeyCode.Escape,
-		secondary: [KeyMod.Shift | KeyCode.Escape]
-	}
-}));

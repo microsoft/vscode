@@ -11,7 +11,7 @@ import { Lazy } from 'vs/base/common/lazy';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorCommand, registerEditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService, ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -32,6 +32,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CodeActionModel, CodeActionsState, SUPPORTED_CODE_ACTIONS } from './codeActionModel';
 import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionFilter, CodeActionKind, CodeActionTrigger, CodeActionTriggerSource } from './types';
+import { Context } from 'vs/editor/contrib/codeAction/browser/codeActionMenu';
 
 function contextKeyForSupportedActions(kind: CodeActionKind) {
 	return ContextKeyExpr.regex(
@@ -130,6 +131,10 @@ export class QuickFixController extends Disposable implements IEditorContributio
 
 	private update(newState: CodeActionsState.State): void {
 		this._ui.getValue().update(newState);
+	}
+
+	public hideCodeActionMenu() {
+		this._ui.getValue().hideCodeActionWidget();
 	}
 
 	public showCodeActions(trigger: CodeActionTrigger, actions: CodeActionSet, at: IAnchor | IPosition) {
@@ -490,3 +495,20 @@ export class AutoFixAction extends EditorAction {
 			CodeActionAutoApply.IfSingle, undefined, CodeActionTriggerSource.AutoFix);
 	}
 }
+
+const CodeActionContribution = EditorCommand.bindToContribution<QuickFixController>(QuickFixController.get);
+
+const weight = KeybindingWeight.EditorContrib + 90;
+
+registerEditorCommand(new CodeActionContribution({
+	id: 'hideCodeActionMenuWidget',
+	precondition: Context.Visible,
+	handler(x) {
+		x.hideCodeActionMenu();
+	},
+	kbOpts: {
+		weight: weight,
+		primary: KeyCode.Escape,
+		secondary: [KeyMod.Shift | KeyCode.Escape]
+	}
+}));

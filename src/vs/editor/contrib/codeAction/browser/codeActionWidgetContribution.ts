@@ -10,8 +10,6 @@ import * as nls from 'vs/nls';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 
-registerEditorContribution(CodeActionMenu.ID, CodeActionMenu);
-
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 	...editorConfigurationBaseNode,
 	properties: {

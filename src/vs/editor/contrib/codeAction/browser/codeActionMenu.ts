@@ -24,6 +24,7 @@ import { CodeAction, Command } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { codeActionCommandId, CodeActionItem, CodeActionSet, fixAllCommandId, organizeImportsCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
+import { QuickFixController } from 'vs/editor/contrib/codeAction/browser/codeActionCommands';
 import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionKind, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/browser/types';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -310,6 +311,9 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 
 	public async show(trigger: CodeActionTrigger, codeActions: CodeActionSet, at: IAnchor | IPosition, options: CodeActionShowOptions): Promise<void> {
 		const model = this.editor.getModel();
+		if (!model) {
+			return;
+		}
 		const actionsToShow = options.includeDisabledActions ? codeActions.allActions : codeActions.validActions;
 		if (!actionsToShow.length) {
 			this._visible = false;
@@ -532,30 +536,10 @@ export class CodeActionKeybindingResolver {
 }
 
 // registerEditorContribution(CodeActionMenu.ID, CodeActionMenu);
-const CodeActionCommand = EditorCommand.bindToContribution<CodeActionMenu>(CodeActionMenu.get);
 
-const weight = KeybindingWeight.EditorContrib + 90;
-
-registerEditorCommand(new CodeActionCommand({
-	id: 'hideCodeActionMenuWidget',
-	precondition: Context.Visible,
-	handler(x) {
-		console.log('hello hi');
-	},
-	kbOpts: {
-		weight: weight,
-		primary: KeyCode.Escape,
-		secondary: [KeyMod.Shift | KeyCode.Escape]
-	}
-}));
 
 /**
- *
  * need to create a new constructor/new class for the code action menu controller?
- *
- *
- *
- *
  */
 
 
