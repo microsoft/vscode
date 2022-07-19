@@ -44,7 +44,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 	constructor(
 		container: HTMLElement,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IHoverService hoverService: IHoverService,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@ILanguageService private readonly languageService: ILanguageService) {
@@ -133,16 +133,17 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	updateScopeOverrides(element: SettingsTreeSettingElement, elementDisposables: DisposableStore, onDidClickOverrideElement: Emitter<ISettingOverrideClickEvent>) {
 		this.scopeOverridesElement.innerText = '';
 		this.scopeOverridesElement.style.display = 'none';
-		if (element.matchesScope(ConfigurationTarget.APPLICATION, false)) {
+		const profileFeatureEnabled = this.configurationService.getValue<boolean>('workbench.experimental.settingsProfiles.enabled');
+		if (profileFeatureEnabled && element.matchesScope(ConfigurationTarget.APPLICATION, false)) {
 			// If the setting is an application-scoped setting, there are no overrides so we can use this
 			// indicator to display that information instead.
 			this.scopeOverridesElement.style.display = 'inline';
 			this.scopeOverridesElement.classList.add('with-custom-hover');
 
-			const applicationSettingText = localize('applicationSetting', "Applies to all profiles");
+			const applicationSettingText = localize('applicationSetting', "Not profile-specific");
 			this.scopeOverridesLabel.text = applicationSettingText;
 
-			const content = localize('applicationSettingDescription', "Setting applies to all profiles.");
+			const content = localize('applicationSettingDescription', "The setting is not specific to the current profile, and will retain its value after switching profiles.");
 			this.hover?.dispose();
 			this.hover = setupCustomHover(this.hoverDelegate, this.scopeOverridesElement, content);
 		} else if (element.overriddenScopeList.length || element.overriddenDefaultsLanguageList.length) {
@@ -293,8 +294,9 @@ function getAccessibleScopeDisplayMidSentenceText(completeScope: string, languag
 export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement, configurationService: IConfigurationService, languageService: ILanguageService): string {
 	const ariaLabelSections: string[] = [];
 
-	if (element.matchesScope(ConfigurationTarget.APPLICATION, false)) {
-		ariaLabelSections.push(localize('applicationSettingDescription', "Setting applies to all profiles."));
+	const profileFeatureEnabled = configurationService.getValue<boolean>('workbench.experimental.settingsProfiles.enabled');
+	if (profileFeatureEnabled && element.matchesScope(ConfigurationTarget.APPLICATION, false)) {
+		ariaLabelSections.push(localize('applicationSettingDescriptionAccessible', "Setting value retained while switching profiles"));
 	}
 
 	// Add other overrides text
