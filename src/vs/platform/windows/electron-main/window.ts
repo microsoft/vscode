@@ -899,6 +899,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Delete some properties we do not want during reload
 		delete configuration.filesToOpenOrCreate;
 		delete configuration.filesToDiff;
+		delete configuration.filesToMerge;
 		delete configuration.filesToWait;
 
 		// Some configuration things get inherited if the window is being reloaded and we are

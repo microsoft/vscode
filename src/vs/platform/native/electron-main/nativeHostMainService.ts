@@ -154,6 +154,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				forceReuseWindow: options.forceReuseWindow,
 				preferNewWindow: options.preferNewWindow,
 				diffMode: options.diffMode,
+				mergeMode: options.mergeMode,
 				addMode: options.addMode,
 				gotoLineMode: options.gotoLineMode,
 				noRecentEntry: options.noRecentEntry,

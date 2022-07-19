@@ -13,7 +13,7 @@ import { ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialog
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IEditorIdentifier, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { IEditorIdentifier, IResourceMergeEditorInput, isResourceMergeEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput, IEditorCloseHandler } from 'vs/workbench/common/editor/editorInput';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { EditorWorkerServiceDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
@@ -134,14 +134,37 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 		return this._model;
 	}
 
+	override toUntyped(): IResourceMergeEditorInput {
+		return {
+			input1: { resource: this.input1.uri, label: this.input1.title, description: this.input1.description },
+			input2: { resource: this.input2.uri, label: this.input2.title, description: this.input2.description },
+			base: { resource: this.base },
+			result: { resource: this.result },
+			options: {
+				override: this.typeId
+			}
+		};
+	}
+
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
-		if (!(otherInput instanceof MergeEditorInput)) {
-			return false;
+		if (this === otherInput) {
+			return true;
 		}
-		return isEqual(this.base, otherInput.base)
-			&& isEqual(this.input1.uri, otherInput.input1.uri)
-			&& isEqual(this.input2.uri, otherInput.input2.uri)
-			&& isEqual(this.result, otherInput.result);
+		if (otherInput instanceof MergeEditorInput) {
+			return isEqual(this.base, otherInput.base)
+				&& isEqual(this.input1.uri, otherInput.input1.uri)
+				&& isEqual(this.input2.uri, otherInput.input2.uri)
+				&& isEqual(this.result, otherInput.result);
+		}
+		if (isResourceMergeEditorInput(otherInput)) {
+			return this.editorId === otherInput.options?.override
+				&& isEqual(this.base, otherInput.base.resource)
+				&& isEqual(this.input1.uri, otherInput.input1.resource)
+				&& isEqual(this.input2.uri, otherInput.input2.resource)
+				&& isEqual(this.result, otherInput.result.resource);
+		}
+
+		return false;
 	}
 
 	// ---- FileEditorInput

@@ -50,8 +50,9 @@ export class TitlebarPart extends Part implements ITitleService {
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 	get minimumHeight(): number {
 		const value = this.isCommandCenterVisible ? 35 : 30;
-		return value / (this.currentMenubarVisibility === 'hidden' || getZoomFactor() < 1 ? getZoomFactor() : 1);
+		return value / (this.useCounterZoom ? getZoomFactor() : 1);
 	}
+
 	get maximumHeight(): number { return this.minimumHeight; }
 
 	//#endregion
@@ -159,6 +160,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		if (this.titleBarStyle !== 'native' && this.layoutControls && event.affectsConfiguration('workbench.layoutControl.enabled')) {
 			this.layoutControls.classList.toggle('show-layout-control', this.layoutControlEnabled);
+			this._onDidChange.fire(undefined);
 		}
 
 		if (event.affectsConfiguration(TitlebarPart.configCommandCenter)) {
@@ -438,17 +440,26 @@ export class TitlebarPart extends Part implements ITitleService {
 		return this.configurationService.getValue<boolean>('workbench.layoutControl.enabled');
 	}
 
+	protected get useCounterZoom(): boolean {
+		// Prevent zooming behavior if any of the following conditions are met:
+		// 1. Shrinking below the window control size (zoom < 1)
+		// 2. No custom items are present in the title bar
+		const zoomFactor = getZoomFactor();
+
+		const noMenubar = this.currentMenubarVisibility === 'hidden' || (!isWeb && isMacintosh);
+		const noCommandCenter = !this.isCommandCenterVisible;
+		const noLayoutControls = !this.layoutControlEnabled;
+		return zoomFactor < 1 || (noMenubar && noCommandCenter && noLayoutControls);
+	}
+
 	updateLayout(dimension: Dimension): void {
 		this.lastLayoutDimensions = dimension;
 
 		if (getTitleBarStyle(this.configurationService) === 'custom') {
-			// Prevent zooming behavior if any of the following conditions are met:
-			// 1. Native macOS
-			// 2. Menubar is hidden
-			// 3. Shrinking below the window control size (zoom < 1)
 			const zoomFactor = getZoomFactor();
+
 			this.element.style.setProperty('--zoom-factor', zoomFactor.toString());
-			this.rootContainer.classList.toggle('counter-zoom', zoomFactor < 1 || (!isWeb && isMacintosh) || this.currentMenubarVisibility === 'hidden');
+			this.rootContainer.classList.toggle('counter-zoom', this.useCounterZoom);
 
 			runAtThisOrScheduleAtNextAnimationFrame(() => this.adjustTitleMarginToCenter());
 
