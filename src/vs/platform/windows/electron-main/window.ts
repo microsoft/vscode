@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, BrowserWindowConstructorOptions, Display, Event, nativeImage, NativeImage, Rectangle, screen, SegmentedControlSegment, systemPreferences, TouchBar, TouchBarSegmentedControl } from 'electron';
+import { app, BrowserWindow, BrowserWindowConstructorOptions, Display, Event, nativeImage, NativeImage, Point, Rectangle, screen, SegmentedControlSegment, systemPreferences, TouchBar, TouchBarSegmentedControl } from 'electron';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -141,6 +141,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private documentEdited: boolean | undefined;
 
 	private customTrafficLightPosition: boolean | undefined;
+	private defaultTrafficLightPosition: Point | undefined;
 
 	private readonly whenReadyCallbacks: { (window: ICodeWindow): void }[] = [];
 
@@ -1325,9 +1326,14 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		const useCustomTrafficLightPosition = this.configurationService.getValue<boolean>(commandCenterSettingKey);
 		if (useCustomTrafficLightPosition) {
-			this._win.setTrafficLightPosition({ x: 7, y: 9 });
+			if (!this.defaultTrafficLightPosition) {
+				this.defaultTrafficLightPosition = this._win.getTrafficLightPosition(); // remember default to restore later
+			}
+			this._win.setTrafficLightPosition({ x: 7, y: 10 });
 		} else {
-			this._win.setTrafficLightPosition({ x: 7, y: 6 });
+			if (this.defaultTrafficLightPosition) {
+				this._win.setTrafficLightPosition(this.defaultTrafficLightPosition);
+			}
 		}
 
 		this.customTrafficLightPosition = useCustomTrafficLightPosition;
