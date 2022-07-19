@@ -820,7 +820,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			return this.parentURI(filesToOpenOrCreate[0].fileUri);
 		} else if (filesToDiff && filesToDiff.length) {
 			return this.parentURI(filesToDiff[0].fileUri);
-		} else if (filesToMerge && filesToMerge.length) {
+		} else if (filesToMerge && filesToMerge.length === 4) {
 			return this.parentURI(filesToMerge[3].fileUri) /* [3] is the resulting merge file */;
 		}
 		return undefined;
