@@ -5,19 +5,16 @@
 
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorCommand, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { CodeActionTriggerType } from 'vs/editor/common/languages';
 import { CodeActionItem, CodeActionSet } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { CodeActionMenu, CodeActionShowOptions, Context } from './codeActionMenu';
+import { CodeActionMenu, CodeActionShowOptions } from './codeActionMenu';
 import { CodeActionsState } from './codeActionModel';
 import { LightBulbWidget } from './lightBulbWidget';
 import { CodeActionAutoApply, CodeActionTrigger } from './types';
