@@ -6,8 +6,8 @@
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICellViewModel, INotebookEditorDelegate, KERNEL_EXTENSIONS } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NOTEBOOK_CELL_TOOLBAR_LOCATION, NOTEBOOK_HAS_OUTPUTS, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_KERNEL, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SELECTED, NOTEBOOK_KERNEL_SOURCE_COUNT, NOTEBOOK_MISSING_KERNEL_EXTENSION, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON, NOTEBOOK_VIEW_TYPE } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { NOTEBOOK_CELL_TOOLBAR_LOCATION, NOTEBOOK_HAS_OUTPUTS, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_KERNEL, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SELECTED, NOTEBOOK_KERNEL_SOURCE_COUNT, NOTEBOOK_LAST_CELL_FAILED, NOTEBOOK_MISSING_KERNEL_EXTENSION, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON, NOTEBOOK_VIEW_TYPE } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { INotebookExecutionStateService, INotebookFailStateChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
@@ -24,6 +24,7 @@ export class NotebookEditorContextKeys {
 	private readonly _viewType!: IContextKey<string>;
 	private readonly _missingKernelExtension: IContextKey<boolean>;
 	private readonly _cellToolbarLocation: IContextKey<'left' | 'right' | 'hidden'>;
+	private readonly _lastCellFailed: IContextKey<boolean>;
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _viewModelDisposables = new DisposableStore();
@@ -47,6 +48,7 @@ export class NotebookEditorContextKeys {
 		this._missingKernelExtension = NOTEBOOK_MISSING_KERNEL_EXTENSION.bindTo(contextKeyService);
 		this._notebookKernelSourceCount = NOTEBOOK_KERNEL_SOURCE_COUNT.bindTo(contextKeyService);
 		this._cellToolbarLocation = NOTEBOOK_CELL_TOOLBAR_LOCATION.bindTo(contextKeyService);
+		this._lastCellFailed = NOTEBOOK_LAST_CELL_FAILED.bindTo(contextKeyService);
 
 		this._handleDidChangeModel();
 		this._updateForNotebookOptions();
@@ -58,6 +60,7 @@ export class NotebookEditorContextKeys {
 		this._disposables.add(_editor.notebookOptions.onDidChangeOptions(this._updateForNotebookOptions, this));
 		this._disposables.add(_extensionService.onDidChangeExtensions(this._updateForInstalledExtension, this));
 		this._disposables.add(_notebookExecutionStateService.onDidChangeCellExecution(this._updateForCellExecution, this));
+		this._disposables.add(_notebookExecutionStateService.onDidChangeLastRunFailState(this._updateForLastRunFailState, this));
 	}
 
 	dispose(): void {
@@ -129,6 +132,12 @@ export class NotebookEditorContextKeys {
 			this._someCellRunning.set(notebookExe.length > 0);
 		} else {
 			this._someCellRunning.set(false);
+		}
+	}
+
+	private _updateForLastRunFailState(e: INotebookFailStateChangedEvent): void {
+		if (e.notebook === this._editor.textModel?.uri) {
+			this._lastCellFailed.set(e.failed);
 		}
 	}
 

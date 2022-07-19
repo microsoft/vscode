@@ -4,20 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import * as uri from 'vscode-uri';
-import { OpenDocumentLinkCommand } from '../commands/openDocumentLink';
 import { ILogger } from '../logging';
 import { IMdParser } from '../markdownEngine';
 import { getLine, ITextDocument } from '../types/textDocument';
-import { coalesce } from '../util/arrays';
 import { noopToken } from '../util/cancellation';
 import { Disposable } from '../util/dispose';
-import { getUriForLinkWithKnownExternalScheme, isOfScheme, Schemes } from '../util/schemes';
+import { Schemes } from '../util/schemes';
 import { MdDocumentInfoCache } from '../util/workspaceCache';
 import { IMdWorkspace } from '../workspace';
-
-const localize = nls.loadMessageBundle();
 
 export interface ExternalHref {
 	readonly kind: 'external';
@@ -43,14 +38,6 @@ function resolveLink(
 	link: string,
 ): ExternalHref | InternalHref | undefined {
 	const cleanLink = stripAngleBrackets(link);
-	const externalSchemeUri = getUriForLinkWithKnownExternalScheme(cleanLink);
-	if (externalSchemeUri) {
-		// Normalize VS Code links to target currently running version
-		if (isOfScheme(Schemes.vscode, link) || isOfScheme(Schemes['vscode-insiders'], link)) {
-			return { kind: 'external', uri: vscode.Uri.parse(link).with({ scheme: vscode.env.uriScheme }) };
-		}
-		return { kind: 'external', uri: externalSchemeUri };
-	}
 
 	if (/^[a-z\-][a-z\-]+:/i.test(cleanLink)) {
 		// Looks like a uri
@@ -400,7 +387,8 @@ export class MdLinkComputer {
 	private *getReferenceLinks(document: ITextDocument, noLinkRanges: NoLinkRanges): Iterable<MdLink> {
 		const text = document.getText();
 		for (const match of text.matchAll(referenceLinkPattern)) {
-			const linkStart = document.positionAt(match.index ?? 0);
+			const linkStartOffset = (match.index ?? 0) + match[1].length;
+			const linkStart = document.positionAt(linkStartOffset);
 			if (noLinkRanges.contains(linkStart)) {
 				continue;
 			}
@@ -410,17 +398,17 @@ export class MdLinkComputer {
 			let reference = match[4];
 			if (reference === '') { // [ref][],
 				reference = match[3];
-				const offset = ((match.index ?? 0) + match[1].length) + 1;
+				const offset = linkStartOffset + 1;
 				hrefStart = document.positionAt(offset);
 				hrefEnd = document.positionAt(offset + reference.length);
 			} else if (reference) { // [text][ref]
 				const pre = match[2];
-				const offset = ((match.index ?? 0) + match[1].length) + pre.length;
+				const offset = linkStartOffset + pre.length;
 				hrefStart = document.positionAt(offset);
 				hrefEnd = document.positionAt(offset + reference.length);
 			} else if (match[5]) { // [ref]
 				reference = match[5];
-				const offset = ((match.index ?? 0) + match[1].length) + 1;
+				const offset = linkStartOffset + 1;
 				hrefStart = document.positionAt(offset);
 				const line = getLine(document, hrefStart.line);
 				// See if link looks like a checkbox
@@ -433,7 +421,7 @@ export class MdLinkComputer {
 				continue;
 			}
 
-			const linkEnd = linkStart.translate(0, match[0].length);
+			const linkEnd = linkStart.translate(0, match[0].length - match[1].length);
 			yield {
 				kind: 'link',
 				source: {
@@ -549,58 +537,4 @@ export class LinkDefinitionSet implements Iterable<[string, MdLinkDefinition]> {
 	public lookup(ref: string): MdLinkDefinition | undefined {
 		return this._map.get(ref);
 	}
-}
-
-export class MdVsCodeLinkProvider implements vscode.DocumentLinkProvider {
-
-	constructor(
-		private readonly _linkProvider: MdLinkProvider,
-	) { }
-
-	public async provideDocumentLinks(
-		document: ITextDocument,
-		token: vscode.CancellationToken
-	): Promise<vscode.DocumentLink[]> {
-		const { links, definitions } = await this._linkProvider.getLinks(document);
-		if (token.isCancellationRequested) {
-			return [];
-		}
-
-		return coalesce(links.map(data => this.toValidDocumentLink(data, definitions)));
-	}
-
-	private toValidDocumentLink(link: MdLink, definitionSet: LinkDefinitionSet): vscode.DocumentLink | undefined {
-		switch (link.href.kind) {
-			case 'external': {
-				return new vscode.DocumentLink(link.source.hrefRange, link.href.uri);
-			}
-			case 'internal': {
-				const uri = OpenDocumentLinkCommand.createCommandUri(link.source.resource, link.href.path, link.href.fragment);
-				const documentLink = new vscode.DocumentLink(link.source.hrefRange, uri);
-				documentLink.tooltip = localize('documentLink.tooltip', 'Follow link');
-				return documentLink;
-			}
-			case 'reference': {
-				// We only render reference links in the editor if they are actually defined.
-				// This matches how reference links are rendered by markdown-it.
-				const def = definitionSet.lookup(link.href.ref);
-				if (def) {
-					const documentLink = new vscode.DocumentLink(
-						link.source.hrefRange,
-						vscode.Uri.parse(`command:_markdown.moveCursorToPosition?${encodeURIComponent(JSON.stringify([def.source.hrefRange.start.line, def.source.hrefRange.start.character]))}`));
-					documentLink.tooltip = localize('documentLink.referenceTooltip', 'Go to link definition');
-					return documentLink;
-				} else {
-					return undefined;
-				}
-			}
-		}
-	}
-}
-
-export function registerDocumentLinkSupport(
-	selector: vscode.DocumentSelector,
-	linkProvider: MdLinkProvider,
-): vscode.Disposable {
-	return vscode.languages.registerDocumentLinkProvider(selector, new MdVsCodeLinkProvider(linkProvider));
 }

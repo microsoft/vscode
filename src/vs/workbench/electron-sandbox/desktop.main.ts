@@ -56,6 +56,7 @@ import { PolicyChannelClient } from 'vs/platform/policy/common/policyIpc';
 import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
 import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 
 export class DesktopMain extends Disposable {
 
@@ -90,7 +91,7 @@ export class DesktopMain extends Disposable {
 		// Files
 		const filesToWait = this.configuration.filesToWait;
 		const filesToWaitPaths = filesToWait?.paths;
-		for (const paths of [filesToWaitPaths, this.configuration.filesToOpenOrCreate, this.configuration.filesToDiff]) {
+		for (const paths of [filesToWaitPaths, this.configuration.filesToOpenOrCreate, this.configuration.filesToDiff, this.configuration.filesToMerge]) {
 			if (Array.isArray(paths)) {
 				for (const path of paths) {
 					if (path.fileUri) {
@@ -184,6 +185,9 @@ export class DesktopMain extends Disposable {
 		if (logService.getLevel() === LogLevel.Trace) {
 			logService.trace('workbench#open(): with configuration', safeStringify(this.configuration));
 		}
+		if (process.sandboxed) {
+			logService.info('Electron sandbox mode is enabled!');
+		}
 
 		// Shared Process
 		const sharedProcessService = new SharedProcessService(this.configuration.windowId, logService);
@@ -235,7 +239,7 @@ export class DesktopMain extends Disposable {
 		serviceCollection.set(IUriIdentityService, uriIdentityService);
 
 		// User Data Profiles
-		const userDataProfilesService = new UserDataProfilesNativeService(this.configuration.profiles.all, mainProcessService, environmentService, fileService, logService);
+		const userDataProfilesService = new UserDataProfilesNativeService(this.configuration.profiles.all, mainProcessService, environmentService);
 		serviceCollection.set(IUserDataProfilesService, userDataProfilesService);
 		const userDataProfileService = new UserDataProfileService(reviveProfile(this.configuration.profiles.current, userDataProfilesService.profilesHome.scheme), userDataProfilesService);
 		serviceCollection.set(IUserDataProfileService, userDataProfileService);

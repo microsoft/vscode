@@ -382,6 +382,7 @@ export class CommentController implements IEditorContribution {
 				this._commentingRangeDecorator.update(this.editor, []);
 				this._commentThreadRangeDecorator.update(this.editor, []);
 				dispose(this._commentWidgets);
+				this._commentWidgets = [];
 			}
 		}));
 

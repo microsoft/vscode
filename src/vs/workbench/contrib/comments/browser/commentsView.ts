@@ -234,7 +234,7 @@ export class CommentsPanel extends ViewPane {
 				const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment.uniqueIdInThread : element.comment.uniqueIdInThread;
 				if (threadToReveal && isCodeEditor(editor)) {
 					const controller = CommentController.get(editor);
-					controller?.revealCommentThread(threadToReveal, commentToReveal, false);
+					controller?.revealCommentThread(threadToReveal, commentToReveal, true);
 				}
 
 				return true;

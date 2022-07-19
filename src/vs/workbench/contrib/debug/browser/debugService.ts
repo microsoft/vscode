@@ -312,7 +312,10 @@ export class DebugService implements IDebugService {
 	 * main entry point
 	 * properly manages compounds, checks for errors and handles the initializing state.
 	 */
-	async startDebugging(launch: ILaunch | undefined, configOrName?: IConfig | string, options?: IDebugSessionOptions, saveBeforeStart = !options?.parentSession): Promise<boolean> {
+	async startDebugging(launch: ILaunch | undefined, configOrName?: IConfig | string, options?: IDebugSessionOptions): Promise<boolean> {
+
+		const saveBeforeStart = options?.saveBeforeStart ?? !options?.parentSession;
+
 		const message = options && options.noDebug ? nls.localize('runTrust', "Running executes build tasks and program code from your workspace.") : nls.localize('debugTrust', "Debugging executes build tasks and program code from your workspace.");
 		const trust = await this.workspaceTrustRequestService.requestWorkspaceTrust({ message });
 		if (!trust) {
@@ -471,7 +474,7 @@ export class DebugService implements IDebugService {
 				const cfg = await this.configurationManager.resolveDebugConfigurationWithSubstitutedVariables(launch && launch.workspace ? launch.workspace.uri : undefined, type, resolvedConfig, initCancellationToken.token);
 				if (!cfg) {
 					if (launch && type && cfg === null && !initCancellationToken.token.isCancellationRequested) {	// show launch.json only for "config" being "null".
-						await launch.openConfigFile(true, type, initCancellationToken.token);
+						await launch.openConfigFile({ preserveFocus: true, type }, initCancellationToken.token);
 					}
 					return false;
 				}
@@ -523,7 +526,7 @@ export class DebugService implements IDebugService {
 					await this.showError(nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved and that you have a debug extension installed for that file type."));
 				}
 				if (launch && !initCancellationToken.token.isCancellationRequested) {
-					await launch.openConfigFile(true, undefined, initCancellationToken.token);
+					await launch.openConfigFile({ preserveFocus: true }, initCancellationToken.token);
 				}
 
 				return false;
@@ -531,7 +534,7 @@ export class DebugService implements IDebugService {
 		}
 
 		if (launch && type && configByProviders === null && !initCancellationToken.token.isCancellationRequested) {	// show launch.json only for "config" being "null".
-			await launch.openConfigFile(true, type, initCancellationToken.token);
+			await launch.openConfigFile({ preserveFocus: true, type }, initCancellationToken.token);
 		}
 
 		return false;
@@ -701,7 +704,10 @@ export class DebugService implements IDebugService {
 	}
 
 	async restartSession(session: IDebugSession, restartData?: any): Promise<any> {
-		await this.editorService.saveAll();
+		if (session.saveBeforeStart) {
+			await saveAllBeforeDebugStart(this.configurationService, this.editorService);
+		}
+
 		const isAutoRestart = !!restartData;
 
 		const runTasks: () => Promise<TaskRunResult> = async () => {

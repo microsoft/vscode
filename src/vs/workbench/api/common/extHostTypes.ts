@@ -10,7 +10,7 @@ import { MarkdownString as BaseMarkdownString } from 'vs/base/common/htmlContent
 import { ResourceMap } from 'vs/base/common/map';
 import { Mimes, normalizeMimeType } from 'vs/base/common/mime';
 import { nextCharLength } from 'vs/base/common/strings';
-import { isArray, isStringArray } from 'vs/base/common/types';
+import { isArray, isString, isStringArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
@@ -19,6 +19,12 @@ import { IRelativePatternDto } from 'vs/workbench/api/common/extHost.protocol';
 import { CellEditType, ICellPartialMetadataEdit, IDocumentMetadataEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import type * as vscode from 'vscode';
 
+/**
+ * @deprecated
+ *
+ * This utility ensures that old JS code that uses functions for classes still works. Existing usages cannot be removed
+ * but new ones must not be added
+ * */
 function es5ClassCompat(target: Function): any {
 	///@ts-expect-error
 	function _() { return Reflect.construct(target, arguments, this.constructor); }
@@ -549,7 +555,6 @@ export class TextEdit {
 
 	protected _range: Range;
 	protected _newText: string | null;
-	newText2?: string | SnippetString;
 	protected _newEol?: EndOfLine;
 
 	get range(): Range {
@@ -660,6 +665,7 @@ export const enum FileEditType {
 	Text = 2,
 	Cell = 3,
 	CellReplace = 5,
+	Snippet = 6,
 }
 
 export interface IFileOperation {
@@ -674,6 +680,14 @@ export interface IFileTextEdit {
 	_type: FileEditType.Text;
 	uri: URI;
 	edit: TextEdit;
+	metadata?: vscode.WorkspaceEditEntryMetadata;
+}
+
+export interface IFileSnippetTextEdit {
+	_type: FileEditType.Snippet;
+	uri: URI;
+	range: vscode.Range;
+	edit: vscode.SnippetString;
 	metadata?: vscode.WorkspaceEditEntryMetadata;
 }
 
@@ -695,7 +709,7 @@ export interface ICellEdit {
 }
 
 
-type WorkspaceEditEntry = IFileOperation | IFileTextEdit | IFileCellEdit | ICellEdit;
+type WorkspaceEditEntry = IFileOperation | IFileTextEdit | IFileSnippetTextEdit | IFileCellEdit | ICellEdit;
 
 @es5ClassCompat
 export class WorkspaceEdit implements vscode.WorkspaceEdit {
@@ -762,8 +776,12 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
 	// --- text
 
-	replace(uri: URI, range: Range, newText: string, metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._edits.push({ _type: FileEditType.Text, uri, edit: new TextEdit(range, newText), metadata });
+	replace(uri: URI, range: Range, newText: string | vscode.SnippetString, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+		if (typeof newText === 'string') {
+			this._edits.push({ _type: FileEditType.Text, uri, edit: new TextEdit(range, newText), metadata });
+		} else {
+			this._edits.push({ _type: FileEditType.Snippet, uri, range, edit: newText, metadata });
+		}
 	}
 
 	insert(resource: URI, position: Position, newText: string, metadata?: vscode.WorkspaceEditEntryMetadata): void {
@@ -1854,6 +1872,14 @@ export enum SourceControlInputBoxValidationType {
 	Information = 2
 }
 
+export enum TerminalExitReason {
+	Unknown = 0,
+	Shutdown = 1,
+	Process = 2,
+	User = 3,
+	Extension = 4
+}
+
 export class TerminalLink implements vscode.TerminalLink {
 	constructor(
 		public startIndex: number,
@@ -2403,10 +2429,59 @@ export class TreeItem {
 
 	label?: string | vscode.TreeItemLabel;
 	resourceUri?: URI;
-	iconPath?: string | URI | { light: string | URI; dark: string | URI };
+	iconPath?: string | URI | { light: string | URI; dark: string | URI } | ThemeIcon;
 	command?: vscode.Command;
 	contextValue?: string;
 	tooltip?: string | vscode.MarkdownString;
+
+	static isTreeItem(thing: any): thing is TreeItem {
+		if (thing instanceof TreeItem) {
+			return true;
+		}
+		const treeItemThing = thing as vscode.TreeItem;
+		if (treeItemThing.label !== undefined && !isString(treeItemThing.label) && !(treeItemThing.label.label)) {
+			console.log('INVALID tree item, invalid label', treeItemThing.label);
+			return false;
+		}
+		if ((treeItemThing.id !== undefined) && !isString(treeItemThing.id)) {
+			console.log('INVALID tree item, invalid id', treeItemThing.id);
+			return false;
+		}
+		if ((treeItemThing.iconPath !== undefined) && !isString(treeItemThing.iconPath) && !URI.isUri(treeItemThing.iconPath) && !isString((treeItemThing.iconPath as vscode.ThemeIcon).id)) {
+			console.log('INVALID tree item, invalid iconPath', treeItemThing.iconPath);
+			return false;
+		}
+		if ((treeItemThing.description !== undefined) && !isString(treeItemThing.description) && (typeof treeItemThing.description !== 'boolean')) {
+			console.log('INVALID tree item, invalid description', treeItemThing.description);
+			return false;
+		}
+		if ((treeItemThing.resourceUri !== undefined) && !URI.isUri(treeItemThing.resourceUri)) {
+			console.log('INVALID tree item, invalid resourceUri', treeItemThing.resourceUri);
+			return false;
+		}
+		if ((treeItemThing.tooltip !== undefined) && !isString(treeItemThing.tooltip) && !(treeItemThing.tooltip instanceof MarkdownString)) {
+			console.log('INVALID tree item, invalid tooltip', treeItemThing.tooltip);
+			return false;
+		}
+		if ((treeItemThing.command !== undefined) && !treeItemThing.command.command) {
+			console.log('INVALID tree item, invalid command', treeItemThing.command);
+			return false;
+		}
+		if ((treeItemThing.collapsibleState !== undefined) && (treeItemThing.collapsibleState < TreeItemCollapsibleState.None) && (treeItemThing.collapsibleState > TreeItemCollapsibleState.Expanded)) {
+			console.log('INVALID tree item, invalid collapsibleState', treeItemThing.collapsibleState);
+			return false;
+		}
+		if ((treeItemThing.contextValue !== undefined) && !isString(treeItemThing.contextValue)) {
+			console.log('INVALID tree item, invalid contextValue', treeItemThing.contextValue);
+			return false;
+		}
+		if ((treeItemThing.accessibilityInformation !== undefined) && !treeItemThing.accessibilityInformation.label) {
+			console.log('INVALID tree item, invalid accessibilityInformation', treeItemThing.accessibilityInformation);
+			return false;
+		}
+
+		return true;
+	}
 
 	constructor(label: string | vscode.TreeItemLabel, collapsibleState?: vscode.TreeItemCollapsibleState);
 	constructor(resourceUri: URI, collapsibleState?: vscode.TreeItemCollapsibleState);
@@ -3722,6 +3797,10 @@ export class TextDiffTabInput {
 	constructor(readonly original: URI, readonly modified: URI) { }
 }
 
+export class TextMergeTabInput {
+	constructor(readonly base: URI, readonly input1: URI, readonly input2: URI, readonly result: URI) { }
+}
+
 export class CustomEditorTabInput {
 	constructor(readonly uri: URI, readonly viewType: string) { }
 }
@@ -3740,5 +3819,8 @@ export class NotebookDiffEditorTabInput {
 
 export class TerminalEditorTabInput {
 	constructor() { }
+}
+export class InteractiveWindowInput {
+	constructor(readonly uri: URI, readonly inputBoxUri: URI) { }
 }
 //#endregion

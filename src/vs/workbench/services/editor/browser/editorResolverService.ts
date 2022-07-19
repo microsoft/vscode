@@ -10,11 +10,11 @@ import { basename, extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorActivation, EditorResolution, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor, EditorInputWithOptions, IResourceSideBySideEditorInput, isEditorInputWithOptions, isEditorInputWithOptionsAndGroup, isResourceDiffEditorInput, isResourceSideBySideEditorInput, isUntitledResourceEditorInput, IUntypedEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor, EditorInputWithOptions, IResourceSideBySideEditorInput, isEditorInputWithOptions, isEditorInputWithOptionsAndGroup, isResourceDiffEditorInput, isResourceSideBySideEditorInput, isUntitledResourceEditorInput, isResourceMergeEditorInput, IUntypedEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Schemas } from 'vs/base/common/network';
-import { RegisteredEditorInfo, RegisteredEditorPriority, RegisteredEditorOptions, DiffEditorInputFactoryFunction, EditorAssociation, EditorAssociations, EditorInputFactoryFunction, editorsAssociationsSettingId, globMatchesResource, IEditorResolverService, priorityToRank, ResolvedEditor, ResolvedStatus, UntitledEditorInputFactoryFunction } from 'vs/workbench/services/editor/common/editorResolverService';
+import { RegisteredEditorInfo, RegisteredEditorPriority, RegisteredEditorOptions, DiffEditorInputFactoryFunction, EditorAssociation, EditorAssociations, EditorInputFactoryFunction, editorsAssociationsSettingId, globMatchesResource, IEditorResolverService, priorityToRank, ResolvedEditor, ResolvedStatus, UntitledEditorInputFactoryFunction, MergeEditorInputFactoryFunction } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IKeyMods, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { localize } from 'vs/nls';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -34,8 +34,9 @@ interface RegisteredEditor {
 	editorInfo: RegisteredEditorInfo;
 	options?: RegisteredEditorOptions;
 	createEditorInput: EditorInputFactoryFunction;
-	createUntitledEditorInput?: UntitledEditorInputFactoryFunction | undefined;
+	createUntitledEditorInput?: UntitledEditorInputFactoryFunction;
 	createDiffEditorInput?: DiffEditorInputFactoryFunction;
+	createMergeEditorInput?: MergeEditorInputFactoryFunction;
 }
 
 type RegisteredEditors = Array<RegisteredEditor>;
@@ -244,8 +245,9 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		editorInfo: RegisteredEditorInfo,
 		options: RegisteredEditorOptions,
 		createEditorInput: EditorInputFactoryFunction,
-		createUntitledEditorInput?: UntitledEditorInputFactoryFunction | undefined,
-		createDiffEditorInput?: DiffEditorInputFactoryFunction
+		createUntitledEditorInput?: UntitledEditorInputFactoryFunction,
+		createDiffEditorInput?: DiffEditorInputFactoryFunction,
+		createMergeEditorInput?: MergeEditorInputFactoryFunction
 	): IDisposable {
 		let registeredEditor = this._editors.get(globPattern);
 		if (registeredEditor === undefined) {
@@ -258,7 +260,8 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			options,
 			createEditorInput,
 			createUntitledEditorInput,
-			createDiffEditorInput
+			createDiffEditorInput,
+			createMergeEditorInput
 		});
 		this._onDidChangeEditorRegistrations.fire();
 		return toDisposable(() => {
@@ -433,6 +436,15 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		// If no activation option is provided, populate it.
 		if (options && typeof options.activation === 'undefined') {
 			options = { ...options, activation: options.preserveFocus ? EditorActivation.RESTORE : undefined };
+		}
+
+		// If it's a merge editor we trigger the create merge editor input
+		if (isResourceMergeEditorInput(editor)) {
+			if (!selectedEditor.createMergeEditorInput) {
+				return;
+			}
+			const inputWithOptions = await selectedEditor.createMergeEditorInput(editor, group);
+			return { editor: inputWithOptions.editor, options: inputWithOptions.options ?? options };
 		}
 
 		// If it's a diff editor we trigger the create diff editor input
