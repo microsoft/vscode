@@ -83,7 +83,8 @@ export interface ExtensionUrlHandlerEvent {
 
 export interface ExtensionUrlHandlerClassification extends GDPRClassification<ExtensionUrlHandlerEvent> {
 	owner: 'joaomoreno';
-	readonly extensionId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
+	readonly extensionId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The ID of the extension that should handle the URI' };
+	comment: 'This is used to understand the drop funnel of extension URI handling by the OS & VS Code.';
 }
 
 /**

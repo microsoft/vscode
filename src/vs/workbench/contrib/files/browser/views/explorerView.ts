@@ -67,23 +67,28 @@ interface IExplorerViewStyles {
 	listDropBackground?: Color;
 }
 
-// Accepts a single or multiple workspace folders
-function hasExpandedRootChild(tree: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>, treeInput: ExplorerItem | ExplorerItem[]): boolean {
-	const inputsToCheck = [];
-	if (Array.isArray(treeInput)) {
-		inputsToCheck.push(...treeInput.filter(folder => tree.hasNode(folder) && !tree.isCollapsed(folder)));
-	} else {
-		inputsToCheck.push(treeInput);
-	}
-
-	for (const folder of inputsToCheck) {
-		for (const [, child] of folder.children.entries()) {
-			if (tree.hasNode(child) && tree.isCollapsible(child) && !tree.isCollapsed(child)) {
-				return true;
+function hasExpandedRootChild(tree: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>, treeInput: ExplorerItem[]): boolean {
+	for (const folder of treeInput) {
+		if (tree.hasNode(folder) && !tree.isCollapsed(folder)) {
+			for (const [, child] of folder.children.entries()) {
+				if (tree.hasNode(child) && tree.isCollapsible(child) && !tree.isCollapsed(child)) {
+					return true;
+				}
 			}
 		}
 	}
+	return false;
+}
 
+/**
+ * Whether or not any of the nodes in the tree are expanded
+ */
+function hasExpandedNode(tree: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>, treeInput: ExplorerItem[]): boolean {
+	for (const folder of treeInput) {
+		if (tree.hasNode(folder) && !tree.isCollapsed(folder)) {
+			return true;
+		}
+	}
 	return false;
 }
 
@@ -305,6 +310,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			if (visible) {
 				// Always refresh explorer when it becomes visible to compensate for missing file events #126817
 				await this.setTreeInput();
+				// Update the collapse / expand  button state
+				this.updateAnyCollapsedContext();
 				// Find resource to focus from active editor input if set
 				this.selectActiveFile(true);
 			}
@@ -500,9 +507,10 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 				const navigationController = this.renderer.getCompressedNavigationController(element instanceof Array ? element[0] : element);
 				navigationController?.updateCollapsed(e.node.collapsed);
 			}
+			// Update showing expand / collapse button
+			this.updateAnyCollapsedContext();
 		}));
 
-		this._register(this.tree.onDidChangeCollapseState(() => this.updateAnyCollapsedContext()));
 		this.updateAnyCollapsedContext();
 
 		this._register(this.tree.onMouseDblClick(e => {
@@ -786,15 +794,6 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			this.tree.domFocus();
 		}
 
-		const treeInput = this.tree.getInput();
-		if (Array.isArray(treeInput)) {
-			treeInput.forEach(folder => {
-				folder.children.forEach(child => this.tree.hasNode(child) && this.tree.expand(child, true));
-			});
-
-			return;
-		}
-
 		this.tree.expandAll();
 	}
 
@@ -871,7 +870,9 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		if (treeInput === undefined) {
 			return;
 		}
-		this.viewHasSomeCollapsibleRootItem.set(hasExpandedRootChild(this.tree, treeInput));
+		const treeInputArray = Array.isArray(treeInput) ? treeInput : Array.from(treeInput.children.values());
+		// Has collapsible root when anything is expanded
+		this.viewHasSomeCollapsibleRootItem.set(hasExpandedNode(this.tree, treeInputArray));
 	}
 
 	styleListDropBackground(styles: IExplorerViewStyles): void {
