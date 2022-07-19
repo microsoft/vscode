@@ -11,7 +11,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 	...editorConfigurationBaseNode,
 	properties: {
-		'editor.experimental.codeActionWidget.enabled': {
+		'editor.contrib.experimental.codeActionWidget.enabled': {
 			type: 'boolean',
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 			description: nls.localize('codeActionWidget', "Enable/disable opening the experimental Code Action Widget."),

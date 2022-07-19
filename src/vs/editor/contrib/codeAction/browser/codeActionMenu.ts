@@ -188,7 +188,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	}
 
 	private isCodeActionWidgetEnabled(model: ITextModel): boolean {
-		return this._configurationService.getValue('editor.econtrib.codeAction.enabled', {
+		return this._configurationService.getValue('editor.contrib.experimental.codeActionWidget.enabled', {
 			resource: model.uri
 		});
 	}
