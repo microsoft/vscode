@@ -6,7 +6,7 @@
 import { Connection, Emitter, FileChangeType, NotebookDocuments, TextDocuments } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import * as md from 'vscode-markdown-languageservice';
-import { ContainingDocumentContext } from 'vscode-markdown-languageservice/out/workspace';
+import { ContainingDocumentContext, FileWatcherOptions, IFileSystemWatcher } from 'vscode-markdown-languageservice/out/workspace';
 import { URI } from 'vscode-uri';
 import { LsConfiguration } from './config';
 import * as protocol from './protocol';
@@ -18,7 +18,7 @@ import { Schemes } from './util/schemes';
 
 declare const TextDecoder: any;
 
-export class VsCodeClientWorkspace implements md.IWorkspace {
+export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 
 	private readonly _onDidCreateMarkdownDocument = new Emitter<md.ITextDocument>();
 	public readonly onDidCreateMarkdownDocument = this._onDidCreateMarkdownDocument.event;
@@ -33,11 +33,21 @@ export class VsCodeClientWorkspace implements md.IWorkspace {
 
 	private readonly _utf8Decoder = new TextDecoder('utf-8');
 
+	private _watcherPool = 0;
+	private readonly _watchers = new Map<number, {
+		readonly resource: URI;
+		readonly options: FileWatcherOptions;
+		readonly onDidChange: Emitter<URI>;
+		readonly onDidCreate: Emitter<URI>;
+		readonly onDidDelete: Emitter<URI>;
+	}>();
+
 	constructor(
 		private readonly connection: Connection,
 		private readonly config: LsConfiguration,
 		private readonly documents: TextDocuments<TextDocument>,
 		private readonly notebooks: NotebookDocuments<TextDocument>,
+		private readonly logger: md.ILogger,
 	) {
 		documents.onDidOpen(e => {
 			this._documentCache.delete(URI.parse(e.document.uri));
@@ -81,6 +91,18 @@ export class VsCodeClientWorkspace implements md.IWorkspace {
 						break;
 					}
 				}
+			}
+		});
+
+		connection.onRequest(protocol.onWatcherChange, params => {
+			const watcher = this._watchers.get(params.id);
+			if (!watcher) {
+				return;
+			}
+			switch (params.kind) {
+				case 'create': watcher.onDidCreate.fire(URI.parse(params.uri)); return;
+				case 'change': watcher.onDidChange.fire(URI.parse(params.uri)); return;
+				case 'delete': watcher.onDidDelete.fire(URI.parse(params.uri)); return;
 			}
 		});
 	}
@@ -154,7 +176,7 @@ export class VsCodeClientWorkspace implements md.IWorkspace {
 
 			// We assume that markdown is in UTF-8
 			const text = this._utf8Decoder.decode(bytes);
-			const doc = new md.InMemoryDocument(resource, text, 0);
+			const doc = TextDocument.create(resource.toString(), 'markdown', 0, text);
 			this._documentCache.set(resource, doc);
 			return doc;
 		} catch (e) {
@@ -163,6 +185,7 @@ export class VsCodeClientWorkspace implements md.IWorkspace {
 	}
 
 	async stat(resource: URI): Promise<md.FileStat | undefined> {
+		this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace: stat', `${resource}`);
 		if (this._documentCache.has(resource) || this.documents.get(resource.toString())) {
 			return { isDirectory: false };
 		}
@@ -170,6 +193,7 @@ export class VsCodeClientWorkspace implements md.IWorkspace {
 	}
 
 	async readDirectory(resource: URI): Promise<[string, md.FileStat][]> {
+		this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace: readDir', `${resource}`);
 		return this.connection.sendRequest(protocol.readDirectoryRequestType, { uri: resource.toString() });
 	}
 
@@ -184,6 +208,34 @@ export class VsCodeClientWorkspace implements md.IWorkspace {
 			}
 		}
 		return undefined;
+	}
+
+	watchFile(resource: URI, options: FileWatcherOptions): IFileSystemWatcher {
+		const entry = {
+			resource,
+			options,
+			onDidCreate: new Emitter<URI>(),
+			onDidChange: new Emitter<URI>(),
+			onDidDelete: new Emitter<URI>(),
+		};
+		const id = this._watcherPool++;
+		this._watchers.set(id, entry);
+
+		this.connection.sendRequest(protocol.createFileWatcher, {
+			id,
+			uri: resource.toString(),
+			options,
+		});
+
+		return {
+			onDidCreate: entry.onDidCreate.event,
+			onDidChange: entry.onDidChange.event,
+			onDidDelete: entry.onDidDelete.event,
+			dispose: () => {
+				this.connection.sendRequest(protocol.deleteFileWatcher, { id });
+				this._watchers.delete(id);
+			}
+		};
 	}
 
 	private isRelevantMarkdownDocument(doc: TextDocument) {
