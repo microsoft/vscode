@@ -64,7 +64,7 @@ export class CommandNavigationAddon extends Disposable implements ICommandTracke
 		if (this._commandDetection.type === TerminalCapability.PartialCommandDetection) {
 			commands = this._commandDetection.commands;
 		} else {
-			commands = coalesce(this._commandDetection.commands.map(e => e.marker));
+			commands = coalesce(this._commandDetection.commands.filter(e => e.command).map(e => e.marker));
 		}
 		return commands;
 	}
