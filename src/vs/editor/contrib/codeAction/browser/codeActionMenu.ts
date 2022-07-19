@@ -165,22 +165,20 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		private readonly _editor: ICodeEditor,
 		private readonly _delegate: CodeActionWidgetDelegate,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IThemeService _themeService: IThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IContextViewService private readonly _contextViewService: IContextViewService,
+		@IContextKeyService private _contextKeyService: IContextKeyService,
 	) {
 		super();
 
 		this.editor = _editor;
-
 		this._keybindingResolver = new CodeActionKeybindingResolver({
 			getKeybindings: () => keybindingService.getKeybindings()
 		});
-
 
 		if (this.codeActionList && !this.codeActionList.isDOMFocused()) {
 			this.dispose();
@@ -188,9 +186,6 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 
 		this._ctxMenuWidgetVisible = Context.Visible.bindTo(_contextKeyService);
 	}
-
-	allowEditorOverflow?: boolean | undefined;
-	suppressMouseDown?: boolean | undefined;
 
 	get isVisible(): boolean {
 		return this._visible;
@@ -381,7 +376,6 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		const menuActions = this.getMenuActions(trigger, actionsToShow, codeActions.documentation);
 
 		const anchor = Position.isIPosition(at) ? this._toCoords(at) : at || { x: 0, y: 0 };
-
 		const resolver = this._keybindingResolver.getResolver();
 
 		const useShadowDOM = this._editor.getOption(EditorOption.useShadowDOM);
@@ -416,7 +410,6 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 				});
 				this._visible = false;
 				this._editor.focus();
-
 			},
 		},
 			this._editor.getDomNode()!, false,
