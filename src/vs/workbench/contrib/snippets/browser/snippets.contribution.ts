@@ -42,8 +42,8 @@ const snippetSchemaProperties: IJSONSchemaMap = {
 		description: nls.localize('snippetSchema.json.prefix', 'The prefix to use when selecting the snippet in intellisense'),
 		type: ['string', 'array']
 	},
-	isTopLevel: {
-		description: nls.localize('snippetSchema.json.isTopLevel', 'The snippet is only applicable to empty files.'),
+	isFileTemplate: {
+		description: nls.localize('snippetSchema.json.isFileTemplate', 'The snippet is meant to populate or replace a whole file'),
 		type: 'boolean'
 	},
 	body: {

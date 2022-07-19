@@ -42,7 +42,7 @@ export class SelectSnippetForEmptyFile extends SnippetsAction {
 			return;
 		}
 
-		const snippets = await snippetService.getSnippets(undefined, { topLevelSnippets: true, noRecencySort: true, includeNoPrefixSnippets: true });
+		const snippets = await snippetService.getSnippets(undefined, { fileTemplateSnippets: true, noRecencySort: true, includeNoPrefixSnippets: true });
 		if (snippets.length === 0) {
 			return;
 		}
