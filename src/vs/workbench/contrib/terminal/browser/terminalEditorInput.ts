@@ -100,7 +100,7 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 		return false;
 	}
 
-	async confirm(terminals?: ReadonlyArray<IEditorIdentifier>): Promise<ConfirmResult> {
+	async confirm(terminals: ReadonlyArray<IEditorIdentifier>): Promise<ConfirmResult> {
 		const { choice } = await this._dialogService.show(
 			Severity.Warning,
 			localize('confirmDirtyTerminal.message', "Do you want to terminate running processes?"),
@@ -110,7 +110,7 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 			],
 			{
 				cancelId: 1,
-				detail: terminals && terminals.length > 1 ?
+				detail: terminals.length > 1 ?
 					terminals.map(terminal => terminal.editor.getName()).join('\n') + '\n\n' + localize('confirmDirtyTerminals.detail', "Closing will terminate the running processes in the terminals.") :
 					localize('confirmDirtyTerminal.detail', "Closing will terminate the running processes in this terminal.")
 			}

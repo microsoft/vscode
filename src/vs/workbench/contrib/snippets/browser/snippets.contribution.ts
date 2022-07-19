@@ -4,40 +4,47 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import { Registry } from 'vs/platform/registry/common/platform';
-import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import * as nls from 'vs/nls';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { SnippetFile, Snippet } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
+import { registerAction2 } from 'vs/platform/actions/common/actions';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { ConfigureSnippets } from 'vs/workbench/contrib/snippets/browser/commands/configureSnippets';
+import { SelectSnippetForEmptyFile } from 'vs/workbench/contrib/snippets/browser/commands/emptyFileSnippets';
+import { InsertSnippetAction } from 'vs/workbench/contrib/snippets/browser/commands/insertSnippet';
+import { SurroundWithSnippetCodeActionProvider, SurroundWithSnippetEditorAction } from 'vs/workbench/contrib/snippets/browser/commands/surroundWithSnippet';
+import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets';
+import { SnippetsService } from 'vs/workbench/contrib/snippets/browser/snippetsService';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
-export const ISnippetsService = createDecorator<ISnippetsService>('snippetService');
+import 'vs/workbench/contrib/snippets/browser/tabCompletion';
 
-export interface ISnippetGetOptions {
-	includeDisabledSnippets?: boolean;
-	includeNoPrefixSnippets?: boolean;
-}
+// service
+registerSingleton(ISnippetsService, SnippetsService, true);
 
-export interface ISnippetsService {
+// actions
+registerAction2(InsertSnippetAction);
+CommandsRegistry.registerCommandAlias('editor.action.showSnippets', 'editor.action.insertSnippet');
+registerAction2(SurroundWithSnippetEditorAction);
+registerAction2(ConfigureSnippets);
+registerAction2(SelectSnippetForEmptyFile);
 
-	readonly _serviceBrand: undefined;
+// workbench contribs
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SurroundWithSnippetCodeActionProvider, LifecyclePhase.Restored);
 
-	getSnippetFiles(): Promise<Iterable<SnippetFile>>;
-
-	isEnabled(snippet: Snippet): boolean;
-
-	updateEnablement(snippet: Snippet, enabled: boolean): void;
-
-	getSnippets(languageId: string, opt?: ISnippetGetOptions): Promise<Snippet[]>;
-
-	getSnippetsSync(languageId: string, opt?: ISnippetGetOptions): Snippet[];
-}
-
+// schema
 const languageScopeSchemaId = 'vscode://schemas/snippets';
 
 const snippetSchemaProperties: IJSONSchemaMap = {
 	prefix: {
 		description: nls.localize('snippetSchema.json.prefix', 'The prefix to use when selecting the snippet in intellisense'),
 		type: ['string', 'array']
+	},
+	isTopLevel: {
+		description: nls.localize('snippetSchema.json.isTopLevel', 'The snippet is only applicable to empty files.'),
+		type: 'boolean'
 	},
 	body: {
 		markdownDescription: nls.localize('snippetSchema.json.body', 'The snippet content. Use `$1`, `${1:defaultText}` to define cursor positions, use `$0` for the final cursor position. Insert variable values with `${varName}` and `${varName:defaultText}`, e.g. `This is file: $TM_FILENAME`.'),

@@ -6,7 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
+import { IToggleStyles, Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { CaseSensitiveToggle, RegexToggle, WholeWordsToggle } from 'vs/base/browser/ui/findinput/findInputToggles';
 import { HistoryInputBox, IInputBoxStyles, IInputValidator, IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -31,6 +31,7 @@ export interface IFindInputOptions extends IFindInputStyles {
 	readonly appendWholeWordsLabel?: string;
 	readonly appendRegexLabel?: string;
 	readonly history?: string[];
+	readonly additionalToggles?: Toggle[];
 	readonly showHistoryHint?: () => boolean;
 }
 
@@ -74,6 +75,7 @@ export class FindInput extends Widget {
 	protected regex: RegexToggle;
 	protected wholeWords: WholeWordsToggle;
 	protected caseSensitive: CaseSensitiveToggle;
+	protected additionalToggles: Toggle[] = [];
 	public domNode: HTMLElement;
 	public inputBox: HistoryInputBox;
 
@@ -209,10 +211,6 @@ export class FindInput extends Widget {
 			this._onCaseSensitiveKeyDown.fire(e);
 		}));
 
-		if (this._showOptionButtons) {
-			this.inputBox.paddingRight = this.caseSensitive.width() + this.wholeWords.width() + this.regex.width();
-		}
-
 		// Arrow-Key support to navigate between options
 		const indexes = [this.caseSensitive.domNode, this.wholeWords.domNode, this.regex.domNode];
 		this.onkeydown(this.domNode, (event: IKeyboardEvent) => {
@@ -250,6 +248,34 @@ export class FindInput extends Widget {
 		this.controls.appendChild(this.wholeWords.domNode);
 		this.controls.appendChild(this.regex.domNode);
 
+		if (!this._showOptionButtons) {
+			this.caseSensitive.domNode.style.display = 'none';
+			this.wholeWords.domNode.style.display = 'none';
+			this.regex.domNode.style.display = 'none';
+		}
+
+		for (const toggle of options?.additionalToggles ?? []) {
+			this._register(toggle);
+			this.controls.appendChild(toggle.domNode);
+
+			this._register(toggle.onChange(viaKeyboard => {
+				this._onDidOptionChange.fire(viaKeyboard);
+				if (!viaKeyboard && this.fixFocusOnOptionClickEnabled) {
+					this.inputBox.focus();
+				}
+			}));
+
+			this.additionalToggles.push(toggle);
+		}
+
+		if (this.additionalToggles.length > 0) {
+			this.controls.style.display = 'block';
+		}
+
+		this.inputBox.paddingRight =
+			(this._showOptionButtons ? this.caseSensitive.width() + this.wholeWords.width() + this.regex.width() : 0)
+			+ this.additionalToggles.reduce((r, t) => r + t.width(), 0);
+
 		this.domNode.appendChild(this.controls);
 
 		parent?.appendChild(this.domNode);
@@ -282,6 +308,10 @@ export class FindInput extends Widget {
 		this.regex.enable();
 		this.wholeWords.enable();
 		this.caseSensitive.enable();
+
+		for (const toggle of this.additionalToggles) {
+			toggle.enable();
+		}
 	}
 
 	public disable(): void {
@@ -290,6 +320,10 @@ export class FindInput extends Widget {
 		this.regex.disable();
 		this.wholeWords.disable();
 		this.caseSensitive.disable();
+
+		for (const toggle of this.additionalToggles) {
+			toggle.disable();
+		}
 	}
 
 	public setFocusInputOnOptionClick(value: boolean): void {
@@ -355,6 +389,10 @@ export class FindInput extends Widget {
 			this.regex.style(toggleStyles);
 			this.wholeWords.style(toggleStyles);
 			this.caseSensitive.style(toggleStyles);
+
+			for (const toggle of this.additionalToggles) {
+				toggle.style(toggleStyles);
+			}
 
 			const inputBoxStyles: IInputBoxStyles = {
 				inputBackground: this.inputBackground,

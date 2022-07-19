@@ -232,7 +232,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 				keyboardSupport: false,
 				mouseSupport: true,
 				multipleSelectionSupport: false,
-				enableKeyboardNavigation: true,
+				typeNavigationEnabled: true,
 				additionalScrollHeight: 0,
 				// transformOptimization: (isMacintosh && isNative) || getTitleBarStyle(this.configurationService, this.environmentService) === 'native',
 				styleController: (_suffix: string) => { return this._list!; },

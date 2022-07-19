@@ -104,6 +104,8 @@ import { PolicyChannel } from 'vs/platform/policy/common/policyIpc';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 import { IDefaultExtensionsProfileInitService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { DefaultExtensionsProfileInitHandler } from 'vs/platform/extensionManagement/electron-main/defaultExtensionsProfileInit';
+import { RequestChannel } from 'vs/platform/request/common/requestIpc';
+import { IRequestService } from 'vs/platform/request/common/request';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -728,6 +730,10 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel('userDataProfiles', userDataProfilesService);
 		sharedProcessClient.then(client => client.registerChannel('userDataProfiles', userDataProfilesService));
 
+		// Request
+		const requestService = new RequestChannel(accessor.get(IRequestService));
+		sharedProcessClient.then(client => client.registerChannel('request', requestService));
+
 		// Update
 		const updateChannel = new UpdateChannel(accessor.get(IUpdateService));
 		mainProcessElectronServer.registerChannel('update', updateChannel);
@@ -1006,6 +1012,7 @@ export class CodeApplication extends Disposable {
 			cli: args,
 			forceNewWindow: args['new-window'] || (!hasCliArgs && args['unity-launch']),
 			diffMode: args.diff,
+			mergeMode: args.merge,
 			noRecentEntry,
 			waitMarkerFileURI,
 			gotoLineMode: args.goto,

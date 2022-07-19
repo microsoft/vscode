@@ -325,6 +325,7 @@ export interface INotebookEditorCreationOptions {
 	readonly menuIds: {
 		notebookToolbar: MenuId;
 		cellTitleToolbar: MenuId;
+		cellDeleteToolbar: MenuId;
 		cellInsertToolbar: MenuId;
 		cellTopInsertToolbar: MenuId;
 		cellExecuteToolbar: MenuId;

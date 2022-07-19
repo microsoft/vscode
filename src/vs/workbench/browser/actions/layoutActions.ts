@@ -583,6 +583,9 @@ if (isWindows || isLinux || isWeb) {
 					id: MenuId.MenubarAppearanceMenu,
 					group: '2_workbench_layout',
 					order: 0
+				}, {
+					id: MenuId.TitleBarContext,
+					order: 0
 				}]
 			});
 		}
