@@ -112,11 +112,11 @@ export class TerminalViewPane extends ViewPane {
 				this._terminalTabbedView?.rerenderTabs();
 			}
 		}));
-		_configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled) || e.affectsConfiguration(TerminalSettingId.ShellIntegrationEnabled)) {
-				this._updateForShellIntegration();
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (this._parentDomElement && (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled) || e.affectsConfiguration(TerminalSettingId.ShellIntegrationEnabled))) {
+				this._updateForShellIntegration(this._parentDomElement);
 			}
-		});
+		}));
 		this._register(this._terminalService.onDidCreateInstance((i) => {
 			i.capabilities.onDidAddCapability(c => {
 				if (c === TerminalCapability.CommandDetection && !this._gutterDecorationsEnabled()) {
@@ -124,15 +124,10 @@ export class TerminalViewPane extends ViewPane {
 				}
 			});
 		}));
-		this._updateForShellIntegration();
 	}
 
-	private _updateForShellIntegration() {
-		if (this._gutterDecorationsEnabled()) {
-			this._parentDomElement?.classList.add('shell-integration');
-		} else {
-			this._parentDomElement?.classList.remove('shell-integration');
-		}
+	private _updateForShellIntegration(container: HTMLElement) {
+		container.classList.toggle('shell-integration', this._gutterDecorationsEnabled());
 	}
 
 	private _gutterDecorationsEnabled(): boolean {
@@ -143,6 +138,9 @@ export class TerminalViewPane extends ViewPane {
 	override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
+		if (!this._parentDomElement) {
+			this._updateForShellIntegration(container);
+		}
 		this._parentDomElement = container;
 		this._parentDomElement.classList.add('integrated-terminal');
 		this._fontStyleElement = document.createElement('style');
