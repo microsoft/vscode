@@ -66,7 +66,6 @@ const glob = require('glob');
 const util = require('util');
 const bootstrap = require('../../../src/bootstrap');
 const coverage = require('../coverage');
-const { fail } = require('assert');
 
 // Disabled custom inspect. See #38847
 if (util.inspect && util.inspect['defaultOptions']) {
