@@ -427,12 +427,16 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	private isEmptyWorkspace(): boolean {
+		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
+			return true;
+		}
+
 		const workspace = this.workspaceService.getWorkspace();
 		if (workspace) {
 			return isTemporaryWorkspace(this.workspaceService.getWorkspace()) && workspace.folders.length === 0;
 		}
 
-		return this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY;
+		return false;
 	}
 
 	private isTrustedVirtualResource(uri: URI): boolean {
