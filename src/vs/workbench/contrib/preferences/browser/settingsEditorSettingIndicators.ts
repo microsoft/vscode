@@ -140,7 +140,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 			this.scopeOverridesElement.style.display = 'inline';
 			this.scopeOverridesElement.classList.add('with-custom-hover');
 
-			const applicationSettingText = localize('applicationSetting', "Not profile-specific");
+			const applicationSettingText = localize('applicationSetting', "Applies to all profiles");
 			this.scopeOverridesLabel.text = applicationSettingText;
 
 			const content = localize('applicationSettingDescription', "The setting is not specific to the current profile, and will retain its value when switching profiles.");
