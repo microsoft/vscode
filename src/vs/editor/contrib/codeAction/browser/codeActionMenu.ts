@@ -167,7 +167,8 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	private _ctxMenuWidgetVisible!: IContextKey<boolean>;
 	private readonly editor: ICodeEditor;
 	private viewItems: ICodeActionMenuItem[] = [];
-	private focusedItem!: number | undefined;
+	private focusedEnabledItem!: number;
+	private currSelectedItem!: number;
 
 	public static readonly ID: string = 'editor.contrib.codeActionMenu';
 
@@ -288,6 +289,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 
 		// resize observer - supports dynamic height but not width
 		this.codeActionList.domFocus();
+		this.focusedEnabledItem = 0;
 		this.codeActionList.setFocus([this.viewItems[0].index]);
 		const focusTracker = dom.trackFocus(element);
 		const blurListener = focusTracker.onDidBlur(() => {
@@ -297,48 +299,50 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 
 		renderDisposables.add(blurListener);
 		renderDisposables.add(focusTracker);
-		// this._ctxMenuWidgetVisible = Context.Visible.bindTo(this._contextKeyService.createScoped(element));
 		this._ctxMenuWidgetVisible.set(true);
 		return renderDisposables;
 	}
 
 	protected focusPrevious(forceLoop?: Boolean) {
-		if (typeof this.focusedItem === 'undefined') {
-			this.focusedItem = this.viewItems[0].index;
+		if (typeof this.focusedEnabledItem === 'undefined') {
+			this.focusedEnabledItem = this.viewItems[0].index;
 		} else if (this.viewItems.length <= 1) {
 			return false;
 		}
 
-		const startIndex = this.focusedItem;
+		const startIndex = this.focusedEnabledItem;
 		let item: ICodeActionMenuItem;
 
 		do {
-			this.focusedItem = this.focusedItem - 1;
-			if (this.focusedItem < 0) {
-				this.focusedItem = this.viewItems.length - 1;
+			this.focusedEnabledItem = this.focusedEnabledItem - 1;
+			console.log(this.focusedEnabledItem);
+			if (this.focusedEnabledItem < 0) {
+				this.focusedEnabledItem = this.viewItems.length - 1;
 			}
-			item = this.viewItems[this.focusedItem];
+			item = this.viewItems[this.focusedEnabledItem];
 			this.codeActionList.setFocus([item.index]);
-		} while (this.focusedItem !== startIndex && ((!item.isEnabled) || item.action.id === Separator.ID));
+			this.currSelectedItem = item.index;
+		} while (this.focusedEnabledItem !== startIndex && ((!item.isEnabled) || item.action.id === Separator.ID));
 
 		return true;
 	}
 
 	protected focusNext(forceLoop?: Boolean) {
-		if (typeof this.focusedItem === 'undefined') {
-			this.focusedItem = this.viewItems.length - 1;
+		if (typeof this.focusedEnabledItem === 'undefined') {
+			this.focusedEnabledItem = this.viewItems.length - 1;
 		} else if (this.viewItems.length <= 1) {
 			return false;
 		}
 
-		const startIndex = this.focusedItem;
+		const startIndex = this.focusedEnabledItem;
 		let item: ICodeActionMenuItem;
 
 		do {
-			this.focusedItem = (this.focusedItem + 1) % this.viewItems.length;
-			item = this.viewItems[this.focusedItem];
+			this.focusedEnabledItem = (this.focusedEnabledItem + 1) % this.viewItems.length;
+			item = this.viewItems[this.focusedEnabledItem];
 			this.codeActionList.setFocus([item.index]);
-		} while (this.focusedItem !== startIndex && ((!item.isEnabled) || item.action.id === Separator.ID));
+			this.currSelectedItem = item.index;
+		} while (this.focusedEnabledItem !== startIndex && ((!item.isEnabled) || item.action.id === Separator.ID));
 
 		return true;
 	}
@@ -351,6 +355,10 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		this.focusNext();
 	}
 
+	public onEnterSet() {
+		this.codeActionList.setSelection([this.currSelectedItem]);
+	}
+
 	override dispose() {
 		this.codeActionList.dispose();
 		this._disposables.dispose();
@@ -360,7 +368,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		this._ctxMenuWidgetVisible.reset();
 		this.options = [];
 		this.viewItems = [];
-		this.focusedItem = undefined;
+		this.focusedEnabledItem = 0;
 		this._contextViewService.hideContextView();
 		this.dispose();
 	}

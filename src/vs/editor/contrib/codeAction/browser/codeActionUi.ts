@@ -63,7 +63,11 @@ export class CodeActionUi extends Disposable implements IEditorContribution {
 	}
 
 	public hideCodeActionWidget() {
-		this._codeActionWidget.getValue().dispose();
+		this._codeActionWidget.getValue().hideCodeActionWidget();
+	}
+
+	public onEnter() {
+		this._codeActionWidget.getValue().onEnterSet();
 	}
 
 	public navigateList(navUp: Boolean) {

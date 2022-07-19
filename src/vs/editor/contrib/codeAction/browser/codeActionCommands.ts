@@ -141,6 +141,10 @@ export class QuickFixController extends Disposable implements IEditorContributio
 		this._ui.getValue().navigateList(navUp);
 	}
 
+	public selectedOption() {
+		this._ui.getValue().onEnter();
+	}
+
 	public showCodeActions(trigger: CodeActionTrigger, actions: CodeActionSet, at: IAnchor | IPosition) {
 		return this._ui.getValue().showCodeActionList(trigger, actions, at, { includeDisabledActions: false, fromLightbulb: false });
 	}
@@ -539,6 +543,19 @@ registerEditorCommand(new CodeActionContribution({
 	kbOpts: {
 		weight: weight + 100000,
 		primary: KeyCode.DownArrow,
+		// secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow],
+	}
+}));
+
+registerEditorCommand(new CodeActionContribution({
+	id: 'onEnterSelect',
+	precondition: Context.Visible,
+	handler(x) {
+		x.selectedOption();
+	},
+	kbOpts: {
+		weight: weight + 100000,
+		primary: KeyCode.Enter,
 		// secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow],
 	}
 }));
