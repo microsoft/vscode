@@ -49,7 +49,7 @@
 .monaco-button-dropdown.disabled > .monaco-button.disabled,
 .monaco-button-dropdown.disabled > .monaco-button.disabled:focus,
 .monaco-button-dropdown.disabled > .monaco-button-dropdown-separator {
-	opacity: 0.4;
+	opacity: 0.4 !important;
 }
 
 .monaco-button-dropdown .monaco-button-dropdown-separator {
