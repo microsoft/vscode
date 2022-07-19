@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { editorConfigurationBaseNode } from 'vs/editor/common/config/editorConfigurationSchema';
-import { CodeActionMenu } from 'vs/editor/contrib/codeAction/browser/codeActionMenu';
 import * as nls from 'vs/nls';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';

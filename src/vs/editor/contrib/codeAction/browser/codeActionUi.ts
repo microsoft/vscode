@@ -9,7 +9,6 @@ import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition } from 'vs/editor/common/core/position';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { CodeActionTriggerType } from 'vs/editor/common/languages';
 import { CodeActionItem, CodeActionSet } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
@@ -19,7 +18,7 @@ import { CodeActionsState } from './codeActionModel';
 import { LightBulbWidget } from './lightBulbWidget';
 import { CodeActionAutoApply, CodeActionTrigger } from './types';
 
-export class CodeActionUi extends Disposable implements IEditorContribution {
+export class CodeActionUi extends Disposable {
 
 	private readonly _codeActionWidget: Lazy<CodeActionMenu>;
 	private readonly _lightBulbWidget: Lazy<LightBulbWidget>;

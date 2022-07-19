@@ -109,7 +109,7 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 		const data: ICodeActionMenuTemplateData = templateData;
 
 		const text = element.title;
-		const detail = element.detail;
+		// const detail = element.detail;
 
 		const isEnabled = element.isEnabled;
 		const isSeparator = element.isSeparator;
@@ -171,7 +171,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		@IThemeService _themeService: IThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IContextKeyService private _contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -179,10 +179,6 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		this._keybindingResolver = new CodeActionKeybindingResolver({
 			getKeybindings: () => keybindingService.getKeybindings()
 		});
-
-		if (this.codeActionList && !this.codeActionList.isDOMFocused()) {
-			this.dispose();
-		}
 
 		this._ctxMenuWidgetVisible = Context.Visible.bindTo(_contextKeyService);
 	}
@@ -274,7 +270,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		const focusTracker = dom.trackFocus(element);
 		const blurListener = focusTracker.onDidBlur(() => {
 			this.hideCodeActionWidget();
-			this._contextViewService.hideContextView({ source: this });
+			// this._contextViewService.hideContextView({ source: this });
 		});
 		renderDisposables.add(blurListener);
 		renderDisposables.add(focusTracker);
@@ -349,7 +345,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		this.viewItems = [];
 		this.focusedEnabledItem = 0;
 		this.currSelectedItem = 0;
-		this._contextViewService.hideContextView();
+		this._contextViewService.hideContextView({ source: this });
 		this.dispose();
 	}
 
@@ -381,75 +377,75 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		const useShadowDOM = this._editor.getOption(EditorOption.useShadowDOM);
 
 
-		// if (this.isCodeActionWidgetEnabled(model)) {
-		this._contextViewService.showContextView({
-			getAnchor: () => anchor,
-			render: (container: HTMLElement) => this.renderCodeActionMenuList(container, menuActions),
-			onHide: (didCancel) => {
-				const openedFromString = (options.fromLightbulb) ? CodeActionTriggerSource.Lightbulb : trigger.triggerAction;
+		if (this.isCodeActionWidgetEnabled(model)) {
+			this._contextViewService.showContextView({
+				getAnchor: () => anchor,
+				render: (container: HTMLElement) => this.renderCodeActionMenuList(container, menuActions),
+				onHide: (didCancel) => {
+					const openedFromString = (options.fromLightbulb) ? CodeActionTriggerSource.Lightbulb : trigger.triggerAction;
 
-				type ApplyCodeActionEvent = {
-					codeActionFrom: CodeActionTriggerSource;
-					validCodeActions: number;
-					cancelled: boolean;
-				};
+					type ApplyCodeActionEvent = {
+						codeActionFrom: CodeActionTriggerSource;
+						validCodeActions: number;
+						cancelled: boolean;
+					};
 
-				type ApplyCodeEventClassification = {
-					codeActionFrom: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of action used to opened the code action.' };
-					validCodeActions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The total number of valid actions that are highlighted and can be used.' };
-					cancelled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The indicator if the menu was selected or cancelled.' };
-					owner: 'mjbvz';
-					comment: 'Event used to gain insights into how code actions are being triggered';
-				};
+					type ApplyCodeEventClassification = {
+						codeActionFrom: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of action used to opened the code action.' };
+						validCodeActions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The total number of valid actions that are highlighted and can be used.' };
+						cancelled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The indicator if the menu was selected or cancelled.' };
+						owner: 'mjbvz';
+						comment: 'Event used to gain insights into how code actions are being triggered';
+					};
 
-				this._telemetryService.publicLog2<ApplyCodeActionEvent, ApplyCodeEventClassification>('codeAction.applyCodeAction', {
-					codeActionFrom: openedFromString,
-					validCodeActions: codeActions.validActions.length,
-					cancelled: didCancel,
+					this._telemetryService.publicLog2<ApplyCodeActionEvent, ApplyCodeEventClassification>('codeAction.applyCodeAction', {
+						codeActionFrom: openedFromString,
+						validCodeActions: codeActions.validActions.length,
+						cancelled: didCancel,
 
-				});
-				this._visible = false;
-				this._editor.focus();
+					});
+					this._visible = false;
+					this._editor.focus();
+				},
 			},
-		},
-			this._editor.getDomNode()!, false,
-		);
-		// } else {
-		// 	this._contextMenuService.showContextMenu({
-		// 		domForShadowRoot: useShadowDOM ? this._editor.getDomNode()! : undefined,
-		// 		getAnchor: () => anchor,
-		// 		getActions: () => menuActions,
-		// 		onHide: (didCancel) => {
-		// 			const openedFromString = (options.fromLightbulb) ? CodeActionTriggerSource.Lightbulb : trigger.triggerAction;
+				this._editor.getDomNode()!, false,
+			);
+		} else {
+			this._contextMenuService.showContextMenu({
+				domForShadowRoot: useShadowDOM ? this._editor.getDomNode()! : undefined,
+				getAnchor: () => anchor,
+				getActions: () => menuActions,
+				onHide: (didCancel) => {
+					const openedFromString = (options.fromLightbulb) ? CodeActionTriggerSource.Lightbulb : trigger.triggerAction;
 
-		// 			type ApplyCodeActionEvent = {
-		// 				codeActionFrom: CodeActionTriggerSource;
-		// 				validCodeActions: number;
-		// 				cancelled: boolean;
-		// 			};
+					type ApplyCodeActionEvent = {
+						codeActionFrom: CodeActionTriggerSource;
+						validCodeActions: number;
+						cancelled: boolean;
+					};
 
-		// 			type ApplyCodeEventClassification = {
-		// 				codeActionFrom: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of action used to opened the code action.' };
-		// 				validCodeActions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The total number of valid actions that are highlighted and can be used.' };
-		// 				cancelled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The indicator if the menu was selected or cancelled.' };
-		// 				owner: 'mjbvz';
-		// 				comment: 'Event used to gain insights into how code actions are being triggered';
-		// 			};
+					type ApplyCodeEventClassification = {
+						codeActionFrom: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of action used to opened the code action.' };
+						validCodeActions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The total number of valid actions that are highlighted and can be used.' };
+						cancelled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The indicator if the menu was selected or cancelled.' };
+						owner: 'mjbvz';
+						comment: 'Event used to gain insights into how code actions are being triggered';
+					};
 
-		// 			this._telemetryService.publicLog2<ApplyCodeActionEvent, ApplyCodeEventClassification>('codeAction.applyCodeAction', {
-		// 				codeActionFrom: openedFromString,
-		// 				validCodeActions: codeActions.validActions.length,
-		// 				cancelled: didCancel,
+					this._telemetryService.publicLog2<ApplyCodeActionEvent, ApplyCodeEventClassification>('codeAction.applyCodeAction', {
+						codeActionFrom: openedFromString,
+						validCodeActions: codeActions.validActions.length,
+						cancelled: didCancel,
 
-		// 			});
+					});
 
-		// 			this._visible = false;
-		// 			this._editor.focus();
-		// 		},
-		// 		autoSelectFirstItem: true,
-		// 		getKeyBinding: action => action instanceof CodeActionAction ? resolver(action.action) : undefined,
-		// 	});
-		// }
+					this._visible = false;
+					this._editor.focus();
+				},
+				autoSelectFirstItem: true,
+				getKeyBinding: action => action instanceof CodeActionAction ? resolver(action.action) : undefined,
+			});
+		}
 	}
 
 	private getMenuActions(
