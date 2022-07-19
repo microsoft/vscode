@@ -40,7 +40,7 @@ import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDe
 import { TerminalMenuBarGroup } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
 import { isString } from 'vs/base/common/types';
 
-const SHOW_TASKS_COMMANDS_CONTEXT = ContextKeyExpr.or(ShellExecutionSupportedContext, ProcessExecutionSupportedContext);
+const SHOW_TASKS_COMMANDS_CONTEXT = ContextKeyExpr.and(ShellExecutionSupportedContext, ProcessExecutionSupportedContext);
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(RunAutomaticTasks, LifecyclePhase.Eventually);

@@ -3,14 +3,4 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.context-view {
-	position: absolute;
-}
-
-.context-view.fixed {
-	all: initial;
-	font-family: inherit;
-	font-size: 13px;
-	position: fixed;
-	color: inherit;
-}
+export type ArchString = 'amd64' | 'armhf' | 'arm64';

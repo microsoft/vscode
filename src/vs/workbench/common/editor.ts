@@ -733,6 +733,12 @@ export const enum EditorInputCapabilities {
 	 * editor by holding shift.
 	 */
 	CanDropIntoEditor = 1 << 7,
+
+	/**
+	 * Signals that the editor is composed of multiple editors
+	 * within.
+	 */
+	MultipleEditors = 1 << 8
 }
 
 export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceSideBySideEditorInput | IResourceMergeEditorInput;

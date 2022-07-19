@@ -13,7 +13,7 @@ import { ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialog
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IEditorIdentifier, IResourceMergeEditorInput, isResourceMergeEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { EditorInputCapabilities, IEditorIdentifier, IResourceMergeEditorInput, isResourceMergeEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput, IEditorCloseHandler } from 'vs/workbench/common/editor/editorInput';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { EditorWorkerServiceDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
@@ -82,6 +82,10 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 
 	get typeId(): string {
 		return MergeEditorInput.ID;
+	}
+
+	override get capabilities(): EditorInputCapabilities {
+		return super.capabilities | EditorInputCapabilities.MultipleEditors;
 	}
 
 	override getName(): string {

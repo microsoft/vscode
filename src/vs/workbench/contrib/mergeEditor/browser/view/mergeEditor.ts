@@ -13,7 +13,7 @@ import { BugIndicatingError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { autorunWithStore, IObservable } from 'vs/base/common/observable';
-import { isEqual } from 'vs/base/common/resources';
+import { basename, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/mergeEditor';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -549,13 +549,13 @@ export class MergeEditorResolverContribution extends Disposable {
 						mergeEditor.base.resource,
 						{
 							uri: mergeEditor.input1.resource,
-							title: localize('input1Title', "First Version"),
+							title: basename(mergeEditor.input1.resource),
 							description: '',
 							detail: ''
 						},
 						{
 							uri: mergeEditor.input2.resource,
-							title: localize('input2Title', "Second Version"),
+							title: basename(mergeEditor.input2.resource),
 							description: '',
 							detail: ''
 						},
