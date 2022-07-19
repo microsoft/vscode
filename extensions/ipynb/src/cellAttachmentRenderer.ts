@@ -20,9 +20,8 @@ export async function activate(ctx: RendererContext<void>) {
 		// addCellAttachmentRendering(md);
 		// const originalRender = md.render;
 
-		md.renderInline = function () {
+		md.render = function () {
 			const outputInfo = arguments[1].outputItem;
-
 
 			const text = outputInfo.text();
 			let markdownText = outputInfo.mime.startsWith('text/x-') ? `\`\`\`${outputInfo.mime.substr(7)}\n${text}\n\`\`\``
