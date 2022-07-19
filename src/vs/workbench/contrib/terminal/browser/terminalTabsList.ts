@@ -71,7 +71,6 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -103,7 +102,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			listService,
 			themeService,
 			_configurationService,
-			keybindingService,
+			instantiationService,
 		);
 
 		const instanceDisposables: IDisposable[] = [
