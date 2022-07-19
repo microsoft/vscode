@@ -4,24 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import * as URI from 'vscode-uri';
+import { URI, Utils } from 'vscode-uri';
+import { LsConfiguration } from '../config';
 
-const markdownFileExtensions = Object.freeze<string[]>([
-	'.md',
-	'.mkd',
-	'.mdwn',
-	'.mdown',
-	'.markdown',
-	'.markdn',
-	'.mdtxt',
-	'.mdtext',
-	'.workbook',
-]);
-
-export function looksLikeMarkdownPath(resolvedHrefPath: URI.URI) {
-	return markdownFileExtensions.includes(URI.Utils.extname(URI.URI.from(resolvedHrefPath)).toLowerCase());
+export function looksLikeMarkdownPath(config: LsConfiguration, resolvedHrefPath: URI) {
+	return config.markdownFileExtensions.includes(Utils.extname(URI.from(resolvedHrefPath)).toLowerCase().replace('.', ''));
 }
 
-export function isMarkdownDocument(document: TextDocument): boolean {
+export function isMarkdownFile(document: TextDocument) {
 	return document.languageId === 'markdown';
 }

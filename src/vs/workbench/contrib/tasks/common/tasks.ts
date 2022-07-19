@@ -1131,7 +1131,8 @@ export const enum TaskRunSource {
 	System,
 	User,
 	FolderOpen,
-	ConfigurationChange
+	ConfigurationChange,
+	Reconnect
 }
 
 export namespace TaskEvent {

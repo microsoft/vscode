@@ -93,7 +93,8 @@ export class DarwinUpdateService extends AbstractUpdateService {
 
 		type UpdateDownloadedClassification = {
 			owner: 'joaomoreno';
-			version: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			version: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version number of the new VS Code that has been downloaded.' };
+			comment: 'This is used to know how often VS Code has successfully downloaded the update.';
 		};
 		this.telemetryService.publicLog2<{ version: String }, UpdateDownloadedClassification>('update:downloaded', { version: update.version });
 

@@ -8,7 +8,7 @@ import { chmodSync, existsSync, readFileSync, statSync, truncateSync, unlinkSync
 import { homedir, release, tmpdir } from 'os';
 import type { ProfilingSession, Target } from 'v8-inspect-profiler';
 import { Event } from 'vs/base/common/event';
-import { isAbsolute, resolve } from 'vs/base/common/path';
+import { isAbsolute, resolve, join } from 'vs/base/common/path';
 import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { randomPort } from 'vs/base/common/ports';
 import { isString } from 'vs/base/common/types';
@@ -24,6 +24,8 @@ import product from 'vs/platform/product/common/product';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { randomPath } from 'vs/base/common/extpath';
 import { Utils } from 'vs/platform/profiling/common/profiling';
+import { dirname } from 'vs/base/common/resources';
+import { FileAccess } from 'vs/base/common/network';
 
 function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
 	return !!argv['install-source']
@@ -57,6 +59,25 @@ export async function main(argv: string[]): Promise<any> {
 	// Version Info
 	else if (args.version) {
 		console.log(buildVersionMessage(product.version, product.commit));
+	}
+
+	// Shell integration
+	else if (args['shell-integration']) {
+		// Silently fail when the terminal is not VS Code's integrated terminal
+		if (process.env['TERM_PROGRAM'] !== 'vscode') {
+			return;
+		}
+		let file: string;
+		switch (args['shell-integration']) {
+			// Usage: `[[ "$TERM_PROGRAM" == "vscode" ]] && . "$(code --shell-integration bash)"`
+			case 'bash': file = 'shellIntegration-bash.sh'; break;
+			// Usage: `if ($env:TERM_PROGRAM -eq "vscode") { . "$(code --shell-integration pwsh)" }`
+			case 'pwsh': file = 'shellIntegration.ps1'; break;
+			// Usage: `[[ "$TERM_PROGRAM" == "vscode" ]] && . "$(code --shell-integration zsh)"`
+			case 'zsh': file = 'shellIntegration-rc.zsh'; break;
+			default: throw new Error('Error using --shell-integration: Invalid shell type');
+		}
+		console.log(join(dirname(FileAccess.asFileUri('', require)).fsPath, 'out', 'vs', 'workbench', 'contrib', 'terminal', 'browser', 'media', file));
 	}
 
 	// Extensions Management

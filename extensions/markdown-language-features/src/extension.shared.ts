@@ -4,17 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { BaseLanguageClient } from 'vscode-languageclient';
 import { CommandManager } from './commandManager';
 import * as commands from './commands/index';
 import { registerPasteSupport } from './languageFeatures/copyPaste';
-import { registerDefinitionSupport } from './languageFeatures/definitions';
 import { registerDiagnosticSupport } from './languageFeatures/diagnostics';
-import { MdLinkProvider, registerDocumentLinkSupport } from './languageFeatures/documentLinks';
+import { MdLinkProvider } from './languageFeatures/documentLinks';
 import { registerDropIntoEditorSupport } from './languageFeatures/dropIntoEditor';
 import { registerFindFileReferenceSupport } from './languageFeatures/fileReferences';
-import { registerPathCompletionSupport } from './languageFeatures/pathCompletions';
-import { MdReferencesProvider, registerReferencesSupport } from './languageFeatures/references';
-import { registerRenameSupport } from './languageFeatures/rename';
+import { MdReferencesProvider } from './languageFeatures/references';
 import { ILogger } from './logging';
 import { IMdParser, MarkdownItEngine, MdParsingProvider } from './markdownEngine';
 import { MarkdownContributionProvider } from './markdownExtensions';
@@ -27,6 +25,7 @@ import { IMdWorkspace } from './workspace';
 
 export function activateShared(
 	context: vscode.ExtensionContext,
+	client: BaseLanguageClient,
 	workspace: IMdWorkspace,
 	engine: MarkdownItEngine,
 	logger: ILogger,
@@ -46,7 +45,7 @@ export function activateShared(
 	const previewManager = new MarkdownPreviewManager(contentProvider, workspace, logger, contributions, tocProvider);
 	context.subscriptions.push(previewManager);
 
-	context.subscriptions.push(registerMarkdownLanguageFeatures(parser, workspace, commandManager, tocProvider, logger));
+	context.subscriptions.push(registerMarkdownLanguageFeatures(client, parser, workspace, commandManager, tocProvider, logger));
 	context.subscriptions.push(registerMarkdownCommands(commandManager, previewManager, telemetryReporter, cspArbiter, engine, tocProvider));
 
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
@@ -55,6 +54,7 @@ export function activateShared(
 }
 
 function registerMarkdownLanguageFeatures(
+	client: BaseLanguageClient,
 	parser: IMdParser,
 	workspace: IMdWorkspace,
 	commandManager: CommandManager,
@@ -71,15 +71,10 @@ function registerMarkdownLanguageFeatures(
 		referencesProvider,
 
 		// Language features
-		registerDefinitionSupport(selector, referencesProvider),
 		registerDiagnosticSupport(selector, workspace, linkProvider, commandManager, referencesProvider, tocProvider, logger),
-		registerDocumentLinkSupport(selector, linkProvider),
 		registerDropIntoEditorSupport(selector),
-		registerFindFileReferenceSupport(commandManager, referencesProvider),
+		registerFindFileReferenceSupport(commandManager, client),
 		registerPasteSupport(selector),
-		registerPathCompletionSupport(selector, workspace, parser, linkProvider),
-		registerReferencesSupport(selector, referencesProvider),
-		registerRenameSupport(selector, workspace, referencesProvider, parser.slugifier),
 	);
 }
 

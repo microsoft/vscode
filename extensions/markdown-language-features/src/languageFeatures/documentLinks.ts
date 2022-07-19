@@ -4,20 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import * as uri from 'vscode-uri';
-import { OpenDocumentLinkCommand } from '../commands/openDocumentLink';
 import { ILogger } from '../logging';
 import { IMdParser } from '../markdownEngine';
 import { getLine, ITextDocument } from '../types/textDocument';
-import { coalesce } from '../util/arrays';
 import { noopToken } from '../util/cancellation';
 import { Disposable } from '../util/dispose';
 import { Schemes } from '../util/schemes';
 import { MdDocumentInfoCache } from '../util/workspaceCache';
 import { IMdWorkspace } from '../workspace';
-
-const localize = nls.loadMessageBundle();
 
 export interface ExternalHref {
 	readonly kind: 'external';
@@ -542,63 +537,4 @@ export class LinkDefinitionSet implements Iterable<[string, MdLinkDefinition]> {
 	public lookup(ref: string): MdLinkDefinition | undefined {
 		return this._map.get(ref);
 	}
-}
-
-export class MdVsCodeLinkProvider implements vscode.DocumentLinkProvider {
-
-	constructor(
-		private readonly _linkProvider: MdLinkProvider,
-	) { }
-
-	public async provideDocumentLinks(
-		document: ITextDocument,
-		token: vscode.CancellationToken
-	): Promise<vscode.DocumentLink[]> {
-		const { links, definitions } = await this._linkProvider.getLinks(document);
-		if (token.isCancellationRequested) {
-			return [];
-		}
-
-		return coalesce(links.map(data => this.toValidDocumentLink(data, definitions)));
-	}
-
-	private toValidDocumentLink(link: MdLink, definitionSet: LinkDefinitionSet): vscode.DocumentLink | undefined {
-		switch (link.href.kind) {
-			case 'external': {
-				let target = link.href.uri;
-				// Normalize VS Code links to target currently running version
-				if (link.href.uri.scheme === Schemes.vscode || link.href.uri.scheme === Schemes['vscode-insiders']) {
-					target = target.with({ scheme: vscode.env.uriScheme });
-				}
-				return new vscode.DocumentLink(link.source.hrefRange, link.href.uri);
-			}
-			case 'internal': {
-				const uri = OpenDocumentLinkCommand.createCommandUri(link.source.resource, link.href.path, link.href.fragment);
-				const documentLink = new vscode.DocumentLink(link.source.hrefRange, uri);
-				documentLink.tooltip = localize('documentLink.tooltip', 'Follow link');
-				return documentLink;
-			}
-			case 'reference': {
-				// We only render reference links in the editor if they are actually defined.
-				// This matches how reference links are rendered by markdown-it.
-				const def = definitionSet.lookup(link.href.ref);
-				if (def) {
-					const documentLink = new vscode.DocumentLink(
-						link.source.hrefRange,
-						vscode.Uri.parse(`command:_markdown.moveCursorToPosition?${encodeURIComponent(JSON.stringify([def.source.hrefRange.start.line, def.source.hrefRange.start.character]))}`));
-					documentLink.tooltip = localize('documentLink.referenceTooltip', 'Go to link definition');
-					return documentLink;
-				} else {
-					return undefined;
-				}
-			}
-		}
-	}
-}
-
-export function registerDocumentLinkSupport(
-	selector: vscode.DocumentSelector,
-	linkProvider: MdLinkProvider,
-): vscode.Disposable {
-	return vscode.languages.registerDocumentLinkProvider(selector, new MdVsCodeLinkProvider(linkProvider));
 }

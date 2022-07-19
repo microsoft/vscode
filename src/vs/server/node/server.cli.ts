@@ -44,6 +44,7 @@ const isSupportedForCmd = (optionId: keyof RemoteParsedArgs) => {
 		case 'enable-smoke-test-driver':
 		case 'extensions-download-dir':
 		case 'builtin-extensions-dir':
+		case 'shell-integration':
 		case 'telemetry':
 			return false;
 		default:
@@ -59,6 +60,7 @@ const isSupportedForPipe = (optionId: keyof RemoteParsedArgs) => {
 		case 'file-uri':
 		case 'add':
 		case 'diff':
+		case 'merge':
 		case 'wait':
 		case 'goto':
 		case 'reuse-window':
@@ -297,6 +299,7 @@ export function main(desc: ProductDescription, args: string[]): void {
 			fileURIs,
 			folderURIs,
 			diffMode: parsedArgs.diff,
+			mergeMode: parsedArgs.merge,
 			addMode: parsedArgs.add,
 			gotoLineMode: parsedArgs.goto,
 			forceReuseWindow: parsedArgs['reuse-window'],

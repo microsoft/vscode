@@ -57,6 +57,7 @@ import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/co
 import { NOTEBOOK_KERNEL } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { isEqual } from 'vs/base/common/resources';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';
@@ -152,9 +153,11 @@ export class InteractiveEditor extends EditorPane {
 		codeEditorService.registerDecorationType('interactive-decoration', DECORATION_KEY, {});
 		this._register(this.#keybindingService.onDidUpdateKeybindings(this.#updateInputDecoration, this));
 		this._register(this.#notebookExecutionStateService.onDidChangeCellExecution((e) => {
-			const cell = this.#notebookWidget.value?.getCellByHandle(e.cellHandle);
-			if (cell && e.changed?.state) {
-				this.#scrollIfNecessary(cell);
+			if (isEqual(e.notebook, this.#notebookWidget.value?.viewModel?.notebookDocument.uri)) {
+				const cell = this.#notebookWidget.value?.getCellByHandle(e.cellHandle);
+				if (cell && e.changed?.state) {
+					this.#scrollIfNecessary(cell);
+				}
 			}
 		}));
 	}
@@ -333,6 +336,7 @@ export class InteractiveEditor extends EditorPane {
 			menuIds: {
 				notebookToolbar: MenuId.InteractiveToolbar,
 				cellTitleToolbar: MenuId.InteractiveCellTitle,
+				cellDeleteToolbar: MenuId.InteractiveCellDelete,
 				cellInsertToolbar: MenuId.NotebookCellBetween,
 				cellTopInsertToolbar: MenuId.NotebookCellListTop,
 				cellExecuteToolbar: MenuId.InteractiveCellExecute,

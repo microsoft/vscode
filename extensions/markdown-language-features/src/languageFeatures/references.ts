@@ -312,30 +312,6 @@ export class MdReferencesProvider extends Disposable {
 	}
 }
 
-/**
- * Implements {@link vscode.ReferenceProvider} for markdown documents.
- */
-export class MdVsCodeReferencesProvider implements vscode.ReferenceProvider {
-
-	public constructor(
-		private readonly referencesProvider: MdReferencesProvider
-	) { }
-
-	async provideReferences(document: ITextDocument, position: vscode.Position, context: vscode.ReferenceContext, token: vscode.CancellationToken): Promise<vscode.Location[]> {
-		const allRefs = await this.referencesProvider.getReferencesAtPosition(document, position, token);
-		return allRefs
-			.filter(ref => context.includeDeclaration || !ref.isDefinition)
-			.map(ref => ref.location);
-	}
-}
-
-export function registerReferencesSupport(
-	selector: vscode.DocumentSelector,
-	referencesProvider: MdReferencesProvider,
-): vscode.Disposable {
-	return vscode.languages.registerReferenceProvider(selector, new MdVsCodeReferencesProvider(referencesProvider));
-}
-
 export async function tryResolveLinkPath(originalUri: vscode.Uri, workspace: IMdWorkspace): Promise<vscode.Uri | undefined> {
 	if (await workspace.pathExists(originalUri)) {
 		return originalUri;

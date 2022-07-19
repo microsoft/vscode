@@ -3,15 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Connection, Emitter, FileChangeType, TextDocuments } from 'vscode-languageserver';
+import { Connection, Emitter, FileChangeType, NotebookDocuments, TextDocuments } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import * as md from 'vscode-markdown-languageservice';
+import { ContainingDocumentContext } from 'vscode-markdown-languageservice/out/workspace';
 import { URI } from 'vscode-uri';
+import { LsConfiguration } from './config';
 import * as protocol from './protocol';
 import { coalesce } from './util/arrays';
-import { isMarkdownDocument, looksLikeMarkdownPath } from './util/file';
+import { isMarkdownFile, looksLikeMarkdownPath } from './util/file';
 import { Limiter } from './util/limiter';
 import { ResourceMap } from './util/resourceMap';
+import { Schemes } from './util/schemes';
 
 declare const TextDecoder: any;
 
@@ -32,7 +35,9 @@ export class VsCodeClientWorkspace implements md.IWorkspace {
 
 	constructor(
 		private readonly connection: Connection,
+		private readonly config: LsConfiguration,
 		private readonly documents: TextDocuments<TextDocument>,
+		private readonly notebooks: NotebookDocuments<TextDocument>,
 	) {
 		documents.onDidOpen(e => {
 			this._documentCache.delete(URI.parse(e.document.uri));
@@ -57,14 +62,14 @@ export class VsCodeClientWorkspace implements md.IWorkspace {
 				switch (change.type) {
 					case FileChangeType.Changed: {
 						this._documentCache.delete(resource);
-						const document = await this.getOrLoadMarkdownDocument(resource);
+						const document = await this.openMarkdownDocument(resource);
 						if (document) {
 							this._onDidChangeMarkdownDocument.fire(document);
 						}
 						break;
 					}
 					case FileChangeType.Created: {
-						const document = await this.getOrLoadMarkdownDocument(resource);
+						const document = await this.openMarkdownDocument(resource);
 						if (document) {
 							this._onDidCreateMarkdownDocument.fire(document);
 						}
@@ -80,6 +85,22 @@ export class VsCodeClientWorkspace implements md.IWorkspace {
 		});
 	}
 
+	public listen() {
+		this.connection.workspace.onDidChangeWorkspaceFolders(async () => {
+			this.workspaceFolders = (await this.connection.workspace.getWorkspaceFolders() ?? []).map(x => URI.parse(x.uri));
+		});
+	}
+
+	private _workspaceFolders: readonly URI[] = [];
+
+	get workspaceFolders(): readonly URI[] {
+		return this._workspaceFolders;
+	}
+
+	set workspaceFolders(value: readonly URI[]) {
+		this._workspaceFolders = value;
+	}
+
 	async getAllMarkdownDocuments(): Promise<Iterable<md.ITextDocument>> {
 		const maxConcurrent = 20;
 
@@ -91,7 +112,7 @@ export class VsCodeClientWorkspace implements md.IWorkspace {
 		const onDiskResults = await Promise.all(resources.map(strResource => {
 			return limiter.queue(async () => {
 				const resource = URI.parse(strResource);
-				const doc = await this.getOrLoadMarkdownDocument(resource);
+				const doc = await this.openMarkdownDocument(resource);
 				if (doc) {
 					foundFiles.set(resource);
 				}
@@ -110,7 +131,7 @@ export class VsCodeClientWorkspace implements md.IWorkspace {
 		return !!this.documents.get(resource.toString());
 	}
 
-	async getOrLoadMarkdownDocument(resource: URI): Promise<md.ITextDocument | undefined> {
+	async openMarkdownDocument(resource: URI): Promise<md.ITextDocument | undefined> {
 		const existing = this._documentCache.get(resource);
 		if (existing) {
 			return existing;
@@ -122,7 +143,7 @@ export class VsCodeClientWorkspace implements md.IWorkspace {
 			return matchingDocument;
 		}
 
-		if (!looksLikeMarkdownPath(resource)) {
+		if (!looksLikeMarkdownPath(this.config, resource)) {
 			return undefined;
 		}
 
@@ -141,15 +162,31 @@ export class VsCodeClientWorkspace implements md.IWorkspace {
 		}
 	}
 
-	async pathExists(_resource: URI): Promise<boolean> {
-		return false;
+	async stat(resource: URI): Promise<md.FileStat | undefined> {
+		if (this._documentCache.has(resource) || this.documents.get(resource.toString())) {
+			return { isDirectory: false };
+		}
+		return this.connection.sendRequest(protocol.statFileRequestType, { uri: resource.toString() });
 	}
 
-	async readDirectory(_resource: URI): Promise<[string, { isDir: boolean }][]> {
-		return [];
+	async readDirectory(resource: URI): Promise<[string, md.FileStat][]> {
+		return this.connection.sendRequest(protocol.readDirectoryRequestType, { uri: resource.toString() });
+	}
+
+	getContainingDocument(resource: URI): ContainingDocumentContext | undefined {
+		if (resource.scheme === Schemes.notebookCell) {
+			const nb = this.notebooks.findNotebookDocumentForCell(resource.toString());
+			if (nb) {
+				return {
+					uri: URI.parse(nb.uri),
+					children: nb.cells.map(cell => ({ uri: URI.parse(cell.document) })),
+				};
+			}
+		}
+		return undefined;
 	}
 
 	private isRelevantMarkdownDocument(doc: TextDocument) {
-		return isMarkdownDocument(doc) && URI.parse(doc.uri).scheme !== 'vscode-bulkeditpreview';
+		return isMarkdownFile(doc) && URI.parse(doc.uri).scheme !== 'vscode-bulkeditpreview';
 	}
 }
