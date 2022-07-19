@@ -44,6 +44,7 @@ import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/browse
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 const SETTINGS_EDITOR_COMMAND_SEARCH = 'settings.action.search';
 
@@ -146,6 +147,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IExtensionService private readonly extensionService: IExtensionService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 	) {
 		super();
 
@@ -158,7 +160,6 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 	}
 
 	private registerSettingsActions() {
-		const that = this;
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
@@ -248,6 +249,12 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 
 		const registerOpenUserSettingsEditorFromJsonActionDisposable = this._register(new MutableDisposable());
 		const registerOpenUserSettingsEditorFromJsonAction = () => {
+			let when = ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.userDataProfileService.currentProfile.settingsResource.toString()), ContextKeyExpr.not('isInDiffEditor'));
+			if (!this.userDataProfileService.currentProfile.isDefault) {
+				// If the default profile is not active, also show the action when we're in the
+				// default profile JSON file, which contains the application-scoped settings.
+				when = ContextKeyExpr.or(when, ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.userDataProfilesService.defaultProfile.settingsResource.toString()), ContextKeyExpr.not('isInDiffEditor')));
+			}
 			registerOpenUserSettingsEditorFromJsonActionDisposable.value = registerAction2(class extends Action2 {
 				constructor() {
 					super({
@@ -256,7 +263,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 						icon: preferencesOpenSettingsIcon,
 						menu: [{
 							id: MenuId.EditorTitle,
-							when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(that.userDataProfileService.currentProfile.settingsResource.toString()), ContextKeyExpr.not('isInDiffEditor')),
+							when,
 							group: 'navigation',
 							order: 1
 						}]
