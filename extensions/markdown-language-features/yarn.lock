@@ -252,19 +252,26 @@ vscode-languageserver-types@^3.17.1, vscode-languageserver-types@^3.17.2:
   resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.17.2.tgz#b2c2e7de405ad3d73a883e91989b850170ffc4f2"
   integrity sha512-zHhCWatviizPIq9B7Vh9uvrH6x3sK8itC84HkamnBWoDFJtzBf7SWlpLCZUit72b3os45h6RWQNC9xHRDF8dRA==
 
-vscode-markdown-languageservice@^0.0.0-alpha.8:
-  version "0.0.0-alpha.8"
-  resolved "https://registry.yarnpkg.com/vscode-markdown-languageservice/-/vscode-markdown-languageservice-0.0.0-alpha.8.tgz#05d4f86cf0514fd71479847eef742fcc8cdbe87f"
-  integrity sha512-si8weZsY4LtyonyZwxpFYk8WucRFiKJisErNTt1HDjUCglSDIZqsMNuMIcz3t0nVNfG0LrpdMFVLGhmET5D71Q==
+vscode-markdown-languageservice@^0.0.0-alpha.10:
+  version "0.0.0-alpha.10"
+  resolved "https://registry.yarnpkg.com/vscode-markdown-languageservice/-/vscode-markdown-languageservice-0.0.0-alpha.10.tgz#53b69c981eed7fd5efa155ab8c0f169995568681"
+  integrity sha512-rJ85nJ+d45yCz9lBhipavoWXz/vW5FknqqUpLqhe3/2xkrhxt8zcekhSoDepgkKFcTORAFV6g1SnnqxbVhX+uA==
   dependencies:
+    picomatch "^2.3.1"
     vscode-languageserver-textdocument "^1.0.5"
     vscode-languageserver-types "^3.17.1"
+    vscode-nls "^5.0.1"
     vscode-uri "^3.0.3"
 
 vscode-nls@^5.0.0:
   version "5.0.0"
   resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-5.0.0.tgz#99f0da0bd9ea7cda44e565a74c54b1f2bc257840"
   integrity sha512-u0Lw+IYlgbEJFF6/qAqG2d1jQmJl0eyAGJHoAJqr2HT4M2BNuQYSEiSE75f52pXHSJm8AlTjnLLbBFPrdz2hpA==
+
+vscode-nls@^5.0.1:
+  version "5.0.1"
+  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-5.0.1.tgz#ba23fc4d4420d25e7f886c8e83cbdcec47aa48b2"
+  integrity sha512-hHQV6iig+M21lTdItKPkJAaWrxALQb/nqpVffakO4knJOh3DrU2SXOMzUzNgo1eADPzu3qSsJY1weCzvR52q9A==
 
 vscode-uri@^3.0.3:
   version "3.0.3"
