@@ -25,7 +25,7 @@ import { VIEWLET_ID as EXPLORER } from 'vs/workbench/contrib/files/common/files'
 import { VIEWLET_ID as REMOTE } from 'vs/workbench/contrib/remote/browser/remoteExplorer';
 import { VIEWLET_ID as SCM } from 'vs/workbench/contrib/scm/common/scm';
 import { WebviewViewPane } from 'vs/workbench/contrib/webviewView/browser/webviewViewPane';
-import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionMessageCollector, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -97,6 +97,8 @@ interface IUserFriendlyViewDescriptor {
 	contextualTitle?: string;
 	visibility?: string;
 
+	size?: 'fit' | number;
+
 	// From 'remoteViewDescriptor' type
 	group?: string;
 	remoteName?: string | string[];
@@ -158,6 +160,22 @@ const viewDescriptor: IJSONSchema = {
 				localize('vscode.extension.contributes.view.initialState.visible', "The default initial state for the view. In most containers the view will be expanded, however; some built-in containers (explorer, scm, and debug) show all contributed views collapsed regardless of the `visibility`."),
 				localize('vscode.extension.contributes.view.initialState.hidden', "The view will not be shown in the view container, but will be discoverable through the views menu and other view entry points and can be un-hidden by the user."),
 				localize('vscode.extension.contributes.view.initialState.collapsed', "The view will show in the view container, but will be collapsed.")
+			]
+		},
+		size: {
+			oneOf: [
+				{
+					type: 'string',
+					enum: ['fit'],
+					enumDescriptions: [
+						localize('vscode.extension.contributes.view.size.fit', "The view will be sized to fit the contents.")
+					],
+					description: localize('vscode.extension.contributs.view.size', "The size of the view. Using a number will behave like the css 'flex' property, and the size will set the initial size when the view is first shown. When using 'fit', the view will always be sized to fit the contents. In the sizebar, this is the height of the view. In the panel this is the width of the view.")
+				},
+				{
+					type: 'number',
+					description: localize('vscode.extension.contributs.view.size', "The size of the view. Using a number will behave like the css 'flex' property, and the size will set the initial size when the view is first shown. When using 'fit', the view will always be sized to fit the contents. In the sizebar, this is the height of the view. In the panel this is the width of the view."),
+				}
 			]
 		}
 	}
@@ -499,6 +517,12 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						return null;
 					}
 
+					let weight: number | undefined = undefined;
+					if (item.size && (typeof item.size === 'number')) { // TODO @alexr00 - support 'fit' as a size/weight
+						checkProposedApiEnabled(extension.description, 'contribViewSize');
+						weight = item.size;
+					}
+
 					const viewDescriptor = <ICustomTreeViewDescriptor>{
 						type: type,
 						ctorDescriptor: type === ViewType.Tree ? new SyncDescriptor(TreeViewPane) : new SyncDescriptor(WebviewViewPane),
@@ -517,7 +541,8 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						group: item.group,
 						remoteAuthority: item.remoteName || (<any>item).remoteAuthority, // TODO@roblou - delete after remote extensions are updated
 						hideByDefault: initialVisibility === InitialVisibility.Hidden,
-						workspace: viewContainer?.id === REMOTE ? true : undefined
+						workspace: viewContainer?.id === REMOTE ? true : undefined,
+						weight
 					};
 
 
