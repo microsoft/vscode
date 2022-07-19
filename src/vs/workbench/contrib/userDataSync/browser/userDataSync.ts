@@ -60,6 +60,7 @@ import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/use
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ctxIsMergeEditor } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
+import { EditorResolution } from 'vs/platform/editor/common/editor';
 
 const CONTEXT_CONFLICTS_SOURCES = new RawContextKey<string>('conflictsSources', '');
 
@@ -736,7 +737,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				{ title: localize('Theirs', 'Theirs'), description: remoteResourceName, detail: undefined, uri: conflict.remoteResource },
 				conflict.previewResource,
 			);
-			await this.editorService.openEditor(input);
+			await this.editorService.openEditor(input, { override: EditorResolution.DISABLED });
 		}
 	}
 

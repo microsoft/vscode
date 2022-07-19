@@ -9,6 +9,7 @@ import { localize } from 'vs/nls';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { EditorResolution } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
@@ -35,7 +36,7 @@ export class OpenMergeEditor extends Action2 {
 			validatedArgs.input2,
 			validatedArgs.output,
 		);
-		accessor.get(IEditorService).openEditor(input, { preserveFocus: true });
+		accessor.get(IEditorService).openEditor(input, { preserveFocus: true, override: EditorResolution.DISABLED });
 	}
 }
 
