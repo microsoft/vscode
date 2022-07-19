@@ -85,17 +85,13 @@ function calculatePackageDeps(binaryPath: string, arch: ArchString, sysroot: str
 		console.error('Tried to stat ' + binaryPath + ' but failed.');
 	}
 
-	// Do a sparse checkout to get the Chromium dpkg-shlibdeps file.
-	const tmp = tmpdir();
-	const chmodResult = spawnSync('chmod', ['+x', `${__dirname}/checkout-shlibdeps.sh`]);
-	if (chmodResult.status !== 0) {
-		throw new Error('Cannot set chmod +x: ' + chmodResult.stderr);
-	}
-	const result = spawnSync('sh', [`${__dirname}/checkout-shlibdeps.sh`], { cwd: tmp });
+	// Get the Chromium dpkg-shlibdeps file.
+	const dpkgShlibdepsUrl = 'https://raw.githubusercontent.com/chromium/chromium/main/third_party/dpkg-shlibdeps/dpkg-shlibdeps.pl';
+	const dpkgShlibdepsScriptLocation = `${tmpdir()}/dpkg-shlibdeps.pl`;
+	const result = spawnSync('curl', [dpkgShlibdepsUrl, '-o', dpkgShlibdepsScriptLocation]);
 	if (result.status !== 0) {
 		throw new Error('Cannot retrieve dpkg-shlibdeps. Stderr:\n' + result.stderr);
 	}
-	const dpkgShlibdepsScriptLocation = `${tmp}/dpkg-shlibdeps.pl`;
 	const cmd = [dpkgShlibdepsScriptLocation, '--ignore-weak-undefined'];
 	switch (arch) {
 		case 'amd64':

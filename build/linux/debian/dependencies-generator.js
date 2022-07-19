@@ -75,17 +75,13 @@ function calculatePackageDeps(binaryPath, arch, sysroot) {
         // The package might not exist. Don't re-throw the error here.
         console.error('Tried to stat ' + binaryPath + ' but failed.');
     }
-    // Do a sparse checkout to get the Chromium dpkg-shlibdeps file.
-    const tmp = (0, os_1.tmpdir)();
-    const chmodResult = (0, child_process_1.spawnSync)('chmod', ['+x', `${__dirname}/checkout-shlibdeps.sh`]);
-    if (chmodResult.status !== 0) {
-        throw new Error('Cannot set chmod +x: ' + chmodResult.stderr);
-    }
-    const result = (0, child_process_1.spawnSync)('sh', [`${__dirname}/checkout-shlibdeps.sh`], { cwd: tmp });
+    // Get the Chromium dpkg-shlibdeps file.
+    const dpkgShlibdepsUrl = 'https://raw.githubusercontent.com/chromium/chromium/main/third_party/dpkg-shlibdeps/dpkg-shlibdeps.pl';
+    const dpkgShlibdepsScriptLocation = `${(0, os_1.tmpdir)()}/dpkg-shlibdeps.pl`;
+    const result = (0, child_process_1.spawnSync)('curl', [dpkgShlibdepsUrl, '-o', dpkgShlibdepsScriptLocation]);
     if (result.status !== 0) {
         throw new Error('Cannot retrieve dpkg-shlibdeps. Stderr:\n' + result.stderr);
     }
-    const dpkgShlibdepsScriptLocation = `${tmp}/dpkg-shlibdeps.pl`;
     const cmd = [dpkgShlibdepsScriptLocation, '--ignore-weak-undefined'];
     switch (arch) {
         case 'amd64':
