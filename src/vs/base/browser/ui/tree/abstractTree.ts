@@ -684,10 +684,10 @@ export enum TreeFindMode {
 
 class FindWidget<T, TFilterData> extends Disposable {
 
-	private readonly elements = h('div.monaco-tree-type-filter', [
-		h('div.monaco-tree-type-filter-grab.codicon.codicon-debug-gripper', { $: 'grab' }),
-		h('div.monaco-tree-type-filter-input', { $: 'findInput' }),
-		h('div.monaco-tree-type-filter-actionbar', { $: 'actionbar' }),
+	private readonly elements = h('.monaco-tree-type-filter', [
+		h('.monaco-tree-type-filter-grab.codicon.codicon-debug-gripper@grab'),
+		h('.monaco-tree-type-filter-input@findInput'),
+		h('.monaco-tree-type-filter-actionbar@actionbar'),
 	]);
 
 	set mode(mode: TreeFindMode) {
