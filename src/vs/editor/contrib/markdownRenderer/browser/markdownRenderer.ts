@@ -39,7 +39,7 @@ export class MarkdownRenderer {
 	});
 
 	private readonly _onDidRenderAsync = new DebounceEmitter<void>({
-		delay: 50,
+		delay: 0,
 		merge: arr => { }
 	});
 	readonly onDidRenderAsync = this._onDidRenderAsync.event;
