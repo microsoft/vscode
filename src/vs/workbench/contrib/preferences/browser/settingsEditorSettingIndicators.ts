@@ -143,7 +143,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 			const applicationSettingText = localize('applicationSetting', "Not profile-specific");
 			this.scopeOverridesLabel.text = applicationSettingText;
 
-			const content = localize('applicationSettingDescription', "The setting is not specific to the current profile, and will retain its value after switching profiles.");
+			const content = localize('applicationSettingDescription', "The setting is not specific to the current profile, and will retain its value when switching profiles.");
 			this.hover?.dispose();
 			this.hover = setupCustomHover(this.hoverDelegate, this.scopeOverridesElement, content);
 		} else if (element.overriddenScopeList.length || element.overriddenDefaultsLanguageList.length) {
@@ -296,7 +296,7 @@ export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement,
 
 	const profileFeatureEnabled = configurationService.getValue<boolean>('workbench.experimental.settingsProfiles.enabled');
 	if (profileFeatureEnabled && element.matchesScope(ConfigurationTarget.APPLICATION, false)) {
-		ariaLabelSections.push(localize('applicationSettingDescriptionAccessible', "Setting value retained while switching profiles"));
+		ariaLabelSections.push(localize('applicationSettingDescriptionAccessible', "Setting value retained when switching profiles"));
 	}
 
 	// Add other overrides text
