@@ -915,7 +915,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				mouseSupport: true,
 				multipleSelectionSupport: true,
 				selectionNavigation: true,
-				enableKeyboardNavigation: true,
+				typeNavigationEnabled: true,
 				additionalScrollHeight: 0,
 				transformOptimization: false, //(isMacintosh && isNative) || getTitleBarStyle(this.configurationService, this.environmentService) === 'native',
 				styleController: (_suffix: string) => { return this._list; },
@@ -1102,9 +1102,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			type WorkbenchNotebookOpenClassification = {
 				owner: 'rebornix';
 				comment: 'Identify the notebook editor view type';
-				scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-				ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-				viewType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+				scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File system provider scheme for the resource' };
+				ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File extension for the resource' };
+				viewType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'View type of the notebook editor' };
 			};
 
 			type WorkbenchNotebookOpenEvent = {

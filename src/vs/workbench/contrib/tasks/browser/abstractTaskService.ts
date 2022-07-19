@@ -2174,7 +2174,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private get _jsonTasksSupported(): boolean {
-		return ShellExecutionSupportedContext.getValue(this._contextKeyService) === true && ProcessExecutionSupportedContext.getValue(this._contextKeyService) === true && !Platform.isWeb;
+		return ShellExecutionSupportedContext.getValue(this._contextKeyService) === true && ProcessExecutionSupportedContext.getValue(this._contextKeyService) === true;
 	}
 
 	private _computeWorkspaceFolderTasks(workspaceFolder: IWorkspaceFolder, runSource: TaskRunSource = TaskRunSource.User): Promise<IWorkspaceFolderTaskResult> {

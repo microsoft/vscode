@@ -280,10 +280,10 @@ export class BreadcrumbsControl {
 			this._editorGroup.activeEditorPane
 		);
 
-		this.domNode.classList.toggle('relative-path', model.isRelative());
 		this.domNode.classList.toggle('backslash-path', this._labelService.getSeparator(uri.scheme, uri.authority) === '\\');
 
 		const updateBreadcrumbs = () => {
+			this.domNode.classList.toggle('relative-path', model.isRelative());
 			const showIcons = this._cfShowIcons.getValue();
 			const options: IBreadcrumbsControlOptions = {
 				...this._options,

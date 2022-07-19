@@ -485,7 +485,6 @@ export class TestingExplorerViewModel extends Disposable {
 				instantiationService.createInstance(ErrorRenderer),
 			],
 			{
-				simpleKeyboardNavigation: true,
 				identityProvider: instantiationService.createInstance(IdentityProvider),
 				hideTwistiesOfChildlessElements: false,
 				sorter: instantiationService.createInstance(TreeSorter, this),

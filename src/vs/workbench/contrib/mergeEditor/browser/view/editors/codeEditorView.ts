@@ -24,14 +24,14 @@ export abstract class CodeEditorView extends Disposable {
 	readonly model = this._viewModel.map(m => /** @description model */ m?.model);
 
 	protected readonly htmlElements = h('div.code-view', [
-		h('div.title', { $: 'header' }, [
-			h('span.title', { $: 'title' }),
-			h('span.description', { $: 'description' }),
-			h('span.detail', { $: 'detail' }),
+		h('div.title@header', [
+			h('span.title@title'),
+			h('span.description@description'),
+			h('span.detail@detail'),
 		]),
 		h('div.container', [
-			h('div.gutter', { $: 'gutterDiv' }),
-			h('div', { $: 'editor' }),
+			h('div.gutter@gutterDiv'),
+			h('div@editor'),
 		]),
 	]);
 
