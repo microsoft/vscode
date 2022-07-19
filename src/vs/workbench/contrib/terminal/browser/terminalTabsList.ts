@@ -308,7 +308,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			}
 		}
 
-		const shellIntegrationString = getShellIntegrationTooltip(instance, true, this._configurationService);
+		const shellIntegrationString = getShellIntegrationTooltip(instance, true);
 		const iconId = this._instantiationService.invokeFunction(getIconId, instance);
 		const hasActionbar = !this.shouldHideActionBar();
 		let label: string = '';
