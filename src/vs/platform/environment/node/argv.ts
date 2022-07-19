@@ -50,7 +50,6 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'waitMarkerFilePath': { type: 'string' },
 	'locale': { type: 'string', cat: 'o', args: 'locale', description: localize('locale', "The locale to use (e.g. en-US or zh-TW).") },
 	'user-data-dir': { type: 'string', cat: 'o', args: 'dir', description: localize('userDataDir', "Specifies the directory that user data is kept in. Can be used to open multiple distinct instances of Code.") },
-	'shell-integration': { type: 'string', cat: 'o', args: ['bash', 'pwsh', 'zsh'], description: localize('shellIntergation', "Print the shell integration script file path for the specified shell.") },
 	'help': { type: 'boolean', cat: 'o', alias: 'h', description: localize('help', "Print usage.") },
 
 	'extensions-dir': { type: 'string', deprecates: ['extensionHomePath'], cat: 'e', args: 'dir', description: localize('extensionHomePath', "Set the root path for extensions.") },
@@ -129,6 +128,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'logsPath': { type: 'string' },
 	'__enable-file-policy': { type: 'boolean' },
 	'editSessionId': { type: 'string' },
+	'shell-integration': { type: 'string', args: ['bash', 'pwsh', 'zsh'] },
 
 	// chromium flags
 	'no-proxy-server': { type: 'boolean' },
