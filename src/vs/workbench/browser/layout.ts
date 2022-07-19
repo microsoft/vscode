@@ -9,8 +9,7 @@ import { EventType, addDisposableListener, getClientArea, Dimension, position, s
 import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { isWindows, isLinux, isMacintosh, isWeb, isNative, isIOS } from 'vs/base/common/platform';
-import { isResourceEditorInput, IUntypedEditorInput, pathsToEditors } from 'vs/workbench/common/editor';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
+import { EditorInputCapabilities, isResourceEditorInput, IUntypedEditorInput, pathsToEditors } from 'vs/workbench/common/editor';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { Position, Parts, PanelOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, panelOpensMaximizedFromString, PanelAlignment } from 'vs/workbench/services/layout/browser/layoutService';
@@ -1309,27 +1308,25 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	centerEditorLayout(active: boolean, skipLayout?: boolean): void {
 		this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_CENTERED, active);
 
-		let smartActive = active;
 		const activeEditor = this.editorService.activeEditor;
 
-		let isEditorSplit = false;
+		let isEditorComplex = false;
 		if (activeEditor instanceof DiffEditorInput) {
-			isEditorSplit = this.configurationService.getValue('diffEditor.renderSideBySide');
-		} else if (activeEditor instanceof SideBySideEditorInput) {
-			isEditorSplit = true;
+			isEditorComplex = this.configurationService.getValue('diffEditor.renderSideBySide');
+		} else if (activeEditor?.hasCapability(EditorInputCapabilities.MultipleEditors)) {
+			isEditorComplex = true;
 		}
 
 		const isCenteredLayoutAutoResizing = this.configurationService.getValue('workbench.editor.centeredLayoutAutoResize');
 		if (
 			isCenteredLayoutAutoResizing &&
-			(this.editorGroupService.groups.length > 1 || isEditorSplit)
+			(this.editorGroupService.groups.length > 1 || isEditorComplex)
 		) {
-			smartActive = false;
+			active = false; // disable centered layout for complex editors or when there is more than one group
 		}
 
-		// Enter Centered Editor Layout
-		if (this.editorGroupService.isLayoutCentered() !== smartActive) {
-			this.editorGroupService.centerLayout(smartActive);
+		if (this.editorGroupService.isLayoutCentered() !== active) {
+			this.editorGroupService.centerLayout(active);
 
 			if (!skipLayout) {
 				this.layout();
