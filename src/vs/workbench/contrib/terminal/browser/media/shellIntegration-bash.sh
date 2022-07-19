@@ -160,6 +160,8 @@ __vsc_prompt_cmd_original() {
 	fi
 	if [[ "$__vsc_original_prompt_command" =~ .+\;.+ ]]; then
 		IFS=';'
+	elif [[ "$__vsc_original_prompt_command" =~ .+&&.+ ]]; then
+		IFS='&&'
 	else
 		IFS=' '
 	fi
@@ -171,8 +173,10 @@ __vsc_prompt_cmd_original() {
 		unset IFS
 	fi
 	for ((i = 0; i < ${#ADDR[@]}; i++)); do
-		(exit ${__vsc_status})
-		builtin eval ${ADDR[i]}
+		if [[ "${ADDR[i]}" != "" ]]; then
+			(exit ${__vsc_status})
+			builtin eval ${ADDR[i]}
+		fi
 	done
 	__vsc_precmd
 }
