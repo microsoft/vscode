@@ -281,7 +281,7 @@ class SCMInputTextDocumentLabelFormatter {
 
 	readonly separator = '/';
 
-	label = (resource: URI) => {
+	readonly label = (resource: URI) => {
 		const match = /git\/(?<repositoryId>scm[\d+])\/input/i.exec(resource.path);
 
 		if (match?.groups === undefined) {
