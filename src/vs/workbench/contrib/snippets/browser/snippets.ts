@@ -12,7 +12,7 @@ export interface ISnippetGetOptions {
 	includeDisabledSnippets?: boolean;
 	includeNoPrefixSnippets?: boolean;
 	noRecencySort?: boolean;
-	topLevelSnippets?: boolean;
+	fileTemplateSnippets?: boolean;
 }
 
 export interface ISnippetsService {
