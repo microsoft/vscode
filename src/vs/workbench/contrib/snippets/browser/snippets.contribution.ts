@@ -12,9 +12,10 @@ import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonCo
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { ConfigureSnippets } from 'vs/workbench/contrib/snippets/browser/commands/configureSnippets';
-import { SelectSnippetForEmptyFile } from 'vs/workbench/contrib/snippets/browser/commands/emptyFileSnippets';
+import { ApplyFileSnippetAction } from 'vs/workbench/contrib/snippets/browser/commands/fileTemplateSnippets';
 import { InsertSnippetAction } from 'vs/workbench/contrib/snippets/browser/commands/insertSnippet';
-import { SurroundWithSnippetCodeActionProvider, SurroundWithSnippetEditorAction } from 'vs/workbench/contrib/snippets/browser/commands/surroundWithSnippet';
+import { SurroundWithSnippetEditorAction } from 'vs/workbench/contrib/snippets/browser/commands/surroundWithSnippet';
+import { SnippetCodeActions } from 'vs/workbench/contrib/snippets/browser/snippetCodeActionProvider';
 import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets';
 import { SnippetsService } from 'vs/workbench/contrib/snippets/browser/snippetsService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -29,10 +30,11 @@ registerAction2(InsertSnippetAction);
 CommandsRegistry.registerCommandAlias('editor.action.showSnippets', 'editor.action.insertSnippet');
 registerAction2(SurroundWithSnippetEditorAction);
 registerAction2(ConfigureSnippets);
-registerAction2(SelectSnippetForEmptyFile);
+registerAction2(ApplyFileSnippetAction);
 
 // workbench contribs
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SurroundWithSnippetCodeActionProvider, LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
+	.registerWorkbenchContribution(SnippetCodeActions, LifecyclePhase.Restored);
 
 // schema
 const languageScopeSchemaId = 'vscode://schemas/snippets';
