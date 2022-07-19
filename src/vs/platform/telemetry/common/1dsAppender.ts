@@ -116,10 +116,13 @@ export abstract class AbstractOneDataSystemAppender implements ITelemetryAppende
 		const name = this._eventPrefix + '/' + eventName;
 
 		try {
-			this._withAIClient((aiClient) => aiClient.track({
-				name,
-				baseData: { name, properties: data?.properties, measurements: data?.measurements }
-			}));
+			this._withAIClient((aiClient) => {
+				aiClient.pluginVersionString = data?.properties.version ?? 'Unknown';
+				aiClient.track({
+					name,
+					baseData: { name, properties: data?.properties, measurements: data?.measurements }
+				});
+			});
 		} catch { }
 	}
 

@@ -28,6 +28,7 @@ export interface IButtonStyles {
 	buttonBackground?: Color;
 	buttonHoverBackground?: Color;
 	buttonForeground?: Color;
+	buttonSeparator?: Color;
 	buttonSecondaryBackground?: Color;
 	buttonSecondaryHoverBackground?: Color;
 	buttonSecondaryForeground?: Color;
@@ -37,6 +38,7 @@ export interface IButtonStyles {
 const defaultOptions: IButtonStyles = {
 	buttonBackground: Color.fromHex('#0E639C'),
 	buttonHoverBackground: Color.fromHex('#006BB3'),
+	buttonSeparator: Color.white,
 	buttonForeground: Color.white
 };
 
@@ -137,8 +139,8 @@ export class Button extends Disposable implements IButton {
 
 		// Also set hover background when button is focused for feedback
 		this.focusTracker = this._register(trackFocus(this._element));
-		this._register(this.focusTracker.onDidFocus(() => this.setHoverBackground()));
-		this._register(this.focusTracker.onDidBlur(() => this.applyStyles())); // restore standard styles
+		this._register(this.focusTracker.onDidFocus(() => { if (this.enabled) { this.setHoverBackground(); } }));
+		this._register(this.focusTracker.onDidBlur(() => { if (this.enabled) { this.applyStyles(); } }));
 
 		this.applyStyles();
 	}
@@ -274,6 +276,8 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 
 		this.dropdownButton = this._register(new Button(this.element, { ...options, title: false, supportIcons: true }));
 		this.dropdownButton.element.title = localize("button dropdown more actions", 'More Actions...');
+		this.dropdownButton.element.setAttribute('aria-haspopup', 'true');
+		this.dropdownButton.element.setAttribute('aria-expanded', 'false');
 		this.dropdownButton.element.classList.add('monaco-dropdown-button');
 		this.dropdownButton.icon = Codicon.dropDownButton;
 		this._register(this.dropdownButton.onDidClick(e => {
@@ -299,6 +303,8 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 	set enabled(enabled: boolean) {
 		this.button.enabled = enabled;
 		this.dropdownButton.enabled = enabled;
+
+		this.element.classList.toggle('disabled', !enabled);
 	}
 
 	get enabled(): boolean {
@@ -311,7 +317,7 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 
 		// Separator
 		this.separatorContainer.style.backgroundColor = styles.buttonBackground?.toString() ?? '';
-		this.separator.style.backgroundColor = styles.buttonForeground?.toString() ?? '';
+		this.separator.style.backgroundColor = styles.buttonSeparator?.toString() ?? '';
 	}
 
 	focus(): void {
@@ -335,12 +341,10 @@ export class ButtonWithDescription extends Button implements IButtonWithDescript
 
 		this._labelElement = document.createElement('div');
 		this._labelElement.classList.add('monaco-button-label');
-		this._labelElement.tabIndex = -1;
 		this._element.appendChild(this._labelElement);
 
 		this._descriptionElement = document.createElement('div');
 		this._descriptionElement.classList.add('monaco-button-description');
-		this._descriptionElement.tabIndex = -1;
 		this._element.appendChild(this._descriptionElement);
 	}
 

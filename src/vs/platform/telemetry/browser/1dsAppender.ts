@@ -10,7 +10,7 @@ import { AbstractOneDataSystemAppender } from 'vs/platform/telemetry/common/1dsA
 
 export class OneDataSystemWebAppender extends AbstractOneDataSystemAppender {
 	constructor(
-		configurationService: IConfigurationService,
+		configurationService: IConfigurationService | undefined,
 		eventPrefix: string,
 		defaultData: { [key: string]: any } | null,
 		iKeyOrClientFactory: string | (() => AppInsightsCore), // allow factory function for testing

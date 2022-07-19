@@ -31,7 +31,7 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 		super();
 		this._domNode.className = 'gutter monaco-editor';
 		const scrollDecoration = this._domNode.appendChild(
-			h('div.scroll-decoration', { role: 'presentation', ariaHidden: true, style: { width: '100%' } })
+			h('div.scroll-decoration', { role: 'presentation', ariaHidden: 'true', style: { width: '100%' } })
 				.root
 		);
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { localize } from 'vs/nls';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -17,9 +17,10 @@ import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { EventType as GestureEventType, Gesture } from 'vs/base/browser/touch';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IContentActionHandler, renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
+import { SelectSnippetForEmptyFile } from 'vs/workbench/contrib/snippets/browser/commands/emptyFileSnippets';
 
 const $ = dom.$;
 
@@ -70,7 +71,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 	private static readonly ID = 'editor.widget.untitledHint';
 
 	private domNode: HTMLElement | undefined;
-	private toDispose: IDisposable[];
+	private toDispose: DisposableStore;
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -79,9 +80,9 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 		private readonly configurationService: IConfigurationService,
 		private readonly keybindingService: IKeybindingService,
 	) {
-		this.toDispose = [];
-		this.toDispose.push(editor.onDidChangeModelContent(() => this.onDidChangeModelContent()));
-		this.toDispose.push(this.editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
+		this.toDispose = new DisposableStore();
+		this.toDispose.add(editor.onDidChangeModelContent(() => this.onDidChangeModelContent()));
+		this.toDispose.add(this.editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (this.domNode && e.hasChanged(EditorOption.fontInfo)) {
 				this.editor.applyFontInfo(this.domNode);
 			}
@@ -107,49 +108,43 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 			this.domNode = $('.untitled-hint');
 			this.domNode.style.width = 'max-content';
 
-			const language = $('a.language-mode');
-			language.style.cursor = 'pointer';
-			language.innerText = localize('selectAlanguage2', "Select a language");
-			const languageKeyBinding = this.keybindingService.lookupKeybinding(ChangeLanguageAction.ID);
-			const languageKeybindingLabel = languageKeyBinding?.getLabel();
-			if (languageKeybindingLabel) {
-				language.title = localize('keyboardBindingTooltip', "{0}", languageKeybindingLabel);
+			const hintMsg = localize({ key: 'message', comment: ['Presereve double-square brackets and their order'] }, '[[Select a language]], [[start with a snippet]], or [[open a different editor]] to get started.\nStart typing to dismiss or [[don\'t show]] this again.');
+			const hintHandler: IContentActionHandler = {
+				disposables: this.toDispose,
+				callback: (index, event) => {
+					switch (index) {
+						case '0':
+							languageOnClickOrTap(event.browserEvent);
+							break;
+						case '1':
+							snippetOnClickOrTab(event.browserEvent);
+							break;
+						case '2':
+							chooseEditorOnClickOrTap(event.browserEvent);
+							break;
+						case '3':
+							dontShowOnClickOrTap();
+							break;
+					}
+				}
+			};
+
+			const hintElement = renderFormattedText(hintMsg, {
+				actionHandler: hintHandler,
+				renderCodeSegments: false,
+			});
+			this.domNode.append(hintElement);
+
+			// ugly way to associate keybindings...
+			const keybindingsLookup = [ChangeLanguageAction.ID, SelectSnippetForEmptyFile.Id, 'welcome.showNewFileEntries'];
+			for (const anchor of hintElement.querySelectorAll('A')) {
+				(<HTMLAnchorElement>anchor).style.cursor = 'pointer';
+				const id = keybindingsLookup.shift();
+				const title = id && this.keybindingService.lookupKeybinding(id)?.getLabel();
+				(<HTMLAnchorElement>anchor).title = title ?? '';
 			}
-			this.domNode.appendChild(language);
 
-			const or = $('span');
-			or.innerText = localize('or', " or ",);
-			this.domNode.appendChild(or);
-
-			const editorType = $('a.editor-type');
-			editorType.style.cursor = 'pointer';
-			editorType.innerText = localize('openADifferentEditor', "open a different editor");
-			const selectEditorTypeKeyBinding = this.keybindingService.lookupKeybinding('welcome.showNewFileEntries');
-			const selectEditorTypeKeybindingLabel = selectEditorTypeKeyBinding?.getLabel();
-			if (selectEditorTypeKeybindingLabel) {
-				editorType.title = localize('keyboardBindingTooltip', "{0}", selectEditorTypeKeybindingLabel);
-			}
-			this.domNode.appendChild(editorType);
-
-			const toGetStarted = $('span');
-			toGetStarted.innerText = localize('toGetStarted', " to get started.");
-			this.domNode.appendChild(toGetStarted);
-
-			this.domNode.appendChild($('br'));
-
-			const startTyping = $('span');
-			startTyping.innerText = localize('startTyping', "Start typing to dismiss or ");
-			this.domNode.appendChild(startTyping);
-
-			const dontShow = $('a');
-			dontShow.style.cursor = 'pointer';
-			dontShow.innerText = localize('dontshow', "don't show");
-			this.domNode.appendChild(dontShow);
-
-			const thisAgain = $('span');
-			thisAgain.innerText = localize('thisAgain', " this again.");
-			this.domNode.appendChild(thisAgain);
-			this.toDispose.push(Gesture.addTarget(this.domNode));
+			// the actual command handlers...
 			const languageOnClickOrTap = async (e: MouseEvent) => {
 				e.stopPropagation();
 				// Need to focus editor before so current editor becomes active and the command is properly executed
@@ -157,9 +152,12 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 				await this.commandService.executeCommand(ChangeLanguageAction.ID, { from: 'hint' });
 				this.editor.focus();
 			};
-			this.toDispose.push(dom.addDisposableListener(language, 'click', languageOnClickOrTap));
-			this.toDispose.push(dom.addDisposableListener(language, GestureEventType.Tap, languageOnClickOrTap));
-			this.toDispose.push(Gesture.addTarget(language));
+
+			const snippetOnClickOrTab = async (e: MouseEvent) => {
+				e.stopPropagation();
+				this.editor.focus();
+				this.commandService.executeCommand(SelectSnippetForEmptyFile.Id, { from: 'hint' });
+			};
 
 			const chooseEditorOnClickOrTap = async (e: MouseEvent) => {
 				e.stopPropagation();
@@ -172,20 +170,14 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 					this.editorGroupsService.activeGroup.closeEditor(activeEditorInput, { preserveFocus: true });
 				}
 			};
-			this.toDispose.push(dom.addDisposableListener(editorType, 'click', chooseEditorOnClickOrTap));
-			this.toDispose.push(dom.addDisposableListener(editorType, GestureEventType.Tap, chooseEditorOnClickOrTap));
-			this.toDispose.push(Gesture.addTarget(editorType));
 
 			const dontShowOnClickOrTap = () => {
 				this.configurationService.updateValue(untitledTextEditorHintSetting, 'hidden');
 				this.dispose();
 				this.editor.focus();
 			};
-			this.toDispose.push(dom.addDisposableListener(dontShow, 'click', dontShowOnClickOrTap));
-			this.toDispose.push(dom.addDisposableListener(dontShow, GestureEventType.Tap, dontShowOnClickOrTap));
-			this.toDispose.push(Gesture.addTarget(dontShow));
 
-			this.toDispose.push(dom.addDisposableListener(this.domNode, 'click', () => {
+			this.toDispose.add(dom.addDisposableListener(this.domNode, 'click', () => {
 				this.editor.focus();
 			}));
 

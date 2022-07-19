@@ -3,21 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { extname } from 'vs/base/common/path';
-import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { URI } from 'vs/base/common/uri';
-import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
-import { IQuickPickItem, IQuickInputService, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { isValidBasename } from 'vs/base/common/extpath';
-import { joinPath, basename } from 'vs/base/common/resources';
+import { extname } from 'vs/base/common/path';
+import { basename, joinPath } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import * as nls from 'vs/nls';
+import { MenuId } from 'vs/platform/actions/common/actions';
+import { IFileService } from 'vs/platform/files/common/files';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { SnippetsAction } from 'vs/workbench/contrib/snippets/browser/commands/abstractSnippetsActions';
+import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets';
+import { SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 namespace ISnippetPick {
@@ -199,7 +200,7 @@ async function createLanguageSnippetFile(pick: ISnippetPick, fileService: IFileS
 	await textFileService.write(pick.filepath, contents);
 }
 
-registerAction2(class ConfigureSnippets extends Action2 {
+export class ConfigureSnippets extends SnippetsAction {
 
 	constructor() {
 		super({
@@ -221,7 +222,7 @@ registerAction2(class ConfigureSnippets extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]): Promise<any> {
+	async run(accessor: ServicesAccessor): Promise<any> {
 
 		const snippetService = accessor.get(ISnippetsService);
 		const quickInputService = accessor.get(IQuickInputService);
@@ -275,4 +276,4 @@ registerAction2(class ConfigureSnippets extends Action2 {
 		}
 
 	}
-});
+}
