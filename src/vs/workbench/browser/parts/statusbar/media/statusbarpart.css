@@ -10,7 +10,7 @@
 	height: 22px;
 	font-size: 12px;
 	display: flex;
-	overflow: visible;
+	overflow-x: hidden;
 	transition: background-color 0.35s ease-out;
 }
 
@@ -33,7 +33,6 @@
 
 .monaco-workbench .part.statusbar > .right-items {
 	flex-direction: row-reverse;
-	flex-wrap: wrap /* ensures that the most right elements wrap last when space is little */;
 }
 
 .monaco-workbench .part.statusbar > .left-items {
@@ -49,13 +48,13 @@
 }
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak {
-	position: relative;
+	/*position: relative;*/
 }
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak:before {
 	content: '';
 	position: absolute;
-	left: 10px;
+	right: 17px; /* 7px (padding) + 10px (centering) */
 	top: -5px;
 	border-bottom-width: 5px;
 	border-bottom-style: solid;
