@@ -53,7 +53,7 @@
 		],
     "notebookRenderer": [
       {
-        "id": "vscode.markdown-it-cell-attachment-renderer-extension",
+        "id": "vscode.markdown-it-cell-attachment-renderer",
         "displayName": "Markdown it ipynb Cell Attachment renderer",
         "entrypoint": {
           "extends": "vscode.markdown-it-renderer",
