@@ -439,8 +439,8 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 
 		return previousElement;
 	}
-
 }
+
 class ReplaceActionRunner {
 	constructor(
 		private viewer: WorkbenchObjectTree<RenderableMatch>,
@@ -456,7 +456,6 @@ class ReplaceActionRunner {
 
 	async performReplace(element: FolderMatch | FileMatch | Match): Promise<any> {
 		// since multiple elements can be selected, we need to check the type of the FolderMatch/FileMatch/Match before we perform the replace.
-
 		const elementsToReplace = getElementsToOperateOnInfo(this.viewer, element, this.configurationService.getValue<ISearchConfigurationProperties>('search'));
 
 		await Promise.all(elementsToReplace.map(async (elem) => {
@@ -511,7 +510,6 @@ class ReplaceActionRunner {
 			}
 
 			return;
-
 		}
 	}
 
@@ -571,7 +569,6 @@ class ReplaceActionRunner {
 		}
 		return false;
 	}
-
 }
 
 export class RemoveAction extends AbstractSearchAndReplaceAction {
@@ -591,7 +588,6 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 		const elementsToRemove = getElementsToOperateOnInfo(this.viewer, this.element, this.configurationService.getValue<ISearchConfigurationProperties>('search'));
 
 		const currentBottomFocusElement = elementsToRemove[elementsToRemove.length - 1];
-
 
 		const nextFocusElement = !currentBottomFocusElement || currentBottomFocusElement instanceof SearchResult || arrayContainsElementOrParent(currentBottomFocusElement, elementsToRemove) ?
 			this.getElementToFocusAfterRemoved(this.viewer, <any>currentBottomFocusElement) :
@@ -652,7 +648,6 @@ export class ReplaceAllInFolderAction extends AbstractSearchAndReplaceAction {
 	) {
 		super(Constants.ReplaceAllInFolderActionId, appendKeyBindingLabel(ReplaceAllInFolderAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceAllInFolderActionId), keyBindingService), ThemeIcon.asClassName(searchReplaceAllIcon));
 		this.replaceRunner = this.instantiationService.createInstance(ReplaceActionRunner, viewer, undefined, this.getElementToFocusAfterRemoved, this.getPreviousElementAfterRemoved);
-
 	}
 
 	override run(): Promise<any> {
@@ -827,7 +822,6 @@ export const focusSearchListCommand: ICommandHandler = accessor => {
 		}
 	});
 };
-
 
 function getElementsToOperateOnInfo(viewer: WorkbenchObjectTree<RenderableMatch, void>, currElement: RenderableMatch, sortConfig: ISearchConfigurationProperties): RenderableMatch[] {
 	let elements: RenderableMatch[] = viewer.getSelection().filter((x): x is RenderableMatch => x !== null).sort((a, b) => searchComparer(a, b, sortConfig.sortOrder));
