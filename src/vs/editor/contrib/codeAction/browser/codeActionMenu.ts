@@ -9,7 +9,6 @@ import { IListEvent, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { canceled } from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, dispose, MutableDisposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -91,6 +90,8 @@ export interface ICodeActionMenuTemplateData {
 }
 
 const TEMPLATE_ID = 'codeActionWidget';
+const codeActionLineHeight = 27;
+
 class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeActionMenuTemplateData> {
 	get templateId(): string { return TEMPLATE_ID; }
 
@@ -120,8 +121,6 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 		if (!isEnabled) {
 			data.root.classList.add('option-disabled');
 			data.root.style.backgroundColor = 'transparent !important';
-			// data.root.style.color = 'rgb(204, 204, 204, 0.5)';
-			// data.root.style.cursor = 'default';
 		} else {
 			data.root.classList.remove('option-disabled');
 		}
@@ -140,13 +139,14 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 export class CodeActionMenu extends Disposable implements IEditorContribution {
 	private readonly _showingActions = this._register(new MutableDisposable<CodeActionSet>());
 	private readonly _disposables = new DisposableStore();
-	private codeActionList!: List<ICodeActionMenuItem>;
+	private codeActionList = this._register(new MutableDisposable<List<ICodeActionMenuItem>>());
 	private options: ICodeActionMenuItem[] = [];
 	private _visible: boolean = false;
 	private _ctxMenuWidgetVisible: IContextKey<boolean>;
 	private viewItems: ICodeActionMenuItem[] = [];
 	private focusedEnabledItem: number | undefined;
 	private currSelectedItem: number = 0;
+	private hasSeperator: boolean = false;
 
 	public static readonly ID: string = 'editor.contrib.codeActionMenu';
 
@@ -195,7 +195,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 					element.action.run();
 				}
 			});
-			this.dispose();
+			this.hideCodeActionWidget();
 		}
 	}
 
@@ -204,17 +204,17 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		const renderDisposables = new DisposableStore();
 		const renderMenu = document.createElement('div');
 
-		const height = inputArray.length * 27;
-		renderMenu.style.height = String(height) + 'px';
-
 		renderMenu.id = 'codeActionMenuWidget';
 		renderMenu.classList.add('codeActionMenuWidget');
 
 		element.appendChild(renderMenu);
 
-		this.codeActionList = new List('codeActionWidget', renderMenu, {
+		this.codeActionList.value = new List('codeActionWidget', renderMenu, {
 			getHeight(element) {
-				return 27;
+				if (element.isSeparator) {
+					return 10;
+				}
+				return codeActionLineHeight;
 			},
 			getTemplateId(element) {
 				return 'codeActionWidget';
@@ -222,24 +222,35 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		}, [this.listRenderer], { keyboardSupport: false }
 		);
 
-		renderDisposables.add(this.codeActionList.onDidChangeSelection(e => this._onListSelection(e)));
+		renderDisposables.add(this.codeActionList.value.onDidChangeSelection(e => this._onListSelection(e)));
 
 		// Populating the list widget and tracking enabled options.
 		inputArray.forEach((item, index) => {
-			const menuItem = <ICodeActionMenuItem>{ title: item.label, detail: item.tooltip, action: inputArray[index], isEnabled: item.enabled, isSeparator: item.class === 'separator', index };
+			const currIsSeparator = item.class === 'separator';
+			if (currIsSeparator) {
+				// set to true forever
+				this.hasSeperator = true;
+			}
+			const menuItem = <ICodeActionMenuItem>{ title: item.label, detail: item.tooltip, action: inputArray[index], isEnabled: item.enabled, isSeparator: currIsSeparator, index };
 			if (item.enabled) {
 				this.viewItems.push(menuItem);
 			}
 			this.options.push(menuItem);
 		});
 
-		this.codeActionList.splice(0, this.codeActionList.length, this.options);
-		this.codeActionList.layout(height);
+		this.codeActionList.value.splice(0, this.codeActionList.value.length, this.options);
+
+		const height = this.hasSeperator ? (inputArray.length - 1) * codeActionLineHeight + 10 : inputArray.length * codeActionLineHeight;
+		renderMenu.style.height = String(height) + 'px';
+		this.codeActionList.value.layout(height);
 
 		// For finding width dynamically (not using resize observer)
 		const arr: number[] = [];
 		this.options.forEach((item, index) => {
-			const element = document.getElementById(this.codeActionList.getElementID(index))?.getElementsByTagName('span')[0].offsetWidth;
+			if (!this.codeActionList.value) {
+				return;
+			}
+			const element = document.getElementById(this.codeActionList.value?.getElementID(index))?.getElementsByTagName('span')[0].offsetWidth;
 			arr.push(Number(element));
 		});
 
@@ -248,15 +259,15 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 
 		// 40 is the additional padding for the list widget (20 left, 20 right)
 		renderMenu.style.width = maxWidth + 40 + 'px';
-		this.codeActionList.layout(height, maxWidth);
+		this.codeActionList.value?.layout(height, maxWidth);
 
 		// List selection
 		this.focusedEnabledItem = 0;
 		this.currSelectedItem = this.viewItems[0].index;
-		this.codeActionList.setFocus([this.currSelectedItem]);
+		this.codeActionList.value.setFocus([this.currSelectedItem]);
 
 		// List Focus
-		this.codeActionList.domFocus();
+		this.codeActionList.value.domFocus();
 		const focusTracker = dom.trackFocus(element);
 		const blurListener = focusTracker.onDidBlur(() => {
 			this.hideCodeActionWidget();
@@ -285,7 +296,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 				this.focusedEnabledItem = this.viewItems.length - 1;
 			}
 			item = this.viewItems[this.focusedEnabledItem];
-			this.codeActionList.setFocus([item.index]);
+			this.codeActionList.value?.setFocus([item.index]);
 			this.currSelectedItem = item.index;
 		} while (this.focusedEnabledItem !== startIndex && ((!item.isEnabled) || item.action.id === Separator.ID));
 
@@ -305,7 +316,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		do {
 			this.focusedEnabledItem = (this.focusedEnabledItem + 1) % this.viewItems.length;
 			item = this.viewItems[this.focusedEnabledItem];
-			this.codeActionList.setFocus([item.index]);
+			this.codeActionList.value?.setFocus([item.index]);
 			this.currSelectedItem = item.index;
 		} while (this.focusedEnabledItem !== startIndex && ((!item.isEnabled) || item.action.id === Separator.ID));
 
@@ -321,11 +332,11 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	}
 
 	public onEnterSet() {
-		this.codeActionList.setSelection([this.currSelectedItem]);
+		this.codeActionList.value?.setSelection([this.currSelectedItem]);
 	}
 
 	override dispose() {
-		this.codeActionList.dispose();
+		super.dispose();
 		this._disposables.dispose();
 	}
 
@@ -335,8 +346,8 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		this.viewItems = [];
 		this.focusedEnabledItem = 0;
 		this.currSelectedItem = 0;
+		this.hasSeperator = false;
 		this._contextViewService.hideContextView({ source: this });
-		this.dispose();
 	}
 
 	codeActionTelemetry(openedFromString: CodeActionTriggerSource, didCancel: boolean, CodeActions: CodeActionSet) {

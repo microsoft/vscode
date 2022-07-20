@@ -91,7 +91,7 @@
 
 .codeActionMenuWidget .monaco-list .separator {
 	border-bottom: 1px solid var(--vscode-menu-separatorBackground);
-	padding-top: 10px !important;
+	padding-top: 0px !important;
 	/* padding: 30px; */
 	width: 100%;
 	height: 0px !important;
