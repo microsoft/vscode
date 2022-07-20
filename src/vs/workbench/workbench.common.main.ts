@@ -350,5 +350,4 @@ import 'vs/workbench/contrib/deprecatedExtensionMigrator/browser/deprecatedExten
 // Bracket Pair Colorizer 2 Telemetry
 import 'vs/workbench/contrib/bracketPairColorizer2Telemetry/browser/bracketPairColorizer2Telemetry.contribution';
 
-
 //#endregion
