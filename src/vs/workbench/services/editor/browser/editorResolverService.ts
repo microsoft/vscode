@@ -10,11 +10,11 @@ import { basename, extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorActivation, EditorResolution, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor, EditorInputWithOptions, IResourceSideBySideEditorInput, isEditorInputWithOptions, isEditorInputWithOptionsAndGroup, isResourceDiffEditorInput, isResourceSideBySideEditorInput, isUntitledResourceEditorInput, IUntypedEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor, EditorInputWithOptions, IResourceSideBySideEditorInput, isEditorInputWithOptions, isEditorInputWithOptionsAndGroup, isResourceDiffEditorInput, isResourceSideBySideEditorInput, isUntitledResourceEditorInput, isResourceMergeEditorInput, IUntypedEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Schemas } from 'vs/base/common/network';
-import { RegisteredEditorInfo, RegisteredEditorPriority, RegisteredEditorOptions, DiffEditorInputFactoryFunction, EditorAssociation, EditorAssociations, EditorInputFactoryFunction, editorsAssociationsSettingId, globMatchesResource, IEditorResolverService, priorityToRank, ResolvedEditor, ResolvedStatus, UntitledEditorInputFactoryFunction } from 'vs/workbench/services/editor/common/editorResolverService';
+import { RegisteredEditorInfo, RegisteredEditorPriority, RegisteredEditorOptions, EditorAssociation, EditorAssociations, editorsAssociationsSettingId, globMatchesResource, IEditorResolverService, priorityToRank, ResolvedEditor, ResolvedStatus, EditorInputFactoryObject } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IKeyMods, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { localize } from 'vs/nls';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -33,9 +33,7 @@ interface RegisteredEditor {
 	globPattern: string | glob.IRelativePattern;
 	editorInfo: RegisteredEditorInfo;
 	options?: RegisteredEditorOptions;
-	createEditorInput: EditorInputFactoryFunction;
-	createUntitledEditorInput?: UntitledEditorInputFactoryFunction | undefined;
-	createDiffEditorInput?: DiffEditorInputFactoryFunction;
+	editorFactoryObject: EditorInputFactoryObject;
 }
 
 type RegisteredEditors = Array<RegisteredEditor>;
@@ -69,9 +67,8 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	) {
 		super();
 		// Read in the cache on statup
-		this.cache = new Set<string>(JSON.parse(this.storageService.get(EditorResolverService.cacheStorageID, StorageScope.GLOBAL, JSON.stringify([]))));
-		this.storageService.remove(EditorResolverService.cacheStorageID, StorageScope.GLOBAL);
-		this.convertOldAssociationFormat();
+		this.cache = new Set<string>(JSON.parse(this.storageService.get(EditorResolverService.cacheStorageID, StorageScope.PROFILE, JSON.stringify([]))));
+		this.storageService.remove(EditorResolverService.cacheStorageID, StorageScope.PROFILE);
 
 		this._register(this.storageService.onWillSaveState(() => {
 			// We want to store the glob patterns we would activate on, this allows us to know if we need to await the ext host on startup for opening a resource
@@ -82,13 +79,6 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		this.extensionService.onDidRegisterExtensions(() => {
 			this.cache = undefined;
 		});
-
-		// When the setting changes we want to ensure that it is properly converted
-		this._register(this.configurationService.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration(editorsAssociationsSettingId)) {
-				this.convertOldAssociationFormat();
-			}
-		}));
 	}
 
 	private resolveUntypedInputAndGroup(editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): [IUntypedEditorInput, IEditorGroup, EditorActivation | undefined] | undefined {
@@ -194,10 +184,8 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		// If no override we take the selected editor id so that matches works with the isActive check
 		untypedEditor.options = { override: selectedEditor.editorInfo.id, ...untypedEditor.options };
 
-		let handlesDiff = typeof selectedEditor.options?.canHandleDiff === 'function' ? selectedEditor.options.canHandleDiff() : selectedEditor.options?.canHandleDiff;
-		// Also check that it has a factory function or else it doesn't matter
-		handlesDiff = handlesDiff && selectedEditor.createDiffEditorInput !== undefined;
-		if (handlesDiff === false && isResourceDiffEditorInput(untypedEditor)) {
+		// Check if diff can be created based on prescene of factory function
+		if (selectedEditor.editorFactoryObject.createDiffEditorInput === undefined && isResourceDiffEditorInput(untypedEditor)) {
 			return ResolvedStatus.NONE;
 		}
 
@@ -243,9 +231,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		globPattern: string | glob.IRelativePattern,
 		editorInfo: RegisteredEditorInfo,
 		options: RegisteredEditorOptions,
-		createEditorInput: EditorInputFactoryFunction,
-		createUntitledEditorInput?: UntitledEditorInputFactoryFunction | undefined,
-		createDiffEditorInput?: DiffEditorInputFactoryFunction
+		editorFactoryObject: EditorInputFactoryObject
 	): IDisposable {
 		let registeredEditor = this._editors.get(globPattern);
 		if (registeredEditor === undefined) {
@@ -256,9 +242,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			globPattern,
 			editorInfo,
 			options,
-			createEditorInput,
-			createUntitledEditorInput,
-			createDiffEditorInput
+			editorFactoryObject
 		});
 		this._onDidChangeEditorRegistrations.fire();
 		return toDisposable(() => {
@@ -273,23 +257,6 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		const allEditors: RegisteredEditors = this._registeredEditors;
 		// Ensure that the settings are valid editors
 		return matchingAssociations.filter(association => allEditors.find(c => c.editorInfo.id === association.viewType));
-	}
-
-	private convertOldAssociationFormat(): void {
-		const rawAssociations = this.configurationService.getValue<EditorAssociations | { [fileNamePattern: string]: string }>(editorsAssociationsSettingId) || [];
-		// If it's not an array, then it's the new format
-		if (!Array.isArray(rawAssociations)) {
-			return;
-		}
-		const newSettingObject = Object.create(null);
-		// Make the correctly formatted object from the array and then set that object
-		for (const association of rawAssociations) {
-			if (association.filenamePattern) {
-				newSettingObject[association.filenamePattern] = association.viewType;
-			}
-		}
-		this.logService.info(`Migrating ${editorsAssociationsSettingId}`);
-		this.configurationService.updateValue(editorsAssociationsSettingId, newSettingObject);
 	}
 
 	private getAllUserAssociations(): EditorAssociations {
@@ -435,12 +402,21 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			options = { ...options, activation: options.preserveFocus ? EditorActivation.RESTORE : undefined };
 		}
 
-		// If it's a diff editor we trigger the create diff editor input
-		if (isResourceDiffEditorInput(editor)) {
-			if (!selectedEditor.createDiffEditorInput) {
+		// If it's a merge editor we trigger the create merge editor input
+		if (isResourceMergeEditorInput(editor)) {
+			if (!selectedEditor.editorFactoryObject.createMergeEditorInput) {
 				return;
 			}
-			const inputWithOptions = await selectedEditor.createDiffEditorInput(editor, group);
+			const inputWithOptions = await selectedEditor.editorFactoryObject.createMergeEditorInput(editor, group);
+			return { editor: inputWithOptions.editor, options: inputWithOptions.options ?? options };
+		}
+
+		// If it's a diff editor we trigger the create diff editor input
+		if (isResourceDiffEditorInput(editor)) {
+			if (!selectedEditor.editorFactoryObject.createDiffEditorInput) {
+				return;
+			}
+			const inputWithOptions = await selectedEditor.editorFactoryObject.createDiffEditorInput(editor, group);
 			return { editor: inputWithOptions.editor, options: inputWithOptions.options ?? options };
 		}
 
@@ -449,10 +425,10 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		}
 
 		if (isUntitledResourceEditorInput(editor)) {
-			if (!selectedEditor.createUntitledEditorInput) {
+			if (!selectedEditor.editorFactoryObject.createUntitledEditorInput) {
 				return;
 			}
-			const inputWithOptions = await selectedEditor.createUntitledEditorInput(editor, group);
+			const inputWithOptions = await selectedEditor.editorFactoryObject.createUntitledEditorInput(editor, group);
 			return { editor: inputWithOptions.editor, options: inputWithOptions.options ?? options };
 		}
 
@@ -471,7 +447,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		}
 
 		// Respect options passed back
-		const inputWithOptions = await selectedEditor.createEditorInput(editor, group);
+		const inputWithOptions = await selectedEditor.editorFactoryObject.createEditorInput(editor, group);
 		options = inputWithOptions.options ?? options;
 		const input = inputWithOptions.editor;
 
@@ -517,7 +493,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	}
 
 	/**
-	 * Given a resource and an editorId, returns all editors open for that resouce and editorId.
+	 * Given a resource and an editorId, returns all editors open for that resource and editorId.
 	 * @param resource The resource specified
 	 * @param editorId The editorID
 	 * @returns A list of editors
@@ -546,13 +522,13 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			[key: string]: string[];
 		};
 		const editors = this.findMatchingEditors(resource);
-		const storedChoices: StoredChoice = JSON.parse(this.storageService.get(EditorResolverService.conflictingDefaultsStorageID, StorageScope.GLOBAL, '{}'));
+		const storedChoices: StoredChoice = JSON.parse(this.storageService.get(EditorResolverService.conflictingDefaultsStorageID, StorageScope.PROFILE, '{}'));
 		const globForResource = `*${extname(resource)}`;
 		// Writes to the storage service that a choice has been made for the currently installed editors
 		const writeCurrentEditorsToStorage = () => {
 			storedChoices[globForResource] = [];
 			editors.forEach(editor => storedChoices[globForResource].push(editor.editorInfo.id));
-			this.storageService.store(EditorResolverService.conflictingDefaultsStorageID, JSON.stringify(storedChoices), StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.storageService.store(EditorResolverService.conflictingDefaultsStorageID, JSON.stringify(storedChoices), StorageScope.PROFILE, StorageTarget.MACHINE);
 		};
 
 		// If the user has already made a choice for this editor we don't want to ask them again
@@ -671,7 +647,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		// Create the editor picker
 		const editorPicker = this.quickInputService.createQuickPick<IQuickPickItem>();
 		const placeHolderMessage = showDefaultPicker ?
-			localize('prompOpenWith.updateDefaultPlaceHolder', "Select new default editor for '{0}'", `*${extname(resource)}`) :
+			localize('promptOpenWith.updateDefaultPlaceHolder', "Select new default editor for '{0}'", `*${extname(resource)}`) :
 			localize('promptOpenWith.placeHolder', "Select editor for '{0}'", basename(resource));
 		editorPicker.placeholder = placeHolderMessage;
 		editorPicker.canAcceptInBackground = true;
@@ -746,7 +722,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 	private sendEditorResolutionTelemetry(chosenInput: EditorInput): void {
 		type editorResolutionClassification = {
-			viewType: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The id of the editor opened. Used to gain an undertsanding of what editors are most popular' };
+			viewType: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The id of the editor opened. Used to gain an understanding of what editors are most popular' };
 			owner: 'lramos15';
 			comment: 'An event that fires when an editor type is picked';
 		};
@@ -783,7 +759,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 				cacheStorage.add(association.filenamePattern);
 			}
 		}
-		this.storageService.store(EditorResolverService.cacheStorageID, JSON.stringify(Array.from(cacheStorage)), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this.storageService.store(EditorResolverService.cacheStorageID, JSON.stringify(Array.from(cacheStorage)), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
 	private resourceMatchesCache(resource: URI): boolean {

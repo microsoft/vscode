@@ -135,15 +135,17 @@ class MarkerCodeColumnRenderer implements ITableRenderer<MarkerTableItem, IMarke
 	}
 
 	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerCodeColumnTemplateData, height: number | undefined): void {
-		if (element.marker.source && element.marker.code) {
-			templateData.codeColumn.classList.toggle('code-link', typeof element.marker.code !== 'string');
-			DOM.show(templateData.codeLabel.element);
+		templateData.codeColumn.classList.remove('code-label');
+		templateData.codeColumn.classList.remove('code-link');
 
+		if (element.marker.source && element.marker.code) {
 			if (typeof element.marker.code === 'string') {
+				templateData.codeColumn.classList.add('code-label');
 				templateData.codeColumn.title = `${element.marker.source} (${element.marker.code})`;
 				templateData.sourceLabel.set(element.marker.source, element.sourceMatches);
 				templateData.codeLabel.set(element.marker.code, element.codeMatches);
 			} else {
+				templateData.codeColumn.classList.add('code-link');
 				templateData.codeColumn.title = `${element.marker.source} (${element.marker.code.value})`;
 				templateData.sourceLabel.set(element.marker.source, element.sourceMatches);
 
@@ -159,7 +161,6 @@ class MarkerCodeColumnRenderer implements ITableRenderer<MarkerTableItem, IMarke
 		} else {
 			templateData.codeColumn.title = '';
 			templateData.sourceLabel.set('-');
-			DOM.hide(templateData.codeLabel.element);
 		}
 	}
 
@@ -283,7 +284,7 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 					tooltip: '',
 					weight: 1,
 					minimumWidth: 100,
-					maximumWidth: 200,
+					maximumWidth: 300,
 					templateId: MarkerCodeColumnRenderer.TEMPLATE_ID,
 					project(row: Marker): Marker { return row; }
 				},
@@ -306,7 +307,7 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 					tooltip: '',
 					weight: 1,
 					minimumWidth: 100,
-					maximumWidth: 200,
+					maximumWidth: 300,
 					templateId: MarkerOwnerColumnRenderer.TEMPLATE_ID,
 					project(row: Marker): Marker { return row; }
 				}
@@ -375,7 +376,7 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 
 	getFocus(): (MarkerTableItem | null)[] {
 		const focus = this.table.getFocus();
-		return focus.length > 0 ? [this.table.row(focus[0])] : [];
+		return focus.length > 0 ? [...focus.map(f => this.table.row(f))] : [];
 	}
 
 	getHTMLElement(): HTMLElement {
@@ -388,7 +389,7 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 
 	getSelection(): (MarkerTableItem | null)[] {
 		const selection = this.table.getSelection();
-		return selection.length > 0 ? [this.table.row(selection[0])] : [];
+		return selection.length > 0 ? [...selection.map(i => this.table.row(i))] : [];
 	}
 
 	getVisibleItemCount(): number {
@@ -400,6 +401,7 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 	}
 
 	layout(height: number, width: number): void {
+		this.container.style.height = `${height}px`;
 		this.table.layout(height, width);
 	}
 
@@ -499,17 +501,22 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 		this.table.domNode.ariaLabel = label;
 	}
 
-	setMarkerSelection(marker?: Marker): void {
+	setMarkerSelection(selection?: Marker[], focus?: Marker[]): void {
 		if (this.isVisible()) {
-			if (marker) {
-				const index = this.findMarkerIndex(marker);
-				if (index !== -1) {
-					this.table.setFocus([index]);
-					this.table.setSelection([index]);
+			if (selection && selection.length > 0) {
+				this.table.setSelection(selection.map(m => this.findMarkerIndex(m)));
+
+				if (focus && focus.length > 0) {
+					this.table.setFocus(focus.map(f => this.findMarkerIndex(f)));
+				} else {
+					this.table.setFocus([this.findMarkerIndex(selection[0])]);
 				}
+
+				this.table.reveal(this.findMarkerIndex(selection[0]));
 			} else if (this.getSelection().length === 0 && this.getVisibleItemCount() > 0) {
-				this.table.setFocus([0]);
 				this.table.setSelection([0]);
+				this.table.setFocus([0]);
+				this.table.reveal(0);
 			}
 		}
 	}

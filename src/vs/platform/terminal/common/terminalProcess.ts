@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { UriComponents } from 'vs/base/common/uri';
-import { ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
+import { ISerializableEnvironmentVariableCollection, ISerializableEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariable';
 import { IFixedTerminalDimensions, IRawTerminalTabLayoutInfo, ITerminalEnvironment, ITerminalTabLayoutInfoById, TerminalIcon, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 
 export interface ISingleTerminalConfiguration<T> {
@@ -59,6 +59,9 @@ export interface IProcessDetails {
 	icon: TerminalIcon | undefined;
 	color: string | undefined;
 	fixedDimensions: IFixedTerminalDimensions | undefined;
+	environmentVariableCollections: ISerializableEnvironmentVariableCollections | undefined;
+	reconnectionOwner?: string;
+	task?: { label: string; id: string; lastTask: string; group?: string };
 }
 
 export type ITerminalTabLayoutInfoDto = IRawTerminalTabLayoutInfo<IProcessDetails>;
@@ -78,7 +81,14 @@ export interface ISerializedCommand {
 	exitCode: number | undefined;
 	commandStartLineContent: string | undefined;
 	timestamp: number;
+	genericMarkProperties?: IGenericMarkProperties;
 }
+
+export interface IGenericMarkProperties {
+	hoverMessage?: string;
+	disableCommandStorage?: boolean;
+}
+
 export interface ISerializedCommandDetectionCapability {
 	isWindowsPty: boolean;
 	commands: ISerializedCommand[];

@@ -30,7 +30,7 @@ import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { CompletionModel } from './completionModel';
-import { ResizableHTMLElement } from './resizable';
+import { ResizableHTMLElement } from 'vs/base/browser/ui/resizable/resizable';
 import { CompletionItem, Context as SuggestContext } from './suggest';
 import { canExpandCompletionItem, SuggestDetailsOverlay, SuggestDetailsWidget } from './suggestWidgetDetails';
 import { getAriaId, ItemRenderer } from './suggestWidgetRenderer';
@@ -75,7 +75,7 @@ class PersistedWidgetSize {
 	}
 
 	restore(): dom.Dimension | undefined {
-		const raw = this._service.get(this._key, StorageScope.GLOBAL) ?? '';
+		const raw = this._service.get(this._key, StorageScope.PROFILE) ?? '';
 		try {
 			const obj = JSON.parse(raw);
 			if (dom.Dimension.is(obj)) {
@@ -88,11 +88,11 @@ class PersistedWidgetSize {
 	}
 
 	store(size: dom.Dimension) {
-		this._service.store(this._key, JSON.stringify(size), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this._service.store(this._key, JSON.stringify(size), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
 	reset(): void {
-		this._service.remove(this._key, StorageScope.GLOBAL);
+		this._service.remove(this._key, StorageScope.PROFILE);
 	}
 }
 
@@ -124,6 +124,7 @@ export class SuggestWidget implements IDisposable {
 	private readonly _ctxSuggestWidgetVisible: IContextKey<boolean>;
 	private readonly _ctxSuggestWidgetDetailsVisible: IContextKey<boolean>;
 	private readonly _ctxSuggestWidgetMultipleSuggestions: IContextKey<boolean>;
+	private readonly _ctxSuggestWidgetHasFocusedSuggestion: IContextKey<boolean>;
 
 	private readonly _showTimeout = new TimeoutTimer();
 	private readonly _disposables = new DisposableStore();
@@ -283,7 +284,7 @@ export class SuggestWidget implements IDisposable {
 		this._ctxSuggestWidgetVisible = SuggestContext.Visible.bindTo(_contextKeyService);
 		this._ctxSuggestWidgetDetailsVisible = SuggestContext.DetailsVisible.bindTo(_contextKeyService);
 		this._ctxSuggestWidgetMultipleSuggestions = SuggestContext.MultipleSuggestions.bindTo(_contextKeyService);
-
+		this._ctxSuggestWidgetHasFocusedSuggestion = SuggestContext.HasFocusedSuggestion.bindTo(_contextKeyService);
 
 		this._disposables.add(dom.addStandardDisposableListener(this._details.widget.domNode, 'keydown', e => {
 			this._onDetailsKeydown.fire(e);
@@ -365,6 +366,7 @@ export class SuggestWidget implements IDisposable {
 			}
 
 			this.editor.setAriaOptions({ activeDescendant: undefined });
+			this._ctxSuggestWidgetHasFocusedSuggestion.set(false);
 			return;
 		}
 
@@ -372,6 +374,7 @@ export class SuggestWidget implements IDisposable {
 			return;
 		}
 
+		this._ctxSuggestWidgetHasFocusedSuggestion.set(true);
 		const item = e.elements[0];
 		const index = e.indexes[0];
 
@@ -440,6 +443,7 @@ export class SuggestWidget implements IDisposable {
 				this._contentWidget.hide();
 				this._ctxSuggestWidgetVisible.reset();
 				this._ctxSuggestWidgetMultipleSuggestions.reset();
+				this._ctxSuggestWidgetHasFocusedSuggestion.reset();
 				this._showTimeout.cancel();
 				this.element.domNode.classList.remove('visible');
 				this._list.splice(0, this._list.length);
@@ -538,8 +542,10 @@ export class SuggestWidget implements IDisposable {
 		this._focusedItem = undefined;
 		this._list.splice(0, this._list.length, this._completionModel.items);
 		this._setState(isFrozen ? State.Frozen : State.Open);
-		this._list.reveal(selectionIndex, 0);
-		this._list.setFocus([selectionIndex]);
+		if (selectionIndex >= 0) {
+			this._list.reveal(selectionIndex, 0);
+			this._list.setFocus([selectionIndex]);
+		}
 
 		this._layout(this.element.size);
 		// Reset focus border
@@ -865,11 +871,11 @@ export class SuggestWidget implements IDisposable {
 	}
 
 	private _isDetailsVisible(): boolean {
-		return this._storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, false);
+		return this._storageService.getBoolean('expandSuggestionDocs', StorageScope.PROFILE, false);
 	}
 
 	private _setDetailsVisible(value: boolean) {
-		this._storageService.store('expandSuggestionDocs', value, StorageScope.GLOBAL, StorageTarget.USER);
+		this._storageService.store('expandSuggestionDocs', value, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	forceRenderingAbove() {

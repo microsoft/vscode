@@ -41,6 +41,8 @@ import { Disposable } from 'vs/base/common/lifecycle';
 const OpenInEditorCommandId = 'search.action.openInEditor';
 const OpenNewEditorToSideCommandId = 'search.action.openNewEditorToSide';
 const FocusQueryEditorWidgetCommandId = 'search.action.focusQueryEditorWidget';
+const FocusQueryEditorFilesToIncludeCommandId = 'search.action.focusFilesToInclude';
+const FocusQueryEditorFilesToExcludeCommandId = 'search.action.focusFilesToExclude';
 
 const ToggleSearchEditorCaseSensitiveCommandId = 'toggleSearchEditorCaseSensitive';
 const ToggleSearchEditorWholeWordCommandId = 'toggleSearchEditorWholeWord';
@@ -86,11 +88,12 @@ class SearchEditorContribution implements IWorkbenchContribution {
 			},
 			{
 				singlePerResource: true,
-				canHandleDiff: false,
 				canSupportResource: resource => (extname(resource) === SEARCH_EDITOR_EXT)
 			},
-			({ resource }) => {
-				return { editor: instantiationService.invokeFunction(getOrMakeSearchEditorInput, { from: 'existingFile', fileUri: resource }) };
+			{
+				createEditorInput: ({ resource }) => {
+					return { editor: instantiationService.invokeFunction(getOrMakeSearchEditorInput, { from: 'existingFile', fileUri: resource }) };
+				}
 			}
 		);
 	}
@@ -370,6 +373,44 @@ registerAction2(class extends Action2 {
 		const input = editorService.activeEditor;
 		if (input instanceof SearchEditorInput) {
 			(editorService.activeEditorPane as SearchEditor).focusSearchInput();
+		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: FocusQueryEditorFilesToIncludeCommandId,
+			title: { value: localize('search.action.focusFilesToInclude', "Focus Search Editor Files to Include"), original: 'Focus Search Editor Files to Include' },
+			category,
+			f1: true,
+			precondition: SearchEditorConstants.InSearchEditor,
+		});
+	}
+	async run(accessor: ServicesAccessor) {
+		const editorService = accessor.get(IEditorService);
+		const input = editorService.activeEditor;
+		if (input instanceof SearchEditorInput) {
+			(editorService.activeEditorPane as SearchEditor).focusFilesToIncludeInput();
+		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: FocusQueryEditorFilesToExcludeCommandId,
+			title: { value: localize('search.action.focusFilesToExclude', "Focus Search Editor Files to Exclude"), original: 'Focus Search Editor Files to Exclude' },
+			category,
+			f1: true,
+			precondition: SearchEditorConstants.InSearchEditor,
+		});
+	}
+	async run(accessor: ServicesAccessor) {
+		const editorService = accessor.get(IEditorService);
+		const input = editorService.activeEditor;
+		if (input instanceof SearchEditorInput) {
+			(editorService.activeEditorPane as SearchEditor).focusFilesToExcludeInput();
 		}
 	}
 });

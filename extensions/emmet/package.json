@@ -127,6 +127,11 @@
           "default": false,
           "markdownDescription": "%emmetTriggerExpansionOnTab%"
         },
+        "emmet.useInlineCompletions": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%emmetUseInlineCompletions%"
+        },
         "emmet.preferences": {
           "type": "object",
           "default": {},

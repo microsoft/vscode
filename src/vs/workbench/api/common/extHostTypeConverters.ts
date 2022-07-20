@@ -569,7 +569,7 @@ export namespace WorkspaceEdit {
 		getNotebookDocumentVersion(uri: URI): number | undefined;
 	}
 
-	export function from(value: vscode.WorkspaceEdit, versionInfo?: IVersionInformationProvider): extHostProtocol.IWorkspaceEditDto {
+	export function from(value: vscode.WorkspaceEdit, versionInfo?: IVersionInformationProvider, allowSnippetTextEdit?: boolean): extHostProtocol.IWorkspaceEditDto {
 		const result: extHostProtocol.IWorkspaceEditDto = {
 			edits: []
 		};
@@ -589,40 +589,55 @@ export namespace WorkspaceEdit {
 
 				if (entry._type === types.FileEditType.File) {
 					// file operation
-					result.edits.push(<extHostProtocol.IWorkspaceFileEditDto>{
-						_type: extHostProtocol.WorkspaceEditType.File,
-						oldUri: entry.from,
-						newUri: entry.to,
+					result.edits.push(<languages.IWorkspaceFileEdit>{
+						oldResource: entry.from,
+						newResource: entry.to,
 						options: entry.options,
 						metadata: entry.metadata
 					});
 
 				} else if (entry._type === types.FileEditType.Text) {
 					// text edits
-					result.edits.push(<extHostProtocol.IWorkspaceTextEditDto>{
-						_type: extHostProtocol.WorkspaceEditType.Text,
+					result.edits.push(<languages.IWorkspaceTextEdit>{
 						resource: entry.uri,
-						edit: TextEdit.from(entry.edit),
-						modelVersionId: !toCreate.has(entry.uri) ? versionInfo?.getTextDocumentVersion(entry.uri) : undefined,
+						textEdit: TextEdit.from(entry.edit),
+						versionId: !toCreate.has(entry.uri) ? versionInfo?.getTextDocumentVersion(entry.uri) : undefined,
 						metadata: entry.metadata
 					});
+				} else if (entry._type === types.FileEditType.Snippet) {
+					// snippet text edits
+					if (!allowSnippetTextEdit) {
+						console.warn(`DROPPING snippet text edit because proposal IS NOT ENABLED`, entry);
+						continue;
+					}
+					result.edits.push(<languages.IWorkspaceTextEdit>{
+						resource: entry.uri,
+						textEdit: {
+							range: Range.from(entry.range),
+							text: entry.edit.value,
+							insertAsSnippet: true
+						},
+						versionId: !toCreate.has(entry.uri) ? versionInfo?.getTextDocumentVersion(entry.uri) : undefined,
+						metadata: entry.metadata
+					});
+
 				} else if (entry._type === types.FileEditType.Cell) {
-					result.edits.push(<extHostProtocol.IWorkspaceCellEditDto>{
-						_type: extHostProtocol.WorkspaceEditType.Cell,
+					// cell edit
+					result.edits.push(<notebooks.IWorkspaceNotebookCellEdit>{
 						metadata: entry.metadata,
 						resource: entry.uri,
-						edit: entry.edit,
+						cellEdit: entry.edit,
 						notebookMetadata: entry.notebookMetadata,
 						notebookVersionId: versionInfo?.getNotebookDocumentVersion(entry.uri)
 					});
 
 				} else if (entry._type === types.FileEditType.CellReplace) {
-					result.edits.push({
-						_type: extHostProtocol.WorkspaceEditType.Cell,
+					// cell replace
+					result.edits.push(<extHostProtocol.IWorkspaceCellEditDto>{
 						metadata: entry.metadata,
 						resource: entry.uri,
 						notebookVersionId: versionInfo?.getNotebookDocumentVersion(entry.uri),
-						edit: {
+						cellEdit: {
 							editType: notebooks.CellEditType.Replace,
 							index: entry.index,
 							count: entry.count,
@@ -638,16 +653,16 @@ export namespace WorkspaceEdit {
 	export function to(value: extHostProtocol.IWorkspaceEditDto) {
 		const result = new types.WorkspaceEdit();
 		for (const edit of value.edits) {
-			if ((<extHostProtocol.IWorkspaceTextEditDto>edit).edit) {
+			if ((<extHostProtocol.IWorkspaceTextEditDto>edit).textEdit) {
 				result.replace(
 					URI.revive((<extHostProtocol.IWorkspaceTextEditDto>edit).resource),
-					Range.to((<extHostProtocol.IWorkspaceTextEditDto>edit).edit.range),
-					(<extHostProtocol.IWorkspaceTextEditDto>edit).edit.text
+					Range.to((<extHostProtocol.IWorkspaceTextEditDto>edit).textEdit.range),
+					(<extHostProtocol.IWorkspaceTextEditDto>edit).textEdit.text
 				);
 			} else {
 				result.renameFile(
-					URI.revive((<extHostProtocol.IWorkspaceFileEditDto>edit).oldUri!),
-					URI.revive((<extHostProtocol.IWorkspaceFileEditDto>edit).newUri!),
+					URI.revive((<extHostProtocol.IWorkspaceFileEditDto>edit).oldResource!),
+					URI.revive((<extHostProtocol.IWorkspaceFileEditDto>edit).newResource!),
 					(<extHostProtocol.IWorkspaceFileEditDto>edit).options
 				);
 			}
@@ -1675,16 +1690,6 @@ export namespace NotebookExclusiveDocumentPattern {
 	}
 }
 
-export namespace NotebookDecorationRenderOptions {
-	export function from(options: vscode.NotebookDecorationRenderOptions): notebooks.INotebookDecorationRenderOptions {
-		return {
-			backgroundColor: <string | types.ThemeColor>options.backgroundColor,
-			borderColor: <string | types.ThemeColor>options.borderColor,
-			top: options.top ? ThemableDecorationAttachmentRenderOptions.from(options.top) : undefined
-		};
-	}
-}
-
 export namespace NotebookStatusBarItem {
 	export function from(item: vscode.NotebookCellStatusBarItem, commandsConverter: Command.ICommandsConverter, disposables: DisposableStore): notebooks.INotebookCellStatusBarItem {
 		const command = typeof item.command === 'string' ? { title: '', command: item.command } : item.command;
@@ -1780,6 +1785,7 @@ export namespace TestItem {
 				add: () => { },
 				delete: () => { },
 				forEach: () => { },
+				*[Symbol.iterator]() { },
 				get: () => undefined,
 				replace: () => { },
 				size: 0,
@@ -1956,8 +1962,6 @@ export namespace DataTransferItem {
 		const file = item.fileData;
 		if (file) {
 			return new class extends types.DataTransferItem {
-				override get kind() { return types.DataTransferItemKind.File; }
-
 				override asFile(): vscode.DataTransferFile {
 					return {
 						name: file.name,

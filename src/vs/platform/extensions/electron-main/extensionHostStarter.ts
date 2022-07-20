@@ -32,7 +32,7 @@ declare namespace UtilityProcessProposedApi {
 		constructor(modulePath: string, args?: string[] | undefined, options?: UtilityProcessOptions);
 		postMessage(channel: string, message: any, transfer?: Electron.MessagePortMain[]): void;
 		kill(signal?: number | string): boolean;
-		on(event: 'exit', listener: (code: number) => void): this;
+		on(event: 'exit', listener: (code: number | undefined) => void): this;
 		on(event: 'spawn', listener: () => void): this;
 	}
 }
@@ -310,13 +310,13 @@ class UtilityExtensionHostProcess extends Disposable {
 	start(opts: IExtensionHostProcessOptions): void {
 		const codeWindow = this._windowsMainService.getWindowById(opts.responseWindowId);
 		if (!codeWindow) {
-			this._logService.info(`Refusing to create new Extension Host UtilityProcess because requesting window cannot be found...`);
+			this._logService.info(`UtilityProcess<${this.id}>: Refusing to create new Extension Host UtilityProcess because requesting window cannot be found...`);
 			return;
 		}
 
 		const responseWindow = codeWindow.win;
 		if (!responseWindow || responseWindow.isDestroyed() || responseWindow.webContents.isDestroyed()) {
-			this._logService.info(`Refusing to create new Extension Host UtilityProcess because requesting window cannot be found...`);
+			this._logService.info(`UtilityProcess<${this.id}>: Refusing to create new Extension Host UtilityProcess because requesting window cannot be found...`);
 			return;
 		}
 
@@ -331,18 +331,19 @@ class UtilityExtensionHostProcess extends Disposable {
 			env[key] = String(env[key]);
 		}
 
-		this._logService.info(`Creating new UtilityProcess to start extension host...`);
+		this._logService.info(`UtilityProcess<${this.id}>: Creating new...`);
 
 		this._process = new UtilityProcess(modulePath, args, { serviceName, env, execArgv });
 
-		this._process.on('spawn', () => {
-			this._logService.info(`Utility process emits spawn!`);
-		});
-		this._process.on('exit', (code: number) => {
-			this._logService.info(`Utility process emits exit!`);
+		this._register(Event.fromNodeEventEmitter<void>(this._process, 'spawn')(() => {
+			this._logService.info(`UtilityProcess<${this.id}>: received spawn event.`);
+		}));
+		this._register(Event.fromNodeEventEmitter<number | undefined>(this._process, 'exit')((code: number | undefined) => {
+			code = code || 0;
+			this._logService.info(`UtilityProcess<${this.id}>: received exit event with code ${code}.`);
 			this._hasExited = true;
 			this._onExit.fire({ pid: this._process!.pid!, code, signal: '' });
-		});
+		}));
 		const listener = (event: electron.Event, details: electron.Details) => {
 			if (details.type !== 'Utility') {
 				return;
@@ -350,7 +351,7 @@ class UtilityExtensionHostProcess extends Disposable {
 			// Despite the fact that we pass the argument `seviceName`,
 			// the details have a field called `name` where this value appears
 			if (details.name === serviceName) {
-				this._logService.info(`Utility process emits exit!`);
+				this._logService.info(`UtilityProcess<${this.id}>: terminated unexpectedly with code ${details.exitCode}.`);
 				this._hasExited = true;
 				this._onExit.fire({ pid: this._process!.pid!, code: details.exitCode, signal: '' });
 			}
@@ -371,7 +372,7 @@ class UtilityExtensionHostProcess extends Disposable {
 			return false;
 		}
 
-		this._logService.info(`Enabling inspect port on extension host with pid ${this._process.pid}.`);
+		this._logService.info(`UtilityProcess<${this.id}>: Enabling inspect port on extension host with pid ${this._process.pid}.`);
 
 		interface ProcessExt {
 			_debugProcess?(n: number): any;
@@ -395,7 +396,7 @@ class UtilityExtensionHostProcess extends Disposable {
 		if (!this._process) {
 			return;
 		}
-		this._logService.info(`Killing extension host with pid ${this._process.pid}.`);
+		this._logService.info(`UtilityProcess<${this.id}>: Killing extension host with pid ${this._process.pid}.`);
 		this._process.kill();
 	}
 
@@ -404,12 +405,12 @@ class UtilityExtensionHostProcess extends Disposable {
 			return;
 		}
 		const pid = this._process.pid;
-		this._logService.info(`Waiting for extension host with pid ${pid} to exit.`);
+		this._logService.info(`UtilityProcess<${this.id}>: Waiting for extension host with pid ${pid} to exit.`);
 		await Promise.race([Event.toPromise(this.onExit), timeout(maxWaitTimeMs)]);
 
 		if (!this._hasExited) {
 			// looks like we timed out
-			this._logService.info(`Extension host with pid ${pid} did not exit within ${maxWaitTimeMs}ms.`);
+			this._logService.info(`UtilityProcess<${this.id}>: Extension host with pid ${pid} did not exit within ${maxWaitTimeMs}ms, will kill it now.`);
 			this._process.kill();
 		}
 	}

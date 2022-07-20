@@ -76,6 +76,9 @@ export interface ITaskSourceDTO {
 	label: string;
 	extensionId?: string;
 	scope?: number | UriComponents;
+	color?: string;
+	icon?: string;
+	hide?: boolean;
 }
 
 export interface ITaskHandleDTO {

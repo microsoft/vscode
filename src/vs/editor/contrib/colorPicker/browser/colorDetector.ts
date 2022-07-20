@@ -172,10 +172,12 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 			options: ModelDecorationOptions.EMPTY
 		}));
 
-		this._decorationsIds = this._editor.deltaDecorations(this._decorationsIds, decorations);
+		this._editor.changeDecorations((changeAccessor) => {
+			this._decorationsIds = changeAccessor.deltaDecorations(this._decorationsIds, decorations);
 
-		this._colorDatas = new Map<string, IColorData>();
-		this._decorationsIds.forEach((id, i) => this._colorDatas.set(id, colorDatas[i]));
+			this._colorDatas = new Map<string, IColorData>();
+			this._decorationsIds.forEach((id, i) => this._colorDatas.set(id, colorDatas[i]));
+		});
 	}
 
 	private _colorDecorationClassRefs = this._register(new DisposableStore());
@@ -219,7 +221,8 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 	}
 
 	private removeAllDecorations(): void {
-		this._decorationsIds = this._editor.deltaDecorations(this._decorationsIds, []);
+		this._editor.removeDecorations(this._decorationsIds);
+		this._decorationsIds = [];
 		this._colorDecoratorIds.clear();
 		this._colorDecorationClassRefs.clear();
 	}

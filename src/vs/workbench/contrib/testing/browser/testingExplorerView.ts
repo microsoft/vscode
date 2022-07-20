@@ -337,7 +337,7 @@ export class TestingExplorerView extends ViewPane {
 			icon: group === TestRunProfileBitset.Run
 				? icons.testingRunAllIcon
 				: icons.testingDebugAllIcon,
-		}, undefined, undefined);
+		}, undefined, undefined, undefined);
 
 		const dropdownAction = new Action('selectRunConfig', 'Select Configuration...', 'codicon-chevron-down', true);
 
@@ -485,7 +485,6 @@ export class TestingExplorerViewModel extends Disposable {
 				instantiationService.createInstance(ErrorRenderer),
 			],
 			{
-				simpleKeyboardNavigation: true,
 				identityProvider: instantiationService.createInstance(IdentityProvider),
 				hideTwistiesOfChildlessElements: false,
 				sorter: instantiationService.createInstance(TreeSorter, this),
@@ -554,6 +553,11 @@ export class TestingExplorerViewModel extends Disposable {
 			followRunningTests = getTestingConfiguration(configurationService, TestingConfigKeys.FollowRunningTest);
 		}));
 
+		let alwaysRevealTestAfterStateChange = getTestingConfiguration(configurationService, TestingConfigKeys.AlwaysRevealTestOnStateChange);
+		this._register(configurationService.onDidChangeConfiguration(() => {
+			alwaysRevealTestAfterStateChange = getTestingConfiguration(configurationService, TestingConfigKeys.AlwaysRevealTestOnStateChange);
+		}));
+
 		this._register(testResults.onTestChanged(evt => {
 			if (!followRunningTests) {
 				return;
@@ -569,7 +573,7 @@ export class TestingExplorerViewModel extends Disposable {
 				return;
 			}
 
-			this.revealById(evt.item.item.extId, false, false);
+			this.revealById(evt.item.item.extId, alwaysRevealTestAfterStateChange, false);
 		}));
 
 		this._register(testResults.onResultsChanged(() => {

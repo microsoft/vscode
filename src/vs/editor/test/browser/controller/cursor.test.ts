@@ -502,18 +502,20 @@ suite('Editor Controller - Cursor', () => {
 		);
 
 		withTestCodeEditor(model, { wrappingIndent: 'indent', wordWrap: 'wordWrapColumn', wordWrapColumn: 20 }, (editor, viewModel) => {
-			editor.deltaDecorations([], [
-				{
-					range: new Range(1, 22, 1, 22),
-					options: {
-						showIfCollapsed: true,
-						description: 'test',
-						after: {
-							content: 'some very very very very very very very very long text',
+			editor.changeDecorations((changeAccessor) => {
+				changeAccessor.deltaDecorations([], [
+					{
+						range: new Range(1, 22, 1, 22),
+						options: {
+							showIfCollapsed: true,
+							description: 'test',
+							after: {
+								content: 'some very very very very very very very very long text',
+							}
 						}
 					}
-				}
-			]);
+				]);
+			});
 			viewModel.setSelections('test', [new Selection(1, 1, 1, 1)]);
 
 			const cursorPositions: any[] = [];

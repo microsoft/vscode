@@ -139,7 +139,7 @@ export abstract class PaneComposite extends Composite implements IPaneComposite 
 
 
 /**
- * A Pane Composite descriptor is a leightweight descriptor of a Pane Composite in the workbench.
+ * A Pane Composite descriptor is a lightweight descriptor of a Pane Composite in the workbench.
  */
 export class PaneCompositeDescriptor extends CompositeDescriptor<PaneComposite> {
 

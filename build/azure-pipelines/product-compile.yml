@@ -116,12 +116,13 @@ steps:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Compile & Hygiene
 
-  - script: |
-      set -e
-      yarn --cwd test/smoke compile
-      yarn --cwd test/integration/browser compile
-    displayName: Compile test suites
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - script: |
+        set -e
+        yarn --cwd test/smoke compile
+        yarn --cwd test/integration/browser compile
+      displayName: Compile test suites
+      condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - task: AzureCLI@2
@@ -151,16 +152,18 @@ steps:
         ./build/azure-pipelines/common/extract-telemetry.sh
       displayName: Extract Telemetry
 
-  - script: |
-      set -e
-      tar -cz --ignore-failed-read -f $(Build.ArtifactStagingDirectory)/compilation.tar.gz .build out-* test/integration/browser/out test/smoke/out test/automation/out
-    displayName: Compress compilation artifact
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - script: |
+        set -e
+        tar -cz --ignore-failed-read -f $(Build.ArtifactStagingDirectory)/compilation.tar.gz .build out-* test/integration/browser/out test/smoke/out test/automation/out
+      displayName: Compress compilation artifact
 
-  - task: PublishPipelineArtifact@1
-    inputs:
-      targetPath: $(Build.ArtifactStagingDirectory)/compilation.tar.gz
-      artifactName: Compilation
-    displayName: Publish compilation artifact
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - task: PublishPipelineArtifact@1
+      inputs:
+        targetPath: $(Build.ArtifactStagingDirectory)/compilation.tar.gz
+        artifactName: Compilation
+      displayName: Publish compilation artifact
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: |

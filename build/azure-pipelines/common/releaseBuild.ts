@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { ClientSecretCredential } from '@azure/identity';
 import { CosmosClient } from '@azure/cosmos';
 import { retry } from './retry';

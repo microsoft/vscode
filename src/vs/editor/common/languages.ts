@@ -736,9 +736,9 @@ export interface DocumentPasteEditProvider {
 
 	readonly pasteMimeTypes: readonly string[];
 
-	prepareDocumentPaste?(model: model.ITextModel, selections: readonly Selection[], dataTransfer: VSDataTransfer, token: CancellationToken): Promise<undefined | VSDataTransfer>;
+	prepareDocumentPaste?(model: model.ITextModel, ranges: readonly IRange[], dataTransfer: VSDataTransfer, token: CancellationToken): Promise<undefined | VSDataTransfer>;
 
-	provideDocumentPasteEdits(model: model.ITextModel, selections: readonly Selection[], dataTransfer: VSDataTransfer, token: CancellationToken): Promise<DocumentPasteEdit | undefined>;
+	provideDocumentPasteEdits(model: model.ITextModel, ranges: readonly IRange[], dataTransfer: VSDataTransfer, token: CancellationToken): Promise<DocumentPasteEdit | undefined>;
 }
 
 /**
@@ -1412,22 +1412,22 @@ export interface WorkspaceFileEditOptions {
 	maxSize?: number;
 }
 
-export interface WorkspaceFileEdit {
-	oldUri?: URI;
-	newUri?: URI;
+export interface IWorkspaceFileEdit {
+	oldResource?: URI;
+	newResource?: URI;
 	options?: WorkspaceFileEditOptions;
 	metadata?: WorkspaceEditMetadata;
 }
 
-export interface WorkspaceTextEdit {
+export interface IWorkspaceTextEdit {
 	resource: URI;
-	edit: TextEdit;
-	modelVersionId?: number;
+	textEdit: TextEdit & { insertAsSnippet?: boolean };
+	versionId: number | undefined;
 	metadata?: WorkspaceEditMetadata;
 }
 
 export interface WorkspaceEdit {
-	edits: Array<WorkspaceTextEdit | WorkspaceFileEdit>;
+	edits: Array<IWorkspaceTextEdit | IWorkspaceFileEdit>;
 }
 
 export interface Rejection {
@@ -1549,7 +1549,7 @@ export interface CommentThread<T = IRange> {
 	onDidChangeInput: Event<CommentInput | undefined>;
 	onDidChangeRange: Event<T>;
 	onDidChangeLabel: Event<string | undefined>;
-	onDidChangeCollasibleState: Event<CommentThreadCollapsibleState | undefined>;
+	onDidChangeCollapsibleState: Event<CommentThreadCollapsibleState | undefined>;
 	onDidChangeState: Event<CommentThreadState | undefined>;
 	onDidChangeCanReply: Event<boolean>;
 	isDisposed: boolean;

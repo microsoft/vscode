@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as es from 'event-stream';
 import * as fs from 'fs';
 import * as gulp from 'gulp';
@@ -39,7 +37,7 @@ function getTypeScriptCompilerOptions(src: string): ts.CompilerOptions {
 	return options;
 }
 
-function createCompile(src: string, build: boolean, emitError?: boolean) {
+function createCompile(src: string, build: boolean, emitError: boolean, transpileOnly: boolean) {
 	const tsb = require('./tsb') as typeof import('./tsb');
 	const sourcemaps = require('gulp-sourcemaps') as typeof import('gulp-sourcemaps');
 
@@ -50,7 +48,7 @@ function createCompile(src: string, build: boolean, emitError?: boolean) {
 		overrideOptions.inlineSourceMap = true;
 	}
 
-	const compilation = tsb.create(projectPath, overrideOptions, { verbose: false }, err => reporter(err));
+	const compilation = tsb.create(projectPath, overrideOptions, { verbose: false, transpileOnly }, err => reporter(err));
 
 	function pipeline(token?: util.ICancellationToken) {
 		const bom = require('gulp-bom') as typeof import('gulp-bom');
@@ -70,7 +68,7 @@ function createCompile(src: string, build: boolean, emitError?: boolean) {
 			.pipe(noDeclarationsFilter)
 			.pipe(build ? nls.nls() : es.through())
 			.pipe(noDeclarationsFilter.restore)
-			.pipe(sourcemaps.write('.', {
+			.pipe(transpileOnly ? es.through() : sourcemaps.write('.', {
 				addComment: false,
 				includeContent: !!build,
 				sourceRoot: overrideOptions.sourceRoot
@@ -86,6 +84,19 @@ function createCompile(src: string, build: boolean, emitError?: boolean) {
 	return pipeline;
 }
 
+export function transpileTask(src: string, out: string): () => NodeJS.ReadWriteStream {
+
+	return function () {
+
+		const transpile = createCompile(src, false, true, true);
+		const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
+
+		return srcPipe
+			.pipe(transpile())
+			.pipe(gulp.dest(out));
+	};
+}
+
 export function compileTask(src: string, out: string, build: boolean): () => NodeJS.ReadWriteStream {
 
 	return function () {
@@ -94,7 +105,7 @@ export function compileTask(src: string, out: string, build: boolean): () => Nod
 			throw new Error('compilation requires 4GB of RAM');
 		}
 
-		const compile = createCompile(src, build, true);
+		const compile = createCompile(src, build, true, false);
 		const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
 		const generator = new MonacoGenerator(false);
 		if (src === 'src') {
@@ -111,7 +122,7 @@ export function compileTask(src: string, out: string, build: boolean): () => Nod
 export function watchTask(out: string, build: boolean): () => NodeJS.ReadWriteStream {
 
 	return function () {
-		const compile = createCompile('src', build);
+		const compile = createCompile('src', build, false, false);
 
 		const src = gulp.src('src/**', { base: 'src' });
 		const watchSrc = watch('src/**', { base: 'src', readDelay: 200 });

@@ -76,7 +76,7 @@ const vscodeResources = [
 	'out-build/vs/workbench/contrib/tasks/**/*.json',
 	'out-build/vs/platform/files/**/*.exe',
 	'out-build/vs/platform/files/**/*.md',
-	'out-build/vs/code/electron-browser/workbench/**',
+	'out-build/vs/code/electron-sandbox/workbench/**',
 	'out-build/vs/code/electron-browser/sharedProcess/sharedProcess.js',
 	'out-build/vs/code/electron-sandbox/issue/issueReporter.js',
 	'out-build/vs/code/electron-sandbox/processExplorer/processExplorer.js',
@@ -165,8 +165,8 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			'vs/workbench/workbench.desktop.main.js',
 			'vs/workbench/workbench.desktop.main.css',
 			'vs/workbench/api/node/extensionHostProcess.js',
-			'vs/code/electron-browser/workbench/workbench.html',
-			'vs/code/electron-browser/workbench/workbench.js'
+			'vs/code/electron-sandbox/workbench/workbench.html',
+			'vs/code/electron-sandbox/workbench/workbench.js'
 		]);
 
 		const src = gulp.src(out + '/**', { base: '.' })
@@ -330,6 +330,9 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 
 			result = es.merge(result, gulp.src('resources/win32/VisualElementsManifest.xml', { base: 'resources/win32' })
 				.pipe(rename(product.nameShort + '.VisualElementsManifest.xml')));
+
+			result = es.merge(result, gulp.src('.build/policies/win32/**', { base: '.build/policies/win32' })
+				.pipe(rename(f => f.dirname = `policies/${f.dirname}`)));
 
 		} else if (platform === 'linux') {
 			result = es.merge(result, gulp.src('resources/linux/bin/code.sh', { base: '.' })

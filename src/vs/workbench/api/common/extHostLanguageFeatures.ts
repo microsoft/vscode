@@ -88,9 +88,7 @@ class DocumentSymbolAdapter {
 				}
 				const parent = parentStack[parentStack.length - 1];
 				if (EditorRange.containsRange(parent.range, element.range) && !EditorRange.equalsRange(parent.range, element.range)) {
-					if (parent.children) {
-						parent.children.push(element);
-					}
+					parent.children?.push(element);
 					parentStack.push(element);
 					break;
 				}
@@ -448,7 +446,7 @@ class CodeActionAdapter {
 					title: candidate.title,
 					command: candidate.command && this._commands.toInternal(candidate.command, disposables),
 					diagnostics: candidate.diagnostics && candidate.diagnostics.map(typeConvert.Diagnostic.from),
-					edit: candidate.edit && typeConvert.WorkspaceEdit.from(candidate.edit),
+					edit: candidate.edit && typeConvert.WorkspaceEdit.from(candidate.edit, undefined, isProposedApiEnabled(this._extension, 'snippetWorkspaceEdit')),
 					kind: candidate.kind && candidate.kind.value,
 					isPreferred: candidate.isPreferred,
 					disabled: candidate.disabled?.reason
@@ -469,7 +467,7 @@ class CodeActionAdapter {
 		}
 		const resolvedItem = (await this._provider.resolveCodeAction(item, token)) ?? item;
 		return resolvedItem?.edit
-			? typeConvert.WorkspaceEdit.from(resolvedItem.edit)
+			? typeConvert.WorkspaceEdit.from(resolvedItem.edit, undefined, isProposedApiEnabled(this._extension, 'snippetWorkspaceEdit'))
 			: undefined;
 	}
 
@@ -524,7 +522,7 @@ class DocumentPasteEditProvider {
 
 		return {
 			insertText: typeof edit.insertText === 'string' ? edit.insertText : { snippet: edit.insertText.value },
-			additionalEdit: edit.additionalEdit ? typeConvert.WorkspaceEdit.from(edit.additionalEdit) : undefined,
+			additionalEdit: edit.additionalEdit ? typeConvert.WorkspaceEdit.from(edit.additionalEdit, undefined, true) : undefined,
 		};
 	}
 }
@@ -1793,7 +1791,7 @@ class DocumentOnDropEditAdapter {
 	constructor(
 		private readonly _proxy: extHostProtocol.MainThreadLanguageFeaturesShape,
 		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.DocumentOnDropEditProvider,
+		private readonly _provider: vscode.DocumentDropEditProvider,
 		private readonly _handle: number,
 	) { }
 
@@ -1804,13 +1802,13 @@ class DocumentOnDropEditAdapter {
 			return (await this._proxy.$resolveDocumentOnDropFileData(this._handle, requestId, index)).buffer;
 		});
 
-		const edit = await this._provider.provideDocumentOnDropEdits(doc, pos, dataTransfer, token);
+		const edit = await this._provider.provideDocumentDropEdits(doc, pos, dataTransfer, token);
 		if (!edit) {
 			return undefined;
 		}
 		return {
 			insertText: typeof edit.insertText === 'string' ? edit.insertText : { snippet: edit.insertText.value },
-			additionalEdit: edit.additionalEdit ? typeConvert.WorkspaceEdit.from(edit.additionalEdit) : undefined,
+			additionalEdit: edit.additionalEdit ? typeConvert.WorkspaceEdit.from(edit.additionalEdit, undefined, true) : undefined,
 		};
 	}
 }
@@ -2448,7 +2446,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	// --- Document on drop
 
-	registerDocumentOnDropEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentOnDropEditProvider) {
+	registerDocumentOnDropEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentDropEditProvider) {
 		const handle = this._nextHandle();
 		this._adapter.set(handle, new AdapterData(new DocumentOnDropEditAdapter(this._proxy, this._documents, provider, handle), extension));
 		this._proxy.$registerDocumentOnDropEditProvider(handle, this._transformDocumentSelector(selector));

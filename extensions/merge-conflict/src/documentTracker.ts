@@ -69,9 +69,7 @@ export default class DocumentMergeConflictTracker implements vscode.Disposable, 
 		return cacheItem.delayTask.trigger(() => {
 			const conflicts = this.getConflictsOrEmpty(document, Array.from(cacheItem!.origins));
 
-			if (this.cache) {
-				this.cache.delete(key!);
-			}
+			this.cache?.delete(key!);
 
 			return conflicts;
 		});

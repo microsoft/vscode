@@ -153,9 +153,14 @@
 
 .extension-editor > .header > .details > .subtitle,
 .extension-editor > .header > .details > .subtitle .install,
-.extension-editor > .header > .details > .subtitle .rating {
+.extension-editor > .header > .details > .subtitle .rating,
+.extension-editor > .header > .details > .subtitle .sponsor {
 	display: flex;
 	align-items: center;
+}
+
+.extension-editor > .header > .details > .subtitle .sponsor .codicon {
+	padding-right: 3px;
 }
 
 .extension-editor > .header > .details > .subtitle .install > .count {
@@ -414,27 +419,6 @@
 .extension-editor > .body > .content > .details > .additional-details-container .additional-details-element > .additional-details-title {
 	font-size: 120%;
 	padding-bottom: 15px;
-}
-
-.extension-editor > .body > .content > .details > .additional-details-container .resources-container .extension-sponsor-container {
-	margin-top: 5px;
-}
-
-.extension-editor > .body > .content > .details > .additional-details-container .resources-container .extension-sponsor-container > .monaco-action-bar > .actions-container > .action-item .extension-action:not(.icon) {
-	border-radius: 0px;
-	padding-top: 0;
-	padding-bottom: 0;
-}
-
-.extension-editor>.body>.content>.details>.additional-details-container .resources-container .extension-sponsor-container>.monaco-action-bar>.actions-container>.action-item {
-	width: 100%;
-}
-
-.extension-editor > .body > .content > .details > .additional-details-container .resources-container .extension-sponsor-container > .monaco-action-bar > .actions-container > .action-item .extension-action.extension-sponsor {
-	padding-top: 2px;
-	padding-bottom: 2px;
-	max-width: 150px;
-	justify-content: center;
 }
 
 .extension-editor > .body > .content > .details > .additional-details-container .categories-container > .categories > .category,

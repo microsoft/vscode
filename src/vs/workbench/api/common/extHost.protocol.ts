@@ -40,7 +40,7 @@ import * as quickInput from 'vs/platform/quickinput/common/quickInput';
 import { IRemoteConnectionData, TunnelDescription } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { ICreateContributedTerminalProfileOptions, IProcessProperty, IShellLaunchConfigDto, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, TerminalLocation } from 'vs/platform/terminal/common/terminal';
+import { ICreateContributedTerminalProfileOptions, IProcessProperty, IShellLaunchConfigDto, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, TerminalExitReason, TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { ThemeColor, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ProvidedPortAttributes, TunnelCreationOptions, TunnelOptions, TunnelPrivacyId, TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
 import { WorkspaceTrustRequestOptions } from 'vs/platform/workspace/common/workspaceTrust';
@@ -92,8 +92,8 @@ export interface MainThreadClipboardShape extends IDisposable {
 export interface MainThreadCommandsShape extends IDisposable {
 	$registerCommand(id: string): void;
 	$unregisterCommand(id: string): void;
-	$activateByCommandEvent(id: string): Promise<void>;
-	$executeCommand(id: string, args: any[] | SerializableObjectWithBuffers<any[]>): Promise<unknown | undefined>;
+	$fireCommandActivationEvent(id: string): void;
+	$executeCommand(id: string, args: any[] | SerializableObjectWithBuffers<any[]>, retry: boolean): Promise<unknown | undefined>;
 	$getCommands(): Promise<string[]>;
 }
 
@@ -259,7 +259,7 @@ export interface MainThreadTextEditorsShape extends IDisposable {
 }
 
 export interface MainThreadTreeViewsShape extends IDisposable {
-	$registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean; canSelectMany: boolean; dropMimeTypes: readonly string[]; dragMimeTypes: readonly string[]; hasHandleDrag: boolean; hasHandleDrop: boolean; supportsFileDataTransfers: boolean }): Promise<void>;
+	$registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean; canSelectMany: boolean; dropMimeTypes: readonly string[]; dragMimeTypes: readonly string[]; hasHandleDrag: boolean; hasHandleDrop: boolean }): Promise<void>;
 	$refresh(treeViewId: string, itemsToRefresh?: { [treeItemHandle: string]: ITreeItem }): Promise<void>;
 	$reveal(treeViewId: string, itemInfo: { item: ITreeItem; parentChain: ITreeItem[] } | undefined, options: IRevealOptions): Promise<void>;
 	$setMessage(treeViewId: string, message: string): void;
@@ -620,11 +620,13 @@ export const enum TabInputKind {
 	UnknownInput,
 	TextInput,
 	TextDiffInput,
+	TextMergeInput,
 	NotebookInput,
 	NotebookDiffInput,
 	CustomEditorInput,
 	WebviewEditorInput,
-	TerminalEditorInput
+	TerminalEditorInput,
+	InteractiveEditorInput,
 }
 
 export const enum TabModelOperationKind {
@@ -647,6 +649,14 @@ export interface TextDiffInputDto {
 	kind: TabInputKind.TextDiffInput;
 	original: UriComponents;
 	modified: UriComponents;
+}
+
+export interface TextMergeInputDto {
+	kind: TabInputKind.TextMergeInput;
+	base: UriComponents;
+	input1: UriComponents;
+	input2: UriComponents;
+	result: UriComponents;
 }
 
 export interface NotebookInputDto {
@@ -673,11 +683,17 @@ export interface WebviewInputDto {
 	viewType: string;
 }
 
+export interface InteractiveEditorInputDto {
+	kind: TabInputKind.InteractiveEditorInput;
+	uri: UriComponents;
+	inputBoxUri: UriComponents;
+}
+
 export interface TabInputDto {
 	kind: TabInputKind.TerminalEditorInput;
 }
 
-export type AnyInputDto = UnknownInputDto | TextInputDto | TextDiffInputDto | NotebookInputDto | NotebookDiffInputDto | CustomInputDto | WebviewInputDto | TabInputDto;
+export type AnyInputDto = UnknownInputDto | TextInputDto | TextDiffInputDto | TextMergeInputDto | NotebookInputDto | NotebookDiffInputDto | CustomInputDto | WebviewInputDto | InteractiveEditorInputDto | TabInputDto;
 
 export interface MainThreadEditorTabsShape extends IDisposable {
 	// manage tabs: move, close, rearrange etc
@@ -959,10 +975,7 @@ export interface MainThreadNotebookShape extends IDisposable {
 export interface MainThreadNotebookEditorsShape extends IDisposable {
 	$tryShowNotebookDocument(uriComponents: UriComponents, viewType: string, options: INotebookDocumentShowOptions): Promise<string>;
 	$tryRevealRange(id: string, range: ICellRange, revealType: NotebookEditorRevealType): Promise<void>;
-	$registerNotebookEditorDecorationType(key: string, options: notebookCommon.INotebookDecorationRenderOptions): void;
-	$removeNotebookEditorDecorationType(key: string): void;
 	$trySetSelections(id: string, range: ICellRange[]): void;
-	$trySetDecorations(id: string, range: ICellRange, decorationKey: string): void;
 	$tryApplyEdits(editorId: string, modelVersionId: number, cellEdits: ICellEditOperationDto[]): Promise<boolean>;
 }
 
@@ -1147,7 +1160,9 @@ export interface SCMProviderFeatures {
 
 export interface SCMActionButtonDto {
 	command: ICommandDto;
+	secondaryCommands?: ICommandDto[][];
 	description?: string;
+	enabled: boolean;
 }
 
 export interface SCMGroupFeatures {
@@ -1451,7 +1466,6 @@ export interface ExtHostExtensionServiceShape {
 	$getCanonicalURI(remoteAuthority: string, uri: UriComponents): Promise<UriComponents | null>;
 	$startExtensionHost(extensionsDelta: IExtensionDescriptionDelta): Promise<void>;
 	$extensionTestsExecute(): Promise<number>;
-	$extensionTestsExit(code: number): Promise<void>;
 	$activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void>;
 	$activate(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<boolean>;
 	$setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void>;
@@ -1589,27 +1603,6 @@ export interface IWorkspaceEditEntryMetadataDto {
 	iconPath?: { id: string } | UriComponents | { light: UriComponents; dark: UriComponents };
 }
 
-export const enum WorkspaceEditType {
-	File = 1,
-	Text = 2,
-	Cell = 3,
-}
-
-export interface IWorkspaceFileEditDto {
-	_type: WorkspaceEditType.File;
-	oldUri?: UriComponents;
-	newUri?: UriComponents;
-	options?: languages.WorkspaceFileEditOptions;
-	metadata?: IWorkspaceEditEntryMetadataDto;
-}
-
-export interface IWorkspaceTextEditDto {
-	_type: WorkspaceEditType.Text;
-	resource: UriComponents;
-	edit: languages.TextEdit;
-	modelVersionId?: number;
-	metadata?: IWorkspaceEditEntryMetadataDto;
-}
 
 export type ICellEditOperationDto =
 	notebookCommon.ICellPartialMetadataEdit
@@ -1621,31 +1614,19 @@ export type ICellEditOperationDto =
 		cells: NotebookCellDataDto[];
 	};
 
-export interface IWorkspaceCellEditDto {
-	_type: WorkspaceEditType.Cell;
-	resource: UriComponents;
-	notebookVersionId?: number;
-	metadata?: IWorkspaceEditEntryMetadataDto;
-	edit: ICellEditOperationDto;
-}
+export type IWorkspaceCellEditDto = Dto<Omit<notebookCommon.IWorkspaceNotebookCellEdit, 'cellEdit'>> & { cellEdit: ICellEditOperationDto };
+
+export type IWorkspaceFileEditDto = Dto<languages.IWorkspaceFileEdit>;
+
+export type IWorkspaceTextEditDto = Dto<languages.IWorkspaceTextEdit>;
 
 export interface IWorkspaceEditDto {
 	edits: Array<IWorkspaceFileEditDto | IWorkspaceTextEditDto | IWorkspaceCellEditDto>;
 }
 
-export function reviveWorkspaceEditDto(data: IWorkspaceEditDto | undefined): languages.WorkspaceEdit {
+export function reviveWorkspaceEditDto(data: IWorkspaceEditDto | undefined): languages.WorkspaceEdit | undefined {
 	if (data && data.edits) {
-		for (const edit of data.edits) {
-			if (typeof (<IWorkspaceTextEditDto>edit).resource === 'object') {
-				(<IWorkspaceTextEditDto>edit).resource = URI.revive((<IWorkspaceTextEditDto>edit).resource);
-			} else {
-				(<IWorkspaceFileEditDto>edit).newUri = URI.revive((<IWorkspaceFileEditDto>edit).newUri);
-				(<IWorkspaceFileEditDto>edit).oldUri = URI.revive((<IWorkspaceFileEditDto>edit).oldUri);
-			}
-			if (edit.metadata && edit.metadata.iconPath) {
-				edit.metadata = revive(edit.metadata);
-			}
-		}
+		revive<languages.WorkspaceEdit>(data);
 	}
 	return <languages.WorkspaceEdit>data;
 }
@@ -1820,7 +1801,7 @@ export interface ITerminalDimensionsDto {
 }
 
 export interface ExtHostTerminalServiceShape {
-	$acceptTerminalClosed(id: number, exitCode: number | undefined): void;
+	$acceptTerminalClosed(id: number, exitCode: number | undefined, exitReason: TerminalExitReason): void;
 	$acceptTerminalOpened(id: number, extHostTerminalId: string | undefined, name: string, shellLaunchConfig: IShellLaunchConfigDto): void;
 	$acceptActiveTerminalChanged(id: number | null): void;
 	$acceptTerminalProcessId(id: number, processId: number): void;

@@ -3,29 +3,39 @@
 #   Licensed under the MIT License. See License.txt in the project root for license information.
 # ---------------------------------------------------------------------------------------------
 
-VSCODE_SHELL_INTEGRATION=1
-
-if [ -z "$VSCODE_SHELL_LOGIN" ]; then
-	. ~/.bashrc
-else
-	# Imitate -l because --init-file doesn't support it:
-	# run the first of these files that exists
-	if [ -f /etc/profile ]; then
-		. /etc/profile
-	fi
-	# exceute the first that exists
-	if [ -f ~/.bash_profile ]; then
-		. ~/.bash_profile
-	elif [ -f ~/.bash_login ]; then
-		. ~/.bash_login
-	elif [ -f ~/.profile ]; then
-		. ~/.profile
-	fi
-	VSCODE_SHELL_LOGIN=""
+# Prevent the script recursing when setting up
+if [[ -n "$VSCODE_SHELL_INTEGRATION" ]]; then
+	builtin return
 fi
 
+VSCODE_SHELL_INTEGRATION=1
+
+# Run relevant rc/profile only if shell integration has been injected, not when run manually
+if [ "$VSCODE_INJECTION" == "1" ]; then
+	if [ -z "$VSCODE_SHELL_LOGIN" ]; then
+		. ~/.bashrc
+	else
+		# Imitate -l because --init-file doesn't support it:
+		# run the first of these files that exists
+		if [ -f /etc/profile ]; then
+			. /etc/profile
+		fi
+		# exceute the first that exists
+		if [ -f ~/.bash_profile ]; then
+			. ~/.bash_profile
+		elif [ -f ~/.bash_login ]; then
+			. ~/.bash_login
+		elif [ -f ~/.profile ]; then
+			. ~/.profile
+		fi
+		builtin unset VSCODE_SHELL_LOGIN
+	fi
+	builtin unset VSCODE_INJECTION
+fi
+
+# Disable shell integration if PROMPT_COMMAND is 2+ function calls since that is not handled.
 if [[ "$PROMPT_COMMAND" =~ .*(' '.*\;)|(\;.*' ').* ]]; then
-	VSCODE_SHELL_INTEGRATION=""
+	builtin unset VSCODE_SHELL_INTEGRATION
 	builtin return
 fi
 
@@ -39,7 +49,7 @@ __vsc_original_PS2="$PS2"
 __vsc_custom_PS1=""
 __vsc_custom_PS2=""
 __vsc_in_command_execution="1"
-__vsc_last_history_id=$(history 1 | awk '{print $1;}')
+__vsc_current_command=""
 
 __vsc_prompt_start() {
 	builtin printf "\033]633;A\007"
@@ -55,6 +65,7 @@ __vsc_update_cwd() {
 
 __vsc_command_output_start() {
 	builtin printf "\033]633;C\007"
+	builtin printf "\033]633;E;$__vsc_current_command\007"
 }
 
 __vsc_continuation_start() {
@@ -66,16 +77,13 @@ __vsc_continuation_end() {
 }
 
 __vsc_command_complete() {
-	local __vsc_history_id=$(builtin history 1 | awk '{print $1;}')
-	if [[ "$__vsc_history_id" == "$__vsc_last_history_id" ]]; then
+	if [ "$__vsc_current_command" = "" ]; then
 		builtin printf "\033]633;D\007"
 	else
 		builtin printf "\033]633;D;%s\007" "$__vsc_status"
-		__vsc_last_history_id=$__vsc_history_id
 	fi
 	__vsc_update_cwd
 }
-
 __vsc_update_prompt() {
 	# in command execution
 	if [ "$__vsc_in_command_execution" = "1" ]; then
@@ -97,37 +105,56 @@ __vsc_update_prompt() {
 
 __vsc_precmd() {
 	__vsc_command_complete "$__vsc_status"
+	__vsc_current_command=""
 	__vsc_update_prompt
 }
 
 __vsc_preexec() {
-	if [ "$__vsc_in_command_execution" = "0" ]; then
-		__vsc_initialized=1
-		__vsc_in_command_execution="1"
-		__vsc_command_output_start
+	__vsc_initialized=1
+	if [[ ! "$BASH_COMMAND" =~ ^__vsc_prompt* ]]; then
+		__vsc_current_command=$BASH_COMMAND
+	else
+		__vsc_current_command=""
 	fi
+	__vsc_command_output_start
 }
 
 # Debug trapping/preexec inspired by starship (ISC)
-__vsc_dbg_trap="$(trap -p DEBUG | cut -d' ' -f3 | tr -d \')"
-if [[ -z "$__vsc_dbg_trap" ]]; then
+if [[ -n "${bash_preexec_imported:-}" ]]; then
 	__vsc_preexec_only() {
-		__vsc_status="$?"
-		__vsc_preexec
+		if [ "$__vsc_in_command_execution" = "0" ]; then
+			__vsc_in_command_execution="1"
+			__vsc_preexec
+		fi
 	}
-	trap '__vsc_preexec_only "$_"' DEBUG
-elif [[ "$__vsc_dbg_trap" != '__vsc_preexec "$_"' && "$__vsc_dbg_trap" != '__vsc_preexec_all "$_"' ]]; then
-	__vsc_preexec_all() {
-		__vsc_status="$?"
-		builtin eval ${__vsc_dbg_trap}
-		__vsc_preexec
-	}
-	trap '__vsc_preexec_all "$_"' DEBUG
+	precmd_functions+=(__vsc_prompt_cmd)
+	preexec_functions+=(__vsc_preexec_only)
+else
+	__vsc_dbg_trap="$(trap -p DEBUG | cut -d' ' -f3 | tr -d \')"
+	if [[ -z "$__vsc_dbg_trap" ]]; then
+		__vsc_preexec_only() {
+			if [ "$__vsc_in_command_execution" = "0" ]; then
+				__vsc_in_command_execution="1"
+				__vsc_preexec
+			fi
+		}
+		trap '__vsc_preexec_only "$_"' DEBUG
+	elif [[ "$__vsc_dbg_trap" != '__vsc_preexec "$_"' && "$__vsc_dbg_trap" != '__vsc_preexec_all "$_"' ]]; then
+		__vsc_preexec_all() {
+			if [ "$__vsc_in_command_execution" = "0" ]; then
+				__vsc_in_command_execution="1"
+				builtin eval ${__vsc_dbg_trap}
+				__vsc_preexec
+			fi
+		}
+		trap '__vsc_preexec_all "$_"' DEBUG
+	fi
 fi
 
 __vsc_update_prompt
 
 __vsc_prompt_cmd_original() {
+	__vsc_status="$?"
 	if [[ ${IFS+set} ]]; then
 		__vsc_original_ifs="$IFS"
 	fi
@@ -163,8 +190,10 @@ else
 	__vsc_original_prompt_command=${PROMPT_COMMAND[@]}
 fi
 
-if [[ -n "$__vsc_original_prompt_command" && "$__vsc_original_prompt_command" != "__vsc_prompt_cmd" ]]; then
-	PROMPT_COMMAND=__vsc_prompt_cmd_original
-else
-	PROMPT_COMMAND=__vsc_prompt_cmd
+if [[ -z "${bash_preexec_imported:-}" ]]; then
+	if [[ -n "$__vsc_original_prompt_command" && "$__vsc_original_prompt_command" != "__vsc_prompt_cmd" ]]; then
+		PROMPT_COMMAND=__vsc_prompt_cmd_original
+	else
+		PROMPT_COMMAND=__vsc_prompt_cmd
+	fi
 fi

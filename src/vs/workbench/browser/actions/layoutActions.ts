@@ -583,6 +583,9 @@ if (isWindows || isLinux || isWeb) {
 					id: MenuId.MenubarAppearanceMenu,
 					group: '2_workbench_layout',
 					order: 0
+				}, {
+					id: MenuId.TitleBarContext,
+					order: 0
 				}]
 			});
 		}
@@ -1182,7 +1185,7 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.customizeLayout',
-			title: localize('customizeLayout', "Customize Layout..."),
+			title: { original: 'Customize Layout...', value: localize('customizeLayout', "Customize Layout...") },
 			f1: true,
 			icon: configureLayoutIcon,
 			menu: [

@@ -56,7 +56,7 @@ export interface IDraggedResourceEditorInput extends IBaseTextResourceEditorInpu
 	allowWorkspaceOpen?: boolean;
 }
 
-export async function extractEditorsDropData(accessor: ServicesAccessor, e: DragEvent): Promise<Array<IDraggedResourceEditorInput>> {
+export function extractEditorsDropData(e: DragEvent): Array<IDraggedResourceEditorInput> {
 	const editors: IDraggedResourceEditorInput[] = [];
 	if (e.dataTransfer && e.dataTransfer.types.length > 0) {
 
@@ -107,18 +107,6 @@ export async function extractEditorsDropData(accessor: ServicesAccessor, e: Drag
 			}
 		}
 
-		// Web: Check for file transfer
-		if (isWeb && containsDragType(e, DataTransfers.FILES)) {
-			const files = e.dataTransfer.items;
-			if (files) {
-				const instantiationService = accessor.get(IInstantiationService);
-				const filesData = await instantiationService.invokeFunction(accessor => extractFilesDropData(accessor, e));
-				for (const fileData of filesData) {
-					editors.push({ resource: fileData.resource, contents: fileData.contents?.toString(), isExternal: true, allowWorkspaceOpen: fileData.isDirectory });
-				}
-			}
-		}
-
 		// Workbench contributions
 		const contributions = Registry.as<IDragAndDropContributionRegistry>(Extensions.DragAndDropContribution).getAll();
 		for (const contribution of contributions) {
@@ -129,6 +117,24 @@ export async function extractEditorsDropData(accessor: ServicesAccessor, e: Drag
 				} catch (error) {
 					// Invalid transfer
 				}
+			}
+		}
+	}
+
+	return editors;
+}
+
+export async function extractEditorsAndFilesDropData(accessor: ServicesAccessor, e: DragEvent): Promise<Array<IDraggedResourceEditorInput>> {
+	const editors = extractEditorsDropData(e);
+
+	// Web: Check for file transfer
+	if (e.dataTransfer && isWeb && containsDragType(e, DataTransfers.FILES)) {
+		const files = e.dataTransfer.items;
+		if (files) {
+			const instantiationService = accessor.get(IInstantiationService);
+			const filesData = await instantiationService.invokeFunction(accessor => extractFilesDropData(accessor, e));
+			for (const fileData of filesData) {
+				editors.push({ resource: fileData.resource, contents: fileData.contents?.toString(), isExternal: true, allowWorkspaceOpen: fileData.isDirectory });
 			}
 		}
 	}

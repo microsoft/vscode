@@ -273,6 +273,12 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		}
 	}
 
+	async submitComment(): Promise<void> {
+		if (this._commentEditor && this._commentFormActions) {
+			this._commentFormActions.triggerDefaultAction();
+		}
+	}
+
 	private createReactionPicker(reactionGroup: languages.CommentReaction[]): ToggleReactionsAction {
 		const toggleReactionAction = this._register(new ToggleReactionsAction(() => {
 			if (toggleReactionActionViewItem) {
@@ -361,9 +367,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 				}
 			}, reaction.iconPath, reaction.count);
 
-			if (this._reactionsActionBar) {
-				this._reactionsActionBar.push(action, { label: true, icon: true });
-			}
+			this._reactionsActionBar?.push(action, { label: true, icon: true });
 		});
 
 		if (hasReactionHandler) {
@@ -378,7 +382,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 	private createCommentEditor(editContainer: HTMLElement): void {
 		const container = dom.append(editContainer, dom.$('.edit-textarea'));
-		this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, container, SimpleCommentEditor.getEditorOptions(), this.parentThread);
+		this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, container, SimpleCommentEditor.getEditorOptions(this.configurationService), this.parentThread);
 		const resource = URI.parse(`comment:commentinput-${this.comment.uniqueIdInThread}-${Date.now()}.md`);
 		this._commentEditorModel = this.modelService.createModel('', this.languageService.createByFilepathOrFirstLine(resource), resource, false);
 
@@ -468,9 +472,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 		this._register(menu);
 		this._register(menu.onDidChange(() => {
-			if (this._commentFormActions) {
-				this._commentFormActions.setActions(menu);
-			}
+			this._commentFormActions?.setActions(menu);
 		}));
 
 		this._commentFormActions = new CommentFormActions(formActions, (action: IAction): void => {

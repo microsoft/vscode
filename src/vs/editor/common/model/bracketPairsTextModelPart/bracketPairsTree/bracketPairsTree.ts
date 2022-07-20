@@ -223,6 +223,10 @@ function collectBrackets(
 	level: number,
 	levelPerBracketType: Map<string, number>
 ): void {
+	if (level > 200) {
+		return;
+	}
+
 	if (node.kind === AstNodeKind.List) {
 		for (const child of node.children) {
 			nodeOffsetEnd = lengthAdd(nodeOffsetStart, child.length);
@@ -304,9 +308,7 @@ function collectBrackets(
 			nodeOffsetStart = nodeOffsetEnd;
 		}
 
-		if (levelPerBracketType) {
-			levelPerBracketType.set(node.openingBracket.text, levelPerBracket);
-		}
+		levelPerBracketType?.set(node.openingBracket.text, levelPerBracket);
 	} else if (node.kind === AstNodeKind.UnexpectedClosingBracket) {
 		const range = lengthsToRange(nodeOffsetStart, nodeOffsetEnd);
 		result.push(new BracketInfo(range, level - 1, 0, true));
@@ -335,6 +337,10 @@ function collectBracketPairs(
 	level: number,
 	levelPerBracketType: Map<string, number>
 ) {
+	if (level > 200) {
+		return;
+	}
+
 	if (node.kind === AstNodeKind.Pair) {
 		let levelPerBracket = 0;
 		if (levelPerBracketType) {
@@ -394,9 +400,7 @@ function collectBracketPairs(
 			}
 		}
 
-		if (levelPerBracketType) {
-			levelPerBracketType.set(node.openingBracket.text, levelPerBracket);
-		}
+		levelPerBracketType?.set(node.openingBracket.text, levelPerBracket);
 	} else {
 		let curOffset = nodeOffsetStart;
 		for (const child of node.children) {

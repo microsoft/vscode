@@ -25,7 +25,8 @@ export enum Selector {
 	Tabs = '.tabs-list .monaco-list-row',
 	SplitButton = '.editor .codicon-split-horizontal',
 	XtermSplitIndex0 = '#terminal .terminal-groups-container .split-view-view:nth-child(1) .terminal-wrapper',
-	XtermSplitIndex1 = '#terminal .terminal-groups-container .split-view-view:nth-child(2) .terminal-wrapper'
+	XtermSplitIndex1 = '#terminal .terminal-groups-container .split-view-view:nth-child(2) .terminal-wrapper',
+	Hide = '.hide'
 }
 
 /**
@@ -37,7 +38,8 @@ export enum TerminalCommandIdWithValue {
 	ChangeIcon = 'workbench.action.terminal.changeIcon',
 	NewWithProfile = 'workbench.action.terminal.newWithProfile',
 	SelectDefaultProfile = 'workbench.action.terminal.selectDefaultShell',
-	AttachToSession = 'workbench.action.terminal.attachToSession'
+	AttachToSession = 'workbench.action.terminal.attachToSession',
+	WriteDataToTerminal = 'workbench.action.terminal.writeDataToTerminal'
 }
 
 /**
@@ -83,8 +85,16 @@ export class Terminal {
 			await this.code.dispatchKeybinding('enter');
 			await this.quickinput.waitForQuickInputClosed();
 		}
-		if (commandId === TerminalCommandId.Show || commandId === TerminalCommandId.CreateNewEditor || commandId === TerminalCommandId.CreateNew || commandId === TerminalCommandId.NewWithProfile) {
-			return await this._waitForTerminal(expectedLocation === 'editor' || commandId === TerminalCommandId.CreateNewEditor ? 'editor' : 'panel');
+		switch (commandId) {
+			case TerminalCommandId.Show:
+			case TerminalCommandId.CreateNewEditor:
+			case TerminalCommandId.CreateNew:
+			case TerminalCommandId.NewWithProfile:
+				await this._waitForTerminal(expectedLocation === 'editor' || commandId === TerminalCommandId.CreateNewEditor ? 'editor' : 'panel');
+				break;
+			case TerminalCommandId.KillAll:
+				await this.code.waitForElements(Selector.Xterm, true, e => e.length === 0);
+				break;
 		}
 	}
 
@@ -104,6 +114,9 @@ export class Terminal {
 		}
 		await this.code.dispatchKeybinding(altKey ? 'Alt+Enter' : 'enter');
 		await this.quickinput.waitForQuickInputClosed();
+		if (commandId === TerminalCommandIdWithValue.NewWithProfile) {
+			await this._waitForTerminal();
+		}
 	}
 
 	async runCommandInTerminal(commandText: string, skipEnter?: boolean): Promise<void> {
@@ -214,14 +227,18 @@ export class Terminal {
 		await this.code.waitForElement(Selector.TerminalView, result => result === undefined);
 	}
 
-	async assertCommandDecorations(expectedCounts?: ICommandDecorationCounts, customConfig?: { updatedIcon: string; count: number }): Promise<void> {
+	async assertCommandDecorations(expectedCounts?: ICommandDecorationCounts, customIcon?: { updatedIcon: string; count: number }, showDecorations?: 'both' | 'gutter' | 'overviewRuler' | 'never'): Promise<void> {
 		if (expectedCounts) {
-			await this.code.waitForElements(Selector.CommandDecorationPlaceholder, true, decorations => decorations && decorations.length === expectedCounts.placeholder);
-			await this.code.waitForElements(Selector.CommandDecorationSuccess, true, decorations => decorations && decorations.length === expectedCounts.success);
-			await this.code.waitForElements(Selector.CommandDecorationError, true, decorations => decorations && decorations.length === expectedCounts.error);
+			const placeholderSelector = showDecorations === 'overviewRuler' ? `${Selector.CommandDecorationPlaceholder}${Selector.Hide}` : Selector.CommandDecorationPlaceholder;
+			await this.code.waitForElements(placeholderSelector, true, decorations => decorations && decorations.length === expectedCounts.placeholder);
+			const successSelector = showDecorations === 'overviewRuler' ? `${Selector.CommandDecorationSuccess}${Selector.Hide}` : Selector.CommandDecorationSuccess;
+			await this.code.waitForElements(successSelector, true, decorations => decorations && decorations.length === expectedCounts.success);
+			const errorSelector = showDecorations === 'overviewRuler' ? `${Selector.CommandDecorationError}${Selector.Hide}` : Selector.CommandDecorationError;
+			await this.code.waitForElements(errorSelector, true, decorations => decorations && decorations.length === expectedCounts.error);
 		}
-		if (customConfig) {
-			await this.code.waitForElements(`.terminal-command-decoration.codicon-${customConfig.updatedIcon}`, true, decorations => decorations && decorations.length === customConfig.count);
+
+		if (customIcon) {
+			await this.code.waitForElements(`.terminal-command-decoration.codicon-${customIcon.updatedIcon}`, true, decorations => decorations && decorations.length === customIcon.count);
 		}
 	}
 

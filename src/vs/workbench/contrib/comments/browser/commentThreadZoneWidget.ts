@@ -56,6 +56,22 @@ export function parseMouseDownInfoFromEvent(e: IEditorMouseEvent) {
 	return { lineNumber: range.startLineNumber };
 }
 
+export function isMouseUpEventDragFromMouseDown(mouseDownInfo: { lineNumber: number } | null, e: IEditorMouseEvent) {
+	if (!mouseDownInfo) {
+		return null;
+	}
+
+	const { lineNumber } = mouseDownInfo;
+
+	const range = e.target.range;
+
+	if (!range) {
+		return null;
+	}
+
+	return lineNumber;
+}
+
 export function isMouseUpEventMatchMouseDown(mouseDownInfo: { lineNumber: number } | null, e: IEditorMouseEvent) {
 	if (!mouseDownInfo) {
 		return null;
@@ -342,7 +358,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			}
 		}));
 
-		this._commentThreadDisposables.push(this._commentThread.onDidChangeCollasibleState(state => {
+		this._commentThreadDisposables.push(this._commentThread.onDidChangeCollapsibleState(state => {
 			if (state === languages.CommentThreadCollapsibleState.Expanded && !this._isExpanded) {
 				const lineNumber = this._commentThread.range.startLineNumber;
 
