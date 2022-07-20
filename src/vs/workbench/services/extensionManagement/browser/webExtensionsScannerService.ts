@@ -40,6 +40,9 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { validateExtensionManifest } from 'vs/platform/extensions/common/extensionValidator';
 import Severity from 'vs/base/common/severity';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 type GalleryExtensionInfo = { readonly id: string; preRelease?: boolean; migrateStorageFrom?: string };
 type ExtensionInfo = { readonly id: string; preRelease: boolean };
@@ -83,7 +86,6 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 	private readonly systemExtensionsCacheResource: URI | undefined = undefined;
 	private readonly customBuiltinExtensionsCacheResource: URI | undefined = undefined;
-	private readonly installedExtensionsResource: URI | undefined = undefined;
 	private readonly resourcesAccessQueueMap = new ResourceMap<Queue<IWebExtension[]>>();
 
 	constructor(
@@ -97,11 +99,12 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		@IExtensionStorageService private readonly extensionStorageService: IExtensionStorageService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IProductService private readonly productService: IProductService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 	) {
 		super();
 		if (isWeb) {
-			this.installedExtensionsResource = joinPath(environmentService.userRoamingDataHome, 'extensions.json');
 			this.systemExtensionsCacheResource = joinPath(environmentService.userRoamingDataHome, 'systemExtensionsCache.json');
 			this.customBuiltinExtensionsCacheResource = joinPath(environmentService.userRoamingDataHome, 'customBuiltinExtensionsCache.json');
 			this.registerActions();
@@ -369,7 +372,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return this.readSystemExtensions();
 	}
 
-	async scanUserExtensions(scanOptions?: ScanOptions): Promise<IScannedExtension[]> {
+	async scanUserExtensions(profileLocation?: URI, scanOptions?: ScanOptions): Promise<IScannedExtension[]> {
 		const extensions = new Map<string, IScannedExtension>();
 
 		// Custom builtin extensions defined through `additionalBuiltinExtensions` API
@@ -379,7 +382,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		}
 
 		// User Installed extensions
-		const installedExtensions = await this.scanInstalledExtensions(scanOptions);
+		const installedExtensions = await this.scanInstalledExtensions(profileLocation, scanOptions);
 		for (const extension of installedExtensions) {
 			extensions.set(extension.identifier.id.toLowerCase(), extension);
 		}
@@ -408,17 +411,17 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return result;
 	}
 
-	async scanExistingExtension(extensionLocation: URI, extensionType: ExtensionType): Promise<IScannedExtension | null> {
+	async scanExistingExtension(extensionLocation: URI, extensionType: ExtensionType, profileLocation?: URI): Promise<IScannedExtension | null> {
 		if (extensionType === ExtensionType.System) {
 			const systemExtensions = await this.scanSystemExtensions();
 			return systemExtensions.find(e => e.location.toString() === extensionLocation.toString()) || null;
 		}
-		const userExtensions = await this.scanUserExtensions();
+		const userExtensions = await this.scanUserExtensions(profileLocation);
 		return userExtensions.find(e => e.location.toString() === extensionLocation.toString()) || null;
 	}
 
-	async scanMetadata(extensionLocation: URI): Promise<Metadata | undefined> {
-		const extension = await this.scanExistingExtension(extensionLocation, ExtensionType.User);
+	async scanMetadata(extensionLocation: URI, profileLocation?: URI): Promise<Metadata | undefined> {
+		const extension = await this.scanExistingExtension(extensionLocation, ExtensionType.User, profileLocation);
 		return extension?.metadata;
 	}
 
@@ -435,21 +438,35 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return null;
 	}
 
-	async addExtensionFromGallery(galleryExtension: IGalleryExtension, metadata?: Metadata): Promise<IExtension> {
+	async addExtensionFromGallery(galleryExtension: IGalleryExtension, metadata: Metadata, profileLocation?: URI): Promise<IScannedExtension> {
 		const webExtension = await this.toWebExtensionFromGallery(galleryExtension, metadata);
-		return this.addWebExtension(webExtension);
+		return this.addWebExtension(webExtension, profileLocation);
 	}
 
-	async addExtension(location: URI, metadata?: Metadata): Promise<IExtension> {
+	async addExtension(location: URI, metadata: Metadata, profileLocation?: URI): Promise<IScannedExtension> {
 		const webExtension = await this.toWebExtension(location, undefined, undefined, undefined, undefined, undefined, metadata);
-		return this.addWebExtension(webExtension);
+		return this.addWebExtension(webExtension, profileLocation);
 	}
 
-	async removeExtension(identifier: IExtensionIdentifier, version?: string): Promise<void> {
-		await this.writeInstalledExtensions(installedExtensions => installedExtensions.filter(extension => !(areSameExtensions(extension.identifier, identifier) && (version ? extension.version === version : true))));
+	async removeExtension(extension: IScannedExtension, profileLocation?: URI): Promise<void> {
+		await this.writeInstalledExtensions(profileLocation, installedExtensions => installedExtensions.filter(installedExtension => !areSameExtensions(installedExtension.identifier, extension.identifier)));
 	}
 
-	private async addWebExtension(webExtension: IWebExtension): Promise<IScannedExtension> {
+	async copyExtensions(fromProfileLocation: URI, toProfileLocation: URI, filter: (extension: IScannedExtension) => boolean): Promise<void> {
+		const extensionsToCopy: IWebExtension[] = [];
+		const fromWebExtensions = await this.readInstalledExtensions(fromProfileLocation);
+		await Promise.all(fromWebExtensions.map(async webExtension => {
+			const scannedExtension = await this.toScannedExtension(webExtension, false);
+			if (filter(scannedExtension)) {
+				extensionsToCopy.push(webExtension);
+			}
+		}));
+		if (extensionsToCopy.length) {
+			await this.addToInstalledExtensions(extensionsToCopy, toProfileLocation);
+		}
+	}
+
+	private async addWebExtension(webExtension: IWebExtension, profileLocation?: URI): Promise<IScannedExtension> {
 		const isSystem = !!(await this.scanSystemExtensions()).find(e => areSameExtensions(e.identifier, webExtension.identifier));
 		const isBuiltin = !!webExtension.metadata?.isBuiltin;
 		const extension = await this.toScannedExtension(webExtension, isBuiltin);
@@ -473,30 +490,40 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 				return customBuiltinExtensions;
 			});
 
-			const installedExtensions = await this.readInstalledExtensions();
+			const installedExtensions = await this.readInstalledExtensions(profileLocation);
 			// Also add to installed extensions if it is installed to update its version
 			if (installedExtensions.some(e => areSameExtensions(e.identifier, webExtension.identifier))) {
-				await this.addToInstalledExtensions(webExtension);
+				await this.addToInstalledExtensions([webExtension], profileLocation);
 			}
 			return extension;
 		}
 
 		// Add to installed extensions
-		await this.addToInstalledExtensions(webExtension);
+		await this.addToInstalledExtensions([webExtension], profileLocation);
 		return extension;
 	}
 
-	private async addToInstalledExtensions(webExtension: IWebExtension): Promise<void> {
-		await this.writeInstalledExtensions(installedExtensions => {
+	private async addToInstalledExtensions(webExtensions: IWebExtension[], profileLocation?: URI): Promise<void> {
+		await this.writeInstalledExtensions(profileLocation, installedExtensions => {
 			// Remove the existing extension to avoid duplicates
-			installedExtensions = installedExtensions.filter(e => !areSameExtensions(e.identifier, webExtension.identifier));
-			installedExtensions.push(webExtension);
+			installedExtensions = installedExtensions.filter(installedExtension => webExtensions.some(extension => !areSameExtensions(installedExtension.identifier, extension.identifier)));
+			installedExtensions.push(...webExtensions);
 			return installedExtensions;
 		});
 	}
 
-	private async scanInstalledExtensions(scanOptions?: ScanOptions): Promise<IScannedExtension[]> {
-		const installedExtensions = await this.readInstalledExtensions();
+	private async scanInstalledExtensions(profileLocation?: URI, scanOptions?: ScanOptions): Promise<IScannedExtension[]> {
+		let installedExtensions = await this.readInstalledExtensions(profileLocation);
+
+		// If current profile is not a default profile, then add the application extensions to the list
+		if (this.userDataProfilesService.defaultProfile.extensionsResource && !this.uriIdentityService.extUri.isEqual(profileLocation, this.userDataProfilesService.defaultProfile.extensionsResource)) {
+			// Remove application extensions from the non default profile
+			installedExtensions = installedExtensions.filter(i => !i.metadata?.isApplicationScoped);
+			// Add application extensions from the default profile to the list
+			const defaultProfileExtensions = await this.readInstalledExtensions(this.userDataProfilesService.defaultProfile.extensionsResource);
+			installedExtensions.push(...defaultProfileExtensions.filter(i => i.metadata?.isApplicationScoped));
+		}
+
 		installedExtensions.sort((a, b) => a.identifier.id < b.identifier.id ? -1 : a.identifier.id > b.identifier.id ? 1 : semver.rcompare(a.version, b.version));
 		const result = new Map<string, IScannedExtension>();
 		for (const webExtension of installedExtensions) {
@@ -670,17 +697,12 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return manifest;
 	}
 
-	private async readInstalledExtensions(): Promise<IWebExtension[]> {
-		await this.migratePackageNLSUris();
-		return this.withWebExtensions(this.installedExtensionsResource);
-	}
-
 	// TODO: @TylerLeonhardt/@Sandy081: Delete after 6 months
 	private _migratePackageNLSUrisPromise: Promise<void> | undefined;
 	private migratePackageNLSUris(): Promise<void> {
 		if (!this._migratePackageNLSUrisPromise) {
 			this._migratePackageNLSUrisPromise = (async () => {
-				const webExtensions = await this.withWebExtensions(this.installedExtensionsResource);
+				const webExtensions = await this.withWebExtensions(this.userDataProfilesService.defaultProfile.extensionsResource);
 				if (webExtensions.some(e => !e.packageNLSUris && e.packageNLSUri)) {
 					const migratedExtensions = await Promise.all(webExtensions.map(async e => {
 						if (!e.packageNLSUris && e.packageNLSUri) {
@@ -691,15 +713,22 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 						}
 						return e;
 					}));
-					await this.withWebExtensions(this.installedExtensionsResource, () => migratedExtensions);
+					await this.withWebExtensions(this.userDataProfilesService.defaultProfile.extensionsResource, () => migratedExtensions);
 				}
 			})();
 		}
 		return this._migratePackageNLSUrisPromise;
 	}
 
-	private writeInstalledExtensions(updateFn: (extensions: IWebExtension[]) => IWebExtension[]): Promise<IWebExtension[]> {
-		return this.withWebExtensions(this.installedExtensionsResource, updateFn);
+	private async readInstalledExtensions(profileLocation?: URI): Promise<IWebExtension[]> {
+		if (this.uriIdentityService.extUri.isEqual(profileLocation, this.userDataProfilesService.defaultProfile.extensionsResource)) {
+			await this.migratePackageNLSUris();
+		}
+		return this.withWebExtensions(profileLocation);
+	}
+
+	private writeInstalledExtensions(profileLocation: URI | undefined, updateFn: (extensions: IWebExtension[]) => IWebExtension[]): Promise<IWebExtension[]> {
+		return this.withWebExtensions(profileLocation, updateFn);
 	}
 
 	private readCustomBuiltinExtensionsCache(): Promise<IWebExtension[]> {
@@ -797,7 +826,6 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	}
 
 	private registerActions(): void {
-		const that = this;
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
@@ -809,7 +837,9 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 				});
 			}
 			run(serviceAccessor: ServicesAccessor): void {
-				serviceAccessor.get(IEditorService).openEditor({ resource: that.installedExtensionsResource });
+				const editorService = serviceAccessor.get(IEditorService);
+				const userDataProfileService = serviceAccessor.get(IUserDataProfileService);
+				editorService.openEditor({ resource: userDataProfileService.currentProfile.extensionsResource });
 			}
 		}));
 	}

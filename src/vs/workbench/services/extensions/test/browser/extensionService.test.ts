@@ -29,10 +29,14 @@ import { ExtensionManifestPropertiesService, IExtensionManifestPropertiesService
 import { ExtensionHostKind, ExtensionRunningLocation, IExtensionHost, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { TestEnvironmentService, TestFileService, TestLifecycleService, TestRemoteAgentService, TestWebExtensionsScannerService, TestWorkbenchExtensionEnablementService, TestWorkbenchExtensionManagementService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestEnvironmentService, TestFileService, TestLifecycleService, TestRemoteAgentService, TestUserDataProfileService, TestWebExtensionsScannerService, TestWorkbenchExtensionEnablementService, TestWorkbenchExtensionManagementService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { mock } from 'vs/base/test/common/mock';
 import { IExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 
 suite('BrowserExtensionService', () => {
 	test('pickRunningLocation', () => {
@@ -175,7 +179,10 @@ suite('ExtensionService', () => {
 			[IWorkbenchExtensionEnablementService, TestWorkbenchExtensionEnablementService],
 			[ITelemetryService, NullTelemetryService],
 			[IEnvironmentService, TestEnvironmentService],
-			[IWorkspaceTrustEnablementService, WorkspaceTrustEnablementService]
+			[IWorkspaceTrustEnablementService, WorkspaceTrustEnablementService],
+			[IUserDataProfilesService, UserDataProfilesService],
+			[IUserDataProfileService, TestUserDataProfileService],
+			[IUriIdentityService, UriIdentityService],
 		]);
 		extService = <MyTestExtensionService>instantiationService.get(IExtensionService);
 	});

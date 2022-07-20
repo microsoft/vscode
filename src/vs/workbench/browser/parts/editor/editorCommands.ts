@@ -969,10 +969,11 @@ function registerCloseEditorCommands() {
 
 			type WorkbenchEditorReopenClassification = {
 				owner: 'rebornix';
-				scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-				ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-				from: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-				to: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+				comment: 'Identify how a document is reopened';
+				scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File system provider scheme for the resource' };
+				ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File extension for the resource' };
+				from: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The editor view type the resource is switched from' };
+				to: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The editor view type the resource is switched to' };
 			};
 
 			type WorkbenchEditorReopenEvent = {

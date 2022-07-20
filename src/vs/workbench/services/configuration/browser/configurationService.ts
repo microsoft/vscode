@@ -833,6 +833,10 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		const defaultDelta = delta(defaultRestrictedSettings, this._restrictedSettings.default, (a, b) => a.localeCompare(b));
 		changed.push(...defaultDelta.added, ...defaultDelta.removed);
 
+		const application = (this.applicationConfiguration?.getRestrictedSettings() || []).sort((a, b) => a.localeCompare(b));
+		const applicationDelta = delta(application, this._restrictedSettings.application || [], (a, b) => a.localeCompare(b));
+		changed.push(...applicationDelta.added, ...applicationDelta.removed);
+
 		const userLocal = this.localUserConfiguration.getRestrictedSettings().sort((a, b) => a.localeCompare(b));
 		const userLocalDelta = delta(userLocal, this._restrictedSettings.userLocal || [], (a, b) => a.localeCompare(b));
 		changed.push(...userLocalDelta.added, ...userLocalDelta.removed);
@@ -861,6 +865,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		if (changed.length) {
 			this._restrictedSettings = {
 				default: defaultRestrictedSettings,
+				application: application.length ? application : undefined,
 				userLocal: userLocal.length ? userLocal : undefined,
 				userRemote: userRemote.length ? userRemote : undefined,
 				workspace: workspace.length ? workspace : undefined,

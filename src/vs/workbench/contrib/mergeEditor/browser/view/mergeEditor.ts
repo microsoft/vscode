@@ -13,7 +13,7 @@ import { BugIndicatingError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { autorunWithStore, IObservable } from 'vs/base/common/observable';
-import { isEqual } from 'vs/base/common/resources';
+import { basename, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/mergeEditor';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -36,7 +36,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
 import { AbstractTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { IEditorOpenContext } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorInputWithOptions, IEditorOpenContext, IResourceMergeEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
@@ -47,6 +47,7 @@ import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/v
 import { ctxBaseResourceScheme, ctxIsMergeEditor, ctxMergeEditorLayout, MergeEditorLayoutTypes } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
 import { settingsSashBorder } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { EditorInputFactoryFunction, IEditorResolverService, MergeEditorInputFactoryFunction, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import './colors';
 import { InputCodeEditorView } from './editors/inputCodeEditorView';
@@ -452,7 +453,6 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 
 	protected computeEditorViewState(resource: URI): IMergeEditorViewState | undefined {
 		if (!isEqual(this.model?.result.uri, resource)) {
-			// TODO@bpasero Why not check `input#resource` and don't ask me for "forgein" resources?
 			return undefined;
 		}
 		const result = this.inputResultView.editor.saveViewState();
@@ -499,6 +499,75 @@ export class MergeEditorOpenHandlerContribution extends Disposable {
 
 		// cannot handle this
 		return null;
+	}
+}
+
+export class MergeEditorResolverContribution extends Disposable {
+
+	constructor(
+		@IEditorResolverService editorResolverService: IEditorResolverService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super();
+
+		const editorInputFactory: EditorInputFactoryFunction = (editor) => {
+			return {
+				editor: instantiationService.createInstance(
+					MergeEditorInput,
+					editor.resource,
+					{
+						uri: editor.resource,
+						title: '',
+						description: '',
+						detail: ''
+					},
+					{
+						uri: editor.resource,
+						title: '',
+						description: '',
+						detail: ''
+					},
+					editor.resource
+				)
+			};
+		};
+
+		const mergeEditorInputFactory: MergeEditorInputFactoryFunction = (mergeEditor: IResourceMergeEditorInput): EditorInputWithOptions => {
+			return {
+				editor: instantiationService.createInstance(
+					MergeEditorInput,
+					mergeEditor.base.resource,
+					{
+						uri: mergeEditor.input1.resource,
+						title: basename(mergeEditor.input1.resource),
+						description: '',
+						detail: ''
+					},
+					{
+						uri: mergeEditor.input2.resource,
+						title: basename(mergeEditor.input2.resource),
+						description: '',
+						detail: ''
+					},
+					mergeEditor.result.resource
+				)
+			};
+		};
+
+		this._register(editorResolverService.registerEditor(
+			`*`,
+			{
+				id: MergeEditorInput.ID,
+				label: localize('editor.mergeEditor.label', "Merge Editor"),
+				detail: DEFAULT_EDITOR_ASSOCIATION.providerDisplayName,
+				priority: RegisteredEditorPriority.option
+			},
+			{},
+			{
+				createEditorInput: editorInputFactory,
+				createMergeEditorInput: mergeEditorInputFactory
+			}
+		));
 	}
 }
 

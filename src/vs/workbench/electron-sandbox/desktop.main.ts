@@ -91,7 +91,7 @@ export class DesktopMain extends Disposable {
 		// Files
 		const filesToWait = this.configuration.filesToWait;
 		const filesToWaitPaths = filesToWait?.paths;
-		for (const paths of [filesToWaitPaths, this.configuration.filesToOpenOrCreate, this.configuration.filesToDiff]) {
+		for (const paths of [filesToWaitPaths, this.configuration.filesToOpenOrCreate, this.configuration.filesToDiff, this.configuration.filesToMerge]) {
 			if (Array.isArray(paths)) {
 				for (const path of paths) {
 					if (path.fileUri) {
@@ -239,7 +239,7 @@ export class DesktopMain extends Disposable {
 		serviceCollection.set(IUriIdentityService, uriIdentityService);
 
 		// User Data Profiles
-		const userDataProfilesService = new UserDataProfilesNativeService(this.configuration.profiles.all, mainProcessService, environmentService, fileService, logService);
+		const userDataProfilesService = new UserDataProfilesNativeService(this.configuration.profiles.all, mainProcessService, environmentService);
 		serviceCollection.set(IUserDataProfilesService, userDataProfilesService);
 		const userDataProfileService = new UserDataProfileService(reviveProfile(this.configuration.profiles.current, userDataProfilesService.profilesHome.scheme), userDataProfilesService);
 		serviceCollection.set(IUserDataProfileService, userDataProfileService);

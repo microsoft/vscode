@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IShellIntegration } from 'vs/platform/terminal/common/terminal';
+import { IShellIntegration, ShellIntegrationStatus } from 'vs/platform/terminal/common/terminal';
 import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
@@ -16,6 +16,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import type { ITerminalAddon, Terminal } from 'xterm-headless';
 import { ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { Emitter } from 'vs/base/common/event';
 
 /**
  * Shell integration is a feature that enhances the terminal's understanding of what's happening
@@ -137,6 +138,12 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	private _hasUpdatedTelemetry: boolean = false;
 	private _activationTimeout: any;
 	private _commonProtocolDisposables: IDisposable[] = [];
+	private _status: ShellIntegrationStatus = ShellIntegrationStatus.Off;
+
+	get status(): ShellIntegrationStatus { return this._status; }
+
+	private readonly _onDidChangeStatus = new Emitter<ShellIntegrationStatus>();
+	readonly onDidChangeStatus = this._onDidChangeStatus.event;
 
 	constructor(
 		private readonly _disableTelemetry: boolean | undefined,
@@ -167,6 +174,15 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	}
 
 	private _handleFinalTermSequence(data: string): boolean {
+		const didHandle = this._doHandleFinalTermSequence(data);
+		if (this._status === ShellIntegrationStatus.Off) {
+			this._status = ShellIntegrationStatus.FinalTerm;
+			this._onDidChangeStatus.fire(this._status);
+		}
+		return didHandle;
+	}
+
+	private _doHandleFinalTermSequence(data: string): boolean {
 		if (!this._terminal) {
 			return false;
 		}
@@ -203,6 +219,10 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			this._telemetryService?.publicLog2<{}, { owner: 'meganrogge'; comment: 'Indicates shell integration was activated' }>('terminal/shellIntegrationActivationSucceeded');
 			this._hasUpdatedTelemetry = true;
 			this._clearActivationTimeout();
+		}
+		if (this._status !== ShellIntegrationStatus.VSCode) {
+			this._status = ShellIntegrationStatus.VSCode;
+			this._onDidChangeStatus.fire(this._status);
 		}
 		return didHandle;
 	}

@@ -116,8 +116,6 @@ export class DebugHoverWidget implements IContentWidget {
 			horizontalScrolling: true,
 			useShadows: false,
 			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IExpression) => e.name },
-			filterOnType: false,
-			simpleKeyboardNavigation: true,
 			overrideStyles: {
 				listBackground: editorHoverBackground
 			}

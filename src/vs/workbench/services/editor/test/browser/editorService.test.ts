@@ -252,7 +252,9 @@ suite('EditorService', () => {
 			'*.editor-service-locked-group-tests',
 			{ id: TEST_EDITOR_INPUT_ID, label: 'Label', priority: RegisteredEditorPriority.exclusive },
 			{},
-			editor => ({ editor: new TestFileEditorInput(editor.resource, TEST_EDITOR_INPUT_ID) })
+			{
+				createEditorInput: editor => ({ editor: new TestFileEditorInput(editor.resource, TEST_EDITOR_INPUT_ID) })
+			}
 		));
 
 		const input1: IResourceEditorInput = { resource: URI.parse('file://resource-basics.editor-service-locked-group-tests'), options: { pinned: true } };
@@ -388,7 +390,9 @@ suite('EditorService', () => {
 			'*.editor-service-locked-group-tests',
 			{ id: TEST_EDITOR_INPUT_ID, label: 'Label', priority: RegisteredEditorPriority.exclusive },
 			{},
-			editor => ({ editor: new TestFileEditorInput(editor.resource, TEST_EDITOR_INPUT_ID) })
+			{
+				createEditorInput: editor => ({ editor: new TestFileEditorInput(editor.resource, TEST_EDITOR_INPUT_ID) })
+			}
 		));
 
 		const rootGroup = part.activeGroup;
@@ -436,7 +440,9 @@ suite('EditorService', () => {
 			'*.editor-service-locked-group-tests',
 			{ id: TEST_EDITOR_INPUT_ID, label: 'Label', priority: RegisteredEditorPriority.exclusive },
 			{},
-			editor => ({ editor: new TestFileEditorInput(editor.resource, TEST_EDITOR_INPUT_ID) })
+			{
+				createEditorInput: editor => ({ editor: new TestFileEditorInput(editor.resource, TEST_EDITOR_INPUT_ID) })
+			}
 		));
 
 		const rootGroup = part.activeGroup;
@@ -484,7 +490,9 @@ suite('EditorService', () => {
 			'*.editor-service-locked-group-tests',
 			{ id: TEST_EDITOR_INPUT_ID, label: 'Label', priority: RegisteredEditorPriority.exclusive },
 			{},
-			editor => ({ editor: new TestFileEditorInput(editor.resource, TEST_EDITOR_INPUT_ID) })
+			{
+				createEditorInput: editor => ({ editor: new TestFileEditorInput(editor.resource, TEST_EDITOR_INPUT_ID) })
+			}
 		));
 
 		const rootGroup = part.activeGroup;
@@ -549,24 +557,26 @@ suite('EditorService', () => {
 		disposables.add(accessor.editorResolverService.registerEditor(
 			'*.editor-service-override-tests',
 			{ id: TEST_EDITOR_INPUT_ID, label: 'Label', priority: RegisteredEditorPriority.exclusive },
-			{ canHandleDiff: true },
-			editor => {
-				editorFactoryCalled++;
-				lastEditorFactoryEditor = editor;
+			{},
+			{
+				createEditorInput: editor => {
+					editorFactoryCalled++;
+					lastEditorFactoryEditor = editor;
 
-				return { editor: new TestFileEditorInput(editor.resource, TEST_EDITOR_INPUT_ID) };
-			},
-			untitledEditor => {
-				untitledEditorFactoryCalled++;
-				lastUntitledEditorFactoryEditor = untitledEditor;
+					return { editor: new TestFileEditorInput(editor.resource, TEST_EDITOR_INPUT_ID) };
+				},
+				createUntitledEditorInput: untitledEditor => {
+					untitledEditorFactoryCalled++;
+					lastUntitledEditorFactoryEditor = untitledEditor;
 
-				return { editor: new TestFileEditorInput(untitledEditor.resource ?? URI.parse(`untitled://my-untitled-editor-${untitledEditorFactoryCalled}`), TEST_EDITOR_INPUT_ID) };
-			},
-			diffEditor => {
-				diffEditorFactoryCalled++;
-				lastDiffEditorFactoryEditor = diffEditor;
+					return { editor: new TestFileEditorInput(untitledEditor.resource ?? URI.parse(`untitled://my-untitled-editor-${untitledEditorFactoryCalled}`), TEST_EDITOR_INPUT_ID) };
+				},
+				createDiffEditorInput: diffEditor => {
+					diffEditorFactoryCalled++;
+					lastDiffEditorFactoryEditor = diffEditor;
 
-				return { editor: new TestFileEditorInput(URI.file(`diff-editor-${diffEditorFactoryCalled}`), TEST_EDITOR_INPUT_ID) };
+					return { editor: new TestFileEditorInput(URI.file(`diff-editor-${diffEditorFactoryCalled}`), TEST_EDITOR_INPUT_ID) };
+				}
 			}
 		));
 
@@ -1401,7 +1411,9 @@ suite('EditorService', () => {
 			'*.editor-service-override-tests',
 			{ id: TEST_EDITOR_INPUT_ID, label: 'Label', priority: RegisteredEditorPriority.exclusive },
 			{},
-			editor => ({ editor: new TestFileEditorInput(editor.resource, TEST_EDITOR_INPUT_ID) })
+			{
+				createEditorInput: editor => ({ editor: new TestFileEditorInput(editor.resource, TEST_EDITOR_INPUT_ID) })
+			}
 		));
 
 		// Typed editor
@@ -2268,12 +2280,13 @@ suite('EditorService', () => {
 				priority: RegisteredEditorPriority.builtin
 			},
 			{},
-			(editorInput) => {
-				editorCount++;
-				return ({ editor: textEditorService.createTextEditor(editorInput) });
-			},
-			undefined,
-			diffEditor => ({ editor: textEditorService.createTextEditor(diffEditor) })
+			{
+				createEditorInput: (editorInput) => {
+					editorCount++;
+					return ({ editor: textEditorService.createTextEditor(editorInput) });
+				},
+				createDiffEditorInput: diffEditor => ({ editor: textEditorService.createTextEditor(diffEditor) })
+			}
 		);
 		assert.strictEqual(editorCount, 0);
 
@@ -2311,12 +2324,13 @@ suite('EditorService', () => {
 				priority: RegisteredEditorPriority.builtin
 			},
 			{},
-			(editorInput) => {
-				editorCount++;
-				return ({ editor: textEditorService.createTextEditor(editorInput) });
-			},
-			undefined,
-			diffEditor => ({ editor: textEditorService.createTextEditor(diffEditor) })
+			{
+				createEditorInput: (editorInput) => {
+					editorCount++;
+					return ({ editor: textEditorService.createTextEditor(editorInput) });
+				},
+				createDiffEditorInput: diffEditor => ({ editor: textEditorService.createTextEditor(diffEditor) })
+			}
 		);
 		assert.strictEqual(editorCount, 0);
 
@@ -2348,12 +2362,13 @@ suite('EditorService', () => {
 				priority: RegisteredEditorPriority.builtin
 			},
 			{},
-			(editorInput) => {
-				editorCount++;
-				return ({ editor: textEditorService.createTextEditor(editorInput) });
-			},
-			undefined,
-			diffEditor => ({ editor: textEditorService.createTextEditor(diffEditor) })
+			{
+				createEditorInput: (editorInput) => {
+					editorCount++;
+					return ({ editor: textEditorService.createTextEditor(editorInput) });
+				},
+				createDiffEditorInput: diffEditor => ({ editor: textEditorService.createTextEditor(diffEditor) })
+			}
 		);
 
 		assert.strictEqual(editorCount, 0);

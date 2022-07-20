@@ -241,7 +241,8 @@ import { ModifierKeyEmitter } from 'vs/base/browser/dom';
 			'window.experimental.useSandbox': {
 				type: 'boolean',
 				description: localize('experimentalUseSandbox', "Experimental: When enabled, the window will have sandbox mode enabled via Electron API."),
-				default: false
+				default: false,
+				ignoreSync: true
 			},
 		}
 	});
@@ -308,10 +309,6 @@ import { ModifierKeyEmitter } from 'vs/base/browser/dom';
 			'disable-hardware-acceleration': {
 				type: 'boolean',
 				description: localize('argv.disableHardwareAcceleration', 'Disables hardware acceleration. ONLY change this option if you encounter graphic issues.')
-			},
-			'disable-color-correct-rendering': {
-				type: 'boolean',
-				description: localize('argv.disableColorCorrectRendering', 'Resolves issues around color profile selection. ONLY change this option if you encounter graphic issues.')
 			},
 			'force-color-profile': {
 				type: 'string',

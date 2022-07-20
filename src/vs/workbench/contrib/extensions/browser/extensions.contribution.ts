@@ -15,7 +15,7 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWo
 import { IOutputChannelRegistry, Extensions as OutputExtensions } from 'vs/workbench/services/output/common/output';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, DefaultViewsContext, ExtensionsSortByContext, WORKSPACE_RECOMMENDATIONS_VIEW_ID, IWorkspaceRecommendedExtensionsView, AutoUpdateConfigurationKey, HasOutdatedExtensionsContext, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, ExtensionEditorTab, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP } from 'vs/workbench/contrib/extensions/common/extensions';
-import { ReinstallAction, InstallSpecificVersionOfExtensionAction, ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, PromptExtensionInstallFailureAction, SearchExtensionsAction, SwitchToPreReleaseVersionAction, SwitchToReleasedVersionAction, SetColorThemeAction, SetFileIconThemeAction, SetProductIconThemeAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { ReinstallAction, InstallSpecificVersionOfExtensionAction, ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, PromptExtensionInstallFailureAction, SearchExtensionsAction, SwitchToPreReleaseVersionAction, SwitchToReleasedVersionAction, SetColorThemeAction, SetFileIconThemeAction, SetProductIconThemeAction, ClearLanguageAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { ExtensionEditor } from 'vs/workbench/contrib/extensions/browser/extensionEditor';
 import { StatusUpdater, MaliciousExtensionChecker, ExtensionsViewletViewsContribution, ExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/browser/extensionsViewlet';
@@ -78,6 +78,7 @@ import { isWeb } from 'vs/base/common/platform';
 import { ExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import product from 'vs/platform/product/common/product';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
@@ -316,13 +317,17 @@ CommandsRegistry.registerCommand({
 							'type': 'boolean',
 							'description': localize('workbench.extensions.installExtension.option.donotSync', "When enabled, VS Code do not sync this extension when Settings Sync is on."),
 							default: false
+						},
+						'context': {
+							'type': 'object',
+							'description': localize('workbench.extensions.installExtension.option.context', "Context for the installation. This is a JSON object that can be used to pass any information to the installation handlers. i.e. `{skipWalkthrough: true}` will skip opening the walkthrough upon install."),
 						}
 					}
 				}
 			}
 		]
 	},
-	handler: async (accessor, arg: string | UriComponents, options?: { installOnlyNewlyAddedFromExtensionPackVSIX?: boolean; installPreReleaseVersion?: boolean; donotSync?: boolean }) => {
+	handler: async (accessor, arg: string | UriComponents, options?: { installOnlyNewlyAddedFromExtensionPackVSIX?: boolean; installPreReleaseVersion?: boolean; donotSync?: boolean; context?: IStringDictionary<any> }) => {
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		try {
 			if (typeof arg === 'string') {
@@ -332,7 +337,8 @@ CommandsRegistry.registerCommand({
 					const installOptions: InstallOptions = {
 						isMachineScoped: options?.donotSync ? true : undefined, /* do not allow syncing extensions automatically while installing through the command */
 						installPreReleaseVersion: options?.installPreReleaseVersion,
-						installGivenVersion: !!version
+						installGivenVersion: !!version,
+						context: options?.context
 					};
 					if (version) {
 						await extensionsWorkbenchService.installVersion(extension, version, installOptions);
@@ -446,7 +452,7 @@ async function runAction(action: IAction): Promise<void> {
 }
 
 interface IExtensionActionOptions extends IAction2Options {
-	menuTitles?: { [id: number]: string };
+	menuTitles?: { [id: string]: string };
 	run(accessor: ServicesAccessor, ...args: any[]): Promise<any>;
 }
 
@@ -1331,6 +1337,24 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 					extensionWorkbenchService.open(extension, { showPreReleaseVersion: false });
 					await extensionWorkbenchService.install(extension, { installPreReleaseVersion: false });
 				}
+			}
+		});
+		this.registerExtensionAction({
+			id: ClearLanguageAction.ID,
+			title: ClearLanguageAction.TITLE,
+			menu: {
+				id: MenuId.ExtensionContext,
+				group: INSTALL_ACTIONS_GROUP,
+				order: 0,
+				when: ContextKeyExpr.and(ContextKeyExpr.not('inExtensionEditor'), ContextKeyExpr.has('canSetLanguage'), ContextKeyExpr.has('isActiveLanguagePackExtension'))
+			},
+			run: async (accessor: ServicesAccessor, extensionId: string) => {
+				const instantiationService = accessor.get(IInstantiationService);
+				const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+				const extension = (await extensionsWorkbenchService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
+				const action = instantiationService.createInstance(ClearLanguageAction);
+				action.extension = extension;
+				return action.run();
 			}
 		});
 
