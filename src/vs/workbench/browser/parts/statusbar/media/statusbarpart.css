@@ -33,7 +33,8 @@
 
 .monaco-workbench .part.statusbar > .right-items {
 	flex-direction: row-reverse;
-	flex-wrap: wrap; /* extra items move to new line */
+	flex-wrap: wrap /* ensures that the most right elements wrap last when space is little */;
+	margin-right: 34px; /* space for the notifications bell */
 }
 
 .monaco-workbench .part.statusbar > .left-items {
@@ -79,6 +80,10 @@
 }
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.right.last-visible-item {
+	position: absolute; /* always display the notification bell even where other status bar items overflow */
+	top: 0;
+	right: 0;
+	background: rgb(0, 122, 204); /* same as footer color to avoid other status bar items being visible under itself */
 	padding-right: 7px; /* Add padding to the most right status bar item */
 }
 
