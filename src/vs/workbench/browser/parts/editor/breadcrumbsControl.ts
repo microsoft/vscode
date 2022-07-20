@@ -26,7 +26,7 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ColorIdentifier, ColorTransform } from 'vs/platform/theme/common/colorRegistry';
 import { attachBreadcrumbsStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ResourceLabel } from 'vs/workbench/browser/labels';
+import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from 'vs/workbench/browser/labels';
 import { BreadcrumbsConfig, IBreadcrumbsService } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbsModel, FileElement, OutlineElement2 } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
 import { BreadcrumbsFilePicker, BreadcrumbsOutlinePicker, BreadcrumbsPicker } from 'vs/workbench/browser/parts/editor/breadcrumbsPicker';
@@ -109,7 +109,7 @@ class FileItem extends BreadcrumbsItem {
 		readonly model: BreadcrumbsModel,
 		readonly element: FileElement,
 		readonly options: IBreadcrumbsControlOptions,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		private readonly _labels: ResourceLabels
 	) {
 		super();
 	}
@@ -130,8 +130,8 @@ class FileItem extends BreadcrumbsItem {
 
 	render(container: HTMLElement): void {
 		// file/folder
-		const label = this._instantiationService.createInstance(ResourceLabel, container, {});
-		label.element.setFile(this.element.uri, {
+		const label = this._labels.create(container);
+		label.setFile(this.element.uri, {
 			hidePath: true,
 			hideIcon: this.element.kind === FileKind.FOLDER || !this.options.showFileIcons,
 			fileKind: this.element.kind,
@@ -182,6 +182,7 @@ export class BreadcrumbsControl {
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _breadcrumbsDisposables = new DisposableStore();
+	private readonly _labels: ResourceLabels;
 	private _breadcrumbsPickerShowing = false;
 	private _breadcrumbsPickerIgnoreOnceItem: BreadcrumbsItem | undefined;
 
@@ -208,6 +209,8 @@ export class BreadcrumbsControl {
 		this._cfShowIcons = BreadcrumbsConfig.Icons.bindTo(configurationService);
 		this._cfTitleScrollbarSizing = BreadcrumbsConfig.TitleScrollbarSizing.bindTo(configurationService);
 
+		this._labels = this._instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER);
+
 		const sizing = this._cfTitleScrollbarSizing.getValue() ?? 'default';
 		this._widget = new BreadcrumbsWidget(this.domNode, BreadcrumbsControl.SCROLLBAR_SIZES[sizing], separatorIcon);
 		this._widget.onDidSelectItem(this._onSelectEvent, this, this._disposables);
@@ -232,6 +235,7 @@ export class BreadcrumbsControl {
 		this._cfUseQuickPick.dispose();
 		this._cfShowIcons.dispose();
 		this._widget.dispose();
+		this._labels.dispose();
 		this.domNode.remove();
 	}
 
@@ -290,7 +294,7 @@ export class BreadcrumbsControl {
 				showFileIcons: this._options.showFileIcons && showIcons,
 				showSymbolIcons: this._options.showSymbolIcons && showIcons
 			};
-			const items = model.getElements().map(element => element instanceof FileElement ? new FileItem(model, element, options, this._instantiationService) : new OutlineItem(model, element, options));
+			const items = model.getElements().map(element => element instanceof FileElement ? new FileItem(model, element, options, this._labels) : new OutlineItem(model, element, options));
 			if (items.length === 0) {
 				this._widget.setEnabled(false);
 				this._widget.setItems([new class extends BreadcrumbsItem {
