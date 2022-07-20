@@ -97,7 +97,7 @@ interface IUserFriendlyViewDescriptor {
 	contextualTitle?: string;
 	visibility?: string;
 
-	size?: 'fit' | number;
+	size?: number;
 
 	// From 'remoteViewDescriptor' type
 	group?: string;
@@ -163,20 +163,8 @@ const viewDescriptor: IJSONSchema = {
 			]
 		},
 		size: {
-			oneOf: [
-				{
-					type: 'string',
-					enum: ['fit'],
-					enumDescriptions: [
-						localize('vscode.extension.contributes.view.size.fit', "The view will be sized to fit the contents.")
-					],
-					description: localize('vscode.extension.contributs.view.size', "The size of the view. Using a number will behave like the css 'flex' property, and the size will set the initial size when the view is first shown. When using 'fit', the view will always be sized to fit the contents. In the sizebar, this is the height of the view. In the panel this is the width of the view.")
-				},
-				{
-					type: 'number',
-					description: localize('vscode.extension.contributs.view.size', "The size of the view. Using a number will behave like the css 'flex' property, and the size will set the initial size when the view is first shown. When using 'fit', the view will always be sized to fit the contents. In the sizebar, this is the height of the view. In the panel this is the width of the view."),
-				}
-			]
+			type: 'number',
+			description: localize('vscode.extension.contributs.view.size', "The size of the view. Using a number will behave like the css 'flex' property, and the size will set the initial size when the view is first shown. In the sizebar, this is the height of the view."),
 		}
 	}
 };
@@ -518,7 +506,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					}
 
 					let weight: number | undefined = undefined;
-					if (item.size && (typeof item.size === 'number')) { // TODO @alexr00 - support 'fit' as a size/weight
+					if (typeof item.size === 'number') {
 						checkProposedApiEnabled(extension.description, 'contribViewSize');
 						weight = item.size;
 					}
