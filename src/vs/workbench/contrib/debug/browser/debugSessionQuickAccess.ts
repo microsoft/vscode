@@ -14,7 +14,7 @@ import { DEBUG_CONSOLE_QUICK_ACCESS_PREFIX, SELECT_AND_START_ID } from 'vs/workb
 import { IDebugService, IDebugSession, REPL_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
 
 export class DebugSessionQuickAccess extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
-
+	private headerSessions: IDebugSession[] = [];
 	constructor(
 		@IDebugService private readonly _debugService: IDebugService,
 		@IViewsService private readonly _viewsService: IViewsService,
@@ -25,13 +25,27 @@ export class DebugSessionQuickAccess extends PickerQuickAccessProvider<IPickerQu
 
 	protected _getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Picks<IPickerQuickAccessItem> | Promise<Picks<IPickerQuickAccessItem>> | FastAndSlowPicks<IPickerQuickAccessItem> | null {
 		const debugConsolePicks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
-		this._debugService.getModel().getSessions(false).forEach((session, index) => {
-			if (!session.parentSession) {
-				debugConsolePicks.push({ type: 'separator' });
+		this.headerSessions = [];
+
+		const sessions = this._debugService.getModel().getSessions(false);
+
+		sessions.forEach((session) => {
+			if (session.compact && session.parentSession) {
+				this.headerSessions.push(session.parentSession);
 			}
-			const pick = this._createPick(session, filter);
-			if (pick) {
-				debugConsolePicks.push(pick);
+		});
+
+		sessions.forEach((session, index) => {
+			const isHeader = this._isHeaderSession(session);
+			if (!session.parentSession) {
+				debugConsolePicks.push({ type: 'separator', label: isHeader ? session.name : undefined });
+			}
+
+			if (!isHeader) {
+				const pick = this._createPick(session, filter);
+				if (pick) {
+					debugConsolePicks.push(pick);
+				}
 			}
 		});
 
@@ -48,9 +62,13 @@ export class DebugSessionQuickAccess extends PickerQuickAccessProvider<IPickerQu
 		return debugConsolePicks;
 	}
 
+	private _isHeaderSession(session: IDebugSession) {
+		return this.headerSessions.includes(session);
+	}
+
 	private _getSessionInfo(session: IDebugSession): { label: string; description: string; ariaLabel: string } {
 		const label = session.configuration.name.length === 0 ? session.name : session.configuration.name;
-		const parentName = session.parentSession?.configuration.name;
+		const parentName = this._isHeaderSession(session) ? session.parentSession?.configuration.name : undefined;
 		let description;
 		let ariaLabel;
 		if (parentName) {
