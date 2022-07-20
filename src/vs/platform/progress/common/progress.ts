@@ -54,7 +54,6 @@ export interface IProgressOptions {
 	readonly title?: string;
 	readonly source?: string | { label: string; id: string };
 	readonly total?: number;
-	readonly type?: 'syncing' | 'loading';
 	readonly cancellable?: boolean;
 	readonly buttons?: string[];
 }
@@ -76,6 +75,7 @@ export interface IProgressDialogOptions extends IProgressOptions {
 export interface IProgressWindowOptions extends IProgressOptions {
 	readonly location: ProgressLocation.Window;
 	readonly command?: string;
+	readonly type?: 'syncing' | 'loading';
 }
 
 export interface IProgressCompositeOptions extends IProgressOptions {
