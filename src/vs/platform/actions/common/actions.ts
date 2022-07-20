@@ -164,6 +164,8 @@ export class MenuId {
 	static readonly InlineCompletionsActions = new MenuId('InlineCompletionsActions');
 	static readonly NewFile = new MenuId('NewFile');
 	static readonly MergeToolbar = new MenuId('MergeToolbar');
+	static readonly MergeInput1Toolbar = new MenuId('MergeToolbar1Toolbar');
+	static readonly MergeInput2Toolbar = new MenuId('MergeToolbar2Toolbar');
 
 	/**
 	 * Create or reuse a `MenuId` with the given identifier
