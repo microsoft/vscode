@@ -1228,10 +1228,10 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			type ExtensionsMessageClassification = {
 				owner: 'alexdima';
 				comment: 'A validation message for an extension';
-				type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
-				extensionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-				extensionPointId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-				message: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+				type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Severity of problem.'; isMeasurement: true };
+				extensionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the extension that has a problem.' };
+				extensionPointId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The extension point that has a problem.' };
+				message: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The message of the problem.' };
 			};
 			type ExtensionsMessageEvent = {
 				type: Severity;
@@ -1304,8 +1304,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		type ExtensionActivationErrorClassification = {
 			owner: 'alexdima';
 			comment: 'An extension failed to activate';
-			extensionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-			error: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth' };
+			extensionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the extension.' };
+			error: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The error message.' };
 		};
 		type ExtensionActivationErrorEvent = {
 			extensionId: string;

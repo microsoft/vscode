@@ -85,6 +85,7 @@ export interface IOpenConfiguration extends IBaseOpenConfiguration {
 	readonly forceReuseWindow?: boolean;
 	readonly forceEmpty?: boolean;
 	readonly diffMode?: boolean;
+	readonly mergeMode?: boolean;
 	addMode?: boolean;
 	readonly gotoLineMode?: boolean;
 	readonly initialStartup?: boolean;

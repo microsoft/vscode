@@ -20,7 +20,7 @@ import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IContentActionHandler, renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
-import { SelectSnippetForEmptyFile } from 'vs/workbench/contrib/snippets/browser/commands/emptyFileSnippets';
+import { ApplyFileSnippetAction } from 'vs/workbench/contrib/snippets/browser/commands/fileTemplateSnippets';
 
 const $ = dom.$;
 
@@ -136,7 +136,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 			this.domNode.append(hintElement);
 
 			// ugly way to associate keybindings...
-			const keybindingsLookup = [ChangeLanguageAction.ID, SelectSnippetForEmptyFile.Id, 'welcome.showNewFileEntries'];
+			const keybindingsLookup = [ChangeLanguageAction.ID, ApplyFileSnippetAction.Id, 'welcome.showNewFileEntries'];
 			for (const anchor of hintElement.querySelectorAll('A')) {
 				(<HTMLAnchorElement>anchor).style.cursor = 'pointer';
 				const id = keybindingsLookup.shift();
@@ -156,7 +156,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 			const snippetOnClickOrTab = async (e: MouseEvent) => {
 				e.stopPropagation();
 				this.editor.focus();
-				this.commandService.executeCommand(SelectSnippetForEmptyFile.Id, { from: 'hint' });
+				this.commandService.executeCommand(ApplyFileSnippetAction.Id, { from: 'hint' });
 			};
 
 			const chooseEditorOnClickOrTap = async (e: MouseEvent) => {

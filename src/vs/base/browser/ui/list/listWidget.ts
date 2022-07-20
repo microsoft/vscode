@@ -424,6 +424,7 @@ class TypeNavigationController<T> implements IDisposable {
 		private list: List<T>,
 		private view: ListView<T>,
 		private keyboardNavigationLabelProvider: IKeyboardNavigationLabelProvider<T>,
+		private keyboardNavigationEventFilter: IKeyboardNavigationEventFilter,
 		private delegate: IKeyboardNavigationDelegate
 	) {
 		this.updateOptions(list.options);
@@ -448,12 +449,15 @@ class TypeNavigationController<T> implements IDisposable {
 			return;
 		}
 
+		let typing = false;
+
 		const onChar = this.enabledDisposables.add(Event.chain(this.enabledDisposables.add(new DomEmitter(this.view.domNode, 'keydown')).event))
 			.filter(e => !isInputElement(e.target as HTMLElement))
 			.filter(() => this.mode === TypeNavigationMode.Automatic || this.triggered)
 			.map(event => new StandardKeyboardEvent(event))
+			.filter(e => typing || this.keyboardNavigationEventFilter(e))
 			.filter(e => this.delegate.mightProducePrintableCharacter(e))
-			.forEach(e => { e.preventDefault(); e.stopPropagation(); })
+			.forEach(stopEvent)
 			.map(event => event.browserEvent.key)
 			.event;
 
@@ -462,6 +466,9 @@ class TypeNavigationController<T> implements IDisposable {
 
 		onInput(this.onInput, this, this.enabledDisposables);
 		onClear(this.onClear, this, this.enabledDisposables);
+
+		onChar(() => typing = true, undefined, this.enabledDisposables);
+		onClear(() => typing = false, undefined, this.enabledDisposables);
 
 		this.enabled = true;
 		this.triggered = false;
@@ -919,6 +926,10 @@ export class DefaultStyleController implements IStyleController {
 	}
 }
 
+export interface IKeyboardNavigationEventFilter {
+	(e: StandardKeyboardEvent): boolean;
+}
+
 export interface IListOptionsUpdate extends IListViewOptionsUpdate {
 	readonly typeNavigationEnabled?: boolean;
 	readonly typeNavigationMode?: TypeNavigationMode;
@@ -934,6 +945,7 @@ export interface IListOptions<T> extends IListOptionsUpdate {
 	readonly multipleSelectionController?: IMultipleSelectionController<T>;
 	readonly styleController?: (suffix: string) => IStyleController;
 	readonly accessibilityProvider?: IListAccessibilityProvider<T>;
+	readonly keyboardNavigationEventFilter?: IKeyboardNavigationEventFilter;
 
 	// list view options
 	readonly useShadows?: boolean;
@@ -1373,7 +1385,7 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 
 		if (_options.keyboardNavigationLabelProvider) {
 			const delegate = _options.keyboardNavigationDelegate || DefaultKeyboardNavigationDelegate;
-			this.typeNavigationController = new TypeNavigationController(this, this.view, _options.keyboardNavigationLabelProvider, delegate);
+			this.typeNavigationController = new TypeNavigationController(this, this.view, _options.keyboardNavigationLabelProvider, _options.keyboardNavigationEventFilter ?? (() => true), delegate);
 			this.disposables.add(this.typeNavigationController);
 		}
 

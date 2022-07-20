@@ -213,11 +213,9 @@ export class ActionButtonCommand {
 		const behind = this.state.HEAD.behind ? ` ${this.state.HEAD.behind}$(arrow-down)` : '';
 		const icon = this.state.isSyncInProgress ? '$(sync~spin)' : '$(sync)';
 
-		const rebaseWhenSync = config.get<string>('rebaseWhenSync');
-
 		return {
 			command: {
-				command: rebaseWhenSync ? 'git.syncRebase' : 'git.sync',
+				command: 'git.sync',
 				title: `${icon}${behind}${ahead}`,
 				tooltip: this.state.isSyncInProgress ?
 					localize('syncing changes', "Synchronizing Changes...")
