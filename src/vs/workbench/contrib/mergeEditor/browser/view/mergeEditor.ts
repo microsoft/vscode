@@ -47,7 +47,7 @@ import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/v
 import { ctxBaseResourceScheme, ctxIsMergeEditor, ctxMergeEditorLayout, MergeEditorLayoutTypes } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
 import { settingsSashBorder } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
+import { EditorInputFactoryFunction, IEditorResolverService, MergeEditorInputFactoryFunction, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import './colors';
 import { InputCodeEditorView } from './editors/inputCodeEditorView';
@@ -87,8 +87,8 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 	private readonly _sessionDisposables = new DisposableStore();
 
 	private _grid!: Grid<IView>;
-	private readonly input1View = this._register(this.instantiationService.createInstance(InputCodeEditorView, 1));
-	private readonly input2View = this._register(this.instantiationService.createInstance(InputCodeEditorView, 2));
+	private readonly input1View = this._register(this.instantiationService.createInstance(InputCodeEditorView, 1, MenuId.MergeInput1Toolbar));
+	private readonly input2View = this._register(this.instantiationService.createInstance(InputCodeEditorView, 2, MenuId.MergeInput2Toolbar));
 	private readonly inputResultView = this._register(this.instantiationService.createInstance(ResultCodeEditorView));
 
 	private readonly _layoutMode: MergeEditorLayout;
@@ -510,6 +510,50 @@ export class MergeEditorResolverContribution extends Disposable {
 	) {
 		super();
 
+		const editorInputFactory: EditorInputFactoryFunction = (editor) => {
+			return {
+				editor: instantiationService.createInstance(
+					MergeEditorInput,
+					editor.resource,
+					{
+						uri: editor.resource,
+						title: '',
+						description: '',
+						detail: ''
+					},
+					{
+						uri: editor.resource,
+						title: '',
+						description: '',
+						detail: ''
+					},
+					editor.resource
+				)
+			};
+		};
+
+		const mergeEditorInputFactory: MergeEditorInputFactoryFunction = (mergeEditor: IResourceMergeEditorInput): EditorInputWithOptions => {
+			return {
+				editor: instantiationService.createInstance(
+					MergeEditorInput,
+					mergeEditor.base.resource,
+					{
+						uri: mergeEditor.input1.resource,
+						title: basename(mergeEditor.input1.resource),
+						description: '',
+						detail: ''
+					},
+					{
+						uri: mergeEditor.input2.resource,
+						title: basename(mergeEditor.input2.resource),
+						description: '',
+						detail: ''
+					},
+					mergeEditor.result.resource
+				)
+			};
+		};
+
 		this._register(editorResolverService.registerEditor(
 			`*`,
 			{
@@ -519,49 +563,9 @@ export class MergeEditorResolverContribution extends Disposable {
 				priority: RegisteredEditorPriority.option
 			},
 			{},
-			(editor) => {
-				return {
-					editor: instantiationService.createInstance(
-						MergeEditorInput,
-						editor.resource,
-						{
-							uri: editor.resource,
-							title: '',
-							description: '',
-							detail: ''
-						},
-						{
-							uri: editor.resource,
-							title: '',
-							description: '',
-							detail: ''
-						},
-						editor.resource
-					)
-				};
-			},
-			undefined,
-			undefined,
-			(mergeEditor: IResourceMergeEditorInput): EditorInputWithOptions => {
-				return {
-					editor: instantiationService.createInstance(
-						MergeEditorInput,
-						mergeEditor.base.resource,
-						{
-							uri: mergeEditor.input1.resource,
-							title: basename(mergeEditor.input1.resource),
-							description: '',
-							detail: ''
-						},
-						{
-							uri: mergeEditor.input2.resource,
-							title: basename(mergeEditor.input2.resource),
-							description: '',
-							detail: ''
-						},
-						mergeEditor.result.resource
-					)
-				};
+			{
+				createEditorInput: editorInputFactory,
+				createMergeEditorInput: mergeEditorInputFactory
 			}
 		));
 	}

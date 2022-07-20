@@ -332,8 +332,10 @@ export class CompareInput1WithBaseCommand extends Action2 {
 				),
 				original: 'Compare Input 1 With Base',
 			},
+			shortTitle: localize('mergeEditor.compareWithBase', 'Compare With Base'),
 			f1: true,
 			precondition: ctxIsMergeEditor,
+			menu: { id: MenuId.MergeInput1Toolbar }
 		});
 	}
 	run(accessor: ServicesAccessor, ...args: unknown[]): void {
@@ -355,8 +357,10 @@ export class CompareInput2WithBaseCommand extends Action2 {
 				),
 				original: 'Compare Input 2 With Base',
 			},
+			shortTitle: localize('mergeEditor.compareWithBase', 'Compare With Base'),
 			f1: true,
 			precondition: ctxIsMergeEditor,
+			menu: { id: MenuId.MergeInput2Toolbar }
 		});
 	}
 	run(accessor: ServicesAccessor, ...args: unknown[]): void {
