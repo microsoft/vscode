@@ -75,6 +75,7 @@ export interface IProgressDialogOptions extends IProgressOptions {
 export interface IProgressWindowOptions extends IProgressOptions {
 	readonly location: ProgressLocation.Window;
 	readonly command?: string;
+	readonly type?: 'syncing' | 'loading';
 }
 
 export interface IProgressCompositeOptions extends IProgressOptions {

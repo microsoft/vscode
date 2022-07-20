@@ -7,8 +7,11 @@ import { CancellationToken, Connection, InitializeParams, InitializeResult, Note
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import * as lsp from 'vscode-languageserver-types';
 import * as md from 'vscode-markdown-languageservice';
+import { IDisposable } from 'vscode-markdown-languageservice/out/util/dispose';
 import { URI } from 'vscode-uri';
 import { getLsConfiguration } from './config';
+import { ConfigurationManager } from './configuration';
+import { registerValidateSupport } from './languageFeatures/diagnostics';
 import { LogFunctionLogger } from './logging';
 import * as protocol from './protocol';
 import { VsCodeClientWorkspace } from './workspace';
@@ -16,6 +19,11 @@ import { VsCodeClientWorkspace } from './workspace';
 export async function startServer(connection: Connection) {
 	const documents = new TextDocuments(TextDocument);
 	const notebooks = new NotebookDocuments(documents);
+
+	const configurationManager = new ConfigurationManager(connection);
+
+	let provider: md.IMdLanguageService | undefined;
+	let workspace: VsCodeClientWorkspace | undefined;
 
 	connection.onInitialize((params: InitializeParams): InitializeResult => {
 		const parser = new class implements md.IMdParser {
@@ -30,8 +38,8 @@ export async function startServer(connection: Connection) {
 			markdownFileExtensions: params.initializationOptions.markdownFileExtensions,
 		});
 
-		const workspace = new VsCodeClientWorkspace(connection, config, documents, notebooks);
 		const logger = new LogFunctionLogger(connection.console.log.bind(connection.console));
+		workspace = new VsCodeClientWorkspace(connection, config, documents, notebooks, logger);
 		provider = md.createLanguageService({
 			workspace,
 			parser,
@@ -39,9 +47,18 @@ export async function startServer(connection: Connection) {
 			markdownFileExtensions: config.markdownFileExtensions,
 		});
 
+		registerCompletionsSupport(connection, documents, provider, configurationManager);
+		registerValidateSupport(connection, workspace, provider, configurationManager);
+
 		workspace.workspaceFolders = (params.workspaceFolders ?? []).map(x => URI.parse(x.uri));
 		return {
 			capabilities: {
+				diagnosticProvider: {
+					documentSelector: null,
+					identifier: 'markdown',
+					interFileDependencies: true,
+					workspaceDiagnostics: false,
+				},
 				completionProvider: { triggerCharacters: ['.', '/', '#'] },
 				definitionProvider: true,
 				documentLinkProvider: { resolveProvider: true },
@@ -60,8 +77,6 @@ export async function startServer(connection: Connection) {
 		};
 	});
 
-
-	let provider: md.IMdLanguageService | undefined;
 
 	connection.onDocumentLinks(async (params, token): Promise<lsp.DocumentLink[]> => {
 		try {
@@ -123,18 +138,6 @@ export async function startServer(connection: Connection) {
 	connection.onWorkspaceSymbol(async (params, token): Promise<lsp.WorkspaceSymbol[]> => {
 		try {
 			return await provider!.getWorkspaceSymbols(params.query, token);
-		} catch (e) {
-			console.error(e.stack);
-		}
-		return [];
-	});
-
-	connection.onCompletion(async (params, token): Promise<lsp.CompletionItem[]> => {
-		try {
-			const document = documents.get(params.textDocument.uri);
-			if (document) {
-				return await provider!.getCompletionItems(document, params.position, params.context!, token);
-			}
 		} catch (e) {
 			console.error(e.stack);
 		}
@@ -203,4 +206,47 @@ export async function startServer(connection: Connection) {
 	documents.listen(connection);
 	notebooks.listen(connection);
 	connection.listen();
+}
+
+
+function registerCompletionsSupport(
+	connection: Connection,
+	documents: TextDocuments<TextDocument>,
+	ls: md.IMdLanguageService,
+	config: ConfigurationManager,
+): IDisposable {
+	// let registration: Promise<IDisposable> | undefined;
+	function update() {
+		// TODO: client still makes the request in this case. Figure our how to properly unregister.
+		return;
+		// const settings = config.getSettings();
+		// if (settings?.markdown.suggest.paths.enabled) {
+		// 	if (!registration) {
+		// 		registration = connection.client.register(CompletionRequest.type);
+		// 	}
+		// } else {
+		// 	registration?.then(x => x.dispose());
+		// 	registration = undefined;
+		// }
+	}
+
+	connection.onCompletion(async (params, token): Promise<lsp.CompletionItem[]> => {
+		try {
+			const settings = config.getSettings();
+			if (!settings?.markdown.suggest.paths.enabled) {
+				return [];
+			}
+
+			const document = documents.get(params.textDocument.uri);
+			if (document) {
+				return await ls.getCompletionItems(document, params.position, params.context!, token);
+			}
+		} catch (e) {
+			console.error(e.stack);
+		}
+		return [];
+	});
+
+	update();
+	return config.onDidChangeConfiguration(() => update());
 }
