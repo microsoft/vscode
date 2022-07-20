@@ -298,9 +298,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					const [x, y] = this._win.getPosition();
 					const cursorPos = screen.getCursorScreenPoint();
 
-					this._win.setEnabled(false);
-					this._win.setEnabled(true);
-
 					this._onDidTriggerSystemContextMenu.fire({ x: cursorPos.x - x, y: cursorPos.y - y });
 					return 0; // skip native menu
 				});
