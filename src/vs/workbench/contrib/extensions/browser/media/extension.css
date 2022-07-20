@@ -237,6 +237,10 @@
 	margin-left: 6px;
 }
 
+.extension-list-item .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .extension-action.label {
+	border-right-width: 0;
+}
+
 .extension-list-item .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .action-dropdown-item-separator {
 	height: 16px;
 	margin-top: 2px;
@@ -244,4 +248,8 @@
 
 .extension-list-item .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .action-dropdown-item-separator > div {
 	height: 10px;
+}
+
+.extension-list-item .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .monaco-dropdown .extension-action.label {
+	border-left-width: 0;
 }
