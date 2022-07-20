@@ -80,7 +80,7 @@
 		}
 	},
 	"scripts": {
-		"compile": "npx gulp compile-extension:ipynb && npm run build-notebook",
+		"compile": "npx gulp compile-extension:ipynb && npm run build-notebook --watch",
 		"watch": "npx gulp watch-extension:ipynb",
 		"build-notebook": "node ./esbuild"
 	},
