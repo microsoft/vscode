@@ -478,6 +478,7 @@
           "type": "string",
           "scope": "resource",
           "markdownDescription": "%configuration.markdown.experimental.validate.fileLinks.markdownFragmentLinks.description%",
+          "default": "ignore",
           "enum": [
             "ignore",
             "warning",
@@ -563,7 +564,8 @@
     "@types/vscode-notebook-renderer": "^1.60.0",
     "@types/vscode-webview": "^1.57.0",
     "lodash.throttle": "^4.1.1",
-    "vscode-languageserver-types": "^3.17.2"
+    "vscode-languageserver-types": "^3.17.2",
+    "vscode-markdown-languageservice": "^0.0.0-alpha.10"
   },
   "repository": {
     "type": "git",

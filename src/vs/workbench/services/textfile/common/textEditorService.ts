@@ -75,9 +75,11 @@ export class TextEditorService extends Disposable implements ITextEditorService 
 				priority: RegisteredEditorPriority.builtin
 			},
 			{},
-			editor => ({ editor: this.createTextEditor(editor) }),
-			untitledEditor => ({ editor: this.createTextEditor(untitledEditor) }),
-			diffEditor => ({ editor: this.createTextEditor(diffEditor) })
+			{
+				createEditorInput: editor => ({ editor: this.createTextEditor(editor) }),
+				createUntitledEditorInput: untitledEditor => ({ editor: this.createTextEditor(untitledEditor) }),
+				createDiffEditorInput: diffEditor => ({ editor: this.createTextEditor(diffEditor) })
+			}
 		));
 	}
 

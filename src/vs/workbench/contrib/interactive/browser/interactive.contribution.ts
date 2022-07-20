@@ -203,9 +203,11 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 				canSupportResource: uri => uri.scheme === Schemas.vscodeInteractiveInput,
 				singlePerResource: true
 			},
-			({ resource }) => {
-				const editorInput = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editor => editor.editor instanceof InteractiveEditorInput && editor.editor.inputResource.toString() === resource.toString());
-				return editorInput!;
+			{
+				createEditorInput: ({ resource }) => {
+					const editorInput = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editor => editor.editor instanceof InteractiveEditorInput && editor.editor.inputResource.toString() === resource.toString());
+					return editorInput!;
+				}
 			}
 		);
 
@@ -220,23 +222,25 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 				canSupportResource: uri => uri.scheme === Schemas.vscodeInteractive || (uri.scheme === Schemas.vscodeNotebookCell && extname(uri) === '.interactive'),
 				singlePerResource: true
 			},
-			({ resource, options }) => {
-				const data = CellUri.parse(resource);
-				let notebookUri: URI = resource;
-				let cellOptions: IResourceEditorInput | undefined;
+			{
+				createEditorInput: ({ resource, options }) => {
+					const data = CellUri.parse(resource);
+					let notebookUri: URI = resource;
+					let cellOptions: IResourceEditorInput | undefined;
 
-				if (data) {
-					notebookUri = data.notebook;
-					cellOptions = { resource, options };
+					if (data) {
+						notebookUri = data.notebook;
+						cellOptions = { resource, options };
+					}
+
+					const notebookOptions = { ...options, cellOptions } as INotebookEditorOptions;
+
+					const editorInput = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editor => editor.editor instanceof InteractiveEditorInput && editor.editor.resource?.toString() === notebookUri.toString());
+					return {
+						editor: editorInput!.editor,
+						options: notebookOptions
+					};
 				}
-
-				const notebookOptions = { ...options, cellOptions } as INotebookEditorOptions;
-
-				const editorInput = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editor => editor.editor instanceof InteractiveEditorInput && editor.editor.resource?.toString() === notebookUri.toString());
-				return {
-					editor: editorInput!.editor,
-					options: notebookOptions
-				};
 			}
 		);
 	}
