@@ -109,6 +109,7 @@ export class MenuId {
 	static readonly TestPeekTitle = new MenuId('TestPeekTitle');
 	static readonly TouchBarContext = new MenuId('TouchBarContext');
 	static readonly TitleBarContext = new MenuId('TitleBarContext');
+	static readonly TitleBarTitleContext = new MenuId('TitleBarTitleContext');
 	static readonly TunnelContext = new MenuId('TunnelContext');
 	static readonly TunnelPrivacy = new MenuId('TunnelPrivacy');
 	static readonly TunnelProtocol = new MenuId('TunnelProtocol');
@@ -163,6 +164,8 @@ export class MenuId {
 	static readonly InlineCompletionsActions = new MenuId('InlineCompletionsActions');
 	static readonly NewFile = new MenuId('NewFile');
 	static readonly MergeToolbar = new MenuId('MergeToolbar');
+	static readonly MergeInput1Toolbar = new MenuId('MergeToolbar1Toolbar');
+	static readonly MergeInput2Toolbar = new MenuId('MergeToolbar2Toolbar');
 
 	/**
 	 * Create or reuse a `MenuId` with the given identifier

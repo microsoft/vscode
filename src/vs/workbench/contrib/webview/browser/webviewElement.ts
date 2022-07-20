@@ -560,7 +560,12 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	}
 
 	protected webviewContentEndpoint(encodedWebviewOrigin: string): string {
-		const endpoint = this._environmentService.webviewExternalEndpoint!.replace('{{uuid}}', encodedWebviewOrigin);
+		const webviewExternalEndpoint = this._environmentService.webviewExternalEndpoint;
+		if (!webviewExternalEndpoint) {
+			throw new Error(`'webviewExternalEndpoint' has not been configured. Webviews will not work!`);
+		}
+
+		const endpoint = webviewExternalEndpoint.replace('{{uuid}}', encodedWebviewOrigin);
 		if (endpoint[endpoint.length - 1] === '/') {
 			return endpoint.slice(0, endpoint.length - 1);
 		}

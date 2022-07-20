@@ -5,6 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
+import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -15,6 +16,9 @@ import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/edi
 import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
 import { CodeLensContribution } from 'vs/editor/contrib/codelens/browser/codelensController';
 import { localize } from 'vs/nls';
+import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { attachToggleStyler } from 'vs/platform/theme/common/styler';
@@ -231,9 +235,12 @@ export class InputCodeEditorView extends CodeEditorView {
 
 	constructor(
 		public readonly inputNumber: 1 | 2,
+		titleMenuId: MenuId,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IThemeService themeService: IThemeService,
+		@IMenuService menuService: IMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super(instantiationService);
 
@@ -247,6 +254,19 @@ export class InputCodeEditorView extends CodeEditorView {
 				createView: (item, target) => new MergeConflictGutterItemView(item, target, contextMenuService, themeService),
 			})
 		);
+
+		// title menu
+		const titleMenu = menuService.createMenu(titleMenuId, contextKeyService);
+		const toolBar = new ToolBar(this.htmlElements.toolbar, contextMenuService);
+		const toolBarUpdate = () => {
+			const secondary: IAction[] = [];
+			createAndFillInActionBarActions(titleMenu, { renderShortTitle: true }, secondary);
+			toolBar.setActions([], secondary);
+		};
+		this._store.add(toolBar);
+		this._store.add(titleMenu);
+		this._store.add(titleMenu.onDidChange(toolBarUpdate));
+		toolBarUpdate();
 	}
 
 	protected override getEditorContributions(): IEditorContributionDescription[] | undefined {

@@ -36,6 +36,10 @@ export interface ISandboxNodeProcess extends INodeProcess {
 
 	/**
 	 * The `process.pid` property returns the PID of the process.
+	 *
+	 * @deprecated this property will be removed once sandbox is enabled.
+	 *
+	 * TODO@bpasero remove this property when sandbox is on
 	 */
 	readonly pid: number;
 

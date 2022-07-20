@@ -10,7 +10,7 @@ import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/sn
 suite('SnippetRewrite', function () {
 
 	function assertRewrite(input: string, expected: string | boolean): void {
-		const actual = new Snippet(['foo'], 'foo', 'foo', 'foo', input, 'foo', SnippetSource.User, generateUuid());
+		const actual = new Snippet(false, ['foo'], 'foo', 'foo', 'foo', input, 'foo', SnippetSource.User, generateUuid());
 		if (typeof expected === 'boolean') {
 			assert.strictEqual(actual.codeSnippet, input);
 		} else {
@@ -48,7 +48,7 @@ suite('SnippetRewrite', function () {
 	});
 
 	test('lazy bogous variable rewrite', function () {
-		const snippet = new Snippet(['fooLang'], 'foo', 'prefix', 'desc', 'This is ${bogous} because it is a ${var}', 'source', SnippetSource.Extension, generateUuid());
+		const snippet = new Snippet(false, ['fooLang'], 'foo', 'prefix', 'desc', 'This is ${bogous} because it is a ${var}', 'source', SnippetSource.Extension, generateUuid());
 		assert.strictEqual(snippet.body, 'This is ${bogous} because it is a ${var}');
 		assert.strictEqual(snippet.codeSnippet, 'This is ${1:bogous} because it is a ${2:var}');
 		assert.strictEqual(snippet.isBogous, true);

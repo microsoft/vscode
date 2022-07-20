@@ -437,7 +437,7 @@ export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 		return {
 			commit: this._productService.commit,
 			version: this._productService.version,
-			parentPid: process.pid,
+			parentPid: process.sandboxed ? 0 : process.pid,
 			environment: {
 				isExtensionDevelopmentDebug: this._isExtensionDevDebug,
 				appRoot: this._environmentService.appRoot ? URI.file(this._environmentService.appRoot) : undefined,

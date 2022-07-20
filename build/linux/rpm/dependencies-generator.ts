@@ -92,7 +92,7 @@ function calculatePackageDeps(binaryPath: string): Set<string> {
 	return requires;
 }
 
-// Based on https://source.chromium.org/chromium/chromium/src/+/main:chrome/installer/linux/rpm/merge_package_deps.py
+// Based on https://source.chromium.org/chromium/chromium/src/+/main:chrome/installer/linux/rpm/merge_package_deps.py.
 function mergePackageDeps(inputDeps: Set<string>[]): Set<string> {
 	const requires = new Set<string>();
 	for (const depSet of inputDeps) {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILogger } from 'vscode-markdown-languageservice';
+import { ILogger, LogLevel } from 'vscode-markdown-languageservice';
 
 export class LogFunctionLogger implements ILogger {
 
@@ -31,8 +31,9 @@ export class LogFunctionLogger implements ILogger {
 		private readonly _logFn: typeof console.log
 	) { }
 
-	public verbose(title: string, message: string, data?: any): void {
-		this.appendLine(`[Verbose ${LogFunctionLogger.now()}] ${title}: ${message}`);
+
+	public log(level: LogLevel, title: string, message: string, data?: any): void {
+		this.appendLine(`[${level} ${LogFunctionLogger.now()}] ${title}: ${message}`);
 		if (data) {
 			this.appendLine(LogFunctionLogger.data2String(data));
 		}
