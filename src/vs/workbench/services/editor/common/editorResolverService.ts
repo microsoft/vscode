@@ -84,10 +84,6 @@ export type RegisteredEditorOptions = {
 	 * If your editor cannot be opened in multiple groups for the same resource
 	 */
 	singlePerResource?: boolean | (() => boolean);
-	/**
-	 * If your editor supports diffs
-	 */
-	canHandleDiff?: boolean | (() => boolean);
 
 	/**
 	 * Whether or not you can support opening the given resource.
@@ -112,6 +108,13 @@ export type UntitledEditorInputFactoryFunction = (untitledEditorInput: IUntitled
 export type DiffEditorInputFactoryFunction = (diffEditorInput: IResourceDiffEditorInput, group: IEditorGroup) => EditorInputFactoryResult;
 
 export type MergeEditorInputFactoryFunction = (mergeEditorInput: IResourceMergeEditorInput, group: IEditorGroup) => EditorInputFactoryResult;
+
+export type EditorInputFactoryObject = {
+	createEditorInput: EditorInputFactoryFunction;
+	createUntitledEditorInput?: UntitledEditorInputFactoryFunction;
+	createDiffEditorInput?: DiffEditorInputFactoryFunction;
+	createMergeEditorInput?: MergeEditorInputFactoryFunction;
+};
 
 export interface IEditorResolverService {
 	readonly _serviceBrand: undefined;
@@ -139,16 +142,13 @@ export interface IEditorResolverService {
 	 * @param globPattern The glob pattern for this registration
 	 * @param editorInfo Information about the registration
 	 * @param options Specific options which apply to this registration
-	 * @param createEditorInput The factory method for creating inputs
+	 * @param editorFactoryObject The editor input factory functions
 	 */
 	registerEditor(
 		globPattern: string | glob.IRelativePattern,
 		editorInfo: RegisteredEditorInfo,
 		options: RegisteredEditorOptions,
-		createEditorInput: EditorInputFactoryFunction,
-		createUntitledEditorInput?: UntitledEditorInputFactoryFunction,
-		createDiffEditorInput?: DiffEditorInputFactoryFunction,
-		createMergeEditorInput?: MergeEditorInputFactoryFunction
+		editorFactoryObject: EditorInputFactoryObject
 	): IDisposable;
 
 	/**
