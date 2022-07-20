@@ -138,7 +138,6 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 
 export class CodeActionMenu extends Disposable implements IEditorContribution {
 	private readonly _showingActions = this._register(new MutableDisposable<CodeActionSet>());
-	private readonly _disposables = new DisposableStore();
 	private codeActionList = this._register(new MutableDisposable<List<ICodeActionMenuItem>>());
 	private options: ICodeActionMenuItem[] = [];
 	private _visible: boolean = false;
@@ -337,7 +336,6 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 
 	override dispose() {
 		super.dispose();
-		this._disposables.dispose();
 	}
 
 	hideCodeActionWidget() {
