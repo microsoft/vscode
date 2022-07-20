@@ -8,13 +8,10 @@
 // https://github.com/microsoft/vscode/issues/122283 @alexr00
 
 /**
- * View contributions can include a `size`, which can be `fit` or a number. Using a number works similar to the css flex property.
+ * View contributions can include a `size`, which can be a number. A number works similar to the css flex property.
  *
  * For example, if you have 3 views, with sizes 1, 1, and 2, the views of size 1 will together take up the same amount of space as the view of size 2.
  *
- * A view with `size` `fit` will try to fit the contents of the view. Currently only supported for tree views.
- *
- * A number value will only be used as an initial size.
- * A 'fit' value will always be respected.
+ * A number value will only be used as an initial size. After a user has changed the size of the view, the user's choice will be restored.
 */
 

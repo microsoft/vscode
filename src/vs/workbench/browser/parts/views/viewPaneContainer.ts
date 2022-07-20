@@ -389,7 +389,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		@IStorageService protected storageService: IStorageService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IViewDescriptorService protected viewDescriptorService: IViewDescriptorService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService protected readonly contextKeyService: IContextKeyService
 	) {
 
 		super(id, themeService, storageService);
