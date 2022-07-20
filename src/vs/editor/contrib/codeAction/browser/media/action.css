@@ -86,7 +86,7 @@
 	-moz-user-select: none;
 	-ms-user-select: none;
 	user-select: none;
-	/* color: var(--vscode-list-inactiveSelectionBackground) !important; */
+	color: var(--vscode-list-inactiveSelectionBackground) !important;
 }
 
 .codeActionMenuWidget .monaco-list .separator {

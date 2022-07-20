@@ -11,10 +11,11 @@ import { Registry } from 'vs/platform/registry/common/platform';
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 	...editorConfigurationBaseNode,
 	properties: {
-		'editor.contrib.experimental.codeActionWidget.enabled': {
+		'editor.experimental.useCustomCodeActionMenu': {
 			type: 'boolean',
+			tags: ['experimental'],
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			description: nls.localize('codeActionWidget', "Enable/disable opening the experimental Code Action Widget."),
+			description: nls.localize('codeActionWidget', "Enabling this adjusts how the code action menu is rendered."),
 			default: false,
 		},
 	}

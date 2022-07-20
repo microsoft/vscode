@@ -120,8 +120,8 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 		if (!isEnabled) {
 			data.root.classList.add('option-disabled');
 			data.root.style.backgroundColor = 'transparent !important';
-			data.root.style.color = 'rgb(204, 204, 204, 0.5)';
-			data.root.style.cursor = 'default';
+			// data.root.style.color = 'rgb(204, 204, 204, 0.5)';
+			// data.root.style.cursor = 'default';
 		} else {
 			data.root.classList.remove('option-disabled');
 		}
@@ -138,19 +138,15 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 }
 
 export class CodeActionMenu extends Disposable implements IEditorContribution {
-	private readonly _ctxMenuWidgetIsFocused?: IContextKey<boolean>;
-	private readonly editor: ICodeEditor;
 	private readonly _showingActions = this._register(new MutableDisposable<CodeActionSet>());
 	private readonly _disposables = new DisposableStore();
-	private readonly _onDidHideContextMenu = new Emitter<void>();
 	private codeActionList!: List<ICodeActionMenuItem>;
 	private options: ICodeActionMenuItem[] = [];
 	private _visible: boolean = false;
-	readonly onDidHideContextMenu = this._onDidHideContextMenu.event;
-	private _ctxMenuWidgetVisible!: IContextKey<boolean>;
+	private _ctxMenuWidgetVisible: IContextKey<boolean>;
 	private viewItems: ICodeActionMenuItem[] = [];
-	private focusedEnabledItem!: number;
-	private currSelectedItem!: number;
+	private focusedEnabledItem: number | undefined;
+	private currSelectedItem: number = 0;
 
 	public static readonly ID: string = 'editor.contrib.codeActionMenu';
 
@@ -159,7 +155,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	}
 
 	private readonly _keybindingResolver: CodeActionKeybindingResolver;
-	listRenderer: any;
+	private listRenderer: CodeMenuRenderer = new CodeMenuRenderer();
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -175,12 +171,11 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	) {
 		super();
 
-		this.editor = _editor;
 		this._keybindingResolver = new CodeActionKeybindingResolver({
 			getKeybindings: () => keybindingService.getKeybindings()
 		});
 
-		this._ctxMenuWidgetVisible = Context.Visible.bindTo(_contextKeyService);
+		this._ctxMenuWidgetVisible = Context.Visible.bindTo(this._contextKeyService);
 	}
 
 	get isVisible(): boolean {
@@ -188,7 +183,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	}
 
 	private isCodeActionWidgetEnabled(model: ITextModel): boolean {
-		return this._configurationService.getValue('editor.contrib.experimental.codeActionWidget.enabled', {
+		return this._configurationService.getValue('editor.experimental.useCustomCodeActionMenu', {
 			resource: model.uri
 		});
 	}
@@ -204,14 +199,10 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		}
 	}
 
-	private _onListFocus(e: IListEvent<ICodeActionMenuItem>): void {
-		this._ctxMenuWidgetIsFocused?.set(true);
-	}
 
 	private renderCodeActionMenuList(element: HTMLElement, inputArray: IAction[]): IDisposable {
 		const renderDisposables = new DisposableStore();
 		const renderMenu = document.createElement('div');
-		this.listRenderer = new CodeMenuRenderer();
 
 		const height = inputArray.length * 27;
 		renderMenu.style.height = String(height) + 'px';
@@ -231,10 +222,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		}, [this.listRenderer], { keyboardSupport: false }
 		);
 
-		if (this.codeActionList) {
-			renderDisposables.add(this.codeActionList.onDidChangeSelection(e => this._onListSelection(e)));
-			renderDisposables.add(this.codeActionList.onDidChangeFocus(e => this._onListFocus(e)));
-		}
+		renderDisposables.add(this.codeActionList.onDidChangeSelection(e => this._onListSelection(e)));
 
 		// Populating the list widget and tracking enabled options.
 		inputArray.forEach((item, index) => {
@@ -257,6 +245,8 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 
 		// resize observer - can be used in the future since list widget supports dynamic height but not width
 		const maxWidth = Math.max(...arr);
+
+		// 40 is the additional padding for the list widget (20 left, 20 right)
 		renderMenu.style.width = maxWidth + 40 + 'px';
 		this.codeActionList.layout(height, maxWidth);
 
@@ -349,8 +339,31 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		this.dispose();
 	}
 
+	codeActionTelemetry(openedFromString: CodeActionTriggerSource, didCancel: boolean, CodeActions: CodeActionSet) {
+		type ApplyCodeActionEvent = {
+			codeActionFrom: CodeActionTriggerSource;
+			validCodeActions: number;
+			cancelled: boolean;
+		};
+
+		type ApplyCodeEventClassification = {
+			codeActionFrom: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of action used to opened the code action.' };
+			validCodeActions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The total number of valid actions that are highlighted and can be used.' };
+			cancelled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The indicator if the menu was selected or cancelled.' };
+			owner: 'mjbvz';
+			comment: 'Event used to gain insights into how code actions are being triggered';
+		};
+
+		this._telemetryService.publicLog2<ApplyCodeActionEvent, ApplyCodeEventClassification>('codeAction.applyCodeAction', {
+			codeActionFrom: openedFromString,
+			validCodeActions: CodeActions.validActions.length,
+			cancelled: didCancel,
+
+		});
+	}
+
 	public async show(trigger: CodeActionTrigger, codeActions: CodeActionSet, at: IAnchor | IPosition, options: CodeActionShowOptions): Promise<void> {
-		const model = this.editor.getModel();
+		const model = this._editor.getModel();
 		if (!model) {
 			return;
 		}
@@ -383,27 +396,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 				render: (container: HTMLElement) => this.renderCodeActionMenuList(container, menuActions),
 				onHide: (didCancel) => {
 					const openedFromString = (options.fromLightbulb) ? CodeActionTriggerSource.Lightbulb : trigger.triggerAction;
-
-					type ApplyCodeActionEvent = {
-						codeActionFrom: CodeActionTriggerSource;
-						validCodeActions: number;
-						cancelled: boolean;
-					};
-
-					type ApplyCodeEventClassification = {
-						codeActionFrom: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of action used to opened the code action.' };
-						validCodeActions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The total number of valid actions that are highlighted and can be used.' };
-						cancelled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The indicator if the menu was selected or cancelled.' };
-						owner: 'mjbvz';
-						comment: 'Event used to gain insights into how code actions are being triggered';
-					};
-
-					this._telemetryService.publicLog2<ApplyCodeActionEvent, ApplyCodeEventClassification>('codeAction.applyCodeAction', {
-						codeActionFrom: openedFromString,
-						validCodeActions: codeActions.validActions.length,
-						cancelled: didCancel,
-
-					});
+					this.codeActionTelemetry(openedFromString, didCancel, codeActions);
 					this._visible = false;
 					this._editor.focus();
 				},
@@ -417,28 +410,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 				getActions: () => menuActions,
 				onHide: (didCancel) => {
 					const openedFromString = (options.fromLightbulb) ? CodeActionTriggerSource.Lightbulb : trigger.triggerAction;
-
-					type ApplyCodeActionEvent = {
-						codeActionFrom: CodeActionTriggerSource;
-						validCodeActions: number;
-						cancelled: boolean;
-					};
-
-					type ApplyCodeEventClassification = {
-						codeActionFrom: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of action used to opened the code action.' };
-						validCodeActions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The total number of valid actions that are highlighted and can be used.' };
-						cancelled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The indicator if the menu was selected or cancelled.' };
-						owner: 'mjbvz';
-						comment: 'Event used to gain insights into how code actions are being triggered';
-					};
-
-					this._telemetryService.publicLog2<ApplyCodeActionEvent, ApplyCodeEventClassification>('codeAction.applyCodeAction', {
-						codeActionFrom: openedFromString,
-						validCodeActions: codeActions.validActions.length,
-						cancelled: didCancel,
-
-					});
-
+					this.codeActionTelemetry(openedFromString, didCancel, codeActions);
 					this._visible = false;
 					this._editor.focus();
 				},

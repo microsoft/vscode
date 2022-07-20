@@ -134,15 +134,21 @@ export class QuickFixController extends Disposable implements IEditorContributio
 	}
 
 	public hideCodeActionMenu() {
-		this._ui.getValue().hideCodeActionWidget();
+		if (this._ui.hasValue()) {
+			this._ui.getValue().hideCodeActionWidget();
+		}
 	}
 
 	public navigateCodeActionList(navUp: Boolean) {
-		this._ui.getValue().navigateList(navUp);
+		if (this._ui.hasValue()) {
+			this._ui.getValue().navigateList(navUp);
+		}
 	}
 
 	public selectedOption() {
-		this._ui.getValue().onEnter();
+		if (this._ui.hasValue()) {
+			this._ui.getValue().onEnter();
+		}
 	}
 
 	public showCodeActions(trigger: CodeActionTrigger, actions: CodeActionSet, at: IAnchor | IPosition) {
@@ -522,7 +528,7 @@ registerEditorCommand(new CodeActionContribution({
 }));
 
 registerEditorCommand(new CodeActionContribution({
-	id: 'navigatePrevious',
+	id: 'focusPreviousCodeAction',
 	precondition: Context.Visible,
 	handler(x) {
 		x.navigateCodeActionList(true);
@@ -535,7 +541,7 @@ registerEditorCommand(new CodeActionContribution({
 }));
 
 registerEditorCommand(new CodeActionContribution({
-	id: 'navigateNext',
+	id: 'focusNextCodeAction',
 	precondition: Context.Visible,
 	handler(x) {
 		x.navigateCodeActionList(false);
@@ -548,7 +554,7 @@ registerEditorCommand(new CodeActionContribution({
 }));
 
 registerEditorCommand(new CodeActionContribution({
-	id: 'onEnterSelect',
+	id: 'onEnterSelectCodeAction',
 	precondition: Context.Visible,
 	handler(x) {
 		x.selectedOption();
