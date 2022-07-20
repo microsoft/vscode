@@ -22,16 +22,12 @@ export async function activate(ctx: RendererContext<void>) {
 		md.renderer.rules.image = (tokens: MarkdownItToken[], idx: number, options, env, self) => {
 			const token = tokens[idx];
 			const src = token.attrGet('src');
-			// if (env.outputItem.metadata?.custom?.attachments) {
-			// const attachments: Record<string, Record<string, string>> = (env.outputItem.metadata as any).custom.attachments;
 			const attachments: Record<string, Record<string, string>> = env.outputItem.metadata?.custom?.attachments;
 			if (attachments && src) {
 				const [attachmentKey, attachmentVal] = Object.entries(attachments[src.replace('attachment:', '')])[0];
 				const b64Markdown = 'data:' + attachmentKey + ';base64,' + attachmentVal;
 				token.attrSet('src', b64Markdown);
 			}
-			// }
-			//
 
 			if (original) {
 				return original(tokens, idx, options, env, self);
