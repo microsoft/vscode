@@ -432,11 +432,11 @@ export class CommandCenter {
 			]);
 			// ours (current branch and commit)
 			ours.detail = head.refNames.map(s => s.replace(/^HEAD ->/, '')).join(', ');
-			ours.description = head.hash.substring(0, 7);
+			ours.description = '$(git-commit) ' + head.hash.substring(0, 7);
 
 			// theirs
 			theirs.detail = rebaseOrMergeHead.refNames.join(', ');
-			theirs.description = rebaseOrMergeHead.hash.substring(0, 7);
+			theirs.description = '$(git-commit) ' + rebaseOrMergeHead.hash.substring(0, 7);
 
 		} catch (error) {
 			// not so bad, can continue with just uris

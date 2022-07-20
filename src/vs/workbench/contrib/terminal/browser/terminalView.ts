@@ -395,7 +395,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 			{
 				id: action.id,
 				title: _instantiationService.invokeFunction(getSingleTabLabel, _terminalGroupService.activeInstance, _terminalService.configHelper.config.tabs.separator),
-				tooltip: getSingleTabTooltip(_terminalGroupService.activeInstance, _terminalService.configHelper.config.tabs.separator, configurationService)
+				tooltip: getSingleTabTooltip(_terminalGroupService.activeInstance, _terminalService.configHelper.config.tabs.separator)
 			},
 			{
 				id: TerminalCommandId.Split,
@@ -417,12 +417,12 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 		this._register(this._terminalService.onDidChangeInstanceColor(e => this.updateLabel(e)));
 		this._register(this._terminalService.onDidChangeInstanceTitle(e => {
 			if (e === this._terminalGroupService.activeInstance) {
-				this._action.tooltip = getSingleTabTooltip(e, this._terminalService.configHelper.config.tabs.separator, configurationService);
+				this._action.tooltip = getSingleTabTooltip(e, this._terminalService.configHelper.config.tabs.separator);
 				this.updateLabel();
 			}
 		}));
 		this._register(this._terminalService.onDidChangeInstanceCapability(e => {
-			this._action.tooltip = getSingleTabTooltip(e, this._terminalService.configHelper.config.tabs.separator, configurationService);
+			this._action.tooltip = getSingleTabTooltip(e, this._terminalService.configHelper.config.tabs.separator);
 			this.updateLabel(e);
 		}));
 
@@ -547,11 +547,11 @@ function getSingleTabLabel(accessor: ServicesAccessor, instance: ITerminalInstan
 	return `${label} $(${primaryStatus.icon.id})`;
 }
 
-function getSingleTabTooltip(instance: ITerminalInstance | undefined, separator: string, configurationService: IConfigurationService): string {
+function getSingleTabTooltip(instance: ITerminalInstance | undefined, separator: string): string {
 	if (!instance) {
 		return '';
 	}
-	const shellIntegrationString = getShellIntegrationTooltip(instance, false, configurationService);
+	const shellIntegrationString = getShellIntegrationTooltip(instance, false);
 	const title = getSingleTabTitle(instance, separator);
 	return shellIntegrationString ? title + shellIntegrationString : title;
 }
