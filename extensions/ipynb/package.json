@@ -87,7 +87,6 @@
 	"dependencies": {
 		"@enonic/fnv-plus": "^1.3.0",
 		"detect-indent": "^6.0.0",
-    "markdown-it": "^12.3.2",
 		"uuid": "^8.3.2"
 	},
 	"devDependencies": {
