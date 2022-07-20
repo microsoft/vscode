@@ -37,6 +37,7 @@ import { settingsEditIcon, settingsScopeDropDownIcon } from 'vs/workbench/contri
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { CONTEXT_SETTINGS_EDITOR_IN_USER_TAB } from 'vs/workbench/contrib/preferences/common/preferences';
 
 export class FolderSettingsActionViewItem extends BaseActionViewItem {
 
@@ -220,6 +221,7 @@ export class SettingsTargetsWidget extends Widget {
 	private folderSettingsAction!: Action;
 	private folderSettings!: FolderSettingsActionViewItem;
 	private options: ISettingsTargetsWidgetOptions;
+	private inUserTab: IContextKey<boolean>;
 
 	private _settingsTarget: SettingsTarget | null = null;
 
@@ -234,13 +236,15 @@ export class SettingsTargetsWidget extends Widget {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@ILanguageService private readonly languageService: ILanguageService
+		@ILanguageService private readonly languageService: ILanguageService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
 		this.options = options ?? {};
 		this.create(parent);
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.onWorkbenchStateChanged()));
 		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.update()));
+		this.inUserTab = CONTEXT_SETTINGS_EDITOR_IN_USER_TAB.bindTo(contextKeyService);
 	}
 
 	private resetLabels() {
@@ -301,6 +305,7 @@ export class SettingsTargetsWidget extends Widget {
 		} else {
 			this.folderSettings.getAction().checked = false;
 		}
+		this.inUserTab.set(this.userLocalSettings.checked);
 	}
 
 	setResultCount(settingsTarget: SettingsTarget, count: number): void {

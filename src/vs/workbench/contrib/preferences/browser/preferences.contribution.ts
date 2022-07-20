@@ -34,7 +34,7 @@ import { ConfigureLanguageBasedSettingsAction } from 'vs/workbench/contrib/prefe
 import { SettingsEditorContribution } from 'vs/workbench/contrib/preferences/browser/preferencesEditor';
 import { preferencesOpenSettingsIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { SettingsEditor2, SettingsFocusContext } from 'vs/workbench/contrib/preferences/browser/settingsEditor2';
-import { CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, CONTEXT_KEYBINDING_FOCUS, CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_JSON_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, CONTEXT_WHEN_FOCUS, KEYBINDINGS_EDITOR_COMMAND_ADD, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_HISTORY, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_TITLE, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN, KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS, KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_SEARCH, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_EXTENSION_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
+import { CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, CONTEXT_KEYBINDING_FOCUS, CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_EDITOR_IN_USER_TAB, CONTEXT_SETTINGS_JSON_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, CONTEXT_WHEN_FOCUS, KEYBINDINGS_EDITOR_COMMAND_ADD, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_HISTORY, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_TITLE, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN, KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS, KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_SEARCH, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_EXTENSION_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
 import { PreferencesContribution } from 'vs/workbench/contrib/preferences/common/preferencesContribution';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -57,6 +57,7 @@ const SETTINGS_EDITOR_COMMAND_FOCUS_UP = 'settings.action.focusLevelUp';
 
 const SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON = 'settings.switchToJSON';
 const SETTINGS_EDITOR_COMMAND_SWITCH_TO_APPLICATION_JSON = 'settings.switchToApplicationJSON';
+const SETTINGS_EDITOR_COMMAND_SWITCH_TO_CURRENT_PROFILE_JSON = 'settings.switchToCurrentProfileJSON';
 const SETTINGS_EDITOR_COMMAND_FILTER_ONLINE = 'settings.filterByOnline';
 const SETTINGS_EDITOR_COMMAND_FILTER_TELEMETRY = 'settings.filterByTelemetry';
 const SETTINGS_EDITOR_COMMAND_FILTER_UNTRUSTED = 'settings.filterUntrusted';
@@ -276,18 +277,20 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			});
 		};
 
-		const openJsonFromUserSettingsDisposableStore = this._register(new DisposableStore());
-		const registerOpenJsonFromUserSettingsEditorAction = () => {
-			openJsonFromUserSettingsDisposableStore.clear();
+		const openJsonFromSettingsEditorDisposableStore = this._register(new DisposableStore());
+		const registerOpenJsonFromSettingsEditorAction = () => {
+			openJsonFromSettingsEditorDisposableStore.clear();
 			if (!this.userDataProfileService.currentProfile.isDefault) {
+				// When the default profile is not active, the action for the User tab needs a dropdown
+				// because User tab settings in that case are actually saved in two separate files.
 				const submenuId = MenuId.for('PreferencesSubMenu');
-				openJsonFromUserSettingsDisposableStore.add(registerAction2(class extends Action2 {
+				openJsonFromSettingsEditorDisposableStore.add(registerAction2(class extends Action2 {
 					constructor() {
 						super({
-							id: SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON,
-							title: { value: nls.localize('openProfileSettings', "Open Profile Settings (JSON)"), original: 'Open Profile Settings (JSON)' },
+							id: SETTINGS_EDITOR_COMMAND_SWITCH_TO_CURRENT_PROFILE_JSON,
+							title: { value: nls.localize('openCurrentProfileSettings', "Open Current Profile Settings (JSON)"), original: 'Open Current Profile Settings (JSON)' },
 							f1: true,
-							menu: [{ id: submenuId }]
+							menu: [{ id: submenuId, order: 1 }]
 						});
 					}
 					run(accessor: ServicesAccessor) {
@@ -298,13 +301,13 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 						return null;
 					}
 				}));
-				openJsonFromUserSettingsDisposableStore.add(registerAction2(class extends Action2 {
+				openJsonFromSettingsEditorDisposableStore.add(registerAction2(class extends Action2 {
 					constructor() {
 						super({
 							id: SETTINGS_EDITOR_COMMAND_SWITCH_TO_APPLICATION_JSON,
 							title: { value: nls.localize('openApplicationSettings', "Open User Settings (JSON)"), original: 'Open User Settings (JSON)' },
 							f1: true,
-							menu: [{ id: submenuId }]
+							menu: [{ id: submenuId, order: 2 }]
 						});
 					}
 					run(accessor: ServicesAccessor) {
@@ -315,47 +318,52 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 						return null;
 					}
 				}));
-				openJsonFromUserSettingsDisposableStore.add(MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+				openJsonFromSettingsEditorDisposableStore.add(MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 					title: { value: nls.localize('openSettingsJson', "Open Settings (JSON)"), original: 'Open Settings (JSON)' },
 					submenu: submenuId,
 					icon: preferencesOpenSettingsIcon,
-					when: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_JSON_EDITOR.toNegated()),
+					when: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_EDITOR_IN_USER_TAB, CONTEXT_SETTINGS_JSON_EDITOR.toNegated()),
 					group: 'navigation',
 					order: 1
 				}));
-			} else {
-				openJsonFromUserSettingsDisposableStore.add(registerAction2(class extends Action2 {
-					constructor() {
-						super({
-							id: SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON,
-							title: { value: nls.localize('openSettingsJson', "Open Settings (JSON)"), original: 'Open Settings (JSON)' },
-							icon: preferencesOpenSettingsIcon,
-							menu: [{
-								id: MenuId.EditorTitle,
-
-								when: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_JSON_EDITOR.toNegated()),
-								group: 'navigation',
-								order: 1
-							}]
-						});
-					}
-					run(accessor: ServicesAccessor) {
-						const editorPane = accessor.get(IEditorService).activeEditorPane;
-						if (editorPane instanceof SettingsEditor2) {
-							return editorPane.switchToSettingsFile();
-						}
-						return null;
-					}
-				}));
 			}
+
+			let openSettingsJsonWhen = ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_JSON_EDITOR.toNegated());
+			if (!this.userDataProfileService.currentProfile.isDefault) {
+				// If we're not in the default profile, we already created the action for the User tab above,
+				// so we want to make sure the user is not in the User tab for this more general action.
+				openSettingsJsonWhen = ContextKeyExpr.and(openSettingsJsonWhen, CONTEXT_SETTINGS_EDITOR_IN_USER_TAB.toNegated());
+			}
+			openJsonFromSettingsEditorDisposableStore.add(registerAction2(class extends Action2 {
+				constructor() {
+					super({
+						id: SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON,
+						title: { value: nls.localize('openSettingsJson', "Open Settings (JSON)"), original: 'Open Settings (JSON)' },
+						icon: preferencesOpenSettingsIcon,
+						menu: [{
+							id: MenuId.EditorTitle,
+							when: openSettingsJsonWhen,
+							group: 'navigation',
+							order: 1
+						}]
+					});
+				}
+				run(accessor: ServicesAccessor) {
+					const editorPane = accessor.get(IEditorService).activeEditorPane;
+					if (editorPane instanceof SettingsEditor2) {
+						return editorPane.switchToSettingsFile();
+					}
+					return null;
+				}
+			}));
 		};
 
 		registerOpenUserSettingsEditorFromJsonAction();
-		registerOpenJsonFromUserSettingsEditorAction();
+		registerOpenJsonFromSettingsEditorAction();
 
 		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => {
 			registerOpenUserSettingsEditorFromJsonAction();
-			registerOpenJsonFromUserSettingsEditorAction();
+			registerOpenJsonFromSettingsEditorAction();
 		}));
 
 		registerAction2(class extends Action2 {
