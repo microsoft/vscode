@@ -754,6 +754,14 @@ export class SearchView extends ViewPane {
 			}
 		}));
 
+		this._register(Event.debounce(this.tree.onDidChangeFocus, (last, event) => event, 75, true)(() => {
+			const selection = this.tree.getSelection();
+			const focus = this.tree.getFocus()[0];
+			if (selection.length > 1 && focus instanceof Match) {
+				this.onFocus(focus, true);
+			}
+		}));
+
 		this._register(Event.any<any>(this.tree.onDidFocus, this.tree.onDidChangeFocus)(() => {
 			if (this.tree.isDOMFocused()) {
 				const focus = this.tree.getFocus()[0];

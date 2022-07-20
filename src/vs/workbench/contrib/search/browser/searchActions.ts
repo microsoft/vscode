@@ -23,13 +23,13 @@ import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
 import { ISearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
-import { FileMatch, FolderMatch, FolderMatchWithResource, Match, RenderableMatch, searchMatchComparer, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
+import { FileMatch, FolderMatch, FolderMatchWithResource, Match, RenderableMatch, searchComparer, searchMatchComparer, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
 import { OpenEditorCommandId } from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
 import { OpenSearchEditorArgs } from 'vs/workbench/contrib/searchEditor/browser/searchEditor.contribution';
 import { SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ISearchConfiguration, VIEW_ID } from 'vs/workbench/services/search/common/search';
+import { ISearchConfiguration, ISearchConfigurationProperties, VIEW_ID } from 'vs/workbench/services/search/common/search';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 export function isSearchViewFocused(viewsService: IViewsService): boolean {
@@ -457,7 +457,7 @@ class ReplaceActionRunner {
 	async performReplace(element: FolderMatch | FileMatch | Match): Promise<any> {
 		// since multiple elements can be selected, we need to check the type of the FolderMatch/FileMatch/Match before we perform the replace.
 
-		const elementsToReplace = getElementsToOperateOnInfo(this.viewer, element);
+		const elementsToReplace = getElementsToOperateOnInfo(this.viewer, element, this.configurationService.getValue<ISearchConfigurationProperties>('search'));
 
 		await Promise.all(elementsToReplace.map(async (elem) => {
 			const parent = elem.parent();
@@ -467,10 +467,10 @@ class ReplaceActionRunner {
 				return;
 			}
 
-			if (parent instanceof FolderMatch && elem instanceof FileMatch) {
-				await (elem.parent()).replace(elem);
-			} else if (parent instanceof FileMatch && elem instanceof Match) {
-				await (elem.parent()).replace(elem);
+			if (elem instanceof FileMatch) {
+				elem.parent().replace(elem);
+			} else if (elem instanceof Match) {
+				elem.parent().replace(elem);
 			} else if (elem instanceof FolderMatch) {
 				await elem.replaceAll();
 			}
@@ -581,13 +581,14 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 	constructor(
 		private viewer: WorkbenchObjectTree<RenderableMatch>,
 		private element: RenderableMatch,
-		@IKeybindingService keyBindingService: IKeybindingService
+		@IKeybindingService keyBindingService: IKeybindingService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(Constants.RemoveActionId, appendKeyBindingLabel(RemoveAction.LABEL, keyBindingService.lookupKeybinding(Constants.RemoveActionId), keyBindingService), ThemeIcon.asClassName(searchRemoveIcon));
 	}
 
 	override run(): Promise<any> {
-		const elementsToRemove = getElementsToOperateOnInfo(this.viewer, this.element);
+		const elementsToRemove = getElementsToOperateOnInfo(this.viewer, this.element, this.configurationService.getValue<ISearchConfigurationProperties>('search'));
 
 		const currentBottomFocusElement = elementsToRemove[elementsToRemove.length - 1];
 
@@ -827,8 +828,9 @@ export const focusSearchListCommand: ICommandHandler = accessor => {
 	});
 };
 
-function getElementsToOperateOnInfo(viewer: WorkbenchObjectTree<RenderableMatch, void>, currElement: RenderableMatch): RenderableMatch[] {
-	let elements: RenderableMatch[] = viewer.getSelection().filter((x): x is RenderableMatch => x !== null);
+
+function getElementsToOperateOnInfo(viewer: WorkbenchObjectTree<RenderableMatch, void>, currElement: RenderableMatch, sortConfig: ISearchConfigurationProperties): RenderableMatch[] {
+	let elements: RenderableMatch[] = viewer.getSelection().filter((x): x is RenderableMatch => x !== null).sort((a, b) => searchComparer(a, b, sortConfig.sortOrder));
 
 	// if selection doesn't include multiple elements, just return current focus element.
 	if (!(elements.length > 1 && elements.includes(currElement))) {
