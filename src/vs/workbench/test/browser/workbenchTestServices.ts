@@ -135,7 +135,8 @@ import { BrowserElevatedFileService } from 'vs/workbench/services/files/browser/
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ResourceMap } from 'vs/base/common/map';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { ITextEditorService, TextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
+import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
+import { TextEditorService } from 'vs/workbench/contrib/textEditor/browser/textEditorService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { IPaneCompositePart, IPaneCompositeSelectorPart } from 'vs/workbench/browser/parts/paneCompositePart';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';

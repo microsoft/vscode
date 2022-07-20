@@ -21,7 +21,7 @@ import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { FileEditorInputSerializer } from 'vs/workbench/contrib/files/browser/editors/fileEditorHandler';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { TextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
+import { TextEditorService } from 'vs/workbench/contrib/textEditor/browser/textEditorService';
 
 suite('Files - FileEditorInput', () => {
 

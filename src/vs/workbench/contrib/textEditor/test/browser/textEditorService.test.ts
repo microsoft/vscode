@@ -20,8 +20,8 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { isLinux } from 'vs/base/common/platform';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { TextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { TextEditorService } from 'vs/workbench/contrib/textEditor/browser/textEditorService';
 
 suite('TextEditorService', () => {
 

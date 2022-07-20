@@ -70,7 +70,6 @@ import 'vs/workbench/services/activity/browser/activityService';
 import 'vs/workbench/services/keybinding/browser/keybindingService';
 import 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import 'vs/workbench/services/textresourceProperties/common/textResourcePropertiesService';
-import 'vs/workbench/services/textfile/common/textEditorService';
 import 'vs/workbench/services/language/common/languageService';
 import 'vs/workbench/services/model/common/modelService';
 import 'vs/workbench/services/commands/common/commandService';
@@ -147,6 +146,9 @@ registerSingleton(IExtensionsProfileScannerService, ExtensionsProfileScannerServ
 
 
 //#region --- workbench contributions
+
+// Text Editors
+import 'vs/workbench/contrib/textEditor/browser/textEditor.contribution';
 
 // Telemetry
 import 'vs/workbench/contrib/telemetry/browser/telemetry.contribution';
