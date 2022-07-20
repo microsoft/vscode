@@ -57,7 +57,7 @@ export async function startClient(factory: LanguageClientConstructor, workspace:
 		});
 	}
 
-	client.onRequest(proto.parseRequestType, async (e) => {
+	client.onRequest(proto.parse, async (e) => {
 		const uri = vscode.Uri.parse(e.uri);
 		const doc = await workspace.getOrLoadMarkdownDocument(uri);
 		if (doc) {
@@ -67,12 +67,12 @@ export async function startClient(factory: LanguageClientConstructor, workspace:
 		}
 	});
 
-	client.onRequest(proto.readFileRequestType, async (e): Promise<number[]> => {
+	client.onRequest(proto.fs_readFile, async (e): Promise<number[]> => {
 		const uri = vscode.Uri.parse(e.uri);
 		return Array.from(await vscode.workspace.fs.readFile(uri));
 	});
 
-	client.onRequest(proto.statFileRequestType, async (e): Promise<{ isDirectory: boolean } | undefined> => {
+	client.onRequest(proto.fs_stat, async (e): Promise<{ isDirectory: boolean } | undefined> => {
 		const uri = vscode.Uri.parse(e.uri);
 		try {
 			const stat = await vscode.workspace.fs.stat(uri);
@@ -82,28 +82,28 @@ export async function startClient(factory: LanguageClientConstructor, workspace:
 		}
 	});
 
-	client.onRequest(proto.readDirectoryRequestType, async (e): Promise<[string, { isDirectory: boolean }][]> => {
+	client.onRequest(proto.fs_readDirectory, async (e): Promise<[string, { isDirectory: boolean }][]> => {
 		const uri = vscode.Uri.parse(e.uri);
 		const result = await vscode.workspace.fs.readDirectory(uri);
 		return result.map(([name, type]) => [name, { isDirectory: type === vscode.FileType.Directory }]);
 	});
 
-	client.onRequest(proto.findFilesRequestTypes, async (): Promise<string[]> => {
+	client.onRequest(proto.findMarkdownFilesInWorkspace, async (): Promise<string[]> => {
 		return (await vscode.workspace.findFiles(mdFileGlob, '**/node_modules/**')).map(x => x.toString());
 	});
 
 	const watchers = new Map<number, vscode.FileSystemWatcher>();
 
-	client.onRequest(proto.createFileWatcher, async (params): Promise<void> => {
+	client.onRequest(proto.fs_watcher_create, async (params): Promise<void> => {
 		const id = params.id;
 		const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(vscode.Uri.parse(params.uri), '*'), params.options.ignoreCreate, params.options.ignoreChange, params.options.ignoreDelete);
 		watchers.set(id, watcher);
-		watcher.onDidCreate(() => { client.sendRequest(proto.onWatcherChange, { id, uri: params.uri, kind: 'create' }); });
-		watcher.onDidChange(() => { client.sendRequest(proto.onWatcherChange, { id, uri: params.uri, kind: 'change' }); });
-		watcher.onDidDelete(() => { client.sendRequest(proto.onWatcherChange, { id, uri: params.uri, kind: 'delete' }); });
+		watcher.onDidCreate(() => { client.sendRequest(proto.fs_watcher_onChange, { id, uri: params.uri, kind: 'create' }); });
+		watcher.onDidChange(() => { client.sendRequest(proto.fs_watcher_onChange, { id, uri: params.uri, kind: 'change' }); });
+		watcher.onDidDelete(() => { client.sendRequest(proto.fs_watcher_onChange, { id, uri: params.uri, kind: 'delete' }); });
 	});
 
-	client.onRequest(proto.deleteFileWatcher, async (params): Promise<void> => {
+	client.onRequest(proto.fs_watcher_delete, async (params): Promise<void> => {
 		watchers.get(params.id)?.dispose();
 		watchers.delete(params.id);
 	});
