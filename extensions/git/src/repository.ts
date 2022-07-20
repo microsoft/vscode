@@ -617,7 +617,7 @@ class ResourceCommandResolver {
 
 		if (!resource.leftUri) {
 			const bothModified = resource.type === Status.BOTH_MODIFIED;
-			if (resource.rightUri && bothModified && workspace.getConfiguration('git').get<boolean>('mergeEditor', false)) {
+			if (resource.rightUri && workspace.getConfiguration('git').get<boolean>('mergeEditor', false) && (bothModified || resource.type === Status.BOTH_ADDED)) {
 				return {
 					command: '_git.openMergeEditor',
 					title: localize('open.merge', "Open Merge"),
