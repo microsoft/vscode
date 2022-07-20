@@ -40,7 +40,7 @@ class BracketPairColorizer2TelemetryContribution {
 		type BracketPairColorizer2InstalledClassification = {
 			owner: 'hediet';
 			nativeColorizationEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'See below' };
-			comment: 'We use this to understand how many users have the bracket pair colorizer extension installed (and how many of them have native bracket pair colorization enabled), as the extension does not do anything if native bracket pair colorization is enabled.',
+			comment: 'We use this to understand how many users have the bracket pair colorizer extension installed (and how many of them have native bracket pair colorization enabled), as the extension does not do anything if native bracket pair colorization is enabled.'
 		};
 		type BracketPairColorizer2Event = {
 			nativeColorizationEnabled: boolean;
