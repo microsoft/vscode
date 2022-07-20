@@ -34,6 +34,7 @@ export interface IExtensionHostInitData {
 	consoleForward: { includeStack: boolean; logNative: boolean };
 	uiKind: UIKind;
 	messagePorts?: ReadonlyMap<string, MessagePortLike>;
+	__sandboxed?: boolean; // TODO@bpasero remove me once https://github.com/microsoft/vscode/issues/154235 is fixed
 }
 
 export interface IEnvironment {

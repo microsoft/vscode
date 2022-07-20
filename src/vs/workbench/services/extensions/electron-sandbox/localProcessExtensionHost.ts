@@ -466,6 +466,7 @@ export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 				includeStack: !this._isExtensionDevTestFromCli && (this._isExtensionDevHost || !this._environmentService.isBuilt || this._productService.quality !== 'stable' || this._environmentService.verbose),
 				logNative: !this._isExtensionDevTestFromCli && this._isExtensionDevHost
 			},
+			__sandboxed: process.sandboxed,
 			allExtensions: deltaExtensions.toAdd,
 			myExtensions: deltaExtensions.myToAdd,
 			telemetryInfo,
