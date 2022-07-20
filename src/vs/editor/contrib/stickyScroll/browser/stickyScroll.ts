@@ -95,10 +95,21 @@ class StickyScrollCodeLine {
 	constructor(public readonly line: string, public readonly lineNumber: number) { }
 
 	getDomNode() {
+		/* Error with the type checking
 		const domTemplate = dom.h('div', [dom.h('span', { $: 'lineNumber' }), dom.h('span', { $: 'lineValue' })]);
 		domTemplate.lineNumber.innerText = this.lineNumber.toString();
 		domTemplate.lineValue.innerText = this.line;
 		return domTemplate.root;
+		*/
+
+		const root: HTMLElement = document.createElement('div');
+		const lineNumberHTMLNode = document.createElement('span');
+		const lineHTMLNode = document.createElement('span');
+		lineNumberHTMLNode.innerText = this.lineNumber.toString();
+		lineHTMLNode.innerText = this.line;
+		root.appendChild(lineNumberHTMLNode);
+		root.appendChild(lineHTMLNode);
+		return root;
 	}
 }
 
