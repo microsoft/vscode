@@ -283,7 +283,7 @@ export class FoldingRegions {
 				if (nextA && nextA.startLineNumber === nextB.startLineNumber) {
 					// same range in both lists, merge the details
 					useRange = nextA;
-					useRange.isCollapsed = true;
+					useRange.isCollapsed = nextA.endLineNumber === nextB.endLineNumber;
 					useRange.isManualSelection = false;
 					nextA = getA(++indexA); // not necessary, just for speed
 				} else { // use nextB

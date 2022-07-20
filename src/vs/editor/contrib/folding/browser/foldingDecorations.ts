@@ -14,7 +14,9 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export const foldingExpandedIcon = registerIcon('folding-expanded', Codicon.chevronDown, localize('foldingExpandedIcon', 'Icon for expanded ranges in the editor glyph margin.'));
 export const foldingCollapsedIcon = registerIcon('folding-collapsed', Codicon.chevronRight, localize('foldingCollapsedIcon', 'Icon for collapsed ranges in the editor glyph margin.'));
-export const foldingManualIcon = registerIcon('folding-manual', Codicon.ellipsis, localize('foldingManualIcon', 'Icon for manually collapsed ranges in the editor glyph margin.'));
+export const foldingManualCollapsedIcon = registerIcon('folding-manual-collapsed', Codicon.ellipsis, localize('foldingManualCollapedIcon', 'Icon for manually collapsed ranges in the editor glyph margin.'));
+export const foldingManualExpandedIcon = registerIcon('folding-manual-expanded', Codicon.gripper, localize('foldingManualExpandedIcon', 'Icon for manually expanded ranges in the editor glyph margin.'));
+
 export class FoldingDecorationProvider implements IDecorationProvider {
 
 	private static readonly COLLAPSED_VISUAL_DECORATION = ModelDecorationOptions.register({
@@ -39,7 +41,7 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
 		afterContentClassName: 'inline-folded',
 		isWholeLine: true,
-		firstLineDecorationClassName: ThemeIcon.asClassName(foldingManualIcon)
+		firstLineDecorationClassName: 'alwaysShowFoldIcons ' + ThemeIcon.asClassName(foldingExpandedIcon)
 	});
 
 	private static readonly MANUALLY_COLLAPSED_HIGHLIGHTED_VISUAL_DECORATION = ModelDecorationOptions.register({
@@ -48,7 +50,7 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 		afterContentClassName: 'inline-folded',
 		className: 'folded-background',
 		isWholeLine: true,
-		firstLineDecorationClassName: ThemeIcon.asClassName(foldingManualIcon)
+		firstLineDecorationClassName: ThemeIcon.asClassName(foldingManualCollapsedIcon)
 	});
 
 	private static readonly EXPANDED_AUTO_HIDE_VISUAL_DECORATION = ModelDecorationOptions.register({
@@ -65,6 +67,21 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 		firstLineDecorationClassName: 'alwaysShowFoldIcons ' + ThemeIcon.asClassName(foldingExpandedIcon)
 	});
 
+	private static readonly MANUALLY_EXPANDED_VISUAL_DECORATION = ModelDecorationOptions.register({
+		description: 'folding-manually-expanded-visual-decoration',
+		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
+		isWholeLine: true,
+		firstLineDecorationClassName: 'alwaysShowFoldIcons ' + ThemeIcon.asClassName(foldingManualExpandedIcon)
+	});
+
+	private static readonly MANUALLY_EXPANDED_AUTO_HIDE_VISUAL_DECORATION = ModelDecorationOptions.register({
+		description: 'folding-manually-expanded-visual-decoration',
+		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
+		isWholeLine: true,
+		firstLineDecorationClassName: ThemeIcon.asClassName(foldingManualExpandedIcon)
+	});
+
+
 	private static readonly HIDDEN_RANGE_DECORATION = ModelDecorationOptions.register({
 		description: 'folding-hidden-range-decoration',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
@@ -79,7 +96,7 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 
 	getDecorationOption(isCollapsed: boolean, isHidden: boolean, isManualSelection: boolean): IModelDecorationOptions {
 		if (isHidden // is inside another collapsed region
-			|| this.showFoldingControls === 'never' || (isManualSelection && !isCollapsed)) { //
+			|| this.showFoldingControls === 'never') {
 			return FoldingDecorationProvider.HIDDEN_RANGE_DECORATION;
 		}
 		if (isCollapsed) {
@@ -87,9 +104,9 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 				(this.showFoldingHighlights ? FoldingDecorationProvider.MANUALLY_COLLAPSED_HIGHLIGHTED_VISUAL_DECORATION : FoldingDecorationProvider.MANUALLY_COLLAPSED_VISUAL_DECORATION)
 				: (this.showFoldingHighlights ? FoldingDecorationProvider.COLLAPSED_HIGHLIGHTED_VISUAL_DECORATION : FoldingDecorationProvider.COLLAPSED_VISUAL_DECORATION);
 		} else if (this.showFoldingControls === 'mouseover') {
-			return FoldingDecorationProvider.EXPANDED_AUTO_HIDE_VISUAL_DECORATION;
+			return isManualSelection ? FoldingDecorationProvider.MANUALLY_EXPANDED_AUTO_HIDE_VISUAL_DECORATION : FoldingDecorationProvider.EXPANDED_AUTO_HIDE_VISUAL_DECORATION;
 		} else {
-			return FoldingDecorationProvider.EXPANDED_VISUAL_DECORATION;
+			return isManualSelection ? FoldingDecorationProvider.MANUALLY_EXPANDED_VISUAL_DECORATION : FoldingDecorationProvider.EXPANDED_VISUAL_DECORATION;
 		}
 	}
 

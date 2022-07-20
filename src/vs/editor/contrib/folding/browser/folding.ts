@@ -31,7 +31,7 @@ import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/cont
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { editorSelectionBackground, iconForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { foldingCollapsedIcon, FoldingDecorationProvider, foldingExpandedIcon, foldingManualIcon } from './foldingDecorations';
+import { foldingCollapsedIcon, FoldingDecorationProvider, foldingExpandedIcon, foldingManualCollapsedIcon, foldingManualExpandedIcon } from './foldingDecorations';
 import { FoldingRegion, FoldingRegions, FoldRange } from './foldingRanges';
 import { SyntaxRangeProvider } from './syntaxRangeProvider';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -1167,7 +1167,8 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`
 		.monaco-editor .cldr${ThemeIcon.asCSSSelector(foldingExpandedIcon)},
 		.monaco-editor .cldr${ThemeIcon.asCSSSelector(foldingCollapsedIcon)},
-		.monaco-editor .cldr${ThemeIcon.asCSSSelector(foldingManualIcon)} {
+		.monaco-editor .cldr${ThemeIcon.asCSSSelector(foldingManualExpandedIcon)},
+		.monaco-editor .cldr${ThemeIcon.asCSSSelector(foldingManualCollapsedIcon)} {
 			color: ${editorFoldColor} !important;
 		}
 		`);
