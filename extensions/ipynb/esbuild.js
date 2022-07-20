@@ -34,11 +34,6 @@ async function build() {
 		platform: 'browser',
 		target: ['es2020'],
 	});
-
-	// fse.copySync(
-	// 	path.join(__dirname, 'node_modules', 'katex', 'dist'),
-	// 	path.join(outDir, 'katex.min.css'));
-
 }
 
 
