@@ -186,13 +186,11 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		return renderedComment;
 	}
 
-	private getIcon(commentCount: number, threadState?: CommentThreadState): Codicon {
+	private getIcon(threadState?: CommentThreadState): Codicon {
 		if (threadState === CommentThreadState.Unresolved) {
 			return Codicon.commentUnresolved;
-		} else if (commentCount === 1) {
-			return Codicon.comment;
 		} else {
-			return Codicon.commentDiscussion;
+			return Codicon.comment;
 		}
 	}
 
@@ -200,7 +198,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		const commentCount = node.element.replies.length + 1;
 		templateData.threadMetadata.icon.classList.remove(...Array.from(templateData.threadMetadata.icon.classList.values())
 			.filter(value => value.startsWith('codicon')));
-		templateData.threadMetadata.icon.classList.add(...ThemeIcon.asClassNameArray(this.getIcon(commentCount, node.element.threadState)));
+		templateData.threadMetadata.icon.classList.add(...ThemeIcon.asClassNameArray(this.getIcon(node.element.threadState)));
 		if (node.element.threadState !== undefined) {
 			const color = this.getCommentThreadWidgetStateColor(node.element.threadState, this.themeService.getColorTheme());
 			templateData.threadMetadata.icon.style.setProperty(commentViewThreadStateColorVar, `${color}`);
