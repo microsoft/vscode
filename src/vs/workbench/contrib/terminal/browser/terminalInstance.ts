@@ -849,9 +849,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (executingCommand) {
 				commandMap.add(executingCommand);
 			}
+			function formatLabel(label: string) {
+				return label.replace(/\r?\n/g, '\u21B5');
+			}
 			if (commands && commands.length > 0) {
 				for (const entry of commands) {
-					// trim off any whitespace and/or line endings
+					// Trim off any whitespace and/or line endings, replace new lines with the
+					// Downwards Arrow with Corner Leftwards symbol
 					const label = entry.command.trim();
 					if (label.length === 0 || commandMap.has(label)) {
 						continue;
@@ -881,7 +885,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						continue;
 					}
 					items.push({
-						label,
+						label: formatLabel(label),
 						description,
 						id: entry.timestamp.toString(),
 						command: entry,
@@ -893,7 +897,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 			if (executingCommand) {
 				items.unshift({
-					label: executingCommand,
+					label: formatLabel(executingCommand),
 					description: cmdDetection.cwd
 				});
 			}
@@ -908,7 +912,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				// Only add previous session item if it's not in this session
 				if (!commandMap.has(label) && info.shellType === this.shellType) {
 					previousSessionItems.unshift({
-						label,
+						label: formatLabel(label),
 						buttons: [removeFromCommandHistoryButton]
 					});
 					commandMap.add(label);
@@ -927,7 +931,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			const dedupedShellFileItems: IQuickPickItem[] = [];
 			for (const label of shellFileHistory) {
 				if (!commandMap.has(label)) {
-					dedupedShellFileItems.unshift({ label });
+					dedupedShellFileItems.unshift({
+						label: formatLabel(label)
+					});
 				}
 			}
 			if (dedupedShellFileItems.length > 0) {
