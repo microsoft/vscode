@@ -1782,7 +1782,7 @@ export class Repository implements Disposable {
 		return ignored;
 	}
 
-	private async _push(remote?: string, refspec?: string, setUpstream: boolean = false, followTags = false, forcePushMode?: ForcePushMode, tags = false): Promise<void> {
+	private async _push(remote?: string, refspec?: string, setUpstream = false, followTags = false, forcePushMode?: ForcePushMode, tags = false): Promise<void> {
 		try {
 			await this.repository.push(remote, refspec, setUpstream, followTags, forcePushMode, tags);
 		} catch (err) {
