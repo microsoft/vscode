@@ -236,7 +236,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					category,
 					menu: {
 						id: MenuId.CommandPalette,
-						when: ContextKeyExpr.equals(CONTEXT_CURRENT_PROFILE.key, that.userDataProfilesService.defaultProfile.id)
+						when: ContextKeyExpr.notEquals(CONTEXT_CURRENT_PROFILE.key, that.userDataProfilesService.defaultProfile.id)
 					}
 				});
 			}
