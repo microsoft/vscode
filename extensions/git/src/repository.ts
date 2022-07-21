@@ -2228,7 +2228,7 @@ export class Repository implements Disposable {
 		}
 	}
 
-	public isBranchProtected(name: string = this.HEAD?.name ?? ''): boolean {
+	public isBranchProtected(name = this.HEAD?.name ?? ''): boolean {
 		return this.isBranchProtectedMatcher ? this.isBranchProtectedMatcher(name) : false;
 	}
 
