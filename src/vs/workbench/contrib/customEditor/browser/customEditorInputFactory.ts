@@ -117,7 +117,6 @@ function reviveWebview(webviewService: IWebviewService, data: { id: string; orig
 			purpose: WebviewContentPurpose.CustomEditor,
 			enableFindWidget: data.webviewOptions.enableFindWidget,
 			retainContextWhenHidden: data.webviewOptions.retainContextWhenHidden,
-			preventDefaultContextMenuItems: data.webviewOptions.preventDefaultContextMenuItems,
 		},
 		contentOptions: data.contentOptions,
 		extension: data.extension,

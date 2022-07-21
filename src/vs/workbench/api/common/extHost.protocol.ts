@@ -766,7 +766,6 @@ export interface IWebviewContentOptions {
 export interface IWebviewPanelOptions {
 	readonly enableFindWidget?: boolean;
 	readonly retainContextWhenHidden?: boolean;
-	readonly preventDefaultContextMenuItems?: boolean;
 }
 
 export interface CustomTextEditorCapabilities {
@@ -847,7 +846,7 @@ export interface MainThreadCustomEditorsShape extends IDisposable {
 }
 
 export interface MainThreadWebviewViewsShape extends IDisposable {
-	$registerWebviewViewProvider(extension: WebviewExtensionDescription, viewType: string, options: { retainContextWhenHidden?: boolean; preventDefaultContextMenuItems?: boolean; serializeBuffersForPostMessage: boolean }): void;
+	$registerWebviewViewProvider(extension: WebviewExtensionDescription, viewType: string, options: { retainContextWhenHidden?: boolean; serializeBuffersForPostMessage: boolean }): void;
 	$unregisterWebviewViewProvider(viewType: string): void;
 
 	$setWebviewViewTitle(handle: WebviewHandle, value: string | undefined): void;

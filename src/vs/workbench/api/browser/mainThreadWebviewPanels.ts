@@ -371,6 +371,5 @@ function reviveWebviewOptions(panelOptions: extHostProtocol.IWebviewPanelOptions
 	return {
 		enableFindWidget: panelOptions.enableFindWidget,
 		retainContextWhenHidden: panelOptions.retainContextWhenHidden,
-		preventDefaultContextMenuItems: panelOptions.preventDefaultContextMenuItems,
 	};
 }

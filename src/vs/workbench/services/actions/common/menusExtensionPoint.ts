@@ -277,7 +277,7 @@ const apiMenus: IAPIMenu[] = [
 		key: 'webview/context',
 		id: MenuId.WebviewContext,
 		description: localize('webview.context', "The webview context menu"),
-		proposed: 'webviewContextMenus'
+		proposed: 'contribWebviewContext'
 	},
 
 ];

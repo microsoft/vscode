@@ -17,7 +17,6 @@ import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { ExtHostWebviews, shouldSerializeBuffersForPostMessage, toExtensionData } from 'vs/workbench/api/common/extHostWebview';
 import { ExtHostWebviewPanels } from 'vs/workbench/api/common/extHostWebviewPanels';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
 import { Cache } from './cache';
 import * as extHostProtocol from './extHost.protocol';
@@ -179,10 +178,6 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 		provider: vscode.CustomReadonlyEditorProvider | vscode.CustomTextEditorProvider,
 		options: { webviewOptions?: vscode.WebviewPanelOptions; supportsMultipleEditorsPerDocument?: boolean },
 	): vscode.Disposable {
-		if (options?.webviewOptions?.preventDefaultContextMenuItems) {
-			checkProposedApiEnabled(extension, 'webviewContextMenus');
-		}
-
 		const disposables = new DisposableStore();
 		if (isCustomTextEditorProvider(provider)) {
 			disposables.add(this._editorProviders.addTextProvider(viewType, extension, provider));

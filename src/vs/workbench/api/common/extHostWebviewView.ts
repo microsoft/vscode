@@ -164,13 +164,8 @@ export class ExtHostWebviewViews implements extHostProtocol.ExtHostWebviewViewsS
 		provider: vscode.WebviewViewProvider,
 		webviewOptions?: {
 			retainContextWhenHidden?: boolean;
-			preventDefaultContextMenuItems?: boolean;
 		},
 	): vscode.Disposable {
-		if (webviewOptions?.preventDefaultContextMenuItems) {
-			checkProposedApiEnabled(extension, 'webviewContextMenus');
-		}
-
 		if (this._viewProviders.has(viewType)) {
 			throw new Error(`View provider for '${viewType}' already registered`);
 		}
@@ -178,7 +173,6 @@ export class ExtHostWebviewViews implements extHostProtocol.ExtHostWebviewViewsS
 		this._viewProviders.set(viewType, { provider, extension });
 		this._proxy.$registerWebviewViewProvider(toExtensionData(extension), viewType, {
 			retainContextWhenHidden: webviewOptions?.retainContextWhenHidden,
-			preventDefaultContextMenuItems: webviewOptions?.preventDefaultContextMenuItems,
 			serializeBuffersForPostMessage: shouldSerializeBuffersForPostMessage(extension),
 		});
 
