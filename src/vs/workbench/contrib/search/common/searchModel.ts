@@ -719,9 +719,6 @@ export function searchComparer(elementA: RenderableMatch, elementB: RenderableMa
 	let i = elemAParents.length - 1;
 	let j = elemBParents.length - 1;
 	while (i >= 0 && j >= 0) {
-		console.log(elemAParents[i].id());
-		console.log(elemBParents[j].id());
-		console.log();
 		if (elemAParents[i].id() !== elemBParents[j].id()) {
 			return searchMatchComparer(elemAParents[i], elemBParents[j], sortOrder);
 		}
