@@ -46,27 +46,28 @@ export class TerminalMainContribution extends Disposable implements IWorkbenchCo
 				priority: RegisteredEditorPriority.exclusive
 			},
 			{
-				canHandleDiff: false,
 				canSupportResource: uri => uri.scheme === Schemas.vscodeTerminal,
 				singlePerResource: true
 			},
-			({ resource, options }) => {
-				const instance = terminalService.getInstanceFromResource(resource);
-				if (instance) {
-					const sourceGroup = terminalGroupService.getGroupForInstance(instance);
-					sourceGroup?.removeInstance(instance);
-				}
-				const resolvedResource = terminalEditorService.resolveResource(instance || resource);
-				const editor = terminalEditorService.getInputFromResource(resolvedResource) || { editor: resolvedResource };
-				return {
-					editor,
-					options: {
-						...options,
-						pinned: true,
-						forceReload: true,
-						override: terminalEditorId
+			{
+				createEditorInput: ({ resource, options }) => {
+					const instance = terminalService.getInstanceFromResource(resource);
+					if (instance) {
+						const sourceGroup = terminalGroupService.getGroupForInstance(instance);
+						sourceGroup?.removeInstance(instance);
 					}
-				};
+					const resolvedResource = terminalEditorService.resolveResource(instance || resource);
+					const editor = terminalEditorService.getInputFromResource(resolvedResource) || { editor: resolvedResource };
+					return {
+						editor,
+						options: {
+							...options,
+							pinned: true,
+							forceReload: true,
+							override: terminalEditorId
+						}
+					};
+				}
 			}
 		);
 

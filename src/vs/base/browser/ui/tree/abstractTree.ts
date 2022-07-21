@@ -1003,10 +1003,6 @@ function asTreeContextMenuEvent<T>(event: IListContextMenuEvent<ITreeNode<T, any
 	};
 }
 
-export interface IKeyboardNavigationEventFilter {
-	(e: StandardKeyboardEvent): boolean;
-}
-
 export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
 	readonly multipleSelectionSupport?: boolean;
 	readonly typeNavigationEnabled?: boolean;
@@ -1025,7 +1021,6 @@ export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTr
 	readonly collapseByDefault?: boolean; // defaults to false
 	readonly filter?: ITreeFilter<T, TFilterData>;
 	readonly dnd?: ITreeDragAndDrop<T>;
-	readonly keyboardNavigationEventFilter?: IKeyboardNavigationEventFilter;
 	readonly additionalScrollHeight?: number;
 }
 

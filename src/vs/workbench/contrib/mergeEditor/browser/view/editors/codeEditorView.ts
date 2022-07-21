@@ -28,6 +28,7 @@ export abstract class CodeEditorView extends Disposable {
 			h('span.title@title'),
 			h('span.description@description'),
 			h('span.detail@detail'),
+			h('span.toolbar@toolbar'),
 		]),
 		h('div.container', [
 			h('div.gutter@gutterDiv'),
