@@ -218,6 +218,20 @@ export function main(desc: ProductDescription, args: string[]): void {
 			return;
 		}
 
+		if (parsedArgs['locate-shell-integration-path'] !== undefined) {
+			let file: string;
+			switch (parsedArgs['locate-shell-integration-path']) {
+				// Usage: `[[ "$TERM_PROGRAM" == "vscode" ]] && . "$(code --locate-shell-integration-path bash)"`
+				case 'bash': file = 'shellIntegration-bash.sh'; break;
+				// Usage: `if ($env:TERM_PROGRAM -eq "vscode") { . "$(code --locate-shell-integration-path pwsh)" }`
+				case 'pwsh': file = 'shellIntegration.ps1'; break;
+				// Usage: `[[ "$TERM_PROGRAM" == "vscode" ]] && . "$(code --locate-shell-integration-path zsh)"`
+				case 'zsh': file = 'shellIntegration-rc.zsh'; break;
+				default: throw new Error('Error using --locate-shell-integration-path: Invalid shell type');
+			}
+			console.log(resolve(__dirname, '../..', 'workbench', 'contrib', 'terminal', 'browser', 'media', file));
+			return;
+		}
 
 		const newCommandline: string[] = [];
 		for (const key in parsedArgs) {
