@@ -831,8 +831,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 		let placeholder: string;
-		type Item = IQuickPickItem & { command?: ITerminalCommand };
-		let items: (Item | IQuickPickItem | IQuickPickSeparator)[] = [];
+		type Item = IQuickPickItem & { command?: ITerminalCommand; rawLabel: string };
+		let items: (Item | IQuickPickItem & { rawLabel: string } | IQuickPickSeparator)[] = [];
 		const commandMap: Set<string> = new Set();
 
 		const removeFromCommandHistoryButton: IQuickInputButton = {
@@ -886,6 +886,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					}
 					items.push({
 						label: formatLabel(label),
+						rawLabel: label,
 						description,
 						id: entry.timestamp.toString(),
 						command: entry,
@@ -898,6 +899,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (executingCommand) {
 				items.unshift({
 					label: formatLabel(executingCommand),
+					rawLabel: executingCommand,
 					description: cmdDetection.cwd
 				});
 			}
@@ -907,12 +909,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 			// Gather previous session history
 			const history = this._instantiationService.invokeFunction(getCommandHistory);
-			const previousSessionItems: IQuickPickItem[] = [];
+			const previousSessionItems: (IQuickPickItem & { rawLabel: string })[] = [];
 			for (const [label, info] of history.entries) {
 				// Only add previous session item if it's not in this session
 				if (!commandMap.has(label) && info.shellType === this.shellType) {
 					previousSessionItems.unshift({
 						label: formatLabel(label),
+						rawLabel: label,
 						buttons: [removeFromCommandHistoryButton]
 					});
 					commandMap.add(label);
@@ -928,11 +931,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 			// Gather shell file history
 			const shellFileHistory = await this._instantiationService.invokeFunction(getShellFileHistory, this._shellType);
-			const dedupedShellFileItems: IQuickPickItem[] = [];
+			const dedupedShellFileItems: (IQuickPickItem & { rawLabel: string })[] = [];
 			for (const label of shellFileHistory) {
 				if (!commandMap.has(label)) {
 					dedupedShellFileItems.unshift({
-						label: formatLabel(label)
+						label: formatLabel(label),
+						rawLabel: label
 					});
 				}
 			}
@@ -949,7 +953,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			const cwds = this.capabilities.get(TerminalCapability.CwdDetection)?.cwds || [];
 			if (cwds && cwds.length > 0) {
 				for (const label of cwds) {
-					items.push({ label });
+					items.push({ label, rawLabel: label });
 				}
 				items = items.reverse();
 				items.unshift({ type: 'separator', label: terminalStrings.currentSessionCategory });
@@ -957,12 +961,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 			// Gather previous session history
 			const history = this._instantiationService.invokeFunction(getDirectoryHistory);
-			const previousSessionItems: IQuickPickItem[] = [];
+			const previousSessionItems: (IQuickPickItem & { rawLabel: string })[] = [];
 			// Only add previous session item if it's not in this session and it matches the remote authority
 			for (const [label, info] of history.entries) {
 				if ((info === null || info.remoteAuthority === this.remoteAuthority) && !cwds.includes(label)) {
 					previousSessionItems.unshift({
 						label,
+						rawLabel: label,
 						buttons: [removeFromCommandHistoryButton]
 					});
 				}
@@ -978,7 +983,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 		const outputProvider = this._instantiationService.createInstance(TerminalOutputProvider);
-		const quickPick = this._quickInputService.createQuickPick();
+		const quickPick = this._quickInputService.createQuickPick<IQuickPickItem & { rawLabel: string }>();
 		const originalItems = items;
 		quickPick.items = [...originalItems];
 		quickPick.sortByLabel = false;
@@ -1027,7 +1032,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 		quickPick.onDidAccept(() => {
 			const result = quickPick.activeItems[0];
-			this.sendText(type === 'cwd' ? `cd ${result.label}` : result.label, !quickPick.keyMods.alt);
+			this.sendText(type === 'cwd' ? `cd ${result.rawLabel}` : result.rawLabel, !quickPick.keyMods.alt);
 			quickPick.hide();
 		});
 		if (value) {
