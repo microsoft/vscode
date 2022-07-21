@@ -2028,6 +2028,9 @@ export class Repository implements Disposable {
 		// set count badge
 		this.setCountBadge();
 
+		// set mergeChanges context
+		commands.executeCommand('setContext', 'git.mergeChanges', merge.map(item => item.resourceUri.toString()));
+
 		this._onDidChangeStatus.fire();
 
 		this._sourceControl.commitTemplate = await this.getInputTemplate();

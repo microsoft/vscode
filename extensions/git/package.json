@@ -601,7 +601,7 @@
         "command": "git.acceptMerge",
         "title": "%command.git.acceptMerge%",
         "category": "Git",
-        "enablement": "isMergeEditor"
+        "enablement": "isMergeEditor && mergeEditorResultUri in git.mergeChanges"
       }
     ],
     "keybindings": [
@@ -1549,7 +1549,7 @@
       "merge/toolbar": [
         {
           "command": "git.acceptMerge",
-          "when": "isMergeEditor && baseResourceScheme =~ /^git$|^file$/"
+          "when": "isMergeEditor && mergeEditorBaseUri =~ /^(git|file):/ && mergeEditorResultUri in git.mergeChanges"
         }
       ],
       "scm/change/title": [
