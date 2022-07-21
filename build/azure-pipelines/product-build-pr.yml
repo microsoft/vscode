@@ -23,20 +23,30 @@ variables:
     value: false
 
 stages:
-  - stage: Compile
-    displayName: Compile & Hygiene
-    jobs:
-      - job: Compile
-        displayName: Compile & Hygiene
-        pool: vscode-1es-vscode-linux-20.04
-        variables:
-          VSCODE_ARCH: x64
-        steps:
-          - template: product-compile.yml
-            parameters:
-              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+  - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
+    - stage: MaintainNodeModulesCache
+      displayName: Maintain node_modules cache
+      jobs:
+        - job: MaintainNodeModulesCache
+          displayName: Maintain node_modules cache
+          pool: vscode-1es-vscode-linux-20.04
+          steps:
+            - template: product-build-pr-cache.yml
 
   - ${{ if ne(variables['VSCODE_CIBUILD'], true) }}:
+    - stage: Compile
+      displayName: Compile & Hygiene
+      jobs:
+        - job: Compile
+          displayName: Compile & Hygiene
+          pool: vscode-1es-vscode-linux-20.04
+          variables:
+            VSCODE_ARCH: x64
+          steps:
+            - template: product-compile.yml
+              parameters:
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+
     - stage: Test
       dependsOn: []
       jobs:
