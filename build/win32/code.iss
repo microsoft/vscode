@@ -1414,9 +1414,9 @@ end;
 function QualityIsInsiders(): boolean;
 begin
   if '{#Quality}' = 'insider' then
-    Result := 'true'
+    Result := True
   else
-    Result := 'false'
+    Result := False;
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
