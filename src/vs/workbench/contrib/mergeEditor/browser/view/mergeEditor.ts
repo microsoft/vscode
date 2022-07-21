@@ -47,7 +47,7 @@ import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/v
 import { ctxMergeBaseUri, ctxIsMergeEditor, ctxMergeEditorLayout, ctxMergeResultUri, MergeEditorLayoutTypes } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
 import { settingsSashBorder } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { EditorInputFactoryFunction, IEditorResolverService, MergeEditorInputFactoryFunction, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
+import { IEditorResolverService, MergeEditorInputFactoryFunction, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import './colors';
 import { InputCodeEditorView } from './editors/inputCodeEditorView';
@@ -520,28 +520,6 @@ export class MergeEditorResolverContribution extends Disposable {
 	) {
 		super();
 
-		const editorInputFactory: EditorInputFactoryFunction = (editor) => {
-			return {
-				editor: instantiationService.createInstance(
-					MergeEditorInput,
-					editor.resource,
-					{
-						uri: editor.resource,
-						title: '',
-						description: '',
-						detail: ''
-					},
-					{
-						uri: editor.resource,
-						title: '',
-						description: '',
-						detail: ''
-					},
-					editor.resource
-				)
-			};
-		};
-
 		const mergeEditorInputFactory: MergeEditorInputFactoryFunction = (mergeEditor: IResourceMergeEditorInput): EditorInputWithOptions => {
 			return {
 				editor: instantiationService.createInstance(
@@ -567,14 +545,13 @@ export class MergeEditorResolverContribution extends Disposable {
 		this._register(editorResolverService.registerEditor(
 			`*`,
 			{
-				id: MergeEditorInput.ID,
-				label: localize('editor.mergeEditor.label', "Merge Editor"),
+				id: DEFAULT_EDITOR_ASSOCIATION.id,
+				label: DEFAULT_EDITOR_ASSOCIATION.displayName,
 				detail: DEFAULT_EDITOR_ASSOCIATION.providerDisplayName,
-				priority: RegisteredEditorPriority.option
+				priority: RegisteredEditorPriority.builtin
 			},
 			{},
 			{
-				createEditorInput: editorInputFactory,
 				createMergeEditorInput: mergeEditorInputFactory
 			}
 		));

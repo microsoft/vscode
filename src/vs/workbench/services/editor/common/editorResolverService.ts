@@ -110,7 +110,7 @@ export type DiffEditorInputFactoryFunction = (diffEditorInput: IResourceDiffEdit
 export type MergeEditorInputFactoryFunction = (mergeEditorInput: IResourceMergeEditorInput, group: IEditorGroup) => EditorInputFactoryResult;
 
 export type EditorInputFactoryObject = {
-	createEditorInput: EditorInputFactoryFunction;
+	createEditorInput?: EditorInputFactoryFunction;
 	createUntitledEditorInput?: UntitledEditorInputFactoryFunction;
 	createDiffEditorInput?: DiffEditorInputFactoryFunction;
 	createMergeEditorInput?: MergeEditorInputFactoryFunction;
