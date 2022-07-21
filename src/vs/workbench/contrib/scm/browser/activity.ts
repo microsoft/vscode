@@ -296,11 +296,7 @@ class SCMInputTextDocumentLabelFormatter {
 
 	readonly label = (resource: URI) => {
 		const repositoryId = getRepositoryId(resource.path);
-		if (repositoryId === undefined) {
-			return resource.toString();
-		}
-
-		const repository = this.scmService.getRepository(repositoryId);
+		const repository = this.scmService.getRepository(repositoryId ?? '');
 		if (repository === undefined || repository.provider.rootUri === undefined) {
 			return resource.toString();
 		}
@@ -335,11 +331,7 @@ class SCMInputTextDocumentOpener implements IOpener {
 		}
 
 		const repositoryId = getRepositoryId(resource.path);
-		if (repositoryId === undefined) {
-			return false;
-		}
-
-		const repository = this.scmService.getRepository(repositoryId);
+		const repository = this.scmService.getRepository(repositoryId ?? '');
 		if (repository === undefined) {
 			return false;
 		}
