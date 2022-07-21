@@ -1524,7 +1524,7 @@ export class CommandCenter {
 		}
 
 		if (opts.all === undefined) {
-			opts = { all: noStagedChanges };
+			opts = { ...opts, all: noStagedChanges };
 		} else if (!opts.all && noStagedChanges && !opts.empty) {
 			opts = { ...opts, all: true };
 		}
