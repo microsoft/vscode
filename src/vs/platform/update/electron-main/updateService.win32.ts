@@ -71,6 +71,15 @@ export class Win32UpdateService extends AbstractUpdateService {
 		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService);
 	}
 
+	override async initialize(): Promise<void> {
+		if (this.productService.target === 'user' && await this.nativeHostMainService.isAdmin(undefined)) {
+			this.logService.info('update#ctor - updates are disabled due to running as Admin in user setup');
+			return;
+		}
+
+		super.initialize();
+	}
+
 	protected buildUpdateFeedUrl(quality: string): string | undefined {
 		let platform = 'win32';
 
@@ -85,22 +94,6 @@ export class Win32UpdateService extends AbstractUpdateService {
 		}
 
 		return createUpdateURL(platform, quality, this.productService);
-	}
-
-	override async checkForUpdates(explicit: boolean): Promise<void> {
-
-		this.logService.trace('update#checkForUpdates, state = ', this.state.type);
-
-		if (this.state.type !== StateType.Idle) {
-			return;
-		}
-
-		if (this.productService.target === 'user' && await this.nativeHostMainService.isAdmin(undefined)) {
-			this.logService.info('update - updates are disabled when Windows user installation is running as administrator');
-			return;
-		}
-
-		this.doCheckForUpdates(explicit);
 	}
 
 	protected doCheckForUpdates(context: any): void {
