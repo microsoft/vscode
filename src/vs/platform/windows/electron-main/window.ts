@@ -299,8 +299,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			// thus we need to capture them here with a window hook specific to Windows
 			// and then forward them to the correct window.
 			if (isWindows && useCustomTitleStyle) {
-				// https://docs.microsoft.com/en-us/windows/win32/menurc/wm-initmenu
-				const WM_INITMENU = 0x0116;
+				const WM_INITMENU = 0x0116; // https://docs.microsoft.com/en-us/windows/win32/menurc/wm-initmenu
+
 				// This sets up a listener for the window hook. This is a Windows-only API provided by electron.
 				this._win.hookWindowMessage(WM_INITMENU, () => {
 					const [x, y] = this._win.getPosition();
@@ -311,6 +311,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					this._win.setEnabled(true);
 
 					this._onDidTriggerSystemContextMenu.fire({ x: cursorPos.x - x, y: cursorPos.y - y });
+
 					return 0; // skip native menu
 				});
 			}

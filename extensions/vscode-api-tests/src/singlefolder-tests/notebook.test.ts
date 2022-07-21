@@ -284,7 +284,7 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 		assert.ok(cell.metadata.extraCellMetadata, `Test cell metdata not found`);
 	});
 
-	test('edit API batch edits undo/redo', async function () {
+	test.skip('edit API batch edits undo/redo', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/155825
 		const notebook = await openRandomNotebookDocument();
 		const editor = await vscode.window.showNotebookDocument(notebook);
 
