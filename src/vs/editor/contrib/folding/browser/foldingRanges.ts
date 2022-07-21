@@ -251,13 +251,6 @@ export class FoldingRegions {
 		rangesB: FoldingRegions | FoldRange[],
 		maxLineNumber: number | undefined): FoldRange[] {
 		maxLineNumber = maxLineNumber ?? Number.MAX_VALUE;
-		return this._trySanitizeAndMerge(rangesA, rangesB, maxLineNumber);
-	}
-
-	private static _trySanitizeAndMerge(
-		rangesA: FoldingRegions | FoldRange[],
-		rangesB: FoldingRegions | FoldRange[],
-		maxLineNumber: number): FoldRange[] {
 
 		const getIndexedFunction = (r: FoldingRegions | FoldRange[], limit: number) => {
 			return Array.isArray(r)
@@ -301,7 +294,7 @@ export class FoldingRegions {
 						useRange = nextA;
 						break; // no conflict, use this nextA
 					}
-					if (prescanB.isManualSelection && prescanB.endLineNumber > nextA!.endLineNumber) {
+					if (prescanB.isManualSelection && prescanB.isCollapsed && prescanB.endLineNumber > nextA!.endLineNumber) {
 						break; // without setting nextResult, so this nextA gets skipped
 					}
 					prescanB = getB(++scanIndex);
