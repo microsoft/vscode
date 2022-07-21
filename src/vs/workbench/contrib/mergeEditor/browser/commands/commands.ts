@@ -189,10 +189,9 @@ export class OpenResultResource extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const opener = accessor.get(IOpenerService);
-		const { activeEditor } = accessor.get(IEditorService);
-		if (activeEditor instanceof MergeEditorInput) {
-			await opener.open(activeEditor.result);
+		const editorService = accessor.get(IEditorService);
+		if (editorService.activeEditor instanceof MergeEditorInput) {
+			editorService.openEditor({ resource: editorService.activeEditor.result });
 		}
 	}
 }
