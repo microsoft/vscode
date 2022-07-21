@@ -334,7 +334,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			this.handleKeyEvent('keyup', data);
 		}));
 
-		this._register(this.on(WebviewMessageChannels.didContextMenu, (data: { clientX: number; clientY: number; context: { item: string | undefined; itemValue: unknown | undefined; itemElement: string | undefined } }) => {
+		this._register(this.on(WebviewMessageChannels.didContextMenu, (data: { clientX: number; clientY: number; context: { [key: string]: unknown } }) => {
 			if (!this.element) {
 				return;
 			}
@@ -345,10 +345,9 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			contextMenuService.showContextMenu({
 				getActions: () => {
 					const contextKeyService = this._contextKeyService!.createOverlay([
+						...Object.entries(data.context),
 						[PreventDefaultContextMenuItemsContextKeyName, this.options.preventDefaultContextMenuItems],
 						['webview', this.providedId],
-						['webviewItem', data.context.item],
-						['webviewItemElement', data.context.itemElement],
 					]);
 
 					const result: IAction[] = [];
@@ -357,7 +356,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 					menu.dispose();
 					return result;
 				},
-				getActionsContext: (): WebviewActionContext => ({ webview: this.providedId, item: data.context.item, itemValue: data.context.itemValue, itemElement: data.context.itemElement }),
+				getActionsContext: (): WebviewActionContext => ({ ...data.context, webview: this.providedId }),
 				getAnchor: () => ({
 					x: elementBox.x + data.clientX,
 					y: elementBox.y + data.clientY

@@ -1054,19 +1054,32 @@
 
 						e.preventDefault();
 
-						// Search self/ancestors for the closest "item" data attribute
-						const item = e.target?.closest('[data-vscode-context-menu-item]');
-						// Search self/ancestors for the nearest "item-element" data attribute, but don't go any further than the closest "item" data attribute
-						const element = e.target?.closest('[data-vscode-context-menu-item],[data-vscode-context-menu-item-element]') ?? item;
+						let context = {};
+
+						/** @type HTMLElement */
+						let el = e.target;
+						while (true) {
+							if (!el) {
+								break;
+							}
+
+							// Search self/ancestors for the closest context data attribute
+							el = el.closest('[data-vscode-context]');
+							if (!el) {
+								break;
+							}
+
+							try {
+								context = { ...JSON.parse(el.getAttribute('data-vscode-context')), ...context };
+							} catch {}
+
+							el = el.parentElement;
+						}
 
 						hostMessaging.postMessage('did-context-menu', {
 							clientX: e.clientX,
 							clientY: e.clientY,
-							context: {
-								item: item?.dataset.vscodeContextMenuItem,
-								itemValue: item?.dataset.vscodeContextMenuItemValue,
-								itemElement: element?.dataset.vscodeContextMenuItemElement
-							}
+							context: context
 						});
 					});
 
