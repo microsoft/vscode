@@ -49,6 +49,7 @@ import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activity
 import { AuxiliaryBarPart } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { LayoutStateKeys, LayoutStateModel, WorkbenchLayoutSettings } from 'vs/workbench/browser/layoutState';
+import { Schemas } from 'vs/base/common/network';
 
 interface IWorkbenchLayoutWindowRuntimeState {
 	fullscreen: boolean;
@@ -597,7 +598,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Empty workbench configured to open untitled file if empty
-		else if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && this.configurationService.getValue('workbench.startupEditor') === 'newUntitledFile') {
+		else if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+			const startupEditor = this.configurationService.getValue<string>('workbench.startupEditor');
+
+			if (startupEditor !== 'newUntitledFile' && startupEditor !== 'terminal') {
+				return [];
+			}
 			if (this.editorGroupService.hasRestorableState) {
 				return []; // do not open any empty untitled file if we restored groups/editors from previous session
 			}
@@ -607,7 +613,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				return []; // do not open any empty untitled file if we have backups to restore
 			}
 
-			return [{ resource: undefined }]; // open empty untitled file
+			if (startupEditor === 'terminal') {
+				return [{ resource: URI.from({ scheme: Schemas.vscodeTerminal, path: 'startup' }), options: { override: 'terminalEditor' } }];
+			} else {
+				return [{ resource: undefined }]; // open empty untitled file
+			}
+
 		}
 
 		return [];
