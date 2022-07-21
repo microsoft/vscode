@@ -26,7 +26,7 @@
 							},
 							"autoInsert": {
 								"type": "boolean",
-								"description": "whether the language participates with HTML auto insertions. If not specified, defaults to <code>true</code>"
+								"description": "Whether the language participates with HTML auto insertions. If not specified, defaults to <code>true</code>."
 							}
 						}
 					}
