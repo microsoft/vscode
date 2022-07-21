@@ -76,7 +76,7 @@ export class StatusbarEntryItem extends Disposable {
 
 		// Beak Container
 		this.beakContainer = document.createElement('div');
-		// this.beakContainer.classList.add('beak-div-show');
+		this.beakContainer.className = 'status-bar-beak-container';
 
 		// Add to parent
 		this.container.appendChild(this.beakContainer);
@@ -153,10 +153,8 @@ export class StatusbarEntryItem extends Disposable {
 		if (!this.entry || entry.showBeak !== this.entry.showBeak) {
 			if (entry.showBeak) {
 				this.container.classList.add('has-beak');
-				this.beakContainer.classList.add('beak-div-show');
 			} else {
 				this.container.classList.remove('has-beak');
-				this.beakContainer.classList.remove('beak-div-show');
 			}
 		}
 
