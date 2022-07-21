@@ -5,6 +5,7 @@
 
 import { Connection, FullDocumentDiagnosticReport, UnchangedDocumentDiagnosticReport } from 'vscode-languageserver';
 import * as md from 'vscode-markdown-languageservice';
+import { disposeAll } from 'vscode-markdown-languageservice/out/util/dispose';
 import { Disposable } from 'vscode-notebook-renderer/events';
 import { URI } from 'vscode-uri';
 import { ConfigurationManager, ValidateEnabled } from '../configuration';
@@ -53,7 +54,15 @@ export function registerValidateSupport(
 		diagnosticOptions = getDiagnosticsOptions(config);
 	}
 
+
+	const subs: Disposable[] = [];
 	const manager = ls.createPullDiagnosticsManager();
+	subs.push(manager);
+
+	subs.push(manager.onLinkedToFileChanged(() => {
+		// TODO: We only need to refresh certain files
+		connection.languages.diagnostics.refresh();
+	}));
 
 	connection.languages.diagnostics.on(async (params, token): Promise<FullDocumentDiagnosticReport | UnchangedDocumentDiagnosticReport> => {
 		if (!config.getSettings()?.markdown.experimental.validate.enabled) {
@@ -73,14 +82,14 @@ export function registerValidateSupport(
 	});
 
 	updateDiagnosticsSetting();
-	const configChangeSub = config.onDidChangeConfiguration(() => {
+	subs.push(config.onDidChangeConfiguration(() => {
 		updateDiagnosticsSetting();
 		connection.languages.diagnostics.refresh();
-	});
+	}));
+
 	return {
 		dispose: () => {
-			manager.dispose();
-			configChangeSub.dispose();
+			disposeAll(subs);
 		}
 	};
 }
