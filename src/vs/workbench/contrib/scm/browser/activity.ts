@@ -34,6 +34,17 @@ function getCount(repository: ISCMRepository): number {
 	}
 }
 
+function getRepositoryId(path: string): string | undefined {
+	const match = /git\/(?<repositoryId>scm[\d+])\/input/i.exec(path);
+
+	if (match?.groups === undefined) {
+		return undefined;
+	}
+
+	const { repositoryId } = match.groups;
+	return repositoryId;
+}
+
 export class SCMStatusController implements IWorkbenchContribution {
 
 	private statusBarDisposable: IDisposable = Disposable.None;
@@ -284,15 +295,12 @@ class SCMInputTextDocumentLabelFormatter {
 	readonly separator = '/';
 
 	readonly label = (resource: URI) => {
-		const match = /git\/(?<repositoryId>scm[\d+])\/input/i.exec(resource.path);
-
-		if (match?.groups === undefined) {
+		const repositoryId = getRepositoryId(resource.path);
+		if (repositoryId === undefined) {
 			return resource.toString();
 		}
 
-		const { repositoryId } = match.groups;
 		const repository = this.scmService.getRepository(repositoryId);
-
 		if (repository === undefined || repository.provider.rootUri === undefined) {
 			return resource.toString();
 		}
@@ -313,35 +321,39 @@ class SCMInputTextDocumentOpener implements IOpener {
 
 	constructor(
 		@ICommandService private readonly commandService: ICommandService,
-		@ISCMService private readonly scmService: ISCMService
+		@ISCMService private readonly scmService: ISCMService,
+		@ISCMViewService private readonly scmViewService: ISCMViewService
 	) { }
 
-	open(resource: string | URI, options?: OpenInternalOptions | OpenExternalOptions | undefined): Promise<boolean> {
+	async open(resource: string | URI, options?: OpenInternalOptions | OpenExternalOptions | undefined): Promise<boolean> {
 		if (typeof resource === 'string') {
 			resource = URI.parse(resource);
 		}
 
 		if (resource.scheme !== Schemas.vscode && resource.authority !== 'scm') {
-			return Promise.resolve(false);
+			return false;
 		}
 
-		const match = /git\/(?<repositoryId>scm[\d+])\/input/i.exec(resource.path);
-
-		if (match?.groups === undefined) {
-			return Promise.resolve(false);
+		const repositoryId = getRepositoryId(resource.path);
+		if (repositoryId === undefined) {
+			return false;
 		}
 
-		const { repositoryId } = match.groups;
 		const repository = this.scmService.getRepository(repositoryId);
-
 		if (repository === undefined) {
-			return Promise.resolve(false);
+			return false;
 		}
 
-		repository.input.setFocus();
-		this.commandService.executeCommand(VIEWLET_ID);
+		// Toggle repository visibility if needed
+		if (!this.scmViewService.isVisible(repository)) {
+			this.scmViewService.toggleVisibility(repository, true);
+		}
 
-		return Promise.resolve(true);
+		// Show Source Control view and focus input
+		await this.commandService.executeCommand(VIEWLET_ID);
+		repository.input.setFocus();
+
+		return true;
 	}
 }
 
