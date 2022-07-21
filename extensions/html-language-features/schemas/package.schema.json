@@ -14,7 +14,7 @@
 						"description": "Relative path to a HTML custom data file"
 					}
 				},
-				"htmlLanguages": {
+				"htmlLanguageParticipants": {
 					"type": "array",
 					"description": "A list of languages that participate with the HTML language server.",
 					"items": {

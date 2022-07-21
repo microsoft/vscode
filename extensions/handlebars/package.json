@@ -37,7 +37,7 @@
         "path": "./syntaxes/Handlebars.tmLanguage.json"
       }
     ],
-    "htmlLanguages": [
+    "htmlLanguageParticipants": [
       {
         "languageId": "handlebars",
         "autoInsert": true

@@ -42,13 +42,13 @@ export function getLanguageParticipants(): LanguageParticipants {
 		autoInsert.add('html');
 
 		for (const extension of extensions.allAcrossExtensionHosts) {
-			const htmlLanguages = extension.packageJSON?.contributes?.htmlLanguages as LanguageParticipantContribution[];
-			if (Array.isArray(htmlLanguages)) {
-				for (const htmlLanguage of htmlLanguages) {
-					const languageId = htmlLanguage.languageId;
+			const htmlLanguageParticipants = extension.packageJSON?.contributes?.htmlLanguageParticipants as LanguageParticipantContribution[];
+			if (Array.isArray(htmlLanguageParticipants)) {
+				for (const htmlLanguageParticipant of htmlLanguageParticipants) {
+					const languageId = htmlLanguageParticipant.languageId;
 					if (typeof languageId === 'string') {
 						languages.add(languageId);
-						if (htmlLanguage.autoInsert !== false) {
+						if (htmlLanguageParticipant.autoInsert !== false) {
 							autoInsert.add(languageId);
 						}
 					}
