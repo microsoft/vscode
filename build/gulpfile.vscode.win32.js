@@ -87,6 +87,7 @@ function buildWin32Setup(arch, target) {
 		productJson['target'] = target;
 		fs.writeFileSync(productJsonPath, JSON.stringify(productJson, undefined, '\t'));
 
+		const quality = product.quality;
 		const definitions = {
 			NameLong: product.nameLong,
 			NameShort: product.nameShort,
@@ -109,12 +110,12 @@ function buildWin32Setup(arch, target) {
 			RepoDir: repoPath,
 			OutputDir: outputPath,
 			InstallTarget: target,
-			ProductJsonPath: productJsonPath
+			ProductJsonPath: productJsonPath,
+			Quality: quality
 		};
 
-		const quality = product.quality;
-		if (quality) {
-			const appxPackagePrefix = quality === 'insider' ? 'code_insiders' : 'code';
+		if (quality === 'insider') {
+			const appxPackagePrefix = 'code_insiders';
 			definitions['AppxPackage'] = `${appxPackagePrefix}_explorer_${arch}.appx`;
 			if (arch === 'ia32') {
 				definitions['AppxPackage'] = `${appxPackagePrefix}_explorer_x86.appx`;

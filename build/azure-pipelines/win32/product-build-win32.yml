@@ -169,7 +169,7 @@ steps:
         exec { yarn gulp "transpile-client-swc" "transpile-extensions" }
       displayName: Transpile
 
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+  - ${{ if eq(parameters.VSCODE_QUALITY, 'insider') }}:
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
