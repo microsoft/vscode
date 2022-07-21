@@ -474,10 +474,10 @@ export class RemoteViewPaneContainer extends FilterViewPaneContainer implements 
 		@IExtensionService extensionService: IExtensionService,
 		@IRemoteExplorerService readonly remoteExplorerService: IRemoteExplorerService,
 		@IWorkbenchEnvironmentService readonly environmentService: IWorkbenchEnvironmentService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService
 	) {
-		super(VIEWLET_ID, remoteExplorerService.onDidChangeTargetType, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService, viewDescriptorService, contextKeyService);
+		super(VIEWLET_ID, remoteExplorerService.onDidChangeTargetType, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService, viewDescriptorService);
 		this.addConstantViewDescriptors([this.helpPanelDescriptor]);
 		remoteHelpExtPoint.setHandler((extensions) => {
 			const helpInformation: HelpInformation[] = [];

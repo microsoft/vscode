@@ -164,7 +164,7 @@ const viewDescriptor: IJSONSchema = {
 		},
 		size: {
 			type: 'number',
-			description: localize('vscode.extension.contributs.view.size', "The size of the view. Using a number will behave like the css 'flex' property, and the size will set the initial size when the view is first shown. In the sizebar, this is the height of the view."),
+			description: localize('vscode.extension.contributs.view.size', "The size of the view. Using a number will behave like the css 'flex' property, and the size will set the initial size when the view is first shown. In the side bar, this is the height of the view."),
 		}
 	}
 };

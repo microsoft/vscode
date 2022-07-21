@@ -389,7 +389,6 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		@IStorageService protected storageService: IStorageService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IViewDescriptorService protected viewDescriptorService: IViewDescriptorService,
-		@IContextKeyService protected readonly contextKeyService: IContextKeyService
 	) {
 
 		super(id, themeService, storageService);
@@ -719,9 +718,8 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	private computeInitialSizes(): Map<string, number> {
 		const sizes: Map<string, number> = new Map<string, number>();
 		if (this.dimension) {
-			const shownViewDescriptors = this.viewContainerModel.visibleViewDescriptors.filter(viewDescriptor => viewDescriptor.when?.evaluate(this.contextKeyService.getContext(null)));
-			const totalWeight = shownViewDescriptors.reduce((totalWeight, { weight }) => totalWeight + (weight || 20), 0);
-			for (const viewDescriptor of shownViewDescriptors) {
+			const totalWeight = this.viewContainerModel.visibleViewDescriptors.reduce((totalWeight, { weight }) => totalWeight + (weight || 20), 0);
+			for (const viewDescriptor of this.viewContainerModel.visibleViewDescriptors) {
 				if (this.orientation === Orientation.VERTICAL) {
 					sizes.set(viewDescriptor.id, this.dimension.height * (viewDescriptor.weight || 20) / totalWeight);
 				} else {
