@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, BrowserWindowConstructorOptions, Display, Event, nativeImage, NativeImage, Point, Rectangle, screen, SegmentedControlSegment, systemPreferences, TouchBar, TouchBarSegmentedControl } from 'electron';
+import { app, BrowserWindow, BrowserWindowConstructorOptions, Display, Event, nativeImage, NativeImage, Rectangle, screen, SegmentedControlSegment, systemPreferences, TouchBar, TouchBarSegmentedControl } from 'electron';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -139,9 +139,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private representedFilename: string | undefined;
 	private documentEdited: boolean | undefined;
-
-	private customTrafficLightPosition: boolean | undefined;
-	private defaultTrafficLightPosition: Point | undefined;
 
 	private readonly whenReadyCallbacks: { (window: ICodeWindow): void }[] = [];
 
@@ -283,10 +280,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			this._id = this._win.id;
 
 			if (isMacintosh && useCustomTitleStyle) {
-				this.updateTrafficLightPosition(); // adjust traffic light position depending on command center
-			}
-
-			if (isMacintosh && useCustomTitleStyle) {
 				this._win.setSheetOffset(22); // offset dialogs by the height of the custom title bar if we have any
 			}
 
@@ -374,7 +367,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	setRepresentedFilename(filename: string): void {
-		if (isMacintosh && !this.customTrafficLightPosition) { // TODO@electron https://github.com/electron/electron/issues/34822
+		if (isMacintosh) {
 			this._win.setRepresentedFilename(filename);
 		} else {
 			this.representedFilename = filename;
@@ -382,7 +375,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	getRepresentedFilename(): string | undefined {
-		if (isMacintosh && !this.customTrafficLightPosition) { // TODO@electron https://github.com/electron/electron/issues/34822
+		if (isMacintosh) {
 			return this._win.getRepresentedFilename();
 		}
 
@@ -758,9 +751,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			this.currentMenuBarVisibility = newMenuBarVisibility;
 			this.setMenuBarVisibility(newMenuBarVisibility);
 		}
-
-		// Traffic Lights
-		this.updateTrafficLightPosition(e);
 
 		// Proxy
 		let newHttpProxy = (this.configurationService.getValue<string>('http.proxy') || '').trim()
@@ -1319,35 +1309,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 	}
 
-	private updateTrafficLightPosition(e?: IConfigurationChangeEvent): void {
-		if (!isMacintosh) {
-			return; // only applies to macOS
-		}
-
-		const commandCenterSettingKey = 'window.commandCenter';
-		if (e && !e.affectsConfiguration(commandCenterSettingKey)) {
-			return;
-		}
-
-		const useCustomTitleStyle = getTitleBarStyle(this.configurationService) === 'custom';
-		if (!useCustomTitleStyle) {
-			return; // only applies with custom title bar
-		}
-
-		const useCustomTrafficLightPosition = this.configurationService.getValue<boolean>(commandCenterSettingKey);
-		if (useCustomTrafficLightPosition) {
-			if (!this.defaultTrafficLightPosition) {
-				this.defaultTrafficLightPosition = this._win.getTrafficLightPosition(); // remember default to restore later
-			}
-			this._win.setTrafficLightPosition({ x: 7, y: 10 });
-		} else {
-			if (this.defaultTrafficLightPosition) {
-				this._win.setTrafficLightPosition(this.defaultTrafficLightPosition);
-			}
-		}
-
-		this.customTrafficLightPosition = useCustomTrafficLightPosition;
-	}
 
 	handleTitleDoubleClick(): void {
 
