@@ -34,7 +34,6 @@
 .monaco-workbench .part.statusbar > .right-items {
 	flex-direction: row-reverse;
 	flex-wrap: wrap /* ensures that the most right elements wrap last when space is little */;
-	margin-right: 34px; /* space for the notifications bell */
 }
 
 .monaco-workbench .part.statusbar > .left-items {
@@ -48,12 +47,23 @@
 	vertical-align: top;
 	max-width: 40vw;
 }
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak {
+	position: relative;
+}
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak:before {
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item > .beak-div-show {
 	content: '';
 	position: absolute;
-	right: 17px; /* 7px (padding) + 10px (centering) */
+	left: calc(50% - 5px); /* centering relative to parent */
 	top: -5px;
+	width: 10px;
+	height: 5px;
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item > .beak-div-show:before {
+	content: '';
+	position: fixed;
+	color: rgb(0, 122, 204);
 	border-bottom-width: 5px;
 	border-bottom-style: solid;
 	border-left: 5px solid transparent;
@@ -80,11 +90,7 @@
 }
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.right.last-visible-item {
-	position: absolute; /* always display the notification bell even where other status bar items overflow */
-	top: 0;
-	right: 0;
-	background: rgb(0, 122, 204); /* same as footer color to avoid other status bar items being visible under itself */
-	padding-right: 7px; /* Add padding to the most right status bar item */
+	margin-right: 7px; /* Add padding to the most right status bar item */
 }
 
 /* Tweak appearance for items with background to improve hover feedback */
