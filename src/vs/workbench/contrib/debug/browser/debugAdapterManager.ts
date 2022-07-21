@@ -157,9 +157,9 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 					},
 					'presentation': presentationSchema,
 					'internalConsoleOptions': INTERNAL_CONSOLE_OPTIONS_SCHEMA,
-					'multipleSessionWarning': {
+					'suppressMultipleSessionWarning': {
 						type: 'boolean',
-						description: nls.localize('multipleSessionWarning', "Show a warning dialog when starting the same debug session."),
+						description: nls.localize('suppressMultipleSessionWarning', "Warn when trying to start the same debug configuration more than once."),
 						default: true
 					}
 				}
