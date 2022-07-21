@@ -81,7 +81,7 @@ function _getPicks(filter: string, selectAndStartID: string, debugService: IDebu
 
 
 function _getSessionInfo(session: IDebugSession): { label: string; description: string; ariaLabel: string } {
-	const label = session.configuration.name.length === 0 ? session.name : session.configuration.name;
+	const label = (!session.configuration.name.length) ? session.name : session.configuration.name;
 	const parentName = session.compact ? undefined : session.parentSession?.configuration.name;
 	let description = '';
 	let ariaLabel = '';
