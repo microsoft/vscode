@@ -21,16 +21,18 @@ export class InstallationFolderUseDetectionContribution extends Disposable imple
 		@INotificationService private readonly notificationService: INotificationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IProductService private readonly productService: IProductService
-
 	) {
 		super();
+
+		const appRootUri = URI.file(this.nativeWorkbenchEnvironmentMainService.appRoot);
+
 		this._register(this.editorService.onDidActiveEditorChange(() => {
-			const appRootUri = URI.file(this.nativeWorkbenchEnvironmentMainService.appRoot);
 			const resourceUri = this.editorService.activeEditor?.resource;
+
 			if (resourceUri && this.uriIdentityService.extUri.isEqualOrParent(resourceUri, appRootUri)) {
 				this.notificationService.prompt(
 					Severity.Warning,
-					nls.localize('warnOfFileInInstallationFolder', 'Files within the {0} installation folder {1} will be OVERWRITTEN or DELETED IRREVERSIBLY without warning during a future update.', this.productService.nameShort, this.nativeWorkbenchEnvironmentMainService.appRoot),
+					nls.localize('warnOfFileInInstallationFolder', "Files within the installation folder of '{0}' ({1}) will be OVERWRITTEN or DELETED IRREVERSIBLY without warning during a future update.", this.productService.nameShort, this.nativeWorkbenchEnvironmentMainService.appRoot),
 					[{
 						label: nls.localize('ok', 'OK'),
 						run: async () => {
