@@ -239,11 +239,18 @@ export class ExpectedError extends Error {
  * Error that when thrown won't be logged in telemetry as an unhandled error.
  */
 export class ErrorNoTelemetry extends Error {
-	override readonly name: string;
+	private _name = 'ErrorNoTelemetry';
 
 	constructor(msg?: string) {
 		super(msg);
-		this.name = 'ErrorNoTelemetry';
+	}
+
+	public override set name(newName: string) {
+		this._name = `ErrorNoTelemetry${newName}`;
+	}
+
+	public override get name(): string {
+		return this._name;
 	}
 
 	public static fromError(err: Error): ErrorNoTelemetry {
@@ -258,7 +265,7 @@ export class ErrorNoTelemetry extends Error {
 	}
 
 	public static isErrorNoTelemetry(err: Error): err is ErrorNoTelemetry {
-		return err.name === 'ErrorNoTelemetry';
+		return err.name.startsWith('ErrorNoTelemetry');
 	}
 }
 

@@ -7,6 +7,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { Promises, ResourceQueue } from 'vs/base/common/async';
 import { bufferedStreamToBuffer, bufferToReadable, newWriteableBufferStream, readableToBuffer, streamToBuffer, VSBuffer, VSBufferReadable, VSBufferReadableBufferedStream, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { ErrorNoTelemetry } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { hash } from 'vs/base/common/hash';
 import { Iterable } from 'vs/base/common/iterator';
@@ -136,7 +137,7 @@ export class FileService extends Disposable implements IFileService {
 		// Assert provider
 		const provider = this.provider.get(resource.scheme);
 		if (!provider) {
-			const error = new Error();
+			const error = new ErrorNoTelemetry();
 			error.name = 'ENOPRO';
 			error.message = localize('noProviderFound', "No file system provider found for resource '{0}'", resource.toString());
 
