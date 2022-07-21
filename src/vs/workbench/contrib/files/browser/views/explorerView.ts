@@ -310,6 +310,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			if (visible) {
 				// Always refresh explorer when it becomes visible to compensate for missing file events #126817
 				await this.setTreeInput();
+				// Update the collapse / expand  button state
+				this.updateAnyCollapsedContext();
 				// Find resource to focus from active editor input if set
 				this.selectActiveFile(true);
 			}
@@ -505,9 +507,10 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 				const navigationController = this.renderer.getCompressedNavigationController(element instanceof Array ? element[0] : element);
 				navigationController?.updateCollapsed(e.node.collapsed);
 			}
+			// Update showing expand / collapse button
+			this.updateAnyCollapsedContext();
 		}));
 
-		this._register(this.tree.onDidChangeCollapseState(() => this.updateAnyCollapsedContext()));
 		this.updateAnyCollapsedContext();
 
 		this._register(this.tree.onMouseDblClick(e => {

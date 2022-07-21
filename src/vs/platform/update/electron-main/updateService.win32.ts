@@ -242,4 +242,26 @@ export class Win32UpdateService extends AbstractUpdateService {
 	protected override getUpdateType(): UpdateType {
 		return getUpdateType();
 	}
+
+	override async _applySpecificUpdate(packagePath: string): Promise<void> {
+		if (this.state.type !== StateType.Idle) {
+			return;
+		}
+
+		const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
+		const update: IUpdate = { version: 'unknown', productVersion: 'unknown', supportsFastUpdate: !!fastUpdatesEnabled };
+
+		this.setState(State.Downloading(update));
+		this.availableUpdate = { packagePath };
+
+		if (fastUpdatesEnabled) {
+			if (this.productService.target === 'user') {
+				this.doApplyUpdate();
+			} else {
+				this.setState(State.Downloaded(update));
+			}
+		} else {
+			this.setState(State.Ready(update));
+		}
+	}
 }

@@ -189,10 +189,9 @@ export class OpenResultResource extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const opener = accessor.get(IOpenerService);
-		const { activeEditor } = accessor.get(IEditorService);
-		if (activeEditor instanceof MergeEditorInput) {
-			await opener.open(activeEditor.result);
+		const editorService = accessor.get(IEditorService);
+		if (editorService.activeEditor instanceof MergeEditorInput) {
+			editorService.openEditor({ resource: editorService.activeEditor.result });
 		}
 	}
 }
@@ -332,8 +331,10 @@ export class CompareInput1WithBaseCommand extends Action2 {
 				),
 				original: 'Compare Input 1 With Base',
 			},
+			shortTitle: localize('mergeEditor.compareWithBase', 'Compare With Base'),
 			f1: true,
 			precondition: ctxIsMergeEditor,
+			menu: { id: MenuId.MergeInput1Toolbar }
 		});
 	}
 	run(accessor: ServicesAccessor, ...args: unknown[]): void {
@@ -355,8 +356,10 @@ export class CompareInput2WithBaseCommand extends Action2 {
 				),
 				original: 'Compare Input 2 With Base',
 			},
+			shortTitle: localize('mergeEditor.compareWithBase', 'Compare With Base'),
 			f1: true,
 			precondition: ctxIsMergeEditor,
+			menu: { id: MenuId.MergeInput2Toolbar }
 		});
 	}
 	run(accessor: ServicesAccessor, ...args: unknown[]): void {

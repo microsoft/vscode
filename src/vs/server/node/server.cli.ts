@@ -73,7 +73,7 @@ const isSupportedForPipe = (optionId: keyof RemoteParsedArgs) => {
 		case 'category':
 		case 'verbose':
 		case 'remote':
-		case 'shell-integration':
+		case 'locate-shell-integration-path':
 			return true;
 		default:
 			return false;
