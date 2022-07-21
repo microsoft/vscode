@@ -201,6 +201,10 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		return context.res.statusCode === 204;
 	}
 
+	async _applySpecificUpdate(packagePath: string): Promise<void> {
+		// noop
+	}
+
 	protected getUpdateType(): UpdateType {
 		return UpdateType.Archive;
 	}
