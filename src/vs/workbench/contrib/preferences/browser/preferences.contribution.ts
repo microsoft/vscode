@@ -45,6 +45,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { CONTEXT_CURRENT_PROFILE } from 'vs/workbench/contrib/userDataProfile/browser/userDataProfile';
 
 const SETTINGS_EDITOR_COMMAND_SEARCH = 'settings.action.search';
 
@@ -209,37 +210,41 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 		});
 
 		const that = this;
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: 'workbench.action.openSettingsJson',
-					title: that.userDataProfileService.currentProfile.isDefault ? OPEN_USER_SETTINGS_JSON_TITLE : OPEN_CURRENT_PROFILE_SETTINGS_JSON_TITLE,
-					category,
-					f1: true,
-				});
-			}
-			run(accessor: ServicesAccessor, args: IOpenSettingsActionOptions) {
-				args = sanitizeOpenSettingsArgs(args);
-				return accessor.get(IPreferencesService).openSettings({ jsonEditor: true, ...args });
-			}
-		});
-
-		if (!this.userDataProfileService.currentProfile.isDefault) {
-			registerAction2(class extends Action2 {
+		const registerOpenSettingsJsonCommandDisposable = this._register(new MutableDisposable());
+		const registerOpenSettingsJsonCommand = () => {
+			registerOpenSettingsJsonCommandDisposable.value = registerAction2(class extends Action2 {
 				constructor() {
 					super({
-						id: 'workbench.action.openApplicationSettingsJson',
-						title: OPEN_USER_SETTINGS_JSON_TITLE,
+						id: 'workbench.action.openSettingsJson',
+						title: that.userDataProfileService.currentProfile.isDefault ? OPEN_USER_SETTINGS_JSON_TITLE : OPEN_CURRENT_PROFILE_SETTINGS_JSON_TITLE,
 						category,
 						f1: true,
 					});
 				}
 				run(accessor: ServicesAccessor, args: IOpenSettingsActionOptions) {
 					args = sanitizeOpenSettingsArgs(args);
-					return accessor.get(IPreferencesService).openApplicationSettings({ jsonEditor: true, ...args });
+					return accessor.get(IPreferencesService).openSettings({ jsonEditor: true, ...args });
 				}
 			});
-		}
+		};
+
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.action.openApplicationSettingsJson',
+					title: OPEN_USER_SETTINGS_JSON_TITLE,
+					category,
+					menu: {
+						id: MenuId.CommandPalette,
+						when: ContextKeyExpr.equals(CONTEXT_CURRENT_PROFILE.key, that.userDataProfilesService.defaultProfile.id)
+					}
+				});
+			}
+			run(accessor: ServicesAccessor, args: IOpenSettingsActionOptions) {
+				args = sanitizeOpenSettingsArgs(args);
+				return accessor.get(IPreferencesService).openApplicationSettings({ jsonEditor: true, ...args });
+			}
+		});
 
 		// Opens the User tab of the Settings editor
 		registerAction2(class extends Action2 {
@@ -380,10 +385,12 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 
 		registerOpenUserSettingsEditorFromJsonAction();
 		registerOpenJsonFromSettingsEditorAction();
+		registerOpenSettingsJsonCommand();
 
 		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => {
 			registerOpenUserSettingsEditorFromJsonAction();
 			registerOpenJsonFromSettingsEditorAction();
+			registerOpenSettingsJsonCommand();
 		}));
 
 		registerAction2(class extends Action2 {
