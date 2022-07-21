@@ -258,7 +258,7 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 		// });
 	});
 
-	test('edit API batch edits', async function () {
+	test.skip('edit API batch edits', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/155808
 		const notebook = await openRandomNotebookDocument();
 		const editor = await vscode.window.showNotebookDocument(notebook);
 
