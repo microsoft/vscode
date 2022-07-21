@@ -36,6 +36,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { ITreeViewsService } from 'vs/workbench/services/views/browser/treeViewsService';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export interface IUserFriendlyViewsContainerDescriptor {
 	id: string;
@@ -262,7 +263,8 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 	private viewsRegistry: IViewsRegistry;
 
 	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ILogService private readonly logService: ILogService
 	) {
 		this.viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 		this.viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
@@ -508,7 +510,11 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					let weight: number | undefined = undefined;
 					if (typeof item.size === 'number') {
 						checkProposedApiEnabled(extension.description, 'contribViewSize');
-						weight = item.size;
+						if (container.extensionId?.value === extension.description.identifier.value) {
+							weight = item.size;
+						} else {
+							this.logService.warn(`${extension.description.identifier.value} tried to set the view size of ${item.id} but it was ignored because the view container does not belong to it.`);
+						}
 					}
 
 					const viewDescriptor = <ICustomTreeViewDescriptor>{
