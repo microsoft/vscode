@@ -100,7 +100,6 @@ export const SELECT_DEBUG_SESSION_LABEL = { value: nls.localize('selectDebugSess
 
 export const DEBUG_QUICK_ACCESS_PREFIX = 'debug ';
 export const DEBUG_CONSOLE_QUICK_ACCESS_PREFIX = 'debug consoles ';
-export const DEBUG_SESSION_QUICK_ACCESS_PREFIX = 'debug sessions ';
 
 interface CallStackContext {
 	sessionId: string;
