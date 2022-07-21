@@ -13,6 +13,10 @@ import { CancellationToken, } from 'vs/base/common/cancellation';
 import { ITextModel } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
 import * as dom from 'vs/base/browser/dom';
+import { SymbolKind } from 'vs/editor/common/languages';
+import { Color } from 'vs/base/common/color';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+
 
 class StickyScrollController implements IEditorContribution {
 
@@ -34,21 +38,29 @@ class StickyScrollController implements IEditorContribution {
 		this.previousEnclosingElementStartLine = 0;
 		this.previousEnclosingElementEndLine = 0;
 
-		this.stickyScrollWidget = new StickyScrollWidget();
+		this.stickyScrollWidget = new StickyScrollWidget(this._editor);
+
 		this._editor.addOverlayWidget(this.stickyScrollWidget);
 
-		this._store.add(this._editor.onDidChangeModel((e) => {
-			this.renderStickyScroll();
+		this._store.add(this._editor.onDidChangeModel(() => this._update()));
+		this._store.add(this._editor.onDidScrollChange(() => this._update()));
+		this._store.add(this._editor.onDidChangeModelContent(() => this._update()));
+		this._store.add(this._editor.onDidChangeConfiguration(e => {
+			if (e.hasChanged(EditorOption.stickyScroll)) {
+				this._update();
+			} else {
+				this.stickyScrollWidget.emptyRootNode();
+			}
 		}));
+		this._update();
+	}
 
-		this._store.add(this._editor.onDidScrollChange((e) => {
-			this.renderStickyScroll();
-
-		}));
-
-		this._store.add(this._editor.onDidChangeModelContent((e) => {
-			this.renderStickyScroll();
-		}));
+	private _update(): void {
+		const options = this._editor.getOption(EditorOption.stickyScroll);
+		if (options.enabled === false) {
+			return;
+		}
+		this.renderStickyScroll();
 	}
 
 	async createOutlineModel(model: ITextModel): Promise<OutlineModel> {
@@ -64,15 +76,16 @@ class StickyScrollController implements IEditorContribution {
 		if (this._editor.hasModel()) {
 			const model = this._editor.getModel();
 			this.createOutlineModel(model).then((outlineModel) => {
-				outlineElement = outlineModel.getItemEnclosingPosition({ lineNumber: range[0].startLineNumber, column: 1 });
+				const nLinesStickyScroll = this.stickyScrollWidget.arrayOfCodeLines.length;
+				outlineElement = outlineModel.getItemEnclosingPosition({ lineNumber: range[0].startLineNumber + nLinesStickyScroll, column: 1 });
 				const currentEnclosingItemStartLine: number | undefined = outlineElement?.symbol.range.startLineNumber;
 				const currentEnclosingItemEndLine: number | undefined = outlineElement?.symbol.range.endLineNumber;
 
-				if (outlineElement && currentEnclosingItemStartLine !== this.previousEnclosingElementStartLine && currentEnclosingItemEndLine !== this.previousEnclosingElementEndLine) {
+				if (outlineElement && currentEnclosingItemStartLine !== this.previousEnclosingElementStartLine && currentEnclosingItemEndLine !== this.previousEnclosingElementEndLine && (outlineElement.symbol.kind === SymbolKind.Class || outlineElement.symbol.kind === SymbolKind.Interface || outlineElement.symbol.kind === SymbolKind.Function || outlineElement.symbol.kind === SymbolKind.Method || outlineElement.symbol.kind === SymbolKind.Constructor)) {
 					this.stickyScrollWidget.emptyRootNode();
 					while (outlineElement) {
 						line = model.getLineContent(outlineElement?.symbol?.range?.startLineNumber);
-						this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(line, outlineElement?.symbol.range.startLineNumber));
+						this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(line, outlineElement?.symbol.range.startLineNumber, this._editor));
 						if (outlineElement.parent instanceof OutlineElement) {
 							outlineElement = outlineElement.parent;
 						} else {
@@ -92,26 +105,51 @@ class StickyScrollController implements IEditorContribution {
 }
 
 class StickyScrollCodeLine {
-	constructor(public readonly line: string, public readonly lineNumber: number) { }
+	constructor(public readonly line: string, public readonly lineNumber: number, public readonly _editor: ICodeEditor) { }
 
 	getDomNode() {
-		/* Error with the type checking
+		/* --- FOR SOME REASON THROWS AN ERROR
 		const domTemplate = dom.h('div', [dom.h('span', { $: 'lineNumber' }), dom.h('span', { $: 'lineValue' })]);
 		domTemplate.lineNumber.innerText = this.lineNumber.toString();
 		domTemplate.lineValue.innerText = this.line;
 		return domTemplate.root;
-		*/
+		---- */
 
 		const root: HTMLElement = document.createElement('div');
 		const lineNumberHTMLNode = document.createElement('span');
 		const lineHTMLNode = document.createElement('span');
+
 		lineNumberHTMLNode.innerText = this.lineNumber.toString();
-		lineHTMLNode.innerText = this.line;
+
+		const modifiedLine = this.line.replace(/\s/g, '\xa0');
+		lineHTMLNode.innerText = modifiedLine;
+		lineHTMLNode.onclick = e => {
+			e.stopPropagation();
+			e.preventDefault();
+			this._editor.revealLine(this.lineNumber);
+		};
+		this._editor.applyFontInfo(lineHTMLNode);
+
+		lineNumberHTMLNode.style.width = this._editor.getLayoutInfo().contentLeft.toString() + 'px';
+		lineNumberHTMLNode.style.display = 'inline-block';
+		lineNumberHTMLNode.style.textAlign = 'center';
+		this._editor.applyFontInfo(lineNumberHTMLNode);
+
 		root.appendChild(lineNumberHTMLNode);
 		root.appendChild(lineHTMLNode);
 		return root;
 	}
 }
+
+
+export interface IStickyScrollWidgetStyles {
+	stickyScrollBackground?: Color;
+	stickyScrollForeground?: Color;
+	stickyScrollHoverForeground?: Color;
+	stickyScrollFocusForeground?: Color;
+	stickyScrollFocusAndSelectionForeground?: Color;
+}
+
 
 class StickyScrollWidget implements IOverlayWidget {
 
@@ -120,17 +158,15 @@ class StickyScrollWidget implements IOverlayWidget {
 	arrayOfCodeLines: StickyScrollCodeLine[] = [];
 	readonly rootDomNode: HTMLElement = document.createElement('div');
 
-
-	constructor() {
+	constructor(public readonly _editor: ICodeEditor) {
 
 		this.rootDomNode = document.createElement('div');
-		this.rootDomNode.style.background = 'var(--separator-border)';
 		this.rootDomNode.style.width = '100%';
+		this.rootDomNode.style.backgroundColor = 'black';
 	}
 
 	pushCodeLine(codeLine: StickyScrollCodeLine) {
 		this.arrayOfCodeLines.unshift(codeLine);
-		// this.rootDomNode.appendChild(codeLine.getDomNode());
 	}
 
 	updateRootNode() {

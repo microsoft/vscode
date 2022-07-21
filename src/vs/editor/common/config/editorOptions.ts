@@ -170,6 +170,10 @@ export interface IEditorOptions {
 	 */
 	scrollbar?: IEditorScrollbarOptions;
 	/**
+	 * Control the behavior of the sticky scroll
+	 */
+	stickyScroll?: IEditorStickyScrollOptions;
+	/**
 	 * Control the behavior and rendering of the minimap.
 	 */
 	minimap?: IEditorMinimapOptions;
@@ -2504,6 +2508,54 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 
 //#endregion
 
+//#region sticky scroll
+
+/**
+ * Configuration options for editor sticky scroll
+ */
+
+export interface IEditorStickyScrollOptions {
+	/**
+	 * Enable the sticky scroll
+	 */
+	enabled?: boolean;
+}
+
+/**
+ * @internal
+ */
+
+export type EditorStickyScrollOptions = Readonly<Required<IEditorStickyScrollOptions>>;
+
+class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEditorStickyScrollOptions, EditorStickyScrollOptions> {
+
+	constructor() {
+		const defaults: EditorStickyScrollOptions = { enabled: false };
+		super(
+			EditorOption.stickyScroll, 'stickyScroll', defaults,
+			{
+				'editor.stickyScroll.enabled': {
+					type: 'boolean',
+					default: defaults.enabled,
+					description: nls.localize('editor.stickyScroll', "Enables the sticky scroll in the editor.")
+				},
+			}
+		);
+	}
+
+	public validate(_input: any): EditorStickyScrollOptions {
+		if (!_input || typeof _input !== 'object') {
+			return this.defaultValue;
+		}
+		const input = _input as IEditorStickyScrollOptions;
+		return {
+			enabled: boolean(input.enabled, this.defaultValue.enabled)
+		};
+	}
+}
+
+//#endregion
+
 //#region inlayHints
 
 /**
@@ -4523,6 +4575,7 @@ export const enum EditorOption {
 	smartSelect,
 	smoothScrolling,
 	stickyTabStops,
+	stickyScroll,
 	stopRenderingLineAfter,
 	suggest,
 	suggestFontSize,
@@ -5079,6 +5132,7 @@ export const EditorOptions = {
 		EditorOption.smoothScrolling, 'smoothScrolling', false,
 		{ description: nls.localize('smoothScrolling', "Controls whether the editor will scroll using an animation.") }
 	)),
+	stickyScroll: register(new EditorStickyScroll()),
 	stopRenderingLineAfter: register(new EditorIntOption(
 		EditorOption.stopRenderingLineAfter, 'stopRenderingLineAfter',
 		10000, -1, Constants.MAX_SAFE_SMALL_INTEGER,
