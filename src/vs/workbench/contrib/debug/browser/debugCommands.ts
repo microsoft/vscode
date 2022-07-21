@@ -32,6 +32,7 @@ import { isWeb, isWindows } from 'vs/base/common/platform';
 import { saveAllBeforeDebugStart } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { showLoadedScriptMenu } from 'vs/workbench/contrib/debug/common/loadedScriptsPicker';
+import { showDebugSessionMenu } from 'vs/workbench/contrib/debug/browser/debugSessionPicker';
 
 export const ADD_CONFIGURATION_ID = 'debug.addConfiguration';
 export const TOGGLE_INLINE_BREAKPOINT_ID = 'editor.debug.action.toggleInlineBreakpoint';
@@ -716,8 +717,7 @@ CommandsRegistry.registerCommand({
 CommandsRegistry.registerCommand({
 	id: SELECT_DEBUG_SESSION_ID,
 	handler: async (accessor: ServicesAccessor) => {
-		const quickInputService = accessor.get(IQuickInputService);
-		quickInputService.quickAccess.show(DEBUG_SESSION_QUICK_ACCESS_PREFIX);
+		showDebugSessionMenu(accessor, SELECT_AND_START_ID);
 	}
 });
 
