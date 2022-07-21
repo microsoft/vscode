@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { basename } from 'vs/base/common/resources';
 import { IDisposable, dispose, Disposable, DisposableStore, combinedDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
-import { VIEW_PANE_ID, ISCMService, ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
+import { VIEW_PANE_ID, ISCMService, ISCMRepository, ISCMViewService, VIEWLET_ID } from 'vs/workbench/contrib/scm/common/scm';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -23,6 +23,8 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IOpener, IOpenerService, OpenExternalOptions, OpenInternalOptions } from 'vs/platform/opener/common/opener';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 function getCount(repository: ISCMRepository): number {
 	if (typeof repository.provider.count === 'number') {
@@ -307,15 +309,54 @@ class SCMInputTextDocumentLabelFormatter {
 	) { }
 }
 
+class SCMInputTextDocumentOpener implements IOpener {
+
+	constructor(
+		@ICommandService private readonly commandService: ICommandService,
+		@ISCMService private readonly scmService: ISCMService
+	) { }
+
+	open(resource: string | URI, options?: OpenInternalOptions | OpenExternalOptions | undefined): Promise<boolean> {
+		if (typeof resource === 'string') {
+			resource = URI.parse(resource);
+		}
+
+		if (resource.scheme !== Schemas.vscode && resource.authority !== 'scm') {
+			return Promise.resolve(false);
+		}
+
+		const match = /git\/(?<repositoryId>scm[\d+])\/input/i.exec(resource.path);
+
+		if (match?.groups === undefined) {
+			return Promise.resolve(false);
+		}
+
+		const { repositoryId } = match.groups;
+		const repository = this.scmService.getRepository(repositoryId);
+
+		if (repository === undefined) {
+			return Promise.resolve(false);
+		}
+
+		repository.input.setFocus();
+		this.commandService.executeCommand(VIEWLET_ID);
+
+		return Promise.resolve(true);
+	}
+}
+
 export class SCMInputTextDocumentContribution implements IWorkbenchContribution {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ILabelService labelService: ILabelService
+		@ILabelService labelService: ILabelService,
+		@IOpenerService openerService: IOpenerService
 	) {
 		labelService.registerFormatter({
 			scheme: Schemas.vscode,
 			authority: 'scm',
 			formatting: instantiationService.createInstance(SCMInputTextDocumentLabelFormatter)
 		});
+
+		openerService.registerOpener(instantiationService.createInstance(SCMInputTextDocumentOpener));
 	}
 }

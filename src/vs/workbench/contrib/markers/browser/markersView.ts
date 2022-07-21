@@ -58,6 +58,7 @@ import { ResourceListDnDHandler } from 'vs/workbench/browser/dnd';
 import { ITableContextMenuEvent, ITableEvent } from 'vs/base/browser/ui/table/table';
 import { MarkersTable } from 'vs/workbench/contrib/markers/browser/markersTable';
 import { Markers, MarkersContextKeys, MarkersViewMode } from 'vs/workbench/contrib/markers/common/markers';
+import { Schemas } from 'vs/base/common/network';
 
 function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterable<ITreeElement<MarkerElement>> {
 	return Iterable.map(resourceMarkers.markers, m => {
@@ -272,22 +273,26 @@ export class MarkersView extends ViewPane implements IMarkersView {
 			element instanceof RelatedInformation ? { resource: element.raw.resource, selection: element.raw } :
 				'marker' in element ? { resource: element.marker.resource, selection: element.marker.range } :
 					{ resource: null, selection: null };
-		if (resource && selection) {
-			this.editorService.openEditor({
-				resource,
-				options: {
-					selection,
-					preserveFocus,
-					pinned,
-					revealIfVisible: true
-				},
-			}, sideByside ? SIDE_GROUP : ACTIVE_GROUP).then(editor => {
-				if (editor && preserveFocus) {
-					this.rangeHighlightDecorations.highlightRange({ resource, range: selection }, <ICodeEditor>editor.getControl());
-				} else {
-					this.rangeHighlightDecorations.removeHighlightRange();
-				}
-			});
+		if (resource && resource instanceof URI && selection) {
+			if (resource.scheme === Schemas.file) {
+				this.editorService.openEditor({
+					resource,
+					options: {
+						selection,
+						preserveFocus,
+						pinned,
+						revealIfVisible: true
+					},
+				}, sideByside ? SIDE_GROUP : ACTIVE_GROUP).then(editor => {
+					if (editor && preserveFocus) {
+						this.rangeHighlightDecorations.highlightRange({ resource, range: selection }, <ICodeEditor>editor.getControl());
+					} else {
+						this.rangeHighlightDecorations.removeHighlightRange();
+					}
+				});
+			} else {
+				this.openerService.open(resource);
+			}
 			return true;
 		} else {
 			this.rangeHighlightDecorations.removeHighlightRange();
