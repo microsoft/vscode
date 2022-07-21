@@ -272,7 +272,14 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.MergeToolbar,
 		description: localize('merge.toolbar', "The prominent botton in the merge editor"),
 		proposed: 'contribMergeEditorToolbar'
-	}
+	},
+	{
+		key: 'webview/context',
+		id: MenuId.WebviewContext,
+		description: localize('webview.context', "The webview context menu"),
+		proposed: 'contribWebviewContext'
+	},
+
 ];
 
 namespace schema {
