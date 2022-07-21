@@ -24,7 +24,7 @@ export async function showDebugSessionMenu(accessor: ServicesAccessor, selectAnd
 	const quickPick = quickInputService.createQuickPick<IPickerDebugItem>();
 	localDisposableStore.add(quickPick);
 	quickPick.matchOnLabel = quickPick.matchOnDescription = quickPick.matchOnDetail = quickPick.sortByLabel = false;
-	quickPick.placeholder = nls.localize('moveFocusedView.selectView', "Search loaded scripts by name");
+	quickPick.placeholder = nls.localize('moveFocusedView.selectView', 'Search for debug session by name');
 	quickPick.items = _getPicks(quickPick.value, selectAndStartID, debugService, viewsService, commandService);
 
 	localDisposableStore.add(quickPick.onDidChangeValue(async () => {
@@ -65,14 +65,14 @@ function _getPicks(filter: string, selectAndStartID: string, debugService: IDebu
 		}
 	});
 
-	if (debugConsolePicks.length > 0) {
+	if (debugConsolePicks.length) {
 		debugConsolePicks.push({ type: 'separator' });
 	}
 
-	const createTerminalLabel = nls.localize("workbench.action.debug.startDebug", "Start a New Debug Session");
+	const createDebugSessionLabel = nls.localize('workbench.action.debug.startDebug', 'Start a New Debug Session');
 	debugConsolePicks.push({
-		label: `$(plus) ${createTerminalLabel}`,
-		ariaLabel: createTerminalLabel,
+		label: `$(plus) ${createDebugSessionLabel}`,
+		ariaLabel: createDebugSessionLabel,
 		accept: () => commandService.executeCommand(selectAndStartID)
 	});
 
@@ -83,14 +83,11 @@ function _getPicks(filter: string, selectAndStartID: string, debugService: IDebu
 function _getSessionInfo(session: IDebugSession): { label: string; description: string; ariaLabel: string } {
 	const label = session.configuration.name.length === 0 ? session.name : session.configuration.name;
 	const parentName = session.compact ? undefined : session.parentSession?.configuration.name;
-	let description;
-	let ariaLabel;
+	let description = '';
+	let ariaLabel = '';
 	if (parentName) {
 		ariaLabel = nls.localize('workbench.action.debug.spawnFrom', 'Session {0} spawned from {1}', label, parentName);
 		description = parentName;
-	} else {
-		description = '';
-		ariaLabel = '';
 	}
 
 	return { label, description, ariaLabel };
