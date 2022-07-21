@@ -249,6 +249,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			options,
 			editorFactoryObject
 		});
+		registeredEditor.set(editorInfo.id, editorsWithId);
 		this._onDidChangeEditorRegistrations.fire();
 		return toDisposable(() => {
 			remove();
