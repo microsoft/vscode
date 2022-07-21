@@ -119,8 +119,9 @@ class SettingsEditor2InputSerializer implements IEditorSerializer {
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(KeybindingsEditorInput.ID, KeybindingsEditorInputSerializer);
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(SettingsEditor2Input.ID, SettingsEditor2InputSerializer);
 
-const OPEN_SETTINGS2_ACTION_TITLE = { value: nls.localize('openSettings2', "Open Settings (UI)"), original: 'Open Settings (UI)' };
-
+const OPEN_USER_SETTINGS_UI_TITLE = { value: nls.localize('openSettings2', "Open Settings (UI)"), original: 'Open Settings (UI)' };
+const OPEN_USER_SETTINGS_JSON_TITLE = { value: nls.localize('openUserSettingsJson', "Open User Settings (JSON)"), original: 'Open User Settings (JSON)' };
+const OPEN_CURRENT_PROFILE_SETTINGS_JSON_TITLE = { value: nls.localize('openCurrentProfileSettingsJson', "Open Current Profile Settings (JSON)"), original: 'Open Current Profile Settings (JSON)' };
 const category = { value: nls.localize('preferences', "Preferences"), original: 'Preferences' };
 
 interface IOpenSettingsActionOptions {
@@ -206,11 +207,13 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				return accessor.get(IPreferencesService).openSettings({ jsonEditor: false, ...args });
 			}
 		});
+
+		const that = this;
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.action.openSettingsJson',
-					title: { value: nls.localize('openSettingsJson', "Open Settings (JSON)"), original: 'Open Settings (JSON)' },
+					title: that.userDataProfileService.currentProfile.isDefault ? OPEN_USER_SETTINGS_JSON_TITLE : OPEN_CURRENT_PROFILE_SETTINGS_JSON_TITLE,
 					category,
 					f1: true,
 				});
@@ -220,6 +223,25 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				return accessor.get(IPreferencesService).openSettings({ jsonEditor: true, ...args });
 			}
 		});
+
+		if (!this.userDataProfileService.currentProfile.isDefault) {
+			registerAction2(class extends Action2 {
+				constructor() {
+					super({
+						id: 'workbench.action.openApplicationSettingsJson',
+						title: OPEN_USER_SETTINGS_JSON_TITLE,
+						category,
+						f1: true,
+					});
+				}
+				run(accessor: ServicesAccessor, args: IOpenSettingsActionOptions) {
+					args = sanitizeOpenSettingsArgs(args);
+					return accessor.get(IPreferencesService).openApplicationSettings({ jsonEditor: true, ...args });
+				}
+			});
+		}
+
+		// Opens the User tab of the Settings editor
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
@@ -260,7 +282,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				constructor() {
 					super({
 						id: '_workbench.openUserSettingsEditor',
-						title: OPEN_SETTINGS2_ACTION_TITLE,
+						title: OPEN_USER_SETTINGS_UI_TITLE,
 						icon: preferencesOpenSettingsIcon,
 						menu: [{
 							id: MenuId.EditorTitle,
@@ -288,8 +310,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					constructor() {
 						super({
 							id: SETTINGS_EDITOR_COMMAND_SWITCH_TO_CURRENT_PROFILE_JSON,
-							title: { value: nls.localize('openCurrentProfileSettings', "Open Current Profile Settings (JSON)"), original: 'Open Current Profile Settings (JSON)' },
-							f1: true,
+							title: OPEN_CURRENT_PROFILE_SETTINGS_JSON_TITLE,
 							menu: [{ id: submenuId, order: 1 }]
 						});
 					}
@@ -305,8 +326,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					constructor() {
 						super({
 							id: SETTINGS_EDITOR_COMMAND_SWITCH_TO_APPLICATION_JSON,
-							title: { value: nls.localize('openApplicationSettings', "Open User Settings (JSON)"), original: 'Open User Settings (JSON)' },
-							f1: true,
+							title: OPEN_USER_SETTINGS_JSON_TITLE,
 							menu: [{ id: submenuId, order: 2 }]
 						});
 					}
@@ -1183,7 +1203,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 				command: {
 					id: commandId,
-					title: OPEN_SETTINGS2_ACTION_TITLE,
+					title: OPEN_USER_SETTINGS_UI_TITLE,
 					icon: preferencesOpenSettingsIcon
 				},
 				when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.workspaceSettingsResource!.toString()), WorkbenchStateContext.isEqualTo('workspace'), ContextKeyExpr.not('isInDiffEditor')),
@@ -1208,7 +1228,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 					command: {
 						id: commandId,
-						title: OPEN_SETTINGS2_ACTION_TITLE,
+						title: OPEN_USER_SETTINGS_UI_TITLE,
 						icon: preferencesOpenSettingsIcon
 					},
 					when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.getFolderSettingsResource(folder.uri)!.toString()), ContextKeyExpr.not('isInDiffEditor')),
