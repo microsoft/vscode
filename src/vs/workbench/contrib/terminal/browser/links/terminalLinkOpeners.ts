@@ -23,6 +23,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
 import { ISearchService } from 'vs/workbench/services/search/common/search';
+import { basename } from 'vs/base/common/path';
 
 export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 	constructor(
@@ -35,7 +36,7 @@ export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 		if (!link.uri) {
 			throw new Error('Tried to open file link without a resolved URI');
 		}
-		const lineColumnInfo: ILineColumnInfo = this.extractLineColumnInfo(link.text);
+		const lineColumnInfo: ILineColumnInfo = this.extractLineColumnInfo(link.text, link.uri);
 		const selection: ITextEditorSelection = {
 			startLineNumber: lineColumnInfo.lineNumber,
 			startColumn: lineColumnInfo.columnNumber
@@ -51,11 +52,21 @@ export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 	 *
 	 * @param link Url link which may contain line and column number.
 	 */
-	extractLineColumnInfo(link: string): ILineColumnInfo {
+	extractLineColumnInfo(link: string, uri: URI): ILineColumnInfo {
 		const lineColumnInfo: ILineColumnInfo = {
 			lineNumber: 1,
 			columnNumber: 1
 		};
+
+		// Calculate the file name end using the URI if possible, this will help with sanitizing the
+		// link for the match regex. The actual path isn't important in extracting the line and
+		// column from the regex so modifying the link text before the file name is safe.
+		const fileName = basename(uri.path);
+		const index = link.indexOf(fileName);
+		const fileNameEndIndex: number = index !== -1 ? index + fileName.length : link.length;
+
+		// Sanitize the link text such that the folders and file name do not contain whitespace.
+		link = link.slice(0, fileNameEndIndex).replace(/\s/g, '_') + link.slice(fileNameEndIndex);
 
 		// The local link regex only works for non file:// links, check these for a simple
 		// `:line:col` suffix
@@ -248,7 +259,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 				const { uri, isDirectory } = result;
 				const linkToOpen = {
 					// Use the absolute URI's path here so the optional line/col get detected
-					text: result.uri.fsPath + (text.match(/:\d+(:\d+)?$/)?.[0] || ''),
+					text: result.uri.path + (text.match(/:\d+(:\d+)?$/)?.[0] || ''),
 					uri,
 					bufferRange: link.bufferRange,
 					type: link.type

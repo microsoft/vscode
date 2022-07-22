@@ -583,9 +583,6 @@ if (isWindows || isLinux || isWeb) {
 					id: MenuId.MenubarAppearanceMenu,
 					group: '2_workbench_layout',
 					order: 0
-				}, {
-					id: MenuId.TitleBarContext,
-					order: 0
 				}]
 			});
 		}
@@ -593,6 +590,16 @@ if (isWindows || isLinux || isWeb) {
 		run(accessor: ServicesAccessor): void {
 			return accessor.get(IWorkbenchLayoutService).toggleMenuBar();
 		}
+	});
+
+	// Add separately to title bar context menu so we can use a different title
+	MenuRegistry.appendMenuItem(MenuId.TitleBarContext, {
+		command: {
+			id: 'workbench.action.toggleMenuBar',
+			title: localize('miShowMenuBarNoMnemonic', "Show Menu Bar"),
+			toggled: ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'compact'))
+		},
+		order: 0
 	});
 }
 

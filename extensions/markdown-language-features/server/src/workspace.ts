@@ -94,7 +94,7 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 			}
 		});
 
-		connection.onRequest(protocol.onWatcherChange, params => {
+		connection.onRequest(protocol.fs_watcher_onChange, params => {
 			const watcher = this._watchers.get(params.id);
 			if (!watcher) {
 				return;
@@ -130,7 +130,7 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 		const limiter = new Limiter<md.ITextDocument | undefined>(maxConcurrent);
 
 		// Add files on disk
-		const resources = await this.connection.sendRequest(protocol.findFilesRequestTypes, {});
+		const resources = await this.connection.sendRequest(protocol.findMarkdownFilesInWorkspace, {});
 		const onDiskResults = await Promise.all(resources.map(strResource => {
 			return limiter.queue(async () => {
 				const resource = URI.parse(strResource);
@@ -170,7 +170,7 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 		}
 
 		try {
-			const response = await this.connection.sendRequest(protocol.readFileRequestType, { uri: resource.toString() });
+			const response = await this.connection.sendRequest(protocol.fs_readFile, { uri: resource.toString() });
 			// TODO: LSP doesn't seem to handle Array buffers well
 			const bytes = new Uint8Array(response);
 
@@ -189,12 +189,12 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 		if (this._documentCache.has(resource) || this.documents.get(resource.toString())) {
 			return { isDirectory: false };
 		}
-		return this.connection.sendRequest(protocol.statFileRequestType, { uri: resource.toString() });
+		return this.connection.sendRequest(protocol.fs_stat, { uri: resource.toString() });
 	}
 
 	async readDirectory(resource: URI): Promise<[string, md.FileStat][]> {
 		this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace: readDir', `${resource}`);
-		return this.connection.sendRequest(protocol.readDirectoryRequestType, { uri: resource.toString() });
+		return this.connection.sendRequest(protocol.fs_readDirectory, { uri: resource.toString() });
 	}
 
 	getContainingDocument(resource: URI): ContainingDocumentContext | undefined {
@@ -221,7 +221,7 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 		const id = this._watcherPool++;
 		this._watchers.set(id, entry);
 
-		this.connection.sendRequest(protocol.createFileWatcher, {
+		this.connection.sendRequest(protocol.fs_watcher_create, {
 			id,
 			uri: resource.toString(),
 			options,
@@ -232,7 +232,7 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 			onDidChange: entry.onDidChange.event,
 			onDidDelete: entry.onDidDelete.event,
 			dispose: () => {
-				this.connection.sendRequest(protocol.deleteFileWatcher, { id });
+				this.connection.sendRequest(protocol.fs_watcher_delete, { id });
 				this._watchers.delete(id);
 			}
 		};

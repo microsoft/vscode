@@ -17,6 +17,7 @@ interface ActionButtonState {
 	readonly HEAD: Branch | undefined;
 	readonly isCommitInProgress: boolean;
 	readonly isMergeInProgress: boolean;
+	readonly isRebaseInProgress: boolean;
 	readonly isSyncInProgress: boolean;
 	readonly repositoryHasChangesToCommit: boolean;
 }
@@ -43,6 +44,7 @@ export class ActionButtonCommand {
 			HEAD: undefined,
 			isCommitInProgress: false,
 			isMergeInProgress: false,
+			isRebaseInProgress: false,
 			isSyncInProgress: false,
 			repositoryHasChangesToCommit: false
 		};
@@ -70,7 +72,7 @@ export class ActionButtonCommand {
 	}
 
 	get button(): SourceControlActionButton | undefined {
-		if (!this.state.HEAD || !this.state.HEAD.name) { return undefined; }
+		if (!this.state.HEAD) { return undefined; }
 
 		let actionButton: SourceControlActionButton | undefined;
 
@@ -90,7 +92,25 @@ export class ActionButtonCommand {
 		// The button is disabled
 		if (!showActionButton.commit) { return undefined; }
 
-		let title: string, tooltip: string, commandArg: string;
+		return {
+			command: this.getCommitActionButtonPrimaryCommand(),
+			secondaryCommands: this.getCommitActionButtonSecondaryCommands(),
+			enabled: this.state.repositoryHasChangesToCommit && !this.state.isCommitInProgress && !this.state.isMergeInProgress
+		};
+	}
+
+	private getCommitActionButtonPrimaryCommand(): Command {
+		let commandArg = '';
+		let title = localize('scm button commit title', "{0} Commit", '$(check)');
+		let tooltip = this.state.isCommitInProgress ? localize('scm button committing tooltip', "Committing Changes...") : localize('scm button commit tooltip', "Commit Changes");
+
+		// Rebase Continue
+		if (this.state.isRebaseInProgress) {
+			return { command: 'git.commit', title, tooltip, arguments: [this.repository.sourceControl, commandArg] };
+		}
+
+		// Commit
+		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const postCommitCommand = config.get<string>('postCommitCommand');
 
 		// Branch protection
@@ -133,49 +153,36 @@ export class ActionButtonCommand {
 				break;
 			}
 			default: {
-				commandArg = '';
-				title = localize('scm button commit title', "{0} Commit", icon ?? '$(check)');
 				if (alwaysCommitToNewBranch) {
 					tooltip = this.state.isCommitInProgress ?
 						localize('scm button committing to new branch tooltip', "Committing Changes to New Branch...") :
 						localize('scm button commit to new branch tooltip', "Commit Changes to New Branch");
-				} else {
-					tooltip = this.state.isCommitInProgress ?
-						localize('scm button committing tooltip', "Committing Changes...") :
-						localize('scm button commit tooltip', "Commit Changes");
 				}
 				break;
 			}
 		}
 
-		return {
-			command: {
-				command: 'git.commit',
-				title: title,
-				tooltip: tooltip,
-				arguments: [this.repository.sourceControl, commandArg],
-			},
-			secondaryCommands: this.getCommitActionButtonSecondaryCommands(),
-			enabled: this.state.repositoryHasChangesToCommit && !this.state.isCommitInProgress && !this.state.isMergeInProgress
-		};
+		return { command: 'git.commit', title, tooltip, arguments: [this.repository.sourceControl, commandArg] };
 	}
 
 	private getCommitActionButtonSecondaryCommands(): Command[][] {
 		const commandGroups: Command[][] = [];
 
-		for (const provider of this.postCommitCommandsProviderRegistry.getPostCommitCommandsProviders()) {
-			const commands = provider.getCommands(new ApiRepository(this.repository));
-			commandGroups.push((commands ?? []).map(c => {
-				return {
-					command: 'git.commit',
-					title: c.title,
-					arguments: [this.repository.sourceControl, c.command]
-				};
-			}));
-		}
+		if (!this.state.isRebaseInProgress) {
+			for (const provider of this.postCommitCommandsProviderRegistry.getPostCommitCommandsProviders()) {
+				const commands = provider.getCommands(new ApiRepository(this.repository));
+				commandGroups.push((commands ?? []).map(c => {
+					return {
+						command: 'git.commit',
+						title: c.title,
+						arguments: [this.repository.sourceControl, c.command]
+					};
+				}));
+			}
 
-		if (commandGroups.length > 0) {
-			commandGroups[0].splice(0, 0, { command: 'git.commit', title: localize('scm secondary button commit', "Commit") });
+			if (commandGroups.length > 0) {
+				commandGroups[0].splice(0, 0, { command: 'git.commit', title: localize('scm secondary button commit', "Commit") });
+			}
 		}
 
 		return commandGroups;
@@ -185,8 +192,8 @@ export class ActionButtonCommand {
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const showActionButton = config.get<{ publish: boolean }>('showActionButton', { publish: true });
 
-		// Branch does have an upstream, commit/merge is in progress, or the button is disabled
-		if (this.state.HEAD?.upstream || this.state.isCommitInProgress || this.state.isMergeInProgress || !showActionButton.publish) { return undefined; }
+		// Branch does have an upstream, commit/merge/rebase is in progress, or the button is disabled
+		if (this.state.HEAD?.upstream || this.state.isCommitInProgress || this.state.isMergeInProgress || this.state.isRebaseInProgress || !showActionButton.publish) { return undefined; }
 
 		return {
 			command: {
@@ -206,8 +213,8 @@ export class ActionButtonCommand {
 		const showActionButton = config.get<{ sync: boolean }>('showActionButton', { sync: true });
 		const branchIsAheadOrBehind = (this.state.HEAD?.behind ?? 0) > 0 || (this.state.HEAD?.ahead ?? 0) > 0;
 
-		// Branch does not have an upstream, branch is not ahead/behind the remote branch, commit/merge is in progress, or the button is disabled
-		if (!this.state.HEAD?.upstream || !branchIsAheadOrBehind || this.state.isCommitInProgress || this.state.isMergeInProgress || !showActionButton.sync) { return undefined; }
+		// Branch does not have an upstream, branch is not ahead/behind the remote branch, commit/merge/rebase is in progress, or the button is disabled
+		if (!this.state.HEAD?.upstream || !branchIsAheadOrBehind || this.state.isCommitInProgress || this.state.isMergeInProgress || this.state.isRebaseInProgress || !showActionButton.sync) { return undefined; }
 
 		const ahead = this.state.HEAD.ahead ? ` ${this.state.HEAD.ahead}$(arrow-up)` : '';
 		const behind = this.state.HEAD.behind ? ` ${this.state.HEAD.behind}$(arrow-down)` : '';
@@ -229,7 +236,8 @@ export class ActionButtonCommand {
 
 	private onDidChangeOperations(): void {
 		const isCommitInProgress =
-			this.repository.operations.isRunning(Operation.Commit);
+			this.repository.operations.isRunning(Operation.Commit) ||
+			this.repository.operations.isRunning(Operation.RebaseContinue);
 
 		const isSyncInProgress =
 			this.repository.operations.isRunning(Operation.Sync) ||
@@ -251,6 +259,7 @@ export class ActionButtonCommand {
 			...this.state,
 			HEAD: this.repository.HEAD,
 			isMergeInProgress: this.repository.mergeGroup.resourceStates.length !== 0,
+			isRebaseInProgress: !!this.repository.rebaseCommit,
 			repositoryHasChangesToCommit: this.repositoryHasChangesToCommit()
 		};
 	}

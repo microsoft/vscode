@@ -835,8 +835,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 		let placeholder: string;
-		type Item = IQuickPickItem & { command?: ITerminalCommand };
-		let items: (Item | IQuickPickItem | IQuickPickSeparator)[] = [];
+		type Item = IQuickPickItem & { command?: ITerminalCommand; rawLabel: string };
+		let items: (Item | IQuickPickItem & { rawLabel: string } | IQuickPickSeparator)[] = [];
 		const commandMap: Set<string> = new Set();
 
 		const removeFromCommandHistoryButton: IQuickInputButton = {
@@ -853,9 +853,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (executingCommand) {
 				commandMap.add(executingCommand);
 			}
+			function formatLabel(label: string) {
+				return label.replace(/\r?\n/g, '\u23CE');
+			}
 			if (commands && commands.length > 0) {
 				for (const entry of commands) {
-					// trim off any whitespace and/or line endings
+					// Trim off any whitespace and/or line endings, replace new lines with the
+					// Downwards Arrow with Corner Leftwards symbol
 					const label = entry.command.trim();
 					if (label.length === 0 || commandMap.has(label)) {
 						continue;
@@ -885,7 +889,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						continue;
 					}
 					items.push({
-						label,
+						label: formatLabel(label),
+						rawLabel: label,
 						description,
 						id: entry.timestamp.toString(),
 						command: entry,
@@ -897,7 +902,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 			if (executingCommand) {
 				items.unshift({
-					label: executingCommand,
+					label: formatLabel(executingCommand),
+					rawLabel: executingCommand,
 					description: cmdDetection.cwd
 				});
 			}
@@ -907,12 +913,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 			// Gather previous session history
 			const history = this._instantiationService.invokeFunction(getCommandHistory);
-			const previousSessionItems: IQuickPickItem[] = [];
+			const previousSessionItems: (IQuickPickItem & { rawLabel: string })[] = [];
 			for (const [label, info] of history.entries) {
 				// Only add previous session item if it's not in this session
 				if (!commandMap.has(label) && info.shellType === this.shellType) {
 					previousSessionItems.unshift({
-						label,
+						label: formatLabel(label),
+						rawLabel: label,
 						buttons: [removeFromCommandHistoryButton]
 					});
 					commandMap.add(label);
@@ -928,10 +935,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 			// Gather shell file history
 			const shellFileHistory = await this._instantiationService.invokeFunction(getShellFileHistory, this._shellType);
-			const dedupedShellFileItems: IQuickPickItem[] = [];
+			const dedupedShellFileItems: (IQuickPickItem & { rawLabel: string })[] = [];
 			for (const label of shellFileHistory) {
 				if (!commandMap.has(label)) {
-					dedupedShellFileItems.unshift({ label });
+					dedupedShellFileItems.unshift({
+						label: formatLabel(label),
+						rawLabel: label
+					});
 				}
 			}
 			if (dedupedShellFileItems.length > 0) {
@@ -947,7 +957,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			const cwds = this.capabilities.get(TerminalCapability.CwdDetection)?.cwds || [];
 			if (cwds && cwds.length > 0) {
 				for (const label of cwds) {
-					items.push({ label });
+					items.push({ label, rawLabel: label });
 				}
 				items = items.reverse();
 				items.unshift({ type: 'separator', label: terminalStrings.currentSessionCategory });
@@ -955,12 +965,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 			// Gather previous session history
 			const history = this._instantiationService.invokeFunction(getDirectoryHistory);
-			const previousSessionItems: IQuickPickItem[] = [];
+			const previousSessionItems: (IQuickPickItem & { rawLabel: string })[] = [];
 			// Only add previous session item if it's not in this session and it matches the remote authority
 			for (const [label, info] of history.entries) {
 				if ((info === null || info.remoteAuthority === this.remoteAuthority) && !cwds.includes(label)) {
 					previousSessionItems.unshift({
 						label,
+						rawLabel: label,
 						buttons: [removeFromCommandHistoryButton]
 					});
 				}
@@ -976,7 +987,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 		const outputProvider = this._instantiationService.createInstance(TerminalOutputProvider);
-		const quickPick = this._quickInputService.createQuickPick();
+		const quickPick = this._quickInputService.createQuickPick<IQuickPickItem & { rawLabel: string }>();
 		const originalItems = items;
 		quickPick.items = [...originalItems];
 		quickPick.sortByLabel = false;
@@ -1025,7 +1036,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 		quickPick.onDidAccept(() => {
 			const result = quickPick.activeItems[0];
-			this.sendText(type === 'cwd' ? `cd ${result.label}` : result.label, !quickPick.keyMods.alt);
+			this.sendText(type === 'cwd' ? `cd ${result.rawLabel}` : result.rawLabel, !quickPick.keyMods.alt, true);
 			quickPick.hide();
 		});
 		if (value) {
@@ -1490,7 +1501,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this.xterm.raw.paste(currentText);
 	}
 
-	async sendText(text: string, addNewLine: boolean): Promise<void> {
+	async sendText(text: string, addNewLine: boolean, bracketedPasteMode?: boolean): Promise<void> {
+		// Apply bracketed paste sequences if the terminal has the mode enabled, this will prevent
+		// the text from triggering keybindings and ensure new lines are handled properly
+		if (bracketedPasteMode && this.xterm?.raw.modes.bracketedPasteMode) {
+			text = `\x1b[200~${text}\x1b[201~`;
+		}
+
 		// Normalize line endings to 'enter' press.
 		text = text.replace(/\r?\n/g, '\r');
 		if (addNewLine && text[text.length - 1] !== '\r') {
