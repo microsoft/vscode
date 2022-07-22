@@ -143,7 +143,7 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 	}
 };
 
-(vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('Notebook API tests', function () {
+(vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite.only)('Notebook API tests', function () {
 
 	const testDisposables: vscode.Disposable[] = [];
 	const suiteDisposables: vscode.Disposable[] = [];
@@ -258,7 +258,8 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 		// });
 	});
 
-	test.skip('edit API batch edits', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/155808
+	// eslint-disable-next-line
+	test.only('edit API batch edits', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/155808
 		const notebook = await openRandomNotebookDocument();
 		const editor = await vscode.window.showNotebookDocument(notebook);
 
