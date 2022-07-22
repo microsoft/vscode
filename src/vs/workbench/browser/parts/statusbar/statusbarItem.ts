@@ -41,6 +41,7 @@ export class StatusbarEntryItem extends Disposable {
 	private hover: ICustomHover | undefined = undefined;
 
 	readonly labelContainer: HTMLElement;
+	readonly beakContainer: HTMLElement;
 
 	get name(): string {
 		return assertIsDefined(this.entry).name;
@@ -72,6 +73,13 @@ export class StatusbarEntryItem extends Disposable {
 
 		// Add to parent
 		this.container.appendChild(this.labelContainer);
+
+		// Beak Container
+		this.beakContainer = document.createElement('div');
+		this.beakContainer.className = 'status-bar-beak-container';
+
+		// Add to parent
+		this.container.appendChild(this.beakContainer);
 
 		this.update(entry);
 	}
