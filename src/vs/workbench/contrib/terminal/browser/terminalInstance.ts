@@ -231,8 +231,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._shellLaunchConfig.waitOnExit = value;
 	}
 
-	type(): string | undefined { return this.shellLaunchConfig.attachPersistentProcess?.type || this.shellLaunchConfig.type; }
-
 	get target(): TerminalLocation | undefined { return this._target; }
 	set target(value: TerminalLocation | undefined) {
 		if (this.xterm) {
@@ -310,14 +308,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get description(): string | undefined {
 		if (this._description) {
 			return this._description;
-		} else if (this.shellLaunchConfig.attachPersistentProcess?.type || this.type()) {
-			if (this.type() === 'Task') {
-				return nls.localize('terminalTypeTask', "Task");
-			} else {
-				return nls.localize('terminalTypeLocal', "Local");
-			}
 		}
-		return undefined;
+		const type = this.shellLaunchConfig.attachPersistentProcess?.type || this.shellLaunchConfig.type;
+		if (type === 'Task') {
+			return nls.localize('terminalTypeTask', "Task");
+		}
+		return nls.localize('terminalTypeLocal', "Local");
 	}
 	get userHome(): string | undefined { return this._userHome; }
 
@@ -397,7 +393,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@ICommandService private readonly _commandService: ICommandService
 	) {
 		super();
-		console.log(_shellLaunchConfig.attachPersistentProcess);
+
 		this._skipTerminalCommands = [];
 		this._isExiting = false;
 		this._hadFocusOnExit = false;
