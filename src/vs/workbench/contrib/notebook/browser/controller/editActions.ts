@@ -20,7 +20,7 @@ import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/
 import { changeCellToKind, runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { CellToolbarOrder, CELL_TITLE_CELL_GROUP_ID, CELL_TITLE_OUTPUT_GROUP_ID, executeNotebookCondition, INotebookActionContext, INotebookCellActionContext, NotebookAction, NotebookCellAction, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_HAS_OUTPUTS, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { CellEditState, CHANGE_CELL_LANGUAGE, DETECT_CELL_LANGUAGE, QUIT_EDIT_CELL_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CHANGE_CELL_LANGUAGE, DETECT_CELL_LANGUAGE, FINISH_EDIT_CELL_COMMAND_ID, QUIT_EDIT_CELL_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { CellEditType, CellKind, ICellEditOperation, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
@@ -81,16 +81,6 @@ registerAction2(class QuitEditCellAction extends NotebookCellAction {
 			{
 				id: QUIT_EDIT_CELL_COMMAND_ID,
 				title: localize('notebookActions.quitEdit', "Stop Editing Cell"),
-				menu: {
-					id: MenuId.NotebookCellTitle,
-					when: ContextKeyExpr.and(
-						NOTEBOOK_CELL_TYPE.isEqualTo('markup'),
-						NOTEBOOK_CELL_MARKDOWN_EDIT_MODE,
-						NOTEBOOK_CELL_EDITABLE),
-					order: CellToolbarOrder.SaveCell,
-					group: CELL_TITLE_CELL_GROUP_ID
-				},
-				icon: icons.stopEditIcon,
 				keybinding: [
 					{
 						when: ContextKeyExpr.and(quitEditCondition,
@@ -100,9 +90,43 @@ registerAction2(class QuitEditCellAction extends NotebookCellAction {
 						primary: KeyCode.Escape,
 						weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT - 5
 					},
+				]
+			});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
+		if (context.cell.cellKind === CellKind.Markup) {
+			context.cell.updateEditState(CellEditState.Preview, QUIT_EDIT_CELL_COMMAND_ID);
+		}
+
+		await context.notebookEditor.focusNotebookCell(context.cell, 'container', { skipReveal: true });
+	}
+});
+
+const finishEditCondition = ContextKeyExpr.and(
+	NOTEBOOK_EDITOR_FOCUSED,
+	InputFocusedContext
+);
+registerAction2(class FinishEditCellAction extends NotebookCellAction {
+	constructor() {
+		super(
+			{
+				id: FINISH_EDIT_CELL_COMMAND_ID,
+				title: localize('notebookActions.finishEdit', "Finish Editing Cell"),
+				menu: {
+					id: MenuId.NotebookCellTitle,
+					when: ContextKeyExpr.and(
+						NOTEBOOK_CELL_TYPE.isEqualTo('markup'),
+						NOTEBOOK_CELL_MARKDOWN_EDIT_MODE,
+						NOTEBOOK_CELL_EDITABLE),
+					order: CellToolbarOrder.SaveCell,
+					group: CELL_TITLE_CELL_GROUP_ID
+				},
+				icon: icons.finishEditIcon,
+				keybinding: [
 					{
 						when: ContextKeyExpr.and(
-							quitEditCondition,
+							finishEditCondition,
 							NOTEBOOK_CELL_TYPE.isEqualTo('markup')),
 						primary: KeyMod.WinCtrl | KeyCode.Enter,
 						win: {
@@ -116,7 +140,11 @@ registerAction2(class QuitEditCellAction extends NotebookCellAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
 		if (context.cell.cellKind === CellKind.Markup) {
-			context.cell.updateEditState(CellEditState.Preview, QUIT_EDIT_CELL_COMMAND_ID);
+			const cell = context.cell;
+			const editor = context.notebookEditor;
+			const index = editor.textModel.cells.indexOf(cell.model);
+
+			editor.textModel.applyEdits([{ editType: CellEditType.Replace, index, count: 0, cells: [] }], true, undefined, () => undefined, undefined, false);
 		}
 
 		await context.notebookEditor.focusNotebookCell(context.cell, 'container', { skipReveal: true });

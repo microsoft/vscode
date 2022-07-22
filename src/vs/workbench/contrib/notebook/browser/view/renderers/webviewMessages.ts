@@ -329,6 +329,7 @@ export interface IMarkupCellInitialization {
 	content: string;
 	offset: number;
 	visible: boolean;
+	versionId: number | undefined;
 }
 
 export interface IInitializeMarkupCells {

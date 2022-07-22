@@ -1650,6 +1650,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			content: model.getText(),
 			offset: offset,
 			visible: false,
+			versionId: this.textModel?.versionId
 		});
 	}
 
@@ -2587,6 +2588,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			content: cell.getText(),
 			offset: cellTop + top,
 			visible: true,
+			versionId: this.textModel?.versionId
 		});
 	}
 
