@@ -9,7 +9,7 @@ import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLa
 import { ICustomHover, ITooltipMarkdownString, IUpdatableHoverOptions, setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
 import { Emitter } from 'vs/base/common/event';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -36,11 +36,11 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	private indicatorsContainerElement: HTMLElement;
 	private scopeOverridesElement: HTMLElement;
 	private scopeOverridesLabel: SimpleIconLabel;
+	private scopeOverridesHover: MutableDisposable<ICustomHover>;
 	private syncIgnoredElement: HTMLElement;
 	private syncIgnoredHover: ICustomHover | undefined;
 	private defaultOverrideIndicatorElement: HTMLElement;
 	private hoverDelegate: IHoverDelegate;
-	private hover: ICustomHover | undefined;
 
 	constructor(
 		container: HTMLElement,
@@ -65,6 +65,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		this.scopeOverridesLabel = scopeOverridesIndicator.label;
 		this.syncIgnoredElement = this.createSyncIgnoredElement();
 		this.defaultOverrideIndicatorElement = this.createDefaultOverrideIndicator();
+		this.scopeOverridesHover = new MutableDisposable();
 	}
 
 	private createScopeOverridesIndicator(): { element: HTMLElement; label: SimpleIconLabel } {
@@ -126,7 +127,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	}
 
 	dispose() {
-		this.hover?.dispose();
+		this.scopeOverridesHover.dispose();
 		this.syncIgnoredHover?.dispose();
 	}
 
@@ -144,8 +145,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 			this.scopeOverridesLabel.text = applicationSettingText;
 
 			const content = localize('applicationSettingDescription', "The setting is not specific to the current profile, and will retain its value when switching profiles.");
-			this.hover?.dispose();
-			this.hover = setupCustomHover(this.hoverDelegate, this.scopeOverridesElement, content);
+			this.scopeOverridesHover.value = setupCustomHover(this.hoverDelegate, this.scopeOverridesElement, content);
 		} else if (element.overriddenScopeList.length || element.overriddenDefaultsLanguageList.length) {
 			if ((MODIFIED_INDICATOR_USE_INLINE_ONLY && element.overriddenScopeList.length) ||
 				(element.overriddenScopeList.length === 1 && !element.overriddenDefaultsLanguageList.length)) {
@@ -153,7 +153,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 				// or if there is only one scope override to render and no language overrides.
 				this.scopeOverridesElement.style.display = 'inline';
 				this.scopeOverridesElement.classList.remove('with-custom-hover');
-				this.hover?.dispose();
+				this.scopeOverridesHover.value = undefined;
 
 				// Just show all the text in the label.
 				const prefaceText = element.isConfigured ?
@@ -234,11 +234,10 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 							scope: scope as ScopeString,
 							language
 						});
-						this.hover!.hide();
+						this.scopeOverridesHover.value?.hide();
 					}
 				};
-				this.hover?.dispose();
-				this.hover = setupCustomHover(this.hoverDelegate, this.scopeOverridesElement, content, options);
+				this.scopeOverridesHover.value = setupCustomHover(this.hoverDelegate, this.scopeOverridesElement, content, options);
 			}
 		}
 		this.render();
