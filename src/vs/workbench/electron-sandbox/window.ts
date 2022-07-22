@@ -133,7 +133,11 @@ export class NativeWindow extends Disposable {
 		// React to editor input changes
 		const appRootUri = URI.file(this.environmentService.appRoot);
 		this._register(this.editorService.onDidActiveEditorChange(() => {
+
+			// Touchbar
 			this.updateTouchbarMenu();
+
+			// Potential data loss
 			this.notifyOnAppRootEditors(appRootUri);
 		}));
 
@@ -803,20 +807,27 @@ export class NativeWindow extends Disposable {
 
 	private notifyOnAppRootEditors(appRootUri: URI): void {
 		const resourceUri = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.BOTH });
-		const test = (uri: URI): boolean => this.uriIdentityService.extUri.isEqualOrParent(uri, appRootUri);
-		let notify = false;
+		const isResourceAppRootedFn = (uri: URI): boolean => this.uriIdentityService.extUri.isEqualOrParent(uri, appRootUri);
+		let isResourceAppRooted = false;
 		if (URI.isUri(resourceUri)) {
-			if (test(resourceUri)) {
-				notify = true;
+			if (isResourceAppRootedFn(resourceUri)) {
+				isResourceAppRooted = true;
 			}
 		} else if (resourceUri) {
-			if (resourceUri.primary && test(resourceUri.primary)) {
-				notify = true;
-			} else if (resourceUri.secondary && test(resourceUri.secondary)) {
-				notify = true;
+			if (resourceUri.primary && isResourceAppRootedFn(resourceUri.primary)) {
+				isResourceAppRooted = true;
+			} else if (resourceUri.secondary && isResourceAppRootedFn(resourceUri.secondary)) {
+				isResourceAppRooted = true;
 			}
 		}
-		if (notify) {
+
+		// It is dangerous to edit files in the installation directory of Code because
+		// an update will remove all files and replace them with the new version.
+		// As such, we notify the user whenever an editor opens that is located somewhere
+		// in the installation directory.
+		// https://github.com/microsoft/vscode/issues/138815
+
+		if (isResourceAppRooted) {
 			this.notificationService.prompt(
 				Severity.Warning,
 				localize('notifyOnAppRootEditors', "Files within the installation folder of '{0}' ({1}) will be OVERWRITTEN or DELETED IRREVERSIBLY without warning during a future update.", this.productService.nameShort, this.environmentService.appRoot),
@@ -827,8 +838,8 @@ export class NativeWindow extends Disposable {
 					}
 				}],
 				{
-					neverShowAgain: { id: 'editor.contrib.notifyOnAppRootEditors', isSecondary: true },
-					sticky: true,
+					neverShowAgain: { id: 'window.notifyOnAppRootEditors', isSecondary: true },
+					sticky: true
 				}
 			);
 		}
