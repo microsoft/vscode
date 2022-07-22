@@ -37,7 +37,7 @@ import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs
 import { TaskTerminalStatus } from 'vs/workbench/contrib/tasks/browser/taskTerminalStatus';
 import { ProblemCollectorEventKind, ProblemHandlingStrategy, StartStopProblemCollector, WatchingProblemCollector } from 'vs/workbench/contrib/tasks/common/problemCollectors';
 import { GroupKind } from 'vs/workbench/contrib/tasks/common/taskConfiguration';
-import { CommandOptions, CommandString, ContributedTask, CustomTask, DependsOrder, ICommandConfiguration, IExtensionTaskSource, InMemoryTask, IShellConfiguration, IShellQuotingOptions, ITaskEvent, PanelKind, RevealKind, RevealProblemKind, RuntimeType, ShellQuoting, Task, TaskEvent, TaskEventKind, TaskScope, TaskSettingId, TaskSourceKind } from 'vs/workbench/contrib/tasks/common/tasks';
+import { CommandOptions, CommandString, ContributedTask, CustomTask, DependsOrder, ICommandConfiguration, IConfigurationProperties, IExtensionTaskSource, InMemoryTask, IPresentationOptions, IShellConfiguration, IShellQuotingOptions, ITaskEvent, PanelKind, RevealKind, RevealProblemKind, RuntimeType, ShellQuoting, Task, TaskEvent, TaskEventKind, TaskScope, TaskSettingId, TaskSourceKind } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
 import { IResolvedVariables, IResolveSet, ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSystemInfo, ITaskSystemInfoResolver, ITaskTerminateResponse, TaskError, TaskErrors, TaskExecuteKind, Triggers } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import { ITerminalGroupService, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -284,6 +284,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 		if (this._tasksToReconnect.includes(task._id)) {
 			this._terminalForTask = terminals.find(t => t.shellLaunchConfig.attachPersistentProcess?.task?.id === task._id);
+			if ('command' in task && task.command.presentation && this._terminalForTask) {
+				this._terminalForTask.waitOnExit = getWaitOnExitValue(task.command.presentation, task.configurationProperties);
+			}
 			this.run(task, resolver, trigger);
 		}
 		return undefined;
@@ -1341,24 +1344,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		const options = await this._resolveOptions(resolver, task.command.options);
 		const presentationOptions = task.command.presentation;
 
-		let waitOnExit: boolean | string | ((exitCode: number) => string) = false;
 		if (!presentationOptions) {
 			throw new Error('Task presentation options should not be undefined here.');
 		}
-
-		if ((presentationOptions.close === undefined) || (presentationOptions.close === false)) {
-			if ((presentationOptions.reveal !== RevealKind.Never) || !task.configurationProperties.isBackground || (presentationOptions.close === false)) {
-				if (presentationOptions.panel === PanelKind.New) {
-					waitOnExit = taskShellIntegrationWaitOnExitSequence(nls.localize('closeTerminal', 'Press any key to close the terminal.'));
-				} else if (presentationOptions.showReuseMessage) {
-					waitOnExit = taskShellIntegrationWaitOnExitSequence(nls.localize('reuseTerminal', 'Terminal will be reused by tasks, press any key to close it.'));
-				} else {
-					waitOnExit = true;
-				}
-			}
-		} else {
-			waitOnExit = !presentationOptions.close;
-		}
+		const waitOnExit = getWaitOnExitValue(presentationOptions, task.configurationProperties);
 
 		let command: CommandString | undefined;
 		let args: CommandString[] | undefined;
@@ -1787,6 +1776,21 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		const outputChannel = this._outputService.getChannel(this._outputChannelId);
 		outputChannel?.append(output);
 	}
+}
+
+function getWaitOnExitValue(presentationOptions: IPresentationOptions, configurationProperties: IConfigurationProperties) {
+	if ((presentationOptions.close === undefined) || (presentationOptions.close === false)) {
+		if ((presentationOptions.reveal !== RevealKind.Never) || !configurationProperties.isBackground || (presentationOptions.close === false)) {
+			if (presentationOptions.panel === PanelKind.New) {
+				return taskShellIntegrationWaitOnExitSequence(nls.localize('closeTerminal', 'Press any key to close the terminal.'));
+			} else if (presentationOptions.showReuseMessage) {
+				return taskShellIntegrationWaitOnExitSequence(nls.localize('reuseTerminal', 'Terminal will be reused by tasks, press any key to close it.'));
+			} else {
+				return true;
+			}
+		}
+	}
+	return !presentationOptions.close;
 }
 
 function taskShellIntegrationWaitOnExitSequence(message: string): (exitCode: number) => string {

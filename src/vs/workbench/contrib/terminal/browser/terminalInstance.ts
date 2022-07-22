@@ -226,7 +226,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	xterm?: XtermTerminal;
 	disableLayout: boolean = false;
 
-	get waitOnExit(): boolean | string | ((exitCode: number) => string) | undefined { return this._shellLaunchConfig.attachPersistentProcess?.waitOnExit || this._shellLaunchConfig.waitOnExit; }
+	get waitOnExit(): ITerminalInstance['waitOnExit'] { return this._shellLaunchConfig.attachPersistentProcess?.waitOnExit || this._shellLaunchConfig.waitOnExit; }
+	set waitOnExit(value: ITerminalInstance['waitOnExit']) {
+		this._shellLaunchConfig.waitOnExit = value;
+	}
 
 	type(): string | undefined { return this.shellLaunchConfig.attachPersistentProcess?.type || this.shellLaunchConfig.type; }
 

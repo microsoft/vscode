@@ -518,6 +518,10 @@ export interface ITerminalInstance {
 	 */
 	readonly hasFocus: boolean;
 
+	/**
+	 * Get or set the behavior of the terminal when it closes. This was indented only to be called
+	 * after reconnecting to a terminal.
+	 */
 	waitOnExit: boolean | string | ((exitCode: number) => string) | undefined;
 
 	/**
