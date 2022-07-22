@@ -170,7 +170,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 			});
 		});
 
-		test('should extract line and column from links in a workspace containing spaces', async () => {
+		test.skip('should extract line and column from links in a workspace containing spaces', async () => {
 			localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener, OperatingSystem.Linux);
 			const localFolderOpener = instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener);
 			opener = instantiationService.createInstance(TerminalSearchLinkOpener, capabilities, Promise.resolve('/space folder'), localFileOpener, localFolderOpener, OperatingSystem.Linux);
