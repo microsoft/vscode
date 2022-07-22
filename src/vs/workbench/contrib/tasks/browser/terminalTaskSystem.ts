@@ -882,6 +882,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			watchingProblemMatcher.aboutToStart();
 			let delayer: Async.Delayer<any> | undefined = undefined;
 			[terminal, error] = this._terminalForTask ? [this._terminalForTask, undefined] : await this._createTerminal(task, resolver, workspaceFolder);
+			this._terminalForTask = undefined;
 
 			if (error) {
 				return Promise.reject(new Error((<TaskError>error).message));
@@ -964,6 +965,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			});
 		} else {
 			[terminal, error] = this._terminalForTask ? [this._terminalForTask, undefined] : await this._createTerminal(task, resolver, workspaceFolder);
+			this._terminalForTask = undefined;
 
 			if (error) {
 				return Promise.reject(new Error((<TaskError>error).message));
