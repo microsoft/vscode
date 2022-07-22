@@ -850,7 +850,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				commandMap.add(executingCommand);
 			}
 			function formatLabel(label: string) {
-				return label.replace(/\r?\n/g, '\u21B5');
+				return label.replace(/\r?\n/g, '\u23CE');
 			}
 			if (commands && commands.length > 0) {
 				for (const entry of commands) {
