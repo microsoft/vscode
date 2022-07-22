@@ -14,12 +14,12 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { asJson, asText, IRequestService } from 'vs/platform/request/common/request';
-import { IUserDataProfileTemplate, isUserDataProfileTemplate, IUserDataProfileManagementService, IUserDataProfileImportExportService, PROFILES_CATEGORY, PROFILE_EXTENSION, PROFILE_FILTER, ManageProfilesSubMenu, IUserDataProfileService, PROFILES_ENABLEMENT_CONTEXT } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfileTemplate, isUserDataProfileTemplate, IUserDataProfileManagementService, IUserDataProfileImportExportService, PROFILES_CATEGORY, PROFILE_EXTENSION, PROFILE_FILTER, ManageProfilesSubMenu, IUserDataProfileService, PROFILES_ENABLEMENT_CONTEXT, HAS_PROFILES_CONTEXT } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 registerAction2(class CreateFromCurrentProfileAction extends Action2 {
 	constructor() {
@@ -101,7 +101,7 @@ registerAction2(class RemoveProfileAction extends Action2 {
 			},
 			category: PROFILES_CATEGORY,
 			f1: true,
-			precondition: PROFILES_ENABLEMENT_CONTEXT,
+			precondition: ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, HAS_PROFILES_CONTEXT),
 			menu: [
 				{
 					id: ManageProfilesSubMenu,
@@ -119,12 +119,21 @@ registerAction2(class RemoveProfileAction extends Action2 {
 		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
 		const notificationService = accessor.get(INotificationService);
 
-		const profiles = userDataProfilesService.profiles.filter(p => p.id !== userDataProfileService.currentProfile.id && !p.isDefault);
+		const profiles = userDataProfilesService.profiles.filter(p => !p.isDefault);
 		if (profiles.length) {
-			const pick = await quickInputService.pick(profiles.map(profile => ({ label: profile.name, profile })), { placeHolder: localize('pick profile', "Select Settings Profile") });
-			if (pick) {
+			const picks = await quickInputService.pick(
+				profiles.map(profile => ({
+					label: profile.name,
+					description: profile.id === userDataProfileService.currentProfile.id ? localize('current', "Current") : undefined,
+					profile
+				})),
+				{
+					placeHolder: localize('pick profile', "Select Settings Profile"),
+					canPickMany: true
+				});
+			if (picks) {
 				try {
-					await userDataProfileManagementService.removeProfile(pick.profile);
+					await Promise.all(picks.map(pick => userDataProfileManagementService.removeProfile(pick.profile)));
 				} catch (error) {
 					notificationService.error(error);
 				}

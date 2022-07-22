@@ -43,9 +43,8 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/browser/keybindingsEditorInput';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfileService, CURRENT_PROFILE_CONTEXT } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { CONTEXT_CURRENT_PROFILE } from 'vs/workbench/contrib/userDataProfile/browser/userDataProfile';
 
 const SETTINGS_EDITOR_COMMAND_SEARCH = 'settings.action.search';
 
@@ -236,7 +235,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					category,
 					menu: {
 						id: MenuId.CommandPalette,
-						when: ContextKeyExpr.notEquals(CONTEXT_CURRENT_PROFILE.key, that.userDataProfilesService.defaultProfile.id)
+						when: ContextKeyExpr.notEquals(CURRENT_PROFILE_CONTEXT.key, that.userDataProfilesService.defaultProfile.id)
 					}
 				});
 			}
