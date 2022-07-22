@@ -170,28 +170,6 @@ suite('Workbench - TerminalLinkOpeners', () => {
 			});
 		});
 
-		test.skip('should extract line and column from links in a workspace containing spaces', async () => {
-			localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener, OperatingSystem.Linux);
-			const localFolderOpener = instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener);
-			opener = instantiationService.createInstance(TerminalSearchLinkOpener, capabilities, Promise.resolve('/space folder'), localFileOpener, localFolderOpener, OperatingSystem.Linux);
-			fileService.setFiles([
-				URI.from({ scheme: Schemas.file, path: '/space folder/foo/bar.txt' })
-			]);
-			await opener.open({
-				text: './foo/bar.txt:10:5',
-				bufferRange: { start: { x: 1, y: 1 }, end: { x: 8, y: 1 } },
-				type: TerminalBuiltinLinkType.Search
-			});
-			deepStrictEqual(activationResult, {
-				link: 'file:///space%20folder/foo/bar.txt',
-				source: 'editor',
-				selection: {
-					startColumn: 5,
-					startLineNumber: 10
-				},
-			});
-		});
-
 		suite('macOS/Linux', () => {
 			setup(() => {
 				localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener, OperatingSystem.Linux);
@@ -237,6 +215,28 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				deepStrictEqual(activationResult, {
 					link: 'file.txt',
 					source: 'search'
+				});
+			});
+
+			test('should extract line and column from links in a workspace containing spaces', async () => {
+				localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener, OperatingSystem.Linux);
+				const localFolderOpener = instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener);
+				opener = instantiationService.createInstance(TerminalSearchLinkOpener, capabilities, Promise.resolve('/space folder'), localFileOpener, localFolderOpener, OperatingSystem.Linux);
+				fileService.setFiles([
+					URI.from({ scheme: Schemas.file, path: '/space folder/foo/bar.txt' })
+				]);
+				await opener.open({
+					text: './foo/bar.txt:10:5',
+					bufferRange: { start: { x: 1, y: 1 }, end: { x: 8, y: 1 } },
+					type: TerminalBuiltinLinkType.Search
+				});
+				deepStrictEqual(activationResult, {
+					link: 'file:///space%20folder/foo/bar.txt',
+					source: 'editor',
+					selection: {
+						startColumn: 5,
+						startLineNumber: 10
+					},
 				});
 			});
 		});
@@ -286,6 +286,41 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				deepStrictEqual(activationResult, {
 					link: 'file.txt',
 					source: 'search'
+				});
+			});
+
+			test('should extract line and column from links in a workspace containing spaces', async () => {
+				localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener, OperatingSystem.Windows);
+				const localFolderOpener = instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener);
+				opener = instantiationService.createInstance(TerminalSearchLinkOpener, capabilities, Promise.resolve('/space folder'), localFileOpener, localFolderOpener, OperatingSystem.Windows);
+				fileService.setFiles([
+					URI.from({ scheme: Schemas.file, path: '/space folder/foo/bar.txt' })
+				]);
+				await opener.open({
+					text: './foo/bar.txt:10:5',
+					bufferRange: { start: { x: 1, y: 1 }, end: { x: 8, y: 1 } },
+					type: TerminalBuiltinLinkType.Search
+				});
+				deepStrictEqual(activationResult, {
+					link: 'file:///space%20folder/foo/bar.txt',
+					source: 'editor',
+					selection: {
+						startColumn: 5,
+						startLineNumber: 10
+					},
+				});
+				await opener.open({
+					text: '.\\foo\\bar.txt:10:5',
+					bufferRange: { start: { x: 1, y: 1 }, end: { x: 8, y: 1 } },
+					type: TerminalBuiltinLinkType.Search
+				});
+				deepStrictEqual(activationResult, {
+					link: 'file:///space%20folder/foo/bar.txt',
+					source: 'editor',
+					selection: {
+						startColumn: 5,
+						startLineNumber: 10
+					},
 				});
 			});
 		});
