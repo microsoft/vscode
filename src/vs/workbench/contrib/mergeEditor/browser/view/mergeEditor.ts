@@ -369,6 +369,45 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 				}
 			});
 		}, 'update alignment view zones'));
+
+
+		// detect when base, input1, and input2 become empty and replace THIS editor with its result editor
+		// TODO@jrieken@hediet this needs a better/cleaner solution
+		// https://github.com/microsoft/vscode/issues/155940
+		const that = this;
+		this._sessionDisposables.add(new class {
+
+			private readonly _disposable = new DisposableStore();
+
+			constructor() {
+				for (const model of this.baseInput1Input2()) {
+					this._disposable.add(model.onDidChangeContent(() => this._checkBaseInput1Input2AllEmpty()));
+				}
+			}
+
+			dispose() {
+				this._disposable.dispose();
+			}
+
+			private *baseInput1Input2() {
+				yield model.base;
+				yield model.input1;
+				yield model.input2;
+			}
+
+			private _checkBaseInput1Input2AllEmpty() {
+				for (const model of this.baseInput1Input2()) {
+					if (model.getValueLength() > 0) {
+						return;
+					}
+				}
+				// all empty -> replace this editor with a normal editor for result
+				that.editorService.replaceEditors(
+					[{ editor: input, replacement: { resource: input.result }, forceReplaceDirty: true }],
+					that.group ?? that.editorGroupService.activeGroup
+				);
+			}
+		});
 	}
 
 	override setOptions(options: ITextEditorOptions | undefined): void {
