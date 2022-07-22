@@ -43,6 +43,16 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		return profile;
 	}
 
+	async renameProfile(profile: IUserDataProfile, name: string): Promise<void> {
+		if (!this.userDataProfilesService.profiles.some(p => p.id === profile.id)) {
+			throw new Error(`Settings profile ${profile.name} does not exist`);
+		}
+		if (profile.isDefault) {
+			throw new Error(localize('cannotRenameDefaultProfile', "Cannot rename the default settings profile"));
+		}
+		await this.userDataProfilesService.updateProfile(profile, name);
+	}
+
 	async removeProfile(profile: IUserDataProfile): Promise<void> {
 		if (!this.userDataProfilesService.profiles.some(p => p.id === profile.id)) {
 			throw new Error(`Settings profile ${profile.name} does not exist`);
