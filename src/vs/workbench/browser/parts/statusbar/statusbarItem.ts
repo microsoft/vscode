@@ -70,15 +70,11 @@ export class StatusbarEntryItem extends Disposable {
 
 		// Label (with support for progress)
 		this.label = new StatusBarCodiconLabel(this.labelContainer);
-
-		// Add to parent
 		this.container.appendChild(this.labelContainer);
 
 		// Beak Container
 		this.beakContainer = document.createElement('div');
-		this.beakContainer.className = 'status-bar-beak-container';
-
-		// Add to parent
+		this.beakContainer.className = 'status-bar-item-beak-container';
 		this.container.appendChild(this.beakContainer);
 
 		this.update(entry);

@@ -51,7 +51,7 @@
 	position: relative;
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak > .status-bar-beak-container {
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak > .status-bar-item-beak-container {
 	position: absolute;
 	left: calc(50% - 5px); /* centering relative to parent */
 	top: -5px;
@@ -59,10 +59,9 @@
 	height: 5px;
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak > .status-bar-beak-container:before {
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak > .status-bar-item-beak-container:before {
 	content: '';
 	position: fixed;
-	color: rgb(0, 122, 204);
 	border-bottom-width: 5px;
 	border-bottom-style: solid;
 	border-left: 5px solid transparent;
