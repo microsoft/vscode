@@ -130,23 +130,6 @@ export interface IMenuEntryActionViewItemOptions {
 	hoverDelegate?: IHoverDelegate;
 }
 
-function registerConfigureMenu(contextMenuService: IContextMenuService, item: BaseActionViewItem, action: MenuItemAction | SubmenuItemAction): IDisposable {
-	assertType(item.element);
-	return addDisposableListener(item.element, 'contextmenu', event => {
-		if (!action.hideActions) {
-			return;
-		}
-
-		event.preventDefault();
-		event.stopPropagation();
-
-		contextMenuService.showContextMenu({
-			getAnchor: () => item.element!,
-			getActions: () => action.hideActions!.asList()
-		});
-	}, true);
-}
-
 export class MenuEntryActionViewItem extends ActionViewItem {
 
 	private _wantsAltCommand: boolean = false;
@@ -221,8 +204,6 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 			mouseOver = true;
 			updateAltState();
 		}));
-
-		this._register(registerConfigureMenu(this._contextMenuService, this, this._menuItemAction));
 	}
 
 	override updateLabel(): void {
@@ -231,7 +212,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		}
 	}
 
-	override updateTooltip(): void {
+	override getTooltip() {
 		const keybinding = this._keybindingService.lookupKeybinding(this._commandAction.id, this._contextKeyService);
 		const keybindingLabel = keybinding && keybinding.getLabel();
 
@@ -249,7 +230,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 
 			title = localize('titleAndKbAndAlt', "{0}\n[{1}] {2}", title, UILabelProvider.modifierLabels[OS].altKey, altTitleSection);
 		}
-		this._applyUpdateTooltip(title);
+		return title;
 	}
 
 	override updateClass(): void {
@@ -348,8 +329,6 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 				setBackgroundImage();
 			}));
 		}
-
-		this._register(registerConfigureMenu(this._contextMenuService, this, action));
 	}
 }
 
@@ -469,8 +448,6 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 				event.stopPropagation();
 			}
 		}));
-
-		this._register(registerConfigureMenu(this._contextMenuService, this, (<SubmenuItemAction>this.action)));
 	}
 
 	override focus(fromRight?: boolean): void {

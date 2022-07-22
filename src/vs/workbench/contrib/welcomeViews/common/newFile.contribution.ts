@@ -101,7 +101,9 @@ class NewFileTemplatesManager extends Disposable {
 
 		const disposables = new DisposableStore();
 		const qp = this.quickInputService.createQuickPick();
-		qp.title = localize('createNew', "Create New...");
+		qp.title = localize('selectFileType', "Select File Type...");
+		qp.placeholder = qp.title;
+		qp.sortByLabel = false;
 		qp.matchOnDetail = true;
 		qp.matchOnDescription = true;
 
@@ -164,11 +166,12 @@ class NewFileTemplatesManager extends Disposable {
 
 		disposables.add(qp.onDidChangeValue((val: string) => {
 			if (val === '') {
+				refreshQp(entries);
 				return;
 			}
 			const currentTextEntry: NewFileItem = {
-				commandID: 'workbench.action.files.newUntitledFile',
-				commandArgs: { languageId: undefined, viewType: undefined, path: val },
+				commandID: 'workbench.action.files.newFile',
+				commandArgs: { languageId: undefined, viewType: undefined, fileName: val },
 				title: localize('miNewFileWithName', "New File ({0})", val),
 				group: 'file',
 				from: builtInSource,

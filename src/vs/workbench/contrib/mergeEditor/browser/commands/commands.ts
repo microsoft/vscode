@@ -9,6 +9,7 @@ import { localize } from 'vs/nls';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { EditorResolution } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
@@ -35,7 +36,7 @@ export class OpenMergeEditor extends Action2 {
 			validatedArgs.input2,
 			validatedArgs.output,
 		);
-		accessor.get(IEditorService).openEditor(input, { preserveFocus: true });
+		accessor.get(IEditorService).openEditor(input, { preserveFocus: true, override: EditorResolution.DISABLED });
 	}
 }
 
@@ -167,6 +168,34 @@ const mergeEditorCategory: ILocalizedString = {
 	original: 'Merge Editor',
 };
 
+export class OpenResultResource extends Action2 {
+	constructor() {
+		super({
+			id: 'merge.openResult',
+			icon: Codicon.goToFile,
+			title: {
+				value: localize('openfile', 'Open File'),
+				original: 'Open File',
+			},
+			category: mergeEditorCategory,
+			menu: [{
+				id: MenuId.EditorTitle,
+				when: ctxIsMergeEditor,
+				group: 'navigation',
+				order: 1,
+			}],
+			precondition: ctxIsMergeEditor,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		if (editorService.activeEditor instanceof MergeEditorInput) {
+			editorService.openEditor({ resource: editorService.activeEditor.result });
+		}
+	}
+}
+
 export class GoToNextConflict extends Action2 {
 	constructor() {
 		super({
@@ -182,6 +211,7 @@ export class GoToNextConflict extends Action2 {
 					id: MenuId.EditorTitle,
 					when: ctxIsMergeEditor,
 					group: 'navigation',
+					order: 3
 				},
 			],
 			f1: true,
@@ -215,6 +245,7 @@ export class GoToPreviousConflict extends Action2 {
 					id: MenuId.EditorTitle,
 					when: ctxIsMergeEditor,
 					group: 'navigation',
+					order: 2
 				},
 			],
 			f1: true,
@@ -300,8 +331,10 @@ export class CompareInput1WithBaseCommand extends Action2 {
 				),
 				original: 'Compare Input 1 With Base',
 			},
+			shortTitle: localize('mergeEditor.compareWithBase', 'Compare With Base'),
 			f1: true,
 			precondition: ctxIsMergeEditor,
+			menu: { id: MenuId.MergeInput1Toolbar }
 		});
 	}
 	run(accessor: ServicesAccessor, ...args: unknown[]): void {
@@ -323,8 +356,10 @@ export class CompareInput2WithBaseCommand extends Action2 {
 				),
 				original: 'Compare Input 2 With Base',
 			},
+			shortTitle: localize('mergeEditor.compareWithBase', 'Compare With Base'),
 			f1: true,
 			precondition: ctxIsMergeEditor,
+			menu: { id: MenuId.MergeInput2Toolbar }
 		});
 	}
 	run(accessor: ServicesAccessor, ...args: unknown[]): void {

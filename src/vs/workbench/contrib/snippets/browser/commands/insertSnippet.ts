@@ -3,19 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { registerEditorAction, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
+import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
+import * as nls from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { SnippetEditorAction } from 'vs/workbench/contrib/snippets/browser/commands/abstractSnippetsActions';
 import { pickSnippet } from 'vs/workbench/contrib/snippets/browser/snippetPicker';
-
+import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets';
+import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 
 class Args {
 
@@ -45,13 +44,16 @@ class Args {
 	) { }
 }
 
-class InsertSnippetAction extends EditorAction {
+export class InsertSnippetAction extends SnippetEditorAction {
 
 	constructor() {
 		super({
 			id: 'editor.action.insertSnippet',
-			label: nls.localize('snippet.suggestions.label', "Insert Snippet"),
-			alias: 'Insert Snippet',
+			title: {
+				value: nls.localize('snippet.suggestions.label', "Insert Snippet"),
+				original: 'Insert Snippet'
+			},
+			f1: true,
 			precondition: EditorContextKeys.writable,
 			description: {
 				description: `Insert Snippet`,
@@ -77,7 +79,8 @@ class InsertSnippetAction extends EditorAction {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, editor: ICodeEditor, arg: any): Promise<void> {
+	async runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any[]) {
+
 		const languageService = accessor.get(ILanguageService);
 		const snippetService = accessor.get(ISnippetsService);
 
@@ -91,10 +94,11 @@ class InsertSnippetAction extends EditorAction {
 		const snippet = await new Promise<Snippet | undefined>((resolve, reject) => {
 
 			const { lineNumber, column } = editor.getPosition();
-			const { snippet, name, langId } = Args.fromUser(arg);
+			const { snippet, name, langId } = Args.fromUser(args[0]);
 
 			if (snippet) {
 				return resolve(new Snippet(
+					false,
 					[],
 					'',
 					'',
@@ -102,6 +106,7 @@ class InsertSnippetAction extends EditorAction {
 					snippet,
 					'',
 					SnippetSource.User,
+					`random/${Math.random()}`
 				));
 			}
 
@@ -143,12 +148,6 @@ class InsertSnippetAction extends EditorAction {
 			clipboardText = await clipboardService.readText();
 		}
 		SnippetController2.get(editor)?.insert(snippet.codeSnippet, { clipboardText });
+		snippetService.updateUsageTimestamp(snippet);
 	}
 }
-
-registerEditorAction(InsertSnippetAction);
-
-// compatibility command to make sure old keybinding are still working
-CommandsRegistry.registerCommand('editor.action.showSnippets', accessor => {
-	return accessor.get(ICommandService).executeCommand('editor.action.insertSnippet');
-});

@@ -133,6 +133,7 @@
 
 	/* width */
 	width: 16px;
+	flex-shrink: 0;
 }
 
 .monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center .action-item.quickopen>.action-label {
@@ -190,7 +191,7 @@
 	width: 35px;
 	height: 100%;
 	position: relative;
-	z-index: 3000;
+	z-index: 2500;
 	flex-shrink: 0;
 }
 

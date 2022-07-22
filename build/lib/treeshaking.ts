@@ -142,6 +142,8 @@ function discoverAndReadFiles(ts: typeof import('typescript'), options: ITreeSha
 	const queue: string[] = [];
 
 	const enqueue = (moduleId: string) => {
+		// To make the treeshaker work on windows...
+		moduleId = moduleId.replace(/\\/g, '/');
 		if (in_queue[moduleId]) {
 			return;
 		}

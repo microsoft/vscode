@@ -13,8 +13,6 @@ import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { CommentNode, CommentsModel, ResourceWithCommentThreads } from 'vs/workbench/contrib/comments/common/commentModel';
 import { IAsyncDataSource, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { WorkbenchAsyncDataTree, IListService, IWorkbenchAsyncDataTreeOptions } from 'vs/platform/list/browser/listService';
@@ -188,13 +186,11 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		return renderedComment;
 	}
 
-	private getIcon(commentCount: number, threadState?: CommentThreadState): Codicon {
+	private getIcon(threadState?: CommentThreadState): Codicon {
 		if (threadState === CommentThreadState.Unresolved) {
 			return Codicon.commentUnresolved;
-		} else if (commentCount === 1) {
-			return Codicon.comment;
 		} else {
-			return Codicon.commentDiscussion;
+			return Codicon.comment;
 		}
 	}
 
@@ -202,7 +198,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		const commentCount = node.element.replies.length + 1;
 		templateData.threadMetadata.icon.classList.remove(...Array.from(templateData.threadMetadata.icon.classList.values())
 			.filter(value => value.startsWith('codicon')));
-		templateData.threadMetadata.icon.classList.add(...ThemeIcon.asClassNameArray(this.getIcon(commentCount, node.element.threadState)));
+		templateData.threadMetadata.icon.classList.add(...ThemeIcon.asClassNameArray(this.getIcon(node.element.threadState)));
 		if (node.element.threadState !== undefined) {
 			const color = this.getCommentThreadWidgetStateColor(node.element.threadState, this.themeService.getColorTheme());
 			templateData.threadMetadata.icon.style.setProperty(commentViewThreadStateColorVar, `${color}`);
@@ -221,7 +217,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			templateData.disposables.push(disposables);
 			const renderedComment = this.getRenderedComment(originalComment.comment.body, disposables);
 			templateData.disposables.push(renderedComment);
-			templateData.threadMetadata.commentPreview.appendChild(renderedComment.element);
+			templateData.threadMetadata.commentPreview.appendChild(renderedComment.element.firstElementChild ?? renderedComment.element);
 			templateData.threadMetadata.commentPreview.title = renderedComment.element.textContent ?? '';
 		}
 
@@ -266,8 +262,6 @@ export class CommentsList extends WorkbenchAsyncDataTree<any, any> {
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IAccessibilityService accessibilityService: IAccessibilityService
 	) {
 		const delegate = new CommentsModelVirualDelegate();
 		const dataSource = new CommentsAsyncDataSource();
@@ -311,12 +305,11 @@ export class CommentsList extends WorkbenchAsyncDataTree<any, any> {
 				},
 				overrideStyles: options.overrideStyles
 			},
+			instantiationService,
 			contextKeyService,
 			listService,
 			themeService,
-			configurationService,
-			keybindingService,
-			accessibilityService
+			configurationService
 		);
 	}
 }
