@@ -65,6 +65,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { registerWindowDriver } from 'vs/platform/driver/electron-sandbox/driver';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { dirname } from 'vs/base/common/resources';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 export class NativeWindow extends Disposable {
 
@@ -115,7 +116,8 @@ export class NativeWindow extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ISharedProcessService private readonly sharedProcessService: ISharedProcessService,
 		@IProgressService private readonly progressService: IProgressService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super();
 
@@ -129,7 +131,11 @@ export class NativeWindow extends Disposable {
 		this._register(addDisposableListener(window, EventType.RESIZE, e => this.onWindowResize(e, true)));
 
 		// React to editor input changes
-		this._register(this.editorService.onDidActiveEditorChange(() => this.updateTouchbarMenu()));
+		const appRootUri = URI.file(this.environmentService.appRoot);
+		this._register(this.editorService.onDidActiveEditorChange(() => {
+			this.updateTouchbarMenu();
+			this.notifyOnAppRootEditors(appRootUri);
+		}));
 
 		// prevent opening a real URL inside the window
 		for (const event of [EventType.DRAG_OVER, EventType.DROP]) {
@@ -792,6 +798,39 @@ export class NativeWindow extends Disposable {
 		if (!equals(this.lastInstalledTouchedBar, items)) {
 			this.lastInstalledTouchedBar = items;
 			this.nativeHostService.updateTouchBar(items);
+		}
+	}
+
+	private notifyOnAppRootEditors(appRootUri: URI): void {
+		const resourceUri = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.BOTH });
+		const test = (uri: URI): boolean => this.uriIdentityService.extUri.isEqualOrParent(uri, appRootUri);
+		let notify = false;
+		if (URI.isUri(resourceUri)) {
+			if (test(resourceUri)) {
+				notify = true;
+			}
+		} else if (resourceUri) {
+			if (resourceUri.primary && test(resourceUri.primary)) {
+				notify = true;
+			} else if (resourceUri.secondary && test(resourceUri.secondary)) {
+				notify = true;
+			}
+		}
+		if (notify) {
+			this.notificationService.prompt(
+				Severity.Warning,
+				localize('warnOfFileInInstallationFolder', "Files within the installation folder of '{0}' ({1}) will be OVERWRITTEN or DELETED IRREVERSIBLY without warning during a future update.", this.productService.nameShort, this.environmentService.appRoot),
+				[{
+					label: localize('ok', 'OK'),
+					run: async () => {
+						// Nothing to do
+					}
+				}],
+				{
+					neverShowAgain: { id: 'warnOfFileInInstallationFolder', isSecondary: true },
+					sticky: true,
+				}
+			);
 		}
 	}
 
