@@ -317,7 +317,7 @@ export const editorForeground = registerColor('editor.foreground', { light: '#33
 /**
  * Sticky scroll
  */
-export const stickyScrollBackground = registerColor('stickyScroll.background', { light: '#fffffe', dark: '#1E1E1E', hcDark: Color.black, hcLight: Color.white }, nls.localize('stickyScrollBackground', "Sticky scroll background color"));
+export const stickyScrollBackground = registerColor('stickyScroll.background', { light: darken(editorBackground, 0.2), dark: lighten(editorBackground, 0.2), hcDark: lighten(editorBackground, 0.2), hcLight: darken(editorBackground, 0.2) }, nls.localize('stickyScrollBackground', "Sticky scroll background color"));
 
 /**
  * Editor widgets

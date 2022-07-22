@@ -66,7 +66,8 @@ class StickyScrollController implements IEditorContribution {
 				this.stickyScrollWidget.emptyRootNode();
 			}
 		}));
-		this._update();
+		this._languageFeaturesService.documentSymbolProvider.onDidChange(() => this._update(true));
+		this._update(true);
 
 		console.log('this editor : ', this._editor);
 		console.log('view model', this._editor._getViewModel());
@@ -74,9 +75,9 @@ class StickyScrollController implements IEditorContribution {
 		console.log('layout info', this._editor.getModel());
 	}
 
-	private _update(updateOutline: boolean = false): void {
+	private async _update(updateOutline: boolean = false): Promise<void> {
 		if (updateOutline) {
-			this._updateOutlineModel();
+			await this._updateOutlineModel();
 		}
 		const options = this._editor.getOption(EditorOption.stickyScroll);
 		if (options.enabled === false) {
@@ -113,11 +114,11 @@ class StickyScrollController implements IEditorContribution {
 		}
 	}
 
-	private _updateOutlineModel() {
+	private async _updateOutlineModel() {
 		if (this._editor.hasModel()) {
 			const model = this._editor.getModel();
 			this._lastScrollPositionsLength = 2;
-			this._createOutlineModel(model).then((outlineModel) => {
+			await this._createOutlineModel(model).then((outlineModel) => {
 				this._outlineModel = outlineModel;
 				this._ranges = [];
 				for (const outline of this._outlineModel?.children.values()) {
@@ -169,7 +170,9 @@ class StickyScrollController implements IEditorContribution {
 				console.log('top pixel of bottom line : ', (range[1] - 1) * lineHeight);
 				console.log('bottom pixel of bottom line : ', range[1] * lineHeight);
 
-				if (this._editor.getScrollTop() + range[2] * lineHeight >= range[1] * lineHeight && this._editor.getScrollTop() + range[2] * lineHeight <= (range[1] + 1) * lineHeight) {
+				// onDidChangeTheme redraw
+
+				if (this._editor.getScrollTop() + range[2] * lineHeight >= range[1] * lineHeight && this._editor.getScrollTop() + range[2] * lineHeight < (range[1] + 1) * lineHeight) {
 					console.log('top if loop : ', this._editor.getScrollTop() + range[2] * lineHeight, ' where range[2] is : ', range[2]);
 					this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(model.getLineContent(range[0]), range[0], this._editor, this._themeService, -1, (range[2] - 1) * lineHeight + range[1] * lineHeight - this._editor.getScrollTop() - range[2] * lineHeight));
 				} else if (this._editor.getScrollTop() + range[2] * lineHeight >= (range[1] - 1) * lineHeight && this._editor.getScrollTop() + range[2] * lineHeight < range[1] * lineHeight) {
@@ -237,6 +240,7 @@ class StickyScrollCodeLine {
 		lineNumberHTMLNode.style.display = 'inline-block';
 		lineNumberHTMLNode.style.textAlign = 'center';
 		this._editor.applyFontInfo(lineNumberHTMLNode);
+		lineNumberHTMLNode.style.color = 'var(--vscode-editorLineNumber-foreground)';
 
 		root.appendChild(lineNumberHTMLNode);
 		root.appendChild(lineHTMLNode);
@@ -247,13 +251,7 @@ class StickyScrollCodeLine {
 		}
 		root.style.zIndex = this.zIndex.toString();
 
-		const color = colors.resolveColorValue({
-			op: colors.ColorTransformType.Lighten,
-			value: colors.editorBackground,
-			factor: 0.2
-		}, this._themeService.getColorTheme()) as Color;
-
-		root.style.backgroundColor = Color.Format.CSS.formatHex(color);
+		root.style.backgroundColor = `var(--vscode-stickyScroll-background)`;
 
 		return root;
 	}
