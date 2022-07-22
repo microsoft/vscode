@@ -560,6 +560,8 @@ export class Codicon implements CSSIcon {
 	public static readonly bellSlash = new Codicon('bell-slash', { fontCharacter: '\\ec08' });
 	public static readonly bellSlashDot = new Codicon('bell-slash-dot', { fontCharacter: '\\ec09' });
 	public static readonly commentUnresolved = new Codicon('comment-unresolved', { fontCharacter: '\\ec0a' });
+	public static readonly gitPullRequestGoToChanges = new Codicon('git-pull-request-go-to-changes', { fontCharacter: '\\ec0b' });
+	public static readonly gitPullRequestNewChanges = new Codicon('git-pull-request-new-changes', { fontCharacter: '\\ec0c' });
 
 
 	// derived icons, that could become separate icons
