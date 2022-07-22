@@ -22,14 +22,14 @@ suite('FoldingRanges', () => {
 			endLineNumber: to,
 			type: type,
 			isCollapsed: collapsed || false,
-			isManualSelection: manual || false
+			isManual: manual || false
 		};
 	const assertEqualRanges = (range1: FoldRange, range2: FoldRange, msg: string) => {
 		assert.strictEqual(range1.startLineNumber, range2.startLineNumber, msg + ' start');
 		assert.strictEqual(range1.endLineNumber, range2.endLineNumber, msg + ' end');
 		assert.strictEqual(range1.type, range2.type, msg + ' type');
 		assert.strictEqual(range1.isCollapsed, range2.isCollapsed, msg + ' collapsed');
-		assert.strictEqual(range1.isManualSelection, range2.isManualSelection, msg + ' manual');
+		assert.strictEqual(range1.isManual, range2.isManual, msg + ' manual');
 	};
 
 	test('test max folding regions', () => {

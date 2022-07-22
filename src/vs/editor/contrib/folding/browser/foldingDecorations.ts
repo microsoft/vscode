@@ -94,19 +94,19 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 	constructor(private readonly editor: ICodeEditor) {
 	}
 
-	getDecorationOption(isCollapsed: boolean, isHidden: boolean, isManualSelection: boolean): IModelDecorationOptions {
+	getDecorationOption(isCollapsed: boolean, isHidden: boolean, isManual: boolean): IModelDecorationOptions {
 		if (isHidden // is inside another collapsed region
 			|| this.showFoldingControls === 'never') {
 			return FoldingDecorationProvider.HIDDEN_RANGE_DECORATION;
 		}
 		if (isCollapsed) {
-			return isManualSelection ?
+			return isManual ?
 				(this.showFoldingHighlights ? FoldingDecorationProvider.MANUALLY_COLLAPSED_HIGHLIGHTED_VISUAL_DECORATION : FoldingDecorationProvider.MANUALLY_COLLAPSED_VISUAL_DECORATION)
 				: (this.showFoldingHighlights ? FoldingDecorationProvider.COLLAPSED_HIGHLIGHTED_VISUAL_DECORATION : FoldingDecorationProvider.COLLAPSED_VISUAL_DECORATION);
 		} else if (this.showFoldingControls === 'mouseover') {
-			return isManualSelection ? FoldingDecorationProvider.MANUALLY_EXPANDED_AUTO_HIDE_VISUAL_DECORATION : FoldingDecorationProvider.EXPANDED_AUTO_HIDE_VISUAL_DECORATION;
+			return isManual ? FoldingDecorationProvider.MANUALLY_EXPANDED_AUTO_HIDE_VISUAL_DECORATION : FoldingDecorationProvider.EXPANDED_AUTO_HIDE_VISUAL_DECORATION;
 		} else {
-			return isManualSelection ? FoldingDecorationProvider.MANUALLY_EXPANDED_VISUAL_DECORATION : FoldingDecorationProvider.EXPANDED_VISUAL_DECORATION;
+			return isManual ? FoldingDecorationProvider.MANUALLY_EXPANDED_VISUAL_DECORATION : FoldingDecorationProvider.EXPANDED_VISUAL_DECORATION;
 		}
 	}
 

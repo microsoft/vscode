@@ -13,7 +13,7 @@ export interface FoldRange {
 	endLineNumber: number;
 	type: string | undefined;
 	isCollapsed: boolean;
-	isManualSelection: boolean;
+	isManual: boolean;
 }
 
 export const MAX_FOLDING_REGIONS = 0xFFFF;
@@ -104,13 +104,13 @@ export class FoldingRegions {
 		}
 	}
 
-	public isManualSelection(index: number): boolean {
+	public isManual(index: number): boolean {
 		const arrayIndex = (index / 32) | 0;
 		const bit = index % 32;
 		return (this._manualStates[arrayIndex] & (1 << bit)) !== 0;
 	}
 
-	public setManualSelection(index: number, newState: boolean) {
+	public setManual(index: number, newState: boolean) {
 		const arrayIndex = (index / 32) | 0;
 		const bit = index % 32;
 		const value = this._manualStates[arrayIndex];
@@ -188,7 +188,7 @@ export class FoldingRegions {
 	public toString() {
 		const res: string[] = [];
 		for (let i = 0; i < this.length; i++) {
-			res[i] = `[${this.isManualSelection(i) ? '*' : ' '}${this.isCollapsed(i) ? '+' : '-'}] ${this.getStartLineNumber(i)}/${this.getEndLineNumber(i)}`;
+			res[i] = `[${this.isManual(i) ? '*' : ' '}${this.isCollapsed(i) ? '+' : '-'}] ${this.getStartLineNumber(i)}/${this.getEndLineNumber(i)}`;
 		}
 		return res.join(', ');
 	}
@@ -199,7 +199,7 @@ export class FoldingRegions {
 			endLineNumber: this._endIndexes[index] & MAX_LINE_NUMBER,
 			type: this._types ? this._types[index] : undefined,
 			isCollapsed: this.isCollapsed(index),
-			isManualSelection: this.isManualSelection(index)
+			isManual: this.isManual(index)
 		};
 	}
 
@@ -226,8 +226,8 @@ export class FoldingRegions {
 			if (ranges[i].isCollapsed) {
 				regions.setCollapsed(i, true);
 			}
-			if (ranges[i].isManualSelection) {
-				regions.setManualSelection(i, true);
+			if (ranges[i].isManual) {
+				regions.setManual(i, true);
 			}
 		}
 		return regions;
@@ -277,11 +277,11 @@ export class FoldingRegions {
 					// same range in both lists, merge the details
 					useRange = nextA;
 					useRange.isCollapsed = nextA.endLineNumber === nextB.endLineNumber;
-					useRange.isManualSelection = false;
+					useRange.isManual = false;
 					nextA = getA(++indexA); // not necessary, just for speed
 				} else { // use nextB
 					useRange = nextB;
-					useRange.isManualSelection = true;
+					useRange.isManual = true;
 				}
 				nextB = getB(++indexB);
 			} else {
@@ -294,7 +294,7 @@ export class FoldingRegions {
 						useRange = nextA;
 						break; // no conflict, use this nextA
 					}
-					if (prescanB.isManualSelection && prescanB.isCollapsed && prescanB.endLineNumber > nextA!.endLineNumber) {
+					if (prescanB.isManual && prescanB.isCollapsed && prescanB.endLineNumber > nextA!.endLineNumber) {
 						break; // without setting nextResult, so this nextA gets skipped
 					}
 					prescanB = getB(++scanIndex);
