@@ -79,7 +79,7 @@ export interface ICommonNativeHostService {
 	 *
 	 * @param options `backgroundColor` and `foregroundColor` are only supported on Windows
 	 */
-	updateTitleBarOverlay(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void>;
+	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void>;
 
 	setMinimumSize(width: number | undefined, height: number | undefined): Promise<void>;
 

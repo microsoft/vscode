@@ -237,7 +237,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 			if (!this.cachedWindowControlStyles ||
 				this.cachedWindowControlStyles.bgColor !== this.element.style.backgroundColor ||
 				this.cachedWindowControlStyles.fgColor !== this.element.style.color) {
-				this.nativeHostService.updateTitleBarOverlay({ backgroundColor: this.element.style.backgroundColor, foregroundColor: this.element.style.color });
+				this.nativeHostService.updateWindowControls({ backgroundColor: this.element.style.backgroundColor, foregroundColor: this.element.style.color });
 			}
 		}
 	}
@@ -250,7 +250,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 			const newHeight = Math.round(height * getZoomFactor());
 			if (newHeight !== this.cachedWindowControlHeight) {
 				this.cachedWindowControlHeight = newHeight;
-				this.nativeHostService.updateTitleBarOverlay({ height: newHeight });
+				this.nativeHostService.updateWindowControls({ height: newHeight });
 			}
 		}
 	}
