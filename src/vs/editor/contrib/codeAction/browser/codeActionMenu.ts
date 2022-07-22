@@ -222,6 +222,8 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		);
 
 		renderDisposables.add(this.codeActionList.value.onDidChangeSelection(e => this._onListSelection(e)));
+		renderDisposables.add(this._editor.onDidLayoutChange(e => this.hideCodeActionWidget()));
+
 
 		// Populating the list widget and tracking enabled options.
 		inputArray.forEach((item, index) => {
@@ -256,7 +258,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		// resize observer - can be used in the future since list widget supports dynamic height but not width
 		const maxWidth = Math.max(...arr);
 
-		// 40 is the additional padding for the list widget (26px left, 26px right)
+		// 40 is the additional padding for the list widget (20 left, 20 right)
 		renderMenu.style.width = maxWidth + 52 + 'px';
 		this.codeActionList.value?.layout(height, maxWidth);
 
