@@ -580,10 +580,10 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	private compareFolders(currentFolders: IWorkspaceFolder[], newFolders: IWorkspaceFolder[]): IWorkspaceFoldersChangeEvent {
 		const result: IWorkspaceFoldersChangeEvent = { added: [], removed: [], changed: [] };
 		result.added = newFolders.filter(newFolder => !currentFolders.some(currentFolder => newFolder.uri.toString() === currentFolder.uri.toString()));
-		for (let currentIndex = 0;currentIndex < currentFolders.length;currentIndex++) {
+		for (let currentIndex = 0; currentIndex < currentFolders.length; currentIndex++) {
 			const currentFolder = currentFolders[currentIndex];
 			let newIndex = 0;
-			for (newIndex = 0;newIndex < newFolders.length && currentFolder.uri.toString() !== newFolders[newIndex].uri.toString();newIndex++) { }
+			for (newIndex = 0; newIndex < newFolders.length && currentFolder.uri.toString() !== newFolders[newIndex].uri.toString(); newIndex++) { }
 			if (newIndex < newFolders.length) {
 				if (currentIndex !== newIndex || currentFolder.name !== newFolders[newIndex].name) {
 					result.changed.push(currentFolder);

@@ -1976,7 +1976,7 @@ export class CommandCenter {
 		}
 
 		// 5 attempts to generate a random branch name
-		for (let index = 0;index < 5;index++) {
+		for (let index = 0; index < 5; index++) {
 			const randomName = uniqueNamesGenerator({
 				dictionaries,
 				length: dictionaries.length,
