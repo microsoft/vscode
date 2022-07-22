@@ -157,11 +157,12 @@ export class SearchEditorInput extends EditorInput {
 	private registerConfigChangeListeners(model: SearchConfigurationModel) {
 		this.configChangeListenerDisposable?.dispose();
 		if (!this.isDisposed()) {
+			let oldName = this.getName();
 			this.configChangeListenerDisposable = model.onConfigDidUpdate(() => {
-				const oldName = this.getName();
 				if (oldName !== this.getName()) {
 					this._onDidChangeLabel.fire();
 				}
+				oldName = this.getName();
 				this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE).searchConfig = model.config;
 			});
 			this._register(this.configChangeListenerDisposable);
