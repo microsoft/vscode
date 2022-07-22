@@ -169,7 +169,7 @@ export interface IPtyHostAttachTarget {
 	environmentVariableCollections: ISerializableEnvironmentVariableCollections | undefined;
 	reconnectionOwner?: string;
 	task?: { label: string; id: string; lastTask: string; group?: string };
-	waitOnExit?: boolean | string | ((exitCode: number) => string);
+	waitOnExit?: WaitOnExitValue;
 }
 
 export enum TitleEventSource {
@@ -447,7 +447,7 @@ export interface IShellLaunchConfig {
 	reconnectionOwner?: string;
 
 	/** Whether to wait for a key press before closing the terminal. */
-	waitOnExit?: boolean | string | ((exitCode: number) => string);
+	waitOnExit?: WaitOnExitValue;
 
 	/**
 	 * A string including ANSI escape sequences that will be written to the terminal emulator
@@ -471,7 +471,7 @@ export interface IShellLaunchConfig {
 	 * This is a terminal that attaches to an already running terminal.
 	 */
 	attachPersistentProcess?: {
-		id: number; findRevivedId?: boolean; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string; hasChildProcesses?: boolean; fixedDimensions?: IFixedTerminalDimensions; environmentVariableCollections?: ISerializableEnvironmentVariableCollections; reconnectionOwner?: string; task?: { label: string; id: string; lastTask: string; group?: string }; type?: string; waitOnExit?: boolean | string | ((exitCode: number) => string);
+		id: number; findRevivedId?: boolean; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string; hasChildProcesses?: boolean; fixedDimensions?: IFixedTerminalDimensions; environmentVariableCollections?: ISerializableEnvironmentVariableCollections; reconnectionOwner?: string; task?: { label: string; id: string; lastTask: string; group?: string }; type?: string; waitOnExit?: WaitOnExitValue;
 	};
 
 	/**
@@ -549,6 +549,8 @@ export interface IShellLaunchConfig {
 	 */
 	task?: { label: string; id: string; lastTask: string; group?: string };
 }
+
+export type WaitOnExitValue = boolean | string | ((exitCode: number) => string);
 
 export interface ICreateContributedTerminalProfileOptions {
 	icon?: URI | string | { light: URI; dark: URI };
