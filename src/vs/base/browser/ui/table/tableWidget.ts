@@ -265,8 +265,8 @@ export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 		this.list.layout(listHeight, width);
 	}
 
-	toggleKeyboardNavigation(): void {
-		this.list.toggleKeyboardNavigation();
+	triggerTypeNavigation(): void {
+		this.list.triggerTypeNavigation();
 	}
 
 	style(styles: ITableStyles): void {

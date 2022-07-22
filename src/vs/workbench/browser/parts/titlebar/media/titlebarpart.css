@@ -191,7 +191,7 @@
 	width: 35px;
 	height: 100%;
 	position: relative;
-	z-index: 3000;
+	z-index: 2500;
 	flex-shrink: 0;
 }
 

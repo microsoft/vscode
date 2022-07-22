@@ -23,6 +23,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
 import { ISearchService } from 'vs/workbench/services/search/common/search';
+import { basename } from 'vs/base/common/path';
 
 export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 	constructor(
@@ -35,7 +36,7 @@ export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 		if (!link.uri) {
 			throw new Error('Tried to open file link without a resolved URI');
 		}
-		const lineColumnInfo: ILineColumnInfo = this.extractLineColumnInfo(link.text);
+		const lineColumnInfo: ILineColumnInfo = this.extractLineColumnInfo(link.text, link.uri);
 		const selection: ITextEditorSelection = {
 			startLineNumber: lineColumnInfo.lineNumber,
 			startColumn: lineColumnInfo.columnNumber
@@ -51,11 +52,21 @@ export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 	 *
 	 * @param link Url link which may contain line and column number.
 	 */
-	extractLineColumnInfo(link: string): ILineColumnInfo {
+	extractLineColumnInfo(link: string, uri?: URI): ILineColumnInfo {
 		const lineColumnInfo: ILineColumnInfo = {
 			lineNumber: 1,
 			columnNumber: 1
 		};
+
+		// If a URI was passed in the exact file is known, sanitize the link text such that the
+		// folders and file name do not contain whitespace. The actual path isn't important in
+		// extracting the line and column from the regex so this is safe
+		if (uri) {
+			const fileName = basename(uri.path);
+			const index = link.indexOf(fileName);
+			const endIndex = index + fileName.length;
+			link = link.slice(0, endIndex).replace(/\s/g, '_') + link.slice(endIndex);
+		}
 
 		// The local link regex only works for non file:// links, check these for a simple
 		// `:line:col` suffix
