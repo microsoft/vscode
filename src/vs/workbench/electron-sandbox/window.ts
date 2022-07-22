@@ -832,7 +832,7 @@ export class NativeWindow extends Disposable {
 				Severity.Warning,
 				localize('notifyOnAppRootEditors', "Files within the installation folder of '{0}' ({1}) will be OVERWRITTEN or DELETED IRREVERSIBLY without warning during a future update.", this.productService.nameShort, this.environmentService.appRoot),
 				[{
-					label: localize('ok', 'OK'),
+					label: localize('understood', 'Understood'),
 					run: async () => {
 						// Nothing to do
 					}
