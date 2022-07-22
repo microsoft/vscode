@@ -819,7 +819,7 @@ export class NativeWindow extends Disposable {
 		if (notify) {
 			this.notificationService.prompt(
 				Severity.Warning,
-				localize('warnOfFileInInstallationFolder', "Files within the installation folder of '{0}' ({1}) will be OVERWRITTEN or DELETED IRREVERSIBLY without warning during a future update.", this.productService.nameShort, this.environmentService.appRoot),
+				localize('notifyOnAppRootEditors', "Files within the installation folder of '{0}' ({1}) will be OVERWRITTEN or DELETED IRREVERSIBLY without warning during a future update.", this.productService.nameShort, this.environmentService.appRoot),
 				[{
 					label: localize('ok', 'OK'),
 					run: async () => {
@@ -827,7 +827,7 @@ export class NativeWindow extends Disposable {
 					}
 				}],
 				{
-					neverShowAgain: { id: 'editor.contrib.warnOfFileInInstallationFolder', isSecondary: true },
+					neverShowAgain: { id: 'editor.contrib.notifyOnAppRootEditors', isSecondary: true },
 					sticky: true,
 				}
 			);
