@@ -76,7 +76,7 @@ function calculatePackageDeps(binaryPath, arch, sysroot) {
         console.error('Tried to stat ' + binaryPath + ' but failed.');
     }
     // Get the Chromium dpkg-shlibdeps file.
-    const dpkgShlibdepsUrl = 'https://raw.githubusercontent.com/chromium/chromium/main/third_party/dpkg-shlibdeps/dpkg-shlibdeps.pl';
+    const dpkgShlibdepsUrl = 'https://raw.githubusercontent.com/chromium/chromium/100.0.4896.160/third_party/dpkg-shlibdeps/dpkg-shlibdeps.pl';
     const dpkgShlibdepsScriptLocation = `${(0, os_1.tmpdir)()}/dpkg-shlibdeps.pl`;
     const result = (0, child_process_1.spawnSync)('curl', [dpkgShlibdepsUrl, '-o', dpkgShlibdepsScriptLocation]);
     if (result.status !== 0) {

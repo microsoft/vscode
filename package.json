@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.70.0",
-  "distro": "1a72c46622967eab6ea48516a2153c55d7e18e53",
+  "distro": "990065ff739688c0d4ad94e172eeccd6bd5ef124",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -56,7 +56,8 @@
     "minify-vscode-reh-web": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js minify-vscode-reh-web",
     "hygiene": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js hygiene",
     "core-ci": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js core-ci",
-    "extensions-ci": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js extensions-ci"
+    "extensions-ci": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js extensions-ci",
+    "webview-generate-csp-hash": "npx github:apaatsio/csp-hash-from-html csp-hash ./src/vs/workbench/contrib/webview/browser/pre/index.html"
   },
   "dependencies": {
     "@microsoft/1ds-core-js": "^3.2.2",
@@ -85,12 +86,12 @@
     "vscode-proxy-agent": "^0.12.0",
     "vscode-regexpp": "^3.1.0",
     "vscode-textmate": "7.0.1",
-    "xterm": "4.20.0-beta.13",
-    "xterm-addon-search": "0.10.0-beta.2",
-    "xterm-addon-serialize": "0.8.0-beta.2",
+    "xterm": "4.20.0-beta.20",
+    "xterm-addon-search": "0.10.0-beta.3",
+    "xterm-addon-serialize": "0.8.0-beta.3",
     "xterm-addon-unicode11": "0.4.0-beta.3",
-    "xterm-addon-webgl": "0.13.0-beta.7",
-    "xterm-headless": "4.20.0-beta.13",
+    "xterm-addon-webgl": "0.13.0-beta.9",
+    "xterm-headless": "4.20.0-beta.20",
     "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
   },
@@ -124,7 +125,7 @@
     "@typescript-eslint/eslint-plugin": "^5.10.0",
     "@typescript-eslint/parser": "^5.10.0",
     "@vscode/telemetry-extractor": "^1.9.6",
-    "@vscode/test-web": "^0.0.22",
+    "@vscode/test-web": "^0.0.29",
     "ansi-colors": "^3.2.3",
     "asar": "^3.0.3",
     "chromium-pickle-js": "^0.2.0",
