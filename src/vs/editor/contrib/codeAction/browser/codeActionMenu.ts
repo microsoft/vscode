@@ -90,7 +90,7 @@ export interface ICodeActionMenuTemplateData {
 }
 
 const TEMPLATE_ID = 'codeActionWidget';
-const codeActionLineHeight = 27;
+const codeActionLineHeight = 26;
 
 class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeActionMenuTemplateData> {
 	get templateId(): string { return TEMPLATE_ID; }
@@ -256,8 +256,8 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		// resize observer - can be used in the future since list widget supports dynamic height but not width
 		const maxWidth = Math.max(...arr);
 
-		// 40 is the additional padding for the list widget (20 left, 20 right)
-		renderMenu.style.width = maxWidth + 40 + 'px';
+		// 40 is the additional padding for the list widget (26px left, 26px right)
+		renderMenu.style.width = maxWidth + 52 + 'px';
 		this.codeActionList.value?.layout(height, maxWidth);
 
 		// List selection
