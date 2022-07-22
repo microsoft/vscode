@@ -527,14 +527,14 @@ export class MergeEditorResolverContribution extends Disposable {
 					mergeEditor.base.resource,
 					{
 						uri: mergeEditor.input1.resource,
-						title: basename(mergeEditor.input1.resource),
-						description: '',
+						title: mergeEditor.input1.label ?? basename(mergeEditor.input1.resource),
+						description: mergeEditor.input1.description ?? '',
 						detail: ''
 					},
 					{
 						uri: mergeEditor.input2.resource,
-						title: basename(mergeEditor.input2.resource),
-						description: '',
+						title: mergeEditor.input2.label ?? basename(mergeEditor.input2.resource),
+						description: mergeEditor.input2.description ?? '',
 						detail: ''
 					},
 					mergeEditor.result.resource

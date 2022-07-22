@@ -36,7 +36,7 @@ export class OpenMergeEditor extends Action2 {
 			validatedArgs.input2,
 			validatedArgs.output,
 		);
-		accessor.get(IEditorService).openEditor(input, { preserveFocus: true, override: EditorResolution.DISABLED });
+		accessor.get(IEditorService).openEditor(input, { preserveFocus: true });
 	}
 }
 
