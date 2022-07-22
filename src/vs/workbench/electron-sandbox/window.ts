@@ -827,7 +827,7 @@ export class NativeWindow extends Disposable {
 					}
 				}],
 				{
-					neverShowAgain: { id: 'warnOfFileInInstallationFolder', isSecondary: true },
+					neverShowAgain: { id: 'editor.contrib.warnOfFileInInstallationFolder', isSecondary: true },
 					sticky: true,
 				}
 			);
