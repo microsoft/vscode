@@ -264,11 +264,6 @@ import 'vs/workbench/contrib/keybindings/browser/keybindings.contribution';
 
 // Snippets
 import 'vs/workbench/contrib/snippets/browser/snippets.contribution';
-import 'vs/workbench/contrib/snippets/browser/snippetsService';
-import 'vs/workbench/contrib/snippets/browser/insertSnippet';
-import 'vs/workbench/contrib/snippets/browser/surroundWithSnippet';
-import 'vs/workbench/contrib/snippets/browser/configureSnippets';
-import 'vs/workbench/contrib/snippets/browser/tabCompletion';
 
 // Formatter Help
 import 'vs/workbench/contrib/format/browser/format.contribution';
@@ -348,5 +343,8 @@ import 'vs/workbench/contrib/list/browser/list.contribution';
 
 // Audio Cues
 import 'vs/workbench/contrib/audioCues/browser/audioCues.contribution';
+
+// Deprecated Extension Migrator
+import 'vs/workbench/contrib/deprecatedExtensionMigrator/browser/deprecatedExtensionMigrator.contribution';
 
 //#endregion

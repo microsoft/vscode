@@ -327,7 +327,7 @@ export class ContextMenuController implements IEditorContribution {
 			}
 		}));
 		actions.push(createEnumAction<'proportional' | 'fill' | 'fit'>(
-			nls.localize('context.minimap.size', "Size"),
+			nls.localize('context.minimap.size', "Vertical size"),
 			minimapOptions.enabled,
 			'editor.minimap.size',
 			minimapOptions.size,
@@ -340,22 +340,6 @@ export class ContextMenuController implements IEditorContribution {
 			}, {
 				label: nls.localize('context.minimap.size.fit', "Fit"),
 				value: 'fit'
-			}]
-		));
-		actions.push(createEnumAction<number>(
-			nls.localize('context.minimap.scale', "Scale"),
-			minimapOptions.enabled,
-			'editor.minimap.scale',
-			minimapOptions.scale,
-			[{
-				label: nls.localize('context.minimap.scale.1', "1"),
-				value: 1
-			}, {
-				label: nls.localize('context.minimap.scale.2', "2"),
-				value: 2
-			}, {
-				label: nls.localize('context.minimap.scale.3', "3"),
-				value: 3
 			}]
 		));
 		actions.push(createEnumAction<'always' | 'mouseover'>(

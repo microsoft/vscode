@@ -243,6 +243,7 @@
 }
 
 .search-view .monaco-list .monaco-list-row:hover:not(.highlighted) .monaco-action-bar,
+.search-view .monaco-list .monaco-list-row.selected .monaco-action-bar,
 .search-view .monaco-list .monaco-list-row.focused .monaco-action-bar {
 	display: inline-block;
 }
