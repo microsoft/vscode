@@ -850,7 +850,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				commandMap.add(executingCommand);
 			}
 			function formatLabel(label: string) {
-				return label.replace(/\r?\n/g, '\u21B5');
+				return label.replace(/\r?\n/g, '\u23CE');
 			}
 			if (commands && commands.length > 0) {
 				for (const entry of commands) {
@@ -1032,7 +1032,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 		quickPick.onDidAccept(() => {
 			const result = quickPick.activeItems[0];
-			this.sendText(type === 'cwd' ? `cd ${result.rawLabel}` : result.rawLabel, !quickPick.keyMods.alt);
+			this.sendText(type === 'cwd' ? `cd ${result.rawLabel}` : result.rawLabel, !quickPick.keyMods.alt, true);
 			quickPick.hide();
 		});
 		if (value) {
@@ -1497,7 +1497,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this.xterm.raw.paste(currentText);
 	}
 
-	async sendText(text: string, addNewLine: boolean): Promise<void> {
+	async sendText(text: string, addNewLine: boolean, bracketedPasteMode?: boolean): Promise<void> {
+		// Apply bracketed paste sequences if the terminal has the mode enabled, this will prevent
+		// the text from triggering keybindings and ensure new lines are handled properly
+		if (bracketedPasteMode && this.xterm?.raw.modes.bracketedPasteMode) {
+			text = `\x1b[200~${text}\x1b[201~`;
+		}
+
 		// Normalize line endings to 'enter' press.
 		text = text.replace(/\r?\n/g, '\r');
 		if (addNewLine && text[text.length - 1] !== '\r') {

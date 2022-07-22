@@ -89,6 +89,8 @@ function discoverAndReadFiles(ts, options) {
     const in_queue = Object.create(null);
     const queue = [];
     const enqueue = (moduleId) => {
+        // To make the treeshaker work on windows...
+        moduleId = moduleId.replace(/\\/g, '/');
         if (in_queue[moduleId]) {
             return;
         }

@@ -11,6 +11,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/browser/types';
 import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ApplyFileSnippetAction } from 'vs/workbench/contrib/snippets/browser/commands/fileTemplateSnippets';
@@ -128,9 +129,22 @@ export class SnippetCodeActions implements IWorkbenchContribution {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+		@IConfigurationService configService: IConfigurationService,
 	) {
-		this._store.add(languageFeaturesService.codeActionProvider.register('*', instantiationService.createInstance(SurroundWithSnippetCodeActionProvider)));
-		this._store.add(languageFeaturesService.codeActionProvider.register('*', instantiationService.createInstance(FileTemplateCodeActionProvider)));
+
+		const setting = 'editor.snippets.codeActions.enabled';
+		const sessionStore = new DisposableStore();
+		const update = () => {
+			sessionStore.clear();
+			if (configService.getValue(setting)) {
+				sessionStore.add(languageFeaturesService.codeActionProvider.register('*', instantiationService.createInstance(SurroundWithSnippetCodeActionProvider)));
+				sessionStore.add(languageFeaturesService.codeActionProvider.register('*', instantiationService.createInstance(FileTemplateCodeActionProvider)));
+			}
+		};
+
+		update();
+		this._store.add(configService.onDidChangeConfiguration(e => e.affectsConfiguration(setting) && update()));
+		this._store.add(sessionStore);
 	}
 
 	dispose(): void {
