@@ -1424,7 +1424,7 @@ var
   AddAppxPackageResultCode: Integer;
 begin
   if IsWindows11OrLater() and QualityIsInsiders() then begin
-    Exec('powershell.exe', 'Invoke-Command -ScriptBlock {Add-AppxPackage -Path "' + ExpandConstant('{app}') + '\appx\{#AppxPackage}" -ExternalLocation "' + ExpandConstant('{app}') + '\appx"}', '', SW_HIDE, ewWaitUntilTerminated, AddAppxPackageResultCode);
+    Exec('powershell.exe', '-Command ''Add-AppxPackage -Path """' + ExpandConstant('{app}') + '\appx\{#AppxPackage}""" -ExternalLocation """' + ExpandConstant('{app}') + '\appx"""''', '', SW_HIDE, ewWaitUntilTerminated, AddAppxPackageResultCode);
   end;
 end;
 
@@ -1433,7 +1433,7 @@ var
   RemoveAppxPackageResultCode: Integer;
 begin
   if IsWindows11OrLater() and QualityIsInsiders() then begin
-    Exec('powershell.exe', 'Invoke-Command -ScriptBlock {Remove-AppxPackage -Package "{#AppxPackageFullname}"}', '', SW_HIDE, ewWaitUntilTerminated, RemoveAppxPackageResultCode);
+    Exec('powershell.exe', '-Command ''Remove-AppxPackage -Package """{#AppxPackageFullname}"""}''', '', SW_HIDE, ewWaitUntilTerminated, RemoveAppxPackageResultCode);
   end;
 end;
 
