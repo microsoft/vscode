@@ -284,6 +284,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 		if (this._tasksToReconnect.includes(task._id)) {
 			this._terminalForTask = terminals.find(t => t.shellLaunchConfig.attachPersistentProcess?.task?.id === task._id);
+			// Restore the waitOnExit value of the terminal because it may have been a function
+			// that cannot be persisted in the pty host
 			if ('command' in task && task.command.presentation && this._terminalForTask) {
 				this._terminalForTask.waitOnExit = getWaitOnExitValue(task.command.presentation, task.configurationProperties);
 			}
