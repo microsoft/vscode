@@ -23,7 +23,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IUserDataProfileManagementService, IUserDataProfileService, ManageProfilesSubMenu, PROFILES_CATEGORY, PROFILES_ENABLEMENT_CONTEXT, PROFILES_TTILE } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
-const CONTEXT_CURRENT_PROFILE = new RawContextKey<string>('currentUserDataProfile', '');
+export const CONTEXT_CURRENT_PROFILE = new RawContextKey<string>('currentUserDataProfile', '');
 
 export const userDataProfilesIcon = registerIcon('settingsProfiles-icon', Codicon.settings, localize('settingsProfilesIcon', 'Icon for Settings Profiles.'));
 
@@ -46,7 +46,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 
 		this.currentProfileContext = CONTEXT_CURRENT_PROFILE.bindTo(contextKeyService);
 		this.currentProfileContext.set(this.userDataProfileService.currentProfile.id);
-		this._register(this.userDataProfileService.onDidChangeCurrentProfile(e => this.currentProfileContext.set(this.userDataProfileService.currentProfile.id)));
+		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => this.currentProfileContext.set(this.userDataProfileService.currentProfile.id)));
 
 		this.updateStatus();
 		this._register(Event.any(this.workspaceContextService.onDidChangeWorkbenchState, this.userDataProfileService.onDidChangeCurrentProfile, this.userDataProfilesService.onDidChangeProfiles)(() => this.updateStatus()));

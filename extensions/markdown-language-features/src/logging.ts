@@ -70,7 +70,7 @@ export class VsCodeOutputLogger extends Disposable implements ILogger {
 	}
 
 	private readTrace(): Trace {
-		return Trace.fromString(vscode.workspace.getConfiguration().get<string>('markdown.trace', 'off'));
+		return Trace.fromString(vscode.workspace.getConfiguration().get<string>('markdown.trace.extension', 'off'));
 	}
 
 	private static data2String(data: any): string {

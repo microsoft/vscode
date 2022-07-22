@@ -4037,7 +4037,7 @@ declare module 'vscode' {
 		/**
 		 * The index of the active parameter.
 		 *
-		 * If provided, this is used in place of {@linkcode SignatureHelp.activeSignature}.
+		 * If provided, this is used in place of {@linkcode SignatureHelp.activeParameter}.
 		 */
 		activeParameter?: number;
 

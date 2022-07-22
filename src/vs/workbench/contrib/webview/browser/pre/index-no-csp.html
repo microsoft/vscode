@@ -1053,9 +1053,33 @@
 						}
 
 						e.preventDefault();
+
+						let context = {};
+
+						/** @type HTMLElement */
+						let el = e.target;
+						while (true) {
+							if (!el) {
+								break;
+							}
+
+							// Search self/ancestors for the closest context data attribute
+							el = el.closest('[data-vscode-context]');
+							if (!el) {
+								break;
+							}
+
+							try {
+								context = { ...JSON.parse(el.getAttribute('data-vscode-context')), ...context };
+							} catch {}
+
+							el = el.parentElement;
+						}
+
 						hostMessaging.postMessage('did-context-menu', {
 							clientX: e.clientX,
 							clientY: e.clientY,
+							context: context
 						});
 					});
 

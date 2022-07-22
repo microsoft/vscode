@@ -62,14 +62,14 @@ export interface IHostUtils {
 }
 
 type TelemetryActivationEventFragment = {
-	id: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
-	name: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
-	extensionVersion: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
-	publisherDisplayName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-	activationEvents: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-	isBuiltin: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-	reasonId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
+	id: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The identifier of an extension' };
+	name: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The name of the extension' };
+	extensionVersion: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The version of the extension' };
+	publisherDisplayName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The publisher of the extension' };
+	activationEvents: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'All activation events of the extension' };
+	isBuiltin: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'If the extension is builtin or git installed' };
+	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The activation event' };
+	reasonId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The identifier of the activation event' };
 };
 
 export abstract class AbstractExtHostExtensionService extends Disposable implements ExtHostExtensionServiceShape {
@@ -425,7 +425,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		const event = getTelemetryActivationEvent(extensionDescription, reason);
 		type ExtensionActivationTimesClassification = {
 			owner: 'jrieken';
-			outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			comment: 'Timestamps for extension activation';
+			outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Did extension activation succeed or fail' };
 		} & TelemetryActivationEventFragment & ExtensionActivationTimesFragment;
 
 		type ExtensionActivationTimesEvent = {
@@ -450,6 +451,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		const event = getTelemetryActivationEvent(extensionDescription, reason);
 		type ActivatePluginClassification = {
 			owner: 'jrieken';
+			comment: 'Data about how/why an extension was activated';
 		} & TelemetryActivationEventFragment;
 		this._mainThreadTelemetryProxy.$publicLog2<TelemetryActivationEvent, ActivatePluginClassification>('activatePlugin', event);
 		const entryPoint = this._getEntryPoint(extensionDescription);

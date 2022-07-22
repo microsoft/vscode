@@ -16,6 +16,7 @@
     "scmActionButton",
     "scmSelectedProvider",
     "scmValidation",
+    "tabInputTextMerge",
     "timeline"
   ],
   "categories": [
@@ -600,7 +601,7 @@
         "command": "git.acceptMerge",
         "title": "%command.git.acceptMerge%",
         "category": "Git",
-        "enablement": "isMergeEditor"
+        "enablement": "isMergeEditor && mergeEditorResultUri in git.mergeChanges"
       }
     ],
     "keybindings": [
@@ -1548,7 +1549,7 @@
       "merge/toolbar": [
         {
           "command": "git.acceptMerge",
-          "when": "isMergeEditor && baseResourceScheme =~ /^git$|^file$/"
+          "when": "isMergeEditor && mergeEditorBaseUri =~ /^(git|file):/ && mergeEditorResultUri in git.mergeChanges"
         }
       ],
       "scm/change/title": [
@@ -2521,7 +2522,7 @@
         },
         "git.mergeEditor": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "markdownDescription": "%config.mergeEditor%",
           "scope": "window"
         }

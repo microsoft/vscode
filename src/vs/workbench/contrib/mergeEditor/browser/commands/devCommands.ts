@@ -19,6 +19,7 @@ import { IWorkbenchFileService } from 'vs/workbench/services/files/common/files'
 import { URI } from 'vs/base/common/uri';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { ctxIsMergeEditor } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
+import { EditorResolution } from 'vs/platform/editor/common/editor';
 
 interface MergeEditorContents {
 	languageId: string;
@@ -160,6 +161,6 @@ export class MergeEditorOpenContents extends Action2 {
 			{ uri: input2Uri, title: 'Input 2', description: 'Input 2', detail: '(from JSON)' },
 			resultUri,
 		);
-		editorService.openEditor(input);
+		editorService.openEditor(input, { override: EditorResolution.DISABLED });
 	}
 }

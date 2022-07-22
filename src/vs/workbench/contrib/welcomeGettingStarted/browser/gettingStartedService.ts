@@ -435,7 +435,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		}
 
 		extension.contributes?.walkthroughs?.forEach(section => {
-			const categoryID = extension.identifier.value + '#walkthrough#' + section.id;
+			const categoryID = extension.identifier.value + '#' + section.id;
 			section.steps.forEach(step => {
 				const fullyQualifiedID = extension.identifier.value + '#' + section.id + '#' + step.id;
 				this.steps.delete(fullyQualifiedID);

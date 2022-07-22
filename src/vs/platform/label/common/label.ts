@@ -51,7 +51,7 @@ export interface ResourceLabelFormatter {
 }
 
 export interface ResourceLabelFormatting {
-	label: string; // myLabel:/${path}
+	label: string | ((resource: URI) => string); // myLabel:/${path}
 	separator: '/' | '\\' | '';
 	tildify?: boolean;
 	normalizeDriveLetter?: boolean;
