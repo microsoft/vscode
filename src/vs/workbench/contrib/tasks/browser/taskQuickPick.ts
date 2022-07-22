@@ -24,7 +24,6 @@ import { TaskQuickPickEntryType } from 'vs/workbench/contrib/tasks/browser/abstr
 
 export const QUICKOPEN_DETAIL_CONFIG = 'task.quickOpen.detail';
 export const QUICKOPEN_SKIP_CONFIG = 'task.quickOpen.skip';
-
 export function isWorkspaceFolder(folder: IWorkspace | IWorkspaceFolder): folder is IWorkspaceFolder {
 	return 'uri' in folder;
 }
@@ -108,7 +107,9 @@ export class TaskQuickPick extends Disposable {
 		groupLabel: string, extraButtons: IQuickInputButton[] = []) {
 		entries.push({ type: 'separator', label: groupLabel });
 		tasks.forEach(task => {
-			entries.push(this._createTaskEntry(task, extraButtons));
+			if (!task.configurationProperties.hide) {
+				entries.push(this._createTaskEntry(task, extraButtons));
+			}
 		});
 	}
 
@@ -217,12 +218,15 @@ export class TaskQuickPick extends Disposable {
 		return undefined;
 	}
 
-	public async show(placeHolder: string, defaultEntry?: ITaskQuickPickEntry, startAtType?: string): Promise<Task | undefined | null> {
+	public async show(placeHolder: string, defaultEntry?: ITaskQuickPickEntry, startAtType?: string, filter?: string): Promise<Task | undefined | null> {
 		const picker: IQuickPick<ITaskTwoLevelQuickPickEntry> = this._quickInputService.createQuickPick();
 		picker.placeholder = placeHolder;
 		picker.matchOnDescription = true;
 		picker.ignoreFocusOut = false;
 		picker.show();
+		if (filter) {
+			picker.value = filter;
+		}
 
 		picker.onDidTriggerItemButton(async (context) => {
 			const task = context.item.task;
@@ -267,7 +271,7 @@ export class TaskQuickPick extends Disposable {
 		do {
 			if (Types.isString(firstLevelTask)) {
 				// Proceed to second level of quick pick
-				const selectedEntry = await this._doPickerSecondLevel(picker, firstLevelTask);
+				const selectedEntry = await this.doPickerSecondLevel(picker, firstLevelTask);
 				if (selectedEntry && !selectedEntry.settingType && selectedEntry.task === null) {
 					// The user has chosen to go back to the first level
 					firstLevelTask = await this._doPickerFirstLevel(picker, (await this.getTopLevelEntries(defaultEntry)).entries);
@@ -301,23 +305,23 @@ export class TaskQuickPick extends Disposable {
 		return firstLevelPickerResult?.task;
 	}
 
-	private async _doPickerSecondLevel(picker: IQuickPick<ITaskTwoLevelQuickPickEntry>, type: string) {
+	public async doPickerSecondLevel(picker: IQuickPick<ITaskTwoLevelQuickPickEntry>, type: string) {
 		picker.busy = true;
 		if (type === SHOW_ALL) {
-			const items = (await this._taskService.tasks()).sort((a, b) => this._sorter.compare(a, b)).map(task => this._createTaskEntry(task));
+			const items = (await this._taskService.tasks()).filter(t => !t.configurationProperties.hide).sort((a, b) => this._sorter.compare(a, b)).map(task => this._createTaskEntry(task));
 			items.push(...TaskQuickPick.allSettingEntries(this._configurationService));
 			picker.items = items;
 		} else {
 			picker.value = '';
 			picker.items = await this._getEntriesForProvider(type);
 		}
+		picker.show();
 		picker.busy = false;
 		const secondLevelPickerResult = await new Promise<ITaskTwoLevelQuickPickEntry | undefined | null>(resolve => {
 			Event.once(picker.onDidAccept)(async () => {
 				resolve(picker.selectedItems ? picker.selectedItems[0] : undefined);
 			});
 		});
-
 		return secondLevelPickerResult;
 	}
 
@@ -353,9 +357,13 @@ export class TaskQuickPick extends Disposable {
 
 	private async _getEntriesForProvider(type: string): Promise<QuickPickInput<ITaskTwoLevelQuickPickEntry>[]> {
 		const tasks = (await this._taskService.tasks({ type })).sort((a, b) => this._sorter.compare(a, b));
-		let taskQuickPickEntries: QuickPickInput<ITaskTwoLevelQuickPickEntry>[];
+		let taskQuickPickEntries: QuickPickInput<ITaskTwoLevelQuickPickEntry>[] = [];
 		if (tasks.length > 0) {
-			taskQuickPickEntries = tasks.map(task => this._createTaskEntry(task));
+			for (const task of tasks) {
+				if (!task.configurationProperties.hide) {
+					taskQuickPickEntries.push(this._createTaskEntry(task));
+				}
+			}
 			taskQuickPickEntries.push({
 				type: 'separator'
 			}, {
@@ -393,8 +401,8 @@ export class TaskQuickPick extends Disposable {
 
 	static async show(taskService: ITaskService, configurationService: IConfigurationService,
 		quickInputService: IQuickInputService, notificationService: INotificationService,
-		dialogService: IDialogService, themeService: IThemeService, placeHolder: string, defaultEntry?: ITaskQuickPickEntry) {
+		dialogService: IDialogService, themeService: IThemeService, placeHolder: string, defaultEntry?: ITaskQuickPickEntry, filter?: string) {
 		const taskQuickPick = new TaskQuickPick(taskService, configurationService, quickInputService, notificationService, themeService, dialogService);
-		return taskQuickPick.show(placeHolder, defaultEntry);
+		return taskQuickPick.show(placeHolder, defaultEntry, undefined, filter);
 	}
 }

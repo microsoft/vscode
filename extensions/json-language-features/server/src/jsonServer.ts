@@ -184,6 +184,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		json?: {
 			schemas?: JSONSchemaSettings[];
 			format?: { enable?: boolean };
+			keepLines?: { enable?: boolean };
 			validate?: { enable?: boolean };
 			resultLimit?: number;
 		};
@@ -205,13 +206,15 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	let schemaAssociations: ISchemaAssociations | SchemaConfiguration[] | undefined = undefined;
 	let formatterRegistrations: Thenable<Disposable>[] | null = null;
 	let validateEnabled = true;
+	let keepLinesEnabled = false;
 
-	// The settings have changed. Is send on server activation as well.
+	// The settings have changed. Is sent on server activation as well.
 	connection.onDidChangeConfiguration((change) => {
 		const settings = <Settings>change.settings;
 		runtime.configureHttpRequests?.(settings?.http?.proxy, !!settings.http?.proxyStrictSSL);
 		jsonConfigurationSettings = settings.json?.schemas;
 		validateEnabled = !!settings.json?.validate?.enable;
+		keepLinesEnabled = settings.json?.keepLines?.enable || false;
 		updateConfiguration();
 
 		foldingRangeLimit = Math.trunc(Math.max(settings.json?.resultLimit || foldingRangeLimitDefault, 0));
@@ -386,6 +389,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	});
 
 	function onFormat(textDocument: TextDocumentIdentifier, range: Range | undefined, options: FormattingOptions): TextEdit[] {
+		options.keepLines = keepLinesEnabled;
 		const document = documents.get(textDocument.uri);
 		if (document) {
 			const edits = languageService.format(document, range ?? getFullRange(document), options);

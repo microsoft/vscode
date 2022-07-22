@@ -715,22 +715,28 @@ export class TernarySearchTree<K, V> {
 		yield* this._entries(this._root);
 	}
 
-	private *_entries(node: TernarySearchTreeNode<K, V> | undefined): IterableIterator<[K, V]> {
+	private _entries(node: TernarySearchTreeNode<K, V> | undefined): IterableIterator<[K, V]> {
+		const result: [K, V][] = [];
+		this._dfsEntries(node, result);
+		return result[Symbol.iterator]();
+	}
+
+	private _dfsEntries(node: TernarySearchTreeNode<K, V> | undefined, bucket: [K, V][]) {
 		// DFS
 		if (!node) {
 			return;
 		}
 		if (node.left) {
-			yield* this._entries(node.left);
+			this._dfsEntries(node.left, bucket);
 		}
 		if (node.value) {
-			yield [node.key!, node.value];
+			bucket.push([node.key!, node.value]);
 		}
 		if (node.mid) {
-			yield* this._entries(node.mid);
+			this._dfsEntries(node.mid, bucket);
 		}
 		if (node.right) {
-			yield* this._entries(node.right);
+			this._dfsEntries(node.right, bucket);
 		}
 	}
 

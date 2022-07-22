@@ -7,26 +7,98 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
 import { localize } from 'vs/nls';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { asJson, asText, IRequestService } from 'vs/platform/request/common/request';
-import { IUserDataProfileTemplate, isUserDataProfileTemplate, IUserDataProfileManagementService, IUserDataProfileImportExportService, PROFILES_CATEGORY, PROFILE_EXTENSION, PROFILE_FILTER, ManageProfilesSubMenu, IUserDataProfileService, PROFILES_ENABLEMENT_CONTEXT } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfileTemplate, isUserDataProfileTemplate, IUserDataProfileManagementService, IUserDataProfileImportExportService, PROFILES_CATEGORY, PROFILE_EXTENSION, PROFILE_FILTER, ManageProfilesSubMenu, IUserDataProfileService, PROFILES_ENABLEMENT_CONTEXT, HAS_PROFILES_CONTEXT } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
-registerAction2(class CreateFromCurrentProfileAction extends Action2 {
+class CreateFromCurrentProfileAction extends Action2 {
+	static readonly ID = 'workbench.profiles.actions.createFromCurrentProfile';
+	static readonly TITLE = {
+		value: localize('save profile as', "Create from Current Settings Profile..."),
+		original: 'Create from Current Profile...'
+	};
 	constructor() {
 		super({
-			id: 'workbench.profiles.actions.createFromCurrentProfile',
+			id: CreateFromCurrentProfileAction.ID,
+			title: CreateFromCurrentProfileAction.TITLE,
+			category: PROFILES_CATEGORY,
+			f1: true,
+			precondition: PROFILES_ENABLEMENT_CONTEXT
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const quickInputService = accessor.get(IQuickInputService);
+		const notificationService = accessor.get(INotificationService);
+		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
+		const name = await quickInputService.input({
+			placeHolder: localize('name', "Profile name"),
+			title: localize('save profile as', "Create from Current Settings Profile..."),
+		});
+		if (name) {
+			try {
+				await userDataProfileManagementService.createAndEnterProfile(name, undefined, true);
+			} catch (error) {
+				notificationService.error(error);
+			}
+		}
+	}
+}
+registerAction2(CreateFromCurrentProfileAction);
+
+class CreateEmptyProfileAction extends Action2 {
+	static readonly ID = 'workbench.profiles.actions.createEmptyProfile';
+	static readonly TITLE = {
+		value: localize('create empty profile', "Create an Empty Settings Profile..."),
+		original: 'Create an Empty Settings Profile...'
+	};
+	constructor() {
+		super({
+			id: CreateEmptyProfileAction.ID,
+			title: CreateEmptyProfileAction.TITLE,
+			category: PROFILES_CATEGORY,
+			f1: true,
+			precondition: PROFILES_ENABLEMENT_CONTEXT
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const quickInputService = accessor.get(IQuickInputService);
+		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
+		const notificationService = accessor.get(INotificationService);
+		const name = await quickInputService.input({
+			placeHolder: localize('name', "Profile name"),
+			title: localize('create and enter empty profile', "Create an Empty Profile..."),
+		});
+		if (name) {
+			try {
+				await userDataProfileManagementService.createAndEnterProfile(name);
+			} catch (error) {
+				notificationService.error(error);
+			}
+		}
+	}
+}
+registerAction2(CreateEmptyProfileAction);
+
+registerAction2(class CreateProfileAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.profiles.actions.createProfile',
 			title: {
-				value: localize('save profile as', "Create from Current Settings Profile..."),
-				original: 'Create from Current Profile...'
+				value: localize('create profile', "Create..."),
+				original: 'Create...'
 			},
 			category: PROFILES_CATEGORY,
 			f1: true,
@@ -34,7 +106,7 @@ registerAction2(class CreateFromCurrentProfileAction extends Action2 {
 			menu: [
 				{
 					id: ManageProfilesSubMenu,
-					group: '1_create_profiles',
+					group: '2_manage_profiles',
 					when: PROFILES_ENABLEMENT_CONTEXT,
 					order: 1
 				}
@@ -44,68 +116,38 @@ registerAction2(class CreateFromCurrentProfileAction extends Action2 {
 
 	async run(accessor: ServicesAccessor) {
 		const quickInputService = accessor.get(IQuickInputService);
-		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
-		const name = await quickInputService.input({
-			placeHolder: localize('name', "Profile name"),
-			title: localize('save profile as', "Create from Current Settings Profile..."),
-		});
-		if (name) {
-			await userDataProfileManagementService.createAndEnterProfile(name, undefined, true);
+		const commandService = accessor.get(ICommandService);
+		const pick = await quickInputService.pick(
+			[{
+				id: CreateFromCurrentProfileAction.ID,
+				label: CreateFromCurrentProfileAction.TITLE.value,
+			}, {
+				id: CreateEmptyProfileAction.ID,
+				label: CreateEmptyProfileAction.TITLE.value,
+			}], { canPickMany: false, title: localize('create settings profile', "{0}: Create...", PROFILES_CATEGORY) });
+		if (pick) {
+			return commandService.executeCommand(pick.id);
 		}
 	}
 });
 
-registerAction2(class CreateEmptyProfileAction extends Action2 {
+registerAction2(class RenameProfileAction extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.profiles.actions.createProfile',
+			id: 'workbench.profiles.actions.renameProfile',
 			title: {
-				value: localize('create profile', "Create an Empty Settings Profile..."),
-				original: 'Create an Empty Profile...'
+				value: localize('rename profile', "Rename..."),
+				original: 'Rename...'
 			},
 			category: PROFILES_CATEGORY,
 			f1: true,
-			precondition: PROFILES_ENABLEMENT_CONTEXT,
-			menu: [
-				{
-					id: ManageProfilesSubMenu,
-					group: '1_create_profiles',
-					when: PROFILES_ENABLEMENT_CONTEXT,
-					order: 2
-				}
-			]
-		});
-	}
-
-	async run(accessor: ServicesAccessor) {
-		const quickInputService = accessor.get(IQuickInputService);
-		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
-		const name = await quickInputService.input({
-			placeHolder: localize('name', "Profile name"),
-			title: localize('create and enter empty profile', "Create an Empty Profile..."),
-		});
-		if (name) {
-			await userDataProfileManagementService.createAndEnterProfile(name);
-		}
-	}
-});
-
-registerAction2(class RemoveProfileAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.profiles.actions.removeProfile',
-			title: {
-				value: localize('remove profile', "Remove Settings Profile..."),
-				original: 'Remove Profile...'
-			},
-			category: PROFILES_CATEGORY,
-			f1: true,
-			precondition: PROFILES_ENABLEMENT_CONTEXT,
+			precondition: ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, HAS_PROFILES_CONTEXT),
 			menu: [
 				{
 					id: ManageProfilesSubMenu,
 					group: '2_manage_profiles',
-					when: PROFILES_ENABLEMENT_CONTEXT
+					when: PROFILES_ENABLEMENT_CONTEXT,
+					order: 1
 				}
 			]
 		});
@@ -116,12 +158,83 @@ registerAction2(class RemoveProfileAction extends Action2 {
 		const userDataProfileService = accessor.get(IUserDataProfileService);
 		const userDataProfilesService = accessor.get(IUserDataProfilesService);
 		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
+		const notificationService = accessor.get(INotificationService);
 
-		const profiles = userDataProfilesService.profiles.filter(p => p.id !== userDataProfileService.currentProfile.id && !p.isDefault);
+		const profiles = userDataProfilesService.profiles.filter(p => !p.isDefault);
 		if (profiles.length) {
-			const pick = await quickInputService.pick(profiles.map(profile => ({ label: profile.name, profile })), { placeHolder: localize('pick profile', "Select Settings Profile") });
+			const pick = await quickInputService.pick(
+				profiles.map(profile => ({
+					label: profile.name,
+					description: profile.id === userDataProfileService.currentProfile.id ? localize('current', "Current") : undefined,
+					profile
+				})),
+				{
+					placeHolder: localize('pick profile to rename', "Select Settings Profile to Rename"),
+				});
 			if (pick) {
-				await userDataProfileManagementService.removeProfile(pick.profile);
+				const name = await quickInputService.input({
+					value: pick.profile.name,
+					title: localize('edit settings profile', "Rename Settings Profile..."),
+				});
+				if (name && name !== pick.profile.name) {
+					try {
+						await userDataProfileManagementService.renameProfile(pick.profile, name);
+					} catch (error) {
+						notificationService.error(error);
+					}
+				}
+			}
+		}
+	}
+});
+
+registerAction2(class DeleteProfileAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.profiles.actions.deleteProfile',
+			title: {
+				value: localize('delete profile', "Delete..."),
+				original: 'Delete...'
+			},
+			category: PROFILES_CATEGORY,
+			f1: true,
+			precondition: ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, HAS_PROFILES_CONTEXT),
+			menu: [
+				{
+					id: ManageProfilesSubMenu,
+					group: '2_manage_profiles',
+					when: PROFILES_ENABLEMENT_CONTEXT,
+					order: 2
+				}
+			]
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const quickInputService = accessor.get(IQuickInputService);
+		const userDataProfileService = accessor.get(IUserDataProfileService);
+		const userDataProfilesService = accessor.get(IUserDataProfilesService);
+		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
+		const notificationService = accessor.get(INotificationService);
+
+		const profiles = userDataProfilesService.profiles.filter(p => !p.isDefault);
+		if (profiles.length) {
+			const picks = await quickInputService.pick(
+				profiles.map(profile => ({
+					label: profile.name,
+					description: profile.id === userDataProfileService.currentProfile.id ? localize('current', "Current") : undefined,
+					profile
+				})),
+				{
+					placeHolder: localize('pick profile to delete', "Select Settings Profiles to Delete"),
+					canPickMany: true
+				});
+			if (picks) {
+				try {
+					await Promise.all(picks.map(pick => userDataProfileManagementService.removeProfile(pick.profile)));
+				} catch (error) {
+					notificationService.error(error);
+				}
 			}
 		}
 	}
@@ -132,12 +245,12 @@ registerAction2(class SwitchProfileAction extends Action2 {
 		super({
 			id: 'workbench.profiles.actions.switchProfile',
 			title: {
-				value: localize('switch profile', "Switch Settings Profile..."),
-				original: 'Switch Settings Profile...'
+				value: localize('switch profile', "Switch..."),
+				original: 'Switch...'
 			},
 			category: PROFILES_CATEGORY,
 			f1: true,
-			precondition: PROFILES_ENABLEMENT_CONTEXT,
+			precondition: ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, HAS_PROFILES_CONTEXT),
 		});
 	}
 
@@ -192,18 +305,18 @@ registerAction2(class ExportProfileAction extends Action2 {
 		super({
 			id: 'workbench.profiles.actions.exportProfile',
 			title: {
-				value: localize('export profile', "Export Settings Profile..."),
-				original: 'Export Settings Profile...'
+				value: localize('export profile', "Export..."),
+				original: 'Export...'
 			},
 			category: PROFILES_CATEGORY,
-			f1: true,
-			precondition: PROFILES_ENABLEMENT_CONTEXT,
 			menu: [
 				{
 					id: ManageProfilesSubMenu,
 					group: '3_import_export_profiles',
 					when: PROFILES_ENABLEMENT_CONTEXT,
 					order: 1
+				}, {
+					id: MenuId.CommandPalette
 				}
 			]
 		});
@@ -237,18 +350,18 @@ registerAction2(class ImportProfileAction extends Action2 {
 		super({
 			id: 'workbench.profiles.actions.importProfile',
 			title: {
-				value: localize('import profile', "Import Settings Profile..."),
-				original: 'Import Settings Profile...'
+				value: localize('import profile', "Import..."),
+				original: 'Import...'
 			},
 			category: PROFILES_CATEGORY,
-			f1: true,
-			precondition: PROFILES_ENABLEMENT_CONTEXT,
 			menu: [
 				{
 					id: ManageProfilesSubMenu,
 					group: '3_import_export_profiles',
 					when: PROFILES_ENABLEMENT_CONTEXT,
 					order: 2
+				}, {
+					id: MenuId.CommandPalette
 				}
 			]
 		});
@@ -260,6 +373,19 @@ registerAction2(class ImportProfileAction extends Action2 {
 		const fileService = accessor.get(IFileService);
 		const requestService = accessor.get(IRequestService);
 		const userDataProfileImportExportService = accessor.get(IUserDataProfileImportExportService);
+		const dialogService = accessor.get(IDialogService);
+		const contextKeyService = accessor.get(IContextKeyService);
+
+		const isSettingProfilesEnabled = contextKeyService.contextMatchesRules(PROFILES_ENABLEMENT_CONTEXT);
+
+		if (!isSettingProfilesEnabled) {
+			if (!(await dialogService.confirm({
+				title: localize('import profile title', "Import Settings from a Profile"),
+				message: localize('confiirmation message', "This will replace your current settings. Are you sure you want to continue?"),
+			})).confirmed) {
+				return;
+			}
+		}
 
 		const disposables = new DisposableStore();
 		const quickPick = disposables.add(quickInputService.createQuickPick());
@@ -278,7 +404,11 @@ registerAction2(class ImportProfileAction extends Action2 {
 			quickPick.hide();
 			const profile = quickPick.selectedItems[0].description ? await this.getProfileFromURL(quickPick.value, requestService) : await this.getProfileFromFileSystem(fileDialogService, fileService);
 			if (profile) {
-				await userDataProfileImportExportService.importProfile(profile);
+				if (isSettingProfilesEnabled) {
+					await userDataProfileImportExportService.importProfile(profile);
+				} else {
+					await userDataProfileImportExportService.setProfile(profile);
+				}
 			}
 		}));
 		disposables.add(quickPick.onDidHide(() => disposables.dispose()));

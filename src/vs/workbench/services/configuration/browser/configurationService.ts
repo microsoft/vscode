@@ -26,7 +26,7 @@ import { JSONEditingService } from 'vs/workbench/services/configuration/common/j
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { mark } from 'vs/base/common/performance';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IFileService } from 'vs/platform/files/common/files';
+import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -35,7 +35,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { delta, distinct } from 'vs/base/common/arrays';
-import { forEach, IStringDictionary } from 'vs/base/common/collections';
+import { IStringDictionary } from 'vs/base/common/collections';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { isUndefined } from 'vs/base/common/types';
@@ -43,6 +43,8 @@ import { localize } from 'vs/nls';
 import { DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { updateIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 function getLocalUserConfigurationScopes(userDataProfile: IUserDataProfile, hasRemote: boolean): ConfigurationScope[] | undefined {
 	return userDataProfile.isDefault
@@ -711,18 +713,42 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	}
 
 	private onUserDataProfileChanged(e: DidChangeUserDataProfileEvent): void {
-		const promises: Promise<ConfigurationModel>[] = [];
-		promises.push(this.localUserConfiguration.reset(e.profile.settingsResource, e.profile.tasksResource, getLocalUserConfigurationScopes(e.profile, !!this.remoteUserConfiguration)));
-		if (e.previous.isDefault !== e.profile.isDefault) {
-			this.createApplicationConfiguration();
-			if (this.applicationConfiguration) {
-				promises.push(this.reloadApplicationConfiguration(true));
-			}
-		}
 		e.join((async () => {
+			if (e.preserveData) {
+				await Promise.all([
+					this.copyProfileSettings(e.previous.settingsResource, e.profile.settingsResource),
+					this.fileService.copy(e.previous.tasksResource, e.profile.tasksResource)
+				]);
+			}
+			const promises: Promise<ConfigurationModel>[] = [];
+			promises.push(this.localUserConfiguration.reset(e.profile.settingsResource, e.profile.tasksResource, getLocalUserConfigurationScopes(e.profile, !!this.remoteUserConfiguration)));
+			if (e.previous.isDefault !== e.profile.isDefault) {
+				this.createApplicationConfiguration();
+				if (this.applicationConfiguration) {
+					promises.push(this.reloadApplicationConfiguration(true));
+				}
+			}
 			const [localUser, application] = await Promise.all(promises);
 			await this.loadConfiguration(application ?? this._configuration.applicationConfiguration, localUser, this._configuration.remoteUserConfiguration);
 		})());
+	}
+
+	private async copyProfileSettings(from: URI, to: URI): Promise<void> {
+		let fromContent: string | undefined;
+		try {
+			fromContent = (await this.fileService.readFile(from)).value.toString();
+		} catch (error) {
+			if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
+				throw error;
+			}
+		}
+		if (!fromContent) {
+			return;
+		}
+		const allSettings = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
+		const applicationSettings = Object.keys(allSettings).filter(key => allSettings[key]?.scope === ConfigurationScope.APPLICATION);
+		const toContent = updateIgnoredSettings(fromContent, '{}', applicationSettings, {});
+		await this.fileService.writeFile(to, VSBuffer.fromString(toContent));
 	}
 
 	private onDefaultConfigurationChanged(configurationModel: ConfigurationModel, properties?: string[]): void {
@@ -807,6 +833,10 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		const defaultDelta = delta(defaultRestrictedSettings, this._restrictedSettings.default, (a, b) => a.localeCompare(b));
 		changed.push(...defaultDelta.added, ...defaultDelta.removed);
 
+		const application = (this.applicationConfiguration?.getRestrictedSettings() || []).sort((a, b) => a.localeCompare(b));
+		const applicationDelta = delta(application, this._restrictedSettings.application || [], (a, b) => a.localeCompare(b));
+		changed.push(...applicationDelta.added, ...applicationDelta.removed);
+
 		const userLocal = this.localUserConfiguration.getRestrictedSettings().sort((a, b) => a.localeCompare(b));
 		const userLocalDelta = delta(userLocal, this._restrictedSettings.userLocal || [], (a, b) => a.localeCompare(b));
 		changed.push(...userLocalDelta.added, ...userLocalDelta.removed);
@@ -835,6 +865,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		if (changed.length) {
 			this._restrictedSettings = {
 				default: defaultRestrictedSettings,
+				application: application.length ? application : undefined,
 				userLocal: userLocal.length ? userLocal : undefined,
 				userRemote: userRemote.length ? userRemote : undefined,
 				workspace: workspace.length ? workspace : undefined,
@@ -1212,7 +1243,7 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 		}
 
 		const result: IStringDictionary<IConfigurationPropertySchema> = {};
-		forEach(properties, ({ key, value }) => {
+		Object.entries(properties).forEach(([key, value]) => {
 			if (!value.restricted) {
 				result[key] = value;
 			}

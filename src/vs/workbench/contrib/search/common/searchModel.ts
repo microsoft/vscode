@@ -712,6 +712,41 @@ export function searchMatchComparer(elementA: RenderableMatch, elementB: Rendera
 	return 0;
 }
 
+export function searchComparer(elementA: RenderableMatch, elementB: RenderableMatch, sortOrder: SearchSortOrder = SearchSortOrder.Default): number {
+	const elemAParents = createParentList(elementA);
+	const elemBParents = createParentList(elementB);
+
+	let i = elemAParents.length - 1;
+	let j = elemBParents.length - 1;
+	while (i >= 0 && j >= 0) {
+		if (elemAParents[i].id() !== elemBParents[j].id()) {
+			return searchMatchComparer(elemAParents[i], elemBParents[j], sortOrder);
+		}
+		i--;
+		j--;
+	}
+	const elemAAtEnd = i === 0;
+	const elemBAtEnd = j === 0;
+
+	if (elemAAtEnd && !elemBAtEnd) {
+		return 1;
+	} else if (!elemAAtEnd && elemBAtEnd) {
+		return -1;
+	}
+	return 0;
+}
+
+function createParentList(element: RenderableMatch): RenderableMatch[] {
+	const parentArray: RenderableMatch[] = [];
+	let currElement: RenderableMatch | SearchResult = element;
+
+	while (!(currElement instanceof SearchResult)) {
+		parentArray.push(currElement);
+		currElement = currElement.parent();
+	}
+
+	return parentArray;
+}
 export class SearchResult extends Disposable {
 
 	private _onChange = this._register(new Emitter<IChangeEvent>());

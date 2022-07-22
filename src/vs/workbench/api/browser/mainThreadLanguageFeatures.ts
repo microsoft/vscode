@@ -366,45 +366,23 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 
 	// --- copy paste action provider
 
+	private readonly _pasteEditProviders = new Map<number, MainThreadPasteEditProvider>();
+
 	$registerPasteEditProvider(handle: number, selector: IDocumentFilterDto[], supportsCopy: boolean, pasteMimeTypes: readonly string[]): void {
-		const provider: languages.DocumentPasteEditProvider = {
-			pasteMimeTypes: pasteMimeTypes,
+		const provider = new MainThreadPasteEditProvider(handle, this._proxy, supportsCopy, pasteMimeTypes);
+		this._pasteEditProviders.set(handle, provider);
+		this._registrations.set(handle, combinedDisposable(
+			this._languageFeaturesService.documentPasteEditProvider.register(selector, provider),
+			toDisposable(() => this._pasteEditProviders.delete(handle)),
+		));
+	}
 
-			prepareDocumentPaste: supportsCopy
-				? async (model: ITextModel, selections: Selection[], dataTransfer: VSDataTransfer, token: CancellationToken): Promise<VSDataTransfer | undefined> => {
-					const dataTransferDto = await typeConvert.DataTransfer.toDataTransferDTO(dataTransfer);
-					if (token.isCancellationRequested) {
-						return undefined;
-					}
-
-					const result = await this._proxy.$prepareDocumentPaste(handle, model.uri, selections, dataTransferDto, token);
-					if (!result) {
-						return undefined;
-					}
-
-					const dataTransferOut = new VSDataTransfer();
-					result.items.forEach(([type, item]) => {
-						dataTransferOut.replace(type, createStringDataTransferItem(item.asString));
-					});
-					return dataTransferOut;
-				}
-				: undefined,
-
-			provideDocumentPasteEdits: async (model: ITextModel, selections: Selection[], dataTransfer: VSDataTransfer, token: CancellationToken) => {
-				const d = await typeConvert.DataTransfer.toDataTransferDTO(dataTransfer);
-				const result = await this._proxy.$providePasteEdits(handle, model.uri, selections, d, token);
-				if (!result) {
-					return undefined;
-				}
-
-				return {
-					insertText: result.insertText,
-					additionalEdit: result.additionalEdit ? reviveWorkspaceEditDto(result.additionalEdit) : undefined,
-				};
-			}
-		};
-
-		this._registrations.set(handle, this._languageFeaturesService.documentPasteEditProvider.register(selector, provider));
+	$resolvePasteFileData(handle: number, requestId: number, dataIndex: number): Promise<VSBuffer> {
+		const provider = this._pasteEditProviders.get(handle);
+		if (!provider) {
+			throw new Error('Could not find provider');
+		}
+		return provider.resolveFileData(requestId, dataIndex);
 	}
 
 	// --- formatting
@@ -921,6 +899,66 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 			throw new Error('Could not find provider');
 		}
 		return provider.resolveDocumentOnDropFileData(requestId, dataIndex);
+	}
+}
+
+class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider {
+
+	private readonly dataTransfers = new DataTransferCache();
+
+	public readonly pasteMimeTypes: readonly string[];
+
+	readonly prepareDocumentPaste?: (model: ITextModel, ranges: readonly IRange[], dataTransfer: VSDataTransfer, token: CancellationToken) => Promise<undefined | VSDataTransfer>;
+
+	constructor(
+		private readonly handle: number,
+		private readonly _proxy: ExtHostLanguageFeaturesShape,
+		supportsCopy: boolean,
+		pasteMimeTypes: readonly string[],
+	) {
+		this.pasteMimeTypes = pasteMimeTypes;
+
+		if (supportsCopy) {
+			this.prepareDocumentPaste = async (model: ITextModel, selections: readonly IRange[], dataTransfer: VSDataTransfer, token: CancellationToken): Promise<VSDataTransfer | undefined> => {
+				const dataTransferDto = await typeConvert.DataTransfer.toDataTransferDTO(dataTransfer);
+				if (token.isCancellationRequested) {
+					return undefined;
+				}
+
+				const result = await this._proxy.$prepareDocumentPaste(handle, model.uri, selections, dataTransferDto, token);
+				if (!result) {
+					return undefined;
+				}
+
+				const dataTransferOut = new VSDataTransfer();
+				result.items.forEach(([type, item]) => {
+					dataTransferOut.replace(type, createStringDataTransferItem(item.asString));
+				});
+				return dataTransferOut;
+			};
+		}
+	}
+
+	async provideDocumentPasteEdits(model: ITextModel, selections: Selection[], dataTransfer: VSDataTransfer, token: CancellationToken) {
+		const request = this.dataTransfers.add(dataTransfer);
+		try {
+			const d = await typeConvert.DataTransfer.toDataTransferDTO(dataTransfer);
+			const result = await this._proxy.$providePasteEdits(this.handle, request.id, model.uri, selections, d, token);
+			if (!result) {
+				return undefined;
+			}
+
+			return {
+				insertText: result.insertText,
+				additionalEdit: result.additionalEdit ? reviveWorkspaceEditDto(result.additionalEdit) : undefined,
+			};
+		} finally {
+			request.dispose();
+		}
+	}
+
+	resolveFileData(requestId: number, dataIndex: number): Promise<VSBuffer> {
+		return this.dataTransfers.resolveDropFileData(requestId, dataIndex);
 	}
 }
 

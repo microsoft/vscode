@@ -52,6 +52,7 @@ export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
 	readonly addMode?: boolean;
 
 	readonly diffMode?: boolean;
+	readonly mergeMode?: boolean;
 	readonly gotoLineMode?: boolean;
 
 	readonly waitMarkerFileURI?: URI;
@@ -135,6 +136,7 @@ export interface IWindowSettings {
 	readonly enableMenuBarMnemonics: boolean;
 	readonly closeWhenEmpty: boolean;
 	readonly clickThroughInactive: boolean;
+	readonly experimental?: { useSandbox: boolean };
 }
 
 interface IWindowBorderColors {
@@ -239,6 +241,7 @@ interface IPathsToWaitForData {
 export interface IOpenFileRequest {
 	readonly filesToOpenOrCreate?: IPathData[];
 	readonly filesToDiff?: IPathData[];
+	readonly filesToMerge?: IPathData[];
 }
 
 /**
@@ -269,6 +272,7 @@ export interface IWindowConfiguration {
 
 	filesToOpenOrCreate?: IPath[];
 	filesToDiff?: IPath[];
+	filesToMerge?: IPath[];
 }
 
 export interface IOSConfiguration {

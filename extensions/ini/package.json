@@ -37,7 +37,8 @@
           ".editorconfig"
         ],
         "filenames": [
-          "gitconfig"
+          "gitconfig",
+          ".env"
         ],
         "filenamePatterns": [
           "**/.config/git/config",

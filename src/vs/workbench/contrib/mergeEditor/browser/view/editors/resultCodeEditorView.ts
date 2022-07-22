@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CompareResult } from 'vs/base/common/arrays';
+import { autorun, derived } from 'vs/base/common/observable';
 import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { autorun, derivedObservable } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 import { applyObservableDecorations, join } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from 'vs/workbench/contrib/mergeEditor/browser/view/colors';
 import { CodeEditorView } from './codeEditorView';
 
 export class ResultCodeEditorView extends CodeEditorView {
-	private readonly decorations = derivedObservable('decorations', reader => {
+	private readonly decorations = derived('result.decorations', reader => {
 		const viewModel = this.viewModel.read(reader);
 		if (!viewModel) {
 			return [];
@@ -107,24 +107,25 @@ export class ResultCodeEditorView extends CodeEditorView {
 		this._register(applyObservableDecorations(this.editor, this.decorations));
 
 
-		this._register(autorun(reader => {
+		this._register(autorun('update remainingConflicts label', reader => {
 			const model = this.model.read(reader);
 			if (!model) {
 				return;
 			}
 			const count = model.unhandledConflictsCount.read(reader);
 
-			this._detail.setLabel(count === 1
+			this.htmlElements.detail.innerText = count === 1
 				? localize(
 					'mergeEditor.remainingConflicts',
-					'{0} Remaining Conflict',
+					'{0} Conflict Remaining',
 					count
 				)
 				: localize(
 					'mergeEditor.remainingConflict',
-					'{0} Remaining Conflicts',
+					'{0} Conflicts Remaining ',
 					count
-				));
-		}, 'update label'));
+				);
+
+		}));
 	}
 }

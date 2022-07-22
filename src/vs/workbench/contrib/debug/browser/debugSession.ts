@@ -164,6 +164,10 @@ export class DebugSession implements IDebugSession {
 		return !!this._options.compact;
 	}
 
+	get saveBeforeStart(): boolean {
+		return this._options.saveBeforeStart ?? !this._options?.parentSession;
+	}
+
 	get compoundRoot(): DebugCompoundRoot | undefined {
 		return this._options.compoundRoot;
 	}
@@ -292,7 +296,8 @@ export class DebugSession implements IDebugSession {
 				locale: platform.locale,
 				supportsProgressReporting: true, // #92253
 				supportsInvalidatedEvent: true, // #106745
-				supportsMemoryReferences: true //#129684
+				supportsMemoryReferences: true, //#129684
+				supportsArgsCanBeInterpretedByShell: true // #149910
 			});
 
 			this.initialized = true;
@@ -955,7 +960,7 @@ export class DebugSession implements IDebugSession {
 			if (thread) {
 				// Call fetch call stack twice, the first only return the top stack frame.
 				// Second retrieves the rest of the call stack. For performance reasons #25605
-				const promises = this.model.fetchCallStack(<Thread>thread);
+				const promises = this.model.refreshTopOfCallstack(<Thread>thread);
 				const focus = async () => {
 					if (focusedThreadDoesNotExist || (!event.body.preserveFocusHint && thread.getCallStack().length)) {
 						const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;

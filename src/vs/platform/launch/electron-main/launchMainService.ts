@@ -190,6 +190,7 @@ export class LaunchMainService implements ILaunchMainService {
 				preferNewWindow: !args['reuse-window'] && !args.wait,
 				forceReuseWindow: args['reuse-window'],
 				diffMode: args.diff,
+				mergeMode: args.merge,
 				addMode: args.add,
 				noRecentEntry: !!args['skip-add-to-recently-opened'],
 				gotoLineMode: args.goto

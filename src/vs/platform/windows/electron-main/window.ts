@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, BrowserWindowConstructorOptions, Display, Event, nativeImage, NativeImage, Rectangle, screen, SegmentedControlSegment, systemPreferences, TouchBar, TouchBarSegmentedControl } from 'electron';
+import { app, BrowserWindow, BrowserWindowConstructorOptions, Display, Event, nativeImage, NativeImage, Point, Rectangle, screen, SegmentedControlSegment, systemPreferences, TouchBar, TouchBarSegmentedControl } from 'electron';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -18,7 +18,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ISerializableCommandAction } from 'vs/platform/action/common/action';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
@@ -90,6 +90,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private readonly _onDidSignalReady = this._register(new Emitter<void>());
 	readonly onDidSignalReady = this._onDidSignalReady.event;
 
+	private readonly _onDidTriggerSystemContextMenu = this._register(new Emitter<{ x: number; y: number }>());
+	readonly onDidTriggerSystemContextMenu = this._onDidTriggerSystemContextMenu.event;
+
 	private readonly _onDidClose = this._register(new Emitter<void>());
 	readonly onDidClose = this._onDidClose.event;
 
@@ -122,9 +125,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private _config: INativeWindowConfiguration | undefined;
 	get config(): INativeWindowConfiguration | undefined { return this._config; }
 
-	private hiddenTitleBarStyle: boolean | undefined;
-	get hasHiddenTitleBarStyle(): boolean { return !!this.hiddenTitleBarStyle; }
-
 	get isExtensionDevelopmentHost(): boolean { return !!(this._config?.extensionDevelopmentPath); }
 
 	get isExtensionTestHost(): boolean { return !!(this._config?.extensionTestsPath); }
@@ -139,6 +139,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private representedFilename: string | undefined;
 	private documentEdited: boolean | undefined;
+
+	private customTrafficLightPosition: boolean | undefined;
+	private defaultTrafficLightPosition: Point | undefined;
 
 	private readonly whenReadyCallbacks: { (window: ICodeWindow): void }[] = [];
 
@@ -206,7 +209,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					// Enable experimental css highlight api https://chromestatus.com/feature/5436441440026624
 					// Refs https://github.com/microsoft/vscode/issues/140098
 					enableBlinkFeatures: 'HighlightAPI',
-					...this.environmentMainService.sandbox ?
+					...windowSettings?.experimental?.useSandbox ?
 
 						// Sandbox
 						{
@@ -251,19 +254,21 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			const useCustomTitleStyle = getTitleBarStyle(this.configurationService) === 'custom';
 			if (useCustomTitleStyle) {
 				options.titleBarStyle = 'hidden';
-				this.hiddenTitleBarStyle = true;
 				if (!isMacintosh) {
 					options.frame = false;
 				}
 
 				if (useWindowControlsOverlay(this.configurationService, this.environmentMainService)) {
-					// This logic will not perfectly guess the right colors to use on initialization,
-					// but prefer to keep things simple as it is temporary and not noticeable
+
+					// This logic will not perfectly guess the right colors
+					// to use on initialization, but prefer to keep things
+					// simple as it is temporary and not noticeable
+
 					const titleBarColor = this.themeMainService.getWindowSplash()?.colorInfo.titleBarBackground ?? this.themeMainService.getBackgroundColor();
 					const symbolColor = Color.fromHex(titleBarColor).isDarker() ? '#FFFFFF' : '#000000';
 
 					options.titleBarOverlay = {
-						height: 29, // The smallest size of the title bar on windows accounting for the border on windows 11
+						height: 29, // the smallest size of the title bar on windows accounting for the border on windows 11
 						color: titleBarColor,
 						symbolColor
 					};
@@ -277,33 +282,38 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 			this._id = this._win.id;
 
-			// re-position traffic light if command center is visible
-			if (useCustomTitleStyle && isMacintosh) {
-				const ccConfigKey = 'window.commandCenter';
-				const trafficLightUpdater = () => {
-					// temporarily disabled because of https://github.com/microsoft/vscode/pull/150272#issuecomment-1152218493
-					// const on = this.configurationService.getValue<boolean>(ccConfigKey);
-					// if (on) {
-					// 	this._win.setTrafficLightPosition({ x: 7, y: 9 });
-					// } else {
-					// 	this._win.setTrafficLightPosition({ x: 7, y: 6 });
-					// }
-				};
-				trafficLightUpdater();
-				this.configurationService.onDidChangeConfiguration(e => {
-					if (e.affectsConfiguration(ccConfigKey)) {
-						trafficLightUpdater();
-					}
-				}, undefined, this._store);
-			}
-
-			// Open devtools if instructed from command line args
-			if (this.environmentMainService.args['open-devtools'] === true) {
-				this._win.webContents.openDevTools();
+			if (isMacintosh && useCustomTitleStyle) {
+				this.updateTrafficLightPosition(); // adjust traffic light position depending on command center
 			}
 
 			if (isMacintosh && useCustomTitleStyle) {
 				this._win.setSheetOffset(22); // offset dialogs by the height of the custom title bar if we have any
+			}
+
+			// Windows Custom System Context Menu
+			// See https://github.com/electron/electron/issues/24893
+			//
+			// The purpose of this is to allow for the context menu in the Windows Title Bar
+			//
+			// Currently, all mouse events in the title bar are captured by the OS
+			// thus we need to capture them here with a window hook specific to Windows
+			// and then forward them to the correct window.
+			if (isWindows && useCustomTitleStyle) {
+				const WM_INITMENU = 0x0116; // https://docs.microsoft.com/en-us/windows/win32/menurc/wm-initmenu
+
+				// This sets up a listener for the window hook. This is a Windows-only API provided by electron.
+				this._win.hookWindowMessage(WM_INITMENU, () => {
+					const [x, y] = this._win.getPosition();
+					const cursorPos = screen.getCursorScreenPoint();
+
+					// This is necessary to make sure the native system context menu does not show up.
+					this._win.setEnabled(false);
+					this._win.setEnabled(true);
+
+					this._onDidTriggerSystemContextMenu.fire({ x: cursorPos.x - x, y: cursorPos.y - y });
+
+					return 0; // skip native menu
+				});
 			}
 
 			// TODO@electron (Electron 4 regression): when running on multiple displays where the target display
@@ -348,6 +358,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 		//#endregion
 
+		// Open devtools if instructed from command line args
+		if (this.environmentMainService.args['open-devtools'] === true) {
+			this._win.webContents.openDevTools();
+		}
+
 		// respect configured menu bar visibility
 		this.onConfigurationUpdated();
 
@@ -359,7 +374,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	setRepresentedFilename(filename: string): void {
-		if (isMacintosh) {
+		if (isMacintosh && !this.customTrafficLightPosition) { // TODO@electron https://github.com/electron/electron/issues/34822
 			this._win.setRepresentedFilename(filename);
 		} else {
 			this.representedFilename = filename;
@@ -367,7 +382,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	getRepresentedFilename(): string | undefined {
-		if (isMacintosh) {
+		if (isMacintosh && !this.customTrafficLightPosition) { // TODO@electron https://github.com/electron/electron/issues/34822
 			return this._win.getRepresentedFilename();
 		}
 
@@ -525,7 +540,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		});
 
 		// Handle configuration changes
-		this._register(this.configurationService.onDidChangeConfiguration(() => this.onConfigurationUpdated()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 
 		// Handle Workspace events
 		this._register(this.workspacesManagementMainService.onDidDeleteUntitledWorkspace(e => this.onDidDeleteUntitledWorkspace(e)));
@@ -735,7 +750,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 	}
 
-	private onConfigurationUpdated(): void {
+	private onConfigurationUpdated(e?: IConfigurationChangeEvent): void {
 
 		// Menubar
 		const newMenuBarVisibility = this.getMenuBarVisibility();
@@ -743,6 +758,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			this.currentMenuBarVisibility = newMenuBarVisibility;
 			this.setMenuBarVisibility(newMenuBarVisibility);
 		}
+
+		// Traffic Lights
+		this.updateTrafficLightPosition(e);
 
 		// Proxy
 		let newHttpProxy = (this.configurationService.getValue<string>('http.proxy') || '').trim()
@@ -812,10 +830,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this.readyState = ReadyState.NAVIGATING;
 
 		// Load URL
-		this._win.loadURL(FileAccess.asBrowserUri(this.environmentMainService.sandbox ?
-			'vs/code/electron-sandbox/workbench/workbench.html' :
-			'vs/code/electron-browser/workbench/workbench.html', require
-		).toString(true));
+		this._win.loadURL(FileAccess.asBrowserUri('vs/code/electron-sandbox/workbench/workbench.html', require).toString(true));
 
 		// Remember that we did load
 		const wasLoaded = this.wasLoaded;
@@ -895,6 +910,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Delete some properties we do not want during reload
 		delete configuration.filesToOpenOrCreate;
 		delete configuration.filesToDiff;
+		delete configuration.filesToMerge;
 		delete configuration.filesToWait;
 
 		// Some configuration things get inherited if the window is being reloaded and we are
@@ -1301,6 +1317,36 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				this._win.autoHideMenuBar = false;
 				break;
 		}
+	}
+
+	private updateTrafficLightPosition(e?: IConfigurationChangeEvent): void {
+		if (!isMacintosh) {
+			return; // only applies to macOS
+		}
+
+		const commandCenterSettingKey = 'window.commandCenter';
+		if (e && !e.affectsConfiguration(commandCenterSettingKey)) {
+			return;
+		}
+
+		const useCustomTitleStyle = getTitleBarStyle(this.configurationService) === 'custom';
+		if (!useCustomTitleStyle) {
+			return; // only applies with custom title bar
+		}
+
+		const useCustomTrafficLightPosition = this.configurationService.getValue<boolean>(commandCenterSettingKey);
+		if (useCustomTrafficLightPosition) {
+			if (!this.defaultTrafficLightPosition) {
+				this.defaultTrafficLightPosition = this._win.getTrafficLightPosition(); // remember default to restore later
+			}
+			this._win.setTrafficLightPosition({ x: 7, y: 10 });
+		} else {
+			if (this.defaultTrafficLightPosition) {
+				this._win.setTrafficLightPosition(this.defaultTrafficLightPosition);
+			}
+		}
+
+		this.customTrafficLightPosition = useCustomTrafficLightPosition;
 	}
 
 	handleTitleDoubleClick(): void {

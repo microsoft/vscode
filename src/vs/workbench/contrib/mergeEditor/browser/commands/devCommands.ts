@@ -19,6 +19,7 @@ import { IWorkbenchFileService } from 'vs/workbench/services/files/common/files'
 import { URI } from 'vs/base/common/uri';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { ctxIsMergeEditor } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
+import { EditorResolution } from 'vs/platform/editor/common/editor';
 
 interface MergeEditorContents {
 	languageId: string;
@@ -29,12 +30,17 @@ interface MergeEditorContents {
 }
 
 export class MergeEditorCopyContentsToJSON extends Action2 {
-
 	constructor() {
 		super({
 			id: 'merge.dev.copyContents',
 			category: 'Merge Editor (Dev)',
-			title: localize('merge.dev.copyContents', "Copy Contents of Inputs, Base and Result as JSON"),
+			title: {
+				value: localize(
+					'merge.dev.copyState',
+					'Copy Merge Editor State as JSON'
+				),
+				original: 'Copy Merge Editor State as JSON',
+			},
 			icon: Codicon.layoutCentered,
 			f1: true,
 			precondition: ctxIsMergeEditor,
@@ -69,18 +75,23 @@ export class MergeEditorCopyContentsToJSON extends Action2 {
 
 		notificationService.info({
 			name: localize('mergeEditor.name', 'Merge Editor'),
-			message: localize('mergeEditor.successfullyCopiedMergeEditorContents', "Successfully copied merge editor contents"),
+			message: localize('mergeEditor.successfullyCopiedMergeEditorContents', "Successfully copied merge editor state"),
 		});
 	}
 }
 
 export class MergeEditorOpenContents extends Action2 {
-
 	constructor() {
 		super({
 			id: 'merge.dev.openContents',
 			category: 'Merge Editor (Dev)',
-			title: localize('merge.dev.openContents', "Open Contents of Inputs, Base and Result from JSON"),
+			title: {
+				value: localize(
+					'merge.dev.openState',
+					'Open Merge Editor State from JSON'
+				),
+				original: 'Open Merge Editor State from JSON',
+			},
 			icon: Codicon.layoutCentered,
 			f1: true,
 		});
@@ -98,11 +109,14 @@ export class MergeEditorOpenContents extends Action2 {
 			prompt: localize('mergeEditor.enterJSON', 'Enter JSON'),
 			value: await clipboardService.readText(),
 		});
-		if (!result) {
+		if (result === undefined) {
 			return;
 		}
 
-		const content: MergeEditorContents = JSON.parse(result);
+		const content: MergeEditorContents =
+			result !== ''
+				? JSON.parse(result)
+				: { base: '', input1: '', input2: '', result: '', languageId: 'plaintext' };
 
 		const scheme = 'merge-editor-dev';
 
@@ -147,6 +161,6 @@ export class MergeEditorOpenContents extends Action2 {
 			{ uri: input2Uri, title: 'Input 2', description: 'Input 2', detail: '(from JSON)' },
 			resultUri,
 		);
-		editorService.openEditor(input);
+		editorService.openEditor(input, { override: EditorResolution.DISABLED });
 	}
 }

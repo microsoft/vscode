@@ -82,7 +82,15 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 	}
 
 	private async _getWebWorkerExtensionHostIframeSrc(): Promise<string> {
-		const suffix = this._environmentService.debugExtensionHost && this._environmentService.debugRenderer ? '?debugged=1' : '?';
+		const suffixSearchParams = new URLSearchParams();
+		if (this._environmentService.debugExtensionHost && this._environmentService.debugRenderer) {
+			suffixSearchParams.set('debugged', '1');
+		}
+		if (globalThis.crossOriginIsolated) {
+			suffixSearchParams.set('vscode-coi', '3' /*COOP+COEP*/);
+		}
+		const suffix = `?${suffixSearchParams.toString()}`;
+
 		const iframeModulePath = 'vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html';
 		if (platform.isWeb) {
 			const webEndpointUrlTemplate = this._productService.webEndpointUrlTemplate;
@@ -273,7 +281,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		return {
 			commit: this._productService.commit,
 			version: this._productService.version,
-			parentPid: -1,
+			parentPid: 0,
 			environment: {
 				isExtensionDevelopmentDebug: this._environmentService.debugRenderer,
 				appName: this._productService.nameLong,

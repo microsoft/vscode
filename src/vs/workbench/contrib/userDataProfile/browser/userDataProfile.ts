@@ -6,28 +6,29 @@
 import { Codicon } from 'vs/base/common/codicons';
 import { Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { isWeb } from 'vs/base/common/platform';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { Action2, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IUserDataProfile, IUserDataProfilesService, PROFILES_ENABLEMENT_CONFIG } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { IUserDataProfileManagementService, IUserDataProfileService, ManageProfilesSubMenu, PROFILES_CATEGORY, PROFILES_ENABLEMENT_CONTEXT, PROFILES_TTILE } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { CURRENT_PROFILE_CONTEXT, HAS_PROFILES_CONTEXT, IUserDataProfileManagementService, IUserDataProfileService, ManageProfilesSubMenu, PROFILES_CATEGORY, PROFILES_ENABLEMENT_CONTEXT, PROFILES_TTILE } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
-const CONTEXT_CURRENT_PROFILE = new RawContextKey<string>('currentUserDataProfile', '');
+export const userDataProfilesIcon = registerIcon('settingsProfiles-icon', Codicon.settings, localize('settingsProfilesIcon', 'Icon for Settings Profiles.'));
 
 export class UserDataProfilesWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 
 	private readonly currentProfileContext: IContextKey<string>;
+	private readonly hasProfilesContext: IContextKey<boolean>;
 
 	constructor(
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
@@ -42,18 +43,22 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 
 		this.registerConfiguration();
 
-		this.currentProfileContext = CONTEXT_CURRENT_PROFILE.bindTo(contextKeyService);
+		this.currentProfileContext = CURRENT_PROFILE_CONTEXT.bindTo(contextKeyService);
 		this.currentProfileContext.set(this.userDataProfileService.currentProfile.id);
 		this._register(this.userDataProfileService.onDidChangeCurrentProfile(e => this.currentProfileContext.set(this.userDataProfileService.currentProfile.id)));
 
+		this.hasProfilesContext = HAS_PROFILES_CONTEXT.bindTo(contextKeyService);
+		this.hasProfilesContext.set(this.userDataProfilesService.profiles.length > 1);
+		this._register(this.userDataProfilesService.onDidChangeProfiles(e => this.hasProfilesContext.set(this.userDataProfilesService.profiles.length > 1)));
+
 		this.updateStatus();
-		this._register(Event.any(this.workspaceContextService.onDidChangeWorkbenchState, this.userDataProfileService.onDidChangeCurrentProfile, this.userDataProfilesService.onDidChangeProfiles)(() => this.updateStatus()));
+		this._register(Event.any(this.workspaceContextService.onDidChangeWorkbenchState, this.userDataProfileService.onDidChangeCurrentProfile, this.userDataProfileService.onDidUpdateCurrentProfile, this.userDataProfilesService.onDidChangeProfiles)(() => this.updateStatus()));
 
 		this.registerActions();
 	}
 
 	private registerConfiguration(): void {
-		if (!isWeb && this.productService.quality !== 'stable') {
+		if (this.productService.quality !== 'stable') {
 			Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 				...workbenchConfigurationNodeBase,
 				'properties': {
@@ -61,7 +66,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 						'type': 'boolean',
 						'default': false,
 						'description': localize('workbench.experimental.settingsProfiles.enabled', "Controls whether to enable the Settings Profiles preview feature."),
-						scope: ConfigurationScope.APPLICATION
+						scope: ConfigurationScope.APPLICATION,
+						ignoreSync: true
 					}
 				}
 			});
@@ -114,8 +120,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				super({
 					id: `workbench.profiles.actions.profileEntry.${profile.id}`,
 					title: profile.name,
-					toggled: ContextKeyExpr.equals(CONTEXT_CURRENT_PROFILE.key, profile.id),
-					precondition: ContextKeyExpr.notEquals(CONTEXT_CURRENT_PROFILE.key, profile.id),
+					toggled: ContextKeyExpr.equals(CURRENT_PROFILE_CONTEXT.key, profile.id),
 					menu: [
 						{
 							id: ManageProfilesSubMenu,
@@ -126,19 +131,21 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				});
 			}
 			async run(accessor: ServicesAccessor) {
-				return that.userDataProfileManagementService.switchProfile(profile);
+				if (that.userDataProfileService.currentProfile.id !== profile.id) {
+					return that.userDataProfileManagementService.switchProfile(profile);
+				}
 			}
 		});
 	}
 
 	private profileStatusAccessor: IStatusbarEntryAccessor | undefined;
 	private updateStatus(): void {
-		if (this.userDataProfilesService.profiles.length) {
+		if (this.userDataProfilesService.profiles.length > 1) {
 			const statusBarEntry: IStatusbarEntry = {
 				name: PROFILES_CATEGORY,
 				command: 'workbench.profiles.actions.switchProfile',
 				ariaLabel: localize('currentProfile', "Current Settings Profile is {0}", this.userDataProfileService.currentProfile.name),
-				text: `$(${Codicon.multipleWindows.id}) ${this.userDataProfileService.currentProfile.name!}`,
+				text: `$(${userDataProfilesIcon.id}) ${this.userDataProfileService.currentProfile.name!}`,
 				tooltip: localize('profileTooltip', "{0}: {1}", PROFILES_CATEGORY, this.userDataProfileService.currentProfile.name),
 				color: themeColorFromId(STATUS_BAR_SETTINGS_PROFILE_FOREGROUND),
 				backgroundColor: themeColorFromId(STATUS_BAR_SETTINGS_PROFILE_BACKGROUND)
