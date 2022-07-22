@@ -1042,7 +1042,8 @@ var requirejs = (function() {
 				// If the content has not changed, we still want to make sure the
 				// preview is visible but don't need to send anything over
 				content: sameContent ? undefined : initialization.content,
-				top: initialization.offset
+				top: initialization.offset,
+				metadata: initialization.metadata
 			});
 		}
 
