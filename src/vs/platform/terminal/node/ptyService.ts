@@ -190,7 +190,7 @@ export class PtyService extends Disposable implements IPtyService {
 			executableEnv,
 			options
 		};
-		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, processLaunchOptions, unicodeVersion, this._reconnectConstants, this._logService, isReviving ? shellLaunchConfig.initialText : undefined, rawReviveBuffer, shellLaunchConfig.icon, shellLaunchConfig.color, shellLaunchConfig.name, shellLaunchConfig.fixedDimensions);
+		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, processLaunchOptions, unicodeVersion, this._reconnectConstants, this._logService, isReviving && typeof shellLaunchConfig.initialText === 'string' ? shellLaunchConfig.initialText : undefined, rawReviveBuffer, shellLaunchConfig.icon, shellLaunchConfig.color, shellLaunchConfig.name, shellLaunchConfig.fixedDimensions);
 		process.onDidChangeProperty(property => this._onDidChangeProperty.fire({ id, property }));
 		process.onProcessExit(event => {
 			persistentProcess.dispose();
@@ -337,7 +337,17 @@ export class PtyService extends Disposable implements IPtyService {
 		});
 	}
 
+	async getRevivedPtyNewId(id: number): Promise<number | undefined> {
+		try {
+			return this._revivedPtyIdMap.get(id)?.newId;
+		} catch (e) {
+			this._logService.trace(`Couldn't find terminal ID ${id}`, e.message);
+		}
+		return undefined;
+	}
+
 	async setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {
+		this._logService.trace('ptyService#setLayoutInfo', args.tabs);
 		this._workspaceLayoutInfos.set(args.workspaceId, args);
 	}
 
@@ -399,7 +409,9 @@ export class PtyService extends Disposable implements IPtyService {
 			icon: persistentProcess.icon,
 			color: persistentProcess.color,
 			fixedDimensions: persistentProcess.fixedDimensions,
-			environmentVariableCollections: persistentProcess.processLaunchOptions.options.environmentVariableCollections
+			environmentVariableCollections: persistentProcess.processLaunchOptions.options.environmentVariableCollections,
+			reconnectionOwner: persistentProcess.shellLaunchConfig.reconnectionOwner,
+			task: persistentProcess.shellLaunchConfig.task
 		};
 	}
 

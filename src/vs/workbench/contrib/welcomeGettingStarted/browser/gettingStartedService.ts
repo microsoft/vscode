@@ -364,28 +364,14 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 					};
 				}
 
-				// Legacy media config (only in use by remote-wsl at the moment)
+				// Throw error for unknown walkthrough format
 				else {
-					const legacyMedia = step.media as unknown as { path: string; altText: string };
-					if (typeof legacyMedia.path === 'string' && legacyMedia.path.endsWith('.md')) {
-						media = {
-							type: 'markdown',
-							path: convertExtensionPathToFileURI(legacyMedia.path),
-							base: convertExtensionPathToFileURI(dirname(legacyMedia.path)),
-							root: FileAccess.asFileUri(extension.extensionLocation),
-						};
-					}
-					else {
-						const altText = legacyMedia.altText;
-						if (altText === undefined) {
-							console.error('Walkthrough item:', fullyQualifiedID, 'is missing altText for its media element.');
-						}
-						media = { type: 'image', altText, path: convertExtensionRelativePathsToBrowserURIs(legacyMedia.path) };
-					}
+					throw new Error('Unknown walkthrough format detected for ' + fullyQualifiedID);
 				}
 
 				return ({
-					description, media,
+					description,
+					media,
 					completionEvents: step.completionEvents?.filter(x => typeof x === 'string') ?? [],
 					id: fullyQualifiedID,
 					title: step.title,
@@ -449,7 +435,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		}
 
 		extension.contributes?.walkthroughs?.forEach(section => {
-			const categoryID = extension.identifier.value + '#walkthrough#' + section.id;
+			const categoryID = extension.identifier.value + '#' + section.id;
 			section.steps.forEach(step => {
 				const fullyQualifiedID = extension.identifier.value + '#' + section.id + '#' + step.id;
 				this.steps.delete(fullyQualifiedID);
@@ -691,8 +677,8 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'resetGettingStartedProgress',
-			category: 'Developer',
-			title: 'Reset Welcome Page Walkthrough Progress',
+			category: { original: 'Developer', value: localize('developer', "Developer") },
+			title: { original: 'Reset Welcome Page Walkthrough Progress', value: localize('resetWelcomePageWalkthroughProgress', "Reset Welcome Page Walkthrough Progress") },
 			f1: true
 		});
 	}

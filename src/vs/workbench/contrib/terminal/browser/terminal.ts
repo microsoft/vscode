@@ -11,13 +11,15 @@ import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
 import { ITerminalCapabilityStore, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IExtensionTerminalProfile, IProcessPropertyMap, IShellIntegration, IShellLaunchConfig, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, ProcessPropertyType, TerminalIcon, TerminalLocation, TerminalShellType, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { IExtensionTerminalProfile, IProcessPropertyMap, IShellIntegration, IShellLaunchConfig, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, ProcessPropertyType, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalShellType, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProcess';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditableData } from 'vs/workbench/common/views';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { INavigationMode, IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalBackend, ITerminalConfigHelper, ITerminalFont, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
+import { IMarker } from 'xterm';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
@@ -131,6 +133,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	readonly connectionState: TerminalConnectionState;
 	readonly defaultLocation: TerminalLocation;
 
+
 	initializeTerminals(): Promise<void>;
 	onDidChangeActiveGroup: Event<ITerminalGroup | undefined>;
 	onDidDisposeGroup: Event<ITerminalGroup>;
@@ -161,6 +164,11 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	getInstanceFromId(terminalId: number): ITerminalInstance | undefined;
 	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
 
+	/**
+	 * An owner of terminals might be created after reconnection has occurred,
+	 * so store them to be requested/adopted later
+	 */
+	getReconnectedTerminals(reconnectionOwner: string): ITerminalInstance[] | undefined;
 
 	getActiveOrCreateInstance(): Promise<ITerminalInstance>;
 	moveToEditor(source: ITerminalInstance): void;
@@ -437,7 +445,7 @@ export interface ITerminalInstance {
 	readonly fixedRows?: number;
 	readonly icon?: TerminalIcon;
 	readonly color?: string;
-
+	readonly reconnectionOwner?: string;
 	readonly processName: string;
 	readonly sequence?: string;
 	readonly staticTitle?: string;
@@ -469,6 +477,11 @@ export interface ITerminalInstance {
 	 * that supports reconnection.
 	 */
 	readonly persistentProcessId: number | undefined;
+
+	/**
+	 * The id of a persistent process during the shutdown process
+	 */
+	shutdownPersistentProcessId: number | undefined;
 
 	/**
 	 * Whether the process should be persisted across reloads.
@@ -565,6 +578,8 @@ export interface ITerminalInstance {
 
 	readonly exitCode: number | undefined;
 
+	readonly exitReason: TerminalExitReason | undefined;
+
 	readonly areLinksReady: boolean;
 
 	/**
@@ -636,19 +651,30 @@ export interface ITerminalInstance {
 	showEnvironmentInfoHover(): void;
 
 	/**
-	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
-	 *
-	 * @param immediate Whether the kill should be immediate or not. Immediate should only be used
-	 * when VS Code is shutting down or in cases where the terminal dispose was user initiated.
-	 * The immediate===false exists to cover an edge case where the final output of the terminal can
-	 * get cut off. If immediate kill any terminal processes immediately.
+	 * Registers and returns a marker
 	 */
-	dispose(immediate?: boolean): void;
+	registerMarker(): IMarker | undefined;
 
 	/**
-	 * Inform the process that the terminal is now detached.
+	 * Adds a decoration to the buffer at the @param marker with
+	 * @param genericMarkProperties
 	 */
-	detachFromProcess(): Promise<void>;
+	addGenericMark(marker: IMarker, genericMarkProperties: IGenericMarkProperties): void;
+
+	/**
+	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
+	 *
+	 * @param reason The reason why the terminal is being disposed
+	 */
+	dispose(reason?: TerminalExitReason): void;
+
+	/**
+	 * Informs the process that the terminal is now detached and
+	 * then disposes the terminal.
+	 *
+	 * @param reason The reason why the terminal is being disposed
+	 */
+	detachProcessAndDispose(reason: TerminalExitReason): Promise<void>;
 
 	/**
 	 * Check if anything is selected in terminal.
@@ -659,6 +685,12 @@ export interface ITerminalInstance {
 	 * Copies the terminal selection to the clipboard.
 	 */
 	copySelection(asHtml?: boolean, command?: ITerminalCommand): Promise<void>;
+
+
+	/**
+	 * Copies the ouput of the last command
+	 */
+	copyLastCommandOutput(): Promise<void>;
 
 	/**
 	 * Current selection in the terminal.
@@ -926,6 +958,11 @@ export interface IXtermTerminal {
 	 */
 	clearActiveSearchDecoration(): void;
 
+	/**
+	 * Adds a decoration at the @param marker with the given properties
+	 * @param properties
+	 */
+	addDecoration(marker: IMarker, properties: IGenericMarkProperties): void;
 }
 
 export interface IInternalXtermTerminal {

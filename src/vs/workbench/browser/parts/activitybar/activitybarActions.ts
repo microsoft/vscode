@@ -103,8 +103,9 @@ export class ViewContainerActivityAction extends ActivityAction {
 	private logAction(action: string) {
 		type ActivityBarActionClassification = {
 			owner: 'sbatten';
-			viewletId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			comment: 'Event logged when an activity bar action is triggered.';
+			viewletId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The view in the activity bar for which the action was performed.' };
+			action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The action that was performed. e.g. "hide", "show", or "refocus"' };
 		};
 		this.telemetryService.publicLog2<{ viewletId: String; action: String }, ActivityBarActionClassification>('activityBarAction', { viewletId: this.activity.id, action });
 	}

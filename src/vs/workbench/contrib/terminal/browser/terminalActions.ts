@@ -28,7 +28,7 @@ import { IListService } from 'vs/platform/list/browser/listService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { ITerminalProfile, TerminalLocation, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { ITerminalProfile, TerminalExitReason, TerminalLocation, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
@@ -51,7 +51,7 @@ import { AbstractVariableResolverService } from 'vs/workbench/services/configura
 import { ITerminalQuickPickItem } from 'vs/workbench/contrib/terminal/browser/terminalProfileQuickpick';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { getIconId, getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
-import { getCommandHistory } from 'vs/workbench/contrib/terminal/common/history';
+import { clearShellFileHistory, getCommandHistory } from 'vs/workbench/contrib/terminal/common/history';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
@@ -307,7 +307,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TerminalCommandId.RunRecentCommand,
-				title: { value: localize('workbench.action.terminal.runRecentCommand', "Run Recent Command"), original: 'Run Recent Command' },
+				title: { value: localize('workbench.action.terminal.runRecentCommand', "Run Recent Command..."), original: 'Run Recent Command...' },
 				f1: true,
 				category,
 				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
@@ -330,8 +330,22 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
+				id: TerminalCommandId.CopyLastCommand,
+				title: { value: localize('workbench.action.terminal.copyLastCommand', 'Copy Last Command'), original: 'Copy Last Command' },
+				f1: true,
+				category,
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
+			});
+		}
+		async run(accessor: ServicesAccessor): Promise<void> {
+			await accessor.get(ITerminalService).activeInstance?.copyLastCommandOutput();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
 				id: TerminalCommandId.GoToRecentDirectory,
-				title: { value: localize('workbench.action.terminal.goToRecentDirectory', "Go to Recent Directory"), original: 'Go to Recent Directory' },
+				title: { value: localize('workbench.action.terminal.goToRecentDirectory', "Go to Recent Directory..."), original: 'Go to Recent Directory...' },
 				f1: true,
 				category,
 				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
@@ -760,6 +774,28 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
+				id: TerminalCommandId.NavigationModeFocusPreviousPage,
+				title: { value: localize('workbench.action.terminal.navigationModeFocusPreviousPage', "Focus Previous Page (Navigation Mode)"), original: 'Focus Previous Page (Navigation Mode)' },
+				f1: true,
+				category,
+				keybinding: [{
+					primary: KeyCode.PageUp,
+					when: ContextKeyExpr.or(
+						ContextKeyExpr.and(TerminalContextKeys.a11yTreeFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.navigationModeActive),
+						ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.navigationModeActive),
+					),
+					weight: KeybindingWeight.WorkbenchContrib
+				}],
+				precondition: TerminalContextKeys.processSupported
+			});
+		}
+		run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).activeInstance?.navigationMode?.focusPreviousPage();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
 				id: TerminalCommandId.NavigationModeFocusNext,
 				title: { value: localize('workbench.action.terminal.navigationModeFocusNext', "Focus Next Line (Navigation Mode)"), original: 'Focus Next Line (Navigation Mode)' },
 				f1: true,
@@ -785,6 +821,28 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalService).activeInstance?.navigationMode?.focusNextLine();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TerminalCommandId.NavigationModeFocusNextPage,
+				title: { value: localize('workbench.action.terminal.navigationModeFocusNextPage', "Focus Next Page (Navigation Mode)"), original: 'Focus Next Page (Navigation Mode)' },
+				f1: true,
+				category,
+				keybinding: [{
+					primary: KeyCode.PageDown,
+					when: ContextKeyExpr.or(
+						ContextKeyExpr.and(TerminalContextKeys.a11yTreeFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.navigationModeActive),
+						ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.navigationModeActive),
+					),
+					weight: KeybindingWeight.WorkbenchContrib
+				}],
+				precondition: TerminalContextKeys.processSupported
+			});
+		}
+		run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).activeInstance?.navigationMode?.focusNextPage();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1018,7 +1076,7 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			await terminalService.activeInstance?.detachFromProcess();
+			await terminalService.activeInstance?.detachProcessAndDispose(TerminalExitReason.User);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1665,6 +1723,7 @@ export function registerTerminalActions() {
 			const themeService = accessor.get(IThemeService);
 			const groupService = accessor.get(ITerminalGroupService);
 			const notificationService = accessor.get(INotificationService);
+
 			const picks: ITerminalQuickPickItem[] = [];
 			if (groupService.instances.length <= 1) {
 				notificationService.warn(localize('workbench.action.terminal.join.insufficientTerminals', 'Insufficient terminals for the join action'));
@@ -1674,7 +1733,7 @@ export function registerTerminalActions() {
 			for (const terminal of otherInstances) {
 				const group = groupService.getGroupForInstance(terminal);
 				if (group?.terminalInstances.length === 1) {
-					const iconId = getIconId(terminal);
+					const iconId = getIconId(accessor, terminal);
 					const label = `$(${iconId}): ${terminal.title}`;
 					const iconClasses: string[] = [];
 					const colorClass = getColorClass(terminal);
@@ -2068,10 +2127,11 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.sizeToContentWidth', "Toggle Size to Content Width"), original: 'Toggle Size to Content Width' },
 				f1: true,
 				category,
-				precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen, TerminalContextKeys.focus),
+				precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen),
 				keybinding: {
 					primary: KeyMod.Alt | KeyCode.KeyZ,
-					weight: KeybindingWeight.WorkbenchContrib
+					weight: KeybindingWeight.WorkbenchContrib,
+					when: TerminalContextKeys.focus
 				}
 			});
 		}
@@ -2079,12 +2139,13 @@ export function registerTerminalActions() {
 			await accessor.get(ITerminalService).doWithActiveInstance(t => t.toggleSizeToContentWidth());
 		}
 	});
+
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
 				id: TerminalCommandId.SizeToContentWidthInstance,
 				title: terminalStrings.toggleSizeToContentWidth,
-				f1: true,
+				f1: false,
 				category,
 				precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus)
 			});
@@ -2105,6 +2166,7 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			getCommandHistory(accessor).clear();
+			clearShellFileHistory();
 		}
 	});
 	registerAction2(class extends Action2 {

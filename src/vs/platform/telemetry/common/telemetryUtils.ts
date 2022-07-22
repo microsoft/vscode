@@ -154,10 +154,10 @@ export interface Measurements {
 
 export function validateTelemetryData(data?: any): { properties: Properties; measurements: Measurements } {
 
-	const properties: Properties = Object.create(null);
-	const measurements: Measurements = Object.create(null);
+	const properties: Properties = {};
+	const measurements: Measurements = {};
 
-	const flat = Object.create(null);
+	const flat: Record<string, any> = {};
 	flatten(data, flat);
 
 	for (let prop in flat) {

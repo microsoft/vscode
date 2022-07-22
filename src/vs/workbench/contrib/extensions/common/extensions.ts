@@ -91,6 +91,7 @@ export const IExtensionsWorkbenchService = createDecorator<IExtensionsWorkbenchS
 export interface IExtensionsWorkbenchService {
 	readonly _serviceBrand: undefined;
 	readonly onChange: Event<IExtension | undefined>;
+	readonly onReset: Event<void>;
 	readonly preferPreReleases: boolean;
 	readonly local: IExtension[];
 	readonly installed: IExtension[];
@@ -106,6 +107,8 @@ export interface IExtensionsWorkbenchService {
 	uninstall(extension: IExtension): Promise<void>;
 	installVersion(extension: IExtension, version: string, installOptions?: InstallOptions): Promise<IExtension>;
 	reinstall(extension: IExtension): Promise<IExtension>;
+	canSetLanguage(extension: IExtension): boolean;
+	setLanguage(extension: IExtension): Promise<void>;
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void>;
 	open(extension: IExtension, options?: IExtensionEditorOptions): Promise<void>;
 	checkForUpdates(): Promise<void>;

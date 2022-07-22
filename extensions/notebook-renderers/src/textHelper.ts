@@ -11,7 +11,7 @@ function generateViewMoreElement(outputId: string) {
 	first.textContent = 'Output exceeds the ';
 	const second = document.createElement('a');
 	second.textContent = 'size limit';
-	second.href = `command:workbench.action.openSettings?["notebook.output.textLineLimit"]`;
+	second.href = `command:workbench.action.openSettings?%5B%22notebook.output.textLineLimit%22%5D`;
 	const third = document.createElement('span');
 	third.textContent = '. Open the full output data';
 	const forth = document.createElement('a');

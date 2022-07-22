@@ -591,6 +591,16 @@ if (isWindows || isLinux || isWeb) {
 			return accessor.get(IWorkbenchLayoutService).toggleMenuBar();
 		}
 	});
+
+	// Add separately to title bar context menu so we can use a different title
+	MenuRegistry.appendMenuItem(MenuId.TitleBarContext, {
+		command: {
+			id: 'workbench.action.toggleMenuBar',
+			title: localize('miShowMenuBarNoMnemonic', "Show Menu Bar"),
+			toggled: ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'compact'))
+		},
+		order: 0
+	});
 }
 
 // --- Reset View Locations
@@ -1182,7 +1192,7 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.customizeLayout',
-			title: localize('customizeLayout', "Customize Layout..."),
+			title: { original: 'Customize Layout...', value: localize('customizeLayout', "Customize Layout...") },
 			f1: true,
 			icon: configureLayoutIcon,
 			menu: [

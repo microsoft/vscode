@@ -60,6 +60,8 @@ export interface IProcessDetails {
 	color: string | undefined;
 	fixedDimensions: IFixedTerminalDimensions | undefined;
 	environmentVariableCollections: ISerializableEnvironmentVariableCollections | undefined;
+	reconnectionOwner?: string;
+	task?: { label: string; id: string; lastTask: string; group?: string };
 }
 
 export type ITerminalTabLayoutInfoDto = IRawTerminalTabLayoutInfo<IProcessDetails>;
@@ -79,7 +81,14 @@ export interface ISerializedCommand {
 	exitCode: number | undefined;
 	commandStartLineContent: string | undefined;
 	timestamp: number;
+	genericMarkProperties?: IGenericMarkProperties;
 }
+
+export interface IGenericMarkProperties {
+	hoverMessage?: string;
+	disableCommandStorage?: boolean;
+}
+
 export interface ISerializedCommandDetectionCapability {
 	isWindowsPty: boolean;
 	commands: ISerializedCommand[];

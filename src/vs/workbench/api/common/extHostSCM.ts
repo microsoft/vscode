@@ -537,6 +537,9 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		const internal = actionButton !== undefined ?
 			{
 				command: this._commands.converter.toInternal(actionButton.command, this._actionButtonDisposables.value),
+				secondaryCommands: actionButton.secondaryCommands?.map(commandGroup => {
+					return commandGroup.map(command => this._commands.converter.toInternal(command, this._actionButtonDisposables.value!));
+				}),
 				description: actionButton.description,
 				enabled: actionButton.enabled
 			} : undefined;
@@ -742,7 +745,8 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		type TEvent = { extensionId: string };
 		type TMeta = {
 			owner: 'joaomoreno';
-			extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the extension contributing to the Source Control API.' };
+			comment: 'This is used to know what extensions contribute to the Source Control API.';
 		};
 		this._telemetry.$publicLog2<TEvent, TMeta>('api/scm/createSourceControl', {
 			extensionId: extension.identifier.value,

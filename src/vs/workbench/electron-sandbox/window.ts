@@ -10,7 +10,7 @@ import { equals } from 'vs/base/common/objects';
 import { EventType, EventHelper, addDisposableListener, scheduleAtNextAnimationFrame, ModifierKeyEmitter } from 'vs/base/browser/dom';
 import { Separator, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
-import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput, IUntypedEditorInput, IEditorPane } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput, IUntypedEditorInput, IEditorPane, isResourceEditorInput, IResourceMergeEditorInput } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WindowMinimumSize, IOpenFileRequest, IWindowsConfiguration, getTitleBarStyle, IAddFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest } from 'vs/platform/window/common/window';
@@ -67,8 +67,6 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { dirname } from 'vs/base/common/resources';
 
 export class NativeWindow extends Disposable {
-
-	private static REMEMBER_PROXY_CREDENTIALS_KEY = 'window.rememberProxyCredentials';
 
 	private touchBarMenu: IMenu | undefined;
 	private readonly touchBarDisposables = this._register(new DisposableStore());
@@ -215,7 +213,8 @@ export class NativeWindow extends Disposable {
 
 		// Proxy Login Dialog
 		ipcRenderer.on('vscode:openProxyAuthenticationDialog', async (event: unknown, payload: { authInfo: AuthInfo; username?: string; password?: string; replyChannel: string }) => {
-			const rememberCredentials = this.storageService.getBoolean(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, StorageScope.APPLICATION);
+			const rememberCredentialsKey = 'window.rememberProxyCredentials';
+			const rememberCredentials = this.storageService.getBoolean(rememberCredentialsKey, StorageScope.APPLICATION);
 			const result = await this.dialogService.input(Severity.Warning, localize('proxyAuthRequired', "Proxy Authentication Required"),
 				[
 					localize({ key: 'loginButton', comment: ['&& denotes a mnemonic'] }, "&&Log In"),
@@ -245,9 +244,9 @@ export class NativeWindow extends Disposable {
 
 				// Update state based on checkbox
 				if (result.checkboxChecked) {
-					this.storageService.store(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+					this.storageService.store(rememberCredentialsKey, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 				} else {
-					this.storageService.remove(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, StorageScope.APPLICATION);
+					this.storageService.remove(rememberCredentialsKey, StorageScope.APPLICATION);
 				}
 
 				// Reply back to main side with credentials
@@ -286,7 +285,7 @@ export class NativeWindow extends Disposable {
 				const file = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY, filterByScheme: Schemas.file });
 
 				// Represented Filename
-				this.updateRepresentedFilename(file?.fsPath);
+				this.nativeHostService.setRepresentedFilename(file?.fsPath ?? '');
 
 				// Custom title menu
 				this.provideCustomTitleContextMenu(file?.fsPath);
@@ -573,10 +572,6 @@ export class NativeWindow extends Disposable {
 		}
 	}
 
-	private updateRepresentedFilename(filePath: string | undefined): void {
-		this.nativeHostService.setRepresentedFilename(filePath ? filePath : '');
-	}
-
 	private provideCustomTitleContextMenu(filePath: string | undefined): void {
 
 		// Clear old menu
@@ -608,7 +603,7 @@ export class NativeWindow extends Disposable {
 
 			const commandId = `workbench.action.revealPathInFinder${i}`;
 			this.customTitleContextMenuDisposable.add(CommandsRegistry.registerCommand(commandId, () => this.nativeHostService.showItemInFolder(path.fsPath)));
-			this.customTitleContextMenuDisposable.add(MenuRegistry.appendMenuItem(MenuId.TitleBarContext, { command: { id: commandId, title: label || posix.sep }, order: -i }));
+			this.customTitleContextMenuDisposable.add(MenuRegistry.appendMenuItem(MenuId.TitleBarTitleContext, { command: { id: commandId, title: label || posix.sep }, order: -i }));
 		}
 	}
 
@@ -824,19 +819,12 @@ export class NativeWindow extends Disposable {
 	}
 
 	private async onOpenFiles(request: INativeOpenFileRequest): Promise<void> {
-		const inputs: Array<IResourceEditorInput | IUntitledTextResourceEditorInput> = [];
 		const diffMode = !!(request.filesToDiff && (request.filesToDiff.length === 2));
+		const mergeMode = !!(request.filesToMerge && (request.filesToMerge.length === 4));
 
-		if (!diffMode && request.filesToOpenOrCreate) {
-			inputs.push(...(await pathsToEditors(request.filesToOpenOrCreate, this.fileService)));
-		}
-
-		if (diffMode && request.filesToDiff) {
-			inputs.push(...(await pathsToEditors(request.filesToDiff, this.fileService)));
-		}
-
+		const inputs = await pathsToEditors(mergeMode ? request.filesToMerge : diffMode ? request.filesToDiff : request.filesToOpenOrCreate, this.fileService);
 		if (inputs.length) {
-			const openedEditorPanes = await this.openResources(inputs, diffMode);
+			const openedEditorPanes = await this.openResources(inputs, diffMode, mergeMode);
 
 			if (request.filesToWait) {
 
@@ -865,11 +853,19 @@ export class NativeWindow extends Disposable {
 		await this.fileService.del(waitMarkerFile);
 	}
 
-	private async openResources(resources: Array<IResourceEditorInput | IUntitledTextResourceEditorInput>, diffMode: boolean): Promise<readonly IEditorPane[]> {
+	private async openResources(resources: Array<IResourceEditorInput | IUntitledTextResourceEditorInput>, diffMode: boolean, mergeMode: boolean): Promise<readonly IEditorPane[]> {
 		const editors: IUntypedEditorInput[] = [];
 
-		// In diffMode we open 2 resources as diff
-		if (diffMode && resources.length === 2 && resources[0].resource && resources[1].resource) {
+		if (mergeMode && isResourceEditorInput(resources[0]) && isResourceEditorInput(resources[1]) && isResourceEditorInput(resources[2]) && isResourceEditorInput(resources[3])) {
+			const mergeEditor: IResourceMergeEditorInput = {
+				input1: { resource: resources[0].resource },
+				input2: { resource: resources[1].resource },
+				base: { resource: resources[2].resource },
+				result: { resource: resources[3].resource },
+				options: { pinned: true, override: 'mergeEditor.Input' } // TODO@bpasero remove the override once the resolver is ready
+			};
+			editors.push(mergeEditor);
+		} else if (diffMode && isResourceEditorInput(resources[0]) && isResourceEditorInput(resources[1])) {
 			const diffEditor: IResourceDiffEditorInput = {
 				original: { resource: resources[0].resource },
 				modified: { resource: resources[1].resource },
@@ -880,7 +876,6 @@ export class NativeWindow extends Disposable {
 			editors.push(...resources);
 		}
 
-		// Open as editors
 		return this.editorService.openEditors(editors, undefined, { validateTrust: true });
 	}
 }

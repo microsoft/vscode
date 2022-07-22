@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Codicon } from 'vs/base/common/codicons';
 import { matchesFuzzy } from 'vs/base/common/filters';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
@@ -12,7 +11,7 @@ import { FastAndSlowPicks, IPickerQuickAccessItem, PickerQuickAccessProvider, Pi
 import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IViewsService } from 'vs/workbench/common/views';
 import { DEBUG_CONSOLE_QUICK_ACCESS_PREFIX, SELECT_AND_START_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
-import { getStateLabel, IDebugService, IDebugSession, REPL_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IDebugSession, REPL_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
 
 export class DebugConsoleQuickAccess extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 
@@ -49,14 +48,12 @@ export class DebugConsoleQuickAccess extends PickerQuickAccessProvider<IPickerQu
 	}
 
 	private _createPick(session: IDebugSession, sessionIndex: number, filter: string): IPickerQuickAccessItem | undefined {
-		const iconId = Codicon.debugConsole.id;
-		const label = `$(${iconId}) ${session.name}`;
+		const label = session.name;
 
 		const highlights = matchesFuzzy(filter, label, true);
 		if (highlights) {
 			return {
 				label,
-				description: getStateLabel(session.state),
 				highlights: { label: highlights },
 				accept: (keyMod, event) => {
 					this._debugService.focusStackFrame(undefined, undefined, session, { explicit: true });

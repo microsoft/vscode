@@ -8,6 +8,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { once as onceFn } from 'vs/base/common/functional';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, SafeDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
+import { IObservable, IObserver } from 'vs/base/common/observableImpl/base';
 import { StopWatch } from 'vs/base/common/stopwatch';
 
 
@@ -422,6 +423,55 @@ export namespace Event {
 			disposable.dispose();
 			store?.dispose();
 		});
+	}
+
+	class EmitterObserver<T> implements IObserver {
+
+		readonly emitter: Emitter<T>;
+
+		private _counter = 0;
+		private _hasChanged = false;
+
+		constructor(readonly obs: IObservable<T, any>, store: DisposableStore | undefined) {
+			const options = {
+				onFirstListenerAdd: () => {
+					obs.addObserver(this);
+				},
+				onLastListenerRemove: () => {
+					obs.removeObserver(this);
+				}
+			};
+			if (!store) {
+				_addLeakageTraceLogic(options);
+			}
+			this.emitter = new Emitter<T>(options);
+			if (store) {
+				store.add(this.emitter);
+			}
+		}
+
+		beginUpdate<T>(_observable: IObservable<T, void>): void {
+			// console.assert(_observable === this.obs);
+			this._counter++;
+		}
+
+		handleChange<T, TChange>(_observable: IObservable<T, TChange>, _change: TChange): void {
+			this._hasChanged = true;
+		}
+
+		endUpdate<T>(_observable: IObservable<T, void>): void {
+			if (--this._counter === 0) {
+				if (this._hasChanged) {
+					this._hasChanged = false;
+					this.emitter.fire(this.obs.get());
+				}
+			}
+		}
+	}
+
+	export function fromObservable<T>(obs: IObservable<T, any>, store?: DisposableStore): Event<T> {
+		const observer = new EmitterObserver(obs, store);
+		return observer.emitter.event;
 	}
 }
 
