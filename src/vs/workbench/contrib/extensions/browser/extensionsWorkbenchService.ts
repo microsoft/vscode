@@ -1277,6 +1277,17 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (locale === language) {
 			return;
 		}
+
+		// Uninstall existing language pacjk extensions
+		const languagePackExtensions = this.local.filter(e => e.local && e.gallery && this.languagePackService.getLocale(e.gallery));
+		if (languagePackExtensions.length) {
+			await Promise.all(languagePackExtensions.map(e => this.uninstall(e)));
+		}
+
+		// Install the extension
+		await this.install(extension, { isMachineScoped: false });
+
+		// Set the locale
 		return this.localeService.setLocale({ id: locale, galleryExtension: extension.gallery, extensionId: extension.identifier.id, label: extension.displayName });
 	}
 
