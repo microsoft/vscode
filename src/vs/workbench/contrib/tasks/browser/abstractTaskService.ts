@@ -396,13 +396,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 								properties: {
 									type: {
 										type: 'string',
-										description: nls.localize('runTask.type', "The contributed task type"),
-										enum: Array.from(this._providerTypes.values()).map(provider => provider)
+										description: nls.localize('runTask.type', "The contributed task type")
 									},
 									taskName: {
 										type: 'string',
-										description: nls.localize('runTask.taskName', "The task's label or a term to filter by"),
-										enum: await this.tasks().then((tasks) => tasks.map(t => t._label))
+										description: nls.localize('runTask.taskName', "The task's label or a term to filter by")
 									}
 								}
 							}

@@ -30,7 +30,7 @@ export async function startServer(connection: Connection) {
 			slugifier = md.githubSlugifier;
 
 			async tokenize(document: md.ITextDocument): Promise<md.Token[]> {
-				return await connection.sendRequest(protocol.parseRequestType, { uri: document.uri.toString() });
+				return await connection.sendRequest(protocol.parse, { uri: document.uri.toString() });
 			}
 		};
 

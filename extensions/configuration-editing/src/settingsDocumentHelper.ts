@@ -96,8 +96,8 @@ export class SettingsDocument {
 			return completions;
 		}
 
-		let range = this.document.getWordRangeAtPosition(pos, /\$\{[^\}]*\}/);
-		if (!range || range.end.isEqual(pos) || range.start.isEqual(pos)) {
+		let range = this.document.getWordRangeAtPosition(pos, /\$\{[^"\}]*\}?/);
+		if (!range || range.start.isEqual(pos) || range.end.isEqual(pos) && this.document.getText(range).endsWith('}')) {
 			range = new vscode.Range(pos, pos);
 		}
 

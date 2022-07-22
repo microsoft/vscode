@@ -52,6 +52,10 @@
 	opacity: 0.4 !important;
 }
 
+.monaco-button-dropdown > .monaco-button.monaco-text-button {
+	border-right-width: 0 !important;
+}
+
 .monaco-button-dropdown .monaco-button-dropdown-separator {
 	padding: 4px 0;
 	cursor: default;
@@ -60,6 +64,10 @@
 .monaco-button-dropdown .monaco-button-dropdown-separator > div {
 	height: 100%;
 	width: 1px;
+}
+
+.monaco-button-dropdown > .monaco-button.monaco-dropdown-button {
+	border-left-width: 0 !important;
 }
 
 .monaco-description-button {

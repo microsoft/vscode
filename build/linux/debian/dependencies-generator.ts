@@ -86,7 +86,7 @@ function calculatePackageDeps(binaryPath: string, arch: ArchString, sysroot: str
 	}
 
 	// Get the Chromium dpkg-shlibdeps file.
-	const dpkgShlibdepsUrl = 'https://raw.githubusercontent.com/chromium/chromium/main/third_party/dpkg-shlibdeps/dpkg-shlibdeps.pl';
+	const dpkgShlibdepsUrl = 'https://raw.githubusercontent.com/chromium/chromium/100.0.4896.160/third_party/dpkg-shlibdeps/dpkg-shlibdeps.pl';
 	const dpkgShlibdepsScriptLocation = `${tmpdir()}/dpkg-shlibdeps.pl`;
 	const result = spawnSync('curl', [dpkgShlibdepsUrl, '-o', dpkgShlibdepsScriptLocation]);
 	if (result.status !== 0) {

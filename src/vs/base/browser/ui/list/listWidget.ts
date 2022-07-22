@@ -1797,6 +1797,10 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 		return this.view.domNode;
 	}
 
+	getElementID(index: number): string {
+		return this.view.getElementDomId(index);
+	}
+
 	style(styles: IListStyles): void {
 		this.styleController.style(styles);
 	}
