@@ -310,10 +310,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return this._description;
 		}
 		const type = this.shellLaunchConfig.attachPersistentProcess?.type || this.shellLaunchConfig.type;
-		if (type === 'Task') {
-			return nls.localize('terminalTypeTask', "Task");
+		if (type) {
+			if (type === 'Task') {
+				return nls.localize('terminalTypeTask', "Task");
+			}
+			return nls.localize('terminalTypeLocal', "Local");
 		}
-		return nls.localize('terminalTypeLocal', "Local");
+		return undefined;
 	}
 	get userHome(): string | undefined { return this._userHome; }
 
