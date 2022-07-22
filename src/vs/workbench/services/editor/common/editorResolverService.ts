@@ -19,6 +19,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorInputWithOptions, EditorInputWithOptionsAndGroup, IResourceDiffEditorInput, IResourceMergeEditorInput, IUntitledTextResourceEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { PreferredGroup } from 'vs/workbench/services/editor/common/editorService';
+import { AtLeastOne } from 'vs/base/common/types';
 
 export const IEditorResolverService = createDecorator<IEditorResolverService>('editorResolverService');
 
@@ -108,8 +109,6 @@ export type UntitledEditorInputFactoryFunction = (untitledEditorInput: IUntitled
 export type DiffEditorInputFactoryFunction = (diffEditorInput: IResourceDiffEditorInput, group: IEditorGroup) => EditorInputFactoryResult;
 
 export type MergeEditorInputFactoryFunction = (mergeEditorInput: IResourceMergeEditorInput, group: IEditorGroup) => EditorInputFactoryResult;
-
-type AtLeastOne<T, U = { [K in keyof T]: Pick<T, K> }> = Partial<T> & U[keyof U];
 
 type EditorInputFactories = {
 	createEditorInput?: EditorInputFactoryFunction;
