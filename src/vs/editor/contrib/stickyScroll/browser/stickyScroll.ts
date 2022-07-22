@@ -14,6 +14,7 @@ import * as dom from 'vs/base/browser/dom';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
+import { SymbolKind } from 'vs/editor/common/languages';
 
 const enum ScrollDirection {
 	Down = 0,
@@ -78,23 +79,40 @@ class StickyScrollController implements IEditorContribution {
 
 	private _findLineRanges(outlineElement: OutlineElement, depth: number) {
 		if (outlineElement?.children.size) {
+			let didRecursion: boolean = false;
 			for (const outline of outlineElement?.children.values()) {
-				depth++;
-				this._findLineRanges(outline, depth);
+				const kind: SymbolKind = outline.symbol.kind;
+				if (kind === SymbolKind.Class || kind === SymbolKind.Constructor || kind === SymbolKind.Function || kind === SymbolKind.Interface || kind === SymbolKind.Method) {
+					didRecursion = true;
+					this._findLineRanges(outline, depth + 1);
+				}
+			}
+			if (!didRecursion) {
+				this._addOutlineRanges(outlineElement, depth);
 			}
 		} else {
-			let currentStartLine: number | undefined = 0;
-			let currentEndLine: number | undefined = 0;
-			while (outlineElement) {
+			this._addOutlineRanges(outlineElement, depth);
+		}
+	}
+
+	private _addOutlineRanges(outlineElement: OutlineElement, depth: number) {
+		let currentStartLine: number | undefined = 0;
+		let currentEndLine: number | undefined = 0;
+		while (outlineElement) {
+			const kind: SymbolKind = outlineElement.symbol.kind;
+			if (kind === SymbolKind.Class || kind === SymbolKind.Constructor || kind === SymbolKind.Function || kind === SymbolKind.Interface || kind === SymbolKind.Method) {
 				currentStartLine = outlineElement?.symbol.range.startLineNumber as number;
 				currentEndLine = outlineElement?.symbol.range.endLineNumber as number;
-				this._ranges.push([currentStartLine, currentEndLine, depth]);
-				depth--;
-				if (outlineElement.parent instanceof OutlineElement) {
-					outlineElement = outlineElement.parent;
-				} else {
-					break;
+				const alreadyAdded = this._ranges.some(array => (array[0] === currentStartLine && array[1] === currentEndLine));
+				if (!alreadyAdded) {
+					this._ranges.push([currentStartLine, currentEndLine, depth]);
 				}
+				depth--;
+			}
+			if (outlineElement.parent instanceof OutlineElement) {
+				outlineElement = outlineElement.parent;
+			} else {
+				break;
 			}
 		}
 	}
