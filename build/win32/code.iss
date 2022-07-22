@@ -87,8 +87,9 @@ Name: "runcode"; Description: "{cm:RunAfter,{#NameShort}}"; GroupDescription: "{
 Name: "{app}"; AfterInstall: DisableAppDirInheritance
 
 [Files]
-Source: "*"; Excludes: "\CodeSignSummary*.md,\tools,\tools\*,\resources\app\product.json"; DestDir: "{code:GetDestDir}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "*"; Excludes: "\CodeSignSummary*.md,\tools,\tools\*,\appx,\appx\*,\resources\app\product.json"; DestDir: "{code:GetDestDir}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "tools\*"; DestDir: "{app}\tools"; Flags: ignoreversion
+Source: "appx\*"; DestDir: "{app}\appx"; BeforeInstall: RemoveAppxPackage; AfterInstall: AddAppxPackage; Flags: ignoreversion
 Source: "{#ProductJsonPath}"; DestDir: "{code:GetDestDir}\resources\app"; Flags: ignoreversion
 
 [Icons]
@@ -99,7 +100,6 @@ Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#NameLong}"; File
 [Run]
 Filename: "{app}\{#ExeBasename}.exe"; Description: "{cm:LaunchProgram,{#NameLong}}"; Tasks: runcode; Flags: nowait postinstall; Check: ShouldRunAfterUpdate
 Filename: "{app}\{#ExeBasename}.exe"; Description: "{cm:LaunchProgram,{#NameLong}}"; Flags: nowait postinstall; Check: WizardNotSilent
-Filename: "powershell.exe"; Parameters: "Invoke-Command -ScriptBlock {{Add-AppxPackage -Path """"""{app}\appx\{#AppxPackage}"""""" -ExternalLocation """"""{app}\appx""""""}"; Tasks: addcontextmenufiles; Check: IsWindows11OrLater and QualityIsInsiders; Flags: shellexec waituntilterminated runhidden
 
 [UninstallRun]
 Filename: "powershell.exe"; Parameters: "Invoke-Command -ScriptBlock {{Remove-AppxPackage -Package ""{#AppxPackageFullname}""}"; Check: IsWindows11OrLater and QualityIsInsiders; Flags: shellexec waituntilterminated runhidden
@@ -1417,6 +1417,24 @@ begin
     Result := True
   else
     Result := False;
+end;
+
+procedure AddAppxPackage();
+var
+  AddAppxPackageResultCode: Integer;
+begin
+  if IsWindows11OrLater() and QualityIsInsiders() then begin
+    Exec('powershell.exe', 'Invoke-Command -ScriptBlock {Add-AppxPackage -Path "' + ExpandConstant('{app}') + '\appx\{#AppxPackage}" -ExternalLocation "' + ExpandConstant('{app}') + '\appx"}', '', SW_HIDE, ewWaitUntilTerminated, AddAppxPackageResultCode);
+  end;
+end;
+
+procedure RemoveAppxPackage();
+var
+  RemoveAppxPackageResultCode: Integer;
+begin
+  if IsWindows11OrLater() and QualityIsInsiders() then begin
+    Exec('powershell.exe', 'Invoke-Command -ScriptBlock {Remove-AppxPackage -Package "{#AppxPackageFullname}"}', '', SW_HIDE, ewWaitUntilTerminated, RemoveAppxPackageResultCode);
+  end;
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
