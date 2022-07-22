@@ -10,7 +10,7 @@ import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions, IPathData, IFileToOpen, IWorkspaceToOpen, IFolderToOpen } from 'vs/platform/window/common/window';
-import { pathsToEditors } from 'vs/workbench/common/editor';
+import { isResourceEditorInput, pathsToEditors } from 'vs/workbench/common/editor';
 import { whenEditorClosed } from 'vs/workbench/browser/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -254,10 +254,40 @@ export class BrowserHostService extends Disposable implements IHostService {
 			this.withServices(async accessor => {
 				const editorService = accessor.get(IEditorService);
 
+				// Support mergeMode
+				if (options?.mergeMode && fileOpenables.length === 4) {
+					const editors = await pathsToEditors(fileOpenables, this.fileService);
+					if (editors.length !== 4 || !isResourceEditorInput(editors[0]) || !isResourceEditorInput(editors[1]) || !isResourceEditorInput(editors[2]) || !isResourceEditorInput(editors[3])) {
+						return; // invalid resources
+					}
+
+					// Same Window: open via editor service in current window
+					if (this.shouldReuse(options, true /* file */)) {
+						editorService.openEditor({
+							input1: { resource: editors[0].resource },
+							input2: { resource: editors[1].resource },
+							base: { resource: editors[2].resource },
+							result: { resource: editors[3].resource },
+							options: { pinned: true, override: 'mergeEditor.Input' } // TODO@bpasero remove the override once the resolver is ready
+						});
+					}
+
+					// New Window: open into empty window
+					else {
+						const environment = new Map<string, string>();
+						environment.set('mergeFile1', editors[0].resource.toString());
+						environment.set('mergeFile2', editors[1].resource.toString());
+						environment.set('mergeFileBase', editors[2].resource.toString());
+						environment.set('mergeFileResult', editors[3].resource.toString());
+
+						this.doOpen(undefined, { payload: Array.from(environment.entries()) });
+					}
+				}
+
 				// Support diffMode
 				if (options?.diffMode && fileOpenables.length === 2) {
 					const editors = await pathsToEditors(fileOpenables, this.fileService);
-					if (editors.length !== 2 || !editors[0].resource || !editors[1].resource) {
+					if (editors.length !== 2 || !isResourceEditorInput(editors[0]) || !isResourceEditorInput(editors[1])) {
 						return; // invalid resources
 					}
 
