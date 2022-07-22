@@ -1788,7 +1788,7 @@ class SCMInputWidget {
 		}
 
 		const uri = URI.from({
-			scheme: Schemas.vscodeSourceControlInput,
+			scheme: Schemas.vscodeSourceControl,
 			path: `scm/${input.repository.provider.contextValue}/${input.repository.provider.id}/input`,
 			query
 		});

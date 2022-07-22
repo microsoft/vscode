@@ -105,7 +105,7 @@ export namespace Schemas {
 	/**
 	 * Scheme used for the Source Control commit input's text document
 	 */
-	export const vscodeSourceControlInput = 'vscode-source-control-input';
+	export const vscodeSourceControl = 'vscode-scm';
 }
 
 export const connectionTokenCookieName = 'vscode-tkn';
