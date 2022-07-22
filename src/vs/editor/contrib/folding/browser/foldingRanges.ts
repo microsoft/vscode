@@ -237,7 +237,7 @@ export class FoldingRegions {
 	 * Two inputs, each a FoldingRegions or a FoldRange[], are merged.
 	 * Each input must be pre-sorted on startLineNumber.
 	 * The first list is assumed to always include all regions currently defined by range providers.
-	 * The second list only contains the previously hidden ranges.
+	 * The second list only contains the previously collapsed and all manual ranges.
 	 * If the line position matches, the range of the new range is taken, and the range is no longer manual
 	 * When an entry in one list overlaps an entry in the other, the second list's entry "wins" and
 	 * overlapping entries in the first list are discarded.
