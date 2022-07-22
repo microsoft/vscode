@@ -482,7 +482,8 @@ function registerDiffEditorCommands(): void {
 				value: localize('toggleBracketPairColorization', "Toggle Bracket Pair Colorization"),
 				original: 'Toggle Bracket Pair Colorization'
 			},
-			category: CATEGORIES.View
+			category: CATEGORIES.View,
+			when: EditorContextKeys.editorTextFocus,
 		}
 	});
 
