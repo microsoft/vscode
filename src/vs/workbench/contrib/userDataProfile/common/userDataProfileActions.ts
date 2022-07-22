@@ -61,7 +61,7 @@ class CreateEmptyProfileAction extends Action2 {
 	static readonly ID = 'workbench.profiles.actions.createEmptyProfile';
 	static readonly TITLE = {
 		value: localize('create empty profile', "Create an Empty Settings Profile..."),
-		original: 'Create an Empty Profile...'
+		original: 'Create an Empty Settings Profile...'
 	};
 	constructor() {
 		super({
