@@ -7,7 +7,7 @@ import * as nls from 'vscode-nls';
 import API from '../utils/api';
 import { TypeScriptServiceConfiguration } from '../utils/configuration';
 
-export const localize = nls.loadMessageBundle();
+const localize = nls.loadMessageBundle();
 
 export const enum TypeScriptVersionSource {
 	Bundled = 'bundled',

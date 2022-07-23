@@ -862,6 +862,49 @@ suite('Map', () => {
 		}
 	});
 
+	test('TernarySearchTree: Cannot read properties of undefined (reading \'length\'): #161618 (simple)', function () {
+		const raw = 'config.debug.toolBarLocation,floating,config.editor.renderControlCharacters,true,config.editor.renderWhitespace,selection,config.files.autoSave,off,config.git.enabled,true,config.notebook.globalToolbar,true,config.terminal.integrated.tabs.enabled,true,config.terminal.integrated.tabs.showActions,singleTerminalOrNarrow,config.terminal.integrated.tabs.showActiveTerminal,singleTerminalOrNarrow,config.workbench.activityBar.visible,true,config.workbench.experimental.settingsProfiles.enabled,true,config.workbench.layoutControl.type,both,config.workbench.sideBar.location,left,config.workbench.statusBar.visible,true';
+		const array = raw.split(',');
+		const tuples: [string, string][] = [];
+		for (let i = 0; i < array.length; i += 2) {
+			tuples.push([array[i], array[i + 1]]);
+		}
+
+		const map = TernarySearchTree.forConfigKeys<string>();
+		map.fill(tuples);
+
+		assert.strictEqual([...map].join(), raw);
+		assert.ok(map.has('config.editor.renderWhitespace'));
+
+		const len = [...map].length;
+		map.delete('config.editor.renderWhitespace');
+		assert.ok(map._isBalanced());
+		assert.strictEqual([...map].length, len - 1);
+	});
+
+	test('TernarySearchTree: Cannot read properties of undefined (reading \'length\'): #161618 (random)', function () {
+		const raw = 'config.debug.toolBarLocation,floating,config.editor.renderControlCharacters,true,config.editor.renderWhitespace,selection,config.files.autoSave,off,config.git.enabled,true,config.notebook.globalToolbar,true,config.terminal.integrated.tabs.enabled,true,config.terminal.integrated.tabs.showActions,singleTerminalOrNarrow,config.terminal.integrated.tabs.showActiveTerminal,singleTerminalOrNarrow,config.workbench.activityBar.visible,true,config.workbench.experimental.settingsProfiles.enabled,true,config.workbench.layoutControl.type,both,config.workbench.sideBar.location,left,config.workbench.statusBar.visible,true';
+		const array = raw.split(',');
+		const tuples: [string, string][] = [];
+		for (let i = 0; i < array.length; i += 2) {
+			tuples.push([array[i], array[i + 1]]);
+		}
+
+		for (let round = 100; round >= 0; round--) {
+			shuffle(tuples);
+			const map = TernarySearchTree.forConfigKeys<string>();
+			map.fill(tuples);
+
+			assert.strictEqual([...map].join(), raw);
+			assert.ok(map.has('config.editor.renderWhitespace'));
+
+			const len = [...map].length;
+			map.delete('config.editor.renderWhitespace');
+			assert.ok(map._isBalanced());
+			assert.strictEqual([...map].length, len - 1);
+		}
+	});
+
 	test('TernarySearchTree (PathSegments) - lookup', function () {
 
 		const map = new TernarySearchTree<string, number>(new PathIterator());

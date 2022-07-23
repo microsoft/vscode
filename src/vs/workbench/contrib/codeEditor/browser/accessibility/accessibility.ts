@@ -307,9 +307,7 @@ class ShowAccessibilityHelpAction extends Action2 {
 
 		if (activeEditor) {
 			const controller = AccessibilityHelpController.get(activeEditor);
-			if (controller) {
-				controller.show();
-			}
+			controller?.show();
 		}
 	}
 }

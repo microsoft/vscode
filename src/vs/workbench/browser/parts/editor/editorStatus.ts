@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { format, compare, splitLines } from 'vs/base/common/strings';
 import { extname, basename, isEqual } from 'vs/base/common/resources';
-import { areFunctions, withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
+import { areFunctions, assertIsDefined, withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
 import { Language } from 'vs/base/common/platform';
@@ -71,8 +71,8 @@ class SideBySideEditorLanguageSupport implements ILanguageSupport {
 
 	constructor(private primary: ILanguageSupport, private secondary: ILanguageSupport) { }
 
-	setLanguageId(languageId: string): void {
-		[this.primary, this.secondary].forEach(editor => editor.setLanguageId(languageId));
+	setLanguageId(languageId: string, source?: string): void {
+		[this.primary, this.secondary].forEach(editor => editor.setLanguageId(languageId, source));
 	}
 }
 
@@ -379,12 +379,12 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		}
 
 		const picks: QuickPickInput<IQuickPickItem & { run(): void }>[] = [
-			activeTextEditorControl.getAction(IndentUsingSpaces.ID),
-			activeTextEditorControl.getAction(IndentUsingTabs.ID),
-			activeTextEditorControl.getAction(DetectIndentation.ID),
-			activeTextEditorControl.getAction(IndentationToSpacesAction.ID),
-			activeTextEditorControl.getAction(IndentationToTabsAction.ID),
-			activeTextEditorControl.getAction(TrimTrailingWhitespaceAction.ID)
+			assertIsDefined(activeTextEditorControl.getAction(IndentUsingSpaces.ID)),
+			assertIsDefined(activeTextEditorControl.getAction(IndentUsingTabs.ID)),
+			assertIsDefined(activeTextEditorControl.getAction(DetectIndentation.ID)),
+			assertIsDefined(activeTextEditorControl.getAction(IndentationToSpacesAction.ID)),
+			assertIsDefined(activeTextEditorControl.getAction(IndentationToTabsAction.ID)),
+			assertIsDefined(activeTextEditorControl.getAction(TrimTrailingWhitespaceAction.ID))
 		].map((a: IEditorAction) => {
 			return {
 				id: a.id,
@@ -1237,27 +1237,29 @@ export class ChangeLanguageAction extends Action {
 
 				// Change language
 				if (typeof languageSelection !== 'undefined') {
-					languageSupport.setLanguageId(languageSelection.languageId);
+					languageSupport.setLanguageId(languageSelection.languageId, ChangeLanguageAction.ID);
 
 					if (resource?.scheme === Schemas.untitled) {
 						type SetUntitledDocumentLanguageEvent = { to: string; from: string; modelPreference: string };
 						type SetUntitledDocumentLanguageClassification = {
+							owner: 'TylerLeonhardt';
+							comment: 'Helps understand what the automatic language detection does for untitled files';
 							to: {
 								classification: 'SystemMetaData';
 								purpose: 'FeatureInsight';
-								owner: 'JacksonKearl';
+								owner: 'TylerLeonhardt';
 								comment: 'Help understand effectiveness of automatic language detection';
 							};
 							from: {
 								classification: 'SystemMetaData';
 								purpose: 'FeatureInsight';
-								owner: 'JacksonKearl';
+								owner: 'TylerLeonhardt';
 								comment: 'Help understand effectiveness of automatic language detection';
 							};
 							modelPreference: {
 								classification: 'SystemMetaData';
 								purpose: 'FeatureInsight';
-								owner: 'JacksonKearl';
+								owner: 'TylerLeonhardt';
 								comment: 'Help understand effectiveness of automatic language detection';
 							};
 						};

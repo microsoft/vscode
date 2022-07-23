@@ -14,5 +14,5 @@ import { ExtHostExtensionService } from 'vs/workbench/api/worker/extHostExtensio
 // ###                                                                   ###
 // #########################################################################
 
-registerSingleton(IExtHostExtensionService, ExtHostExtensionService);
-registerSingleton(IExtensionStoragePaths, ExtensionStoragePaths);
+registerSingleton(IExtHostExtensionService, ExtHostExtensionService, false);
+registerSingleton(IExtensionStoragePaths, ExtensionStoragePaths, false);

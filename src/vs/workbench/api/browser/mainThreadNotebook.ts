@@ -11,7 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { INotebookCellStatusBarItemProvider, INotebookContributionData, NotebookData as NotebookData, NotebookExtensionDescription, TransientCellMetadata, TransientDocumentMetadata, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookCellStatusBarItemProvider, INotebookContributionData, NotebookData as NotebookData, NotebookExtensionDescription, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookContentProvider, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ExtHostContext, ExtHostNotebookShape, MainContext, MainThreadNotebookShape } from '../common/extHost.protocol';
@@ -67,15 +67,7 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 					transientOptions: contentOptions
 				};
 			},
-			save: async (uri: URI, token: CancellationToken) => {
-				return this._proxy.$saveNotebook(viewType, uri, token);
-			},
-			saveAs: async (uri: URI, target: URI, token: CancellationToken) => {
-				return this._proxy.$saveNotebookAs(viewType, uri, target, token);
-			},
-			backup: async (uri: URI, token: CancellationToken) => {
-				return this._proxy.$backupNotebook(viewType, uri, token);
-			}
+			backup: async (uri: URI, token: CancellationToken) => ''
 		};
 
 		const disposable = new DisposableStore();
@@ -86,19 +78,6 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 		this._notebookProviders.set(viewType, { controller, disposable });
 	}
 
-	async $updateNotebookProviderOptions(viewType: string, options?: { transientOutputs: boolean; transientCellMetadata: TransientCellMetadata; transientDocumentMetadata: TransientDocumentMetadata }): Promise<void> {
-		const provider = this._notebookProviders.get(viewType);
-
-		if (provider && options) {
-			provider.controller.options = options;
-			this._notebookService.listNotebookDocuments().forEach(document => {
-				if (document.viewType === viewType) {
-					document.transientOptions = provider.controller.options;
-				}
-			});
-		}
-	}
-
 	async $unregisterNotebookProvider(viewType: string): Promise<void> {
 		const entry = this._notebookProviders.get(viewType);
 		if (entry) {
@@ -106,7 +85,6 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 			this._notebookProviders.delete(viewType);
 		}
 	}
-
 
 	$registerNotebookSerializer(handle: number, extension: NotebookExtensionDescription, viewType: string, options: TransientOptions, data: INotebookContributionData | undefined): void {
 		const registration = this._notebookService.registerNotebookSerializer(viewType, extension, {

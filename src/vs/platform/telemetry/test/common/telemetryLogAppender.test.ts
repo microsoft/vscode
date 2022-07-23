@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
+import { Event } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { AbstractLogger, DEFAULT_LOG_LEVEL, ILogger, ILoggerService, LogLevel } from 'vs/platform/log/common/log';
@@ -57,7 +58,7 @@ class TestTelemetryLogger extends AbstractLogger implements ILogger {
 	flush(): void { }
 }
 
-class TestTelemetryLoggerService implements ILoggerService {
+export class TestTelemetryLoggerService implements ILoggerService {
 	_serviceBrand: undefined;
 
 	logger?: TestTelemetryLogger;
@@ -75,6 +76,11 @@ class TestTelemetryLoggerService implements ILoggerService {
 
 		return this.logger;
 	}
+
+	onDidChangeLogLevel = Event.None;
+	setLevel(): void { }
+	getLogLevel() { return undefined; }
+	getDefaultLogLevel() { return this.logLevel; }
 }
 
 suite('TelemetryLogAdapter', () => {

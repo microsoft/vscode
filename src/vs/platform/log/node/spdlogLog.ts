@@ -15,6 +15,8 @@ async function createSpdLogLogger(name: string, logfilePath: string, filesize: n
 		const logger = await _spdlog.createAsyncRotatingLogger(name, logfilePath, filesize, filecount);
 		if (donotUseFormatters) {
 			logger.clearFormatters();
+		} else {
+			logger.setPattern('%Y-%m-%d %H:%M:%S.%e [%l] %v');
 		}
 		return logger;
 	} catch (e) {

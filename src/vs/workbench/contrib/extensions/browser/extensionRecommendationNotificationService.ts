@@ -9,7 +9,7 @@ import { CancelablePromise, createCancelablePromise, Promises, raceCancellablePr
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { isCancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, isDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isString } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -406,7 +406,9 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 		try {
 			await action.run();
 		} finally {
-			action.dispose();
+			if (isDisposable(action)) {
+				action.dispose();
+			}
 		}
 	}
 

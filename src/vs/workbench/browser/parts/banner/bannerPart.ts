@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { $, addDisposableListener, append, asCSSUrl, clearNode, EventType } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Codicon } from 'vs/base/common/codicons';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -22,7 +22,7 @@ import { IBannerItem, IBannerService } from 'vs/workbench/services/banner/browse
 import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { BANNER_BACKGROUND, BANNER_FOREGROUND, BANNER_ICON_FOREGROUND } from 'vs/workbench/common/theme';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -266,7 +266,7 @@ export class BannerPart extends Part implements IBannerService {
 	}
 }
 
-registerSingleton(IBannerService, BannerPart);
+registerSingleton(IBannerService, BannerPart, InstantiationType.Eager);
 
 
 // Keybindings
@@ -318,7 +318,7 @@ class FocusBannerAction extends Action2 {
 		super({
 			id: FocusBannerAction.ID,
 			title: { value: FocusBannerAction.LABEL, original: 'Focus Banner' },
-			category: CATEGORIES.View,
+			category: Categories.View,
 			f1: true
 		});
 	}

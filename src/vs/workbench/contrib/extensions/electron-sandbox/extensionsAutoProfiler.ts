@@ -158,16 +158,19 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 		type UnresponsiveData = {
 			duration: number;
 			data: NamedSlice[];
+			id: string;
 		};
 		type UnresponsiveDataClassification = {
 			owner: 'jrieken';
 			comment: 'Profiling data that was collected while the extension host was unresponsive';
 			duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Duration for which the extension host was unresponsive' };
-			data: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Extensions ids and core parts that were active while the extension host was froozen' };
+			data: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Extensions ids and core parts that were active while the extension host was frozen' };
+			id: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Top extensions id that took most of the duration' };
 		};
 		this._telemetryService.publicLog2<UnresponsiveData, UnresponsiveDataClassification>('exthostunresponsive', {
 			duration,
 			data,
+			id: ExtensionIdentifier.toKey(extension.identifier),
 		});
 
 		// add to running extensions view
@@ -190,6 +193,19 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 			return;
 		}
 		this._blame.add(ExtensionIdentifier.toKey(extension.identifier));
+
+		type UnresponsivePromptData = {
+			id: string;
+		};
+		type UnresponsivePromptDataClassification = {
+			owner: 'digitarald';
+			comment: 'Users got a warning about an extension hanging the extension process';
+			expiration: '1.73';
+			id: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Extension id that froze the extension process' };
+		};
+		this._telemetryService.publicLog2<UnresponsivePromptData, UnresponsivePromptDataClassification>('exthostunresponsiveprompt', {
+			id: ExtensionIdentifier.toKey(extension.identifier),
+		});
 
 		// user-facing message when very bad...
 		this._notificationService.prompt(

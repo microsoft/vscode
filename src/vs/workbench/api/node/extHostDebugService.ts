@@ -134,7 +134,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 				}
 			}
 
-			const command = prepareCommand(shell, args.args, cwdForPrepareCommand, args.env);
+			const command = prepareCommand(shell, args.args, !!args.argsCanBeInterpretedByShell, cwdForPrepareCommand, args.env);
 			terminal.sendText(command);
 
 			// Mark terminal as unused when its session ends, see #112055

@@ -7,7 +7,6 @@
 	z-index: 50;
 	user-select: text;
 	-webkit-user-select: text;
-	-ms-user-select: text;
 	padding: 10px;
 }
 

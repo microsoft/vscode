@@ -96,10 +96,10 @@ export class HighlightedLabel {
 			if (pos < highlight.start) {
 				const substring = this.text.substring(pos, highlight.start);
 				children.push(dom.$('span', undefined, ...this.supportIcons ? renderLabelWithIcons(substring) : [substring]));
-				pos = highlight.end;
+				pos = highlight.start;
 			}
 
-			const substring = this.text.substring(highlight.start, highlight.end);
+			const substring = this.text.substring(pos, highlight.end);
 			const element = dom.$('span.highlight', undefined, ...this.supportIcons ? renderLabelWithIcons(substring) : [substring]);
 
 			if (highlight.extraClasses) {

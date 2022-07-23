@@ -164,17 +164,26 @@ export class DebugSession implements IDebugSession {
 		return !!this._options.compact;
 	}
 
-	get saveBeforeStart(): boolean {
-		return this._options.saveBeforeStart ?? !this._options?.parentSession;
+	get saveBeforeRestart(): boolean {
+		return this._options.saveBeforeRestart ?? !this._options?.parentSession;
 	}
 
 	get compoundRoot(): DebugCompoundRoot | undefined {
 		return this._options.compoundRoot;
 	}
 
-	get isSimpleUI(): boolean {
-		return this._options.debugUI?.simple ?? false;
+	get suppressDebugStatusbar(): boolean {
+		return this._options.suppressDebugStatusbar ?? false;
 	}
+
+	get suppressDebugToolbar(): boolean {
+		return this._options.suppressDebugToolbar ?? false;
+	}
+
+	get suppressDebugView(): boolean {
+		return this._options.suppressDebugView ?? false;
+	}
+
 
 	get autoExpandLazyVariables(): boolean {
 		// This tiny helper avoids converting the entire debug model to use service injection
@@ -296,7 +305,8 @@ export class DebugSession implements IDebugSession {
 				locale: platform.locale,
 				supportsProgressReporting: true, // #92253
 				supportsInvalidatedEvent: true, // #106745
-				supportsMemoryReferences: true //#129684
+				supportsMemoryReferences: true, //#129684
+				supportsArgsCanBeInterpretedByShell: true // #149910
 			});
 
 			this.initialized = true;
@@ -970,7 +980,7 @@ export class DebugSession implements IDebugSession {
 						}
 
 						if (thread.stoppedDetails) {
-							if (thread.stoppedDetails.reason === 'breakpoint' && this.configurationService.getValue<IDebugConfiguration>('debug').openDebug === 'openOnDebugBreak' && !this.isSimpleUI) {
+							if (thread.stoppedDetails.reason === 'breakpoint' && this.configurationService.getValue<IDebugConfiguration>('debug').openDebug === 'openOnDebugBreak' && !this.suppressDebugView) {
 								await this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar);
 							}
 

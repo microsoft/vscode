@@ -7,7 +7,7 @@ import { IBuiltinExtensionsScannerService, ExtensionType, IExtensionIdentifier, 
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IScannedExtension, IWebExtensionsScannerService, ScanOptions } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { isWeb, Language } from 'vs/base/common/platform';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { joinPath } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
@@ -25,9 +25,9 @@ import { isString } from 'vs/base/common/types';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { ResourceMap } from 'vs/base/common/map';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
+import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -76,6 +76,7 @@ interface IWebExtension {
 	// deprecated in favor of packageNLSUris & fallbackPackageNLSUri
 	packageNLSUri?: URI;
 	packageNLSUris?: Map<string, URI>;
+	bundleNLSUris?: Map<string, URI>;
 	fallbackPackageNLSUri?: URI;
 	metadata?: Metadata;
 }
@@ -107,7 +108,6 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		if (isWeb) {
 			this.systemExtensionsCacheResource = joinPath(environmentService.userRoamingDataHome, 'systemExtensionsCache.json');
 			this.customBuiltinExtensionsCacheResource = joinPath(environmentService.userRoamingDataHome, 'customBuiltinExtensionsCache.json');
-			this.registerActions();
 
 			// Eventually update caches
 			lifecycleService.when(LifecyclePhase.Eventually).then(() => this.updateCaches());
@@ -136,6 +136,12 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 				}
 				if (extensions.length) {
 					extensions = await this.checkAdditionalBuiltinExtensions(extensions);
+				}
+				if (extensions.length) {
+					this.logService.info('Found additional builtin gallery extensions in env', extensions);
+				}
+				if (extensionLocations.length) {
+					this.logService.info('Found additional builtin location extensions in env', extensionLocations.map(e => e.toString()));
 				}
 				return { extensions, extensionsToMigrate, extensionLocations };
 			})();
@@ -209,6 +215,8 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 				const extension = await this.toScannedExtension(webExtension, true);
 				if (extension.isValid || !scanOptions?.skipInvalidExtensions) {
 					result.push(extension);
+				} else {
+					this.logService.info(`Skipping invalid additional builtin extension ${webExtension.identifier.id}`);
 				}
 			} catch (error) {
 				this.logService.info(`Error while fetching the additional builtin extension ${location.toString()}.`, getErrorMessage(error));
@@ -218,15 +226,12 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	}
 
 	private async getCustomBuiltinExtensionsFromGallery(scanOptions?: ScanOptions): Promise<IScannedExtension[]> {
-		const { extensions } = await this.readCustomBuiltinExtensionsInfoFromEnv();
-		if (!extensions.length) {
-			return [];
-		}
 		if (!this.galleryService.isEnabled()) {
 			this.logService.info('Ignoring fetching additional builtin extensions from gallery as it is disabled.');
 			return [];
 		}
 		const result: IScannedExtension[] = [];
+		const { extensions } = await this.readCustomBuiltinExtensionsInfoFromEnv();
 		try {
 			const useCache = this.storageService.get('additionalBuiltinExtensions', StorageScope.APPLICATION, '[]') === JSON.stringify(extensions);
 			const webExtensions = await (useCache ? this.getCustomBuiltinExtensionsFromCache() : this.updateCustomBuiltinExtensionsCache());
@@ -236,6 +241,8 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 						const extension = await this.toScannedExtension(webExtension, true);
 						if (extension.isValid || !scanOptions?.skipInvalidExtensions) {
 							result.push(extension);
+						} else {
+							this.logService.info(`Skipping invalid additional builtin gallery extension ${webExtension.identifier.id}`);
 						}
 					} catch (error) {
 						this.logService.info(`Ignoring additional builtin extension ${webExtension.identifier.id} because there is an error while converting it into scanned extension`, getErrorMessage(error));
@@ -318,31 +325,23 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	private async updateCustomBuiltinExtensionsCache(): Promise<IWebExtension[]> {
 		if (!this._updateCustomBuiltinExtensionsCachePromise) {
 			this._updateCustomBuiltinExtensionsCachePromise = (async () => {
-				// Clear Cache
-				await this.writeCustomBuiltinExtensionsCache(() => []);
-
-				const { extensions } = await this.readCustomBuiltinExtensionsInfoFromEnv();
-
-				if (!extensions.length) {
-					return [];
-				}
-
-				const galleryExtensionsMap = await this.getExtensionsWithDependenciesAndPackedExtensions(extensions);
-
-				const missingExtensions = extensions.filter(({ id }) => !galleryExtensionsMap.has(id.toLowerCase()));
-				if (missingExtensions.length) {
-					this.logService.info('Skipping the additional builtin extensions because their compatible versions are not foud.', missingExtensions);
-				}
-
+				this.logService.info('Updating additional builtin extensions cache');
 				const webExtensions: IWebExtension[] = [];
-				await Promise.all([...galleryExtensionsMap.values()].map(async gallery => {
-					try {
-						webExtensions.push(await this.toWebExtensionFromGallery(gallery, { isPreReleaseVersion: gallery.properties.isPreReleaseVersion, preRelease: gallery.properties.isPreReleaseVersion, isBuiltin: true }));
-					} catch (error) {
-						this.logService.info(`Ignoring additional builtin extension ${gallery.identifier.id} because there is an error while converting it into web extension`, getErrorMessage(error));
+				const { extensions } = await this.readCustomBuiltinExtensionsInfoFromEnv();
+				if (extensions.length) {
+					const galleryExtensionsMap = await this.getExtensionsWithDependenciesAndPackedExtensions(extensions);
+					const missingExtensions = extensions.filter(({ id }) => !galleryExtensionsMap.has(id.toLowerCase()));
+					if (missingExtensions.length) {
+						this.logService.info('Skipping the additional builtin extensions because their compatible versions are not found.', missingExtensions);
 					}
-				}));
-
+					await Promise.all([...galleryExtensionsMap.values()].map(async gallery => {
+						try {
+							webExtensions.push(await this.toWebExtensionFromGallery(gallery, { isPreReleaseVersion: gallery.properties.isPreReleaseVersion, preRelease: gallery.properties.isPreReleaseVersion, isBuiltin: true }));
+						} catch (error) {
+							this.logService.info(`Ignoring additional builtin extension ${gallery.identifier.id} because there is an error while converting it into web extension`, getErrorMessage(error));
+						}
+					}));
+				}
 				await this.writeCustomBuiltinExtensionsCache(() => webExtensions);
 				return webExtensions;
 			})();
@@ -444,7 +443,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	}
 
 	async addExtension(location: URI, metadata: Metadata, profileLocation?: URI): Promise<IScannedExtension> {
-		const webExtension = await this.toWebExtension(location, undefined, undefined, undefined, undefined, undefined, metadata);
+		const webExtension = await this.toWebExtension(location, undefined, undefined, undefined, undefined, undefined, undefined, metadata);
 		return this.addWebExtension(webExtension, profileLocation);
 	}
 
@@ -534,6 +533,8 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			const extension = await this.toScannedExtension(webExtension, false);
 			if (extension.isValid || !scanOptions?.skipInvalidExtensions) {
 				result.set(extension.identifier.id.toLowerCase(), extension);
+			} else {
+				this.logService.info(`Skipping invalid installed extension ${webExtension.identifier.id}`);
 			}
 		}
 		return [...result.values()];
@@ -546,7 +547,8 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		}
 		extensionLocation = galleryExtension.properties.targetPlatform === TargetPlatform.WEB ? extensionLocation.with({ query: `${extensionLocation.query ? `${extensionLocation.query}&` : ''}target=${galleryExtension.properties.targetPlatform}` }) : extensionLocation;
 		const extensionResources = await this.listExtensionResources(extensionLocation);
-		const packageNLSResources = this.getNLSResourceMapFromResources(extensionResources);
+		const packageNLSResources = this.getPackageNLSResourceMapFromResources(extensionResources);
+		const bundleNLSResources = this.getBundleNLSResourceMapFromResources(extensionResources);
 
 		// The fallback, in English, will fill in any gaps missing in the localized file.
 		const fallbackPackageNLSResource = extensionResources.find(e => basename(e) === 'package.nls.json');
@@ -554,13 +556,14 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			extensionLocation,
 			galleryExtension.identifier,
 			packageNLSResources,
+			bundleNLSResources,
 			fallbackPackageNLSResource ? URI.parse(fallbackPackageNLSResource) : null,
 			galleryExtension.assets.readme ? URI.parse(galleryExtension.assets.readme.uri) : undefined,
 			galleryExtension.assets.changelog ? URI.parse(galleryExtension.assets.changelog.uri) : undefined,
 			metadata);
 	}
 
-	private getNLSResourceMapFromResources(extensionResources: string[]): Map<string, URI> {
+	private getPackageNLSResourceMapFromResources(extensionResources: string[]): Map<string, URI> {
 		const packageNLSResources = new Map<string, URI>();
 		extensionResources.forEach(e => {
 			// Grab all package.nls.{language}.json files
@@ -572,7 +575,22 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return packageNLSResources;
 	}
 
-	private async toWebExtension(extensionLocation: URI, identifier?: IExtensionIdentifier, packageNLSUris?: Map<string, URI>, fallbackPackageNLSUri?: URI | null, readmeUri?: URI, changelogUri?: URI, metadata?: Metadata): Promise<IWebExtension> {
+	private getBundleNLSResourceMapFromResources(extensionResources: string[]): Map<string, URI> {
+		const bundleNLSResources = new Map<string, URI>();
+		extensionResources.forEach(e => {
+			// Grab all nls.bundle.{language}.json files
+			const regexResult = /nls\.bundle\.([\w-]+)\.json/.exec(basename(e));
+			if (regexResult?.[1]) {
+				bundleNLSResources.set(regexResult[1], URI.parse(e));
+			}
+			if (basename(e) === 'nls.metadata.json') {
+				bundleNLSResources.set('en', URI.parse(e));
+			}
+		});
+		return bundleNLSResources;
+	}
+
+	private async toWebExtension(extensionLocation: URI, identifier?: IExtensionIdentifier, packageNLSUris?: Map<string, URI>, bundleNLSUris?: Map<string, URI>, fallbackPackageNLSUri?: URI | null, readmeUri?: URI, changelogUri?: URI, metadata?: Metadata): Promise<IWebExtension> {
 		let packageJSONContent;
 		try {
 			packageJSONContent = await this.extensionResourceLoaderService.readExtensionResource(joinPath(extensionLocation, 'package.json'));
@@ -598,6 +616,21 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			}
 		}
 
+		if (bundleNLSUris === undefined) {
+			const englishStringsUri = joinPath(
+				this.uriIdentityService.extUri.dirname(joinPath(extensionLocation, manifest.browser)),
+				'nls.metadata.json'
+			);
+
+			try {
+				await this.extensionResourceLoaderService.readExtensionResource(englishStringsUri);
+				bundleNLSUris = new Map();
+				bundleNLSUris.set('en', englishStringsUri);
+			} catch (error) {
+				// noop if file doesn't exist
+			}
+		}
+
 		return {
 			identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name), uuid: identifier?.uuid },
 			version: manifest.version,
@@ -605,6 +638,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			readmeUri,
 			changelogUri,
 			packageNLSUris,
+			bundleNLSUris,
 			fallbackPackageNLSUri: fallbackPackageNLSUri ? fallbackPackageNLSUri : undefined,
 			metadata,
 		};
@@ -661,12 +695,20 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			}
 		}
 
+		const browserNlsBundleUris: { [language: string]: URI } = {};
+		if (webExtension.bundleNLSUris) {
+			for (const [language, uri] of webExtension.bundleNLSUris) {
+				browserNlsBundleUris[language] = uri;
+			}
+		}
+
 		return {
 			identifier: { id: webExtension.identifier.id, uuid: webExtension.identifier.uuid || uuid },
 			location: webExtension.location,
 			manifest,
 			type,
 			isBuiltin,
+			browserNlsBundleUris,
 			readmeUrl: webExtension.readmeUri,
 			changelogUrl: webExtension.changelogUri,
 			metadata: webExtension.metadata,
@@ -708,7 +750,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 						if (!e.packageNLSUris && e.packageNLSUri) {
 							e.fallbackPackageNLSUri = e.packageNLSUri;
 							const extensionResources = await this.listExtensionResources(e.location);
-							e.packageNLSUris = this.getNLSResourceMapFromResources(extensionResources);
+							e.packageNLSUris = this.getPackageNLSResourceMapFromResources(extensionResources);
 							e.packageNLSUri = undefined;
 						}
 						return e;
@@ -825,25 +867,25 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return resourceQueue;
 	}
 
-	private registerActions(): void {
-		this._register(registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: 'workbench.extensions.action.openInstalledWebExtensionsResource',
-					title: { value: localize('openInstalledWebExtensionsResource', "Open Installed Web Extensions Resource"), original: 'Open Installed Web Extensions Resource' },
-					category: CATEGORIES.Developer,
-					f1: true,
-					precondition: IsWebContext
-				});
-			}
-			run(serviceAccessor: ServicesAccessor): void {
-				const editorService = serviceAccessor.get(IEditorService);
-				const userDataProfileService = serviceAccessor.get(IUserDataProfileService);
-				editorService.openEditor({ resource: userDataProfileService.currentProfile.extensionsResource });
-			}
-		}));
-	}
-
 }
 
-registerSingleton(IWebExtensionsScannerService, WebExtensionsScannerService);
+if (isWeb) {
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.extensions.action.openInstalledWebExtensionsResource',
+				title: { value: localize('openInstalledWebExtensionsResource', "Open Installed Web Extensions Resource"), original: 'Open Installed Web Extensions Resource' },
+				category: Categories.Developer,
+				f1: true,
+				precondition: IsWebContext
+			});
+		}
+		run(serviceAccessor: ServicesAccessor): void {
+			const editorService = serviceAccessor.get(IEditorService);
+			const userDataProfileService = serviceAccessor.get(IUserDataProfileService);
+			editorService.openEditor({ resource: userDataProfileService.currentProfile.extensionsResource });
+		}
+	});
+}
+
+registerSingleton(IWebExtensionsScannerService, WebExtensionsScannerService, InstantiationType.Delayed);

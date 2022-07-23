@@ -24,6 +24,12 @@ import { IWebviewService, IOverlayWebview } from 'vs/workbench/contrib/webview/b
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 
+export interface CustomEditorInputInitInfo {
+	readonly resource: URI;
+	readonly viewType: string;
+	readonly id: string;
+}
+
 export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	static create(
@@ -40,11 +46,12 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			const id = generateUuid();
 			const webview = accessor.get(IWebviewService).createWebviewOverlay({
 				id,
+				providedViewType: viewType,
 				options: { customClasses: options?.customClasses },
 				contentOptions: {},
 				extension: undefined,
 			});
-			const input = instantiationService.createInstance(CustomEditorInput, resource, viewType, id, webview, { untitledDocumentData: untitledDocumentData, oldResource: options?.oldResource });
+			const input = instantiationService.createInstance(CustomEditorInput, { resource, viewType, id }, webview, { untitledDocumentData: untitledDocumentData, oldResource: options?.oldResource });
 			if (typeof group !== 'undefined') {
 				input.updateGroup(group);
 			}
@@ -67,9 +74,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	private _modelRef?: IReference<ICustomEditorModel>;
 
 	constructor(
-		resource: URI,
-		viewType: string,
-		id: string,
+		init: CustomEditorInputInitInfo,
 		webview: IOverlayWebview,
 		options: { startsDirty?: boolean; backupId?: string; untitledDocumentData?: VSBuffer; readonly oldResource?: URI },
 		@IWebviewWorkbenchService webviewWorkbenchService: IWebviewWorkbenchService,
@@ -80,8 +85,8 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
 		@IFileService private readonly fileService: IFileService
 	) {
-		super(id, viewType, '', webview, webviewWorkbenchService);
-		this._editorResource = resource;
+		super({ id: init.id, providedId: init.viewType, viewType: init.viewType, name: '' }, webview, webviewWorkbenchService);
+		this._editorResource = init.resource;
 		this.oldResource = options.oldResource;
 		this._defaultDirtyState = options.startsDirty;
 		this._backupId = options.backupId;

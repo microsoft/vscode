@@ -8,6 +8,8 @@
 'use strict';
 const CopyPlugin = require('copy-webpack-plugin');
 const Terser = require('terser');
+const fs = require('fs');
+const path = require('path');
 
 const defaultConfig = require('../shared.webpack.config');
 const withBrowserDefaults = defaultConfig.browser;
@@ -35,7 +37,7 @@ module.exports = withBrowserDefaults({
 		extension: './src/extension.browser.ts',
 	},
 	plugins: [
-		...browserPlugins, // add plugins, don't replace inherited
+		...browserPlugins(__dirname), // add plugins, don't replace inherited
 
 		// @ts-ignore
 		new CopyPlugin({
@@ -64,9 +66,12 @@ module.exports = withBrowserDefaults({
 				{
 					from: '../node_modules/typescript/lib/tsserver.js',
 					to: 'typescript/tsserver.web.js',
-					transform: (content) => {
-						return Terser.minify(content.toString()).then(output => output.code);
+					transform: async (content) => {
+						const dynamicImportCompatPath = path.join(__dirname, '..', 'node_modules', 'typescript', 'lib', 'dynamicImportCompat.js');
+						const prefix = fs.existsSync(dynamicImportCompatPath) ? fs.readFileSync(dynamicImportCompatPath) : undefined;
+						const output = await Terser.minify(content.toString());
 
+						return prefix + '\n' + output.code;
 					},
 					transformPath: (targetPath) => {
 						return targetPath.replace('tsserver.js', 'tsserver.web.js');

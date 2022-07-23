@@ -241,9 +241,7 @@ export class Client implements IChannelClient, IDisposable {
 					console.warn('IPC "' + this.options.serverName + '" crashed with exit code ' + code + ' and signal ' + signal);
 				}
 
-				if (this.disposeDelayer) {
-					this.disposeDelayer.cancel();
-				}
+				this.disposeDelayer?.cancel();
 				this.disposeClient();
 				this._onDidProcessExit.fire({ code, signal });
 			});

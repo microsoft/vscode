@@ -11,7 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { DefaultEndOfLine, ITextModel } from 'vs/editor/common/model';
 import { createTextBuffer } from 'vs/editor/common/model/textModel';
 import { ModelService } from 'vs/editor/common/services/modelService';
@@ -643,7 +643,7 @@ function getRandomInt(min: number, max: number): number {
 
 function getRandomString(minLength: number, maxLength: number): string {
 	const length = getRandomInt(minLength, maxLength);
-	const t = createStringBuilder(length);
+	const t = new StringBuilder(length);
 	for (let i = 0; i < length; i++) {
 		t.appendASCII(getRandomInt(CharCode.a, CharCode.z));
 	}

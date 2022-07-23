@@ -108,6 +108,7 @@ export interface IBulkEditOptions {
 
 export interface IBulkEditResult {
 	ariaSummary: string;
+	isApplied: boolean;
 }
 
 export type IBulkEditPreviewHandler = (edits: ResourceEdit[], options?: IBulkEditOptions) => Promise<ResourceEdit[]>;
@@ -119,5 +120,5 @@ export interface IBulkEditService {
 
 	setPreviewHandler(handler: IBulkEditPreviewHandler): IDisposable;
 
-	apply(edit: ResourceEdit[], options?: IBulkEditOptions): Promise<IBulkEditResult>;
+	apply(edit: ResourceEdit[] | WorkspaceEdit, options?: IBulkEditOptions): Promise<IBulkEditResult>;
 }

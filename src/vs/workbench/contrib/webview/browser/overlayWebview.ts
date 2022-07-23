@@ -31,7 +31,6 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	private _html: string = '';
 	private _initialScrollProgress: number = 0;
 	private _state: string | undefined = undefined;
-	private _repositionTimeout: any | undefined = undefined;
 
 	private _extension: WebviewExtensionDescription | undefined;
 	private _contentOptions: WebviewContentOptions;
@@ -42,8 +41,10 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IContextKeyService>());
 	private _findWidgetVisible: IContextKey<boolean> | undefined;
 	private _findWidgetEnabled: IContextKey<boolean> | undefined;
+	private _shouldShowFindWidgetOnRestore = false;
 
 	public readonly id: string;
+	public readonly providedViewType?: string;
 	public readonly origin: string;
 
 	public constructor(
@@ -55,6 +56,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		super();
 
 		this.id = initInfo.id;
+		this.providedViewType = initInfo.providedViewType;
 		this.origin = initInfo.origin ?? generateUuid();
 
 		this._extension = initInfo.extension;
@@ -81,8 +83,6 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 			msg.resolve(false);
 		}
 		this._firstLoadPendingMessages.clear();
-
-		clearTimeout(this._repositionTimeout);
 
 		this._onDidDispose.fire();
 
@@ -123,8 +123,10 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 			this._scopedContextKeyService.clear();
 			this._scopedContextKeyService.value = contextKeyService.createScoped(this.container);
 
+			const wasFindVisible = this._findWidgetVisible?.get();
 			this._findWidgetVisible?.reset();
 			this._findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(contextKeyService);
+			this._findWidgetVisible.set(!!wasFindVisible);
 
 			this._findWidgetEnabled?.reset();
 			this._findWidgetEnabled = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABLED.bindTo(contextKeyService);
@@ -145,24 +147,19 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		if (this._container) {
 			this._container.style.visibility = 'hidden';
 		}
-		if (!this._options.retainContextWhenHidden) {
+
+		if (this._options.retainContextWhenHidden) {
+			// https://github.com/microsoft/vscode/issues/157424
+			// We need to record the current state when retaining context so we can try to showFind() when showing webview again
+			this._shouldShowFindWidgetOnRestore = !!this._findWidgetVisible?.get();
+			this.hideFind(false);
+		} else {
 			this._webview.clear();
 			this._webviewEvents.clear();
 		}
 	}
 
 	public layoutWebviewOverElement(element: HTMLElement, dimension?: Dimension, clippingContainer?: HTMLElement) {
-		this.doLayoutWebviewOverElement(element, dimension, clippingContainer);
-
-		// Temporary fix for https://github.com/microsoft/vscode/issues/110450
-		// There is an animation that lasts about 200ms, update the webview positioning once this animation is complete.
-		clearTimeout(this._repositionTimeout);
-		this._repositionTimeout = setTimeout(() => {
-			this.doLayoutWebviewOverElement(element, dimension, clippingContainer);
-		}, 200);
-	}
-
-	public doLayoutWebviewOverElement(element: HTMLElement, dimension?: Dimension, clippingContainer?: HTMLElement) {
 		if (!this._container || !this._container.parentElement) {
 			return;
 		}
@@ -192,6 +189,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		if (!this._webview.value) {
 			const webview = this._webviewService.createWebviewElement({
 				id: this.id,
+				providedViewType: this.providedViewType,
 				origin: this.origin,
 				options: this._options,
 				contentOptions: this._contentOptions,
@@ -243,6 +241,13 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 			}
 			this._isFirstLoad = false;
 			this._firstLoadPendingMessages.clear();
+		}
+
+		// https://github.com/microsoft/vscode/issues/157424
+		if (this.options.retainContextWhenHidden && this._shouldShowFindWidgetOnRestore) {
+			this.showFind(false);
+			// Reset
+			this._shouldShowFindWidgetOnRestore = false;
 		}
 
 		this.container.style.visibility = 'visible';
@@ -333,16 +338,16 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	undo(): void { this._webview.value?.undo(); }
 	redo(): void { this._webview.value?.redo(); }
 
-	showFind() {
+	showFind(animated = true) {
 		if (this._webview.value) {
-			this._webview.value.showFind();
+			this._webview.value.showFind(animated);
 			this._findWidgetVisible?.set(true);
 		}
 	}
 
-	hideFind() {
+	hideFind(animated = true) {
 		this._findWidgetVisible?.reset();
-		this._webview.value?.hideFind();
+		this._webview.value?.hideFind(animated);
 	}
 
 	runFindAction(previous: boolean): void { this._webview.value?.runFindAction(previous); }

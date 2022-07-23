@@ -20,16 +20,18 @@ export async function resolveMarketplaceHeaders(version: string,
 	fileService: IFileService,
 	storageService: IStorageService | undefined,
 	telemetryService: ITelemetryService): Promise<IHeaders> {
+
 	const headers: IHeaders = {
 		'X-Market-Client-Id': `VSCode ${version}`,
 		'User-Agent': `VSCode ${version} (${productService.nameShort})`
 	};
-	const uuid = await getServiceMachineId(environmentService, fileService, storageService);
-	const { sessionId } = await telemetryService.getTelemetryInfo();
 
 	if (supportsTelemetry(productService, environmentService) && getTelemetryLevel(configurationService) === TelemetryLevel.USAGE) {
+		const uuid = await getServiceMachineId(environmentService, fileService, storageService);
+		const { sessionId } = await telemetryService.getTelemetryInfo();
 		headers['X-Market-User-Id'] = uuid;
 		headers['VSCode-SessionId'] = sessionId;
 	}
+
 	return headers;
 }

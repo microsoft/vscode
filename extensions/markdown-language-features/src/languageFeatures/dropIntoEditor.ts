@@ -6,21 +6,22 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as URI from 'vscode-uri';
+import { Schemes } from '../util/schemes';
 
-const imageFileExtensions = new Set<string>([
-	'.bmp',
-	'.gif',
-	'.ico',
-	'.jpe',
-	'.jpeg',
-	'.jpg',
-	'.png',
-	'.psd',
-	'.svg',
-	'.tga',
-	'.tif',
-	'.tiff',
-	'.webp',
+export const imageFileExtensions = new Set<string>([
+	'bmp',
+	'gif',
+	'ico',
+	'jpe',
+	'jpeg',
+	'jpg',
+	'png',
+	'psd',
+	'svg',
+	'tga',
+	'tif',
+	'tiff',
+	'webp',
 ]);
 
 export function registerDropIntoEditorSupport(selector: vscode.DocumentSelector) {
@@ -52,25 +53,71 @@ export async function tryGetUriListSnippet(document: vscode.TextDocument, dataTr
 		}
 	}
 
+	return createUriListSnippet(document, uris);
+}
+
+interface UriListSnippetOptions {
+	readonly placeholderText?: string;
+
+	readonly placeholderStartIndex?: number;
+
+	/**
+	 * Should the snippet be for an image?
+	 *
+	 * If `undefined`, tries to infer this from the uri.
+	 */
+	readonly insertAsImage?: boolean;
+}
+
+export function createUriListSnippet(document: vscode.TextDocument, uris: readonly vscode.Uri[], options?: UriListSnippetOptions): vscode.SnippetString | undefined {
 	if (!uris.length) {
-		return;
+		return undefined;
 	}
+
+	const dir = getDocumentDir(document);
 
 	const snippet = new vscode.SnippetString();
 	uris.forEach((uri, i) => {
-		const mdPath = document.uri.scheme === uri.scheme
-			? encodeURI(path.relative(URI.Utils.dirname(document.uri).fsPath, uri.fsPath).replace(/\\/g, '/'))
+		const mdPath = dir && dir.scheme === uri.scheme && dir.authority === uri.authority
+			? encodeURI(path.relative(dir.fsPath, uri.fsPath).replace(/\\/g, '/'))
 			: uri.toString(false);
 
-		const ext = URI.Utils.extname(uri).toLowerCase();
-		snippet.appendText(imageFileExtensions.has(ext) ? '![' : '[');
-		snippet.appendTabstop();
+		const ext = URI.Utils.extname(uri).toLowerCase().replace('.', '');
+		const insertAsImage = typeof options?.insertAsImage === 'undefined' ? imageFileExtensions.has(ext) : !!options.insertAsImage;
+
+		snippet.appendText(insertAsImage ? '![' : '[');
+
+		const placeholderText = options?.placeholderText ?? (insertAsImage ? 'Alt text' : 'label');
+		const placeholderIndex = typeof options?.placeholderStartIndex !== 'undefined' ? options?.placeholderStartIndex + i : undefined;
+		snippet.appendPlaceholder(placeholderText, placeholderIndex);
+
 		snippet.appendText(`](${mdPath})`);
 
 		if (i <= uris.length - 1 && uris.length > 1) {
 			snippet.appendText(' ');
 		}
 	});
-
 	return snippet;
+}
+
+function getDocumentDir(document: vscode.TextDocument): vscode.Uri | undefined {
+	const docUri = getParentDocumentUri(document);
+	if (docUri.scheme === Schemes.untitled) {
+		return vscode.workspace.workspaceFolders?.[0]?.uri;
+	}
+	return URI.Utils.dirname(docUri);
+}
+
+export function getParentDocumentUri(document: vscode.TextDocument): vscode.Uri {
+	if (document.uri.scheme === Schemes.notebookCell) {
+		for (const notebook of vscode.workspace.notebookDocuments) {
+			for (const cell of notebook.getCells()) {
+				if (cell.document === document) {
+					return notebook.uri;
+				}
+			}
+		}
+	}
+
+	return document.uri;
 }

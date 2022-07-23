@@ -59,7 +59,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	 * optimization, to avoid using extra CPU cycles before first window open.
 	 * https://github.com/microsoft/vscode/issues/89784
 	 */
-	initialize(): void {
+	async initialize(): Promise<void> {
 		if (!this.environmentMainService.isBuilt) {
 			return; // updates are never enabled when running out of sources
 		}
@@ -199,6 +199,10 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		// The update server replies with 204 (No Content) when no
 		// update is available - that's all we want to know.
 		return context.res.statusCode === 204;
+	}
+
+	async _applySpecificUpdate(packagePath: string): Promise<void> {
+		// noop
 	}
 
 	protected getUpdateType(): UpdateType {

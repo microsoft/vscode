@@ -34,6 +34,10 @@ class SingleLineTestModel implements ISimpleModel {
 		return this._line.substring(range.startColumn - 1, range.endColumn - 1);
 	}
 
+	getValueLengthInRange(range: Range): number {
+		return this.getValueInRange(range, EndOfLinePreference.TextDefined).length;
+	}
+
 	getModelLineContent(lineNumber: number): string {
 		return this._line;
 	}

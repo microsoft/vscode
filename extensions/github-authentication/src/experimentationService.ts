@@ -18,14 +18,19 @@ export class ExperimentationTelemetry implements IExperimentationTelemetry {
 		switch (vscode.env.uriScheme) {
 			case 'vscode':
 				targetPopulation = TargetPopulation.Public;
+				break;
 			case 'vscode-insiders':
 				targetPopulation = TargetPopulation.Insiders;
+				break;
 			case 'vscode-exploration':
 				targetPopulation = TargetPopulation.Internal;
+				break;
 			case 'code-oss':
 				targetPopulation = TargetPopulation.Team;
+				break;
 			default:
 				targetPopulation = TargetPopulation.Public;
+				break;
 		}
 
 		const id = this.context.extension.id;

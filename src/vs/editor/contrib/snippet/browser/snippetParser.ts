@@ -601,16 +601,20 @@ export class SnippetParser {
 		return value.replace(/\$|}|\\/g, '\\$&');
 	}
 
+	/**
+	 * Takes a snippet and returns the insertable string, e.g return the snippet-string
+	 * without any placeholder, tabstop, variables etc...
+	 */
+	static asInsertText(value: string): string {
+		return new SnippetParser().parse(value).toString();
+	}
+
 	static guessNeedsClipboard(template: string): boolean {
 		return /\${?CLIPBOARD/.test(template);
 	}
 
 	private _scanner: Scanner = new Scanner();
 	private _token: Token = { type: TokenType.EOF, pos: 0, len: 0 };
-
-	text(value: string): string {
-		return this.parse(value).toString();
-	}
 
 	parse(value: string, insertFinalTabstop?: boolean, enforceFinalTabstop?: boolean): TextmateSnippet {
 		const snippet = new TextmateSnippet();

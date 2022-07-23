@@ -74,6 +74,10 @@ export function isMultilineRegexSource(searchString: string): boolean {
 	for (let i = 0, len = searchString.length; i < len; i++) {
 		const chCode = searchString.charCodeAt(i);
 
+		if (chCode === CharCode.LineFeed) {
+			return true;
+		}
+
 		if (chCode === CharCode.Backslash) {
 
 			// move to next char

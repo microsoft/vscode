@@ -19,7 +19,7 @@ import { URI } from 'vs/base/common/uri';
 import { parse as parsePList } from 'vs/workbench/services/themes/common/plistParser';
 import { TokenStyle, SemanticTokenRule, ProbeScope, getTokenClassificationRegistry, TokenStyleValue, TokenStyleData, parseClassifierString } from 'vs/platform/theme/common/tokenClassificationRegistry';
 import { MatcherWithPriority, Matcher, createMatchers } from 'vs/workbench/services/themes/common/textMateScopeMatcher';
-import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
+import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
 import { CharCode } from 'vs/base/common/charCode';
 import { StorageScope, IStorageService, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ThemeConfiguration } from 'vs/workbench/services/themes/common/themeConfiguration';
@@ -440,7 +440,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		let themeSpecificColors;
 		for (const key in colors) {
 			const scopedColors = colors[key];
-			if (this.isThemeScope(key) && scopedColors instanceof Object && !types.isArray(scopedColors)) {
+			if (this.isThemeScope(key) && scopedColors instanceof Object && !Array.isArray(scopedColors)) {
 				const themeScopeList = key.match(themeScopeRegex) || [];
 				for (const themeScope of themeScopeList) {
 					const themeId = themeScope.substring(1, themeScope.length - 1);
@@ -452,7 +452,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 						for (const subkey in scopedThemeSpecificColors) {
 							const originalColors = themeSpecificColors[subkey];
 							const overrideColors = scopedThemeSpecificColors[subkey];
-							if (types.isArray(originalColors) && types.isArray(overrideColors)) {
+							if (Array.isArray(originalColors) && Array.isArray(overrideColors)) {
 								themeSpecificColors[subkey] = originalColors.concat(overrideColors);
 							} else if (overrideColors) {
 								themeSpecificColors[subkey] = overrideColors;

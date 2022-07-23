@@ -21,18 +21,13 @@ flakySuite('PFS', function () {
 	let testDir: string;
 
 	setup(() => {
-		configureFlushOnWrite(true); // but enable flushing for the purpose of these tests
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'pfs');
 
 		return Promises.mkdir(testDir, { recursive: true });
 	});
 
-	teardown(async () => {
-		try {
-			await Promises.rm(testDir);
-		} finally {
-			configureFlushOnWrite(false);
-		}
+	teardown(() => {
+		return Promises.rm(testDir);
 	});
 
 	test('writeFile', async () => {
@@ -93,6 +88,16 @@ flakySuite('PFS', function () {
 
 		await Promises.rm(testDir, RimRafMode.MOVE);
 		assert.ok(!fs.existsSync(testDir));
+	});
+
+	test('rimraf - path does not exist - move', async () => {
+		const nonExistingDir = join(testDir, 'unknown-move');
+		await Promises.rm(nonExistingDir, RimRafMode.MOVE);
+	});
+
+	test('rimraf - path does not exist - unlink', async () => {
+		const nonExistingDir = join(testDir, 'unknown-unlink');
+		await Promises.rm(nonExistingDir, RimRafMode.UNLINK);
 	});
 
 	test('rimraf - recursive folder structure - unlink', async () => {
@@ -375,24 +380,36 @@ flakySuite('PFS', function () {
 		const smallData = 'Hello World';
 		const bigData = (new Array(100 * 1024)).join('Large String\n');
 
-		return testWriteFileAndFlush(smallData, smallData, bigData, bigData);
+		return testWriteFile(smallData, smallData, bigData, bigData);
+	});
+
+	test('writeFile (string) - flush on write', async () => {
+		configureFlushOnWrite(true);
+		try {
+			const smallData = 'Hello World';
+			const bigData = (new Array(100 * 1024)).join('Large String\n');
+
+			return await testWriteFile(smallData, smallData, bigData, bigData);
+		} finally {
+			configureFlushOnWrite(false);
+		}
 	});
 
 	test('writeFile (Buffer)', async () => {
 		const smallData = 'Hello World';
 		const bigData = (new Array(100 * 1024)).join('Large String\n');
 
-		return testWriteFileAndFlush(Buffer.from(smallData), smallData, Buffer.from(bigData), bigData);
+		return testWriteFile(Buffer.from(smallData), smallData, Buffer.from(bigData), bigData);
 	});
 
 	test('writeFile (UInt8Array)', async () => {
 		const smallData = 'Hello World';
 		const bigData = (new Array(100 * 1024)).join('Large String\n');
 
-		return testWriteFileAndFlush(VSBuffer.fromString(smallData).buffer, smallData, VSBuffer.fromString(bigData).buffer, bigData);
+		return testWriteFile(VSBuffer.fromString(smallData).buffer, smallData, VSBuffer.fromString(bigData).buffer, bigData);
 	});
 
-	async function testWriteFileAndFlush(
+	async function testWriteFile(
 		smallData: string | Buffer | Uint8Array,
 		smallDataValue: string,
 		bigData: string | Buffer | Uint8Array,

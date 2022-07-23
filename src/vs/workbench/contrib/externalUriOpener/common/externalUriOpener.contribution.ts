@@ -9,7 +9,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { externalUriOpenersConfigurationNode } from 'vs/workbench/contrib/externalUriOpener/common/configuration';
 import { ExternalUriOpenerService, IExternalUriOpenerService } from 'vs/workbench/contrib/externalUriOpener/common/externalUriOpenerService';
 
-registerSingleton(IExternalUriOpenerService, ExternalUriOpenerService);
+registerSingleton(IExternalUriOpenerService, ExternalUriOpenerService, false);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration(externalUriOpenersConfigurationNode);

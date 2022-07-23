@@ -34,9 +34,9 @@ import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
 import { MinimapTokensColorTracker } from 'vs/editor/common/viewModel/minimapTokensColorTracker';
 import { ILineBreaksComputer, ILineBreaksComputerFactory, InjectedText } from 'vs/editor/common/modelLineProjectionData';
 import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
-import { ICoordinatesConverter, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from 'vs/editor/common/viewModel';
+import { ICoordinatesConverter, InlineDecoration, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from 'vs/editor/common/viewModel';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
-import { FocusChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent } from 'vs/editor/common/viewModelEventDispatcher';
+import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent } from 'vs/editor/common/viewModelEventDispatcher';
 import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from 'vs/editor/common/viewModel/viewModelLines';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
@@ -465,11 +465,22 @@ export class ViewModel extends Disposable implements IViewModel {
 		}));
 	}
 
-	public setHiddenAreas(ranges: Range[]): void {
+	private readonly hiddenAreasModel = new HiddenAreasModel();
+	private previousHiddenAreas: readonly Range[] = [];
+
+	public setHiddenAreas(ranges: Range[], source?: unknown): void {
+		this.hiddenAreasModel.setHiddenAreas(source, ranges);
+		const mergedRanges = this.hiddenAreasModel.getMergedRanges();
+		if (mergedRanges === this.previousHiddenAreas) {
+			return;
+		}
+
+		this.previousHiddenAreas = mergedRanges;
+
 		let lineMappingChanged = false;
 		try {
 			const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
-			lineMappingChanged = this._lines.setHiddenAreas(ranges);
+			lineMappingChanged = this._lines.setHiddenAreas(mergedRanges);
 			if (lineMappingChanged) {
 				eventsCollector.emitViewEvent(new viewEvents.ViewFlushedEvent());
 				eventsCollector.emitViewEvent(new viewEvents.ViewLineMappingChangedEvent());
@@ -485,7 +496,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._updateConfigurationViewLineCount.schedule();
 
 		if (lineMappingChanged) {
-			this._eventDispatcher.emitOutgoingEvent(new ViewZonesChangedEvent());
+			this._eventDispatcher.emitOutgoingEvent(new HiddenAreasChangedEvent());
 		}
 	}
 
@@ -506,6 +517,10 @@ export class ViewModel extends Disposable implements IViewModel {
 	public getVisibleRanges(): Range[] {
 		const visibleViewRange = this.getCompletelyVisibleViewRange();
 		return this._toModelVisibleRanges(visibleViewRange);
+	}
+
+	public getHiddenAreas(): Range[] {
+		return this._lines.getHiddenAreas();
 	}
 
 	private _toModelVisibleRanges(visibleViewRange: Range): Range[] {
@@ -671,21 +686,30 @@ export class ViewModel extends Disposable implements IViewModel {
 		return result + 2;
 	}
 
-	public getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[] {
-		return this._decorations.getDecorationsViewportData(visibleRange).decorations;
+	public getDecorationsInViewport(visibleRange: Range, onlyMinimapDecorations: boolean = false): ViewModelDecoration[] {
+		return this._decorations.getDecorationsViewportData(visibleRange, onlyMinimapDecorations).decorations;
 	}
 
 	public getInjectedTextAt(viewPosition: Position): InjectedText | null {
 		return this._lines.getInjectedTextAt(viewPosition);
 	}
 
-	public getViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData {
+	public getViewportViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData {
+		const allInlineDecorations = this._decorations.getDecorationsViewportData(visibleRange).inlineDecorations;
+		const inlineDecorations = allInlineDecorations[lineNumber - visibleRange.startLineNumber];
+		return this._getViewLineRenderingData(lineNumber, inlineDecorations);
+	}
+
+	public getViewLineRenderingData(lineNumber: number): ViewLineRenderingData {
+		const inlineDecorations = this._decorations.getInlineDecorationsOnLine(lineNumber);
+		return this._getViewLineRenderingData(lineNumber, inlineDecorations);
+	}
+
+	private _getViewLineRenderingData(lineNumber: number, inlineDecorations: InlineDecoration[]): ViewLineRenderingData {
 		const mightContainRTL = this.model.mightContainRTL();
 		const mightContainNonBasicASCII = this.model.mightContainNonBasicASCII();
 		const tabSize = this.getTabSize();
 		const lineData = this._lines.getViewLineData(lineNumber);
-		const allInlineDecorations = this._decorations.getDecorationsViewportData(visibleRange).inlineDecorations;
-		let inlineDecorations = allInlineDecorations[lineNumber - visibleRange.startLineNumber];
 
 		if (lineData.inlineDecorations) {
 			inlineDecorations = [
@@ -748,13 +772,9 @@ export class ViewModel extends Disposable implements IViewModel {
 		const decorations = this.model.getOverviewRulerDecorations();
 		for (const decoration of decorations) {
 			const opts1 = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
-			if (opts1) {
-				opts1.invalidateCachedColor();
-			}
+			opts1?.invalidateCachedColor();
 			const opts2 = <ModelDecorationMinimapOptions>decoration.options.minimap;
-			if (opts2) {
-				opts2.invalidateCachedColor();
-			}
+			opts2?.invalidateCachedColor();
 		}
 	}
 
@@ -1152,3 +1172,74 @@ class OverviewRulerDecorations {
 	}
 }
 
+class HiddenAreasModel {
+	private readonly hiddenAreas = new Map<unknown, Range[]>();
+	private shouldRecompute = false;
+	private ranges: Range[] = [];
+
+	setHiddenAreas(source: unknown, ranges: Range[]): void {
+		const existing = this.hiddenAreas.get(source);
+		if (existing && rangeArraysEqual(existing, ranges)) {
+			return;
+		}
+		this.hiddenAreas.set(source, ranges);
+		this.shouldRecompute = true;
+	}
+
+	/**
+	 * The returned array is immutable.
+	*/
+	getMergedRanges(): readonly Range[] {
+		if (!this.shouldRecompute) {
+			return this.ranges;
+		}
+		this.shouldRecompute = false;
+		const newRanges = Array.from(this.hiddenAreas.values()).reduce((r, hiddenAreas) => mergeLineRangeArray(r, hiddenAreas), []);
+		if (rangeArraysEqual(this.ranges, newRanges)) {
+			return this.ranges;
+		}
+		this.ranges = newRanges;
+		return this.ranges;
+	}
+}
+
+function mergeLineRangeArray(arr1: Range[], arr2: Range[]): Range[] {
+	const result = [];
+	let i = 0;
+	let j = 0;
+	while (i < arr1.length && j < arr2.length) {
+		const item1 = arr1[i];
+		const item2 = arr2[j];
+
+		if (item1.endLineNumber < item2.startLineNumber - 1) {
+			result.push(arr1[i++]);
+		} else if (item2.endLineNumber < item1.startLineNumber - 1) {
+			result.push(arr2[j++]);
+		} else {
+			const startLineNumber = Math.min(item1.startLineNumber, item2.startLineNumber);
+			const endLineNumber = Math.max(item1.endLineNumber, item2.endLineNumber);
+			result.push(new Range(startLineNumber, 1, endLineNumber, 1));
+			i++;
+			j++;
+		}
+	}
+	while (i < arr1.length) {
+		result.push(arr1[i++]);
+	}
+	while (j < arr2.length) {
+		result.push(arr2[j++]);
+	}
+	return result;
+}
+
+function rangeArraysEqual(arr1: Range[], arr2: Range[]): boolean {
+	if (arr1.length !== arr2.length) {
+		return false;
+	}
+	for (let i = 0; i < arr1.length; i++) {
+		if (!arr1[i].equalsRange(arr2[i])) {
+			return false;
+		}
+	}
+	return true;
+}

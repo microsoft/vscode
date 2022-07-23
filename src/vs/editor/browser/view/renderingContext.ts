@@ -53,8 +53,12 @@ export abstract class RestrictedRenderingContext {
 		return absoluteTop - this.scrollTop;
 	}
 
-	public getVerticalOffsetForLineNumber(lineNumber: number): number {
-		return this._viewLayout.getVerticalOffsetForLineNumber(lineNumber);
+	public getVerticalOffsetForLineNumber(lineNumber: number, includeViewZones?: boolean): number {
+		return this._viewLayout.getVerticalOffsetForLineNumber(lineNumber, includeViewZones);
+	}
+
+	public getVerticalOffsetAfterLineNumber(lineNumber: number, includeViewZones?: boolean): number {
+		return this._viewLayout.getVerticalOffsetAfterLineNumber(lineNumber, includeViewZones);
 	}
 
 	public getDecorationsInViewport(): ViewModelDecoration[] {

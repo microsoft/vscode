@@ -83,7 +83,8 @@ stages:
           - powershell: |
               . build/azure-pipelines/win32/exec.ps1
               $ErrorActionPreference = "Stop"
-              exec { npx https://aka.ms/enablesecurefeed standAlone }
+              exec { npm install https://aka.ms/enablesecurefeed --global }
+              exec { npm exec terrapinadotask -- standAlone }
             timeoutInMinutes: 5
             retryCountOnTaskFailure: 3
             condition: and(succeeded(), eq(variables['ENABLE_TERRAPIN'], 'true'))
@@ -184,7 +185,7 @@ stages:
 
           - script: |
               set -e
-              npx https://aka.ms/enablesecurefeed standAlone
+              npm install https://aka.ms/enablesecurefeed --global && npm exec terrapinadotask -- standAlone
             timeoutInMinutes: 5
             retryCountOnTaskFailure: 3
             condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
