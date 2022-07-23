@@ -137,20 +137,33 @@ class ToggleScreencastModeAction extends Action2 {
 		updateMouseIndicatorColor();
 		updateMouseIndicatorSize();
 
+		let timer: NodeJS.Timeout | null = null;
+
 		disposables.add(onMouseDown.event(e => {
-			mouseMarker.style.top = `${e.clientY - mouseIndicatorSize / 2}px`;
-			mouseMarker.style.left = `${e.clientX - mouseIndicatorSize / 2}px`;
-			mouseMarker.style.display = 'block';
 
 			const mouseMoveListener = onMouseMove.event(e => {
 				mouseMarker.style.top = `${e.clientY - mouseIndicatorSize / 2}px`;
 				mouseMarker.style.left = `${e.clientX - mouseIndicatorSize / 2}px`;
 			});
 
-			Event.once(onMouseUp.event)(() => {
+			const hide = () => {
 				mouseMarker.style.display = 'none';
 				mouseMoveListener.dispose();
-			});
+			};
+
+			const buttonKey = e.button;
+			if (buttonKey !== 0) {
+				if (timer !== null) {
+					clearTimeout(timer);
+				}
+				timer = setTimeout(hide, 120);
+			}
+
+			mouseMarker.style.top = `${e.clientY - mouseIndicatorSize / 2}px`;
+			mouseMarker.style.left = `${e.clientX - mouseIndicatorSize / 2}px`;
+			mouseMarker.style.display = 'block';
+
+			Event.once(onMouseUp.event)(hide);
 		}));
 
 		const keyboardMarker = append(container, $('.screencast-keyboard'));
