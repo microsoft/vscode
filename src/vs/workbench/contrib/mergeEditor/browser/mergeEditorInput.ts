@@ -13,7 +13,7 @@ import { ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialog
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IEditorIdentifier, IResourceMergeEditorInput, isResourceMergeEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { EditorInputCapabilities, IEditorIdentifier, IResourceMergeEditorInput, isResourceMergeEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput, IEditorCloseHandler } from 'vs/workbench/common/editor/editorInput';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { EditorWorkerServiceDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
@@ -84,6 +84,10 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 		return MergeEditorInput.ID;
 	}
 
+	override get capabilities(): EditorInputCapabilities {
+		return super.capabilities | EditorInputCapabilities.MultipleEditors;
+	}
+
 	override getName(): string {
 		return localize('name', "Merging: {0}", super.getName());
 	}
@@ -136,8 +140,8 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 
 	override toUntyped(): IResourceMergeEditorInput {
 		return {
-			input1: { resource: this.input1.uri, label: this.input1.title, description: this.input1.description },
-			input2: { resource: this.input2.uri, label: this.input2.title, description: this.input2.description },
+			input1: { resource: this.input1.uri, label: this.input1.title, description: this.input1.description, detail: this.input1.detail },
+			input2: { resource: this.input2.uri, label: this.input2.title, description: this.input2.description, detail: this.input2.detail },
 			base: { resource: this.base },
 			result: { resource: this.result },
 			options: {

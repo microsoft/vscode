@@ -9,9 +9,10 @@ import { localize } from 'vs/nls';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { IResourceMergeEditorInput } from 'vs/workbench/common/editor';
 import { MergeEditorInput, MergeEditorInputData } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { MergeEditor } from 'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor';
 import { ctxIsMergeEditor, ctxMergeEditorLayout } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
@@ -27,15 +28,14 @@ export class OpenMergeEditor extends Action2 {
 	run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const validatedArgs = IRelaxedOpenArgs.validate(args[0]);
 
-		const instaService = accessor.get(IInstantiationService);
-		const input = instaService.createInstance(
-			MergeEditorInput,
-			validatedArgs.base,
-			validatedArgs.input1,
-			validatedArgs.input2,
-			validatedArgs.output,
-		);
-		accessor.get(IEditorService).openEditor(input, { preserveFocus: true });
+		const input: IResourceMergeEditorInput = {
+			base: { resource: validatedArgs.base },
+			input1: { resource: validatedArgs.input1.uri, label: validatedArgs.input1.title, description: validatedArgs.input1.description, detail: validatedArgs.input1.detail },
+			input2: { resource: validatedArgs.input2.uri, label: validatedArgs.input2.title, description: validatedArgs.input2.description, detail: validatedArgs.input2.detail },
+			result: { resource: validatedArgs.output },
+			options: { preserveFocus: true }
+		};
+		accessor.get(IEditorService).openEditor(input);
 	}
 }
 
@@ -188,10 +188,9 @@ export class OpenResultResource extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const opener = accessor.get(IOpenerService);
-		const { activeEditor } = accessor.get(IEditorService);
-		if (activeEditor instanceof MergeEditorInput) {
-			await opener.open(activeEditor.result);
+		const editorService = accessor.get(IEditorService);
+		if (editorService.activeEditor instanceof MergeEditorInput) {
+			editorService.openEditor({ resource: editorService.activeEditor.result });
 		}
 	}
 }
@@ -331,8 +330,10 @@ export class CompareInput1WithBaseCommand extends Action2 {
 				),
 				original: 'Compare Input 1 With Base',
 			},
+			shortTitle: localize('mergeEditor.compareWithBase', 'Compare With Base'),
 			f1: true,
 			precondition: ctxIsMergeEditor,
+			menu: { id: MenuId.MergeInput1Toolbar }
 		});
 	}
 	run(accessor: ServicesAccessor, ...args: unknown[]): void {
@@ -354,8 +355,10 @@ export class CompareInput2WithBaseCommand extends Action2 {
 				),
 				original: 'Compare Input 2 With Base',
 			},
+			shortTitle: localize('mergeEditor.compareWithBase', 'Compare With Base'),
 			f1: true,
 			precondition: ctxIsMergeEditor,
+			menu: { id: MenuId.MergeInput2Toolbar }
 		});
 	}
 	run(accessor: ServicesAccessor, ...args: unknown[]): void {

@@ -55,6 +55,29 @@ export class CodeActionUi extends Disposable {
 	override dispose() {
 		this.#disposed = true;
 		super.dispose();
+
+	}
+
+	public hideCodeActionWidget() {
+		if (this._codeActionWidget.hasValue()) {
+			this._codeActionWidget.getValue().hideCodeActionWidget();
+		}
+	}
+
+	public onEnter() {
+		if (this._codeActionWidget.hasValue()) {
+			this._codeActionWidget.getValue().onEnterSet();
+		}
+	}
+
+	public navigateList(navUp: Boolean) {
+		if (this._codeActionWidget.hasValue()) {
+			if (navUp) {
+				this._codeActionWidget.getValue().navigateListWithKeysUp();
+			} else {
+				this._codeActionWidget.getValue().navigateListWithKeysDown();
+			}
+		}
 	}
 
 	public async update(newState: CodeActionsState.State): Promise<void> {

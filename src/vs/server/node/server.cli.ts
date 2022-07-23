@@ -44,7 +44,7 @@ const isSupportedForCmd = (optionId: keyof RemoteParsedArgs) => {
 		case 'enable-smoke-test-driver':
 		case 'extensions-download-dir':
 		case 'builtin-extensions-dir':
-		case 'shell-integration':
+		case 'locate-shell-integration-path':
 		case 'telemetry':
 			return false;
 		default:

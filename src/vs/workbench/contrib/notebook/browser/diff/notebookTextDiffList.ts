@@ -310,8 +310,8 @@ export class NotebookTextDiffList extends WorkbenchList<DiffElementViewModelBase
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService) {
-		super(listUser, container, delegate, renderers, options, contextKeyService, listService, themeService, configurationService, keybindingService);
+		@IInstantiationService instantiationService: IInstantiationService) {
+		super(listUser, container, delegate, renderers, options, contextKeyService, listService, themeService, configurationService, instantiationService);
 	}
 
 	protected override createMouseController(options: IListOptions<DiffElementViewModelBase>): MouseController<DiffElementViewModelBase> {

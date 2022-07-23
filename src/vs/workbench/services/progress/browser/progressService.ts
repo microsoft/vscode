@@ -93,7 +93,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		}
 	}
 
-	private readonly windowProgressStack: [IProgressOptions, Progress<IProgressStep>][] = [];
+	private readonly windowProgressStack: [IProgressWindowOptions, Progress<IProgressStep>][] = [];
 	private windowProgressStatusEntry: IStatusbarEntryAccessor | undefined = undefined;
 
 	private withWindowProgress<R = unknown>(options: IProgressWindowOptions, callback: (progress: IProgress<{ message?: string }>) => Promise<R>): Promise<R> {
@@ -158,7 +158,7 @@ export class ProgressService extends Disposable implements IProgressService {
 			const statusEntryProperties: IStatusbarEntry = {
 				name: localize('status.progress', "Progress Message"),
 				text,
-				showProgress: true,
+				showProgress: options.type || true,
 				ariaLabel: text,
 				tooltip: title,
 				command: progressCommand

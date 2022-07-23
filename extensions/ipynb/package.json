@@ -51,6 +51,16 @@
 				"priority": "default"
 			}
 		],
+    "notebookRenderer": [
+      {
+        "id": "vscode.markdown-it-cell-attachment-renderer",
+        "displayName": "Markdown it ipynb Cell Attachment renderer",
+        "entrypoint": {
+          "extends": "vscode.markdown-it-renderer",
+          "path": "./out/cellAttachmentRenderer.js"
+        }
+      }
+    ],
 		"menus": {
 			"file/newFile": [
 				{
@@ -70,8 +80,9 @@
 		}
 	},
 	"scripts": {
-		"compile": "npx gulp compile-extension:ipynb",
-		"watch": "npx gulp watch-extension:ipynb"
+		"compile": "npx gulp compile-extension:ipynb && npm run build-notebook",
+		"watch": "npx gulp watch-extension:ipynb",
+		"build-notebook": "node ./esbuild"
 	},
 	"dependencies": {
 		"@enonic/fnv-plus": "^1.3.0",
@@ -80,6 +91,7 @@
 	},
 	"devDependencies": {
 		"@jupyterlab/nbformat": "^3.2.9",
+		"@types/markdown-it": "12.2.3",
 		"@types/uuid": "^8.3.1"
 	},
 	"repository": {

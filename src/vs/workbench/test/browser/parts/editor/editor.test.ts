@@ -120,7 +120,7 @@ suite('Workbench editor utils', () => {
 		testInput2.capabilities = EditorInputCapabilities.None;
 
 		const sideBySideInput = instantiationService.createInstance(SideBySideEditorInput, 'name', undefined, testInput1, testInput2);
-		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.None), true);
+		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.MultipleEditors), true);
 		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.Readonly), false);
 		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.Untitled), false);
 		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.RequiresTrust), false);

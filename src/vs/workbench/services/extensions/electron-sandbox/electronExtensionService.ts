@@ -304,9 +304,9 @@ export abstract class ElectronExtensionService extends AbstractExtensionService 
 		type ExtensionHostCrashClassification = {
 			owner: 'alexdima';
 			comment: 'The extension host has terminated unexpectedly';
-			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-			signal: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-			extensionIds: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The exit code of the extension host process.' };
+			signal: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The signal that caused the extension host process to exit.' };
+			extensionIds: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The list of loaded extensions.' };
 		};
 		type ExtensionHostCrashEvent = {
 			code: number;
@@ -323,9 +323,9 @@ export abstract class ElectronExtensionService extends AbstractExtensionService 
 			type ExtensionHostCrashExtensionClassification = {
 				owner: 'alexdima';
 				comment: 'The extension host has terminated unexpectedly';
-				code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-				signal: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-				extensionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+				code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The exit code of the extension host process.' };
+				signal: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The signal that caused the extension host process to exit.' };
+				extensionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the extension.' };
 			};
 			type ExtensionHostCrashExtensionEvent = {
 				code: number;

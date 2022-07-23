@@ -41,8 +41,9 @@ export class UserDataProfilesNativeService extends Disposable implements IUserDa
 		this._register(this.channel.listen<DidChangeProfilesEvent>('onDidChangeProfiles')(e => {
 			const added = e.added.map(profile => reviveProfile(profile, this.profilesHome.scheme));
 			const removed = e.removed.map(profile => reviveProfile(profile, this.profilesHome.scheme));
+			const updated = e.updated.map(profile => reviveProfile(profile, this.profilesHome.scheme));
 			this._profiles = e.all.map(profile => reviveProfile(profile, this.profilesHome.scheme));
-			this._onDidChangeProfiles.fire({ added, removed, all: this.profiles });
+			this._onDidChangeProfiles.fire({ added, removed, updated, all: this.profiles });
 		}));
 	}
 
@@ -57,6 +58,11 @@ export class UserDataProfilesNativeService extends Disposable implements IUserDa
 
 	removeProfile(profile: IUserDataProfile): Promise<void> {
 		return this.channel.call('removeProfile', [profile]);
+	}
+
+	async updateProfile(profile: IUserDataProfile, name: string, useDefaultFlags?: UseDefaultProfileFlags): Promise<IUserDataProfile> {
+		const result = await this.channel.call<UriDto<IUserDataProfile>>('updateProfile', [profile, name, useDefaultFlags]);
+		return reviveProfile(result, this.profilesHome.scheme);
 	}
 
 	getProfile(workspaceIdentifier: WorkspaceIdentifier): IUserDataProfile { throw new Error('Not implemented'); }

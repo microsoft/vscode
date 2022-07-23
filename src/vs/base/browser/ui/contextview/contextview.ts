@@ -206,7 +206,7 @@ export class ContextView extends Disposable {
 		this.view.className = 'context-view';
 		this.view.style.top = '0px';
 		this.view.style.left = '0px';
-		this.view.style.zIndex = '2500';
+		this.view.style.zIndex = '2575';
 		this.view.style.position = this.useFixedPosition ? 'fixed' : 'absolute';
 		DOM.show(this.view);
 

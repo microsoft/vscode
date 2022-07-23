@@ -54,6 +54,8 @@ import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServic
 import { ResourceMap } from 'vs/base/common/map';
 import { TestClipboardService } from 'vs/platform/clipboard/test/common/testClipboardService';
 import { IWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -173,6 +175,7 @@ export function setupInstantiationService(disposables = new DisposableStore()) {
 	instantiationService.stub(IStorageService, new TestStorageService());
 	instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService(true));
 	instantiationService.stub(INotebookExecutionStateService, new TestNotebookExecutionStateService());
+	instantiationService.stub(IKeybindingService, new MockKeybindingService());
 
 	return instantiationService;
 }
