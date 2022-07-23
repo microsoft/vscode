@@ -66,12 +66,12 @@ export function createExtensionHostManager(instantiationService: IInstantiationS
 export type ExtensionHostStartupClassification = {
 	owner: 'alexdima';
 	comment: 'The startup state of the extension host';
-	time: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-	action: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-	kind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-	errorName?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-	errorMessage?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-	errorStack?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+	time: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The time reported by Date.now().' };
+	action: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The action: starting, success or error.' };
+	kind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The extension host kind: LocalProcess, LocalWebWorker or Remote.' };
+	errorName?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The error name.' };
+	errorMessage?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The error message.' };
+	errorStack?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The error stack.' };
 };
 
 export type ExtensionHostStartupEvent = {

@@ -42,7 +42,7 @@ class NativeLogOutputChannels extends Disposable implements IWorkbenchContributi
 
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(NativeLogOutputChannels, LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(NativeLogOutputChannels, 'NativeLogOutputChannels', LifecyclePhase.Restored);
 
 const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions);
 workbenchActionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(OpenLogsFolderAction), 'Developer: Open Logs Folder', CATEGORIES.Developer.value);

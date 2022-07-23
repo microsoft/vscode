@@ -26,7 +26,7 @@ export interface IConfigurationOverrides {
 export function isConfigurationUpdateOverrides(thing: any): thing is IConfigurationUpdateOverrides {
 	return thing
 		&& typeof thing === 'object'
-		&& (!thing.overrideIdentifiers || types.isArray(thing.overrideIdentifiers))
+		&& (!thing.overrideIdentifiers || Array.isArray(thing.overrideIdentifiers))
 		&& !thing.overrideIdentifier
 		&& (!thing.resource || thing.resource instanceof URI);
 }
@@ -34,7 +34,8 @@ export function isConfigurationUpdateOverrides(thing: any): thing is IConfigurat
 export type IConfigurationUpdateOverrides = Omit<IConfigurationOverrides, 'overrideIdentifier'> & { overrideIdentifiers?: string[] | null };
 
 export const enum ConfigurationTarget {
-	USER = 1,
+	APPLICATION = 1,
+	USER,
 	USER_LOCAL,
 	USER_REMOTE,
 	WORKSPACE,
@@ -44,6 +45,7 @@ export const enum ConfigurationTarget {
 }
 export function ConfigurationTargetToString(configurationTarget: ConfigurationTarget) {
 	switch (configurationTarget) {
+		case ConfigurationTarget.APPLICATION: return 'APPLICATION';
 		case ConfigurationTarget.USER: return 'USER';
 		case ConfigurationTarget.USER_LOCAL: return 'USER_LOCAL';
 		case ConfigurationTarget.USER_REMOTE: return 'USER_REMOTE';

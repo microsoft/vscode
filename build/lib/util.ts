@@ -207,8 +207,8 @@ export function loadSourcemaps(): NodeJS.ReadWriteStream {
 			const contents = (<Buffer>f.contents).toString('utf8');
 
 			const reg = /\/\/# sourceMappingURL=(.*)$/g;
-			let lastMatch: RegExpMatchArray | null = null;
-			let match: RegExpMatchArray | null = null;
+			let lastMatch: RegExpExecArray | null = null;
+			let match: RegExpExecArray | null = null;
 
 			while (match = reg.exec(contents)) {
 				lastMatch = match;

@@ -223,9 +223,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 
 		$onDidAccept(sessionId: number): void {
 			const session = this._sessions.get(sessionId);
-			if (session) {
-				session._fireDidAccept();
-			}
+			session?._fireDidAccept();
 		}
 
 		$onDidChangeActive(sessionId: number, handles: number[]): void {
@@ -256,9 +254,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 
 		$onDidHide(sessionId: number): void {
 			const session = this._sessions.get(sessionId);
-			if (session) {
-				session._fireDidHide();
-			}
+			session?._fireDidHide();
 		}
 	}
 

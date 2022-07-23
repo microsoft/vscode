@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
+import { isUNC, toSlashes } from 'vs/base/common/extpath';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import * as path from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
@@ -27,7 +28,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { StateMainService } from 'vs/platform/state/electron-main/stateMainService';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { UserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
-import { IRawFileWorkspaceFolder, IRawUriWorkspaceFolder, IWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspace/common/workspace';
+import { IRawFileWorkspaceFolder, IRawUriWorkspaceFolder, WORKSPACE_EXTENSION } from 'vs/platform/workspace/common/workspace';
 import { IStoredWorkspace, IStoredWorkspaceFolder, IWorkspaceFolderCreationData, rewriteWorkspaceFileForNewLocation } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 
@@ -51,15 +52,10 @@ flakySuite('WorkspacesManagementMainService', () => {
 		declare readonly _serviceBrand: undefined;
 
 		isHotExitEnabled(): boolean { throw new Error('Method not implemented.'); }
-		getWorkspaceBackups(): IWorkspaceBackupInfo[] { throw new Error('Method not implemented.'); }
-		getFolderBackupPaths(): IFolderBackupInfo[] { throw new Error('Method not implemented.'); }
-		getEmptyWindowBackupPaths(): IEmptyWindowBackupInfo[] { throw new Error('Method not implemented.'); }
-		registerWorkspaceBackupSync(workspace: IWorkspaceBackupInfo, migrateFrom?: string | undefined): string { throw new Error('Method not implemented.'); }
-		registerFolderBackupSync(folder: IFolderBackupInfo): string { throw new Error('Method not implemented.'); }
-		registerEmptyWindowBackupSync(backupFolder?: string | undefined, remoteAuthority?: string | undefined): string { throw new Error('Method not implemented.'); }
-		unregisterWorkspaceBackupSync(workspace: IWorkspaceIdentifier): void { throw new Error('Method not implemented.'); }
-		unregisterFolderBackupSync(folderUri: URI): void { throw new Error('Method not implemented.'); }
-		unregisterEmptyWindowBackupSync(backupFolder: string): void { throw new Error('Method not implemented.'); }
+		getEmptyWindowBackups(): IEmptyWindowBackupInfo[] { throw new Error('Method not implemented.'); }
+		registerWorkspaceBackup(workspace: IWorkspaceBackupInfo, migrateFrom?: string | undefined): string { throw new Error('Method not implemented.'); }
+		registerFolderBackup(folder: IFolderBackupInfo): string { throw new Error('Method not implemented.'); }
+		registerEmptyWindowBackup(empty: IEmptyWindowBackupInfo): string { throw new Error('Method not implemented.'); }
 		async getDirtyWorkspaces(): Promise<(IWorkspaceBackupInfo | IFolderBackupInfo)[]> { return []; }
 	}
 
@@ -126,13 +122,16 @@ flakySuite('WorkspacesManagementMainService', () => {
 		return pfs.Promises.rm(testDir);
 	});
 
-	function assertPathEquals(p1: string, p2: string): void {
+	function assertPathEquals(pathInWorkspaceFile: string, pathOnDisk: string): void {
 		if (isWindows) {
-			p1 = normalizeDriveLetter(p1);
-			p2 = normalizeDriveLetter(p2);
+			pathInWorkspaceFile = normalizeDriveLetter(pathInWorkspaceFile);
+			pathOnDisk = normalizeDriveLetter(pathOnDisk);
+			if (!isUNC(pathOnDisk)) {
+				pathOnDisk = toSlashes(pathOnDisk); // workspace file is using slashes for all paths except where mandatory
+			}
 		}
 
-		assert.strictEqual(p1, p2);
+		assert.strictEqual(pathInWorkspaceFile, pathOnDisk);
 	}
 
 	function assertEqualURI(u1: URI, u2: URI): void {
@@ -335,7 +334,7 @@ flakySuite('WorkspacesManagementMainService', () => {
 		assert.strictEqual(ws.folders.length, 3);
 		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[0]).path, folder1);
 		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[1]).path, 'inside');
-		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[2]).path, isWindows ? 'inside\\somefolder' : 'inside/somefolder');
+		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[2]).path, 'inside/somefolder');
 
 		origConfigPath = workspaceConfigPath;
 		workspaceConfigPath = URI.file(path.join(tmpDir, 'other', 'myworkspace2.code-workspace'));
@@ -343,8 +342,8 @@ flakySuite('WorkspacesManagementMainService', () => {
 		ws = (JSON.parse(newContent) as IStoredWorkspace);
 		assert.strictEqual(ws.folders.length, 3);
 		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[0]).path, folder1);
-		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[1]).path, isWindows ? '..\\inside' : '../inside');
-		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[2]).path, isWindows ? '..\\inside\\somefolder' : '../inside/somefolder');
+		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[1]).path, '../inside');
+		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[2]).path, '../inside/somefolder');
 
 		origConfigPath = workspaceConfigPath;
 		workspaceConfigPath = URI.parse('foo://foo/bar/myworkspace2.code-workspace');
@@ -396,7 +395,7 @@ flakySuite('WorkspacesManagementMainService', () => {
 		const ws = (JSON.parse(newContent) as IStoredWorkspace);
 		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[0]).path, folder1Location);
 		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[1]).path, folder2Location);
-		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[2]).path, 'inner\\more');
+		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[2]).path, 'inner/more');
 
 		service.deleteUntitledWorkspaceSync(workspace);
 	});

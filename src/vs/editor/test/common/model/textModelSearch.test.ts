@@ -747,6 +747,8 @@ suite('TextModelSearch', () => {
 		assert(isMultilineRegexSource('foo\\r\\n'));
 		assert(isMultilineRegexSource('\\n'));
 		assert(isMultilineRegexSource('foo\\W'));
+		assert(isMultilineRegexSource('foo\n'));
+		assert(isMultilineRegexSource('foo\r\n'));
 	});
 
 	test('issue #74715. \\d* finds empty string and stops searching.', () => {

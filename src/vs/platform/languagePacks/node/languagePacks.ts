@@ -52,16 +52,17 @@ export class NativeLanguagePackService extends LanguagePackBaseService {
 		const languagePacks = await this.cache.getLanguagePacks();
 		const languages = Object.keys(languagePacks).map(locale => {
 			const languagePack = languagePacks[locale];
-			const baseQuickPick = this.createQuickPickItem({ locale, label: languagePack.label });
+			const baseQuickPick = this.createQuickPickItem(locale, languagePack.label);
 			return {
 				...baseQuickPick,
 				extensionId: languagePack.extensions[0].extensionIdentifier.id,
 			};
 		});
 		languages.push({
-			...this.createQuickPickItem({ locale: 'en', label: 'English' }),
+			...this.createQuickPickItem('en', 'English'),
 			extensionId: 'default',
 		});
+		languages.sort((a, b) => a.label.localeCompare(b.label));
 		return languages;
 	}
 

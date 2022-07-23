@@ -11,5 +11,5 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 
 export function registerContributions(): void {
 	registerSingleton(IReplaceService, ReplaceService, true);
-	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ReplacePreviewContentProvider, LifecyclePhase.Starting);
+	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ReplacePreviewContentProvider, 'ReplacePreviewContentProvider', LifecyclePhase.Starting);
 }

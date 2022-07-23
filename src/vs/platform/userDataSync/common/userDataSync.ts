@@ -10,7 +10,7 @@ import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IExtUri, isEqualOrParent, joinPath } from 'vs/base/common/resources';
-import { isArray, isObject, isString } from 'vs/base/common/types';
+import { isObject, isString } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IHeaders } from 'vs/base/parts/request/common/request';
 import { localize } from 'vs/nls';
@@ -128,7 +128,7 @@ export function isAuthenticationProvider(thing: any): thing is IAuthenticationPr
 	return thing
 		&& isObject(thing)
 		&& isString(thing.id)
-		&& isArray(thing.scopes);
+		&& Array.isArray(thing.scopes);
 }
 
 export const enum SyncResource {
@@ -156,7 +156,7 @@ export interface IResourceRefHandle {
 	created: number;
 }
 
-export type ServerResource = SyncResource | 'machines' | 'editSessions';
+export type ServerResource = SyncResource | 'machines' | 'editSessions' | 'profiles';
 export type UserDataSyncStoreType = 'insiders' | 'stable';
 
 export const IUserDataSyncStoreManagementService = createDecorator<IUserDataSyncStoreManagementService>('IUserDataSyncStoreManagementService');
@@ -168,7 +168,9 @@ export interface IUserDataSyncStoreManagementService {
 	getPreviousUserDataSyncStore(): Promise<IUserDataSyncStore | undefined>;
 }
 
-export interface IUserDataSyncStoreClient {
+export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreService>('IUserDataSyncStoreService');
+export interface IUserDataSyncStoreService {
+	readonly _serviceBrand: undefined;
 	readonly onDidChangeDonotMakeRequestsUntil: Event<void>;
 	readonly donotMakeRequestsUntil: Date | undefined;
 
@@ -176,20 +178,13 @@ export interface IUserDataSyncStoreClient {
 	readonly onTokenSucceed: Event<void>;
 	setAuthToken(token: string, type: string): void;
 
-	// Sync requests
 	manifest(oldValue: IUserDataManifest | null, headers?: IHeaders): Promise<IUserDataManifest | null>;
-	read(resource: ServerResource, oldValue: IUserData | null, headers?: IHeaders): Promise<IUserData>;
-	write(resource: ServerResource, content: string, ref: string | null, headers?: IHeaders): Promise<string>;
+	read(resource: ServerResource, oldValue: IUserData | null, profile?: string, headers?: IHeaders): Promise<IUserData>;
+	write(resource: ServerResource, content: string, ref: string | null, profile?: string, headers?: IHeaders): Promise<string>;
+	delete(resource: ServerResource, ref: string | null, profile?: string): Promise<void>;
+	getAllRefs(resource: ServerResource, profile?: string): Promise<IResourceRefHandle[]>;
+	resolveContent(resource: ServerResource, ref: string, profile?: string, headers?: IHeaders): Promise<string | null>;
 	clear(): Promise<void>;
-	delete(resource: ServerResource, ref: string | null): Promise<void>;
-
-	getAllRefs(resource: ServerResource): Promise<IResourceRefHandle[]>;
-	resolveContent(resource: ServerResource, ref: string, headers?: IHeaders): Promise<string | null>;
-}
-
-export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreService>('IUserDataSyncStoreService');
-export interface IUserDataSyncStoreService extends IUserDataSyncStoreClient {
-	readonly _serviceBrand: undefined;
 }
 
 export const IUserDataSyncBackupStoreService = createDecorator<IUserDataSyncBackupStoreService>('IUserDataSyncBackupStoreService');

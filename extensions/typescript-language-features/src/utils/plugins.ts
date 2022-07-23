@@ -8,6 +8,7 @@ import * as arrays from './arrays';
 import { Disposable } from './dispose';
 
 export interface TypeScriptServerPlugin {
+	readonly extension: vscode.Extension<unknown>;
 	readonly uri: vscode.Uri;
 	readonly name: string;
 	readonly enableForWorkspaceTypeScriptVersions: boolean;
@@ -74,6 +75,7 @@ export class PluginManager extends Disposable {
 				const plugins: TypeScriptServerPlugin[] = [];
 				for (const plugin of pack.contributes.typescriptServerPlugins) {
 					plugins.push({
+						extension,
 						name: plugin.name,
 						enableForWorkspaceTypeScriptVersions: !!plugin.enableForWorkspaceTypeScriptVersions,
 						uri: extension.extensionUri,

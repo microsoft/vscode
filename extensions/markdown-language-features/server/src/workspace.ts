@@ -6,11 +6,10 @@
 import { Connection, Emitter, FileChangeType, NotebookDocuments, TextDocuments } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import * as md from 'vscode-markdown-languageservice';
-import { ContainingDocumentContext } from 'vscode-markdown-languageservice/out/workspace';
+import { ContainingDocumentContext, FileWatcherOptions, IFileSystemWatcher } from 'vscode-markdown-languageservice/out/workspace';
 import { URI } from 'vscode-uri';
 import { LsConfiguration } from './config';
 import * as protocol from './protocol';
-import { coalesce } from './util/arrays';
 import { isMarkdownFile, looksLikeMarkdownPath } from './util/file';
 import { Limiter } from './util/limiter';
 import { ResourceMap } from './util/resourceMap';
@@ -18,7 +17,7 @@ import { Schemes } from './util/schemes';
 
 declare const TextDecoder: any;
 
-export class VsCodeClientWorkspace implements md.IWorkspace {
+export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 
 	private readonly _onDidCreateMarkdownDocument = new Emitter<md.ITextDocument>();
 	public readonly onDidCreateMarkdownDocument = this._onDidCreateMarkdownDocument.event;
@@ -33,11 +32,21 @@ export class VsCodeClientWorkspace implements md.IWorkspace {
 
 	private readonly _utf8Decoder = new TextDecoder('utf-8');
 
+	private _watcherPool = 0;
+	private readonly _watchers = new Map<number, {
+		readonly resource: URI;
+		readonly options: FileWatcherOptions;
+		readonly onDidChange: Emitter<URI>;
+		readonly onDidCreate: Emitter<URI>;
+		readonly onDidDelete: Emitter<URI>;
+	}>();
+
 	constructor(
 		private readonly connection: Connection,
 		private readonly config: LsConfiguration,
 		private readonly documents: TextDocuments<TextDocument>,
 		private readonly notebooks: NotebookDocuments<TextDocument>,
+		private readonly logger: md.ILogger,
 	) {
 		documents.onDidOpen(e => {
 			this._documentCache.delete(URI.parse(e.document.uri));
@@ -53,12 +62,18 @@ export class VsCodeClientWorkspace implements md.IWorkspace {
 		});
 
 		documents.onDidClose(e => {
-			this._documentCache.delete(URI.parse(e.document.uri));
+			const uri = URI.parse(e.document.uri);
+			this._documentCache.delete(uri);
+
+			if (this.isRelevantMarkdownDocument(e.document)) {
+				this._onDidDeleteMarkdownDocument.fire(uri);
+			}
 		});
 
 		connection.onDidChangeWatchedFiles(async ({ changes }) => {
 			for (const change of changes) {
 				const resource = URI.parse(change.uri);
+				this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace: onDidChangeWatchedFiles', `${change.type}: ${resource}`);
 				switch (change.type) {
 					case FileChangeType.Changed: {
 						this._documentCache.delete(resource);
@@ -83,6 +98,21 @@ export class VsCodeClientWorkspace implements md.IWorkspace {
 				}
 			}
 		});
+
+		connection.onRequest(protocol.fs_watcher_onChange, params => {
+			this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace: fs_watcher_onChange', `${params.kind}: ${params.uri}`);
+
+			const watcher = this._watchers.get(params.id);
+			if (!watcher) {
+				return;
+			}
+
+			switch (params.kind) {
+				case 'create': watcher.onDidCreate.fire(URI.parse(params.uri)); return;
+				case 'change': watcher.onDidChange.fire(URI.parse(params.uri)); return;
+				case 'delete': watcher.onDidDelete.fire(URI.parse(params.uri)); return;
+			}
+		});
 	}
 
 	public listen() {
@@ -102,29 +132,35 @@ export class VsCodeClientWorkspace implements md.IWorkspace {
 	}
 
 	async getAllMarkdownDocuments(): Promise<Iterable<md.ITextDocument>> {
+		// Add opened files (such as untitled files)
+		const openTextDocumentResults = this.documents.all()
+			.filter(doc => this.isRelevantMarkdownDocument(doc));
+
+		const allDocs = new ResourceMap<md.ITextDocument>();
+		for (const doc of openTextDocumentResults) {
+			allDocs.set(URI.parse(doc.uri), doc);
+		}
+
+		// And then add files on disk
 		const maxConcurrent = 20;
-
-		const foundFiles = new ResourceMap<void>();
 		const limiter = new Limiter<md.ITextDocument | undefined>(maxConcurrent);
-
-		// Add files on disk
-		const resources = await this.connection.sendRequest(protocol.findFilesRequestTypes, {});
-		const onDiskResults = await Promise.all(resources.map(strResource => {
+		const resources = await this.connection.sendRequest(protocol.findMarkdownFilesInWorkspace, {});
+		await Promise.all(resources.map(strResource => {
 			return limiter.queue(async () => {
 				const resource = URI.parse(strResource);
+				if (allDocs.has(resource)) {
+					return;
+				}
+
 				const doc = await this.openMarkdownDocument(resource);
 				if (doc) {
-					foundFiles.set(resource);
+					allDocs.set(resource, doc);
 				}
 				return doc;
 			});
 		}));
 
-		// Add opened files (such as untitled files)
-		const openTextDocumentResults = await Promise.all(this.documents.all()
-			.filter(doc => !foundFiles.has(URI.parse(doc.uri)) && this.isRelevantMarkdownDocument(doc)));
-
-		return coalesce([...onDiskResults, ...openTextDocumentResults]);
+		return allDocs.values();
 	}
 
 	hasMarkdownDocument(resource: URI): boolean {
@@ -148,13 +184,13 @@ export class VsCodeClientWorkspace implements md.IWorkspace {
 		}
 
 		try {
-			const response = await this.connection.sendRequest(protocol.readFileRequestType, { uri: resource.toString() });
+			const response = await this.connection.sendRequest(protocol.fs_readFile, { uri: resource.toString() });
 			// TODO: LSP doesn't seem to handle Array buffers well
 			const bytes = new Uint8Array(response);
 
 			// We assume that markdown is in UTF-8
 			const text = this._utf8Decoder.decode(bytes);
-			const doc = new md.InMemoryDocument(resource, text, 0);
+			const doc = TextDocument.create(resource.toString(), 'markdown', 0, text);
 			this._documentCache.set(resource, doc);
 			return doc;
 		} catch (e) {
@@ -163,14 +199,16 @@ export class VsCodeClientWorkspace implements md.IWorkspace {
 	}
 
 	async stat(resource: URI): Promise<md.FileStat | undefined> {
+		this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace: stat', `${resource}`);
 		if (this._documentCache.has(resource) || this.documents.get(resource.toString())) {
 			return { isDirectory: false };
 		}
-		return this.connection.sendRequest(protocol.statFileRequestType, { uri: resource.toString() });
+		return this.connection.sendRequest(protocol.fs_stat, { uri: resource.toString() });
 	}
 
 	async readDirectory(resource: URI): Promise<[string, md.FileStat][]> {
-		return this.connection.sendRequest(protocol.readDirectoryRequestType, { uri: resource.toString() });
+		this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace: readDir', `${resource}`);
+		return this.connection.sendRequest(protocol.fs_readDirectory, { uri: resource.toString() });
 	}
 
 	getContainingDocument(resource: URI): ContainingDocumentContext | undefined {
@@ -184,6 +222,38 @@ export class VsCodeClientWorkspace implements md.IWorkspace {
 			}
 		}
 		return undefined;
+	}
+
+	watchFile(resource: URI, options: FileWatcherOptions): IFileSystemWatcher {
+		const id = this._watcherPool++;
+		this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace: watchFile', `(${id}) ${resource}`);
+
+		const entry = {
+			resource,
+			options,
+			onDidCreate: new Emitter<URI>(),
+			onDidChange: new Emitter<URI>(),
+			onDidDelete: new Emitter<URI>(),
+		};
+		this._watchers.set(id, entry);
+
+		this.connection.sendRequest(protocol.fs_watcher_create, {
+			id,
+			uri: resource.toString(),
+			options,
+			watchParentDirs: true,
+		});
+
+		return {
+			onDidCreate: entry.onDidCreate.event,
+			onDidChange: entry.onDidChange.event,
+			onDidDelete: entry.onDidDelete.event,
+			dispose: () => {
+				this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace: disposeWatcher', `(${id}) ${resource}`);
+				this.connection.sendRequest(protocol.fs_watcher_delete, { id });
+				this._watchers.delete(id);
+			}
+		};
 	}
 
 	private isRelevantMarkdownDocument(doc: TextDocument) {

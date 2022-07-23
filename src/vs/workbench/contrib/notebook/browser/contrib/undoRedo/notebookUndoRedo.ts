@@ -65,4 +65,4 @@ class NotebookUndoRedoContribution extends Disposable {
 }
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(NotebookUndoRedoContribution, LifecyclePhase.Ready);
+workbenchContributionsRegistry.registerWorkbenchContribution(NotebookUndoRedoContribution, 'NotebookUndoRedoContribution', LifecyclePhase.Ready);

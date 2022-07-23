@@ -36,9 +36,9 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { EditorResolution } from 'vs/platform/editor/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 
 export class UserDataSyncMergesViewPane extends TreeViewPane {
 
@@ -66,8 +66,9 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@INotificationService notificationService: INotificationService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, notificationService);
 		this.userDataSyncPreview = userDataSyncWorkbenchService.userDataSyncPreview;
 
 		this._register(this.userDataSyncPreview.onDidChangeResources(() => this.updateSyncButtonEnablement()));
@@ -324,7 +325,7 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 					preserveFocus: true,
 					revealIfVisible: true,
 					pinned: true,
-					override: EditorResolution.DISABLED
+					override: DEFAULT_EDITOR_ASSOCIATION.id
 				},
 			});
 		}

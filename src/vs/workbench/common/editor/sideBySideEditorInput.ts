@@ -42,6 +42,9 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 			capabilities |= EditorInputCapabilities.Singleton;
 		}
 
+		// Indicate we show more than one editor
+		capabilities |= EditorInputCapabilities.MultipleEditors;
+
 		return capabilities;
 	}
 

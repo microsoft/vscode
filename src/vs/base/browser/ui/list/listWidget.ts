@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { createStyleSheet } from 'vs/base/browser/dom';
-import { DomEmitter, stopEvent } from 'vs/base/browser/event';
+import { createStyleSheet, EventHelper } from 'vs/base/browser/dom';
+import { DomEmitter } from 'vs/base/browser/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Gesture } from 'vs/base/browser/touch';
 import { alert } from 'vs/base/browser/ui/aria/aria';
@@ -424,6 +424,7 @@ class TypeNavigationController<T> implements IDisposable {
 		private list: List<T>,
 		private view: ListView<T>,
 		private keyboardNavigationLabelProvider: IKeyboardNavigationLabelProvider<T>,
+		private keyboardNavigationEventFilter: IKeyboardNavigationEventFilter,
 		private delegate: IKeyboardNavigationDelegate
 	) {
 		this.updateOptions(list.options);
@@ -448,12 +449,15 @@ class TypeNavigationController<T> implements IDisposable {
 			return;
 		}
 
+		let typing = false;
+
 		const onChar = this.enabledDisposables.add(Event.chain(this.enabledDisposables.add(new DomEmitter(this.view.domNode, 'keydown')).event))
 			.filter(e => !isInputElement(e.target as HTMLElement))
 			.filter(() => this.mode === TypeNavigationMode.Automatic || this.triggered)
 			.map(event => new StandardKeyboardEvent(event))
+			.filter(e => typing || this.keyboardNavigationEventFilter(e))
 			.filter(e => this.delegate.mightProducePrintableCharacter(e))
-			.forEach(e => { e.preventDefault(); e.stopPropagation(); })
+			.forEach(e => EventHelper.stop(e, true))
 			.map(event => event.browserEvent.key)
 			.event;
 
@@ -462,6 +466,9 @@ class TypeNavigationController<T> implements IDisposable {
 
 		onInput(this.onInput, this, this.enabledDisposables);
 		onClear(this.onClear, this, this.enabledDisposables);
+
+		onChar(() => typing = true, undefined, this.enabledDisposables);
+		onClear(() => typing = false, undefined, this.enabledDisposables);
 
 		this.enabled = true;
 		this.triggered = false;
@@ -919,6 +926,10 @@ export class DefaultStyleController implements IStyleController {
 	}
 }
 
+export interface IKeyboardNavigationEventFilter {
+	(e: StandardKeyboardEvent): boolean;
+}
+
 export interface IListOptionsUpdate extends IListViewOptionsUpdate {
 	readonly typeNavigationEnabled?: boolean;
 	readonly typeNavigationMode?: TypeNavigationMode;
@@ -934,6 +945,7 @@ export interface IListOptions<T> extends IListOptionsUpdate {
 	readonly multipleSelectionController?: IMultipleSelectionController<T>;
 	readonly styleController?: (suffix: string) => IStyleController;
 	readonly accessibilityProvider?: IListAccessibilityProvider<T>;
+	readonly keyboardNavigationEventFilter?: IKeyboardNavigationEventFilter;
 
 	// list view options
 	readonly useShadows?: boolean;
@@ -1276,7 +1288,7 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 		const fromKeyDown = this.disposables.add(Event.chain(this.disposables.add(new DomEmitter(this.view.domNode, 'keydown')).event))
 			.map(e => new StandardKeyboardEvent(e))
 			.filter(e => didJustPressContextMenuKey = e.keyCode === KeyCode.ContextMenu || (e.shiftKey && e.keyCode === KeyCode.F10))
-			.map(stopEvent)
+			.map(e => EventHelper.stop(e, true))
 			.filter(() => false)
 			.event as Event<any>;
 
@@ -1284,7 +1296,7 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 			.forEach(() => didJustPressContextMenuKey = false)
 			.map(e => new StandardKeyboardEvent(e))
 			.filter(e => e.keyCode === KeyCode.ContextMenu || (e.shiftKey && e.keyCode === KeyCode.F10))
-			.map(stopEvent)
+			.map(e => EventHelper.stop(e, true))
 			.map(({ browserEvent }) => {
 				const focus = this.getFocus();
 				const index = focus.length ? focus[0] : undefined;
@@ -1373,7 +1385,7 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 
 		if (_options.keyboardNavigationLabelProvider) {
 			const delegate = _options.keyboardNavigationDelegate || DefaultKeyboardNavigationDelegate;
-			this.typeNavigationController = new TypeNavigationController(this, this.view, _options.keyboardNavigationLabelProvider, delegate);
+			this.typeNavigationController = new TypeNavigationController(this, this.view, _options.keyboardNavigationLabelProvider, _options.keyboardNavigationEventFilter ?? (() => true), delegate);
 			this.disposables.add(this.typeNavigationController);
 		}
 
@@ -1516,9 +1528,7 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 	}
 
 	triggerTypeNavigation(): void {
-		if (this.typeNavigationController) {
-			this.typeNavigationController.trigger();
-		}
+		this.typeNavigationController?.trigger();
 	}
 
 	setSelection(indexes: number[], browserEvent?: UIEvent): void {
@@ -1783,6 +1793,10 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 
 	getHTMLElement(): HTMLElement {
 		return this.view.domNode;
+	}
+
+	getElementID(index: number): string {
+		return this.view.getElementDomId(index);
 	}
 
 	style(styles: IListStyles): void {

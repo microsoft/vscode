@@ -8,7 +8,7 @@ import { ParseError, parse, getNodeType } from 'vs/base/common/json';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as types from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { CharacterPair, CommentRule, EnterAction, ExplicitLanguageConfiguration, FoldingRules, IAutoClosingPair, IAutoClosingPairConditional, IndentAction, IndentationRule, OnEnterRule } from 'vs/editor/common/languages/languageConfiguration';
+import { CharacterPair, CommentRule, EnterAction, ExplicitLanguageConfiguration, FoldingMarkers, FoldingRules, IAutoClosingPair, IAutoClosingPairConditional, IndentAction, IndentationRule, OnEnterRule } from 'vs/editor/common/languages/languageConfiguration';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
@@ -45,6 +45,9 @@ interface IOnEnterRule {
 	action: IEnterAction;
 }
 
+/**
+ * Serialized form of a language configuration
+ */
 interface ILanguageConfiguration {
 	comments?: CommentRule;
 	brackets?: CharacterPair[];
@@ -53,7 +56,13 @@ interface ILanguageConfiguration {
 	colorizedBracketPairs?: Array<CharacterPair>;
 	wordPattern?: string | IRegExp;
 	indentationRules?: IIndentationRules;
-	folding?: FoldingRules;
+	folding?: {
+		offSide?: boolean;
+		markers?: {
+			start?: string | IRegExp;
+			end?: string | IRegExp;
+		};
+	};
 	autoCloseBefore?: string;
 	onEnterRules?: IOnEnterRule[];
 }
@@ -393,10 +402,13 @@ export class LanguageConfigurationFileHandler extends Disposable {
 		const indentationRules = (configuration.indentationRules ? this._mapIndentationRules(languageId, configuration.indentationRules) : undefined);
 		let folding: FoldingRules | undefined = undefined;
 		if (configuration.folding) {
-			const markers = configuration.folding.markers;
+			const rawMarkers = configuration.folding.markers;
+			const startMarker = (rawMarkers && rawMarkers.start ? this._parseRegex(languageId, `folding.markers.start`, rawMarkers.start) : undefined);
+			const endMarker = (rawMarkers && rawMarkers.end ? this._parseRegex(languageId, `folding.markers.end`, rawMarkers.end) : undefined);
+			const markers: FoldingMarkers | undefined = (startMarker && endMarker ? { start: startMarker, end: endMarker } : undefined);
 			folding = {
 				offSide: configuration.folding.offSide,
-				markers: markers ? { start: new RegExp(markers.start), end: new RegExp(markers.end) } : undefined
+				markers
 			};
 		}
 		const onEnterRules = this._extractValidOnEnterRules(languageId, configuration);

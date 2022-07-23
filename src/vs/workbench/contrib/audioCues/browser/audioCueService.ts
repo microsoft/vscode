@@ -147,11 +147,11 @@ export class Sound {
 	}
 
 
-	public static readonly error = Sound.register({ fileName: 'error.opus' });
-	public static readonly warning = Sound.register({ fileName: 'warning.opus' });
-	public static readonly foldedArea = Sound.register({ fileName: 'foldedAreas.opus' });
-	public static readonly break = Sound.register({ fileName: 'break.opus' });
-	public static readonly quickFixes = Sound.register({ fileName: 'quickFixes.opus' });
+	public static readonly error = Sound.register({ fileName: 'error.mp3' });
+	public static readonly warning = Sound.register({ fileName: 'warning.mp3' });
+	public static readonly foldedArea = Sound.register({ fileName: 'foldedAreas.mp3' });
+	public static readonly break = Sound.register({ fileName: 'break.mp3' });
+	public static readonly quickFixes = Sound.register({ fileName: 'quickFixes.mp3' });
 
 	private constructor(public readonly fileName: string) { }
 }

@@ -27,7 +27,7 @@ export class QuickInputService extends BaseQuickInputService {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@ILayoutService layoutService: ILayoutService,
+		@ILayoutService layoutService: ILayoutService
 	) {
 		super(instantiationService, contextKeyService, themeService, accessibilityService, layoutService);
 
@@ -42,7 +42,7 @@ export class QuickInputService extends BaseQuickInputService {
 	protected override createController(): QuickInputController {
 		return super.createController(this.layoutService, {
 			ignoreFocusOut: () => !this.configurationService.getValue('workbench.quickOpen.closeOnFocusLost'),
-			backKeybindingLabel: () => this.keybindingService.lookupKeybinding('workbench.action.quickInputBack')?.getLabel() || undefined,
+			backKeybindingLabel: () => this.keybindingService.lookupKeybinding('workbench.action.quickInputBack')?.getLabel() || undefined
 		});
 	}
 }

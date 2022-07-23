@@ -89,6 +89,8 @@ function discoverAndReadFiles(ts, options) {
     const in_queue = Object.create(null);
     const queue = [];
     const enqueue = (moduleId) => {
+        // To make the treeshaker work on windows...
+        moduleId = moduleId.replace(/\\/g, '/');
         if (in_queue[moduleId]) {
             return;
         }
@@ -226,6 +228,12 @@ function getColor(node) {
 function setColor(node, color) {
     node.$$$color = color;
 }
+function markNeededSourceFile(node) {
+    node.$$$neededSourceFile = true;
+}
+function isNeededSourceFile(node) {
+    return Boolean(node.$$$neededSourceFile);
+}
 function nodeOrParentIsBlack(node) {
     while (node) {
         const color = getColor(node);
@@ -351,6 +359,19 @@ function markNodes(ts, languageService, options) {
             }
         });
     }
+    /**
+     * Return the parent of `node` which is an ImportDeclaration
+     */
+    function findParentImportDeclaration(node) {
+        let _node = node;
+        do {
+            if (ts.isImportDeclaration(_node)) {
+                return _node;
+            }
+            _node = _node.parent;
+        } while (_node);
+        return null;
+    }
     function enqueue_gray(node) {
         if (nodeOrParentIsBlack(node) || getColor(node) === 1 /* NodeColor.Gray */) {
             return;
@@ -418,6 +439,8 @@ function markNodes(ts, languageService, options) {
             console.warn(`Cannot find source file ${filename}`);
             return;
         }
+        // This source file should survive even if it is empty
+        markNeededSourceFile(sourceFile);
         enqueue_black(sourceFile);
     }
     function enqueueImport(node, importText) {
@@ -470,6 +493,10 @@ function markNodes(ts, languageService, options) {
             const [symbol, symbolImportNode] = getRealNodeSymbol(ts, checker, node);
             if (symbolImportNode) {
                 setColor(symbolImportNode, 2 /* NodeColor.Black */);
+                const importDeclarationNode = findParentImportDeclaration(symbolImportNode);
+                if (importDeclarationNode && ts.isStringLiteral(importDeclarationNode.moduleSpecifier)) {
+                    enqueueImport(importDeclarationNode, importDeclarationNode.moduleSpecifier.text);
+                }
             }
             if (isSymbolWithDeclarations(symbol) && !nodeIsInItsOwnDeclaration(nodeSourceFile, node, symbol)) {
                 for (let i = 0, len = symbol.declarations.length; i < len; i++) {
@@ -661,11 +688,23 @@ function generateResult(ts, languageService, shakeLevel) {
         }
         if (getColor(sourceFile) !== 2 /* NodeColor.Black */) {
             if (!nodeOrChildIsBlack(sourceFile)) {
-                // none of the elements are reachable => don't write this file at all!
-                return;
+                // none of the elements are reachable
+                if (isNeededSourceFile(sourceFile)) {
+                    // this source file must be written, even if nothing is used from it
+                    // because there is an import somewhere for it.
+                    // However, TS complains with empty files with the error "x" is not a module,
+                    // so we will export a dummy variable
+                    result = 'export const __dummy = 0;';
+                }
+                else {
+                    // don't write this file at all!
+                    return;
+                }
             }
-            sourceFile.forEachChild(writeMarkedNodes);
-            result += sourceFile.endOfFileToken.getFullText(sourceFile);
+            else {
+                sourceFile.forEachChild(writeMarkedNodes);
+                result += sourceFile.endOfFileToken.getFullText(sourceFile);
+            }
         }
         else {
             result = text;

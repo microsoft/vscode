@@ -278,9 +278,7 @@ abstract class AbstractFocusGroupAction extends Action {
 
 	override async run(): Promise<void> {
 		const group = this.editorGroupService.findGroup(this.scope, this.editorGroupService.activeGroup, true);
-		if (group) {
-			group.focus();
-		}
+		group?.focus();
 	}
 }
 
@@ -1134,11 +1132,19 @@ export class OpenNextEditor extends AbstractNavigateEditorAction {
 			return { editor: activeGroupEditors[activeEditorIndex + 1], groupId: activeGroup.id };
 		}
 
-		// Otherwise try in next group
-		const nextGroup = this.editorGroupService.findGroup({ location: GroupLocation.NEXT }, this.editorGroupService.activeGroup, true);
-		if (nextGroup) {
-			const previousGroupEditors = nextGroup.getEditors(EditorsOrder.SEQUENTIAL);
-			return { editor: previousGroupEditors[0], groupId: nextGroup.id };
+		// Otherwise try in next group that has editors
+		const handledGroups = new Set<number>();
+		let currentGroup: IEditorGroup | undefined = this.editorGroupService.activeGroup;
+		while (currentGroup && !handledGroups.has(currentGroup.id)) {
+			currentGroup = this.editorGroupService.findGroup({ location: GroupLocation.NEXT }, currentGroup, true);
+			if (currentGroup) {
+				handledGroups.add(currentGroup.id);
+
+				const groupEditors = currentGroup.getEditors(EditorsOrder.SEQUENTIAL);
+				if (groupEditors.length > 0) {
+					return { editor: groupEditors[0], groupId: currentGroup.id };
+				}
+			}
 		}
 
 		return undefined;
@@ -1169,11 +1175,19 @@ export class OpenPreviousEditor extends AbstractNavigateEditorAction {
 			return { editor: activeGroupEditors[activeEditorIndex - 1], groupId: activeGroup.id };
 		}
 
-		// Otherwise try in previous group
-		const previousGroup = this.editorGroupService.findGroup({ location: GroupLocation.PREVIOUS }, this.editorGroupService.activeGroup, true);
-		if (previousGroup) {
-			const previousGroupEditors = previousGroup.getEditors(EditorsOrder.SEQUENTIAL);
-			return { editor: previousGroupEditors[previousGroupEditors.length - 1], groupId: previousGroup.id };
+		// Otherwise try in previous group that has editors
+		const handledGroups = new Set<number>();
+		let currentGroup: IEditorGroup | undefined = this.editorGroupService.activeGroup;
+		while (currentGroup && !handledGroups.has(currentGroup.id)) {
+			currentGroup = this.editorGroupService.findGroup({ location: GroupLocation.PREVIOUS }, currentGroup, true);
+			if (currentGroup) {
+				handledGroups.add(currentGroup.id);
+
+				const groupEditors = currentGroup.getEditors(EditorsOrder.SEQUENTIAL);
+				if (groupEditors.length > 0) {
+					return { editor: groupEditors[groupEditors.length - 1], groupId: currentGroup.id };
+				}
+			}
 		}
 
 		return undefined;

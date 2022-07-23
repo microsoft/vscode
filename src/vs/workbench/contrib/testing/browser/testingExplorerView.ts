@@ -491,6 +491,7 @@ export class TestingExplorerViewModel extends Disposable {
 				keyboardNavigationLabelProvider: instantiationService.createInstance(TreeKeyboardNavigationLabelProvider),
 				accessibilityProvider: instantiationService.createInstance(ListAccessibilityProvider),
 				filter: this.filter,
+				findWidgetEnabled: false
 			}) as WorkbenchObjectTree<TestExplorerTreeElement, FuzzyScore>;
 
 		this._register(this.tree.onDidChangeCollapseState(evt => {
@@ -713,9 +714,8 @@ export class TestingExplorerViewModel extends Disposable {
 		const actions = getActionableElementActions(this.contextKeyService, this.menuService, this.testService, this.testProfileService, element);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => evt.anchor,
-			getActions: () => actions.value.secondary,
+			getActions: () => actions.secondary,
 			getActionsContext: () => element,
-			onHide: () => actions.dispose(),
 			actionRunner: this.actionRunner,
 		});
 	}
@@ -1014,6 +1014,13 @@ const getLabelForTestTreeElement = (element: TestItemTreeElement) => {
 				comment: ['{0} is the original label in testing.treeElementLabel, {1} is a duration'],
 			}, '{0}, in {1}', label, formatDuration(element.duration));
 		}
+
+		if (element.retired) {
+			label = localize({
+				key: 'testing.treeElementLabelOutdated',
+				comment: ['{0} is the original label in testing.treeElementLabel'],
+			}, '{0}, outdated result', label);
+		}
 	}
 
 	return label;
@@ -1168,10 +1175,9 @@ abstract class ActionableItemTemplateData<T extends TestItemTreeElement> extends
 
 	private fillActionBar(element: T, data: IActionableElementTemplateData) {
 		const actions = getActionableElementActions(this.contextKeyService, this.menuService, this.testService, this.profiles, element);
-		data.elementDisposable.push(actions);
 		data.actionBar.clear();
 		data.actionBar.context = element;
-		data.actionBar.push(actions.value.primary, { icon: true, label: false });
+		data.actionBar.push(actions.primary, { icon: true, label: false });
 	}
 }
 
@@ -1200,6 +1206,9 @@ class TestItemRenderer extends ActionableItemTemplateData<TestItemTreeElement> {
 				: node.element.state);
 
 		data.icon.className = 'computed-state ' + (icon ? ThemeIcon.asClassName(icon) : '');
+		if (node.element.retired) {
+			data.icon.className += ' retired';
+		}
 
 		data.label.title = getLabelForTestTreeElement(node.element);
 		dom.reset(data.label, ...renderLabelWithIcons(node.element.label));
@@ -1257,11 +1266,11 @@ const getActionableElementActions = (
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
-		const actionsDisposable = createAndFillInActionBarActions(menu, {
+		createAndFillInActionBarActions(menu, {
 			shouldForwardArgs: true,
 		}, result, 'inline');
 
-		return { value: result, dispose: () => actionsDisposable.dispose };
+		return result;
 	} finally {
 		menu.dispose();
 	}

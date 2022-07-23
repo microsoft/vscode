@@ -88,18 +88,19 @@ class SearchEditorContribution implements IWorkbenchContribution {
 			},
 			{
 				singlePerResource: true,
-				canHandleDiff: false,
 				canSupportResource: resource => (extname(resource) === SEARCH_EDITOR_EXT)
 			},
-			({ resource }) => {
-				return { editor: instantiationService.invokeFunction(getOrMakeSearchEditorInput, { from: 'existingFile', fileUri: resource }) };
+			{
+				createEditorInput: ({ resource }) => {
+					return { editor: instantiationService.invokeFunction(getOrMakeSearchEditorInput, { from: 'existingFile', fileUri: resource }) };
+				}
 			}
 		);
 	}
 }
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(SearchEditorContribution, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(SearchEditorContribution, 'SearchEditorContribution', LifecyclePhase.Starting);
 //#endregion
 
 //#region Input Serializer
@@ -591,5 +592,5 @@ class SearchEditorWorkingCopyEditorHandler extends Disposable implements IWorkbe
 	}
 }
 
-workbenchContributionsRegistry.registerWorkbenchContribution(SearchEditorWorkingCopyEditorHandler, LifecyclePhase.Ready);
+workbenchContributionsRegistry.registerWorkbenchContribution(SearchEditorWorkingCopyEditorHandler, 'SearchEditorWorkingCopyEditorHandler', LifecyclePhase.Ready);
 //#endregion
