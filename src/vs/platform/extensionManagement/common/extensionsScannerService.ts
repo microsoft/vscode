@@ -254,7 +254,7 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 		metaData.installedTimestamp = metaData.installedTimestamp || undefined;
 		manifest.__metadata = { ...manifest.__metadata, ...metaData };
 
-		await this.fileService.writeFile(joinPath(extensionLocation, 'package.json'), VSBuffer.fromString(JSON.stringify(manifest, null, '\t')));
+		await this.fileService.writeFile(joinPath(extensionLocation, 'package.json'), VSBuffer.fromString(JSON.stringify(manifest, null, 2) + '\n'));
 	}
 
 	private async applyScanOptions(extensions: IRelaxedScannedExtension[], type: ExtensionType | 'development', scanOptions: ScanOptions, pickLatest: boolean): Promise<IRelaxedScannedExtension[]> {
