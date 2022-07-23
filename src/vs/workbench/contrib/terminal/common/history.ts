@@ -90,6 +90,9 @@ export async function getShellFileHistory(accessor: ServicesAccessor, shellType:
 		case PosixShellType.Zsh:
 			result = await fetchZshHistory(accessor);
 			break;
+		case PosixShellType.Fish:
+			result = await fetchFishHistory(accessor);
+			break;
 		default: return [];
 	}
 	if (result === undefined) {
