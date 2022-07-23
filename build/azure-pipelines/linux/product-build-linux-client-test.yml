@@ -55,8 +55,8 @@ steps:
 
       - script: |
           set -e
-          DEBUG=*browser* yarn test-browser-no-install --sequential --browser chromium --browser firefox --tfs "Browser Unit Tests"
-        displayName: Run unit tests (Browser, Chromium & Firefox)
+          DEBUG=*browser* yarn test-browser-no-install --browser chromium --tfs "Browser Unit Tests"
+        displayName: Run unit tests (Browser, Chromium)
         timeoutInMinutes: 15
 
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
