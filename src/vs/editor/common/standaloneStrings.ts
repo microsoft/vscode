@@ -7,9 +7,9 @@ import * as nls from 'vs/nls';
 
 export namespace AccessibilityHelpNLS {
 	export const noSelection = nls.localize("noSelection", "No selection");
-	export const singleSelectionRange = nls.localize("singleSelectionRange", "Line {0}, Column {1} ({2} selected)");
+	export const singleSelectionRange = nls.localize("singleSelectionRange", "Line {0}, Column {1} ({2} lines, {3} characters selected)");
 	export const singleSelection = nls.localize("singleSelection", "Line {0}, Column {1}");
-	export const multiSelectionRange = nls.localize("multiSelectionRange", "{0} selections ({1} characters selected)");
+	export const multiSelectionRange = nls.localize("multiSelectionRange", "{0} selections ({1} lines, {2} characters selected)");
 	export const multiSelection = nls.localize("multiSelection", "{0} selections");
 	export const emergencyConfOn = nls.localize("emergencyConfOn", "Now changing the setting `accessibilitySupport` to 'on'.");
 	export const openingDocs = nls.localize("openingDocs", "Now opening the Editor Accessibility documentation page.");

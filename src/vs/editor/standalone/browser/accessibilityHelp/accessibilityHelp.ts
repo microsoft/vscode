@@ -67,21 +67,21 @@ class AccessibilityHelpController extends Disposable
 }
 
 
-function getSelectionLabel(selections: Selection[] | null, charactersSelected: number): string {
+function getSelectionLabel(selections: Selection[] | null, charactersSelected: number, linesSelected: number): string {
 	if (!selections || selections.length === 0) {
 		return AccessibilityHelpNLS.noSelection;
 	}
 
 	if (selections.length === 1) {
 		if (charactersSelected) {
-			return strings.format(AccessibilityHelpNLS.singleSelectionRange, selections[0].positionLineNumber, selections[0].positionColumn, charactersSelected);
+			return strings.format(AccessibilityHelpNLS.singleSelectionRange, selections[0].positionLineNumber, selections[0].positionColumn, linesSelected, charactersSelected);
 		}
 
 		return strings.format(AccessibilityHelpNLS.singleSelection, selections[0].positionLineNumber, selections[0].positionColumn);
 	}
 
 	if (charactersSelected) {
-		return strings.format(AccessibilityHelpNLS.multiSelectionRange, selections.length, charactersSelected);
+		return strings.format(AccessibilityHelpNLS.multiSelectionRange, selections.length, linesSelected, charactersSelected);
 	}
 
 	if (selections.length > 0) {
@@ -220,18 +220,20 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 		const options = this._editor.getOptions();
 
 		const selections = this._editor.getSelections();
-		let charactersSelected = 0;
+
+		let charactersSelected = 0, linesSelected = 0;
 
 		if (selections) {
 			const model = this._editor.getModel();
 			if (model) {
 				selections.forEach((selection) => {
 					charactersSelected += model.getValueLengthInRange(selection);
+					linesSelected += (selection.endLineNumber - selection.startLineNumber + 1);
 				});
 			}
 		}
 
-		let text = getSelectionLabel(selections, charactersSelected);
+		let text = getSelectionLabel(selections, charactersSelected, linesSelected);
 
 		if (options.get(EditorOption.inDiffEditor)) {
 			if (options.get(EditorOption.readOnly)) {
