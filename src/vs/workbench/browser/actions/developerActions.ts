@@ -137,14 +137,17 @@ class ToggleScreencastModeAction extends Action2 {
 		updateMouseIndicatorColor();
 		updateMouseIndicatorSize();
 
+		const calcPositionY = (e: MouseEvent) => e.clientY - mouseIndicatorSize / 2;
+		const calcPositionX = (e: MouseEvent) => e.clientX - mouseIndicatorSize / 2;
+
 		disposables.add(onMouseDown.event(e => {
-			mouseMarker.style.top = `${e.clientY - mouseIndicatorSize / 2}px`;
-			mouseMarker.style.left = `${e.clientX - mouseIndicatorSize / 2}px`;
+			mouseMarker.style.top = `${calcPositionY(e)}px`;
+			mouseMarker.style.left = `${calcPositionX(e)}px`;
 			mouseMarker.style.display = 'block';
 
 			const mouseMoveListener = onMouseMove.event(e => {
-				mouseMarker.style.top = `${e.clientY - mouseIndicatorSize / 2}px`;
-				mouseMarker.style.left = `${e.clientX - mouseIndicatorSize / 2}px`;
+				mouseMarker.style.top = `${calcPositionY(e)}px`;
+				mouseMarker.style.left = `${calcPositionX(e)}px`;
 			});
 
 			Event.once(onMouseUp.event)(() => {
