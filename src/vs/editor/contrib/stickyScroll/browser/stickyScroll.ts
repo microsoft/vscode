@@ -144,7 +144,6 @@ class StickyScrollController implements IEditorContribution {
 
 		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
 		const model = this._editor.getModel();
-		const currentScrollTop: number = this._editor.getScrollTop() + this.stickyScrollWidget.codeLineCount * lineHeight;
 
 		const scrollTop = this._editor.getScrollTop();
 		let scrollDirection: ScrollDirection;
@@ -155,19 +154,26 @@ class StickyScrollController implements IEditorContribution {
 		}
 		this._lastScrollPosition = scrollTop;
 
+		const currentScrollTop: number = this._editor.getScrollTop() + this.stickyScrollWidget.codeLineCount * lineHeight + 1;
 		this.stickyScrollWidget.emptyRootNode();
-		// TODO @Aiday: Find a way to iterate over only the ranges of interest, the position at which you start, use binary search
+		const beginningLinesConsidered = new Set();
 		for (const [start, end, depth] of this._ranges) {
-			if (this._editor.getScrollTop() + depth * lineHeight >= end * lineHeight && this._editor.getScrollTop() + depth * lineHeight < (end + 1) * lineHeight) {
-				this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(model.getLineContent(start), start, this._editor, -1, (depth - 1) * lineHeight + end * lineHeight - this._editor.getScrollTop() - depth * lineHeight));
-			} else if (this._editor.getScrollTop() + depth * lineHeight >= (end - 1) * lineHeight && this._editor.getScrollTop() + depth * lineHeight < end * lineHeight) {
-				this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(model.getLineContent(start), start, this._editor, 0));
-			} else if (scrollDirection === ScrollDirection.Down && currentScrollTop >= (start - 1) * lineHeight && currentScrollTop < (end - 1) * lineHeight) {
-				this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(model.getLineContent(start), start, this._editor, 0));
-			} else if (scrollDirection === ScrollDirection.Up && currentScrollTop >= start * lineHeight && currentScrollTop < (end - 1) * lineHeight) {
-				this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(model.getLineContent(start), start, this._editor, 0));
+			if (!beginningLinesConsidered.has(start)) {
+				if (this._editor.getScrollTop() + (depth - 1) * lineHeight + 1 >= (end - 1) * lineHeight && this._editor.getScrollTop() + (depth - 1) * lineHeight < end * lineHeight - 2) {
+					beginningLinesConsidered.add(start);
+					this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(model.getLineContent(start), start, this._editor, -1, (depth - 1) * lineHeight + end * lineHeight - this._editor.getScrollTop() - depth * lineHeight));
+					break;
+				}
+				else if (scrollDirection === ScrollDirection.Down && currentScrollTop > (start - 1) * lineHeight && currentScrollTop < end * lineHeight) {
+					beginningLinesConsidered.add(start);
+					this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(model.getLineContent(start), start, this._editor, 0));
+				} else if (scrollDirection === ScrollDirection.Up && currentScrollTop >= start * lineHeight && currentScrollTop <= end * lineHeight) {
+					beginningLinesConsidered.add(start);
+					this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(model.getLineContent(start), start, this._editor, 0));
+				}
 			}
 		}
+
 		this.stickyScrollWidget.updateRootNode();
 	}
 
@@ -188,8 +194,6 @@ class StickyScrollCodeLine {
 
 		const root: HTMLElement = document.createElement('div');
 		const modifiedLine = this._line.replace(/\s/g, '\xa0');
-		// TODO @Aiday: use _getViewModel() or other method
-		// TODO @Aiday: bracket decorations in RenderLineInput
 		const lineRenderingData = this._editor._getViewModel().getViewLineRenderingData(this._editor.getVisibleRanges()[0], this._lineNumber);
 
 		const renderLineInput: RenderLineInput = new RenderLineInput(true, true, modifiedLine, lineRenderingData.continuesWithWrappedLine,
@@ -206,24 +210,45 @@ class StickyScrollCodeLine {
 			newLine = sb.build();
 		}
 
-		const lineHTMLNode = document.createElement('span');
+		const lineHTMLNode = document.createElement('div');
+		lineHTMLNode.style.paddingLeft = this._editor.getLayoutInfo().contentLeft - this._editor.getLayoutInfo().lineNumbersLeft - this._editor.getLayoutInfo().lineNumbersWidth + 'px';
+		lineHTMLNode.style.float = 'left';
+		lineHTMLNode.style.width = this._editor.getLayoutInfo().width - this._editor.getLayoutInfo().contentLeft + 'px';
+		lineHTMLNode.style.backgroundColor = `var(--vscode-stickyScroll-background)`;
 		lineHTMLNode.innerHTML = newLine as string;
 
-		// TODO @Aiday: needs to be disposed, add one listener to sticky scroll widget, e has property target with direct element or child of the element
+		const lineNumberHTMLNode = document.createElement('div');
+		lineNumberHTMLNode.style.width = this._editor.getLayoutInfo().contentLeft.toString() + 'px';
+		lineNumberHTMLNode.style.backgroundColor = `var(--vscode-stickyScroll-background)`;
+		lineNumberHTMLNode.style.color = 'var(--vscode-editorLineNumber-foreground)';
+
+		const innerLineNumberHTML = document.createElement('div');
+		innerLineNumberHTML.innerText = this._lineNumber.toString();
+		innerLineNumberHTML.style.paddingLeft = this._editor.getLayoutInfo().lineNumbersLeft.toString() + 'px';
+		innerLineNumberHTML.style.width = this._editor.getLayoutInfo().lineNumbersWidth.toString() + 'px';
+		innerLineNumberHTML.style.backgroundColor = `var(--vscode-stickyScroll-background)`;
+		innerLineNumberHTML.style.textAlign = 'right';
+		innerLineNumberHTML.style.float = 'left';
+		lineNumberHTMLNode.appendChild(innerLineNumberHTML);
+
 		lineHTMLNode.onclick = e => {
 			e.stopPropagation();
 			e.preventDefault();
 			this._editor.revealLine(this._lineNumber);
 		};
-		this._editor.applyFontInfo(lineHTMLNode);
+		lineHTMLNode.onmouseover = e => {
+			innerLineNumberHTML.style.background = `var(--vscode-stickyScrollHover-background)`;
+			lineHTMLNode.style.backgroundColor = `var(--vscode-stickyScrollHover-background)`;
+			innerLineNumberHTML.style.cursor = `pointer`;
+			lineHTMLNode.style.cursor = `pointer`;
+		};
+		lineHTMLNode.onmouseleave = e => {
+			innerLineNumberHTML.style.background = `var(--vscode-stickyScroll-background)`;
+			lineHTMLNode.style.backgroundColor = `var(--vscode-stickyScroll-background)`;
+		};
 
-		const lineNumberHTMLNode = document.createElement('span');
-		lineNumberHTMLNode.innerText = this._lineNumber.toString();
-		lineNumberHTMLNode.style.width = this._editor.getLayoutInfo().contentLeft.toString() + 'px';
-		lineNumberHTMLNode.style.display = 'inline-block';
-		lineNumberHTMLNode.style.textAlign = 'center';
-		lineNumberHTMLNode.style.color = 'var(--vscode-editorLineNumber-foreground)';
-		this._editor.applyFontInfo(lineNumberHTMLNode);
+		this._editor.applyFontInfo(lineHTMLNode);
+		this._editor.applyFontInfo(innerLineNumberHTML);
 
 		root.appendChild(lineNumberHTMLNode);
 		root.appendChild(lineHTMLNode);
@@ -231,7 +256,7 @@ class StickyScrollCodeLine {
 		root.style.zIndex = this._zIndex.toString();
 		root.style.backgroundColor = `var(--vscode-stickyScroll-background)`;
 
-		// Last line of sticky scroll
+		// Special case for last line of sticky scroll
 		if (this._position) {
 			root.style.position = 'absolute';
 			root.style.top = this._position + 'px';
@@ -276,6 +301,7 @@ class StickyScrollWidget implements IOverlayWidget {
 
 	getDomNode(): HTMLElement {
 		this.rootDomNode.style.zIndex = '2';
+		this.rootDomNode.style.backgroundColor = `var(--vscode-stickyScroll-background)`;
 		return this.rootDomNode;
 	}
 
