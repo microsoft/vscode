@@ -276,9 +276,9 @@ class State {
 	}
 }
 
-const nlsSingleSelectionRange = localize('singleSelectionRange', "Ln {0}, Col {1} ({2} selected)");
+const nlsSingleSelectionRange = localize('singleSelectionRange', "Ln {0}, Col {1} ({2} lines, {3} characters selected)");
 const nlsSingleSelection = localize('singleSelection', "Ln {0}, Col {1}");
-const nlsMultiSelectionRange = localize('multiSelectionRange', "{0} selections ({1} characters selected)");
+const nlsMultiSelectionRange = localize('multiSelectionRange', "{0} selections ({1} lines, {2} characters selected)");
 const nlsMultiSelection = localize('multiSelection', "{0} selections");
 const nlsEOLLF = localize('endOfLineLineFeed', "LF");
 const nlsEOLCRLF = localize('endOfLineCarriageReturnLineFeed', "CRLF");
@@ -552,14 +552,14 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 
 		if (info.selections.length === 1) {
 			if (info.charactersSelected) {
-				return format(nlsSingleSelectionRange, info.selections[0].positionLineNumber, info.selections[0].positionColumn, info.charactersSelected);
+				return format(nlsSingleSelectionRange, info.selections[0].positionLineNumber, info.selections[0].positionColumn, info.linesSelected, info.charactersSelected);
 			}
 
 			return format(nlsSingleSelection, info.selections[0].positionLineNumber, info.selections[0].positionColumn);
 		}
 
 		if (info.charactersSelected) {
-			return format(nlsMultiSelectionRange, info.selections.length, info.charactersSelected);
+			return format(nlsMultiSelectionRange, info.selections.length, info.linesSelected, info.charactersSelected);
 		}
 
 		if (info.selections.length > 0) {
