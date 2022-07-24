@@ -135,6 +135,7 @@ function toEditorWithLanguageSupport(input: EditorInput): ILanguageSupport | nul
 interface IEditorSelectionStatus {
 	selections?: Selection[];
 	charactersSelected?: number;
+	linesSelected?: number;
 }
 
 class StateChange {
@@ -736,14 +737,15 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 
 			// Compute selection length
 			info.charactersSelected = 0;
+			info.linesSelected = 0;
 			const textModel = editorWidget.getModel();
 			if (textModel) {
 				for (const selection of info.selections) {
-					if (typeof info.charactersSelected !== 'number') {
-						info.charactersSelected = 0;
-					}
+					if (typeof info.charactersSelected !== 'number') { info.charactersSelected = 0; }
+					if (typeof info.linesSelected !== 'number') { info.linesSelected = 0; }
 
 					info.charactersSelected += textModel.getCharacterCountInRange(selection);
+					info.linesSelected += (selection.endLineNumber - selection.startLineNumber + 1);
 				}
 			}
 
