@@ -59,6 +59,6 @@ jobs:
           appInsightsKey: ${{secrets.TRIAGE_ACTIONS_APP_INSIGHTS}}
           cognitiveServicesAPIKey: ${{secrets.AZURE_TEXT_TRANSLATOR_KEY}}
           nonEnglishLabel: "*english-please"
-          needsMoreInfoLabel: "needs more info"
+          needsMoreInfoLabel: "info-needed"
           translatorRequestedLabelPrefix: "translation-required-"
           translatorRequestedLabelColor: "c29cff"

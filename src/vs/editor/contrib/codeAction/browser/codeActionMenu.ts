@@ -90,7 +90,7 @@ export interface ICodeActionMenuTemplateData {
 }
 
 const TEMPLATE_ID = 'codeActionWidget';
-const codeActionLineHeight = 27;
+const codeActionLineHeight = 26;
 
 class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeActionMenuTemplateData> {
 	get templateId(): string { return TEMPLATE_ID; }
@@ -222,6 +222,8 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		);
 
 		renderDisposables.add(this.codeActionList.value.onDidChangeSelection(e => this._onListSelection(e)));
+		renderDisposables.add(this._editor.onDidLayoutChange(e => this.hideCodeActionWidget()));
+
 
 		// Populating the list widget and tracking enabled options.
 		inputArray.forEach((item, index) => {
@@ -257,7 +259,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		const maxWidth = Math.max(...arr);
 
 		// 40 is the additional padding for the list widget (20 left, 20 right)
-		renderMenu.style.width = maxWidth + 40 + 'px';
+		renderMenu.style.width = maxWidth + 52 + 'px';
 		this.codeActionList.value?.layout(height, maxWidth);
 
 		// List selection

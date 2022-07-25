@@ -14,22 +14,30 @@ const markers: FoldingMarkers = {
 	end: /^\s*#endregion\b/
 };
 
+enum State {
+	none = 0,
+	userDefined = 1,
+	recovered = 2
+}
+
 suite('FoldingRanges', () => {
 
-	const foldRange = (from: number, to: number, collapsed: boolean | undefined = undefined, manual: boolean | undefined = undefined, type: string | undefined = undefined) =>
+	const foldRange = (from: number, to: number, collapsed: boolean | undefined = undefined, state: State = State.none, type: string | undefined = undefined) =>
 		<FoldRange>{
 			startLineNumber: from,
 			endLineNumber: to,
 			type: type,
 			isCollapsed: collapsed || false,
-			isManualSelection: manual || false
+			isUserDefined: state === State.userDefined,
+			isRecovered: state === State.recovered,
 		};
 	const assertEqualRanges = (range1: FoldRange, range2: FoldRange, msg: string) => {
 		assert.strictEqual(range1.startLineNumber, range2.startLineNumber, msg + ' start');
 		assert.strictEqual(range1.endLineNumber, range2.endLineNumber, msg + ' end');
 		assert.strictEqual(range1.type, range2.type, msg + ' type');
 		assert.strictEqual(range1.isCollapsed, range2.isCollapsed, msg + ' collapsed');
-		assert.strictEqual(range1.isManualSelection, range2.isManualSelection, msg + ' manual');
+		assert.strictEqual(range1.isUserDefined, range2.isUserDefined, msg + ' userDefined');
+		assert.strictEqual(range1.isRecovered, range2.isRecovered, msg + ' recovered');
 	};
 
 	test('test max folding regions', () => {
@@ -122,110 +130,88 @@ suite('FoldingRanges', () => {
 	test('sanitizeAndMerge1', () => {
 		const regionSet1: FoldRange[] = [
 			foldRange(0, 100),			// invalid, should be removed
-			foldRange(1, 100, false, false, 'A'),			// valid
-			foldRange(1, 100, false, false, 'Z'),			// invalid, duplicate start
+			foldRange(1, 100, false, State.none, 'A'),		// valid
+			foldRange(1, 100, false, State.none, 'Z'),		// invalid, duplicate start
 			foldRange(10, 10, false),						// invalid, should be removed
-			foldRange(20, 80, false, false, 'C1'),			// valid inside 'B'
-			foldRange(22, 80, true, false, 'D1'),			// valid inside 'C1'
+			foldRange(20, 80, false, State.none, 'C1'),		// valid inside 'B'
+			foldRange(22, 80, true, State.none, 'D1'),		// valid inside 'C1'
 			foldRange(90, 101),								// invalid, should be removed
 		];
 		const regionSet2: FoldRange[] = [
-			foldRange(2, 100, false, false, 'B'),			// valid, inside 'A'
 			foldRange(20, 80, true),			    		// should merge with C1
 			foldRange(18, 80, true),						// invalid, out of order
-			foldRange(21, 81, true, false, 'Z'),			// invalid, overlapping
-			foldRange(22, 80, false, false, 'D2'),			// should merge with D1
+			foldRange(21, 81, true, State.none, 'Z'),		// invalid, overlapping
+			foldRange(22, 80, true, State.none, 'D2'),		// should merge with D1
 		];
-		let result = FoldingRegions.sanitizeAndMerge(regionSet1, regionSet2, 100);
-		assert.strictEqual(result.length, 4, 'result length1');
-		assertEqualRanges(result[0], foldRange(1, 100, false, false, 'A'), 'A1');
-		assertEqualRanges(result[1], foldRange(2, 100, false, false, 'B'), 'B1');
-		assertEqualRanges(result[2], foldRange(20, 80, true, false, 'C1'), 'C1');
-		assertEqualRanges(result[3], foldRange(22, 80, true, false, 'D2'), 'D1');
-		const regionClass1 = FoldingRegions.fromFoldRanges(regionSet1);
-		const regionClass2 = FoldingRegions.fromFoldRanges(regionSet2);
-		// same tests again with inputs as FoldingRegions instead of FoldRange[]
-		result = FoldingRegions.sanitizeAndMerge(regionClass1, regionClass2, 100);
-		assert.strictEqual(result.length, 4, 'result length2');
-		assertEqualRanges(result[0], foldRange(1, 100, false, false, 'A'), 'A2');
-		assertEqualRanges(result[1], foldRange(2, 100, false, false, 'B'), 'B2');
-		assertEqualRanges(result[2], foldRange(20, 80, true, false, 'C1'), 'C2');
-		assertEqualRanges(result[3], foldRange(22, 80, true, false, 'D2'), 'D2');
+		const result = FoldingRegions.sanitizeAndMerge(regionSet1, regionSet2, 100);
+		assert.strictEqual(result.length, 3, 'result length1');
+		assertEqualRanges(result[0], foldRange(1, 100, false, State.none, 'A'), 'A1');
+		assertEqualRanges(result[1], foldRange(20, 80, true, State.none, 'C1'), 'C1');
+		assertEqualRanges(result[2], foldRange(22, 80, true, State.none, 'D1'), 'D1');
 	});
 
 	test('sanitizeAndMerge2', () => {
 		const regionSet1: FoldRange[] = [
-			foldRange(1, 100, false, false, 'a1'),			// valid
-			foldRange(2, 100, false, false, 'a2'),			// valid
-			foldRange(3, 19, false, false, 'a3'),			// valid
-			foldRange(20, 71, false, false, 'a4'),			// overlaps b3
-			foldRange(21, 29, false, false, 'a5'),			// valid
-			foldRange(81, 91, false, false, 'a6'),			// overlaps b4
+			foldRange(1, 100, false, State.none, 'a1'),			// valid
+			foldRange(2, 100, false, State.none, 'a2'),			// valid
+			foldRange(3, 19, false, State.none, 'a3'),			// valid
+			foldRange(20, 71, false, State.none, 'a4'),			// overlaps b3
+			foldRange(21, 29, false, State.none, 'a5'),			// valid
+			foldRange(81, 91, false, State.none, 'a6'),			// overlaps b4
 		];
 		const regionSet2: FoldRange[] = [
-			foldRange(30, 39, false, false, 'b1'),			// valid
-			foldRange(40, 49, false, false, 'b2'),			// valid
-			foldRange(50, 100, false, false, 'b3'),			// overlaps a4
-			foldRange(80, 90, false, false, 'b4'),			// overlaps a6
-			foldRange(92, 100, false, false, 'b5'),			// valid
+			foldRange(30, 39, true, State.none, 'b1'),			// valid, will be recovered
+			foldRange(40, 49, true, State.userDefined, 'b2'),	// valid
+			foldRange(50, 100, true, State.userDefined, 'b3'),	// overlaps a4
+			foldRange(80, 90, true, State.userDefined, 'b4'),	// overlaps a6
+			foldRange(92, 100, true, State.userDefined, 'b5'),	// valid
 		];
-		let result = FoldingRegions.sanitizeAndMerge(regionSet1, regionSet2, 100);
+		const result = FoldingRegions.sanitizeAndMerge(regionSet1, regionSet2, 100);
 		assert.strictEqual(result.length, 9, 'result length1');
-		assertEqualRanges(result[0], foldRange(1, 100, false, false, 'a1'), 'P1');
-		assertEqualRanges(result[1], foldRange(2, 100, false, false, 'a2'), 'P2');
-		assertEqualRanges(result[2], foldRange(3, 19, false, false, 'a3'), 'P3');
-		assertEqualRanges(result[3], foldRange(21, 29, false, false, 'a5'), 'P4');
-		assertEqualRanges(result[4], foldRange(30, 39, false, false, 'b1'), 'P5');
-		assertEqualRanges(result[5], foldRange(40, 49, false, false, 'b2'), 'P6');
-		assertEqualRanges(result[6], foldRange(50, 100, false, false, 'b3'), 'P7');
-		assertEqualRanges(result[7], foldRange(80, 90, false, false, 'b4'), 'P8');
-		assertEqualRanges(result[8], foldRange(92, 100, false, false, 'b5'), 'P9');
-		// reverse the two inputs
-		result = FoldingRegions.sanitizeAndMerge(regionSet2, regionSet1, 100);
-		assert.strictEqual(result.length, 9, 'result length2');
-		assertEqualRanges(result[0], foldRange(1, 100, false, false, 'a1'), 'Q1');
-		assertEqualRanges(result[1], foldRange(2, 100, false, false, 'a2'), 'Q2');
-		assertEqualRanges(result[2], foldRange(3, 19, false, false, 'a3'), 'Q3');
-		assertEqualRanges(result[3], foldRange(20, 71, false, false, 'a4'), 'Q4');
-		assertEqualRanges(result[4], foldRange(21, 29, false, false, 'a5'), 'Q5');
-		assertEqualRanges(result[5], foldRange(30, 39, false, false, 'b1'), 'Q6');
-		assertEqualRanges(result[6], foldRange(40, 49, false, false, 'b2'), 'Q7');
-		assertEqualRanges(result[7], foldRange(81, 91, false, false, 'a6'), 'Q8');
-		assertEqualRanges(result[8], foldRange(92, 100, false, false, 'b5'), 'Q9');
+		assertEqualRanges(result[0], foldRange(1, 100, false, State.none, 'a1'), 'P1');
+		assertEqualRanges(result[1], foldRange(2, 100, false, State.none, 'a2'), 'P2');
+		assertEqualRanges(result[2], foldRange(3, 19, false, State.none, 'a3'), 'P3');
+		assertEqualRanges(result[3], foldRange(21, 29, false, State.none, 'a5'), 'P4');
+		assertEqualRanges(result[4], foldRange(30, 39, true, State.recovered, 'b1'), 'P5');
+		assertEqualRanges(result[5], foldRange(40, 49, true, State.userDefined, 'b2'), 'P6');
+		assertEqualRanges(result[6], foldRange(50, 100, true, State.userDefined, 'b3'), 'P7');
+		assertEqualRanges(result[7], foldRange(80, 90, true, State.userDefined, 'b4'), 'P8');
+		assertEqualRanges(result[8], foldRange(92, 100, true, State.userDefined, 'b5'), 'P9');
 	});
 
 	test('sanitizeAndMerge3', () => {
 		const regionSet1: FoldRange[] = [
-			foldRange(1, 100, false, false, 'a1'),			// valid
-			foldRange(10, 29, false, false, 'a2'),			// matches manual hidden
-			foldRange(35, 39, true, true, 'a3'),			// valid
+			foldRange(1, 100, false, State.none, 'a1'),			// valid
+			foldRange(10, 29, false, State.none, 'a2'),			// matches manual hidden
+			foldRange(35, 39, true, State.recovered, 'a3'),		// valid
 		];
 		const regionSet2: FoldRange[] = [
-			foldRange(10, 29, true, true, 'b1'),			// matches a
-			foldRange(20, 28, true, false, 'b2'),			// should get dropped
-			foldRange(30, 39, true, true, 'b3'),			// should remain
+			foldRange(10, 29, true, State.recovered, 'b1'),		// matches a
+			foldRange(20, 28, true, State.none, 'b2'),			// should remain
+			foldRange(30, 39, true, State.recovered, 'b3'),		// should remain
 		];
 		const result = FoldingRegions.sanitizeAndMerge(regionSet1, regionSet2, 100);
-		assert.strictEqual(result.length, 4, 'result length3');
-		assertEqualRanges(result[0], foldRange(1, 100, false, false, 'a1'), 'R1');
-		assertEqualRanges(result[1], foldRange(10, 29, true, false, 'b1'), 'R2');
-		assertEqualRanges(result[2], foldRange(30, 39, true, true, 'b3'), 'R3');
-		assertEqualRanges(result[3], foldRange(35, 39, true, true, 'a3'), 'R4');
+		assert.strictEqual(result.length, 5, 'result length3');
+		assertEqualRanges(result[0], foldRange(1, 100, false, State.none, 'a1'), 'R1');
+		assertEqualRanges(result[1], foldRange(10, 29, true, State.none, 'a2'), 'R2');
+		assertEqualRanges(result[2], foldRange(20, 28, true, State.recovered, 'b2'), 'R3');
+		assertEqualRanges(result[3], foldRange(30, 39, true, State.recovered, 'b3'), 'R3');
+		assertEqualRanges(result[4], foldRange(35, 39, true, State.recovered, 'a3'), 'R4');
 	});
 
 	test('sanitizeAndMerge4', () => {
 		const regionSet1: FoldRange[] = [
-			foldRange(1, 100, false, false, 'a1'),			// valid
+			foldRange(1, 100, false, State.none, 'a1'),			// valid
 		];
 		const regionSet2: FoldRange[] = [
-			foldRange(20, 28, true, false, 'b1'),			// hidden
-			foldRange(30, 38, true, false, 'b2'),			// hidden
+			foldRange(20, 28, true, State.none, 'b1'),			// hidden
+			foldRange(30, 38, true, State.none, 'b2'),			// hidden
 		];
 		const result = FoldingRegions.sanitizeAndMerge(regionSet1, regionSet2, 100);
 		assert.strictEqual(result.length, 3, 'result length4');
-		assertEqualRanges(result[0], foldRange(1, 100, false, false, 'a1'), 'R1');
-		assertEqualRanges(result[1], foldRange(20, 28, true, true, 'b1'), 'R2');
-		assertEqualRanges(result[2], foldRange(30, 38, true, true, 'b2'), 'R3');
+		assertEqualRanges(result[0], foldRange(1, 100, false, State.none, 'a1'), 'R1');
+		assertEqualRanges(result[1], foldRange(20, 28, true, State.recovered, 'b1'), 'R2');
+		assertEqualRanges(result[2], foldRange(30, 38, true, State.recovered, 'b2'), 'R3');
 	});
 
 });
