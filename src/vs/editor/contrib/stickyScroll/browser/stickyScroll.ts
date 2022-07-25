@@ -33,7 +33,7 @@ class StickyScrollController implements IEditorContribution {
 	private readonly _store: DisposableStore = new DisposableStore();
 	private readonly _sessionStore: DisposableStore = new DisposableStore();
 
-	private _ranges: number[][] = [];
+	private _ranges: any[][] = [];
 	private _cts: CancellationTokenSource | undefined;
 	private _lastScrollPosition: number = -1;
 
@@ -99,6 +99,7 @@ class StickyScrollController implements IEditorContribution {
 	private _addOutlineRanges(outlineElement: OutlineElement, depth: number) {
 		let currentStartLine: number | undefined = 0;
 		let currentEndLine: number | undefined = 0;
+
 		while (outlineElement) {
 			const kind: SymbolKind = outlineElement.symbol.kind;
 			if (kind === SymbolKind.Class || kind === SymbolKind.Constructor || kind === SymbolKind.Function || kind === SymbolKind.Interface || kind === SymbolKind.Method) {
@@ -132,7 +133,11 @@ class StickyScrollController implements IEditorContribution {
 				}
 			}
 			this._ranges = this._ranges.sort(function (a, b) {
-				return a[0] - b[0];
+				if (a[0] !== b[0]) {
+					return a[0] - b[0];
+				} else {
+					return b[1] - a[1];
+				}
 			});
 		}
 	}
@@ -158,7 +163,8 @@ class StickyScrollController implements IEditorContribution {
 		const currentScrollTop: number = this._editor.getScrollTop() + this.stickyScrollWidget.codeLineCount * lineHeight + 1;
 		this.stickyScrollWidget.emptyRootNode();
 		const beginningLinesConsidered = new Set();
-		for (const [start, end, depth] of this._ranges) {
+		for (const [index, arr] of this._ranges.entries()) {
+			const [start, end, depth] = arr;
 			if (!beginningLinesConsidered.has(start)) {
 				if (this._editor.getScrollTop() + (depth - 1) * lineHeight + 1 >= (end - 1) * lineHeight && this._editor.getScrollTop() + (depth - 1) * lineHeight < end * lineHeight - 2) {
 					beginningLinesConsidered.add(start);
@@ -172,6 +178,8 @@ class StickyScrollController implements IEditorContribution {
 					beginningLinesConsidered.add(start);
 					this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(model.getLineContent(start), start, this._editor, 0));
 				}
+			} else {
+				this._ranges.splice(index, 1);
 			}
 		}
 
