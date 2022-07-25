@@ -678,7 +678,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._shutdownPersistentProcessId = shutdownPersistentProcessId;
 	}
 	get persistentProcessId(): number | undefined { return this._processManager.persistentProcessId ?? this._shutdownPersistentProcessId; }
-	get shouldPersist(): boolean { return (this._processManager.shouldPersist && !this.shellLaunchConfig.isTransient && (this.reconnectionOwner ? this._configurationService.getValue(TaskSettingId.Reconnection) === true : this._shutdownPersistentProcessId !== undefined)); }
+	get shouldPersist(): boolean { return (this._processManager.shouldPersist || this._shutdownPersistentProcessId !== undefined) && !this.shellLaunchConfig.isTransient && (!this.reconnectionOwner || this._configurationService.getValue(TaskSettingId.Reconnection) === true); }
 
 	/**
 	 * Create xterm.js instance and attach data listeners.
@@ -2373,7 +2373,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			info.requiresAction &&
 			this._configHelper.config.environmentChangesRelaunch &&
 			!this._processManager.hasWrittenData &&
-			((this._configurationService.getValue(TaskSettingId.Reconnection) === true && this.reconnectionOwner) || !this._shellLaunchConfig.isFeatureTerminal) &&
+			(!this._shellLaunchConfig.isFeatureTerminal || (this.reconnectionOwner && this._configurationService.getValue(TaskSettingId.Reconnection) === true)) &&
 			!this._shellLaunchConfig.customPtyImplementation
 			&& !this._shellLaunchConfig.isExtensionOwnedTerminal &&
 			!this._shellLaunchConfig.attachPersistentProcess
