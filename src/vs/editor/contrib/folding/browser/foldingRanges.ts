@@ -13,7 +13,8 @@ export interface FoldRange {
 	endLineNumber: number;
 	type: string | undefined;
 	isCollapsed: boolean;
-	isManualSelection: boolean;
+	isUserDefined: boolean;
+	isRecovered: boolean;
 }
 
 export const MAX_FOLDING_REGIONS = 0xFFFF;
@@ -21,11 +22,38 @@ export const MAX_LINE_NUMBER = 0xFFFFFF;
 
 const MASK_INDENT = 0xFF000000;
 
+class BitField {
+	private readonly _states: Uint32Array;
+	constructor(size: number) {
+		const numWords = Math.ceil(size / 32);
+		this._states = new Uint32Array(numWords);
+	}
+
+	public get(index: number): boolean {
+		const arrayIndex = (index / 32) | 0;
+		const bit = index % 32;
+		return (this._states[arrayIndex] & (1 << bit)) !== 0;
+	}
+
+	public set(index: number, newState: boolean) {
+		const arrayIndex = (index / 32) | 0;
+		const bit = index % 32;
+		const value = this._states[arrayIndex];
+		if (newState) {
+			this._states[arrayIndex] = value | (1 << bit);
+		} else {
+			this._states[arrayIndex] = value & ~(1 << bit);
+		}
+	}
+}
+
 export class FoldingRegions {
 	private readonly _startIndexes: Uint32Array;
 	private readonly _endIndexes: Uint32Array;
-	private readonly _collapseStates: Uint32Array;
-	private readonly _manualStates: Uint32Array;
+	private readonly _collapseStates: BitField;
+	private readonly _userDefinedStates: BitField;
+	private readonly _recoveredStates: BitField;
+
 	private _parentsComputed: boolean;
 	private readonly _types: Array<string | undefined> | undefined;
 
@@ -35,9 +63,9 @@ export class FoldingRegions {
 		}
 		this._startIndexes = startIndexes;
 		this._endIndexes = endIndexes;
-		const numWords = Math.ceil(startIndexes.length / 32);
-		this._collapseStates = new Uint32Array(numWords);
-		this._manualStates = new Uint32Array(numWords);
+		this._collapseStates = new BitField(startIndexes.length);
+		this._userDefinedStates = new BitField(startIndexes.length);
+		this._recoveredStates = new BitField(startIndexes.length);
 		this._types = types;
 		this._parentsComputed = false;
 	}
@@ -88,37 +116,27 @@ export class FoldingRegions {
 	}
 
 	public isCollapsed(index: number): boolean {
-		const arrayIndex = (index / 32) | 0;
-		const bit = index % 32;
-		return (this._collapseStates[arrayIndex] & (1 << bit)) !== 0;
+		return this._collapseStates.get(index);
 	}
 
 	public setCollapsed(index: number, newState: boolean) {
-		const arrayIndex = (index / 32) | 0;
-		const bit = index % 32;
-		const value = this._collapseStates[arrayIndex];
-		if (newState) {
-			this._collapseStates[arrayIndex] = value | (1 << bit);
-		} else {
-			this._collapseStates[arrayIndex] = value & ~(1 << bit);
-		}
+		this._collapseStates.set(index, newState);
 	}
 
-	public isManualSelection(index: number): boolean {
-		const arrayIndex = (index / 32) | 0;
-		const bit = index % 32;
-		return (this._manualStates[arrayIndex] & (1 << bit)) !== 0;
+	public isUserDefined(index: number): boolean {
+		return this._userDefinedStates.get(index);
 	}
 
-	public setManualSelection(index: number, newState: boolean) {
-		const arrayIndex = (index / 32) | 0;
-		const bit = index % 32;
-		const value = this._manualStates[arrayIndex];
-		if (newState) {
-			this._manualStates[arrayIndex] = value | (1 << bit);
-		} else {
-			this._manualStates[arrayIndex] = value & ~(1 << bit);
-		}
+	public setUserDefined(index: number, newState: boolean) {
+		return this._userDefinedStates.set(index, newState);
+	}
+
+	public isRecovered(index: number): boolean {
+		return this._recoveredStates.get(index);
+	}
+
+	public setRecovered(index: number, newState: boolean) {
+		return this._recoveredStates.set(index, newState);
 	}
 
 	public setCollapsedAllOfType(type: string, newState: boolean) {
@@ -188,7 +206,7 @@ export class FoldingRegions {
 	public toString() {
 		const res: string[] = [];
 		for (let i = 0; i < this.length; i++) {
-			res[i] = `[${this.isManualSelection(i) ? '*' : ' '}${this.isCollapsed(i) ? '+' : '-'}] ${this.getStartLineNumber(i)}/${this.getEndLineNumber(i)}`;
+			res[i] = `[${this.isUserDefined(i) ? '*' : ' '}${this.isRecovered(i) ? 'r' : ' '}${this.isCollapsed(i) ? '+' : '-'}] ${this.getStartLineNumber(i)}/${this.getEndLineNumber(i)}`;
 		}
 		return res.join(', ');
 	}
@@ -199,7 +217,8 @@ export class FoldingRegions {
 			endLineNumber: this._endIndexes[index] & MAX_LINE_NUMBER,
 			type: this._types ? this._types[index] : undefined,
 			isCollapsed: this.isCollapsed(index),
-			isManualSelection: this.isManualSelection(index)
+			isUserDefined: this.isUserDefined(index),
+			isRecovered: this.isRecovered(index)
 		};
 	}
 
@@ -226,8 +245,11 @@ export class FoldingRegions {
 			if (ranges[i].isCollapsed) {
 				regions.setCollapsed(i, true);
 			}
-			if (ranges[i].isManualSelection) {
-				regions.setManualSelection(i, true);
+			if (ranges[i].isUserDefined) {
+				regions.setUserDefined(i, true);
+			}
+			if (ranges[i].isRecovered) {
+				regions.setRecovered(i, true);
 			}
 		}
 		return regions;
@@ -237,11 +259,10 @@ export class FoldingRegions {
 	 * Two inputs, each a FoldingRegions or a FoldRange[], are merged.
 	 * Each input must be pre-sorted on startLineNumber.
 	 * The first list is assumed to always include all regions currently defined by range providers.
-	 * The second list only contains hidden ranges.
+	 * The second list only contains the previously collapsed and all manual ranges.
+	 * If the line position matches, the range of the new range is taken, and the range is no longer manual
 	 * When an entry in one list overlaps an entry in the other, the second list's entry "wins" and
-	 * overlapping entries in the first list are discarded. With one exception: when there is just
-	 * one such second list entry and it is not manual it is discarded, on the assumption that
-	 * user editing has resulted in the range no longer existing.
+	 * overlapping entries in the first list are discarded.
 	 * Invalid entries are discarded. An entry is invalid if:
 	 * 		the start and end line numbers aren't a valid range of line numbers,
 	 * 		it is out of sequence or has the same start line as a preceding entry,
@@ -252,18 +273,6 @@ export class FoldingRegions {
 		rangesB: FoldingRegions | FoldRange[],
 		maxLineNumber: number | undefined): FoldRange[] {
 		maxLineNumber = maxLineNumber ?? Number.MAX_VALUE;
-		let result = this._trySanitizeAndMerge(1, rangesA, rangesB, maxLineNumber);
-		if (!result) { // try again, converting hidden ranges to manually selected
-			result = this._trySanitizeAndMerge(2, rangesA, rangesB, maxLineNumber);
-		}
-		return result!;
-	}
-
-	private static _trySanitizeAndMerge(
-		passNumber: number, // it can take two passes to get this done
-		rangesA: FoldingRegions | FoldRange[],
-		rangesB: FoldingRegions | FoldRange[],
-		maxLineNumber: number): FoldRange[] | null {
 
 		const getIndexedFunction = (r: FoldingRegions | FoldRange[], limit: number) => {
 			return Array.isArray(r)
@@ -281,41 +290,34 @@ export class FoldingRegions {
 		let topStackedRange: FoldRange | undefined;
 		let prevLineNumber = 0;
 		const resultRanges: FoldRange[] = [];
-		let numberAutoExpand = 0;
 
 		while (nextA || nextB) {
 
 			let useRange: FoldRange | undefined = undefined;
 			if (nextB && (!nextA || nextA.startLineNumber >= nextB.startLineNumber)) {
-				// nextB is next
-				if (nextA
-					&& nextA.startLineNumber === nextB.startLineNumber
-					&& nextA.endLineNumber === nextB.endLineNumber) {
-					// same range in both lists, merge the details
-					useRange = nextB;
-					useRange.isCollapsed = useRange.isCollapsed || nextA.isCollapsed;
-					// next line removes manual flag when range provider has matching range
-					useRange.isManualSelection = nextA.isManualSelection && nextB.isManualSelection;
-					if (!useRange.type) {
-						useRange.type = nextA.type;
+				if (nextA && nextA.startLineNumber === nextB.startLineNumber) {
+					if (nextB.isUserDefined) {
+						// a user defined range (possibly unfolded)
+						useRange = nextB;
+					} else {
+						// a previously folded range or a (possibly unfolded) recovered range
+						useRange = nextA;
+						useRange.isCollapsed = nextB.isCollapsed && nextA.endLineNumber === nextB.endLineNumber;
+						useRange.isUserDefined = false;
+						useRange.isRecovered = false;
 					}
 					nextA = getA(++indexA); // not necessary, just for speed
-				} else if (nextB.isCollapsed && !nextB.isManualSelection && passNumber === 1) {
-					if (++numberAutoExpand > 1) {
-						// do second pass keeping these, assuming something like an unmatched /*
-						return null;
-					}
-					// skip nextB (auto expand) by not setting useRange, assuming it was edited
-				} else { // use nextB
+				} else {
 					useRange = nextB;
-					if (useRange.isCollapsed) {
-						// doesn't match nextA, convert to a manual selection if it wasn't already
-						useRange.isManualSelection = true;
+					if (nextB.isCollapsed && !nextB.isUserDefined && !nextB.isRecovered) {
+						// a previously collapsed range
+						useRange.isRecovered = true;
+						useRange.isUserDefined = false;
 					}
 				}
 				nextB = getB(++indexB);
 			} else {
-				// nextA is next. The B set takes precedence and we sometimes need to look
+				// nextA is next. The user folded B set takes precedence and we sometimes need to look
 				// ahead in it to check for an upcoming conflict.
 				let scanIndex = indexB;
 				let prescanB = nextB;
@@ -324,8 +326,8 @@ export class FoldingRegions {
 						useRange = nextA;
 						break; // no conflict, use this nextA
 					}
-					if (prescanB.endLineNumber > nextA!.endLineNumber
-						&& (!prescanB.isCollapsed || prescanB.isManualSelection || passNumber === 2)) {
+					if (prescanB.isUserDefined && prescanB.endLineNumber > nextA!.endLineNumber) {
+						// we found a user folded range, it wins
 						break; // without setting nextResult, so this nextA gets skipped
 					}
 					prescanB = getB(++scanIndex);
