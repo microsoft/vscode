@@ -1034,7 +1034,8 @@ var requirejs = (function() {
 		}
 
 		const sameContent = initialization.content === entry.content;
-		if (!sameContent || !entry.visible) {
+		const sameMetadata = initialization.metadata === entry.metadata;
+		if (!sameContent || !sameMetadata || !entry.visible) {
 			this._sendMessageToWebview({
 				type: 'showMarkupCell',
 				id: initialization.cellId,
@@ -1043,7 +1044,8 @@ var requirejs = (function() {
 				// preview is visible but don't need to send anything over
 				content: sameContent ? undefined : initialization.content,
 				top: initialization.offset,
-				metadata: initialization.metadata
+				metadata: entry.metadata
+				// metadata: initialization.metadata
 			});
 		}
 
