@@ -1739,6 +1739,15 @@ declare namespace monaco.editor {
 	}
 
 	/**
+	 * Text snapshot that works like an iterator.
+	 * Will try to return chunks of roughly ~64KB size.
+	 * Will return null when finished.
+	 */
+	export interface ITextSnapshot {
+		read(): string | null;
+	}
+
+	/**
 	 * A model.
 	 */
 	export interface ITextModel {
@@ -1769,7 +1778,7 @@ declare namespace monaco.editor {
 		/**
 		 * Replace the entire text buffer value contained in this model.
 		 */
-		setValue(newValue: string): void;
+		setValue(newValue: string | ITextSnapshot): void;
 		/**
 		 * Get the text stored in this model.
 		 * @param eol The end of line character preference. Defaults to `EndOfLinePreference.TextDefined`.
@@ -1777,6 +1786,12 @@ declare namespace monaco.editor {
 		 * @return The text.
 		 */
 		getValue(eol?: EndOfLinePreference, preserveBOM?: boolean): string;
+		/**
+		 * Get the text stored in this model.
+		 * @param preserverBOM Preserve a BOM character if it was detected when the model was constructed.
+		 * @return The text snapshot (it is safe to consume it asynchronously).
+		 */
+		createSnapshot(preserveBOM?: boolean): ITextSnapshot;
 		/**
 		 * Get the length of the text stored in this model.
 		 */
@@ -2932,6 +2947,10 @@ declare namespace monaco.editor {
 		 */
 		scrollbar?: IEditorScrollbarOptions;
 		/**
+		 * Control the behavior of the sticky scroll
+		 */
+		stickyScroll?: IEditorStickyScrollOptions;
+		/**
 		 * Control the behavior and rendering of the minimap.
 		 */
 		minimap?: IEditorMinimapOptions;
@@ -3790,6 +3809,16 @@ declare namespace monaco.editor {
 	}
 
 	/**
+	 * Configuration options for editor sticky scroll
+	 */
+	export interface IEditorStickyScrollOptions {
+		/**
+		 * Enable the sticky scroll
+		 */
+		enabled?: boolean;
+	}
+
+	/**
 	 * Configuration options for editor inlayHints
 	 */
 	export interface IEditorInlayHintsOptions {
@@ -4408,34 +4437,35 @@ declare namespace monaco.editor {
 		smartSelect = 103,
 		smoothScrolling = 104,
 		stickyTabStops = 105,
-		stopRenderingLineAfter = 106,
-		suggest = 107,
-		suggestFontSize = 108,
-		suggestLineHeight = 109,
-		suggestOnTriggerCharacters = 110,
-		suggestSelection = 111,
-		tabCompletion = 112,
-		tabIndex = 113,
-		unicodeHighlighting = 114,
-		unusualLineTerminators = 115,
-		useShadowDOM = 116,
-		useTabStops = 117,
-		wordSeparators = 118,
-		wordWrap = 119,
-		wordWrapBreakAfterCharacters = 120,
-		wordWrapBreakBeforeCharacters = 121,
-		wordWrapColumn = 122,
-		wordWrapOverride1 = 123,
-		wordWrapOverride2 = 124,
-		wrappingIndent = 125,
-		wrappingStrategy = 126,
-		showDeprecated = 127,
-		inlayHints = 128,
-		editorClassName = 129,
-		pixelRatio = 130,
-		tabFocusMode = 131,
-		layoutInfo = 132,
-		wrappingInfo = 133
+		stickyScroll = 106,
+		stopRenderingLineAfter = 107,
+		suggest = 108,
+		suggestFontSize = 109,
+		suggestLineHeight = 110,
+		suggestOnTriggerCharacters = 111,
+		suggestSelection = 112,
+		tabCompletion = 113,
+		tabIndex = 114,
+		unicodeHighlighting = 115,
+		unusualLineTerminators = 116,
+		useShadowDOM = 117,
+		useTabStops = 118,
+		wordSeparators = 119,
+		wordWrap = 120,
+		wordWrapBreakAfterCharacters = 121,
+		wordWrapBreakBeforeCharacters = 122,
+		wordWrapColumn = 123,
+		wordWrapOverride1 = 124,
+		wordWrapOverride2 = 125,
+		wrappingIndent = 126,
+		wrappingStrategy = 127,
+		showDeprecated = 128,
+		inlayHints = 129,
+		editorClassName = 130,
+		pixelRatio = 131,
+		tabFocusMode = 132,
+		layoutInfo = 133,
+		wrappingInfo = 134
 	}
 
 	export const EditorOptions: {
@@ -4546,6 +4576,7 @@ declare namespace monaco.editor {
 		snippetSuggestions: IEditorOption<EditorOption.snippetSuggestions, 'none' | 'top' | 'bottom' | 'inline'>;
 		smartSelect: IEditorOption<EditorOption.smartSelect, Readonly<Required<ISmartSelectOptions>>>;
 		smoothScrolling: IEditorOption<EditorOption.smoothScrolling, boolean>;
+		stickyScroll: IEditorOption<EditorOption.stickyScroll, Readonly<Required<IEditorStickyScrollOptions>>>;
 		stopRenderingLineAfter: IEditorOption<EditorOption.stopRenderingLineAfter, number>;
 		suggest: IEditorOption<EditorOption.suggest, Readonly<Required<ISuggestOptions>>>;
 		inlineSuggest: IEditorOption<EditorOption.inlineSuggest, Readonly<Required<IInlineSuggestOptions>>>;
@@ -5833,6 +5864,10 @@ declare namespace monaco.languages {
 		 * Requested kind of actions to return.
 		 */
 		readonly only?: string;
+		/**
+		 * The reason why code actions were requested.
+		 */
+		readonly trigger: CodeActionTriggerType;
 	}
 
 	/**
@@ -5863,6 +5898,10 @@ declare namespace monaco.languages {
 		 * such as `["quickfix.removeLine", "source.fixAll" ...]`.
 		 */
 		readonly providedCodeActionKinds?: readonly string[];
+		readonly documentation?: ReadonlyArray<{
+			readonly kind: string;
+			readonly command: Command;
+		}>;
 	}
 
 	/**
@@ -6435,6 +6474,11 @@ declare namespace monaco.languages {
 		disabled?: string;
 	}
 
+	export enum CodeActionTriggerType {
+		Invoke = 1,
+		Auto = 2
+	}
+
 	export interface CodeActionList extends IDisposable {
 		readonly actions: ReadonlyArray<CodeAction>;
 	}
@@ -6771,11 +6815,11 @@ declare namespace monaco.languages {
 		provideDocumentSymbols(model: editor.ITextModel, token: CancellationToken): ProviderResult<DocumentSymbol[]>;
 	}
 
-	export type TextEdit = {
+	export interface TextEdit {
 		range: IRange;
 		text: string;
 		eol?: editor.EndOfLineSequence;
-	};
+	}
 
 	/**
 	 * Interface used to format a model

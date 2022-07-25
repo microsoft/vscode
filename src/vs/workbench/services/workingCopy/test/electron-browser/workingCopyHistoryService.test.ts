@@ -30,12 +30,12 @@ import { firstOrDefault } from 'vs/base/common/arrays';
 
 class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
-	constructor(private readonly testDir: string) {
-		super({ ...TestNativeWindowConfiguration, 'user-data-dir': testDir }, TestProductService);
+	constructor(private readonly testDir: URI | string) {
+		super({ ...TestNativeWindowConfiguration, 'user-data-dir': URI.isUri(testDir) ? testDir.fsPath : testDir }, TestProductService);
 	}
 
 	override get localHistoryHome() {
-		return joinPath(URI.file(this.testDir), 'History');
+		return joinPath(URI.isUri(this.testDir) ? this.testDir : URI.file(this.testDir), 'History');
 	}
 }
 
@@ -45,7 +45,7 @@ export class TestWorkingCopyHistoryService extends NativeWorkingCopyHistoryServi
 	readonly _configurationService: TestConfigurationService;
 	readonly _lifecycleService: TestLifecycleService;
 
-	constructor(testDir: string) {
+	constructor(testDir: URI | string) {
 		const environmentService = new TestWorkbenchEnvironmentService(testDir);
 		const logService = new NullLogService();
 		const fileService = new FileService(logService);

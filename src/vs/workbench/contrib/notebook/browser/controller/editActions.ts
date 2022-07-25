@@ -11,9 +11,8 @@ import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
-import { MenuId, MenuItemAction, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext, InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -34,26 +33,6 @@ const CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID = 'notebook.clearAllCellsOutputs';
 const EDIT_CELL_COMMAND_ID = 'notebook.cell.edit';
 const DELETE_CELL_COMMAND_ID = 'notebook.cell.delete';
 const CLEAR_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.clearOutputs';
-
-export class DeleteCellAction extends MenuItemAction {
-	constructor(
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@ICommandService commandService: ICommandService
-	) {
-		super(
-			{
-				id: DELETE_CELL_COMMAND_ID,
-				title: localize('notebookActions.deleteCell', "Delete Cell"),
-				icon: icons.deleteCellIcon,
-				precondition: NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true)
-			},
-			undefined,
-			{ shouldForwardArgs: true },
-			undefined,
-			contextKeyService,
-			commandService);
-	}
-}
 
 registerAction2(class EditCellAction extends NotebookCellAction {
 	constructor() {
@@ -158,6 +137,18 @@ registerAction2(class DeleteCellAction extends NotebookCellAction {
 					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, ContextKeyExpr.not(InputFocusedContextKey)),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
+				menu: [
+					{
+						id: MenuId.NotebookCellDelete,
+						when: NOTEBOOK_EDITOR_EDITABLE,
+						group: CELL_TITLE_CELL_GROUP_ID
+					},
+					{
+						id: MenuId.InteractiveCellDelete,
+						when: NOTEBOOK_EDITOR_EDITABLE,
+						group: CELL_TITLE_CELL_GROUP_ID
+					}
+				],
 				icon: icons.deleteCellIcon
 			});
 	}

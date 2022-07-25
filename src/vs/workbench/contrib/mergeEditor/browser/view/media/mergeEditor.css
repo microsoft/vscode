@@ -31,6 +31,10 @@
 	flex-shrink: 0;
 }
 
+.monaco-workbench .merge-editor .code-view > .title>SPAN.detail .codicon {
+	font-size: 13px;
+}
+
 .monaco-workbench .merge-editor .code-view > .container {
 	display: flex;
 	flex-direction: row;

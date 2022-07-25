@@ -45,6 +45,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { isArray, isObject } from 'vs/base/common/types';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -67,6 +68,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService private readonly modelService: IModelService,
@@ -166,7 +168,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			return this.createDefaultSettingsEditorModel(uri);
 		}
 
-		if (this.userSettingsResource.toString() === uri.toString()) {
+		if (this.userSettingsResource.toString() === uri.toString() || this.userDataProfilesService.defaultProfile.settingsResource.toString() === uri.toString()) {
 			return this.createEditableSettingsEditorModel(ConfigurationTarget.USER_LOCAL, uri);
 		}
 
@@ -246,6 +248,14 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		};
 		await this.editorService.openEditor(input, validateSettingsEditorOptions(options), options.openToSide ? SIDE_GROUP : undefined);
 		return this.editorGroupService.activeGroup.activeEditorPane!;
+	}
+
+	openApplicationSettings(options: IOpenSettingsOptions = {}): Promise<IEditorPane | undefined> {
+		options = {
+			...options,
+			target: ConfigurationTarget.USER_LOCAL,
+		};
+		return this.open(this.userDataProfilesService.defaultProfile.settingsResource, options);
 	}
 
 	openUserSettings(options: IOpenSettingsOptions = {}): Promise<IEditorPane | undefined> {
@@ -450,6 +460,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	public async getEditableSettingsURI(configurationTarget: ConfigurationTarget, resource?: URI): Promise<URI | null> {
 		switch (configurationTarget) {
+			case ConfigurationTarget.APPLICATION:
+				return this.userDataProfilesService.defaultProfile.settingsResource;
 			case ConfigurationTarget.USER:
 			case ConfigurationTarget.USER_LOCAL:
 				return this.userSettingsResource;

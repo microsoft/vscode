@@ -57,7 +57,7 @@ import {
 	TaskSettingId,
 	TasksSchemaProperties
 } from 'vs/workbench/contrib/tasks/common/tasks';
-import { ITaskService, ITaskProvider, IProblemMatcherRunOptions, ICustomizationProperties, ITaskFilter, IWorkspaceFolderTaskResult, CustomExecutionSupportedContext, ShellExecutionSupportedContext, ProcessExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
+import { ITaskService, ITaskProvider, IProblemMatcherRunOptions, ICustomizationProperties, ITaskFilter, IWorkspaceFolderTaskResult, CustomExecutionSupportedContext, ShellExecutionSupportedContext, ProcessExecutionSupportedContext, TaskCommandsRegistered } from 'vs/workbench/contrib/tasks/common/taskService';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/common/taskTemplates';
 
 import * as TaskConfig from '../common/taskConfiguration';
@@ -200,6 +200,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	private static _nextHandle: number = 0;
 
+	private _tasksReconnected: boolean = false;
 	private _schemaVersion: JsonSchemaVersion | undefined;
 	private _executionEngine: ExecutionEngine | undefined;
 	private _workspaceFolders: IWorkspaceFolder[] | undefined;
@@ -292,7 +293,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}));
 		this._taskRunningState = TASK_RUNNING_STATE.bindTo(_contextKeyService);
 		this._onDidStateChange = this._register(new Emitter());
-		this._registerCommands();
+		this._registerCommands().then(() => {
+			TaskCommandsRegistered.bindTo(this._contextKeyService).set(true);
+		});
 		this._configurationResolverService.contributeVariable('defaultBuildTask', async (): Promise<string | undefined> => {
 			let tasks = await this._getTasksForGroup(TaskGroup.Build);
 			if (tasks.length > 0) {
@@ -337,11 +340,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			processContext.set(process && !isVirtual);
 		}
 		this._onDidRegisterSupportedExecutions.fire();
+		if (this._jsonTasksSupported && !this._tasksReconnected) {
+			this._reconnectTasks();
+		}
 	}
 
-	private async _restartTasks(): Promise<void> {
+	private async _reconnectTasks(): Promise<void> {
 		const recentlyUsedTasks = await this.readRecentTasks();
-		if (!recentlyUsedTasks) {
+		if (!recentlyUsedTasks.length) {
 			return;
 		}
 		for (const task of recentlyUsedTasks) {
@@ -354,6 +360,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				this.run(task, undefined, TaskRunSource.Reconnect);
 			}
 		}
+		this._tasksReconnected = true;
 	}
 
 	public get onDidStateChange(): Event<ITaskEvent> {
@@ -389,13 +396,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 								properties: {
 									type: {
 										type: 'string',
-										description: nls.localize('runTask.type', "The contributed task type"),
-										enum: Array.from(this._providerTypes.values()).map(provider => provider)
+										description: nls.localize('runTask.type', "The contributed task type")
 									},
 									taskName: {
 										type: 'string',
-										description: nls.localize('runTask.taskName', "The task's label or a term to filter by"),
-										enum: await this.tasks().then((tasks) => tasks.map(t => t._label))
+										description: nls.localize('runTask.taskName', "The task's label or a term to filter by")
 									}
 								}
 							}
@@ -618,7 +623,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return infosCount > 0;
 	}
 
-	public async registerTaskSystem(key: string, info: ITaskSystemInfo): Promise<void> {
+	public registerTaskSystem(key: string, info: ITaskSystemInfo): void {
 		// Ideally the Web caller of registerRegisterTaskSystem would use the correct key.
 		// However, the caller doesn't know about the workspace folders at the time of the call, even though we know about them here.
 		if (info.platform === Platform.Platform.Web) {
@@ -638,7 +643,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 		if (this.hasTaskSystemInfo) {
 			this._onDidChangeTaskSystemInfo.fire();
-			await this._restartTasks();
 		}
 	}
 
@@ -2168,7 +2172,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private get _jsonTasksSupported(): boolean {
-		return !!ShellExecutionSupportedContext.getValue(this._contextKeyService) && !!ProcessExecutionSupportedContext.getValue(this._contextKeyService);
+		return ShellExecutionSupportedContext.getValue(this._contextKeyService) === true && ProcessExecutionSupportedContext.getValue(this._contextKeyService) === true;
 	}
 
 	private _computeWorkspaceFolderTasks(workspaceFolder: IWorkspaceFolder, runSource: TaskRunSource = TaskRunSource.User): Promise<IWorkspaceFolderTaskResult> {

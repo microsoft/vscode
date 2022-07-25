@@ -248,7 +248,7 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 				}
 			}
 
-			return this.openerService.open(uri, { openToSide, fromUserGesture, allowContributedOpeners: true, allowCommands: true });
+			return this.openerService.open(uri, { openToSide, fromUserGesture, allowContributedOpeners: true, allowCommands: true, fromWorkspace: true });
 
 		}, err => {
 			const messageOrError =

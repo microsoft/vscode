@@ -33,8 +33,7 @@ export const MENU_ESCAPED_MNEMONIC_REGEX = /(&amp;)?(&amp;)([^\s&])/g;
 
 export enum Direction {
 	Right,
-	Left,
-	Down
+	Left
 }
 
 export interface IMenuOptions {

@@ -113,7 +113,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				}
 				const commands = new Map((extension.description.contributes?.commands ?? []).map(c => [c.command, c]));
 				for (const contribution of extension.value) {
-					if (!contribution.command || !contribution.group || !contribution.when) {
+					if (!contribution.command || !contribution.when) {
 						continue;
 					}
 					const fullCommand = commands.get(contribution.command);
@@ -270,7 +270,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				const folderRoot = this.contextService.getWorkspace().folders.find((f) => f.name === folder.name);
 				if (!folderRoot) {
 					this.logService.info(`Skipping applying ${folder.workingChanges.length} changes from edit session with ref ${ref} as no corresponding workspace folder named ${folder.name} is currently open.`);
-					continue;
+					return;
 				}
 
 				for (const repository of this.scmService.repositories) {

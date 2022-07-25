@@ -223,6 +223,10 @@ function collectBrackets(
 	level: number,
 	levelPerBracketType: Map<string, number>
 ): void {
+	if (level > 200) {
+		return;
+	}
+
 	if (node.kind === AstNodeKind.List) {
 		for (const child of node.children) {
 			nodeOffsetEnd = lengthAdd(nodeOffsetStart, child.length);
@@ -333,6 +337,10 @@ function collectBracketPairs(
 	level: number,
 	levelPerBracketType: Map<string, number>
 ) {
+	if (level > 200) {
+		return;
+	}
+
 	if (node.kind === AstNodeKind.Pair) {
 		let levelPerBracket = 0;
 		if (levelPerBracketType) {

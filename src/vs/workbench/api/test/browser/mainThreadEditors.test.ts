@@ -17,7 +17,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { IModelService } from 'vs/editor/common/services/model';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { TestFileService, TestEditorService, TestEditorGroupsService, TestEnvironmentService, TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestFileService, TestEditorService, TestEditorGroupsService, TestEnvironmentService, TestLifecycleService, TestWorkingCopyService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { BulkEditService } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditService';
 import { NullLogService, ILogService } from 'vs/platform/log/common/log';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
@@ -56,6 +56,7 @@ import { LanguageService } from 'vs/editor/common/services/languageService';
 import { LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 import { MainThreadBulkEdits } from 'vs/workbench/api/browser/mainThreadBulkEdits';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 suite('MainThreadEditors', () => {
 
@@ -114,6 +115,7 @@ suite('MainThreadEditors', () => {
 		services.set(IFileService, new TestFileService());
 		services.set(IEditorService, new TestEditorService());
 		services.set(ILifecycleService, new TestLifecycleService());
+		services.set(IWorkingCopyService, new TestWorkingCopyService());
 		services.set(IEditorGroupsService, new TestEditorGroupsService());
 		services.set(ITextFileService, new class extends mock<ITextFileService>() {
 			override isDirty() { return false; }

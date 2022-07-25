@@ -168,7 +168,7 @@ export interface IPtyHostAttachTarget {
 	fixedDimensions: IFixedTerminalDimensions | undefined;
 	environmentVariableCollections: ISerializableEnvironmentVariableCollections | undefined;
 	reconnectionOwner?: string;
-	task?: { label: string; id: string; lastTask?: string; group?: string };
+	task?: { label: string; id: string; lastTask: string; group?: string };
 }
 
 export enum TitleEventSource {
@@ -469,7 +469,7 @@ export interface IShellLaunchConfig {
 	/**
 	 * This is a terminal that attaches to an already running terminal.
 	 */
-	attachPersistentProcess?: { id: number; findRevivedId?: boolean; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string; hasChildProcesses?: boolean; fixedDimensions?: IFixedTerminalDimensions; environmentVariableCollections?: ISerializableEnvironmentVariableCollections; reconnectionOwner?: string; task?: { label: string; id: string; lastTask?: string; group?: string } };
+	attachPersistentProcess?: { id: number; findRevivedId?: boolean; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string; hasChildProcesses?: boolean; fixedDimensions?: IFixedTerminalDimensions; environmentVariableCollections?: ISerializableEnvironmentVariableCollections; reconnectionOwner?: string; task?: { label: string; id: string; lastTask: string; group?: string } };
 
 	/**
 	 * Whether the terminal process environment should be exactly as provided in
@@ -544,7 +544,7 @@ export interface IShellLaunchConfig {
 	/**
 	 * The task associated with this terminal
 	 */
-	task?: { lastTask?: string; group?: string; label: string; id: string };
+	task?: { lastTask: string; group?: string; label: string; id: string };
 }
 
 export interface ICreateContributedTerminalProfileOptions {

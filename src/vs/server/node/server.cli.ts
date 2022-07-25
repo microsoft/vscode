@@ -59,6 +59,7 @@ const isSupportedForPipe = (optionId: keyof RemoteParsedArgs) => {
 		case 'file-uri':
 		case 'add':
 		case 'diff':
+		case 'merge':
 		case 'wait':
 		case 'goto':
 		case 'reuse-window':
@@ -72,6 +73,7 @@ const isSupportedForPipe = (optionId: keyof RemoteParsedArgs) => {
 		case 'category':
 		case 'verbose':
 		case 'remote':
+		case 'locate-shell-integration-path':
 			return true;
 		default:
 			return false;
@@ -131,6 +133,20 @@ export function main(desc: ProductDescription, args: string[]): void {
 	}
 	if (parsedArgs.version) {
 		console.log(buildVersionMessage(desc.version, desc.commit));
+		return;
+	}
+	if (parsedArgs['locate-shell-integration-path']) {
+		let file: string;
+		switch (parsedArgs['locate-shell-integration-path']) {
+			// Usage: `[[ "$TERM_PROGRAM" == "vscode" ]] && . "$(code --locate-shell-integration-path bash)"`
+			case 'bash': file = 'shellIntegration-bash.sh'; break;
+			// Usage: `if ($env:TERM_PROGRAM -eq "vscode") { . "$(code --locate-shell-integration-path pwsh)" }`
+			case 'pwsh': file = 'shellIntegration.ps1'; break;
+			// Usage: `[[ "$TERM_PROGRAM" == "vscode" ]] && . "$(code --locate-shell-integration-path zsh)"`
+			case 'zsh': file = 'shellIntegration-rc.zsh'; break;
+			default: throw new Error('Error using --locate-shell-integration-path: Invalid shell type');
+		}
+		console.log(resolve(__dirname, '../..', 'workbench', 'contrib', 'terminal', 'browser', 'media', file));
 		return;
 	}
 	if (cliPipe) {
@@ -216,7 +232,6 @@ export function main(desc: ProductDescription, args: string[]): void {
 			return;
 		}
 
-
 		const newCommandline: string[] = [];
 		for (const key in parsedArgs) {
 			const val = parsedArgs[key as keyof typeof parsedArgs];
@@ -297,6 +312,7 @@ export function main(desc: ProductDescription, args: string[]): void {
 			fileURIs,
 			folderURIs,
 			diffMode: parsedArgs.diff,
+			mergeMode: parsedArgs.merge,
 			addMode: parsedArgs.add,
 			gotoLineMode: parsedArgs.goto,
 			forceReuseWindow: parsedArgs['reuse-window'],

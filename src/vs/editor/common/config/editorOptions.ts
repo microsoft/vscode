@@ -170,6 +170,10 @@ export interface IEditorOptions {
 	 */
 	scrollbar?: IEditorScrollbarOptions;
 	/**
+	 * Control the behavior of the sticky scroll
+	 */
+	stickyScroll?: IEditorStickyScrollOptions;
+	/**
 	 * Control the behavior and rendering of the minimap.
 	 */
 	minimap?: IEditorMinimapOptions;
@@ -2504,6 +2508,54 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 
 //#endregion
 
+//#region sticky scroll
+
+/**
+ * Configuration options for editor sticky scroll
+ */
+
+export interface IEditorStickyScrollOptions {
+	/**
+	 * Enable the sticky scroll
+	 */
+	enabled?: boolean;
+}
+
+/**
+ * @internal
+ */
+
+export type EditorStickyScrollOptions = Readonly<Required<IEditorStickyScrollOptions>>;
+
+class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEditorStickyScrollOptions, EditorStickyScrollOptions> {
+
+	constructor() {
+		const defaults: EditorStickyScrollOptions = { enabled: false };
+		super(
+			EditorOption.stickyScroll, 'stickyScroll', defaults,
+			{
+				'editor.stickyScroll.enabled': {
+					type: 'boolean',
+					default: defaults.enabled,
+					description: nls.localize('editor.stickyScroll', "Enables the sticky scroll in the editor.")
+				},
+			}
+		);
+	}
+
+	public validate(_input: any): EditorStickyScrollOptions {
+		if (!_input || typeof _input !== 'object') {
+			return this.defaultValue;
+		}
+		const input = _input as IEditorStickyScrollOptions;
+		return {
+			enabled: boolean(input.enabled, this.defaultValue.enabled)
+		};
+	}
+}
+
+//#endregion
+
 //#region inlayHints
 
 /**
@@ -2966,7 +3018,7 @@ class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggesti
 				},
 			},
 			default: defaults,
-			markdownDescription: nls.localize('quickSuggestions', "Controls whether suggestions should automatically show up while typing. This can be controlled for typing in comments, strings, and other code. Quick suggestion can be configured to show as ghost text or with the suggest widget.")
+			markdownDescription: nls.localize('quickSuggestions', "Controls whether suggestions should automatically show up while typing. This can be controlled for typing in comments, strings, and other code. Quick suggestion can be configured to show as ghost text or with the suggest widget. Also be aware of the '{0}'-setting which controls if suggestions are triggered by special characters.", `#editor.suggestOnTriggerCharacters#`)
 		});
 		this.defaultValue = defaults;
 	}
@@ -4523,6 +4575,7 @@ export const enum EditorOption {
 	smartSelect,
 	smoothScrolling,
 	stickyTabStops,
+	stickyScroll,
 	stopRenderingLineAfter,
 	suggest,
 	suggestFontSize,
@@ -4557,7 +4610,7 @@ export const enum EditorOption {
 export const EditorOptions = {
 	acceptSuggestionOnCommitCharacter: register(new EditorBooleanOption(
 		EditorOption.acceptSuggestionOnCommitCharacter, 'acceptSuggestionOnCommitCharacter', true,
-		{ markdownDescription: nls.localize('acceptSuggestionOnCommitCharacter', "Controls whether suggestions should be accepted on commit characters. For example, in JavaScript, the semi-colon (`;`) can be a commit character that accepts a suggestion and types that character.") }
+		{ markdownDescription: nls.localize('acceptSuggestionOnCommitCharacter', "Controls whether suggestions should be accepted on commit characters. For example, in JavaScript, the semi-colon (`; `) can be a commit character that accepts a suggestion and types that character.") }
 	)),
 	acceptSuggestionOnEnter: register(new EditorStringEnumOption(
 		EditorOption.acceptSuggestionOnEnter, 'acceptSuggestionOnEnter',
@@ -5079,6 +5132,7 @@ export const EditorOptions = {
 		EditorOption.smoothScrolling, 'smoothScrolling', false,
 		{ description: nls.localize('smoothScrolling', "Controls whether the editor will scroll using an animation.") }
 	)),
+	stickyScroll: register(new EditorStickyScroll()),
 	stopRenderingLineAfter: register(new EditorIntOption(
 		EditorOption.stopRenderingLineAfter, 'stopRenderingLineAfter',
 		10000, -1, Constants.MAX_SAFE_SMALL_INTEGER,

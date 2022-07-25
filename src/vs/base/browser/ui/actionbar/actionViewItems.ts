@@ -23,6 +23,7 @@ export interface IBaseActionViewItemOptions {
 	draggable?: boolean;
 	isMenu?: boolean;
 	useEventAsContext?: boolean;
+	hoverDelegate?: IHoverDelegate;
 }
 
 export class BaseActionViewItem extends Disposable implements IActionViewItem {
@@ -31,6 +32,8 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 
 	_context: unknown;
 	readonly _action: IAction;
+
+	private customHover?: ICustomHover;
 
 	get action() {
 		return this._action;
@@ -210,8 +213,27 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		// implement in subclass
 	}
 
+	protected getTooltip(): string | undefined {
+		return this.getAction().tooltip;
+	}
+
 	protected updateTooltip(): void {
-		// implement in subclass
+		if (!this.element) {
+			return;
+		}
+		const title = this.getTooltip() ?? '';
+		this.element.setAttribute('aria-label', title);
+		if (!this.options.hoverDelegate) {
+			this.element.title = title;
+		} else {
+			this.element.title = '';
+			if (!this.customHover) {
+				this.customHover = setupCustomHover(this.options.hoverDelegate, this.element, title);
+				this._store.add(this.customHover);
+			} else {
+				this.customHover.update(title);
+			}
+		}
 	}
 
 	protected updateClass(): void {
@@ -236,7 +258,6 @@ export interface IActionViewItemOptions extends IBaseActionViewItemOptions {
 	icon?: boolean;
 	label?: boolean;
 	keybinding?: string | null;
-	hoverDelegate?: IHoverDelegate;
 }
 
 export class ActionViewItem extends BaseActionViewItem {
@@ -245,7 +266,6 @@ export class ActionViewItem extends BaseActionViewItem {
 	protected override options: IActionViewItemOptions;
 
 	private cssClass?: string;
-	private customHover?: ICustomHover;
 
 	constructor(context: unknown, action: IAction, options: IActionViewItemOptions = {}) {
 		super(context, action, options);
@@ -317,7 +337,7 @@ export class ActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	override updateTooltip(): void {
+	override getTooltip() {
 		let title: string | null = null;
 
 		if (this.getAction().tooltip) {
@@ -330,24 +350,7 @@ export class ActionViewItem extends BaseActionViewItem {
 				title = nls.localize({ key: 'titleLabel', comment: ['action title', 'action keybinding'] }, "{0} ({1})", title, this.options.keybinding);
 			}
 		}
-		this._applyUpdateTooltip(title);
-	}
-
-	protected _applyUpdateTooltip(title: string | undefined | null): void {
-		if (title && this.label) {
-			this.label.setAttribute('aria-label', title);
-			if (!this.options.hoverDelegate) {
-				this.label.title = title;
-			} else {
-				this.label.title = '';
-				if (!this.customHover) {
-					this.customHover = setupCustomHover(this.options.hoverDelegate, this.label, title);
-					this._store.add(this.customHover);
-				} else {
-					this.customHover.update(title);
-				}
-			}
-		}
+		return title ?? undefined;
 	}
 
 	override updateClass(): void {

@@ -204,9 +204,10 @@ export class LanguageDetectionWorkerHost {
 		type LanguageDetectionStats = { languages: string; confidences: string; timeSpent: number };
 		type LanguageDetectionStatsClassification = {
 			owner: 'TylerLeonhardt';
-			languages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			confidences: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			timeSpent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			comment: 'Helps understand how effective language detection is via confidences and how long it takes to run';
+			languages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The languages that are guessed' };
+			confidences: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The confidences of each language guessed' };
+			timeSpent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The time it took to run language detection' };
 		};
 
 		this._telemetryService.publicLog2<LanguageDetectionStats, LanguageDetectionStatsClassification>('automaticlanguagedetection.stats', {
@@ -339,8 +340,9 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 
 		type LanguageDetectionPerfClassification = {
 			owner: 'TylerLeonhardt';
-			timeSpent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-			detection: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			comment: 'Helps understand how effective language detection and how long it takes to run';
+			timeSpent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The time it took to run language detection' };
+			detection: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language that was detected' };
 		};
 
 		this._telemetryService.publicLog2<ILanguageDetectionPerf, LanguageDetectionPerfClassification>(LanguageDetectionStatsId, {
