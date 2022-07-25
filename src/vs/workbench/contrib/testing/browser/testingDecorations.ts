@@ -815,20 +815,19 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 			allActions.push(new Action('testing.gutter.debugAll', localize('debug all test', 'Debug All Tests'), undefined, undefined, () => this.defaultDebug()));
 		}
 
-		const testItems = this.tests.map(testItem => {
-			return {
-				currentLabel: testItem.test.item.label,
-				testItem,
-				parent: testItem.test.parent
-			};
-		});
+		const testItems = this.tests.map(testItem => ({
+			currentLabel: testItem.test.item.label,
+			testItem,
+			parent: testItem.test.parent,
+		}));
 
 		const getLabelConflicts = (tests: typeof testItems) => {
-			const conflictMap = tests.reduce((m, testItem) => {
-				m[testItem.currentLabel] = ++m[testItem.currentLabel] || 0;
-				return m;
-			}, {} as Record<string, number>);
-			return tests.filter(e => conflictMap[e.currentLabel]);
+			const labelCount = new Map<string, number>();
+			for (const test of tests) {
+				labelCount.set(test.currentLabel, (labelCount.get(test.currentLabel) || 0) + 1);
+			}
+
+			return tests.filter(e => labelCount.get(e.currentLabel)! > 1);
 		};
 
 		let conflicts, hasParent = true;
