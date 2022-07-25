@@ -743,7 +743,9 @@ class UserKeybindings extends Disposable {
 
 	private async whenCurrentProfieChanged(e: DidChangeUserDataProfileEvent): Promise<void> {
 		if (e.preserveData) {
-			await this.fileService.copy(e.previous.keybindingsResource, e.profile.keybindingsResource);
+			if (await this.fileService.exists(e.previous.keybindingsResource)) {
+				await this.fileService.copy(e.previous.keybindingsResource, e.profile.keybindingsResource);
+			}
 		}
 		this.watch();
 		this.reloadConfigurationScheduler.schedule();
