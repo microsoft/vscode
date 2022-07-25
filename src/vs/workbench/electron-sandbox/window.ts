@@ -137,8 +137,11 @@ export class NativeWindow extends Disposable {
 			// Touchbar
 			this.updateTouchbarMenu();
 
-			// Potential data loss
-			this.notifyOnAppRootEditors(appRootUri);
+			// Potential data loss when editing files
+			// from within the installation app root
+			if (this.environmentService.isBuilt) {
+				this.notifyOnAppRootEditors(appRootUri);
+			}
 		}));
 
 		// prevent opening a real URL inside the window

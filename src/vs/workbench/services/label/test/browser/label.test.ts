@@ -164,18 +164,6 @@ suite('URI Label', () => {
 		assert.strictEqual(labelService.getUriLabel(uri1, { relative: false }), 'LABEL: /END');
 	});
 
-	test('custom formatting function', function () {
-		labelService.registerFormatter({
-			scheme: 'vscode',
-			formatting: {
-				label: (resource) => { return resource.toString(); },
-				separator: '/',
-			}
-		});
-
-		const uri1 = URI.parse('vscode://microsoft.com/1/2/3/4/5');
-		assert.strictEqual(labelService.getUriLabel(uri1), uri1.toString());
-	});
 
 	test('label caching', () => {
 		const m = new Memento('cachedResourceLabelFormatters', storageService).getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);

@@ -1739,6 +1739,15 @@ declare namespace monaco.editor {
 	}
 
 	/**
+	 * Text snapshot that works like an iterator.
+	 * Will try to return chunks of roughly ~64KB size.
+	 * Will return null when finished.
+	 */
+	export interface ITextSnapshot {
+		read(): string | null;
+	}
+
+	/**
 	 * A model.
 	 */
 	export interface ITextModel {
@@ -1769,7 +1778,7 @@ declare namespace monaco.editor {
 		/**
 		 * Replace the entire text buffer value contained in this model.
 		 */
-		setValue(newValue: string): void;
+		setValue(newValue: string | ITextSnapshot): void;
 		/**
 		 * Get the text stored in this model.
 		 * @param eol The end of line character preference. Defaults to `EndOfLinePreference.TextDefined`.
@@ -1777,6 +1786,12 @@ declare namespace monaco.editor {
 		 * @return The text.
 		 */
 		getValue(eol?: EndOfLinePreference, preserveBOM?: boolean): string;
+		/**
+		 * Get the text stored in this model.
+		 * @param preserverBOM Preserve a BOM character if it was detected when the model was constructed.
+		 * @return The text snapshot (it is safe to consume it asynchronously).
+		 */
+		createSnapshot(preserveBOM?: boolean): ITextSnapshot;
 		/**
 		 * Get the length of the text stored in this model.
 		 */
@@ -5833,6 +5848,10 @@ declare namespace monaco.languages {
 		 * Requested kind of actions to return.
 		 */
 		readonly only?: string;
+		/**
+		 * The reason why code actions were requested.
+		 */
+		readonly trigger: CodeActionTriggerType;
 	}
 
 	/**
@@ -5863,6 +5882,10 @@ declare namespace monaco.languages {
 		 * such as `["quickfix.removeLine", "source.fixAll" ...]`.
 		 */
 		readonly providedCodeActionKinds?: readonly string[];
+		readonly documentation?: ReadonlyArray<{
+			readonly kind: string;
+			readonly command: Command;
+		}>;
 	}
 
 	/**
@@ -6435,6 +6458,11 @@ declare namespace monaco.languages {
 		disabled?: string;
 	}
 
+	export enum CodeActionTriggerType {
+		Invoke = 1,
+		Auto = 2
+	}
+
 	export interface CodeActionList extends IDisposable {
 		readonly actions: ReadonlyArray<CodeAction>;
 	}
@@ -6771,11 +6799,11 @@ declare namespace monaco.languages {
 		provideDocumentSymbols(model: editor.ITextModel, token: CancellationToken): ProviderResult<DocumentSymbol[]>;
 	}
 
-	export type TextEdit = {
+	export interface TextEdit {
 		range: IRange;
 		text: string;
 		eol?: editor.EndOfLineSequence;
-	};
+	}
 
 	/**
 	 * Interface used to format a model
