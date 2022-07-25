@@ -413,6 +413,18 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// the resource is already set when it's been moved from another window
 		this._resource = resource || getTerminalUri(this._workspaceContextService.getWorkspace().id, this.instanceId, this.title);
 
+		if (this._shellLaunchConfig.attachPersistentProcess?.hideFromUser) {
+			this._shellLaunchConfig.hideFromUser = this._shellLaunchConfig.attachPersistentProcess.hideFromUser;
+		}
+
+		if (this._shellLaunchConfig.attachPersistentProcess?.isFeatureTerminal) {
+			this._shellLaunchConfig.isFeatureTerminal = this._shellLaunchConfig.attachPersistentProcess.isFeatureTerminal;
+		}
+
+		if (this._shellLaunchConfig.attachPersistentProcess?.type) {
+			this._shellLaunchConfig.type = this._shellLaunchConfig.attachPersistentProcess.type;
+		}
+
 		if (this.shellLaunchConfig.cwd) {
 			const cwdUri = typeof this._shellLaunchConfig.cwd === 'string' ? URI.from({
 				scheme: Schemas.file,
@@ -2720,7 +2732,7 @@ export class TerminalLabelComputer extends Disposable {
 
 	constructor(
 		private readonly _configHelper: TerminalConfigHelper,
-		private readonly _instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'reconnectionOwner' | 'cwd' | 'fixedCols' | 'fixedRows' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'>,
+		private readonly _instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'cwd' | 'fixedCols' | 'fixedRows' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'>,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
 	) {
 		super();
@@ -2739,7 +2751,7 @@ export class TerminalLabelComputer extends Disposable {
 		labelType: TerminalLabelType,
 		reset?: boolean
 	) {
-		const type = this._instance.shellLaunchConfig.attachPersistentProcess?.type || this._instance.shellLaunchConfig.type || this._instance.shellLaunchConfig.attachPersistentProcess?.reconnectionOwner;
+		const type = this._instance.shellLaunchConfig.attachPersistentProcess?.type || this._instance.shellLaunchConfig.type;
 		const templateProperties: ITerminalLabelTemplateProperties = {
 			cwd: this._instance.cwd || this._instance.initialCwd || '',
 			cwdFolder: '',
