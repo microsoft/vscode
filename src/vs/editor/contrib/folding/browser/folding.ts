@@ -1097,7 +1097,8 @@ class FoldSelectedAction extends FoldingAction<void> {
 						endLineNumber: endLineNumber,
 						type: undefined,
 						isCollapsed: true,
-						isManual: true
+						isUserDefined: true,
+						isRecovered: false
 					});
 					editor.setSelection({
 						startLineNumber: selection.startLineNumber,

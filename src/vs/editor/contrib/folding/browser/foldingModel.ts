@@ -22,6 +22,7 @@ export interface FoldingModelChangeEvent {
 interface ILineMemento extends ILineRange {
 	checksum?: number;
 	isCollapsed?: boolean;
+	isUserDefined?: boolean;
 }
 
 export type CollapseMemento = ILineMemento[];
@@ -62,8 +63,8 @@ export class FoldingModel {
 				while (k < index) {
 					const endLineNumber = this._regions.getEndLineNumber(k);
 					const isCollapsed = this._regions.isCollapsed(k);
-					const isManual = this.regions.isManual(k);
 					if (endLineNumber <= dirtyRegionEndLine) {
+						const isManual = this.regions.isUserDefined(k) || this.regions.isRecovered(k);
 						accessor.changeDecorationOptions(this._editorDecorationIds[k], this._decorationProvider.getDecorationOption(isCollapsed, endLineNumber <= lastHiddenLine, isManual));
 					}
 					if (isCollapsed && endLineNumber > lastHiddenLine) {
@@ -104,7 +105,7 @@ export class FoldingModel {
 			const startLineNumber = newRegions.getStartLineNumber(index);
 			const endLineNumber = newRegions.getEndLineNumber(index);
 			const isCollapsed = newRegions.isCollapsed(index);
-			const isManual = newRegions.isManual(index);
+			const isManual = newRegions.isUserDefined(index) || newRegions.isRecovered(index);
 			const decorationRange = {
 				startLineNumber: startLineNumber,
 				startColumn: this._textModel.getLineMaxColumn(startLineNumber),
@@ -135,8 +136,9 @@ export class FoldingModel {
 		const foldedRanges: FoldRange[] = [];
 		for (let i = 0, limit = this._regions.length; i < limit; i++) {
 			let isCollapsed = this.regions.isCollapsed(i);
-			const isManual = this.regions.isManual(i);
-			if (isCollapsed || isManual) {
+			const isUserDefined = this.regions.isUserDefined(i);
+			const isRecovered = this.regions.isRecovered(i);
+			if (isCollapsed || isUserDefined || isRecovered) {
 				const foldRange = this._regions.toFoldRange(i);
 				const decRange = this._textModel.getDecorationRange(this._editorDecorationIds[i]);
 				if (decRange) {
@@ -148,7 +150,8 @@ export class FoldingModel {
 						endLineNumber: decRange.endLineNumber,
 						type: foldRange.type,
 						isCollapsed,
-						isManual
+						isUserDefined,
+						isRecovered
 					});
 				}
 			}
@@ -170,6 +173,7 @@ export class FoldingModel {
 				startLineNumber: range.startLineNumber,
 				endLineNumber: range.endLineNumber,
 				isCollapsed: range.isCollapsed,
+				isUserDefined: range.isRecovered,
 				checksum: checksum
 			});
 		}
@@ -191,12 +195,14 @@ export class FoldingModel {
 			}
 			const checksum = this._getLinesChecksum(range.startLineNumber + 1, range.endLineNumber);
 			if (!range.checksum || checksum === range.checksum) {
+				const isUserDefined = range.isUserDefined === true;
 				rangesToRestore.push({
 					startLineNumber: range.startLineNumber,
 					endLineNumber: range.endLineNumber,
 					type: undefined,
 					isCollapsed: range.isCollapsed ?? true,
-					isManual: true // converts to false when provider sends a match
+					isUserDefined,
+					isRecovered: !isUserDefined
 				});
 			}
 		}
