@@ -915,7 +915,7 @@ export class NativeWindow extends Disposable {
 				input2: { resource: resources[1].resource },
 				base: { resource: resources[2].resource },
 				result: { resource: resources[3].resource },
-				options: { pinned: true }
+				options: { pinned: true, override: 'mergeEditor.Input' } // TODO@bpasero remove the override once the resolver is ready
 			};
 			editors.push(mergeEditor);
 		} else if (diffMode && isResourceEditorInput(resources[0]) && isResourceEditorInput(resources[1])) {

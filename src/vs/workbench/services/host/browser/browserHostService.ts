@@ -268,7 +268,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 							input2: { resource: editors[1].resource },
 							base: { resource: editors[2].resource },
 							result: { resource: editors[3].resource },
-							options: { pinned: true }
+							options: { pinned: true, override: 'mergeEditor.Input' } // TODO@bpasero remove the override once the resolver is ready
 						});
 					}
 
