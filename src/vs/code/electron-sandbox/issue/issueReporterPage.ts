@@ -16,10 +16,9 @@ export default (): string => `
 <div id="issue-reporter">
 	<div id="english" class="input-group hidden">${escape(localize('completeInEnglish', "Please complete the form in English."))}</div>
 
-	<div class="input-group">
-		<a href='https://github.com/microsoft/vscode/wiki/Submitting-Bugs-and-Suggestions' target='_blank'>
-			${escape(localize('reviewGuidance', "Before you report an issue here please review the guidance we provide."))}
-		</a>
+	<div id="review-guidance-help-text" class="input-group">
+		${escape(localize('reviewGuidanceLabelText', "Before you report an issue here please {0}."))
+		.replace('{0}', `<a href="https://github.com/microsoft/vscode/wiki/Submitting-Bugs-and-Suggestions" target="_blank">${escape(localize('reviewGuidanceLinkText', "review the guidance we provide"))}</a>`)}
 	</div>
 
 	<div class="section">
