@@ -146,6 +146,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	private focusedEnabledItem: number | undefined;
 	private currSelectedItem: number = 0;
 	private hasSeperator: boolean = false;
+	private block?: HTMLElement;
 
 	public static readonly ID: string = 'editor.contrib.codeActionMenu';
 
@@ -202,6 +203,20 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	private renderCodeActionMenuList(element: HTMLElement, inputArray: IAction[]): IDisposable {
 		const renderDisposables = new DisposableStore();
 		const renderMenu = document.createElement('div');
+
+		// Render invisible div to block mouse interaction in the rest of the UI
+		const menuBlock = document.createElement('div');
+		this.block = element.appendChild(menuBlock);
+		this.block.classList.add('context-view-block');
+		this.block.style.position = 'fixed';
+		this.block.style.cursor = 'initial';
+		this.block.style.left = '0';
+		this.block.style.top = '0';
+		this.block.style.width = '100%';
+		this.block.style.height = '100%';
+		this.block.style.zIndex = '-1';
+
+		renderDisposables.add(dom.addDisposableListener(this.block, dom.EventType.MOUSE_DOWN, e => e.stopPropagation()));
 
 		renderMenu.id = 'codeActionMenuWidget';
 		renderMenu.classList.add('codeActionMenuWidget');
@@ -263,9 +278,13 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		this.codeActionList.value?.layout(height, maxWidth);
 
 		// List selection
-		this.focusedEnabledItem = 0;
-		this.currSelectedItem = this.viewItems[0].index;
-		this.codeActionList.value.setFocus([this.currSelectedItem]);
+		if (this.viewItems.length < 1) {
+			this.currSelectedItem = 0;
+		} else {
+			this.focusedEnabledItem = 0;
+			this.currSelectedItem = this.viewItems[0].index;
+			this.codeActionList.value.setFocus([this.currSelectedItem]);
+		}
 
 		// List Focus
 		this.codeActionList.value.domFocus();
@@ -284,7 +303,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	protected focusPrevious() {
 		if (typeof this.focusedEnabledItem === 'undefined') {
 			this.focusedEnabledItem = this.viewItems[0].index;
-		} else if (this.viewItems.length <= 1) {
+		} else if (this.viewItems.length < 1) {
 			return false;
 		}
 
@@ -307,7 +326,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	protected focusNext() {
 		if (typeof this.focusedEnabledItem === 'undefined') {
 			this.focusedEnabledItem = this.viewItems.length - 1;
-		} else if (this.viewItems.length <= 1) {
+		} else if (this.viewItems.length < 1) {
 			return false;
 		}
 
