@@ -239,7 +239,7 @@ class StickyScrollCodeLine {
 		}
 		const renderLineInput: RenderLineInput = new RenderLineInput(true, true, modifiedLine, lineRenderingData.continuesWithWrappedLine,
 			lineRenderingData.isBasicASCII, lineRenderingData.containsRTL, 0, lineRenderingData.tokens, actualInlineDecorations, lineRenderingData.tabSize,
-			lineRenderingData.startVisibleColumn, 1, 1, 1, 500, 'none', true, true, null);
+			lineRenderingData.startVisibleColumn, 1, 1, 1, 100, 'none', true, true, null);
 
 		const sb = createStringBuilder(2000);
 		renderViewLine(renderLineInput, sb);
