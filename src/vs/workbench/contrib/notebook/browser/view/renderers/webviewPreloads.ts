@@ -6,6 +6,7 @@
 import type { Event } from 'vs/base/common/event';
 import type { IDisposable } from 'vs/base/common/lifecycle';
 import type * as webviewMessages from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewMessages';
+import { NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import type * as rendererApi from 'vscode-notebook-renderer';
 
 // !! IMPORTANT !! ----------------------------------------------------------------------------------
@@ -1435,7 +1436,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				return existing;
 			}
 
-			const cell = new MarkupCell(init.cellId, init.mime, init.content, top);
+			const cell = new MarkupCell(init.cellId, init.mime, init.content, top, init.metadata);
 			cell.element.style.visibility = visible ? 'visible' : 'hidden';
 			this._markupCells.set(init.cellId, cell);
 
@@ -1634,7 +1635,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		/// Internal field that holds text content
 		private _content: { readonly value: string; readonly version: number };
 
-		constructor(id: string, mime: string, content: string, top: number) {
+		constructor(id: string, mime: string, content: string, top: number, metadata: NotebookCellMetadata) {
 			this.id = id;
 			this._content = { value: content, version: 0 };
 
@@ -1645,7 +1646,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.outputItem = Object.freeze(<rendererApi.OutputItem>{
 				id,
 				mime,
-				metadata: undefined,
+				metadata,
 
 				text: (): string => {
 					return this._content.value;

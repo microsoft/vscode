@@ -68,22 +68,22 @@ vscode-textmate@7.0.1:
   resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-7.0.1.tgz#8118a32b02735dccd14f893b495fa5389ad7de79"
   integrity sha512-zQ5U/nuXAAMsh691FtV0wPz89nSkHbs+IQV8FDk+wew9BlSDhf4UmWGlWJfTR2Ti6xZv87Tj5fENzKf6Qk7aLw==
 
-xterm-addon-search@0.10.0-beta.2:
-  version "0.10.0-beta.2"
-  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.10.0-beta.2.tgz#a937d1e9a70fde8eeb7d1df485039b2d5fc1d707"
-  integrity sha512-ybafAbX9V4sfkzmUsWmtfEYExG8jj73bTF9pEa/Lhd5q4bviW4LcFaw/n3lKHn/1tSgSVgzoD13u1ZaZR78SfQ==
+xterm-addon-search@0.10.0-beta.3:
+  version "0.10.0-beta.3"
+  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.10.0-beta.3.tgz#5194434d86105637c71f6f20139a9d0b5c1a956a"
+  integrity sha512-UeGm/ymnp7HUYJJtsP0D+bljOWbdk3MctcLJ+0jv8AmU6YlAzJFtouvYSQrD5SAMyht5CRsvjzFgqic9X02JYg==
 
 xterm-addon-unicode11@0.4.0-beta.3:
   version "0.4.0-beta.3"
   resolved "https://registry.yarnpkg.com/xterm-addon-unicode11/-/xterm-addon-unicode11-0.4.0-beta.3.tgz#f350184155fafd5ad0d6fbf31d13e6ca7dea1efa"
   integrity sha512-FryZAVwbUjKTmwXnm1trch/2XO60F5JsDvOkZhzobV1hm10sFLVuZpFyHXiUx7TFeeFsvNP+S77LAtWoeT5z+Q==
 
-xterm-addon-webgl@0.13.0-beta.7:
-  version "0.13.0-beta.7"
-  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.13.0-beta.7.tgz#9b514fa9792ced755c8321ddd06529f9912db2a1"
-  integrity sha512-U3sKzkziZRwb13MyNp0eMwt5BWyM938epAv0ZOnI5Vjq06S2naS37GgO/FY+0eu5wuBKkZhT9lNDv7n8rMqd+w==
+xterm-addon-webgl@0.13.0-beta.9:
+  version "0.13.0-beta.9"
+  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.13.0-beta.9.tgz#66a9ac142ae347d0548abbf4e66bb2f35f415adb"
+  integrity sha512-x1o1tpCqIsICvhcRsZs+BLcwUIdizYS2G4TIH0KBnUDiSN+oSqpVBQNG8qKg56xbK8WtpdbQ9dLB7JR2W5cX0g==
 
-xterm@4.20.0-beta.13:
-  version "4.20.0-beta.13"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.20.0-beta.13.tgz#7526e19310daa56a11c26eb81a2706593c1378ec"
-  integrity sha512-ovXGhvM/qDRNGlGO653WY1pxIZrnI4+ayVM7pCnxO/tRwUIym6LGS3NurYrhGYrXOjoLJZxQ4EjToAfHvAg2Gg==
+xterm@4.20.0-beta.20:
+  version "4.20.0-beta.20"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.20.0-beta.20.tgz#2979a31839f7b8ee3ffe4f063b40c02facdb0fed"
+  integrity sha512-ltDtTquH+33tXQPFSDqenbgz6LkvIob6l6Rac85L4aX5Ve7P3ubVLrq+lTFJGQn3iiwGqNmnE1t1EUuGhxsXcQ==

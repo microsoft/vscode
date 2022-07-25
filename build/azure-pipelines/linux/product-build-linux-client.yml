@@ -11,6 +11,11 @@ parameters:
     type: boolean
 
 steps:
+  - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
+    - checkout: self
+      fetchDepth: 1
+      retryCountOnTaskFailure: 3
+
   - task: NodeTool@0
     inputs:
       versionSpec: "16.x"
@@ -23,33 +28,37 @@ steps:
         KeyVaultName: vscode
         SecretsFilter: "github-distro-mixin-password,ESRP-PKI,esrp-aad-username,esrp-aad-password"
 
-  - task: DownloadPipelineArtifact@2
-    inputs:
-      artifact: Compilation
-      path: $(Build.ArtifactStagingDirectory)
-    displayName: Download compilation output
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        artifact: Compilation
+        path: $(Build.ArtifactStagingDirectory)
+      displayName: Download compilation output
 
-  - task: DownloadPipelineArtifact@2
-    inputs:
-      artifact: reh_node_modules-$(VSCODE_ARCH)
-      path: $(Build.ArtifactStagingDirectory)
-    displayName: Download server build dependencies
-    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'armhf'))
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        artifact: reh_node_modules-$(VSCODE_ARCH)
+        path: $(Build.ArtifactStagingDirectory)
+      displayName: Download server build dependencies
+      condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'armhf'))
 
-  - script: |
-      set -e
-      # Start X server
-      /etc/init.d/xvfb start
-      # Start dbus session
-      DBUS_LAUNCH_RESULT=$(sudo dbus-daemon --config-file=/usr/share/dbus-1/system.conf --print-address)
-      echo "##vso[task.setvariable variable=DBUS_SESSION_BUS_ADDRESS]$DBUS_LAUNCH_RESULT"
-    displayName: Setup system services
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - script: |
+        set -e
+        # Start X server
+        /etc/init.d/xvfb start
+        # Start dbus session
+        DBUS_LAUNCH_RESULT=$(sudo dbus-daemon --config-file=/usr/share/dbus-1/system.conf --print-address)
+        echo "##vso[task.setvariable variable=DBUS_SESSION_BUS_ADDRESS]$DBUS_LAUNCH_RESULT"
+      displayName: Setup system services
+      condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
-  - script: |
-      set -e
-      tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
-    displayName: Extract compilation output
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - script: |
+        set -e
+        tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
+      displayName: Extract compilation output
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: |
@@ -169,12 +178,13 @@ steps:
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-  - script: |
-      set -e
-      rm -rf remote/node_modules
-      tar -xzf $(Build.ArtifactStagingDirectory)/reh_node_modules-$(VSCODE_ARCH).tar.gz --directory $(Build.SourcesDirectory)/remote
-    displayName: Extract server node_modules output
-    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'armhf'))
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - script: |
+        set -e
+        rm -rf remote/node_modules
+        tar -xzf $(Build.ArtifactStagingDirectory)/reh_node_modules-$(VSCODE_ARCH).tar.gz --directory $(Build.SourcesDirectory)/remote
+      displayName: Extract server node_modules output
+      condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'armhf'))
 
   - script: |
       set -e
@@ -190,11 +200,12 @@ steps:
         node build/azure-pipelines/mixin
       displayName: Mix in quality
 
-  - script: |
-      set -e
-      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-        yarn gulp vscode-linux-$(VSCODE_ARCH)-min-ci
-    displayName: Build
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - script: |
+        set -e
+        VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+          yarn gulp vscode-linux-$(VSCODE_ARCH)-min-ci
+      displayName: Build
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: |
@@ -202,17 +213,26 @@ steps:
         node build/azure-pipelines/mixin --server
       displayName: Mix in server quality
 
-  - script: |
-      set -e
-      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-        yarn gulp vscode-reh-linux-$(VSCODE_ARCH)-min-ci
-      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-        yarn gulp vscode-reh-web-linux-$(VSCODE_ARCH)-min-ci
-    displayName: Build Server
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - script: |
+        set -e
+        VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+          yarn gulp vscode-reh-linux-$(VSCODE_ARCH)-min-ci
+        VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+          yarn gulp vscode-reh-web-linux-$(VSCODE_ARCH)-min-ci
+      displayName: Build Server
+
+  - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
+    - script: |
+        set -e
+        VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+          yarn gulp "transpile-client" "transpile-extensions"
+      displayName: Transpile
 
   - ${{ if or(eq(parameters.VSCODE_RUN_UNIT_TESTS, true), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
     - template: product-build-linux-client-test.yml
       parameters:
+        VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
         VSCODE_RUN_UNIT_TESTS: ${{ parameters.VSCODE_RUN_UNIT_TESTS }}
         VSCODE_RUN_INTEGRATION_TESTS: ${{ parameters.VSCODE_RUN_INTEGRATION_TESTS }}
         VSCODE_RUN_SMOKE_TESTS: ${{ parameters.VSCODE_RUN_SMOKE_TESTS }}

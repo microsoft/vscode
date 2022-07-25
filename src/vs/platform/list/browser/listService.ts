@@ -7,10 +7,10 @@ import { createStyleSheet } from 'vs/base/browser/dom';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IPagedListOptions, IPagedRenderer, PagedList } from 'vs/base/browser/ui/list/listPaging';
-import { DefaultStyleController, IListAccessibilityProvider, IListOptions, IListOptionsUpdate, IMultipleSelectionController, isSelectionRangeChangeEvent, isSelectionSingleChangeEvent, List, TypeNavigationMode } from 'vs/base/browser/ui/list/listWidget';
+import { DefaultStyleController, IKeyboardNavigationEventFilter, IListAccessibilityProvider, IListOptions, IListOptionsUpdate, IMultipleSelectionController, isSelectionRangeChangeEvent, isSelectionSingleChangeEvent, List, TypeNavigationMode } from 'vs/base/browser/ui/list/listWidget';
 import { ITableColumn, ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { ITableOptions, ITableOptionsUpdate, Table } from 'vs/base/browser/ui/table/tableWidget';
-import { TreeFindMode, IAbstractTreeOptions, IAbstractTreeOptionsUpdate, IKeyboardNavigationEventFilter, RenderIndentGuides } from 'vs/base/browser/ui/tree/abstractTree';
+import { TreeFindMode, IAbstractTreeOptions, IAbstractTreeOptionsUpdate, RenderIndentGuides } from 'vs/base/browser/ui/tree/abstractTree';
 import { AsyncDataTree, CompressibleAsyncDataTree, IAsyncDataTreeOptions, IAsyncDataTreeOptionsUpdate, ICompressibleAsyncDataTreeOptions, ICompressibleAsyncDataTreeOptionsUpdate, ITreeCompressionDelegate } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { DataTree, IDataTreeOptions } from 'vs/base/browser/ui/tree/dataTree';
 import { CompressibleObjectTree, ICompressibleObjectTreeOptions, ICompressibleObjectTreeOptionsUpdate, ICompressibleTreeRenderer, IObjectTreeOptions, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
@@ -187,7 +187,14 @@ class MultipleSelectionController<T> extends Disposable implements IMultipleSele
 	}
 }
 
-function toWorkbenchListOptions<T>(options: IListOptions<T>, configurationService: IConfigurationService, keybindingService: IKeybindingService): [IListOptions<T>, IDisposable] {
+function toWorkbenchListOptions<T>(
+	accessor: ServicesAccessor,
+	container: HTMLElement,
+	options: IListOptions<T>,
+): [IListOptions<T>, IDisposable] {
+	const configurationService = accessor.get(IConfigurationService);
+	const keybindingService = accessor.get(IKeybindingService);
+
 	const disposables = new DisposableStore();
 	const result: IListOptions<T> = {
 		...options,
@@ -195,7 +202,8 @@ function toWorkbenchListOptions<T>(options: IListOptions<T>, configurationServic
 		smoothScrolling: Boolean(configurationService.getValue(listSmoothScrolling)),
 		mouseWheelScrollSensitivity: configurationService.getValue<number>(mouseWheelScrollSensitivityKey),
 		fastScrollSensitivity: configurationService.getValue<number>(fastScrollSensitivityKey),
-		multipleSelectionController: options.multipleSelectionController ?? disposables.add(new MultipleSelectionController(configurationService))
+		multipleSelectionController: options.multipleSelectionController ?? disposables.add(new MultipleSelectionController(configurationService)),
+		keyboardNavigationEventFilter: createKeyboardNavigationEventFilter(container, keybindingService),
 	};
 
 	return [result, disposables];
@@ -233,10 +241,10 @@ export class WorkbenchList<T> extends List<T> {
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : Boolean(configurationService.getValue(horizontalScrollingKey));
-		const [workbenchListOptions, workbenchListOptionsDisposable] = toWorkbenchListOptions(options, configurationService, keybindingService);
+		const [workbenchListOptions, workbenchListOptionsDisposable] = instantiationService.invokeFunction(toWorkbenchListOptions, container, options);
 
 		super(user, container, delegate, renderers,
 			{
@@ -373,10 +381,10 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : Boolean(configurationService.getValue(horizontalScrollingKey));
-		const [workbenchListOptions, workbenchListOptionsDisposable] = toWorkbenchListOptions(options, configurationService, keybindingService);
+		const [workbenchListOptions, workbenchListOptionsDisposable] = instantiationService.invokeFunction(toWorkbenchListOptions, container, options);
 		super(user, container, delegate, renderers,
 			{
 				keyboardSupport: false,
@@ -506,10 +514,10 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : Boolean(configurationService.getValue(horizontalScrollingKey));
-		const [workbenchListOptions, workbenchListOptionsDisposable] = toWorkbenchListOptions(options, configurationService, keybindingService);
+		const [workbenchListOptions, workbenchListOptionsDisposable] = instantiationService.invokeFunction(toWorkbenchListOptions, container, options);
 
 		super(user, container, delegate, columns, renderers,
 			{
@@ -819,13 +827,13 @@ function createKeyboardNavigationEventFilter(container: HTMLElement, keybindingS
 
 		const result = keybindingService.softDispatch(event, container);
 
-		if (result && result.enterChord) {
+		if (result?.enterChord) {
 			inChord = true;
 			return false;
 		}
 
 		inChord = false;
-		return true;
+		return !result;
 	};
 }
 
@@ -1076,6 +1084,7 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 	const keybindingService = accessor.get(IKeybindingService);
 	const contextViewService = accessor.get(IContextViewService);
 	const contextKeyService = accessor.get(IContextKeyService);
+	const instantiationService = accessor.get(IInstantiationService);
 
 	const getTypeNavigationMode = () => {
 		// give priority to the context key value to specify a value
@@ -1098,7 +1107,7 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 	};
 
 	const horizontalScrolling = options.horizontalScrolling !== undefined ? options.horizontalScrolling : Boolean(configurationService.getValue(horizontalScrollingKey));
-	const [workbenchListOptions, disposable] = toWorkbenchListOptions(options, configurationService, keybindingService);
+	const [workbenchListOptions, disposable] = instantiationService.invokeFunction(toWorkbenchListOptions, container, options);
 	const additionalScrollHeight = options.additionalScrollHeight;
 
 	return {

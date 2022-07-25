@@ -9,12 +9,10 @@ import { CommandManager } from './commandManager';
 import * as commands from './commands/index';
 import { registerPasteSupport } from './languageFeatures/copyPaste';
 import { registerDiagnosticSupport } from './languageFeatures/diagnostics';
-import { MdLinkProvider } from './languageFeatures/documentLinks';
 import { registerDropIntoEditorSupport } from './languageFeatures/dropIntoEditor';
 import { registerFindFileReferenceSupport } from './languageFeatures/fileReferences';
-import { MdReferencesProvider } from './languageFeatures/references';
 import { ILogger } from './logging';
-import { IMdParser, MarkdownItEngine, MdParsingProvider } from './markdownEngine';
+import { MarkdownItEngine, MdParsingProvider } from './markdownEngine';
 import { MarkdownContributionProvider } from './markdownExtensions';
 import { MdDocumentRenderer } from './preview/documentRenderer';
 import { MarkdownPreviewManager } from './preview/previewManager';
@@ -45,7 +43,7 @@ export function activateShared(
 	const previewManager = new MarkdownPreviewManager(contentProvider, workspace, logger, contributions, tocProvider);
 	context.subscriptions.push(previewManager);
 
-	context.subscriptions.push(registerMarkdownLanguageFeatures(client, parser, workspace, commandManager, tocProvider, logger));
+	context.subscriptions.push(registerMarkdownLanguageFeatures(client, commandManager));
 	context.subscriptions.push(registerMarkdownCommands(commandManager, previewManager, telemetryReporter, cspArbiter, engine, tocProvider));
 
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
@@ -55,23 +53,12 @@ export function activateShared(
 
 function registerMarkdownLanguageFeatures(
 	client: BaseLanguageClient,
-	parser: IMdParser,
-	workspace: IMdWorkspace,
 	commandManager: CommandManager,
-	tocProvider: MdTableOfContentsProvider,
-	logger: ILogger,
 ): vscode.Disposable {
 	const selector: vscode.DocumentSelector = { language: 'markdown', scheme: '*' };
-
-	const linkProvider = new MdLinkProvider(parser, workspace, logger);
-	const referencesProvider = new MdReferencesProvider(parser, workspace, tocProvider, logger);
-
 	return vscode.Disposable.from(
-		linkProvider,
-		referencesProvider,
-
 		// Language features
-		registerDiagnosticSupport(selector, workspace, linkProvider, commandManager, referencesProvider, tocProvider, logger),
+		registerDiagnosticSupport(selector, commandManager),
 		registerDropIntoEditorSupport(selector),
 		registerFindFileReferenceSupport(commandManager, client),
 		registerPasteSupport(selector),
