@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IBuffer, IMarker, ITheme, RendererType, Terminal as RawXtermTerminal } from 'xterm';
+import type { LigaturesAddon as LigaturesAddonType } from 'xterm-addon-ligatures';
 import type { ISearchOptions, SearchAddon as SearchAddonType } from 'xterm-addon-search';
 import type { Unicode11Addon as Unicode11AddonType } from 'xterm-addon-unicode11';
 import type { WebglAddon as WebglAddonType } from 'xterm-addon-webgl';
@@ -42,6 +43,7 @@ import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProc
 const SLOW_CANVAS_RENDER_THRESHOLD = 50;
 const NUMBER_OF_FRAMES_TO_MEASURE = 20;
 
+let LigaturesAddon: typeof LigaturesAddonType;
 let SearchAddon: typeof SearchAddonType;
 let Unicode11Addon: typeof Unicode11AddonType;
 let WebglAddon: typeof WebglAddonType;
@@ -65,6 +67,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	private _decorationAddon: DecorationAddon;
 
 	// Optional addons
+	private _ligaturesAddon?: LigaturesAddonType;
 	private _searchAddon?: SearchAddonType;
 	private _unicode11Addon?: Unicode11AddonType;
 	private _webglAddon?: WebglAddonType;
@@ -215,6 +218,10 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		if (this._shouldLoadWebgl()) {
 			this._enableWebglRenderer();
 		}
+		// Enable addons
+		if (this._configHelper.config.fontLigatures) {
+			this._enableLigatures();
+		}
 		// Screen must be created at this point as xterm.open is called
 		return this._container.querySelector('.xterm-screen')!;
 	}
@@ -237,11 +244,20 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this.raw.options.rightClickSelectsWord = config.rightClickBehavior === 'selectWord';
 		this.raw.options.wordSeparator = config.wordSeparators;
 		this.raw.options.customGlyphs = config.customGlyphs;
+
+		// WebGL addon
 		if (this._shouldLoadWebgl()) {
 			this._enableWebglRenderer();
 		} else {
 			this._disposeOfWebglRenderer();
 			this.raw.options.rendererType = this._getBuiltInXtermRenderer(config.gpuAcceleration, XtermTerminal._suggestedRendererType);
+		}
+
+		// Ligatures addon
+		if (config.fontLigatures) {
+			this._enableLigatures();
+		} else {
+			this._disableLigatures();
 		}
 	}
 
@@ -460,6 +476,13 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		}
 	}
 
+	protected async _getLigaturesAddonConstructor(): Promise<typeof LigaturesAddonType> {
+		if (!LigaturesAddon) {
+			LigaturesAddon = (await import('xterm-addon-ligatures')).LigaturesAddon;
+		}
+		return LigaturesAddon;
+	}
+
 	protected async _getSearchAddonConstructor(): Promise<typeof SearchAddonType> {
 		if (!SearchAddon) {
 			SearchAddon = (await import('xterm-addon-search')).SearchAddon;
@@ -548,6 +571,20 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 				textRenderLayer.onGridChanged = originalOnGridChanged;
 			}
 		};
+	}
+
+	private async _enableLigatures(): Promise<void> {
+		if (!this.raw.element || this._ligaturesAddon) {
+			return;
+		}
+		const LigaturesAddon = await this._getLigaturesAddonConstructor();
+		this._ligaturesAddon = new LigaturesAddon();
+		this.raw.loadAddon(this._ligaturesAddon);
+	}
+
+	private _disableLigatures() {
+		this._ligaturesAddon?.dispose();
+		this._ligaturesAddon = undefined;
 	}
 
 	private _getXtermTheme(theme?: IColorTheme): ITheme {

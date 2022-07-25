@@ -161,7 +161,7 @@ export class CodeApplication extends Disposable {
 				return allowedPermissionsInWebview.has(permission);
 			}
 
-			return false;
+			return permission === 'font-access';
 		});
 
 		//#endregion

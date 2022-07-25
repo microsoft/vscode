@@ -261,6 +261,23 @@ file-uri-to-path@1.0.0:
   resolved "https://registry.yarnpkg.com/file-uri-to-path/-/file-uri-to-path-1.0.0.tgz#553a7b8446ff6f684359c445f1e37a05dacc33dd"
   integrity sha512-0Zt+s3L7Vf1biwWZ29aARiVYLx7iMGnEUl9x33fbB/j3jR81u/O2LbqK+Bm1CDSNDKVtJ/YjwY7TUd5SkeLQLw==
 
+font-finder@^1.0.3, font-finder@^1.1.0:
+  version "1.1.0"
+  resolved "https://registry.yarnpkg.com/font-finder/-/font-finder-1.1.0.tgz#2bff2b2762acba720239c8bec898a96daae90858"
+  integrity sha512-wpCL2uIbi6GurJbU7ZlQ3nGd61Ho+dSU6U83/xJT5UPFfN35EeCW/rOtS+5k+IuEZu2SYmHzDIPL9eA5tSYRAw==
+  dependencies:
+    get-system-fonts "^2.0.0"
+    promise-stream-reader "^1.0.1"
+
+font-ligatures@^1.4.1:
+  version "1.4.1"
+  resolved "https://registry.yarnpkg.com/font-ligatures/-/font-ligatures-1.4.1.tgz#e8c9df7cf6bee80c0cca4a9a578618c7b1f5d8de"
+  integrity sha512-7W6zlfyhvCqShZ5ReUWqmSd9vBaUudW0Hxis+tqUjtHhsPU+L3Grf8mcZAtCiXHTzorhwdRTId2WeH/88gdFkw==
+  dependencies:
+    font-finder "^1.0.3"
+    lru-cache "^6.0.0"
+    opentype.js "^0.8.0"
+
 fs-constants@^1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/fs-constants/-/fs-constants-1.0.0.tgz#6be0de9be998ce16af8afc24497b9ee9b7ccd9ad"
@@ -279,6 +296,11 @@ gauge@~2.7.3:
     string-width "^1.0.1"
     strip-ansi "^3.0.1"
     wide-align "^1.1.0"
+
+get-system-fonts@^2.0.0:
+  version "2.0.2"
+  resolved "https://registry.yarnpkg.com/get-system-fonts/-/get-system-fonts-2.0.2.tgz#7ada3cc41322daf17c204a6f07c6588341cbc9cb"
+  integrity sha512-zzlgaYnHMIEgHRrfC7x0Qp0Ylhw/sHpM6MHXeVBTYIsvGf5GpbnClB+Q6rAPdn+0gd2oZZIo6Tj3EaWrt4VhDQ==
 
 github-from-package@0.0.0:
   version "0.0.0"
@@ -498,6 +520,13 @@ once@^1.3.1, once@^1.4.0:
   dependencies:
     wrappy "1"
 
+opentype.js@^0.8.0:
+  version "0.8.0"
+  resolved "https://registry.yarnpkg.com/opentype.js/-/opentype.js-0.8.0.tgz#acabcfa1642fbe894a3e4d759e43ba694e02bd35"
+  integrity sha512-FQHR4oGP+a0m/f6yHoRpBOIbn/5ZWxKd4D/djHVJu8+KpBTYrJda0b7mLcgDEMWXE9xBCJm+qb0yv6FcvPjukg==
+  dependencies:
+    tiny-inflate "^1.0.2"
+
 pend@~1.2.0:
   version "1.2.0"
   resolved "https://registry.yarnpkg.com/pend/-/pend-1.2.0.tgz#7a57eb550a6783f9115331fcf4663d5c8e007a50"
@@ -526,6 +555,11 @@ process-nextick-args@~2.0.0:
   version "2.0.1"
   resolved "https://registry.yarnpkg.com/process-nextick-args/-/process-nextick-args-2.0.1.tgz#7820d9b16120cc55ca9ae7792680ae7dba6d7fe2"
   integrity sha512-3ouUOpQhtgrbOa17J7+uxOTpITYWaGP7/AhoR3+A+/1e9skrzelGi/dXzEYyvbxubEF6Wn2ypscTKiKJFFn1ag==
+
+promise-stream-reader@^1.0.1:
+  version "1.0.1"
+  resolved "https://registry.yarnpkg.com/promise-stream-reader/-/promise-stream-reader-1.0.1.tgz#4e793a79c9d49a73ccd947c6da9c127f12923649"
+  integrity sha512-Tnxit5trUjBAqqZCGWwjyxhmgMN4hGrtpW3Oc/tRI4bpm/O2+ej72BB08l6JBnGQgVDGCLvHFGjGgQS6vzhwXg==
 
 proxy-from-env@^1.1.0:
   version "1.1.0"
@@ -721,6 +755,11 @@ tas-client-umd@0.1.6:
   resolved "https://registry.yarnpkg.com/tas-client-umd/-/tas-client-umd-0.1.6.tgz#a0cf70a68f50d406773457630666224f0eb545a6"
   integrity sha512-eOz5IK4cuNmSZI9QlqlT0FdvgfnnHDB6rjqleFaYAbzYE4RdJzYNiM28zFIXgmOVEgESvfabMFxG8WX5M4z3HA==
 
+tiny-inflate@^1.0.2:
+  version "1.0.3"
+  resolved "https://registry.yarnpkg.com/tiny-inflate/-/tiny-inflate-1.0.3.tgz#122715494913a1805166aaf7c93467933eea26c4"
+  integrity sha512-pkY1fj1cKHb2seWDy0B16HeWyczlJA9/WW3u3c4z/NiWDsO3DOU5D7nhTLE9CF0yXv/QZFY7sEJmj24dK+Rrqw==
+
 tunnel-agent@^0.6.0:
   version "0.6.0"
   resolved "https://registry.yarnpkg.com/tunnel-agent/-/tunnel-agent-0.6.0.tgz#27a5dea06b36b04a0a9966774b290868f0fc40fd"
@@ -788,6 +827,14 @@ wrappy@1:
   resolved "https://registry.yarnpkg.com/wrappy/-/wrappy-1.0.2.tgz#b5243d8f3ec1aa35f1364605bc0d1036e30ab69f"
   integrity sha1-tSQ9jz7BqjXxNkYFvA0QNuMKtp8=
 
+xterm-addon-ligatures@0.6.0-beta.14:
+  version "0.6.0-beta.14"
+  resolved "https://registry.yarnpkg.com/xterm-addon-ligatures/-/xterm-addon-ligatures-0.6.0-beta.14.tgz#392b8df0e32dcfc87f43b79901ec1c2abc997ae7"
+  integrity sha512-WeObuNFfGULKhfvbFyCccjxBk+BX6YMvG54lu40kgW5ubwpt0BcnKTQAxHvt9mSeT0lG0A5GxcbimBeRWc484Q==
+  dependencies:
+    font-finder "^1.1.0"
+    font-ligatures "^1.4.1"
+
 xterm-addon-search@0.10.0-beta.3:
   version "0.10.0-beta.3"
   resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.10.0-beta.3.tgz#5194434d86105637c71f6f20139a9d0b5c1a956a"
@@ -803,20 +850,20 @@ xterm-addon-unicode11@0.4.0-beta.3:
   resolved "https://registry.yarnpkg.com/xterm-addon-unicode11/-/xterm-addon-unicode11-0.4.0-beta.3.tgz#f350184155fafd5ad0d6fbf31d13e6ca7dea1efa"
   integrity sha512-FryZAVwbUjKTmwXnm1trch/2XO60F5JsDvOkZhzobV1hm10sFLVuZpFyHXiUx7TFeeFsvNP+S77LAtWoeT5z+Q==
 
-xterm-addon-webgl@0.13.0-beta.9:
-  version "0.13.0-beta.9"
-  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.13.0-beta.9.tgz#66a9ac142ae347d0548abbf4e66bb2f35f415adb"
-  integrity sha512-x1o1tpCqIsICvhcRsZs+BLcwUIdizYS2G4TIH0KBnUDiSN+oSqpVBQNG8qKg56xbK8WtpdbQ9dLB7JR2W5cX0g==
+xterm-addon-webgl@0.13.0-beta.13:
+  version "0.13.0-beta.13"
+  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.13.0-beta.13.tgz#5ac6d2ed7e938c82ca1b377bc9eec9b43b203d2b"
+  integrity sha512-HY/t79Fk8zgMbmfAoiBrwYgs7YQp/7RyOdgzCIjWwCbHuoilH4IMHGE7O/kt3g/yjdOJ4VapNAaDsXJuJqODSw==
 
-xterm-headless@4.20.0-beta.20:
-  version "4.20.0-beta.20"
-  resolved "https://registry.yarnpkg.com/xterm-headless/-/xterm-headless-4.20.0-beta.20.tgz#da2d8131b02d6f1e37f47cc17e578f2c2980fbb6"
-  integrity sha512-JK4jUIiUH7TdzvMrpfDnbGxTuC4s7byjqnMHR8+gIpY8qCFjz0xcMFSbp+ZshxGwVyziI4jtJqTHZjFToT2/kw==
+xterm-headless@4.20.0-beta.24:
+  version "4.20.0-beta.24"
+  resolved "https://registry.yarnpkg.com/xterm-headless/-/xterm-headless-4.20.0-beta.24.tgz#d0f363025d0b283a2a536a24c88f06b3f473e96b"
+  integrity sha512-sh4u7BLo/Vlde8AxMF3mxIwYCxm0HX0yHJU70EWZ5YIKloTo8brZZ7Du+RhfX+Ac/yVgffIiUjZgSjdOKxEURw==
 
-xterm@4.20.0-beta.20:
-  version "4.20.0-beta.20"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.20.0-beta.20.tgz#2979a31839f7b8ee3ffe4f063b40c02facdb0fed"
-  integrity sha512-ltDtTquH+33tXQPFSDqenbgz6LkvIob6l6Rac85L4aX5Ve7P3ubVLrq+lTFJGQn3iiwGqNmnE1t1EUuGhxsXcQ==
+xterm@4.20.0-beta.24:
+  version "4.20.0-beta.24"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.20.0-beta.24.tgz#72933495a96833ba636706f3bef129f3fd6a63d3"
+  integrity sha512-rD4TlpQP3KjUnEKQT5ij8w7gAh794c37zJEf5e6Bl1lERwwtJeZwFsAcq1F3iQWMIAcK/PR4RlXaQibOMXbiDg==
 
 yallist@^4.0.0:
   version "4.0.0"
