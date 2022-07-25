@@ -441,7 +441,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			remoteAuthority: undefined,
 			os: OS
 		});
-
 		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
 
 		const initialCwd = await terminalEnvironment.getCwd(
