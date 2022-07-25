@@ -87,6 +87,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProcess';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
+import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
 
 const enum Constants {
 	/**
@@ -695,7 +696,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._shutdownPersistentProcessId = shutdownPersistentProcessId;
 	}
 	get persistentProcessId(): number | undefined { return this._processManager.persistentProcessId ?? this._shutdownPersistentProcessId; }
-	get shouldPersist(): boolean { return (this._processManager.shouldPersist || this._shutdownPersistentProcessId !== undefined) && !this.shellLaunchConfig.isTransient; }
+	get shouldPersist(): boolean { return (this._processManager.shouldPersist || this._shutdownPersistentProcessId !== undefined) && !this.shellLaunchConfig.isTransient && (!this.reconnectionOwner || this._configurationService.getValue(TaskSettingId.Reconnection) === true); }
 
 	/**
 	 * Create xterm.js instance and attach data listeners.
@@ -2386,12 +2387,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		// Recreate the process if the terminal has not yet been interacted with and it's not a
-		// special terminal (eg. task, extension terminal)
+		// special terminal (eg. extension terminal)
 		if (
 			info.requiresAction &&
 			this._configHelper.config.environmentChangesRelaunch &&
 			!this._processManager.hasWrittenData &&
-			(this.reconnectionOwner || !this._shellLaunchConfig.isFeatureTerminal) &&
+			(!this._shellLaunchConfig.isFeatureTerminal || (this.reconnectionOwner && this._configurationService.getValue(TaskSettingId.Reconnection) === true)) &&
 			!this._shellLaunchConfig.customPtyImplementation
 			&& !this._shellLaunchConfig.isExtensionOwnedTerminal &&
 			!this._shellLaunchConfig.attachPersistentProcess
