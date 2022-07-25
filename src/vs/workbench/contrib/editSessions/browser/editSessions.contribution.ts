@@ -10,7 +10,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { Action2, IAction2Options, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
-import { IEditSessionsWorkbenchService, Change, ChangeType, Folder, EditSession, FileType, EDIT_SESSION_SYNC_CATEGORY, EditSessionSchemaVersion, IEditSessionsLogService } from 'vs/workbench/contrib/editSessions/common/editSessions';
+import { IEditSessionsWorkbenchService, Change, ChangeType, Folder, EditSession, FileType, EDIT_SESSION_SYNC_CATEGORY, EDIT_SESSIONS_CONTAINER_ID, EditSessionSchemaVersion, IEditSessionsLogService, EDIT_SESSIONS_VIEW_ICON, EDIT_SESSIONS_TITLE, EDIT_SESSIONS_SCHEME } from 'vs/workbench/contrib/editSessions/common/editSessions';
 import { ISCMRepository, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -39,6 +39,13 @@ import { Schemas } from 'vs/base/common/network';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { EditSessionsLogService } from 'vs/workbench/contrib/editSessions/common/editSessionsLogService';
+import { IViewContainersRegistry, Extensions as ViewExtensions, ViewContainerLocation } from 'vs/workbench/common/views';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { EditSessionsDataViews } from 'vs/workbench/contrib/editSessions/browser/editSessionsViews';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { EditSessionsContentProvider } from 'vs/workbench/contrib/editSessions/browser/editSessionsContentProvider';
 
 registerSingleton(IEditSessionsLogService, EditSessionsLogService);
 registerSingleton(IEditSessionsWorkbenchService, EditSessionsWorkbenchService);
@@ -74,9 +81,11 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		@IDialogService private readonly dialogService: IDialogService,
 		@IEditSessionsLogService private readonly logService: IEditSessionsLogService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IProductService private readonly productService: IProductService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@ITextModelService textModelResolverService: ITextModelService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ICommandService private commandService: ICommandService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -101,6 +110,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		});
 
 		this.registerActions();
+		this.registerViews();
 
 		continueEditSessionExtPoint.setHandler(extensions => {
 			const continueEditSessionOptions: ContinueEditSessionItem[] = [];
@@ -128,6 +138,24 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			}
 			this.continueEditSessionOptions = continueEditSessionOptions;
 		});
+
+		textModelResolverService.registerTextModelContentProvider(EDIT_SESSIONS_SCHEME, instantiationService.createInstance(EditSessionsContentProvider));
+	}
+
+	private registerViews() {
+		const container = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer(
+			{
+				id: EDIT_SESSIONS_CONTAINER_ID,
+				title: EDIT_SESSIONS_TITLE,
+				ctorDescriptor: new SyncDescriptor(
+					ViewPaneContainer,
+					[EDIT_SESSIONS_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]
+				),
+				icon: EDIT_SESSIONS_VIEW_ICON,
+				hideIfEmpty: true
+			}, ViewContainerLocation.Sidebar
+		);
+		this._register(this.instantiationService.createInstance(EditSessionsDataViews, container));
 	}
 
 	private registerActions() {
@@ -195,7 +223,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				});
 			}
 
-			async run(accessor: ServicesAccessor): Promise<void> {
+			async run(accessor: ServicesAccessor, editSessionId?: string): Promise<void> {
 				await that.progressService.withProgress({
 					location: ProgressLocation.Notification,
 					title: localize('resuming edit session', 'Resuming edit session...')
@@ -206,7 +234,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 					};
 					that.telemetryService.publicLog2<ResumeEvent, ResumeClassification>('editSessions.resume');
 
-					await that.resumeEditSession();
+					await that.resumeEditSession(editSessionId);
 				});
 			}
 		}));
@@ -536,7 +564,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		'workbench.experimental.editSessions.enabled': {
 			'type': 'boolean',
 			'tags': ['experimental', 'usesOnlineServices'],
-			'default': false,
+			'default': true,
 			'markdownDescription': localize('editSessionsEnabled', "Controls whether to display cloud-enabled actions to store and resume uncommitted changes when switching between web, desktop, or devices."),
 		},
 	}

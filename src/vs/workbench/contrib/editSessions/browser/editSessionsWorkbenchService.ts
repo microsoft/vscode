@@ -14,7 +14,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { createSyncHeaders, IAuthenticationProvider } from 'vs/platform/userDataSync/common/userDataSync';
+import { createSyncHeaders, IAuthenticationProvider, IResourceRefHandle } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -120,6 +120,21 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		} catch (ex) {
 			this.logService.error(ex);
 		}
+	}
+
+	async list(): Promise<IResourceRefHandle[]> {
+		await this.initialize();
+		if (!this.initialized) {
+			throw new Error(`Unable to list edit sessions.`);
+		}
+
+		try {
+			return this.storeClient?.getAllRefs('editSessions') ?? [];
+		} catch (ex) {
+			this.logService.error(ex);
+		}
+
+		return [];
 	}
 
 	private async initialize() {
