@@ -2720,7 +2720,7 @@ export class TerminalLabelComputer extends Disposable {
 
 	constructor(
 		private readonly _configHelper: TerminalConfigHelper,
-		private readonly _instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'cwd' | 'fixedCols' | 'fixedRows' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'>,
+		private readonly _instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'reconnectionOwner' | 'cwd' | 'fixedCols' | 'fixedRows' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'>,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
 	) {
 		super();
@@ -2739,7 +2739,7 @@ export class TerminalLabelComputer extends Disposable {
 		labelType: TerminalLabelType,
 		reset?: boolean
 	) {
-		const type = this._instance.shellLaunchConfig.attachPersistentProcess?.type || this._instance.shellLaunchConfig.type;
+		const type = this._instance.shellLaunchConfig.attachPersistentProcess?.type || this._instance.shellLaunchConfig.type || this._instance.shellLaunchConfig.attachPersistentProcess?.reconnectionOwner;
 		const templateProperties: ITerminalLabelTemplateProperties = {
 			cwd: this._instance.cwd || this._instance.initialCwd || '',
 			cwdFolder: '',
