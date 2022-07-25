@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import { ensureAllNewCellsHaveCellIds } from './cellIdService';
 import { NotebookSerializer } from './notebookSerializer';
+import * as NotebookImagePaste from './notebookImagePaste';
 
 // From {nbformat.INotebookMetadata} in @jupyterlab/coreutils
 type NotebookMetadata = {
@@ -82,6 +83,9 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.commands.executeCommand('setContext', 'jupyterEnabled', vscode.extensions.getExtension('ms-toolsai.jupyter'));
 	});
 	vscode.commands.executeCommand('setContext', 'jupyterEnabled', vscode.extensions.getExtension('ms-toolsai.jupyter'));
+
+	NotebookImagePaste.activate(context);
+	console.log('main activation');
 
 	return {
 		exportNotebook: (notebook: vscode.NotebookData): string => {
