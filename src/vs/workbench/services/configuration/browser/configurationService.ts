@@ -717,7 +717,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			if (e.preserveData) {
 				await Promise.all([
 					this.copyProfileSettings(e.previous.settingsResource, e.profile.settingsResource),
-					this.fileService.copy(e.previous.tasksResource, e.profile.tasksResource)
+					this.copyProfileTasks(e.previous.tasksResource, e.profile.tasksResource)
 				]);
 			}
 			const promises: Promise<ConfigurationModel>[] = [];
@@ -749,6 +749,12 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		const applicationSettings = Object.keys(allSettings).filter(key => allSettings[key]?.scope === ConfigurationScope.APPLICATION);
 		const toContent = updateIgnoredSettings(fromContent, '{}', applicationSettings, {});
 		await this.fileService.writeFile(to, VSBuffer.fromString(toContent));
+	}
+
+	private async copyProfileTasks(from: URI, to: URI): Promise<void> {
+		if (await this.fileService.exists(from)) {
+			await this.fileService.copy(from, to);
+		}
 	}
 
 	private onDefaultConfigurationChanged(configurationModel: ConfigurationModel, properties?: string[]): void {
