@@ -33,7 +33,7 @@ class StickyScrollController implements IEditorContribution {
 	private readonly _store: DisposableStore = new DisposableStore();
 	private readonly _sessionStore: DisposableStore = new DisposableStore();
 
-	private _ranges: any[][] = [];
+	private _ranges: [number, number, number][] = [];
 	private _cts: CancellationTokenSource | undefined;
 	private _lastScrollPosition: number = -1;
 
@@ -156,7 +156,7 @@ class StickyScrollController implements IEditorContribution {
 			return;
 		}
 
-		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
+		const lineHeight: number = this._editor.getOption(EditorOption.lineHeight);
 		const model = this._editor.getModel();
 
 		const scrollTop = this._editor.getScrollTop();
@@ -168,26 +168,35 @@ class StickyScrollController implements IEditorContribution {
 		}
 		this._lastScrollPosition = scrollTop;
 
-		const scrollTopFromLengthOfArray: number = this._editor.getScrollTop() + this.stickyScrollWidget.codeLineCount * lineHeight + 1;
+		const scrollToBottomOfWidget = this._editor.getScrollTop() + this.stickyScrollWidget.codeLineCount * lineHeight;
 		this.stickyScrollWidget.emptyRootNode();
-		const beginningLinesConsidered = new Set();
+		const beginningLinesConsidered: Set<number> = new Set<number>();
+		let topOfElementAtDepth: number;
+		let bottomOfElementAtDepth: number;
+		let bottomOfBeginningLine: number;
+		let topOfEndLine: number;
+		let bottomOfEndLine: number;
 
 		for (const [index, arr] of this._ranges.entries()) {
 			const [start, end, depth] = arr;
-			const scrollTopFromDepth: number = this._editor.getScrollTop() + depth * lineHeight + 1;
+			topOfElementAtDepth = this._editor.getScrollTop() + (depth - 1) * lineHeight;
+			bottomOfElementAtDepth = this._editor.getScrollTop() + depth * lineHeight;
+			bottomOfBeginningLine = start * lineHeight;
+			topOfEndLine = (end - 1) * lineHeight;
+			bottomOfEndLine = end * lineHeight;
 
 			if (!beginningLinesConsidered.has(start)) {
-				if (this._editor.getScrollTop() + (depth - 1) * lineHeight + 1 >= (end - 1) * lineHeight && this._editor.getScrollTop() + (depth - 1) * lineHeight < end * lineHeight - 2) {
+				if (topOfElementAtDepth >= topOfEndLine - 1 && topOfElementAtDepth < bottomOfEndLine - 2) {
 					beginningLinesConsidered.add(start);
-					this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(model.getLineContent(start), start, this._editor, -1, (depth - 1) * lineHeight + end * lineHeight - this._editor.getScrollTop() - depth * lineHeight));
+					this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(model.getLineContent(start), start, this._editor, -1, (depth - 1) * lineHeight + bottomOfEndLine - bottomOfElementAtDepth));
 					break;
 				}
-				else if (scrollDirection === ScrollDirection.Down && scrollTopFromDepth > start * lineHeight && scrollTopFromDepth < end * lineHeight) {
+				else if (scrollDirection === ScrollDirection.Down && bottomOfElementAtDepth > bottomOfBeginningLine - 1 && bottomOfElementAtDepth < bottomOfEndLine - 1) {
 					beginningLinesConsidered.add(start);
 					this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(model.getLineContent(start), start, this._editor, 0));
 
-				} else if (scrollDirection === ScrollDirection.Up && scrollTopFromLengthOfArray > start * lineHeight && scrollTopFromLengthOfArray < end * lineHeight ||
-					scrollDirection === ScrollDirection.Up && scrollTopFromDepth >= start * lineHeight && scrollTopFromDepth < (end - 1) * lineHeight) {
+				} else if (scrollDirection === ScrollDirection.Up && scrollToBottomOfWidget > bottomOfBeginningLine - 1 && scrollToBottomOfWidget < bottomOfEndLine ||
+					scrollDirection === ScrollDirection.Up && bottomOfElementAtDepth > bottomOfBeginningLine && bottomOfElementAtDepth < topOfEndLine - 1) {
 					beginningLinesConsidered.add(start);
 					this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(model.getLineContent(start), start, this._editor, 0));
 				}
@@ -236,19 +245,19 @@ class StickyScrollCodeLine {
 		lineHTMLNode.style.paddingLeft = this._editor.getLayoutInfo().contentLeft - this._editor.getLayoutInfo().lineNumbersLeft - this._editor.getLayoutInfo().lineNumbersWidth + 'px';
 		lineHTMLNode.style.float = 'left';
 		lineHTMLNode.style.width = this._editor.getLayoutInfo().width - this._editor.getLayoutInfo().contentLeft + 'px';
-		lineHTMLNode.style.backgroundColor = `var(--vscode-stickyScroll-background)`;
+		lineHTMLNode.style.backgroundColor = `var(--vscode-editorStickyScroll-background)`;
 		lineHTMLNode.innerHTML = newLine as string;
 
 		const lineNumberHTMLNode = document.createElement('div');
 		lineNumberHTMLNode.style.width = this._editor.getLayoutInfo().contentLeft.toString() + 'px';
-		lineNumberHTMLNode.style.backgroundColor = `var(--vscode-stickyScroll-background)`;
+		lineNumberHTMLNode.style.backgroundColor = `var(--vscode-editorStickyScroll-background)`;
 		lineNumberHTMLNode.style.color = 'var(--vscode-editorLineNumber-foreground)';
 
 		const innerLineNumberHTML = document.createElement('div');
 		innerLineNumberHTML.innerText = this._lineNumber.toString();
 		innerLineNumberHTML.style.paddingLeft = this._editor.getLayoutInfo().lineNumbersLeft.toString() + 'px';
 		innerLineNumberHTML.style.width = this._editor.getLayoutInfo().lineNumbersWidth.toString() + 'px';
-		innerLineNumberHTML.style.backgroundColor = `var(--vscode-stickyScroll-background)`;
+		innerLineNumberHTML.style.backgroundColor = `var(--vscode-editorStickyScroll-background)`;
 		innerLineNumberHTML.style.textAlign = 'right';
 		innerLineNumberHTML.style.float = 'left';
 		lineNumberHTMLNode.appendChild(innerLineNumberHTML);
@@ -259,14 +268,14 @@ class StickyScrollCodeLine {
 			this._editor.revealLine(this._lineNumber);
 		};
 		lineHTMLNode.onmouseover = e => {
-			innerLineNumberHTML.style.background = `var(--vscode-stickyScrollHover-background)`;
-			lineHTMLNode.style.backgroundColor = `var(--vscode-stickyScrollHover-background)`;
+			innerLineNumberHTML.style.background = `var(--vscode-editorStickyScrollHover-background)`;
+			lineHTMLNode.style.backgroundColor = `var(--vscode-editorStickyScrollHover-background)`;
 			innerLineNumberHTML.style.cursor = `pointer`;
 			lineHTMLNode.style.cursor = `pointer`;
 		};
 		lineHTMLNode.onmouseleave = e => {
-			innerLineNumberHTML.style.background = `var(--vscode-stickyScroll-background)`;
-			lineHTMLNode.style.backgroundColor = `var(--vscode-stickyScroll-background)`;
+			innerLineNumberHTML.style.background = `var(--vscode-editorStickyScroll-background)`;
+			lineHTMLNode.style.backgroundColor = `var(--vscode-editorStickyScroll-background)`;
 		};
 
 		this._editor.applyFontInfo(lineHTMLNode);
@@ -276,7 +285,7 @@ class StickyScrollCodeLine {
 		root.appendChild(lineHTMLNode);
 
 		root.style.zIndex = this._zIndex.toString();
-		root.style.backgroundColor = `var(--vscode-stickyScroll-background)`;
+		root.style.backgroundColor = `var(--vscode-editorStickyScroll-background)`;
 
 		// Special case for last line of sticky scroll
 		if (this._position) {
@@ -323,7 +332,7 @@ class StickyScrollWidget implements IOverlayWidget {
 
 	getDomNode(): HTMLElement {
 		this.rootDomNode.style.zIndex = '2';
-		this.rootDomNode.style.backgroundColor = `var(--vscode-stickyScroll-background)`;
+		this.rootDomNode.style.backgroundColor = `var(--vscode-editorStickyScroll-background)`;
 		return this.rootDomNode;
 	}
 
