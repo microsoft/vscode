@@ -279,7 +279,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		this.codeActionList.value?.layout(height, maxWidth);
 
 		// List selection
-		if (this.viewItems.length <= 1 && this.viewItems[0].title === 'Learn more about JS/TS refactorings') {
+		if (this.viewItems.length < 1) {
 			this.currSelectedItem = 0;
 		} else {
 			this.focusedEnabledItem = 0;
@@ -306,7 +306,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	protected focusPrevious() {
 		if (typeof this.focusedEnabledItem === 'undefined') {
 			this.focusedEnabledItem = this.viewItems[0].index;
-		} else if (this.viewItems.length <= 1 && this.viewItems[0].title !== 'Learn more about JS/TS refactorings') {
+		} else if (this.viewItems.length < 1) {
 			return false;
 		}
 
@@ -329,7 +329,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	protected focusNext() {
 		if (typeof this.focusedEnabledItem === 'undefined') {
 			this.focusedEnabledItem = this.viewItems.length - 1;
-		} else if (this.viewItems.length <= 1 && this.viewItems[0].title !== 'Learn more about JS/TS refactorings') {
+		} else if (this.viewItems.length < 1) {
 			return false;
 		}
 
