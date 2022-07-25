@@ -230,7 +230,13 @@ class StickyScrollCodeLine {
 		const root: HTMLElement = document.createElement('div');
 		const modifiedLine = this._line.replace(/\s/g, '\xa0');
 		const lineRenderingData = this._editor._getViewModel().getViewLineRenderingData(this._editor.getVisibleRangesPlusViewportAboveBelow()[0], this._lineNumber);
-		const actualInlineDecorations = LineDecoration.filter(lineRenderingData.inlineDecorations, this._lineNumber, lineRenderingData.minColumn, lineRenderingData.maxColumn);
+		let actualInlineDecorations: LineDecoration[];
+		try {
+			actualInlineDecorations = LineDecoration.filter(lineRenderingData.inlineDecorations, this._lineNumber, lineRenderingData.minColumn, lineRenderingData.maxColumn);
+		} catch (err) {
+			console.log(err);
+			actualInlineDecorations = [];
+		}
 		const renderLineInput: RenderLineInput = new RenderLineInput(true, true, modifiedLine, lineRenderingData.continuesWithWrappedLine,
 			lineRenderingData.isBasicASCII, lineRenderingData.containsRTL, 0, lineRenderingData.tokens, actualInlineDecorations, lineRenderingData.tabSize,
 			lineRenderingData.startVisibleColumn, 1, 1, 1, 500, 'none', true, true, null);
