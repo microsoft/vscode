@@ -279,17 +279,13 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		this.codeActionList.value?.layout(height, maxWidth);
 
 		// List selection
-		this.focusedEnabledItem = 0;
-		this.currSelectedItem = this.viewItems[0].index;
-		this.codeActionList.value.setFocus([this.currSelectedItem]);
-
-
-		// const focusTracker = this._register(dom.trackFocus(element));
-		// this._register(focusTracker.onDidBlur(() => {
-		// 	if (dom.getActiveElement() === element || !dom.isAncestor(dom.getActiveElement(), element)) {
-		// 		this.hideCodeActionWidget();
-		// 	}
-		// }));
+		if (this.viewItems.length <= 1 && this.viewItems[0].title === 'Learn more about JS/TS refactorings') {
+			this.currSelectedItem = 0;
+		} else {
+			this.focusedEnabledItem = 0;
+			this.currSelectedItem = this.viewItems[0].index;
+			this.codeActionList.value.setFocus([this.currSelectedItem]);
+		}
 
 		// List Focus
 		this.codeActionList.value.domFocus();
@@ -310,7 +306,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	protected focusPrevious() {
 		if (typeof this.focusedEnabledItem === 'undefined') {
 			this.focusedEnabledItem = this.viewItems[0].index;
-		} else if (this.viewItems.length <= 1) {
+		} else if (this.viewItems.length <= 1 && this.viewItems[0].title !== 'Learn more about JS/TS refactorings') {
 			return false;
 		}
 
@@ -333,7 +329,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	protected focusNext() {
 		if (typeof this.focusedEnabledItem === 'undefined') {
 			this.focusedEnabledItem = this.viewItems.length - 1;
-		} else if (this.viewItems.length <= 1) {
+		} else if (this.viewItems.length <= 1 && this.viewItems[0].title !== 'Learn more about JS/TS refactorings') {
 			return false;
 		}
 
