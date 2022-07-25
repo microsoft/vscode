@@ -1739,6 +1739,15 @@ declare namespace monaco.editor {
 	}
 
 	/**
+	 * Text snapshot that works like an iterator.
+	 * Will try to return chunks of roughly ~64KB size.
+	 * Will return null when finished.
+	 */
+	export interface ITextSnapshot {
+		read(): string | null;
+	}
+
+	/**
 	 * A model.
 	 */
 	export interface ITextModel {
@@ -1769,7 +1778,7 @@ declare namespace monaco.editor {
 		/**
 		 * Replace the entire text buffer value contained in this model.
 		 */
-		setValue(newValue: string): void;
+		setValue(newValue: string | ITextSnapshot): void;
 		/**
 		 * Get the text stored in this model.
 		 * @param eol The end of line character preference. Defaults to `EndOfLinePreference.TextDefined`.
@@ -1777,6 +1786,12 @@ declare namespace monaco.editor {
 		 * @return The text.
 		 */
 		getValue(eol?: EndOfLinePreference, preserveBOM?: boolean): string;
+		/**
+		 * Get the text stored in this model.
+		 * @param preserverBOM Preserve a BOM character if it was detected when the model was constructed.
+		 * @return The text snapshot (it is safe to consume it asynchronously).
+		 */
+		createSnapshot(preserveBOM?: boolean): ITextSnapshot;
 		/**
 		 * Get the length of the text stored in this model.
 		 */
