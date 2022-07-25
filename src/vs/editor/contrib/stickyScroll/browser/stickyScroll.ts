@@ -224,24 +224,28 @@ class StickyScrollCodeLine {
 	constructor(private readonly _line: string, private readonly _lineNumber: number, private readonly _editor: IActiveCodeEditor,
 		private readonly _zIndex: number, private readonly _position?: number) { }
 
+	replaceTabAndSpacesWithNbsp(str: string, tabSize: number = 4): string {
+		return str.replace('\t', '\xa0'.repeat(tabSize)).replace(' ', '\xa0');
+	}
 
 	getDomNode() {
 
 		const root: HTMLElement = document.createElement('div');
-		const modifiedLine = this._line.replace(/\s/g, '\xa0');
 		const lineRenderingData = this._editor._getViewModel().getViewLineRenderingData(this._editor.getVisibleRangesPlusViewportAboveBelow()[0], this._lineNumber);
+
 		let actualInlineDecorations: LineDecoration[];
 		try {
 			actualInlineDecorations = LineDecoration.filter(lineRenderingData.inlineDecorations, this._lineNumber, lineRenderingData.minColumn, lineRenderingData.maxColumn);
 		} catch (err) {
-			console.log(err);
 			actualInlineDecorations = [];
 		}
+
+		const modifiedLine = this.replaceTabAndSpacesWithNbsp(this._line, lineRenderingData.tabSize);
 		const renderLineInput: RenderLineInput = new RenderLineInput(true, true, modifiedLine, lineRenderingData.continuesWithWrappedLine,
 			lineRenderingData.isBasicASCII, lineRenderingData.containsRTL, 0, lineRenderingData.tokens, actualInlineDecorations, lineRenderingData.tabSize,
 			lineRenderingData.startVisibleColumn, 1, 1, 1, 100, 'none', true, true, null);
 
-		const sb = createStringBuilder(2000);
+		const sb = createStringBuilder(400);
 		renderViewLine(renderLineInput, sb);
 
 		let newLine;
