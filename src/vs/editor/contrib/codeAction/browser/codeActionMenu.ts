@@ -146,7 +146,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	private focusedEnabledItem: number | undefined;
 	private currSelectedItem: number = 0;
 	private hasSeperator: boolean = false;
-	private block: HTMLElement | null = null;
+	private block?: HTMLElement;
 
 	public static readonly ID: string = 'editor.contrib.codeActionMenu';
 
@@ -216,7 +216,6 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		this.block.style.height = '100%';
 		this.block.style.zIndex = '-1';
 
-		// TODO@Steven: this is never getting disposed
 		renderDisposables.add(dom.addDisposableListener(this.block, dom.EventType.MOUSE_DOWN, e => e.stopPropagation()));
 
 		renderMenu.id = 'codeActionMenuWidget';
@@ -290,8 +289,6 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		// List Focus
 		this.codeActionList.value.domFocus();
 		const focusTracker = dom.trackFocus(element);
-
-		element.focus();
 		const blurListener = focusTracker.onDidBlur(() => {
 			this.hideCodeActionWidget();
 			// this._contextViewService.hideContextView({ source: this });
