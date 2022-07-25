@@ -217,7 +217,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		this.block.style.zIndex = '-1';
 
 		// TODO@Steven: this is never getting disposed
-		dom.addDisposableListener(this.block, dom.EventType.MOUSE_DOWN, e => e.stopPropagation());
+		renderDisposables.add(dom.addDisposableListener(this.block, dom.EventType.MOUSE_DOWN, e => e.stopPropagation()));
 
 		renderMenu.id = 'codeActionMenuWidget';
 		renderMenu.classList.add('codeActionMenuWidget');
