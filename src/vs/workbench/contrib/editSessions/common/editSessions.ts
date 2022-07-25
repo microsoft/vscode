@@ -71,5 +71,6 @@ export const EDIT_SESSIONS_SIGNED_IN_KEY = 'editSessionsSignedIn';
 export const EDIT_SESSIONS_SIGNED_IN = new RawContextKey<boolean>(EDIT_SESSIONS_SIGNED_IN_KEY, false);
 
 export const EDIT_SESSIONS_CONTAINER_ID = 'workbench.view.editSessions';
+export const EDIT_SESSIONS_TITLE = localize('edit sessions', 'Edit Sessions');
 
 export const EDIT_SESSIONS_VIEW_ICON = registerIcon('edit-sessions-view-icon', Codicon.cloudDownload, localize('editSessionViewIcon', 'View icon of the edit sessions view.'));

@@ -6,15 +6,19 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { TreeView, TreeViewPane } from 'vs/workbench/browser/parts/views/treeView';
-import { Extensions, ITreeItem, ITreeViewDataProvider, ITreeViewDescriptor, IViewsRegistry, TreeItemCollapsibleState, ViewContainer } from 'vs/workbench/common/views';
-import { IEditSessionsWorkbenchService } from 'vs/workbench/contrib/editSessions/common/editSessions';
+import { Extensions, ITreeItem, ITreeViewDataProvider, ITreeViewDescriptor, IViewsRegistry, TreeItemCollapsibleState, TreeViewItemHandleArg, ViewContainer } from 'vs/workbench/common/views';
+import { EDIT_SESSIONS_TITLE, IEditSessionsWorkbenchService } from 'vs/workbench/contrib/editSessions/common/editSessions';
 import { URI } from 'vs/base/common/uri';
 import { fromNow } from 'vs/base/common/date';
 import { Codicon } from 'vs/base/common/codicons';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 export class EditSessionsDataViews extends Disposable {
 	constructor(
@@ -26,9 +30,9 @@ export class EditSessionsDataViews extends Disposable {
 	}
 
 	private registerViews(container: ViewContainer): void {
-		const id = 'workbench.views.editSessions.data';
+		const viewId = 'workbench.views.editSessions.data';
 		const name = localize('edit sessions data', 'All Sessions');
-		const treeView = this.instantiationService.createInstance(TreeView, id, name);
+		const treeView = this.instantiationService.createInstance(TreeView, viewId, name);
 		treeView.showCollapseAllAction = true;
 		treeView.showRefreshAction = true;
 		const disposable = treeView.onDidChangeVisibility(visible => {
@@ -38,7 +42,7 @@ export class EditSessionsDataViews extends Disposable {
 			}
 		});
 		Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).registerViews([<ITreeViewDescriptor>{
-			id,
+			id: viewId,
 			name,
 			ctorDescriptor: new SyncDescriptor(TreeViewPane),
 			canToggleVisibility: true,
@@ -48,6 +52,58 @@ export class EditSessionsDataViews extends Disposable {
 			order: 100,
 			hideByDefault: true,
 		}], container);
+
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.editSessions.actions.resume',
+					title: localize('workbench.editSessions.actions.resume', "Resume Edit Session"),
+					icon: Codicon.repoPull,
+					menu: {
+						id: MenuId.ViewItemContext,
+						when: ContextKeyExpr.and(ContextKeyExpr.equals('view', viewId), ContextKeyExpr.regex('viewItem', /edit-session/i)),
+						group: 'inline'
+					}
+				});
+			}
+
+			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
+				const editSessionId = URI.parse(handle.$treeItemHandle).path.substring(1);
+				const commandService = accessor.get(ICommandService);
+				await commandService.executeCommand('workbench.experimental.editSessions.actions.resumeLatest', editSessionId);
+				await treeView.refresh();
+			}
+		});
+
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.editSessions.actions.delete',
+					title: localize('workbench.editSessions.actions.delete', "Delete Edit Session"),
+					icon: Codicon.trash,
+					menu: {
+						id: MenuId.ViewItemContext,
+						when: ContextKeyExpr.and(ContextKeyExpr.equals('view', viewId), ContextKeyExpr.regex('viewItem', /edit-session/i)),
+						group: 'inline'
+					}
+				});
+			}
+
+			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
+				const editSessionId = URI.parse(handle.$treeItemHandle).path.substring(1);
+				const dialogService = accessor.get(IDialogService);
+				const editSessionWorkbenchService = accessor.get(IEditSessionsWorkbenchService);
+				const result = await dialogService.confirm({
+					message: localize('confirm delete', 'Are you sure you want to permanently delete the edit session with ref {0}? You cannot undo this action.', editSessionId),
+					type: 'warning',
+					title: EDIT_SESSIONS_TITLE
+				});
+				if (result.confirmed) {
+					await editSessionWorkbenchService.delete(editSessionId);
+					await treeView.refresh();
+				}
+			}
+		});
 	}
 }
 
@@ -81,7 +137,8 @@ class EditSessionDataViewDataProvider implements ITreeViewDataProvider {
 				collapsibleState: TreeItemCollapsibleState.Collapsed,
 				label: { label: session.ref },
 				description: fromNow(session.created, true),
-				themeIcon: Codicon.repo
+				themeIcon: Codicon.repo,
+				contextValue: `edit-session`
 			};
 		});
 	}
