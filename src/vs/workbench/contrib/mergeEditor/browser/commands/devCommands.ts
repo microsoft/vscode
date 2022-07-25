@@ -101,6 +101,7 @@ export class MergeEditorOpenContents extends Action2 {
 		const inputService = accessor.get(IQuickInputService);
 		const clipboardService = accessor.get(IClipboardService);
 		const textModelService = accessor.get(ITextModelService);
+		const editorService = accessor.get(IEditorService);
 
 		const result = await inputService.input({
 			prompt: localize('mergeEditor.enterJSON', 'Enter JSON'),
@@ -157,6 +158,6 @@ export class MergeEditorOpenContents extends Action2 {
 			input2: { resource: input2Uri, label: 'Input 2', description: 'Input 2', detail: '(from JSON)' },
 			result: { resource: resultUri },
 		};
-		accessor.get(IEditorService).openEditor(input);
+		editorService.openEditor(input);
 	}
 }
