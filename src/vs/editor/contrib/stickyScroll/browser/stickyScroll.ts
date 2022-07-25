@@ -126,30 +126,34 @@ class StickyScrollController implements IEditorContribution {
 			this._ranges = [];
 			for (const outline of outlineModel.children.values()) {
 				if (outline instanceof OutlineElement) {
-					this._findLineRanges(outline, 1);
+					const kind: SymbolKind = outline.symbol.kind;
+					if (kind === SymbolKind.Class || kind === SymbolKind.Constructor || kind === SymbolKind.Function || kind === SymbolKind.Interface || kind === SymbolKind.Method) {
+						this._findLineRanges(outline, 1);
+					} else {
+						this._findLineRanges(outline, 0);
+					}
 				}
-			}
-			this._ranges = this._ranges.sort(function (a, b) {
-				if (a[0] !== b[0]) {
-					return a[0] - b[0];
-				} else if (a[1] !== b[1]) {
-					return b[1] - a[1];
-				} else {
-					return a[2] - b[2];
-				}
-			});
-			let previous: number[] = [];
-			for (const [index, arr] of this._ranges.entries()) {
-				const [start, end, _depth] = arr;
-				if (previous[0] === start && previous[1] === end) {
-					this._ranges.splice(index, 1);
-				} else {
-					previous = arr;
+				this._ranges = this._ranges.sort(function (a, b) {
+					if (a[0] !== b[0]) {
+						return a[0] - b[0];
+					} else if (a[1] !== b[1]) {
+						return b[1] - a[1];
+					} else {
+						return a[2] - b[2];
+					}
+				});
+				let previous: number[] = [];
+				for (const [index, arr] of this._ranges.entries()) {
+					const [start, end, _depth] = arr;
+					if (previous[0] === start && previous[1] === end) {
+						this._ranges.splice(index, 1);
+					} else {
+						previous = arr;
+					}
 				}
 			}
 		}
 	}
-
 	private _renderStickyScroll() {
 
 		if (!(this._editor.hasModel())) {
