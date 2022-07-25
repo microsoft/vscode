@@ -15,6 +15,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { SymbolKind } from 'vs/editor/common/languages';
+import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 
 const enum ScrollDirection {
 	Down = 0,
@@ -194,10 +195,10 @@ class StickyScrollCodeLine {
 
 		const root: HTMLElement = document.createElement('div');
 		const modifiedLine = this._line.replace(/\s/g, '\xa0');
-		const lineRenderingData = this._editor._getViewModel().getViewLineRenderingData(this._editor.getVisibleRanges()[0], this._lineNumber);
-
+		const lineRenderingData = this._editor._getViewModel().getViewLineRenderingData(this._editor.getVisibleRangesPlusViewportAboveBelow()[0], this._lineNumber);
+		const actualInlineDecorations = LineDecoration.filter(lineRenderingData.inlineDecorations, this._lineNumber, lineRenderingData.minColumn, lineRenderingData.maxColumn);
 		const renderLineInput: RenderLineInput = new RenderLineInput(true, true, modifiedLine, lineRenderingData.continuesWithWrappedLine,
-			lineRenderingData.isBasicASCII, lineRenderingData.containsRTL, 0, lineRenderingData.tokens, [], lineRenderingData.tabSize,
+			lineRenderingData.isBasicASCII, lineRenderingData.containsRTL, 0, lineRenderingData.tokens, actualInlineDecorations, lineRenderingData.tabSize,
 			lineRenderingData.startVisibleColumn, 1, 1, 1, 500, 'none', true, true, null);
 
 		const sb = createStringBuilder(2000);
