@@ -92,6 +92,25 @@ export class FoldingModel {
 		this._updateEventEmitter.fire({ model: this, collapseStateChanged: toggledRegions });
 	}
 
+	public removeManualRanges(ranges: ILineRange[]) {
+		const newFoldingRanges: FoldRange[] = new Array();
+		const containedBy = (foldRange: FoldRange) => {
+			for (const range of ranges) {
+				if (range.startLineNumber <= foldRange.startLineNumber && range.endLineNumber >= foldRange.endLineNumber) {
+					return true;
+				}
+			}
+			return false;
+		};
+		for (let i = 0; i < this._regions.length; i++) {
+			const foldRange = this._regions.toFoldRange(i);
+			if (!foldRange.isUserDefined && !foldRange.isRecovered || !containedBy(foldRange)) {
+				newFoldingRanges.push(foldRange);
+			}
+		}
+		this.updatePost(FoldingRegions.fromFoldRanges(newFoldingRanges));
+	}
+
 	public update(newRegions: FoldingRegions, blockedLineNumers: number[] = []): void {
 		const foldedOrManualRanges = this._currentFoldedOrManualRanges(blockedLineNumers);
 		const newRanges = FoldingRegions.sanitizeAndMerge(newRegions, foldedOrManualRanges, this._textModel.getLineCount());

@@ -312,7 +312,7 @@ export class FoldingRegions {
 					if (nextB.isCollapsed && !nextB.isUserDefined && !nextB.isRecovered) {
 						// a previously collapsed range
 						useRange.isRecovered = true;
-						useRange.isUserDefined = true;
+						useRange.isUserDefined = false;
 					}
 				}
 				nextB = getB(++indexB);
