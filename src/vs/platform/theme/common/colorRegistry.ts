@@ -313,13 +313,17 @@ export const editorBackground = registerColor('editor.background', { light: '#ff
 export const editorForeground = registerColor('editor.foreground', { light: '#333333', dark: '#BBBBBB', hcDark: Color.white, hcLight: foreground }, nls.localize('editorForeground', "Editor default foreground color."));
 
 /**
+ * Sticky scroll
+ */
+export const editorStickyScrollBackground = registerColor('editorStickyScroll.background', { light: darken(editorBackground, 0.2), dark: lighten(editorBackground, 0.2), hcDark: lighten(editorBackground, 0.2), hcLight: darken(editorBackground, 0.2) }, nls.localize('editorStickyScrollBackground', "Sticky scroll background color for the editor"));
+export const editorStickyScrollHoverBackground = registerColor('editorStickyScrollHover.background', { light: darken(editorBackground, 0.4), dark: lighten(editorBackground, 0.4), hcDark: lighten(editorBackground, 0.4), hcLight: darken(editorBackground, 0.4) }, nls.localize('editorStickyScrollHoverBackground', "Sticky scroll on hover background color for the editor"));
+
+/**
  * Editor widgets
  */
 export const editorWidgetBackground = registerColor('editorWidget.background', { dark: '#252526', light: '#F3F3F3', hcDark: '#0C141F', hcLight: Color.white }, nls.localize('editorWidgetBackground', 'Background color of editor widgets, such as find/replace.'));
 export const editorWidgetForeground = registerColor('editorWidget.foreground', { dark: foreground, light: foreground, hcDark: foreground, hcLight: foreground }, nls.localize('editorWidgetForeground', 'Foreground color of editor widgets, such as find/replace.'));
-
 export const editorWidgetBorder = registerColor('editorWidget.border', { dark: '#454545', light: '#C8C8C8', hcDark: contrastBorder, hcLight: contrastBorder }, nls.localize('editorWidgetBorder', 'Border color of editor widgets. The color is only used if the widget chooses to have a border and if the color is not overridden by a widget.'));
-
 export const editorWidgetResizeBorder = registerColor('editorWidget.resizeBorder', { light: null, dark: null, hcDark: null, hcLight: null }, nls.localize('editorWidgetResizeBorder', "Border color of the resize bar of editor widgets. The color is only used if the widget chooses to have a resize border and if the color is not overridden by a widget."));
 
 /**
