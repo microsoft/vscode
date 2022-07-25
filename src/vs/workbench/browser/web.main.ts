@@ -137,7 +137,7 @@ export class BrowserMain extends Disposable {
 			const openerService = accessor.get(IOpenerService);
 			const productService = accessor.get(IProductService);
 			const telemetryService = accessor.get(ITelemetryService);
-			const progessService = accessor.get(IProgressService);
+			const progressService = accessor.get(IProgressService);
 			const environmentService = accessor.get(IBrowserWorkbenchEnvironmentService);
 			const instantiationService = accessor.get(IInstantiationService);
 			const remoteExplorerService = accessor.get(IRemoteExplorerService);
@@ -169,7 +169,7 @@ export class BrowserMain extends Disposable {
 					}
 				},
 				window: {
-					withProgress: (options, task) => progessService.withProgress(options, task)
+					withProgress: (options, task) => progressService.withProgress(options, task)
 				},
 				workspace: {
 					openTunnel: async (tunnelOptions) => {
