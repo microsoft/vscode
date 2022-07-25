@@ -10,11 +10,11 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { Registry } from 'vs/platform/registry/common/platform';
 import { TreeView, TreeViewPane } from 'vs/workbench/browser/parts/views/treeView';
 import { Extensions, ITreeItem, ITreeViewDataProvider, ITreeViewDescriptor, IViewsRegistry, TreeItemCollapsibleState, TreeViewItemHandleArg, ViewContainer } from 'vs/workbench/common/views';
-import { EDIT_SESSIONS_TITLE, IEditSessionsWorkbenchService } from 'vs/workbench/contrib/editSessions/common/editSessions';
+import { EDIT_SESSIONS_SCHEME, EDIT_SESSIONS_TITLE, IEditSessionsWorkbenchService } from 'vs/workbench/contrib/editSessions/common/editSessions';
 import { URI } from 'vs/base/common/uri';
 import { fromNow } from 'vs/base/common/date';
 import { Codicon } from 'vs/base/common/codicons';
-import { API_OPEN_DIFF_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -131,7 +131,7 @@ class EditSessionDataViewDataProvider implements ITreeViewDataProvider {
 	private async getAllEditSessions(): Promise<ITreeItem[]> {
 		const allEditSessions = await this.editSessionsWorkbenchService.list();
 		return allEditSessions.map((session) => {
-			const resource = URI.from({ scheme: 'vscode-edit-sessions', authority: 'remote-session-content', path: `/${session.ref}` });
+			const resource = URI.from({ scheme: EDIT_SESSIONS_SCHEME, authority: 'remote-session-content', path: `/${session.ref}` });
 			return {
 				handle: resource.toString(),
 				collapsibleState: TreeItemCollapsibleState.Collapsed,
@@ -151,7 +151,7 @@ class EditSessionDataViewDataProvider implements ITreeViewDataProvider {
 		}
 
 		return data.editSession.folders.map((folder) => {
-			const resource = URI.from({ scheme: 'vscode-edit-sessions', authority: 'remote-session-content', path: `/${data.ref}/${folder.name}` });
+			const resource = URI.from({ scheme: EDIT_SESSIONS_SCHEME, authority: 'remote-session-content', path: `/${data.ref}/${folder.name}` });
 			return {
 				handle: resource.toString(),
 				collapsibleState: TreeItemCollapsibleState.Collapsed,
@@ -169,7 +169,7 @@ class EditSessionDataViewDataProvider implements ITreeViewDataProvider {
 		}
 
 		return (data.editSession.folders.find((folder) => folder.name === folderName)?.workingChanges ?? []).map((change) => {
-			const resource = URI.from({ scheme: 'vscode-edit-sessions', authority: 'remote-session-content', path: `/${data.ref}/${folderName}/${change.relativeFilePath}` });
+			const resource = URI.from({ scheme: EDIT_SESSIONS_SCHEME, authority: 'remote-session-content', path: `/${data.ref}/${folderName}/${change.relativeFilePath}` });
 			return {
 				handle: resource.toString(),
 				resourceUri: resource,
@@ -177,7 +177,7 @@ class EditSessionDataViewDataProvider implements ITreeViewDataProvider {
 				label: { label: change.relativeFilePath },
 				themeIcon: Codicon.file,
 				command: {
-					id: API_OPEN_DIFF_EDITOR_COMMAND_ID,
+					id: API_OPEN_EDITOR_COMMAND_ID,
 					title: localize('open file', 'Open File'),
 					arguments: [resource, undefined, undefined]
 				}
