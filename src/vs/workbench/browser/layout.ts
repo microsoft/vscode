@@ -578,7 +578,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					input2: { resource: filesToMerge[1].resource },
 					base: { resource: filesToMerge[2].resource },
 					result: { resource: filesToMerge[3].resource },
-					options: { pinned: true }
+					options: { pinned: true, override: 'mergeEditor.Input' } // TODO@bpasero remove the override once the resolver is ready
 				}];
 			}
 
