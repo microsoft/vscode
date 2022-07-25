@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbench, IWorkbenchConstructionOptions, Menu } from 'vs/workbench/browser/web.api';
+import { ITunnel, ITunnelOptions, IWorkbench, IWorkbenchConstructionOptions, Menu } from 'vs/workbench/browser/web.api';
 import { BrowserMain } from 'vs/workbench/browser/web.main';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -150,5 +150,16 @@ export namespace window {
 		const workbench = await workbenchPromise.p;
 
 		return workbench.window.withProgress(options, task);
+	}
+}
+
+export namespace workspace {
+
+	/**
+	 * {@linkcode IWorkbench.workspace IWorkbench.workspace.openTunnel}
+	 */
+	export async function openTunnel(tunnelOptions: ITunnelOptions): Promise<ITunnel> {
+		const workbench = await workbenchPromise.p;
+		return workbench.workspace.openTunnel(tunnelOptions);
 	}
 }
