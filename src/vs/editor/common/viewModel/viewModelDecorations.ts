@@ -36,6 +36,7 @@ export class ViewModelDecorations implements IDisposable {
 
 	private _cachedModelDecorationsResolver: IDecorationsViewportData | null;
 	private _cachedModelDecorationsResolverViewRange: Range | null;
+	private _cachedOnlyMinimapDecorations: boolean | null = null;
 
 	constructor(editorId: number, model: ITextModel, configuration: IEditorConfiguration, linesCollection: IViewModelLines, coordinatesConverter: ICoordinatesConverter) {
 		this.editorId = editorId;
@@ -96,18 +97,20 @@ export class ViewModelDecorations implements IDisposable {
 		return r;
 	}
 
-	public getDecorationsViewportData(viewRange: Range): IDecorationsViewportData {
+	public getDecorationsViewportData(viewRange: Range, onlyMinimapDecorations: boolean = false): IDecorationsViewportData {
 		let cacheIsValid = (this._cachedModelDecorationsResolver !== null);
 		cacheIsValid = cacheIsValid && (viewRange.equalsRange(this._cachedModelDecorationsResolverViewRange));
+		cacheIsValid = cacheIsValid && (this._cachedOnlyMinimapDecorations === onlyMinimapDecorations);
 		if (!cacheIsValid) {
-			this._cachedModelDecorationsResolver = this._getDecorationsViewportData(viewRange);
+			this._cachedModelDecorationsResolver = this._getDecorationsViewportData(viewRange, onlyMinimapDecorations);
 			this._cachedModelDecorationsResolverViewRange = viewRange;
+			this._cachedOnlyMinimapDecorations = onlyMinimapDecorations;
 		}
 		return this._cachedModelDecorationsResolver!;
 	}
 
-	private _getDecorationsViewportData(viewportRange: Range): IDecorationsViewportData {
-		const modelDecorations = this._linesCollection.getDecorationsInRange(viewportRange, this.editorId, filterValidationDecorations(this.configuration.options));
+	private _getDecorationsViewportData(viewportRange: Range, onlyMinimapDecorations: boolean): IDecorationsViewportData {
+		const modelDecorations = this._linesCollection.getDecorationsInRange(viewportRange, this.editorId, filterValidationDecorations(this.configuration.options), onlyMinimapDecorations);
 
 		const startLineNumber = viewportRange.startLineNumber;
 		const endLineNumber = viewportRange.endLineNumber;
