@@ -146,6 +146,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	private focusedEnabledItem: number | undefined;
 	private currSelectedItem: number = 0;
 	private hasSeperator: boolean = false;
+	private block: HTMLElement | null = null;
 
 	public static readonly ID: string = 'editor.contrib.codeActionMenu';
 
@@ -202,6 +203,21 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	private renderCodeActionMenuList(element: HTMLElement, inputArray: IAction[]): IDisposable {
 		const renderDisposables = new DisposableStore();
 		const renderMenu = document.createElement('div');
+
+		// Render invisible div to block mouse interaction in the rest of the UI
+		const menuBlock = document.createElement('div');
+		this.block = element.appendChild(menuBlock);
+		this.block.classList.add('context-view-block');
+		this.block.style.position = 'fixed';
+		this.block.style.cursor = 'initial';
+		this.block.style.left = '0';
+		this.block.style.top = '0';
+		this.block.style.width = '100%';
+		this.block.style.height = '100%';
+		this.block.style.zIndex = '-1';
+
+		// TODO@Steven: this is never getting disposed
+		dom.addDisposableListener(this.block, dom.EventType.MOUSE_DOWN, e => e.stopPropagation());
 
 		renderMenu.id = 'codeActionMenuWidget';
 		renderMenu.classList.add('codeActionMenuWidget');
@@ -267,9 +283,19 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		this.currSelectedItem = this.viewItems[0].index;
 		this.codeActionList.value.setFocus([this.currSelectedItem]);
 
+
+		// const focusTracker = this._register(dom.trackFocus(element));
+		// this._register(focusTracker.onDidBlur(() => {
+		// 	if (dom.getActiveElement() === element || !dom.isAncestor(dom.getActiveElement(), element)) {
+		// 		this.hideCodeActionWidget();
+		// 	}
+		// }));
+
 		// List Focus
 		this.codeActionList.value.domFocus();
 		const focusTracker = dom.trackFocus(element);
+
+		element.focus();
 		const blurListener = focusTracker.onDidBlur(() => {
 			this.hideCodeActionWidget();
 			// this._contextViewService.hideContextView({ source: this });
