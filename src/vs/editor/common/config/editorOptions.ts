@@ -312,6 +312,12 @@ export interface IEditorOptions {
 	 */
 	wordWrapBreakAfterCharacters?: string;
 	/**
+	 * Sets whether line breaks appear wherever the text would otherwise overflow its content box.
+	 * When wordBreak = 'normal', Use the default line break rule.
+	 * When wordBreak = 'keepAll', Word breaks should not be used for Chinese/Japanese/Korean (CJK) text. Non-CJK text behavior is the same as for normal.
+	 */
+	wordBreak?: 'normal' | 'keepAll';
+	/**
 	 * Performance guard: Stop rendering a line after x characters.
 	 * Defaults to 10000.
 	 * Use -1 to never stop rendering
@@ -4595,6 +4601,7 @@ export const enum EditorOption {
 	wordWrapColumn,
 	wordWrapOverride1,
 	wordWrapOverride2,
+	wordBreak,
 	wrappingIndent,
 	wrappingStrategy,
 	showDeprecated,
@@ -5248,6 +5255,23 @@ export const EditorOptions = {
 		EditorOption.wordWrapBreakBeforeCharacters, 'wordWrapBreakBeforeCharacters',
 		// allow-any-unicode-next-line
 		'([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋'
+	)),
+	wordBreak: register(new EditorStringEnumOption(
+		EditorOption.wordBreak, 'wordBreak',
+		'normal' as 'normal' | 'keepAll',
+		['normal', 'keepAll'] as const,
+		{
+			markdownEnumDescriptions: [
+				nls.localize('wordBreak.normal', "Use the default line break rule."),
+				nls.localize('wordBreak.keepAll', "Word breaks should not be used for Chinese/Japanese/Korean (CJK) text. Non-CJK text behavior is the same as for normal."),
+			],
+			description: nls.localize({
+				key: 'wordBreak',
+				comment: [
+					''
+				]
+			}, "Sets whether line breaks appear wherever the text would otherwise overflow its content box.")
+		}
 	)),
 	wordWrapColumn: register(new EditorIntOption(
 		EditorOption.wordWrapColumn, 'wordWrapColumn',

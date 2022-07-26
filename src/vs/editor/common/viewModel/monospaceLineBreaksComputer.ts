@@ -5,7 +5,7 @@
 
 import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
-import { WrappingIndent, IComputedEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { WrappingIndent, IComputedEditorOptions, EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { LineInjectedText } from 'vs/editor/common/textModelEvents';
@@ -16,14 +16,15 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 	public static create(options: IComputedEditorOptions): MonospaceLineBreaksComputerFactory {
 		return new MonospaceLineBreaksComputerFactory(
 			options.get(EditorOption.wordWrapBreakBeforeCharacters),
-			options.get(EditorOption.wordWrapBreakAfterCharacters)
+			options.get(EditorOption.wordWrapBreakAfterCharacters),
+			options.get(EditorOption.wordBreak)
 		);
 	}
 
 	private readonly classifier: WrappingCharacterClassifier;
 
-	constructor(breakBeforeChars: string, breakAfterChars: string) {
-		this.classifier = new WrappingCharacterClassifier(breakBeforeChars, breakAfterChars);
+	constructor(breakBeforeChars: string, breakAfterChars: string, wordBreakMode: IEditorOptions['wordBreak']) {
+		this.classifier = new WrappingCharacterClassifier(breakBeforeChars, breakAfterChars, wordBreakMode);
 	}
 
 	public createLineBreaksComputer(fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent): ILineBreaksComputer {
@@ -65,7 +66,8 @@ const enum CharacterClass {
 
 class WrappingCharacterClassifier extends CharacterClassifier<CharacterClass> {
 
-	constructor(BREAK_BEFORE: string, BREAK_AFTER: string) {
+	private readonly isKeepAll: boolean;
+	constructor(BREAK_BEFORE: string, BREAK_AFTER: string, wordBreakMode: IEditorOptions['wordBreak']) {
 		super(CharacterClass.NONE);
 
 		for (let i = 0; i < BREAK_BEFORE.length; i++) {
@@ -75,6 +77,7 @@ class WrappingCharacterClassifier extends CharacterClassifier<CharacterClass> {
 		for (let i = 0; i < BREAK_AFTER.length; i++) {
 			this.set(BREAK_AFTER.charCodeAt(i), CharacterClass.BREAK_AFTER);
 		}
+		this.isKeepAll = wordBreakMode === 'keepAll';
 	}
 
 	public override get(charCode: number): CharacterClass {
@@ -85,10 +88,13 @@ class WrappingCharacterClassifier extends CharacterClassifier<CharacterClass> {
 			// 1. CJK Unified Ideographs (0x4E00 -- 0x9FFF)
 			// 2. CJK Unified Ideographs Extension A (0x3400 -- 0x4DBF)
 			// 3. Hiragana and Katakana (0x3040 -- 0x30FF)
+			// Except for the case where wordBreak is set to keepAll
 			if (
-				(charCode >= 0x3040 && charCode <= 0x30FF)
-				|| (charCode >= 0x3400 && charCode <= 0x4DBF)
-				|| (charCode >= 0x4E00 && charCode <= 0x9FFF)
+				!this.isKeepAll && (
+					(charCode >= 0x3040 && charCode <= 0x30FF)
+					|| (charCode >= 0x3400 && charCode <= 0x4DBF)
+					|| (charCode >= 0x4E00 && charCode <= 0x9FFF)
+				)
 			) {
 				return CharacterClass.BREAK_IDEOGRAPHIC;
 			}

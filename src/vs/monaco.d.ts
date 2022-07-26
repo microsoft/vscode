@@ -3089,6 +3089,12 @@ declare namespace monaco.editor {
 		 */
 		wordWrapBreakAfterCharacters?: string;
 		/**
+		 * Sets whether line breaks appear wherever the text would otherwise overflow its content box.
+		 * When wordBreak = 'normal', Use the default line break rule.
+		 * When wordBreak = 'keepAll', Word breaks should not be used for Chinese/Japanese/Korean (CJK) text. Non-CJK text behavior is the same as for normal.
+		 */
+		wordBreak?: 'normal' | 'keepAll';
+		/**
 		 * Performance guard: Stop rendering a line after x characters.
 		 * Defaults to 10000.
 		 * Use -1 to never stop rendering
@@ -4465,7 +4471,8 @@ declare namespace monaco.editor {
 		pixelRatio = 131,
 		tabFocusMode = 132,
 		layoutInfo = 133,
-		wrappingInfo = 134
+		wrappingInfo = 134,
+		wordBreak = 135
 	}
 
 	export const EditorOptions: {
@@ -4594,6 +4601,7 @@ declare namespace monaco.editor {
 		wordWrap: IEditorOption<EditorOption.wordWrap, 'on' | 'off' | 'wordWrapColumn' | 'bounded'>;
 		wordWrapBreakAfterCharacters: IEditorOption<EditorOption.wordWrapBreakAfterCharacters, string>;
 		wordWrapBreakBeforeCharacters: IEditorOption<EditorOption.wordWrapBreakBeforeCharacters, string>;
+		wordBreak: IEditorOption<EditorOption.wordBreak, 'normal' | 'keepAll'>;
 		wordWrapColumn: IEditorOption<EditorOption.wordWrapColumn, number>;
 		wordWrapOverride1: IEditorOption<EditorOption.wordWrapOverride1, 'on' | 'off' | 'inherit'>;
 		wordWrapOverride2: IEditorOption<EditorOption.wordWrapOverride2, 'on' | 'off' | 'inherit'>;

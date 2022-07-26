@@ -96,8 +96,8 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 		const wordWrapBreakAfterCharacters = config.options.get(EditorOption.wordWrapBreakAfterCharacters);
 		const wordWrapBreakBeforeCharacters = config.options.get(EditorOption.wordWrapBreakBeforeCharacters);
 		const wrappingIndent = config.options.get(EditorOption.wrappingIndent);
-
-		const lineBreaksComputerFactory = new MonospaceLineBreaksComputerFactory(wordWrapBreakBeforeCharacters, wordWrapBreakAfterCharacters);
+		const wordBreak = config.options.get(EditorOption.wordBreak);
+		const lineBreaksComputerFactory = new MonospaceLineBreaksComputerFactory(wordWrapBreakBeforeCharacters, wordWrapBreakAfterCharacters, wordBreak);
 
 		const model = createTextModel([
 			'int main() {',
@@ -949,8 +949,9 @@ suite('SplitLinesCollection', () => {
 		const wordWrapBreakAfterCharacters = configuration.options.get(EditorOption.wordWrapBreakAfterCharacters);
 		const wordWrapBreakBeforeCharacters = configuration.options.get(EditorOption.wordWrapBreakBeforeCharacters);
 		const wrappingIndent = configuration.options.get(EditorOption.wrappingIndent);
+		const wordBreak = configuration.options.get(EditorOption.wordBreak);
 
-		const lineBreaksComputerFactory = new MonospaceLineBreaksComputerFactory(wordWrapBreakBeforeCharacters, wordWrapBreakAfterCharacters);
+		const lineBreaksComputerFactory = new MonospaceLineBreaksComputerFactory(wordWrapBreakBeforeCharacters, wordWrapBreakAfterCharacters, wordBreak);
 
 		const linesCollection = new ViewModelLinesFromProjectedModel(
 			1,
