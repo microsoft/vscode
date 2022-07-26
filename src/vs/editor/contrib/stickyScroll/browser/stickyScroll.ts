@@ -16,6 +16,7 @@ import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { SymbolKind } from 'vs/editor/common/languages';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
+import 'vs/css!./media/style';
 
 const enum ScrollDirection {
 	Down = 0,
@@ -224,10 +225,6 @@ class StickyScrollCodeLine {
 	constructor(private readonly _line: string, private readonly _lineNumber: number, private readonly _editor: IActiveCodeEditor,
 		private readonly _zIndex: number, private readonly _position?: number) { }
 
-	replaceTabAndSpacesWithNbsp(str: string, tabSize: number = 4): string {
-		return str.replace('\t', '\xa0'.repeat(tabSize)).replace(' ', '\xa0');
-	}
-
 	getDomNode() {
 
 		const root: HTMLElement = document.createElement('div');
@@ -240,8 +237,7 @@ class StickyScrollCodeLine {
 			actualInlineDecorations = [];
 		}
 
-		const modifiedLine = this.replaceTabAndSpacesWithNbsp(this._line, lineRenderingData.tabSize);
-		const renderLineInput: RenderLineInput = new RenderLineInput(true, true, modifiedLine, lineRenderingData.continuesWithWrappedLine,
+		const renderLineInput: RenderLineInput = new RenderLineInput(true, true, this._line, lineRenderingData.continuesWithWrappedLine,
 			lineRenderingData.isBasicASCII, lineRenderingData.containsRTL, 0, lineRenderingData.tokens, actualInlineDecorations, lineRenderingData.tabSize,
 			lineRenderingData.startVisibleColumn, 1, 1, 1, 100, 'none', true, true, null);
 
@@ -256,16 +252,17 @@ class StickyScrollCodeLine {
 		}
 
 		const lineHTMLNode = document.createElement('div');
-		lineHTMLNode.style.paddingLeft = this._editor.getLayoutInfo().contentLeft - this._editor.getLayoutInfo().lineNumbersLeft - this._editor.getLayoutInfo().lineNumbersWidth + 'px';
-		lineHTMLNode.style.float = 'left';
-		lineHTMLNode.style.width = this._editor.getLayoutInfo().width - this._editor.getLayoutInfo().contentLeft + 'px';
 		lineHTMLNode.style.backgroundColor = `var(--vscode-editorStickyScroll-background)`;
+		lineHTMLNode.style.overflow = 'hidden';
+		lineHTMLNode.style.whiteSpace = 'nowrap';
+		lineHTMLNode.style.display = 'inline-block';
 		lineHTMLNode.innerHTML = newLine as string;
 
 		const lineNumberHTMLNode = document.createElement('div');
 		lineNumberHTMLNode.style.width = this._editor.getLayoutInfo().contentLeft.toString() + 'px';
 		lineNumberHTMLNode.style.backgroundColor = `var(--vscode-editorStickyScroll-background)`;
 		lineNumberHTMLNode.style.color = 'var(--vscode-editorLineNumber-foreground)';
+		lineNumberHTMLNode.style.display = 'inline-block';
 
 		const innerLineNumberHTML = document.createElement('div');
 		innerLineNumberHTML.innerText = this._lineNumber.toString();
@@ -300,6 +297,8 @@ class StickyScrollCodeLine {
 
 		root.style.zIndex = this._zIndex.toString();
 		root.style.backgroundColor = `var(--vscode-editorStickyScroll-background)`;
+		root.style.overflow = 'hidden';
+		root.style.whiteSpace = 'nowrap';
 
 		// Special case for last line of sticky scroll
 		if (this._position) {
