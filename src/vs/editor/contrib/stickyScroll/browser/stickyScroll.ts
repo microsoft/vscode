@@ -125,6 +125,7 @@ class StickyScrollController implements IEditorContribution {
 		if (this._editor.hasModel()) {
 			const model = this._editor.getModel();
 			const outlineModel = await OutlineModel.create(this._languageFeaturesService.documentSymbolProvider, model, token);
+			console.log('outline model is : ', outlineModel);
 			if (token.isCancellationRequested) {
 				return;
 			}
@@ -280,20 +281,26 @@ class StickyScrollCodeLine {
 		innerLineNumberHTML.style.lineHeight = this._editor.getOption(EditorOption.lineHeight).toString() + 'px';
 		lineNumberHTMLNode.appendChild(innerLineNumberHTML);
 
-		lineHTMLNode.onclick = e => {
+		root.onclick = e => {
 			e.stopPropagation();
 			e.preventDefault();
 			this._editor.revealLine(this._lineNumber);
 		};
-		lineHTMLNode.onmouseover = e => {
+		root.onmouseover = e => {
 			innerLineNumberHTML.style.background = `var(--vscode-editorStickyScrollHover-background)`;
 			lineHTMLNode.style.backgroundColor = `var(--vscode-editorStickyScrollHover-background)`;
+			lineNumberHTMLNode.style.backgroundColor = `var(--vscode-editorStickyScrollHover-background)`;
+			root.style.backgroundColor = `var(--vscode-editorStickyScrollHover-background)`;
 			innerLineNumberHTML.style.cursor = `pointer`;
 			lineHTMLNode.style.cursor = `pointer`;
+			root.style.cursor = `pointer`;
+			lineNumberHTMLNode.style.cursor = `pointer`;
 		};
-		lineHTMLNode.onmouseleave = e => {
+		root.onmouseleave = e => {
 			innerLineNumberHTML.style.background = `var(--vscode-editorStickyScroll-background)`;
 			lineHTMLNode.style.backgroundColor = `var(--vscode-editorStickyScroll-background)`;
+			lineNumberHTMLNode.style.backgroundColor = `var(--vscode-editorStickyScroll-background)`;
+			root.style.backgroundColor = `var(--vscode-editorStickyScroll-background)`;
 		};
 
 		this._editor.applyFontInfo(lineHTMLNode);
