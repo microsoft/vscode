@@ -248,6 +248,18 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		this._register(this._terminalStatusManager = new TaskTerminalStatus(taskService));
 	}
 
+	private async _tryReconnectToTerminal(task: Task): Promise<ITerminalInstance | undefined> {
+		for (let i = 0; i < this._reconnectTerminals.length; i++) {
+			const terminal = this._reconnectTerminals[i];
+			const taskForTerminal = terminal.shellLaunchConfig.attachPersistentProcess?.task;
+			if (taskForTerminal?.id && taskForTerminal?.lastTask && taskForTerminal.lastTask === task.getRecentlyUsedKey()) {
+				this._reconnectTerminals.splice(i, 1);
+				return terminal;
+			}
+		}
+		return undefined;
+	}
+
 	private _reconnectToTerminals(terminals: ITerminalInstance[]): void {
 		for (const terminal of terminals) {
 			const taskForTerminal = terminal.shellLaunchConfig.attachPersistentProcess?.task;
@@ -273,24 +285,28 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		this._outputService.showChannel(this._outputChannelId, true);
 	}
 
+	private _reconnectTerminals: ITerminalInstance[] = [];
 	public reconnect(task: Task, resolver: ITaskResolver, trigger: string = Triggers.command): ITaskExecuteResult | undefined {
 		const terminals = this._terminalService.getReconnectedTerminals(ReconnectionType);
+		this._reconnectTerminals = terminals ?? [];
 		if (!terminals || terminals?.length === 0) {
 			return;
 		}
-		if (!this._hasReconnected && terminals && terminals.length > 0) {
-			this._reviveTerminals();
-			this._reconnectToTerminals(terminals);
-		}
-		if (this._tasksToReconnect.includes(task._id)) {
-			this._terminalForTask = terminals.find(t => t.shellLaunchConfig.attachPersistentProcess?.task?.id === task._id);
-			// Restore the waitOnExit value of the terminal because it may have been a function
-			// that cannot be persisted in the pty host
-			if ('command' in task && task.command.presentation && this._terminalForTask) {
-				this._terminalForTask.waitOnExit = getWaitOnExitValue(task.command.presentation, task.configurationProperties);
-			}
-			this.run(task, resolver, trigger);
-		}
+		// Would likely need to pass a "reconnect only" value into run.
+		this.run(task, resolver, trigger);
+		// if (!this._hasReconnected && terminals && terminals.length > 0) {
+		// this._reviveTerminals();
+		// this._reconnectToTerminals(terminals, task);
+		// }
+		// if (this._tasksToReconnect.includes(task._id)) {
+		// 	this._terminalForTask = terminals.find(t => t.shellLaunchConfig.attachPersistentProcess?.task?.id === task._id);
+		// 	// Restore the waitOnExit value of the terminal because it may have been a function
+		// 	// that cannot be persisted in the pty host
+		// 	if ('command' in task && task.command.presentation && this._terminalForTask) {
+		// 		this._terminalForTask.waitOnExit = getWaitOnExitValue(task.command.presentation, task.configurationProperties);
+		// 	}
+		// 	this.run(task, resolver, trigger);
+		// }
 		return undefined;
 	}
 
@@ -1341,6 +1357,12 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	}
 
 	private async _createTerminal(task: CustomTask | ContributedTask, resolver: VariableResolver, workspaceFolder: IWorkspaceFolder | undefined): Promise<[ITerminalInstance | undefined, TaskError | undefined]> {
+		const reconnectTerminal = await this._tryReconnectToTerminal(task);
+		if (reconnectTerminal) {
+			return [reconnectTerminal, undefined];
+		}
+		// You might need some of the stuff below, like the wait on exit value.
+
 		const platform = resolver.taskSystemInfo ? resolver.taskSystemInfo.platform : Platform.platform;
 		const options = await this._resolveOptions(resolver, task.command.options);
 		const presentationOptions = task.command.presentation;
@@ -1422,15 +1444,18 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			this._terminals[terminalToReuse.terminal.instanceId.toString()].lastTask = taskKey;
 			return [terminalToReuse.terminal, undefined];
 		}
-
 		this._terminalCreationQueue = this._terminalCreationQueue.then(() => this._doCreateTerminal(group, launchConfigs!));
 		const terminal: ITerminalInstance = (await this._terminalCreationQueue)!;
-		terminal.shellLaunchConfig.task = { lastTask: taskKey, group, label: task._label, id: task._id };
-		terminal.shellLaunchConfig.reconnectionOwner = ReconnectionType;
-		const terminalKey = terminal.instanceId.toString();
-		const terminalData = { terminal: terminal, lastTask: taskKey, group };
-		terminal.onDisposed(() => this._deleteTaskAndTerminal(terminal, terminalData));
-		this._terminals[terminalKey] = terminalData;
+
+		const recentlyUsedTaskKey = task.getRecentlyUsedKey();
+		if (recentlyUsedTaskKey) {
+			terminal.shellLaunchConfig.task = { lastTask: recentlyUsedTaskKey, group, label: task._label, id: task._id };
+			terminal.shellLaunchConfig.reconnectionOwner = ReconnectionType;
+			const terminalKey = terminal.instanceId.toString();
+			const terminalData = { terminal: terminal, lastTask: recentlyUsedTaskKey, group };
+			terminal.onDisposed(() => this._deleteTaskAndTerminal(terminal, terminalData));
+			this._terminals[terminalKey] = terminalData;
+		}
 		return [terminal, undefined];
 	}
 
