@@ -371,7 +371,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._register(new dom.DragAndDropObserver(this._domElement, {
 			onDragEnter: () => undefined,
 			onDragOver: e => {
-				if (!this._configuration.options.get(EditorOption.enableDropIntoEditor)) {
+				if (!this._configuration.options.get(EditorOption.dropIntoEditor).enabled) {
 					return;
 				}
 
@@ -381,7 +381,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				}
 			},
 			onDrop: async e => {
-				if (!this._configuration.options.get(EditorOption.enableDropIntoEditor)) {
+				if (!this._configuration.options.get(EditorOption.dropIntoEditor).enabled) {
 					return;
 				}
 
