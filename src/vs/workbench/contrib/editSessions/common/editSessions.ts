@@ -75,4 +75,6 @@ export const EDIT_SESSIONS_TITLE = localize('edit sessions', 'Edit Sessions');
 
 export const EDIT_SESSIONS_VIEW_ICON = registerIcon('edit-sessions-view-icon', Codicon.cloudDownload, localize('editSessionViewIcon', 'View icon of the edit sessions view.'));
 
+export const EDIT_SESSIONS_SHOW_VIEW = new RawContextKey<boolean>('editSessionsShowView', false);
+
 export const EDIT_SESSIONS_SCHEME = 'vscode-edit-sessions';
