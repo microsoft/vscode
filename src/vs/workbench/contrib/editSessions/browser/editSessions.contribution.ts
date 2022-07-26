@@ -10,7 +10,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { Action2, IAction2Options, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
-import { IEditSessionsWorkbenchService, Change, ChangeType, Folder, EditSession, FileType, EDIT_SESSION_SYNC_CATEGORY, EDIT_SESSIONS_CONTAINER_ID, EditSessionSchemaVersion, IEditSessionsLogService, EDIT_SESSIONS_VIEW_ICON, EDIT_SESSIONS_TITLE, EDIT_SESSIONS_SCHEME } from 'vs/workbench/contrib/editSessions/common/editSessions';
+import { IEditSessionsWorkbenchService, Change, ChangeType, Folder, EditSession, FileType, EDIT_SESSION_SYNC_CATEGORY, EDIT_SESSIONS_CONTAINER_ID, EditSessionSchemaVersion, IEditSessionsLogService, EDIT_SESSIONS_VIEW_ICON, EDIT_SESSIONS_TITLE, EDIT_SESSIONS_SCHEME, EDIT_SESSIONS_SHOW_VIEW, EDIT_SESSIONS_SIGNED_IN } from 'vs/workbench/contrib/editSessions/common/editSessions';
 import { ISCMRepository, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -32,14 +32,14 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtualWorkspace';
 import { Schemas } from 'vs/base/common/network';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { EditSessionsLogService } from 'vs/workbench/contrib/editSessions/common/editSessionsLogService';
-import { IViewContainersRegistry, Extensions as ViewExtensions, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewContainersRegistry, Extensions as ViewExtensions, ViewContainerLocation, IViewsService } from 'vs/workbench/common/views';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -69,6 +69,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 	private registered = false;
 	private continueEditSessionOptions: ContinueEditSessionItem[] = [];
+
+	private readonly shouldShowViewsContext: IContextKey<boolean>;
 
 	constructor(
 		@IEditSessionsWorkbenchService private readonly editSessionsWorkbenchService: IEditSessionsWorkbenchService,
@@ -139,6 +141,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			this.continueEditSessionOptions = continueEditSessionOptions;
 		});
 
+		this.shouldShowViewsContext = EDIT_SESSIONS_SHOW_VIEW.bindTo(this.contextKeyService);
+
 		textModelResolverService.registerTextModelContentProvider(EDIT_SESSIONS_SCHEME, instantiationService.createInstance(EditSessionsContentProvider));
 	}
 
@@ -171,7 +175,30 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 		this.registerContinueInLocalFolderAction();
 
+		this.registerShowEditSessionViewAction();
+
 		this.registered = true;
+	}
+
+	private registerShowEditSessionViewAction() {
+		const that = this;
+		this._register(registerAction2(class ShowEditSessionView extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.editSessions.actions.showEditSessions',
+					title: { value: localize('show edit session', "Show Edit Sessions"), original: 'Show Edit Sessions' },
+					category: EDIT_SESSION_SYNC_CATEGORY,
+					f1: true,
+					precondition: EDIT_SESSIONS_SIGNED_IN
+				});
+			}
+
+			async run(accessor: ServicesAccessor) {
+				that.shouldShowViewsContext.set(true);
+				const viewsService = accessor.get(IViewsService);
+				await viewsService.openViewContainer(EDIT_SESSIONS_CONTAINER_ID);
+			}
+		}));
 	}
 
 	private registerContinueEditSessionAction() {
