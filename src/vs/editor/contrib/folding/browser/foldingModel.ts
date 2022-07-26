@@ -94,9 +94,9 @@ export class FoldingModel {
 
 	public removeManualRanges(ranges: ILineRange[]) {
 		const newFoldingRanges: FoldRange[] = new Array();
-		const containedBy = (foldRange: FoldRange) => {
+		const intersects = (foldRange: FoldRange) => {
 			for (const range of ranges) {
-				if (range.startLineNumber <= foldRange.startLineNumber && range.endLineNumber >= foldRange.endLineNumber) {
+				if (!(range.startLineNumber > foldRange.endLineNumber || foldRange.startLineNumber > range.endLineNumber)) {
 					return true;
 				}
 			}
@@ -104,7 +104,7 @@ export class FoldingModel {
 		};
 		for (let i = 0; i < this._regions.length; i++) {
 			const foldRange = this._regions.toFoldRange(i);
-			if (!foldRange.isUserDefined && !foldRange.isRecovered || !containedBy(foldRange)) {
+			if (!foldRange.isUserDefined && !foldRange.isRecovered || !intersects(foldRange)) {
 				newFoldingRanges.push(foldRange);
 			}
 		}
