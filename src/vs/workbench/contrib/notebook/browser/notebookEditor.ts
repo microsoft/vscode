@@ -245,14 +245,14 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 			type WorkbenchNotebookOpenClassification = {
 				owner: 'rebornix';
 				comment: 'The notebook file open metrics. Used to get a better understanding of the performance of notebook file opening';
-				scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-				ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-				viewType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-				extensionActivated: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-				inputLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-				webviewCommLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-				customMarkdownLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-				editorLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+				scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File system provider scheme for the notebook resource' };
+				ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File extension for the notebook resource' };
+				viewType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The view type of the notebook editor' };
+				extensionActivated: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Extension activation time for the resource opening' };
+				inputLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Editor Input loading time for the resource opening' };
+				webviewCommLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Webview initialization time for the resource opening' };
+				customMarkdownLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Custom markdown loading time for the resource opening' };
+				editorLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Overall editor loading time for the resource opening' };
 			};
 
 			type WorkbenchNotebookOpenEvent = {

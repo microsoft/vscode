@@ -512,7 +512,7 @@ class DocumentPasteEditProvider {
 		const vscodeRanges = ranges.map(range => typeConvert.Range.to(range));
 
 		const dataTransfer = typeConvert.DataTransfer.toDataTransfer(dataTransferDto, async (index) => {
-			return (await this._proxy.$resolveDocumentOnDropFileData(this._handle, requestId, index)).buffer;
+			return (await this._proxy.$resolvePasteFileData(this._handle, requestId, index)).buffer;
 		});
 
 		const edit = await this._provider.provideDocumentPasteEdits(doc, vscodeRanges, dataTransfer, token);
@@ -2471,8 +2471,8 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._withAdapter(handle, DocumentPasteEditProvider, adapter => adapter.prepareDocumentPaste(URI.revive(resource), ranges, dataTransfer, token), undefined, token);
 	}
 
-	$providePasteEdits(handle: number, resource: UriComponents, ranges: IRange[], dataTransferDto: extHostProtocol.DataTransferDTO, token: CancellationToken): Promise<extHostProtocol.IPasteEditDto | undefined> {
-		return this._withAdapter(handle, DocumentPasteEditProvider, adapter => adapter.providePasteEdits(0, URI.revive(resource), ranges, dataTransferDto, token), undefined, token);
+	$providePasteEdits(handle: number, requestId: number, resource: UriComponents, ranges: IRange[], dataTransferDto: extHostProtocol.DataTransferDTO, token: CancellationToken): Promise<extHostProtocol.IPasteEditDto | undefined> {
+		return this._withAdapter(handle, DocumentPasteEditProvider, adapter => adapter.providePasteEdits(requestId, URI.revive(resource), ranges, dataTransferDto, token), undefined, token);
 	}
 
 	// --- configuration

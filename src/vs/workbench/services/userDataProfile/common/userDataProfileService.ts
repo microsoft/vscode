@@ -16,6 +16,9 @@ export class UserDataProfileService extends Disposable implements IUserDataProfi
 	private readonly _onDidChangeCurrentProfile = this._register(new Emitter<DidChangeUserDataProfileEvent>());
 	readonly onDidChangeCurrentProfile = this._onDidChangeCurrentProfile.event;
 
+	private readonly _onDidUpdateCurrentProfile = this._register(new Emitter<void>());
+	readonly onDidUpdateCurrentProfile = this._onDidUpdateCurrentProfile.event;
+
 	private _currentProfile: IUserDataProfile;
 	get currentProfile(): IUserDataProfile { return this._currentProfile; }
 
@@ -25,13 +28,20 @@ export class UserDataProfileService extends Disposable implements IUserDataProfi
 	) {
 		super();
 		this._currentProfile = currentProfile;
-		this._register(userDataProfilesService.onDidChangeProfiles(() => {
+		this._register(userDataProfilesService.onDidChangeProfiles(e => {
 			/**
 			 * If the current profile is default profile, then reset it because,
 			 * In Desktop the extensions resource will be set/unset in the default profile when profiles are changed.
 			 */
 			if (this._currentProfile.isDefault) {
 				this._currentProfile = userDataProfilesService.defaultProfile;
+				return;
+			}
+
+			const updatedCurrentProfile = e.updated.find(p => this._currentProfile.id === p.id);
+			if (updatedCurrentProfile) {
+				this._currentProfile = updatedCurrentProfile;
+				this._onDidUpdateCurrentProfile.fire();
 			}
 		}));
 	}

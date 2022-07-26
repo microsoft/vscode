@@ -154,6 +154,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				forceReuseWindow: options.forceReuseWindow,
 				preferNewWindow: options.preferNewWindow,
 				diffMode: options.diffMode,
+				mergeMode: options.mergeMode,
 				addMode: options.addMode,
 				gotoLineMode: options.gotoLineMode,
 				noRecentEntry: options.noRecentEntry,
@@ -218,8 +219,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		const window = this.windowById(windowId);
 		if (window?.win) {
 			window.win.setTitleBarOverlay({
-				color: options.backgroundColor,
-				symbolColor: options.foregroundColor,
+				color: options.backgroundColor?.trim() === '' ? undefined : options.backgroundColor,
+				symbolColor: options.foregroundColor?.trim() === '' ? undefined : options.foregroundColor,
 				height: options.height ? options.height - 1 : undefined // account for window border
 			});
 		}

@@ -3797,6 +3797,10 @@ export class TextDiffTabInput {
 	constructor(readonly original: URI, readonly modified: URI) { }
 }
 
+export class TextMergeTabInput {
+	constructor(readonly base: URI, readonly input1: URI, readonly input2: URI, readonly result: URI) { }
+}
+
 export class CustomEditorTabInput {
 	constructor(readonly uri: URI, readonly viewType: string) { }
 }

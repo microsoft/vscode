@@ -32,7 +32,7 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 
 	private onDidChangeProfiles(e: DidChangeProfilesEvent): void {
 		if (e.removed.some(profile => profile.id === this.userDataProfileService.currentProfile.id)) {
-			this.enterProfile(this.userDataProfilesService.defaultProfile, false, localize('reload message when removed', "The current profile has been removed. Please reload to switch back to default profile"));
+			this.enterProfile(this.userDataProfilesService.defaultProfile, false, localize('reload message when removed', "The current settings profile has been removed. Please reload to switch back to default settings profile"));
 			return;
 		}
 	}
@@ -43,15 +43,22 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		return profile;
 	}
 
-	async removeProfile(profile: IUserDataProfile): Promise<void> {
+	async renameProfile(profile: IUserDataProfile, name: string): Promise<void> {
 		if (!this.userDataProfilesService.profiles.some(p => p.id === profile.id)) {
-			throw new Error(`Profile ${profile.name} does not exist`);
+			throw new Error(`Settings profile ${profile.name} does not exist`);
 		}
 		if (profile.isDefault) {
-			throw new Error(localize('cannotDeleteDefaultProfile', "Cannot delete the default profile"));
+			throw new Error(localize('cannotRenameDefaultProfile', "Cannot rename the default settings profile"));
 		}
-		if (profile.id === this.userDataProfileService.currentProfile.id) {
-			throw new Error(localize('cannotDeleteCurrentProfile', "Cannot delete the current profile"));
+		await this.userDataProfilesService.updateProfile(profile, name);
+	}
+
+	async removeProfile(profile: IUserDataProfile): Promise<void> {
+		if (!this.userDataProfilesService.profiles.some(p => p.id === profile.id)) {
+			throw new Error(`Settings profile ${profile.name} does not exist`);
+		}
+		if (profile.isDefault) {
+			throw new Error(localize('cannotDeleteDefaultProfile', "Cannot delete the default settings profile"));
 		}
 		await this.userDataProfilesService.removeProfile(profile);
 	}
@@ -83,7 +90,7 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		if (this.environmentService.remoteAuthority) {
 			const result = await this.dialogService.confirm({
 				type: 'info',
-				message: reloadMessage ?? localize('reload message', "Switching a profile requires reloading VS Code."),
+				message: reloadMessage ?? localize('reload message', "Switching a settings profile requires reloading VS Code."),
 				primaryButton: localize('reload button', "&&Reload"),
 			});
 			if (result.confirmed) {

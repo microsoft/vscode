@@ -97,6 +97,10 @@
 	flex: 1;
 }
 
+.monaco-tree-type-filter-input .monaco-inputbox {
+	height: 26px;
+}
+
 .monaco-tree-type-filter-input .monaco-inputbox > .ibwrapper > .input,
 .monaco-tree-type-filter-input .monaco-inputbox > .ibwrapper > .mirror {
 	padding: 2px;

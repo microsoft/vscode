@@ -154,7 +154,7 @@
 			"IllusionMH"
 		],
 		"action": "updateLabels",
-		"addLabel": "~needs more info"
+		"addLabel": "~info-needed"
 	},
 	{
 		"type": "comment",
@@ -165,14 +165,14 @@
 			"gjsjohnmurray",
 			"IllusionMH"
 		],
-		"addLabel": "needs more info",
+		"addLabel": "info-needed",
 		"comment": "Thanks for creating this issue regarding performance! Please follow this guide to help us diagnose performance issues: https://github.com/microsoft/vscode/wiki/Performance-Issues \n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
 		"name": "jsDebugLogs",
 		"action": "updateLabels",
-		"addLabel": "needs more info",
+		"addLabel": "info-needed",
 		"comment": "Please collect trace logs using the following instructions:\n\n> If you're able to, add `\"trace\": true` to your `launch.json` and reproduce the issue. The location of the log file on your disk will be written to the Debug Console. Share that with us.\n>\n> ⚠️ This log file will not contain source code, but will contain file paths. You can drop it into https://microsoft.github.io/vscode-pwa-analyzer/index.html to see what it contains. If you'd rather not share the log publicly, you can email it to connor@xbox.com"
 	},
 	{
@@ -189,17 +189,17 @@
 	},
 	{
 		"type": "label",
-		"name": "~needs more info",
+		"name": "~info-needed",
 		"action": "updateLabels",
-		"addLabel": "needs more info",
-		"removeLabel": "~needs more info",
+		"addLabel": "info-needed",
+		"removeLabel": "~info-needed",
 		"comment": "Thanks for creating this issue! We figured it's missing some basic information or in some other way doesn't follow our [issue reporting guidelines](https://aka.ms/vscodeissuereporting). Please take the time to review these and update the issue.\n\nHappy Coding!"
 	},
 	{
 		"type": "label",
 		"name": "~needs version info",
 		"action": "updateLabels",
-		"addLabel": "needs more info",
+		"addLabel": "info-needed",
 		"removeLabel": "~needs version info",
 		"comment": "Thanks for creating this issue! We figured it's missing some basic information, such as a version number, or in some other way doesn't follow our [issue reporting guidelines](https://aka.ms/vscodeissuereporting). Please take the time to review these and update the issue.\n\nHappy Coding!"
 	},
@@ -416,7 +416,7 @@
 			"IllusionMH"
 		],
 		"action": "comment",
-		"addLabel": "needs more info",
+		"addLabel": "info-needed",
 		"comment": "Thanks for reporting this issue! Unfortunately, it's hard for us to understand what issue you're seeing. Please help us out by providing a screen recording showing exactly what isn't working as expected. While we can work with most standard formats, `.gif` files are preferred as they are displayed inline on GitHub. You may find https://gifcap.dev helpful as a browser-based gif recording tool.\n\nIf the issue depends on keyboard input, you can help us by enabling screencast mode for the recording (`Developer: Toggle Screencast Mode` in the command palette).\n\nHappy coding!"
 	},
 	{

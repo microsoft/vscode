@@ -43,7 +43,8 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		if (!isMacintosh) {
 			return super.minimumHeight;
 		}
-		return (this.isCommandCenterVisible ? 35 : this.getMacTitlebarSize()) / getZoomFactor();
+
+		return (this.isCommandCenterVisible ? 35 : this.getMacTitlebarSize()) / (this.useCounterZoom ? getZoomFactor() : 1);
 	}
 	override get maximumHeight(): number { return this.minimumHeight; }
 
@@ -195,19 +196,34 @@ export class TitlebarPart extends BrowserTitleBarPart {
 
 			this._register(this.layoutService.onDidChangeWindowMaximized(maximized => this.onDidChangeWindowMaximized(maximized)));
 			this.onDidChangeWindowMaximized(this.layoutService.isWindowMaximized());
+		}
 
-			// Window System Context Menu
-			// See https://github.com/electron/electron/issues/24893
-			if (isWindows) {
-				this._register(this.nativeHostService.onDidTriggerSystemContextMenu(({ windowId, x, y }) => {
-					if (this.nativeHostService.windowId !== windowId) {
-						return;
-					}
+		// Window System Context Menu
+		// See https://github.com/electron/electron/issues/24893
+		if (isWindows && getTitleBarStyle(this.configurationService) === 'custom') {
+			this._register(this.nativeHostService.onDidTriggerSystemContextMenu(({ windowId, x, y }) => {
+				if (this.nativeHostService.windowId !== windowId) {
+					return;
+				}
 
-					const zoomFactor = getZoomFactor();
-					this.onContextMenu(new MouseEvent('mouseup', { clientX: x / zoomFactor, clientY: y / zoomFactor }), MenuId.TitleBarContext);
-				}));
-			}
+				const zoomFactor = getZoomFactor();
+				const boundingRect = this.rootContainer.getBoundingClientRect();
+				const eventPosition = { x, y };
+				const relativeCoordinates = { x, y };
+				// When comparing the coordinates with the title bar, account for zoom level if not using counter zoom.
+				if (!this.useCounterZoom) {
+					relativeCoordinates.x /= zoomFactor;
+					relativeCoordinates.y /= zoomFactor;
+				}
+
+				// Don't trigger the menu if the click is not over the title bar
+				if (relativeCoordinates.x < boundingRect.left || relativeCoordinates.x > boundingRect.right ||
+					relativeCoordinates.y < boundingRect.top || relativeCoordinates.y > boundingRect.bottom) {
+					return;
+				}
+
+				this.onContextMenu(new MouseEvent('mouseup', { clientX: eventPosition.x / zoomFactor, clientY: eventPosition.y / zoomFactor }), MenuId.TitleBarContext);
+			}));
 		}
 
 		return ret;
