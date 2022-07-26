@@ -96,10 +96,9 @@ const codeActionLineHeight = 26;
 class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeActionMenuTemplateData> {
 
 	constructor(
+		private readonly acceptKeybindings: [string, string],
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-	) {
-
-	}
+	) { }
 
 	get templateId(): string { return TEMPLATE_ID; }
 
@@ -141,8 +140,9 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 
 		if (!isDocumentation) {
 			const updateLabel = () => {
-				const [accept, preview] = [`onEnterSelectCodeAction`, `onEnterSelectCodeActionWithPreview`];
-				data.root.title = this.keybindingService.lookupKeybinding(accept)?.getLabel() + ' to Refactor, ' + this.keybindingService.lookupKeybinding(preview)?.getLabel() + ' to Preview';
+				const [accept, preview] = this.acceptKeybindings;
+				data.root.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Refactor, Shift+F2 to Preview"'] }, "{0} to Rename, {1} to Preview", this.keybindingService.lookupKeybinding(accept)?.getLabel(), this.keybindingService.lookupKeybinding(preview)?.getLabel());
+				// data.root.title = this.keybindingService.lookupKeybinding(accept)?.getLabel() + ' to Refactor, ' + this.keybindingService.lookupKeybinding(preview)?.getLabel() + ' to Preview';
 			};
 			updateLabel();
 		}
@@ -193,7 +193,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		});
 
 		this._ctxMenuWidgetVisible = Context.Visible.bindTo(this._contextKeyService);
-		this.listRenderer = new CodeMenuRenderer(keybindingService);
+		this.listRenderer = new CodeMenuRenderer([`onEnterSelectCodeAction`, `onEnterSelectCodeActionWithPreview`], keybindingService);
 	}
 
 	get isVisible(): boolean {
@@ -315,7 +315,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		this.codeActionList.value?.layout(height, maxWidth);
 
 		// List selection
-		if (this.viewItems.length < 1 || (this.viewItems.length === 1 && this.viewItems[0].isDocumentation)) {
+		if (this.viewItems.length < 1 || this.viewItems.every(item => item.isDocumentation)) {
 			this.currSelectedItem = 0;
 		} else {
 			this.focusedEnabledItem = 0;
@@ -340,7 +340,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	protected focusPrevious() {
 		if (typeof this.focusedEnabledItem === 'undefined') {
 			this.focusedEnabledItem = this.viewItems[0].index;
-		} else if (this.viewItems.length < 1 || (this.viewItems.length === 1 && !this.viewItems[0].isDocumentation)) {
+		} else if (this.viewItems.length < 1) {
 			return false;
 		}
 
@@ -363,7 +363,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	protected focusNext() {
 		if (typeof this.focusedEnabledItem === 'undefined') {
 			this.focusedEnabledItem = this.viewItems.length - 1;
-		} else if (this.viewItems.length < 1 || (this.viewItems.length === 1 && !this.viewItems[0].isDocumentation)) {
+		} else if (this.viewItems.length < 1) {
 			return false;
 		}
 

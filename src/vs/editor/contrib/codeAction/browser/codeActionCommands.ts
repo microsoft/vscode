@@ -152,7 +152,10 @@ export class QuickFixController extends Disposable implements IEditorContributio
 	}
 
 	public selectedOptionWithPreview() {
-		this._ui.getValue().onPreviewEnter();
+		if (this._ui.hasValue()) {
+			this._ui.getValue().onPreviewEnter();
+		}
+
 	}
 
 	public showCodeActions(trigger: CodeActionTrigger, actions: CodeActionSet, at: IAnchor | IPosition) {
