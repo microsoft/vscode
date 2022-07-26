@@ -4463,16 +4463,16 @@ declare namespace monaco.editor {
 		wordWrapColumn = 123,
 		wordWrapOverride1 = 124,
 		wordWrapOverride2 = 125,
-		wrappingIndent = 126,
-		wrappingStrategy = 127,
-		showDeprecated = 128,
-		inlayHints = 129,
-		editorClassName = 130,
-		pixelRatio = 131,
-		tabFocusMode = 132,
-		layoutInfo = 133,
-		wrappingInfo = 134,
-		wordBreak = 135
+		wordBreak = 126,
+		wrappingIndent = 127,
+		wrappingStrategy = 128,
+		showDeprecated = 129,
+		inlayHints = 130,
+		editorClassName = 131,
+		pixelRatio = 132,
+		tabFocusMode = 133,
+		layoutInfo = 134,
+		wrappingInfo = 135
 	}
 
 	export const EditorOptions: {
