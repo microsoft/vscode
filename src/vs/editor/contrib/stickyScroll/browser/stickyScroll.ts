@@ -183,29 +183,31 @@ class StickyScrollController implements IEditorContribution {
 
 		for (const [index, arr] of this._ranges.entries()) {
 			const [start, end, depth] = arr;
-			topOfElementAtDepth = this._editor.getScrollTop() + (depth - 1) * lineHeight;
-			bottomOfElementAtDepth = this._editor.getScrollTop() + depth * lineHeight;
-			bottomOfBeginningLine = start * lineHeight;
-			topOfEndLine = (end - 1) * lineHeight;
-			bottomOfEndLine = end * lineHeight;
+			if (end - start > 0) {
+				topOfElementAtDepth = this._editor.getScrollTop() + (depth - 1) * lineHeight;
+				bottomOfElementAtDepth = this._editor.getScrollTop() + depth * lineHeight;
+				bottomOfBeginningLine = start * lineHeight;
+				topOfEndLine = (end - 1) * lineHeight;
+				bottomOfEndLine = end * lineHeight;
 
-			if (!beginningLinesConsidered.has(start)) {
-				if (topOfElementAtDepth >= topOfEndLine - 1 && topOfElementAtDepth < bottomOfEndLine - 2) {
-					beginningLinesConsidered.add(start);
-					this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(model.getLineContent(start), start, this._editor, -1, (depth - 1) * lineHeight + bottomOfEndLine - bottomOfElementAtDepth));
-					break;
-				}
-				else if (scrollDirection === ScrollDirection.Down && bottomOfElementAtDepth > bottomOfBeginningLine - 1 && bottomOfElementAtDepth < bottomOfEndLine - 1) {
-					beginningLinesConsidered.add(start);
-					this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(model.getLineContent(start), start, this._editor, 0));
+				if (!beginningLinesConsidered.has(start)) {
+					if (topOfElementAtDepth >= topOfEndLine - 1 && topOfElementAtDepth < bottomOfEndLine - 2) {
+						beginningLinesConsidered.add(start);
+						this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(model.getLineContent(start), start, this._editor, -1, (depth - 1) * lineHeight + bottomOfEndLine - bottomOfElementAtDepth));
+						break;
+					}
+					else if (scrollDirection === ScrollDirection.Down && bottomOfElementAtDepth > bottomOfBeginningLine - 1 && bottomOfElementAtDepth < bottomOfEndLine - 1) {
+						beginningLinesConsidered.add(start);
+						this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(model.getLineContent(start), start, this._editor, 0));
 
-				} else if (scrollDirection === ScrollDirection.Up && scrollToBottomOfWidget > bottomOfBeginningLine - 1 && scrollToBottomOfWidget < bottomOfEndLine ||
-					scrollDirection === ScrollDirection.Up && bottomOfElementAtDepth > bottomOfBeginningLine && bottomOfElementAtDepth < topOfEndLine - 1) {
-					beginningLinesConsidered.add(start);
-					this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(model.getLineContent(start), start, this._editor, 0));
+					} else if (scrollDirection === ScrollDirection.Up && scrollToBottomOfWidget > bottomOfBeginningLine - 1 && scrollToBottomOfWidget < bottomOfEndLine ||
+						scrollDirection === ScrollDirection.Up && bottomOfElementAtDepth > bottomOfBeginningLine && bottomOfElementAtDepth < topOfEndLine - 1) {
+						beginningLinesConsidered.add(start);
+						this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(model.getLineContent(start), start, this._editor, 0));
+					}
+				} else {
+					this._ranges.splice(index, 1);
 				}
-			} else {
-				this._ranges.splice(index, 1);
 			}
 		}
 
