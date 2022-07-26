@@ -16,7 +16,6 @@ import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { SymbolKind } from 'vs/editor/common/languages';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
-import 'vs/css!./media/style';
 
 const enum ScrollDirection {
 	Down = 0,
