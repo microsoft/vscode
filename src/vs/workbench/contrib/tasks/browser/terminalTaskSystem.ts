@@ -292,6 +292,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		if (!terminals || terminals?.length === 0) {
 			return;
 		}
+		this._reviveTerminals();
 		// Would likely need to pass a "reconnect only" value into run.
 		this.run(task, resolver, trigger);
 		// if (!this._hasReconnected && terminals && terminals.length > 0) {
@@ -1300,7 +1301,12 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		return combinedShellArgs;
 	}
 
-	private async _doCreateTerminal(group: string | undefined, launchConfigs: IShellLaunchConfig): Promise<ITerminalInstance> {
+	private async _doCreateTerminal(task: Task, group: string | undefined, launchConfigs: IShellLaunchConfig): Promise<ITerminalInstance> {
+		const reconnectTerminal = await this._tryReconnectToTerminal(task);
+		if (reconnectTerminal) {
+			return reconnectTerminal;
+		} // you may need to do something with the wait on exit value since I saw a comment about that elsewhere.
+
 		if (group) {
 			// Try to find an existing terminal to split.
 			// Even if an existing terminal is found, the split can fail if the terminal width is too small.
@@ -1357,12 +1363,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	}
 
 	private async _createTerminal(task: CustomTask | ContributedTask, resolver: VariableResolver, workspaceFolder: IWorkspaceFolder | undefined): Promise<[ITerminalInstance | undefined, TaskError | undefined]> {
-		const reconnectTerminal = await this._tryReconnectToTerminal(task);
-		if (reconnectTerminal) {
-			return [reconnectTerminal, undefined];
-		}
-		// You might need some of the stuff below, like the wait on exit value.
-
 		const platform = resolver.taskSystemInfo ? resolver.taskSystemInfo.platform : Platform.platform;
 		const options = await this._resolveOptions(resolver, task.command.options);
 		const presentationOptions = task.command.presentation;
@@ -1444,7 +1444,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			this._terminals[terminalToReuse.terminal.instanceId.toString()].lastTask = taskKey;
 			return [terminalToReuse.terminal, undefined];
 		}
-		this._terminalCreationQueue = this._terminalCreationQueue.then(() => this._doCreateTerminal(group, launchConfigs!));
+		this._terminalCreationQueue = this._terminalCreationQueue.then(() => this._doCreateTerminal(task, group, launchConfigs!));
 		const terminal: ITerminalInstance = (await this._terminalCreationQueue)!;
 
 		const recentlyUsedTaskKey = task.getRecentlyUsedKey();
