@@ -727,7 +727,7 @@ export async function provideInlineCompletions(
 				}
 
 				// Modify range depending on if brackets are added or removed
-				if (insertText.length != item.insertText.length) {
+				if (insertText.length !== item.insertText.length) {
 					const diff = insertText.length - item.insertText.length;
 					range = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn + diff);
 				}
