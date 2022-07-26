@@ -430,13 +430,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		});
 
 		handle.onExit((data: TypeScriptServerExitEvent) => {
-			if (this.token !== mytoken) {
-				// this is coming from an old process
-				return;
-			}
-
 			const { code, signal } = data;
-
 			if (code === null || typeof code === 'undefined') {
 				this.info(`TSServer exited. Signal: ${signal}`);
 			} else {
@@ -454,6 +448,11 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					}
 				*/
 				this.logTelemetry('tsserver.exitWithCode', { code, signal: signal ?? undefined });
+			}
+
+			if (this.token !== mytoken) {
+				// this is coming from an old process
+				return;
 			}
 
 			if (handle.tsServerLogFile) {
