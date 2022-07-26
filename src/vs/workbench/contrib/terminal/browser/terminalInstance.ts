@@ -1611,11 +1611,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// ensure the resolved icon gets shown
 			if (!this._labelComputer) {
 				this._labelComputer = this._register(new TerminalLabelComputer(this._configHelper, this, this._workspaceContextService));
-				this._labelComputer.onDidChangeLabel(e => {
+				this._register(this._labelComputer.onDidChangeLabel(e => {
 					this._title = e.title;
 					this._description = e.description;
 					this._onTitleChanged.fire(this);
-				});
+				}));
 			}
 			if (this._shellLaunchConfig.name) {
 				this.refreshTabLabels(this._shellLaunchConfig.name, TitleEventSource.Api);
