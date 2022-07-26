@@ -183,7 +183,7 @@ class StickyScrollController implements IEditorContribution {
 
 		for (const [index, arr] of this._ranges.entries()) {
 			const [start, end, depth] = arr;
-			if (end - start > 0) {
+			if (end - start > 0 && model.getLineContent(start) !== '') {
 				topOfElementAtDepth = this._editor.getScrollTop() + (depth - 1) * lineHeight;
 				bottomOfElementAtDepth = this._editor.getScrollTop() + depth * lineHeight;
 				bottomOfBeginningLine = start * lineHeight;
@@ -252,26 +252,29 @@ class StickyScrollCodeLine {
 			newLine = sb.build();
 		}
 
-		const lineHTMLNode = document.createElement('div');
+		const lineHTMLNode = document.createElement('span');
 		lineHTMLNode.style.backgroundColor = `var(--vscode-editorStickyScroll-background)`;
 		lineHTMLNode.style.overflow = 'hidden';
 		lineHTMLNode.style.whiteSpace = 'nowrap';
 		lineHTMLNode.style.display = 'inline-block';
+		lineHTMLNode.style.lineHeight = this._editor.getOption(EditorOption.lineHeight).toString() + 'px';
 		lineHTMLNode.innerHTML = newLine as string;
 
-		const lineNumberHTMLNode = document.createElement('div');
+		const lineNumberHTMLNode = document.createElement('span');
 		lineNumberHTMLNode.style.width = this._editor.getLayoutInfo().contentLeft.toString() + 'px';
 		lineNumberHTMLNode.style.backgroundColor = `var(--vscode-editorStickyScroll-background)`;
 		lineNumberHTMLNode.style.color = 'var(--vscode-editorLineNumber-foreground)';
 		lineNumberHTMLNode.style.display = 'inline-block';
+		lineNumberHTMLNode.style.lineHeight = this._editor.getOption(EditorOption.lineHeight).toString() + 'px';
 
-		const innerLineNumberHTML = document.createElement('div');
+		const innerLineNumberHTML = document.createElement('span');
 		innerLineNumberHTML.innerText = this._lineNumber.toString();
 		innerLineNumberHTML.style.paddingLeft = this._editor.getLayoutInfo().lineNumbersLeft.toString() + 'px';
 		innerLineNumberHTML.style.width = this._editor.getLayoutInfo().lineNumbersWidth.toString() + 'px';
 		innerLineNumberHTML.style.backgroundColor = `var(--vscode-editorStickyScroll-background)`;
 		innerLineNumberHTML.style.textAlign = 'right';
 		innerLineNumberHTML.style.float = 'left';
+		innerLineNumberHTML.style.lineHeight = this._editor.getOption(EditorOption.lineHeight).toString() + 'px';
 		lineNumberHTMLNode.appendChild(innerLineNumberHTML);
 
 		lineHTMLNode.onclick = e => {
@@ -300,6 +303,8 @@ class StickyScrollCodeLine {
 		root.style.backgroundColor = `var(--vscode-editorStickyScroll-background)`;
 		root.style.overflow = 'hidden';
 		root.style.whiteSpace = 'nowrap';
+		root.style.lineHeight = this._editor.getOption(EditorOption.lineHeight).toString() + 'px';
+		root.style.height = this._editor.getOption(EditorOption.lineHeight).toString() + 'px';
 
 		// Special case for last line of sticky scroll
 		if (this._position) {
