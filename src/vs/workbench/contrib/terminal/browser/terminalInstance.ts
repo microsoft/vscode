@@ -87,6 +87,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProcess';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
+import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
 
 const enum Constants {
 	/**
@@ -226,6 +227,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	xterm?: XtermTerminal;
 	disableLayout: boolean = false;
 
+	get waitOnExit(): ITerminalInstance['waitOnExit'] { return this._shellLaunchConfig.attachPersistentProcess?.waitOnExit || this._shellLaunchConfig.waitOnExit; }
+	set waitOnExit(value: ITerminalInstance['waitOnExit']) {
+		this._shellLaunchConfig.waitOnExit = value;
+	}
+
 	get target(): TerminalLocation | undefined { return this._target; }
 	set target(value: TerminalLocation | undefined) {
 		if (this.xterm) {
@@ -303,12 +309,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get description(): string | undefined {
 		if (this._description) {
 			return this._description;
-		} else if (this._shellLaunchConfig.type) {
-			if (this._shellLaunchConfig.type === 'Task') {
+		}
+		const type = this.shellLaunchConfig.attachPersistentProcess?.type || this.shellLaunchConfig.type;
+		if (type) {
+			if (type === 'Task') {
 				return nls.localize('terminalTypeTask', "Task");
-			} else {
-				return nls.localize('terminalTypeLocal', "Local");
 			}
+			return nls.localize('terminalTypeLocal', "Local");
 		}
 		return undefined;
 	}
@@ -406,6 +413,18 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// the resource is already set when it's been moved from another window
 		this._resource = resource || getTerminalUri(this._workspaceContextService.getWorkspace().id, this.instanceId, this.title);
+
+		if (this._shellLaunchConfig.attachPersistentProcess?.hideFromUser) {
+			this._shellLaunchConfig.hideFromUser = this._shellLaunchConfig.attachPersistentProcess.hideFromUser;
+		}
+
+		if (this._shellLaunchConfig.attachPersistentProcess?.isFeatureTerminal) {
+			this._shellLaunchConfig.isFeatureTerminal = this._shellLaunchConfig.attachPersistentProcess.isFeatureTerminal;
+		}
+
+		if (this._shellLaunchConfig.attachPersistentProcess?.type) {
+			this._shellLaunchConfig.type = this._shellLaunchConfig.attachPersistentProcess.type;
+		}
 
 		if (this.shellLaunchConfig.cwd) {
 			const cwdUri = typeof this._shellLaunchConfig.cwd === 'string' ? URI.from({
@@ -677,7 +696,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._shutdownPersistentProcessId = shutdownPersistentProcessId;
 	}
 	get persistentProcessId(): number | undefined { return this._processManager.persistentProcessId ?? this._shutdownPersistentProcessId; }
-	get shouldPersist(): boolean { return (this._processManager.shouldPersist || this._shutdownPersistentProcessId !== undefined) && !this.shellLaunchConfig.isTransient; }
+	get shouldPersist(): boolean { return (this._processManager.shouldPersist || this._shutdownPersistentProcessId !== undefined) && !this.shellLaunchConfig.isTransient && (!this.reconnectionOwner || this._configurationService.getValue(TaskSettingId.Reconnection) === true); }
 
 	/**
 	 * Create xterm.js instance and attach data listeners.
@@ -1764,18 +1783,19 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// Only trigger wait on exit when the exit was *not* triggered by the
 		// user (via the `workbench.action.terminal.kill` command).
-		if (this._shellLaunchConfig.waitOnExit && this._processManager.processState !== ProcessState.KilledByUser) {
+		const waitOnExit = this.waitOnExit;
+		if (waitOnExit && this._processManager.processState !== ProcessState.KilledByUser) {
 			this._xtermReadyPromise.then(xterm => {
 				if (exitMessage) {
 					xterm.raw.write(formatMessageForTerminal(exitMessage));
 				}
-				switch (typeof this._shellLaunchConfig.waitOnExit) {
+				switch (typeof waitOnExit) {
 					case 'string':
-						xterm.raw.write(formatMessageForTerminal(this._shellLaunchConfig.waitOnExit, { excludeLeadingNewLine: true }));
+						xterm.raw.write(formatMessageForTerminal(waitOnExit, { excludeLeadingNewLine: true }));
 						break;
 					case 'function':
 						if (this.exitCode !== undefined) {
-							xterm.raw.write(formatMessageForTerminal(this._shellLaunchConfig.waitOnExit(this.exitCode), { excludeLeadingNewLine: true }));
+							xterm.raw.write(formatMessageForTerminal(waitOnExit(this.exitCode), { excludeLeadingNewLine: true }));
 						}
 						break;
 				}
@@ -2367,12 +2387,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		// Recreate the process if the terminal has not yet been interacted with and it's not a
-		// special terminal (eg. task, extension terminal)
+		// special terminal (eg. extension terminal)
 		if (
 			info.requiresAction &&
 			this._configHelper.config.environmentChangesRelaunch &&
 			!this._processManager.hasWrittenData &&
-			(this.reconnectionOwner || !this._shellLaunchConfig.isFeatureTerminal) &&
+			(!this._shellLaunchConfig.isFeatureTerminal || (this.reconnectionOwner && this._configurationService.getValue(TaskSettingId.Reconnection) === true)) &&
 			!this._shellLaunchConfig.customPtyImplementation
 			&& !this._shellLaunchConfig.isExtensionOwnedTerminal &&
 			!this._shellLaunchConfig.attachPersistentProcess
@@ -2732,14 +2752,15 @@ export class TerminalLabelComputer extends Disposable {
 		labelType: TerminalLabelType,
 		reset?: boolean
 	) {
+		const type = this._instance.shellLaunchConfig.attachPersistentProcess?.type || this._instance.shellLaunchConfig.type;
 		const templateProperties: ITerminalLabelTemplateProperties = {
 			cwd: this._instance.cwd || this._instance.initialCwd || '',
 			cwdFolder: '',
 			workspaceFolder: this._instance.workspaceFolder ? path.basename(this._instance.workspaceFolder.uri.fsPath) : undefined,
-			local: this._instance.shellLaunchConfig.type === 'Local' ? this._instance.shellLaunchConfig.type : undefined,
+			local: type === 'Local' ? type : undefined,
 			process: this._instance.processName,
 			sequence: this._instance.sequence,
-			task: this._instance.shellLaunchConfig.type === 'Task' ? this._instance.shellLaunchConfig.type : undefined,
+			task: type === 'Task' ? type : undefined,
 			fixedDimensions: this._instance.fixedCols
 				? (this._instance.fixedRows ? `\u2194${this._instance.fixedCols} \u2195${this._instance.fixedRows}` : `\u2194${this._instance.fixedCols}`)
 				: (this._instance.fixedRows ? `\u2195${this._instance.fixedRows}` : ''),

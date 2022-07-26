@@ -6019,7 +6019,7 @@ declare module 'vscode' {
 	 * To get an instance of a `DiagnosticCollection` use
 	 * {@link languages.createDiagnosticCollection createDiagnosticCollection}.
 	 */
-	export interface DiagnosticCollection extends Iterable<[uri: Uri, diagnostics: readonly Diagnostic[]]> {
+	export interface DiagnosticCollection extends Iterable<[/*uri:*/ Uri, /*diagnostics:*/ readonly Diagnostic[]]> {
 
 		/**
 		 * The name of this diagnostic collection, for instance `typescript`. Every diagnostic
@@ -10159,7 +10159,7 @@ declare module 'vscode' {
 	 * data transfer. These additional mime types will only be included in the `handleDrop` when the the drag was initiated from
 	 * an element in the same drag and drop controller.
 	 */
-	export class DataTransfer implements Iterable<[mimeType: string, item: DataTransferItem]> {
+	export class DataTransfer implements Iterable<[/*mimeType:*/ string, /*item:*/ DataTransferItem]> {
 		/**
 		 * Retrieves the data transfer item for a given mime type.
 		 *
@@ -10189,7 +10189,7 @@ declare module 'vscode' {
 		/**
 		 * Get a new iterator with the `[mime, item]` pairs for each element in this data transfer.
 		 */
-		[Symbol.iterator](): IterableIterator<[mimeType: string, item: DataTransferItem]>;
+		[Symbol.iterator](): IterableIterator<[/*mimeType:*/ string, /*item:*/ DataTransferItem]>;
 	}
 
 	/**
@@ -10858,7 +10858,7 @@ declare module 'vscode' {
 	/**
 	 * A collection of mutations that an extension can apply to a process environment.
 	 */
-	export interface EnvironmentVariableCollection extends Iterable<[variable: string, mutator: EnvironmentVariableMutator]> {
+	export interface EnvironmentVariableCollection extends Iterable<[/*variable:*/ string, /*mutator:*/ EnvironmentVariableMutator]> {
 		/**
 		 * Whether the collection should be cached for the workspace and applied to the terminal
 		 * across window reloads. When true the collection will be active immediately such when the
@@ -15737,7 +15737,7 @@ declare module 'vscode' {
 	 * Collection of test items, found in {@link TestItem.children} and
 	 * {@link TestController.items}.
 	 */
-	export interface TestItemCollection extends Iterable<[id: string, testItem: TestItem]> {
+	export interface TestItemCollection extends Iterable<[/*id:*/ string, /*testItem:*/ TestItem]> {
 		/**
 		 * Gets the number of items in the collection.
 		 */

@@ -447,7 +447,7 @@ suite('ExtensionRecommendationsService Test', () => {
 		});
 	});
 
-	test.skip('ExtensionRecommendationsService: Able to retrieve collection of all ignored recommendations', async () => {
+	test('ExtensionRecommendationsService: Able to retrieve collection of all ignored recommendations', async () => {
 
 		const storageService = instantiationService.get(IStorageService);
 		const workspaceIgnoredRecommendations = ['ms-dotnettools.csharp']; // ignore a stored recommendation and a workspace recommendation.
@@ -462,9 +462,7 @@ suite('ExtensionRecommendationsService Test', () => {
 		await testObject.activationPromise;
 
 		const recommendations = testObject.getAllRecommendationsWithReason();
-		assert.ok(recommendations['ms-python.python'], 'ms-python.python extension shall exist');
-		assert.ok(!recommendations['mockpublisher2.mockextension2'], 'mockpublisher2.mockextension2 extension shall not exist');
-		assert.ok(!recommendations['ms-dotnettools.csharp'], 'ms-dotnettools.csharp extension shall not exist');
+		assert.deepStrictEqual(Object.keys(recommendations), ['ms-python.python', 'mockpublisher1.mockextension1']);
 	});
 
 	test('ExtensionRecommendationsService: Able to dynamically ignore/unignore global recommendations', async () => {
