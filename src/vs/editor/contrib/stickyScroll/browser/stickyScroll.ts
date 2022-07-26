@@ -61,12 +61,17 @@ class StickyScrollController implements IEditorContribution {
 			return;
 		} else {
 			this._editor.addOverlayWidget(this.stickyScrollWidget);
-			this._sessionStore.add(this._editor.onDidChangeModel(() => setTimeout(() => this._update(true), 500)));
+			this._sessionStore.add(this._editor.onDidChangeModel(() => this.onModelChange()));
 			this._sessionStore.add(this._editor.onDidScrollChange(() => this._update(false)));
 			this._sessionStore.add(this._editor.onDidChangeModelContent(() => setTimeout(() => this._update(true), 500)));
 			this._sessionStore.add(this._languageFeaturesService.documentSymbolProvider.onDidChange(() => setTimeout(() => this._update(true), 500)));
 			this._update(true);
 		}
+	}
+
+	private onModelChange() {
+		this.stickyScrollWidget.emptyRootNode();
+		setTimeout(() => this._update(true), 500);
 	}
 
 	private async _update(updateOutline: boolean = false): Promise<void> {
