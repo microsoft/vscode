@@ -165,6 +165,8 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	private hasSeperator: boolean = false;
 	private block?: HTMLElement;
 
+	public static readonly documentationID: string = '_documentation';
+
 	public static readonly ID: string = 'editor.contrib.codeActionMenu';
 
 	public static get(editor: ICodeEditor): CodeActionMenu | null {
@@ -277,7 +279,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 			const currIsSeparator = item.class === 'separator';
 			let isDocumentation = false;
 			if (item instanceof CodeActionAction) {
-				isDocumentation = item.action.kind === '_documentation';
+				isDocumentation = item.action.kind === CodeActionMenu.documentationID;
 			}
 
 			if (currIsSeparator) {
@@ -511,7 +513,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 			result.push(new Separator(), ...allDocumentation.map(command => toCodeActionAction(new CodeActionItem({
 				title: command.title,
 				command: command,
-				kind: '_documentation'
+				kind: CodeActionMenu.documentationID
 			}, undefined))));
 		}
 
