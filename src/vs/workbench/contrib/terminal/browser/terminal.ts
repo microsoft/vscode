@@ -11,7 +11,7 @@ import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
 import { ITerminalCapabilityStore, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IExtensionTerminalProfile, IProcessPropertyMap, IShellIntegration, IShellLaunchConfig, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, ProcessPropertyType, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalShellType, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { IExtensionTerminalProfile, IProcessPropertyMap, IShellIntegration, IShellLaunchConfig, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, ProcessPropertyType, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalShellType, TerminalType, TitleEventSource, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
 import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProcess';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
@@ -257,6 +257,11 @@ interface ITerminalEditorInputObject {
 	readonly icon: TerminalIcon | undefined;
 	readonly color: string | undefined;
 	readonly hasChildProcesses?: boolean;
+	readonly task?: { label: string; id: string; lastTask: string; group?: string; waitOnExit?: WaitOnExitValue };
+	readonly type?: TerminalType;
+	readonly isFeatureTerminal?: boolean;
+	readonly hideFromUser?: boolean;
+	readonly reconnectionOwner?: string;
 }
 
 export interface ISerializedTerminalEditorInput extends ITerminalEditorInputObject {
@@ -512,6 +517,12 @@ export interface ITerminalInstance {
 	 * Whether an element within this terminal is focused.
 	 */
 	readonly hasFocus: boolean;
+
+	/**
+	 * Get or set the behavior of the terminal when it closes. This was indented only to be called
+	 * after reconnecting to a terminal.
+	 */
+	waitOnExit: WaitOnExitValue | undefined;
 
 	/**
 	 * An event that fires when the terminal instance's title changes.

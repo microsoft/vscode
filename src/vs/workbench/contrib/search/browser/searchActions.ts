@@ -456,7 +456,8 @@ class ReplaceActionRunner {
 
 	async performReplace(element: FolderMatch | FileMatch | Match): Promise<any> {
 		// since multiple elements can be selected, we need to check the type of the FolderMatch/FileMatch/Match before we perform the replace.
-		const elementsToReplace = getElementsToOperateOnInfo(this.viewer, element, this.configurationService.getValue<ISearchConfigurationProperties>('search'));
+		const opInfo = getElementsToOperateOnInfo(this.viewer, element, this.configurationService.getValue<ISearchConfigurationProperties>('search'));
+		const elementsToReplace = opInfo.elements;
 
 		await Promise.all(elementsToReplace.map(async (elem) => {
 			const parent = elem.parent();
@@ -585,11 +586,12 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 	}
 
 	override run(): Promise<any> {
-		const elementsToRemove = getElementsToOperateOnInfo(this.viewer, this.element, this.configurationService.getValue<ISearchConfigurationProperties>('search'));
+		const opInfo = getElementsToOperateOnInfo(this.viewer, this.element, this.configurationService.getValue<ISearchConfigurationProperties>('search'));
+		const elementsToRemove = opInfo.elements;
 
 		const currentBottomFocusElement = elementsToRemove[elementsToRemove.length - 1];
 
-		const nextFocusElement = !currentBottomFocusElement || currentBottomFocusElement instanceof SearchResult || arrayContainsElementOrParent(currentBottomFocusElement, elementsToRemove) ?
+		const nextFocusElement = opInfo.mustReselect && (!currentBottomFocusElement || currentBottomFocusElement instanceof SearchResult || arrayContainsElementOrParent(currentBottomFocusElement, elementsToRemove)) ?
 			this.getElementToFocusAfterRemoved(this.viewer, <any>currentBottomFocusElement) :
 			null;
 
@@ -823,13 +825,15 @@ export const focusSearchListCommand: ICommandHandler = accessor => {
 	});
 };
 
-function getElementsToOperateOnInfo(viewer: WorkbenchObjectTree<RenderableMatch, void>, currElement: RenderableMatch, sortConfig: ISearchConfigurationProperties): RenderableMatch[] {
+function getElementsToOperateOnInfo(viewer: WorkbenchObjectTree<RenderableMatch, void>, currElement: RenderableMatch, sortConfig: ISearchConfigurationProperties): { elements: RenderableMatch[]; mustReselect: boolean } {
 	let elements: RenderableMatch[] = viewer.getSelection().filter((x): x is RenderableMatch => x !== null).sort((a, b) => searchComparer(a, b, sortConfig.sortOrder));
+
+	const mustReselect = elements.includes(currElement); // this indicates whether we need to re-focus/re-select on a remove.
 
 	// if selection doesn't include multiple elements, just return current focus element.
 	if (!(elements.length > 1 && elements.includes(currElement))) {
 		elements = [currElement];
 	}
 
-	return elements;
+	return { elements, mustReselect };
 }

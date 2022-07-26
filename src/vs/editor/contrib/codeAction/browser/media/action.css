@@ -18,6 +18,7 @@
 	border-color: none;
 	background-color: var(--vscode-menu-background);
 	color: var(--vscode-menu-foreground);
+	box-shadow: rgb(0,0,0, 16%) 0px 2px 8px;
 }
 
 .codeActionMenuWidget .monaco-list:not(.element-focused):focus:before {
