@@ -61,10 +61,10 @@ class StickyScrollController implements IEditorContribution {
 			return;
 		} else {
 			this._editor.addOverlayWidget(this.stickyScrollWidget);
-			this._sessionStore.add(this._editor.onDidChangeModel(() => this._update(true)));
+			this._sessionStore.add(this._editor.onDidChangeModel(() => setTimeout(() => this._update(true), 1000)));
 			this._sessionStore.add(this._editor.onDidScrollChange(() => this._update(false)));
-			this._sessionStore.add(this._editor.onDidChangeModelContent(() => this._update(true)));
-			this._sessionStore.add(this._languageFeaturesService.documentSymbolProvider.onDidChange(() => this._update(true)));
+			this._sessionStore.add(this._editor.onDidChangeModelContent(() => setTimeout(() => this._update(true), 1000)));
+			this._sessionStore.add(this._languageFeaturesService.documentSymbolProvider.onDidChange(() => setTimeout(() => this._update(true), 1000)));
 			this._update(true);
 		}
 	}
@@ -154,15 +154,13 @@ class StickyScrollController implements IEditorContribution {
 			}
 		}
 	}
-	private _renderStickyScroll() {
 
+	private _renderStickyScroll() {
 		if (!(this._editor.hasModel())) {
 			return;
 		}
-
 		const lineHeight: number = this._editor.getOption(EditorOption.lineHeight);
 		const model = this._editor.getModel();
-
 		const scrollTop = this._editor.getScrollTop();
 		let scrollDirection: ScrollDirection;
 		if (this._lastScrollPosition < scrollTop) {
