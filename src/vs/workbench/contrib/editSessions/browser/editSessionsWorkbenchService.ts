@@ -355,7 +355,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			constructor() {
 				super({
 					id: 'workbench.editSessions.actions.resetAuth',
-					title: localize('reset auth', 'Sign Out'),
+					title: localize('reset auth.v2', 'Sign Out of Edit Sessions'),
 					category: EDIT_SESSION_SYNC_CATEGORY,
 					precondition: ContextKeyExpr.equals(EDIT_SESSIONS_SIGNED_IN_KEY, true),
 					menu: [{
