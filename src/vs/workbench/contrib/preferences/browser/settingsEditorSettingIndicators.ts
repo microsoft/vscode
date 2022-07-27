@@ -189,6 +189,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 					localize('alsoConfiguredElsewhere', "Also modified elsewhere") :
 					localize('configuredElsewhere', "Modified elsewhere");
 				this.scopeOverridesLabel.text = scopeOverridesLabelText;
+				this.scopeOverridesElement.tabIndex = 0;
 
 				let contentMarkdownString = '';
 				let contentFallback = '';
