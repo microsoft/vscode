@@ -880,7 +880,7 @@ function applyUpdate<T>(value: T | undefined, update: T): ApplyUpdateResult<T> {
 	}
 	if (Array.isArray(value) || Array.isArray(update)) {
 		const arrayEquals = Array.isArray(value) && Array.isArray(update) && arrays.equals(value, update);
-		return new ApplyUpdateResult(update, arrayEquals);
+		return new ApplyUpdateResult(update, !arrayEquals);
 	}
 	let didChange = false;
 	for (const key in update) {
