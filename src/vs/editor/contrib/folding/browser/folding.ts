@@ -1140,12 +1140,8 @@ class RemoveFoldRangeFromSelectionAction extends FoldingAction<void> {
 		if (selections) {
 			const ranges: ILineRange[] = [];
 			for (const selection of selections) {
-				let endLineNumber = selection.endLineNumber;
-				if (selection.endColumn === 1) {
-					--endLineNumber;
-				}
-				const startLineNumber = selection.startLineNumber;
-				ranges.push(endLineNumber >= selection.startLineNumber ? { startLineNumber, endLineNumber } : { endLineNumber, startLineNumber });
+				const { startLineNumber, endLineNumber } = selection;
+				ranges.push(endLineNumber >= startLineNumber ? { startLineNumber, endLineNumber } : { endLineNumber, startLineNumber });
 			}
 			foldingModel.removeManualRanges(ranges);
 			foldingController.triggerFoldingModelChanged();
