@@ -71,6 +71,7 @@ export interface ICodeActionMenuItem {
 	isEnabled: boolean;
 	isDocumentation: boolean;
 	index: number;
+	disabledReason?: string;
 	disposables?: IDisposable[];
 }
 
@@ -129,6 +130,7 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 		if (!isEnabled) {
 			data.root.classList.add('option-disabled');
 			data.root.style.backgroundColor = 'transparent !important';
+
 		} else {
 			data.root.classList.remove('option-disabled');
 		}
@@ -139,12 +141,16 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 		}
 
 		if (!isDocumentation) {
-			const updateLabel = () => {
-				const [accept, preview] = this.acceptKeybindings;
-				data.root.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Refactor, Shift+F2 to Preview"'] }, "{0} to Rename, {1} to Preview", this.keybindingService.lookupKeybinding(accept)?.getLabel(), this.keybindingService.lookupKeybinding(preview)?.getLabel());
-				// data.root.title = this.keybindingService.lookupKeybinding(accept)?.getLabel() + ' to Refactor, ' + this.keybindingService.lookupKeybinding(preview)?.getLabel() + ' to Preview';
-			};
-			updateLabel();
+			if (element.disabledReason) {
+				data.root.title = element.disabledReason;
+			} else {
+				const updateLabel = () => {
+					const [accept, preview] = this.acceptKeybindings;
+					data.root.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Refactor, Shift+F2 to Preview"'] }, "{0} to Refactor, {1} to Preview", this.keybindingService.lookupKeybinding(accept)?.getLabel(), this.keybindingService.lookupKeybinding(preview)?.getLabel());
+					// data.root.title = this.keybindingService.lookupKeybinding(accept)?.getLabel() + ' to Refactor, ' + this.keybindingService.lookupKeybinding(preview)?.getLabel() + ' to Preview';
+				};
+				updateLabel();
+			}
 		}
 
 	}
@@ -164,6 +170,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	private currSelectedItem: number = 0;
 	private hasSeperator: boolean = false;
 	private block?: HTMLElement;
+	private currHoverItem: IListMouseEvent<ICodeActionMenuItem> | undefined;
 
 	public static readonly documentationID: string = '_documentation';
 
@@ -213,14 +220,16 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 			e.elements.forEach(element => {
 				if (element.isEnabled) {
 					element.action.run();
+					this.hideCodeActionWidget();
 				}
 			});
-			this.hideCodeActionWidget();
+
 		}
 	}
 
 
 	private _onListHover(e: IListMouseEvent<ICodeActionMenuItem>): void {
+		this.currHoverItem = e;
 		if (!e.element) {
 			this.codeActionList.value?.setFocus([]);
 		} else {
@@ -228,9 +237,21 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 				this.codeActionList.value?.setFocus([e.element.index]);
 				this.focusedEnabledItem = this.viewItems.indexOf(e.element);
 				this.currSelectedItem = e.element.index;
+			} else {
+				this.codeActionList.value?.setFocus([e.element.index]);
 			}
 		}
 	}
+
+	// private _onMouseClick(e: IListMouseEvent<ICodeActionMenuItem>): void {
+	// 	if (!e.element) {
+	// 		return;
+	// 	}
+
+	// 	if (!e.element.isEnabled) {
+	// 		return;
+	// 	}
+	// }
 
 	private renderCodeActionMenuList(element: HTMLElement, inputArray: IAction[]): IDisposable {
 		const renderDisposables = new DisposableStore();
@@ -268,6 +289,8 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		}, [this.listRenderer], { keyboardSupport: false }
 		);
 
+
+		// renderDisposables.add(this.codeActionList.value.onMouseClick(e => this.)
 		renderDisposables.add(this.codeActionList.value.onMouseOver(e => this._onListHover(e)));
 		renderDisposables.add(this.codeActionList.value.onDidChangeFocus(e => this.codeActionList.value?.domFocus()));
 		renderDisposables.add(this.codeActionList.value.onDidChangeSelection(e => this._onListSelection(e)));
@@ -278,15 +301,19 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		inputArray.forEach((item, index) => {
 			const currIsSeparator = item.class === 'separator';
 			let isDocumentation = false;
+			let disabledReason = '';
 			if (item instanceof CodeActionAction) {
 				isDocumentation = item.action.kind === CodeActionMenu.documentationID;
+				if (item.action.disabled) {
+					disabledReason = item.action.disabled;
+				}
 			}
 
 			if (currIsSeparator) {
 				// set to true forever
 				this.hasSeperator = true;
 			}
-			const menuItem = <ICodeActionMenuItem>{ title: item.label, detail: item.tooltip, action: inputArray[index], isEnabled: item.enabled, isSeparator: currIsSeparator, index, isDocumentation };
+			const menuItem = <ICodeActionMenuItem>{ title: item.label, detail: item.tooltip, action: inputArray[index], isEnabled: item.enabled, isSeparator: currIsSeparator, index, isDocumentation, disabledReason };
 			if (item.enabled) {
 				this.viewItems.push(menuItem);
 			}
@@ -391,7 +418,10 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	}
 
 	public onEnterSet() {
-		this.codeActionList.value?.setSelection([this.currSelectedItem]);
+		if (this.currHoverItem?.element?.isEnabled) {
+			this.codeActionList.value?.setSelection([this.currSelectedItem]);
+		}
+
 	}
 
 	override dispose() {
