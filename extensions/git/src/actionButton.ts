@@ -111,10 +111,6 @@ export class ActionButtonCommand {
 		}
 
 		// Commit
-		let commandArg = '';
-		let title = localize('scm button commit title', "{0} Commit", '$(check)');
-		let tooltip = this.state.isCommitInProgress ? localize('scm button committing tooltip', "Committing Changes...") : localize('scm button commit tooltip', "Commit Changes");
-
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const postCommitCommand = config.get<string>('postCommitCommand');
 
@@ -126,6 +122,10 @@ export class ActionButtonCommand {
 
 		// Icon
 		const icon = alwaysPrompt ? '$(lock)' : alwaysCommitToNewBranch ? '$(git-branch)' : undefined;
+
+		let commandArg = '';
+		let title = localize('scm button commit title', "{0} Commit", icon ?? '$(check)');
+		let tooltip = this.state.isCommitInProgress ? localize('scm button committing tooltip', "Committing Changes...") : localize('scm button commit tooltip', "Commit Changes");
 
 		// Title, tooltip
 		switch (postCommitCommand) {
