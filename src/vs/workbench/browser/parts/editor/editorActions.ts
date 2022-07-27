@@ -1524,23 +1524,27 @@ export class ClearRecentFilesAction extends Action {
 		label: string,
 		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@IHistoryService private readonly historyService: IHistoryService,
-		@IDialogService private readonly dialogService: IDialogService
+		@IDialogService private readonly dialogService: IDialogService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(id, label);
 	}
 
 	override async run(): Promise<void> {
+		const shouldConfirm = this.configurationService.getValue<boolean>('workbench.confirmClearRecentFiles');
 
-		// Ask for confirmation
-		const { confirmed } = await this.dialogService.confirm({
-			message: localize('confirmClearRecentsMessage', "Do you want to clear all recently opened files and workspaces?"),
-			detail: localize('confirmClearDetail', "This action is irreversible!"),
-			primaryButton: localize({ key: 'clearButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Clear"),
-			type: 'warning'
-		});
+		if (shouldConfirm) {
+			// Ask for confirmation
+			const { confirmed } = await this.dialogService.confirm({
+				message: localize('confirmClearRecentsMessage', "Do you want to clear all recently opened files and workspaces?"),
+				detail: localize('confirmClearDetail', "This action is irreversible!"),
+				primaryButton: localize({ key: 'clearButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Clear"),
+				type: 'warning'
+			});
 
-		if (!confirmed) {
-			return;
+			if (!confirmed) {
+				return;
+			}
 		}
 
 		// Clear global recently opened
@@ -1800,23 +1804,27 @@ export class ClearEditorHistoryAction extends Action {
 		id: string,
 		label: string,
 		@IHistoryService private readonly historyService: IHistoryService,
-		@IDialogService private readonly dialogService: IDialogService
+		@IDialogService private readonly dialogService: IDialogService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(id, label);
 	}
 
 	override async run(): Promise<void> {
+		const shouldConfirm = this.configurationService.getValue<boolean>('workbench.confirmClearEditorHistory');
 
-		// Ask for confirmation
-		const { confirmed } = await this.dialogService.confirm({
-			message: localize('confirmClearEditorHistoryMessage', "Do you want to clear the history of recently opened editors?"),
-			detail: localize('confirmClearDetail', "This action is irreversible!"),
-			primaryButton: localize({ key: 'clearButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Clear"),
-			type: 'warning'
-		});
+		if (shouldConfirm) {
+			// Ask for confirmation
+			const { confirmed } = await this.dialogService.confirm({
+				message: localize('confirmClearEditorHistoryMessage', "Do you want to clear the history of recently opened editors?"),
+				detail: localize('confirmClearDetail', "This action is irreversible!"),
+				primaryButton: localize({ key: 'clearButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Clear"),
+				type: 'warning'
+			});
 
-		if (!confirmed) {
-			return;
+			if (!confirmed) {
+				return;
+			}
 		}
 
 		// Clear editor history

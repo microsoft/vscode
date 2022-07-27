@@ -290,6 +290,16 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': false,
 				'description': localize('perEditorGroup', "Controls if the limit of maximum opened editors should apply per editor group or across all editor groups.")
 			},
+			'workbench.confirmClearEditorHistory': {
+				'type': 'boolean',
+				'default': true,
+				'description': localize('confirmClearEditorHistory', "Controls whether to ask for confirmation when executing the clear editor history action (workbench.action.clearEditorHistory).")
+			},
+			'workbench.confirmClearRecentFiles': {
+				'type': 'boolean',
+				'default': true,
+				'description': localize('confirmClearRecentFiles', "Controls whether to ask for confirmation when executing the File: clear recently opened action (workbench.action.clearRecentFiles).")
+			},
 			'workbench.localHistory.enabled': {
 				'type': 'boolean',
 				'default': true,
@@ -327,6 +337,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('commandHistory', "Controls the number of recently used commands to keep in history for the command palette. Set to 0 to disable command history."),
 				'default': 50,
 				'minimum': 0
+			},
+			'workbench.commandPalette.confirmClearCommandHistory': {
+				'type': 'boolean',
+				'default': true,
+				'description': localize('confirmClearCommandHistory', "Controls whether to ask for confirmation when executing the clear command history action (workbench.action.clearRecentFiles).")
 			},
 			'workbench.commandPalette.preserveInput': {
 				'type': 'boolean',

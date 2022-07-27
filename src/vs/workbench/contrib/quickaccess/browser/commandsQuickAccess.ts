@@ -193,16 +193,20 @@ export class ClearCommandHistoryAction extends Action2 {
 		const commandHistoryLength = CommandsHistory.getConfiguredCommandHistoryLength(configurationService);
 		if (commandHistoryLength > 0) {
 
-			// Ask for confirmation
-			const { confirmed } = await dialogService.confirm({
-				message: localize('confirmClearMessage', "Do you want to clear the history of recently used commands?"),
-				detail: localize('confirmClearDetail', "This action is irreversible!"),
-				primaryButton: localize({ key: 'clearButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Clear"),
-				type: 'warning'
-			});
+			const shouldConfirm = configurationService.getValue<boolean>('workbench.commandPalette.confirmClearCommandHistory');
 
-			if (!confirmed) {
-				return;
+			if (shouldConfirm) {
+				// Ask for confirmation
+				const { confirmed } = await dialogService.confirm({
+					message: localize('confirmClearMessage', "Do you want to clear the history of recently used commands?"),
+					detail: localize('confirmClearDetail', "This action is irreversible!"),
+					primaryButton: localize({ key: 'clearButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Clear"),
+					type: 'warning'
+				});
+
+				if (!confirmed) {
+					return;
+				}
 			}
 
 			CommandsHistory.clearHistory(configurationService, storageService);
