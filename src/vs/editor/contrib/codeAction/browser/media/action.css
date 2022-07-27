@@ -30,10 +30,10 @@
 	z-index: 5; /* make sure we are on top of the tree items */
 	content: "";
 	pointer-events: none; /* enable click through */
-	outline: 0px solid; /* we still need to handle the empty tree or no focus item case */
-	outline-width: 0px;
-	outline-style: none;
-	outline-offset: 0px;
+	outline: 0px solid !important; /* we still need to handle the empty tree or no focus item case */
+	outline-width: 0px !important;
+	outline-style: none !important;
+	outline-offset: 0px !important;
 }
 
 .codeActionMenuWidget .monaco-list {
