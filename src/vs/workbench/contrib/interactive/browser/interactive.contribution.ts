@@ -766,7 +766,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[InteractiveWindowSetting.interactiveWindowRestore]: {
 			type: 'boolean',
 			default: false,
-			markdownDescription: localize('interactiveWindow.restore', "Controls whether the interactive window sessions should be restored when the workspace reloads.")
+			markdownDescription: localize('interactiveWindow.restore', "Controls whether the Interactive Window sessions/history should be restored across window reloads. Whether the state of controllers used in Interactive Windows is persisted across window reloads are controlled by extensions contributing controllers.")
 		}
 	}
 });
