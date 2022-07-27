@@ -130,7 +130,6 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 		if (!isEnabled) {
 			data.root.classList.add('option-disabled');
 			data.root.style.backgroundColor = 'transparent !important';
-
 		} else {
 			data.root.classList.remove('option-disabled');
 		}

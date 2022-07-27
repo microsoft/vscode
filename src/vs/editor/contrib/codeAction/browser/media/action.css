@@ -82,7 +82,6 @@
 .codeActionMenuWidget .monaco-list .option-disabled:before,
 .codeActionMenuWidget .monaco-list .option-disabled .focused,
 .codeActionMenuWidget .monaco-list .option-disabled .focused:before {
-	/* pointer-events: none; */
 	cursor: default !important;
 	-webkit-touch-callout: none;
 	-webkit-user-select: none;
@@ -97,10 +96,6 @@
 	outline-style: none !important;
 	outline-offset: 0px !important;
 }
-/*
-.codeActionMenuWidget .monaco-list:focus .monaco-list-row.selected.focused {
-	background-color: red !important;
-} */
 
 .codeActionMenuWidget .monaco-list .separator {
 	border-bottom: 1px solid var(--vscode-menu-separatorBackground);
