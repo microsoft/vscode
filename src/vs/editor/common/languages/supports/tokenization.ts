@@ -230,12 +230,10 @@ export class TokenTheme {
 		if (typeof result === 'undefined') {
 			const rule = this._match(token);
 			const standardToken = toStandardTokenType(token);
-
 			result = (
 				rule.metadata
 				| (standardToken << MetadataConsts.TOKEN_TYPE_OFFSET)
 			) >>> 0;
-			result |= MetadataConsts.BALANCED_BRACKETS_MASK;
 			this._cache.set(token, result);
 		}
 
