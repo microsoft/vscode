@@ -206,7 +206,7 @@ export class LanguageDetectionWorkerHost {
 			owner: 'TylerLeonhardt';
 			comment: 'Helps understand how effective language detection is via confidences and how long it takes to run';
 			languages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The languages that are guessed' };
-			confidences: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The confidences of each langauge guessed' };
+			confidences: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The confidences of each language guessed' };
 			timeSpent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The time it took to run language detection' };
 		};
 

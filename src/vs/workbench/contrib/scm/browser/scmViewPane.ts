@@ -1788,9 +1788,8 @@ class SCMInputWidget {
 		}
 
 		const uri = URI.from({
-			scheme: Schemas.vscode,
-			authority: 'scm',
-			path: `/${input.repository.provider.contextValue}/${input.repository.provider.id}/input`,
+			scheme: Schemas.vscodeSourceControl,
+			path: `${input.repository.provider.contextValue}/${input.repository.provider.id}/input`,
 			query
 		});
 
@@ -1964,7 +1963,7 @@ class SCMInputWidget {
 			scrollbar: { alwaysConsumeMouseWheel: false },
 			overflowWidgetsDomNode,
 			renderWhitespace: 'none',
-			enableDropIntoEditor: true,
+			dropIntoEditor: { enabled: true },
 			accessibilitySupport
 		};
 

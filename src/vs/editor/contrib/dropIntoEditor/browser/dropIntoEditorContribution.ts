@@ -25,7 +25,6 @@ import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from 'vs/edit
 import { performSnippetEdit } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
@@ -37,7 +36,6 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 	constructor(
 		editor: ICodeEditor,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IProgressService private readonly _progressService: IProgressService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
@@ -46,22 +44,7 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 
 		this._register(editor.onDropIntoEditor(e => this.onDropIntoEditor(editor, e.position, e.event)));
 
-
 		this._languageFeaturesService.documentOnDropEditProvider.register('*', new DefaultOnDropProvider(workspaceContextService));
-
-		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('workbench.editor.dropIntoEditor.enabled')) {
-				this.updateEditorOptions(editor);
-			}
-		}));
-
-		this.updateEditorOptions(editor);
-	}
-
-	private updateEditorOptions(editor: ICodeEditor) {
-		editor.updateOptions({
-			enableDropIntoEditor: this._configurationService.getValue('workbench.editor.dropIntoEditor.enabled')
-		});
 	}
 
 	private async onDropIntoEditor(editor: ICodeEditor, position: IPosition, dragEvent: DragEvent) {

@@ -278,7 +278,7 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 	}
 
 	private dedupExtensions(system: IScannedExtension[] | undefined, user: IScannedExtension[] | undefined, development: IScannedExtension[] | undefined, targetPlatform: TargetPlatform, pickLatest: boolean): IScannedExtension[] {
-		const pick = (existing: IScannedExtension, extension: IScannedExtension): boolean => {
+		const pick = (existing: IScannedExtension, extension: IScannedExtension, isDevelopment: boolean): boolean => {
 			if (existing.isValid && !extension.isValid) {
 				return false;
 			}
@@ -298,10 +298,10 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 					}
 				}
 			}
-			if (existing.type === ExtensionType.System) {
-				this.logService.debug(`Overwriting system extension ${existing.location.path} with ${extension.location.path}.`);
-			} else {
+			if (isDevelopment) {
 				this.logService.warn(`Overwriting user extension ${existing.location.path} with ${extension.location.path}.`);
+			} else {
+				this.logService.debug(`Overwriting user extension ${existing.location.path} with ${extension.location.path}.`);
 			}
 			return true;
 		};
@@ -309,7 +309,7 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 		system?.forEach((extension) => {
 			const extensionKey = ExtensionIdentifier.toKey(extension.identifier.id);
 			const existing = result.get(extensionKey);
-			if (!existing || pick(existing, extension)) {
+			if (!existing || pick(existing, extension, false)) {
 				result.set(extensionKey, extension);
 			}
 		});
@@ -320,14 +320,14 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 				this.logService.debug(`Skipping obsolete system extension ${extension.location.path}.`);
 				return;
 			}
-			if (!existing || pick(existing, extension)) {
+			if (!existing || pick(existing, extension, false)) {
 				result.set(extensionKey, extension);
 			}
 		});
 		development?.forEach(extension => {
 			const extensionKey = ExtensionIdentifier.toKey(extension.identifier.id);
 			const existing = result.get(extensionKey);
-			if (!existing || pick(existing, extension)) {
+			if (!existing || pick(existing, extension, true)) {
 				result.set(extensionKey, extension);
 			}
 			result.set(extensionKey, extension);

@@ -86,7 +86,6 @@ export class NotificationsStatus extends Disposable {
 		if (this.notificationService.doNotDisturbMode) {
 			statusProperties = {
 				...statusProperties,
-				name: localize('status.doNotDisturb', "Do Not Disturb"),
 				text: `${notificationsInProgress > 0 || this.newNotificationsCount > 0 ? '$(bell-slash-dot)' : '$(bell-slash)'}`,
 				ariaLabel: localize('status.doNotDisturb', "Do Not Disturb"),
 				tooltip: localize('status.doNotDisturbTooltip', "Do Not Disturb Mode is Enabled")

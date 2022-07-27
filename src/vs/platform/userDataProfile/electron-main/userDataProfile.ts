@@ -17,6 +17,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 
 export const IUserDataProfilesMainService = refineServiceDecorator<IUserDataProfilesService, IUserDataProfilesMainService>(IUserDataProfilesService);
 export interface IUserDataProfilesMainService extends IUserDataProfilesService {
+	isEnabled(): boolean;
 	unsetWorkspace(workspaceIdentifier: WorkspaceIdentifier): Promise<void>;
 	readonly onWillCreateProfile: Event<WillCreateProfileEvent>;
 	readonly onWillRemoveProfile: Event<WillRemoveProfileEvent>;
@@ -32,6 +33,10 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		@ILogService logService: ILogService,
 	) {
 		super(stateMainService, uriIdentityService, environmentService, fileService, logService);
+	}
+
+	isEnabled(): boolean {
+		return this.enabled;
 	}
 
 	protected override saveStoredProfiles(storedProfiles: StoredUserDataProfile[]): void {

@@ -664,6 +664,7 @@ export class CommentController implements IEditorContribution {
 				const pendingCommentText = this._pendingCommentCache[e.owner] && this._pendingCommentCache[e.owner][thread.threadId!];
 				this.displayCommentThread(e.owner, thread, pendingCommentText);
 				this._commentInfos.filter(info => info.owner === e.owner)[0].threads.push(thread);
+				this.tryUpdateReservedSpace();
 			});
 			this._commentThreadRangeDecorator.update(this.editor, commentInfo);
 		}));
@@ -841,15 +842,14 @@ export class CommentController implements IEditorContribution {
 		return;
 	}
 
-	private setComments(commentInfos: ICommentInfo[]): void {
-		if (!this.editor || !this.commentService.isCommentingEnabled) {
-			return;
-		}
-
-		this._commentInfos = commentInfos;
+	private tryUpdateReservedSpace() {
 		let lineDecorationsWidth: number = this.editor.getLayoutInfo().decorationsWidth;
+		const hasCommentsOrRanges = this._commentInfos.some(info => {
+			const hasRanges = Boolean(info.commentingRanges && (Array.isArray(info.commentingRanges) ? info.commentingRanges : info.commentingRanges.ranges).length);
+			return hasRanges || (info.threads.length > 0);
+		});
 
-		if (this._commentInfos.some(info => Boolean(info.commentingRanges && (Array.isArray(info.commentingRanges) ? info.commentingRanges : info.commentingRanges.ranges).length))) {
+		if (hasCommentsOrRanges) {
 			this._workspaceHasCommenting.set(true);
 			if (!this._commentingRangeSpaceReserved) {
 				this._commentingRangeSpaceReserved = true;
@@ -879,7 +879,15 @@ export class CommentController implements IEditorContribution {
 				});
 			}
 		}
+	}
 
+	private setComments(commentInfos: ICommentInfo[]): void {
+		if (!this.editor || !this.commentService.isCommentingEnabled) {
+			return;
+		}
+
+		this._commentInfos = commentInfos;
+		this.tryUpdateReservedSpace();
 		// create viewzones
 		this.removeCommentWidgetsAndStoreCache();
 
