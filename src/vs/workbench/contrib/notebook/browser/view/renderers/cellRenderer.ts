@@ -275,7 +275,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 				width: 0,
 				height: 0
 			},
-			enableDropIntoEditor: true,
+			dropIntoEditor: { enabled: true },
 		}, {
 			contributions: this.notebookEditor.creationOptions.cellEditorContributions
 		});

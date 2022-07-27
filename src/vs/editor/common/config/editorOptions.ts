@@ -170,6 +170,10 @@ export interface IEditorOptions {
 	 */
 	scrollbar?: IEditorScrollbarOptions;
 	/**
+	 * Control the behavior of the sticky scroll
+	 */
+	stickyScroll?: IEditorStickyScrollOptions;
+	/**
 	 * Control the behavior and rendering of the minimap.
 	 */
 	minimap?: IEditorMinimapOptions;
@@ -661,11 +665,11 @@ export interface IEditorOptions {
 	bracketPairColorization?: IBracketPairColorizationOptions;
 
 	/**
-	 * Enables dropping into the editor from an external source.
+	 * Controls dropping into the editor from an external source.
 	 *
-	 * This shows a preview of the drop location and triggers an `onDropIntoEditor` event.
+	 * When enabled, this shows a preview of the drop location and triggers an `onDropIntoEditor` event.
 	 */
-	enableDropIntoEditor?: boolean;
+	dropIntoEditor?: IDropIntoEditorOptions;
 }
 
 /**
@@ -2496,6 +2500,54 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 			return this.defaultValue;
 		}
 		const input = _input as IEditorLightbulbOptions;
+		return {
+			enabled: boolean(input.enabled, this.defaultValue.enabled)
+		};
+	}
+}
+
+//#endregion
+
+//#region sticky scroll
+
+/**
+ * Configuration options for editor sticky scroll
+ */
+
+export interface IEditorStickyScrollOptions {
+	/**
+	 * Enable the sticky scroll
+	 */
+	enabled?: boolean;
+}
+
+/**
+ * @internal
+ */
+
+export type EditorStickyScrollOptions = Readonly<Required<IEditorStickyScrollOptions>>;
+
+class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEditorStickyScrollOptions, EditorStickyScrollOptions> {
+
+	constructor() {
+		const defaults: EditorStickyScrollOptions = { enabled: false };
+		super(
+			EditorOption.stickyScroll, 'stickyScroll', defaults,
+			{
+				'editor.stickyScroll.enabled': {
+					type: 'boolean',
+					default: defaults.enabled,
+					description: nls.localize('editor.stickyScroll', "Enables the sticky scroll in the editor.")
+				},
+			}
+		);
+	}
+
+	public validate(_input: any): EditorStickyScrollOptions {
+		if (!_input || typeof _input !== 'object') {
+			return this.defaultValue;
+		}
+		const input = _input as IEditorStickyScrollOptions;
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled)
 		};
@@ -4387,6 +4439,53 @@ class EditorWrappingInfoComputer extends ComputedEditorOption<EditorOption.wrapp
 
 //#endregion
 
+//#region dropIntoEditor
+
+/**
+ * Configuration options for editor drop into behavior
+ */
+export interface IDropIntoEditorOptions {
+	/**
+	 * Enable the dropping into editor.
+	 * Defaults to true.
+	 */
+	enabled?: boolean;
+}
+
+/**
+ * @internal
+ */
+export type EditorDropIntoEditorOptions = Readonly<Required<IDropIntoEditorOptions>>;
+
+class EditorDropIntoEditor extends BaseEditorOption<EditorOption.dropIntoEditor, IDropIntoEditorOptions, EditorDropIntoEditorOptions> {
+
+	constructor() {
+		const defaults: EditorDropIntoEditorOptions = { enabled: true };
+		super(
+			EditorOption.dropIntoEditor, 'dropIntoEditor', defaults,
+			{
+				'editor.dropIntoEditor.enabled': {
+					type: 'boolean',
+					default: defaults.enabled,
+					markdownDescription: nls.localize('dropIntoEditor.enabled', "Controls whether you can drag and drop a file into a text editor by holding down `shift` (instead of opening the file in an editor)."),
+				},
+			}
+		);
+	}
+
+	public validate(_input: any): EditorDropIntoEditorOptions {
+		if (!_input || typeof _input !== 'object') {
+			return this.defaultValue;
+		}
+		const input = _input as IDropIntoEditorOptions;
+		return {
+			enabled: boolean(input.enabled, this.defaultValue.enabled)
+		};
+	}
+}
+
+//#endregion
+
 const DEFAULT_WINDOWS_FONT_FAMILY = 'Consolas, \'Courier New\', monospace';
 const DEFAULT_MAC_FONT_FAMILY = 'Menlo, Monaco, \'Courier New\', monospace';
 const DEFAULT_LINUX_FONT_FAMILY = '\'Droid Sans Mono\', \'monospace\', monospace';
@@ -4449,7 +4548,7 @@ export const enum EditorOption {
 	disableMonospaceOptimizations,
 	domReadOnly,
 	dragAndDrop,
-	enableDropIntoEditor,
+	dropIntoEditor,
 	emptySelectionClipboard,
 	extraEditorClassName,
 	fastScrollSensitivity,
@@ -4523,6 +4622,7 @@ export const enum EditorOption {
 	smartSelect,
 	smoothScrolling,
 	stickyTabStops,
+	stickyScroll,
 	stopRenderingLineAfter,
 	suggest,
 	suggestFontSize,
@@ -4758,9 +4858,7 @@ export const EditorOptions = {
 		{ description: nls.localize('dragAndDrop', "Controls whether the editor should allow moving selections via drag and drop.") }
 	)),
 	emptySelectionClipboard: register(new EditorEmptySelectionClipboard()),
-	enableDropIntoEditor: register(new EditorBooleanOption(
-		EditorOption.enableDropIntoEditor, 'enableDropIntoEditor', true
-	)),
+	dropIntoEditor: register(new EditorDropIntoEditor()),
 	extraEditorClassName: register(new EditorStringOption(
 		EditorOption.extraEditorClassName, 'extraEditorClassName', '',
 	)),
@@ -5079,6 +5177,7 @@ export const EditorOptions = {
 		EditorOption.smoothScrolling, 'smoothScrolling', false,
 		{ description: nls.localize('smoothScrolling', "Controls whether the editor will scroll using an animation.") }
 	)),
+	stickyScroll: register(new EditorStickyScroll()),
 	stopRenderingLineAfter: register(new EditorIntOption(
 		EditorOption.stopRenderingLineAfter, 'stopRenderingLineAfter',
 		10000, -1, Constants.MAX_SAFE_SMALL_INTEGER,

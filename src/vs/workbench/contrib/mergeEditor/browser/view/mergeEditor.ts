@@ -47,7 +47,7 @@ import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/v
 import { ctxMergeBaseUri, ctxIsMergeEditor, ctxMergeEditorLayout, ctxMergeResultUri, MergeEditorLayoutTypes } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
 import { settingsSashBorder } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorResolverService, MergeEditorInputFactoryFunction, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
+import { EditorInputFactoryFunction, IEditorResolverService, MergeEditorInputFactoryFunction, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import './colors';
 import { InputCodeEditorView } from './editors/inputCodeEditorView';
@@ -559,6 +559,28 @@ export class MergeEditorResolverContribution extends Disposable {
 	) {
 		super();
 
+		const editorInputFactory: EditorInputFactoryFunction = (editor) => {
+			return {
+				editor: instantiationService.createInstance(
+					MergeEditorInput,
+					editor.resource,
+					{
+						uri: editor.resource,
+						title: '',
+						description: '',
+						detail: ''
+					},
+					{
+						uri: editor.resource,
+						title: '',
+						description: '',
+						detail: ''
+					},
+					editor.resource
+				)
+			};
+		};
+
 		const mergeEditorInputFactory: MergeEditorInputFactoryFunction = (mergeEditor: IResourceMergeEditorInput): EditorInputWithOptions => {
 			return {
 				editor: instantiationService.createInstance(
@@ -566,15 +588,15 @@ export class MergeEditorResolverContribution extends Disposable {
 					mergeEditor.base.resource,
 					{
 						uri: mergeEditor.input1.resource,
-						title: mergeEditor.input1.label ?? basename(mergeEditor.input1.resource),
-						description: mergeEditor.input1.description ?? '',
-						detail: mergeEditor.input1.detail
+						title: basename(mergeEditor.input1.resource),
+						description: '',
+						detail: ''
 					},
 					{
 						uri: mergeEditor.input2.resource,
-						title: mergeEditor.input2.label ?? basename(mergeEditor.input2.resource),
-						description: mergeEditor.input2.description ?? '',
-						detail: mergeEditor.input2.detail
+						title: basename(mergeEditor.input2.resource),
+						description: '',
+						detail: ''
 					},
 					mergeEditor.result.resource
 				)
@@ -584,13 +606,14 @@ export class MergeEditorResolverContribution extends Disposable {
 		this._register(editorResolverService.registerEditor(
 			`*`,
 			{
-				id: DEFAULT_EDITOR_ASSOCIATION.id,
-				label: DEFAULT_EDITOR_ASSOCIATION.displayName,
+				id: MergeEditorInput.ID,
+				label: localize('editor.mergeEditor.label', "Merge Editor"),
 				detail: DEFAULT_EDITOR_ASSOCIATION.providerDisplayName,
-				priority: RegisteredEditorPriority.builtin
+				priority: RegisteredEditorPriority.option
 			},
 			{},
 			{
+				createEditorInput: editorInputFactory,
 				createMergeEditorInput: mergeEditorInputFactory
 			}
 		));

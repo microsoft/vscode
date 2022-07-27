@@ -90,7 +90,7 @@ export interface ICodeActionMenuTemplateData {
 }
 
 const TEMPLATE_ID = 'codeActionWidget';
-const codeActionLineHeight = 27;
+const codeActionLineHeight = 26;
 
 class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeActionMenuTemplateData> {
 	get templateId(): string { return TEMPLATE_ID; }
@@ -146,6 +146,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	private focusedEnabledItem: number | undefined;
 	private currSelectedItem: number = 0;
 	private hasSeperator: boolean = false;
+	private block?: HTMLElement;
 
 	public static readonly ID: string = 'editor.contrib.codeActionMenu';
 
@@ -203,6 +204,20 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		const renderDisposables = new DisposableStore();
 		const renderMenu = document.createElement('div');
 
+		// Render invisible div to block mouse interaction in the rest of the UI
+		const menuBlock = document.createElement('div');
+		this.block = element.appendChild(menuBlock);
+		this.block.classList.add('context-view-block');
+		this.block.style.position = 'fixed';
+		this.block.style.cursor = 'initial';
+		this.block.style.left = '0';
+		this.block.style.top = '0';
+		this.block.style.width = '100%';
+		this.block.style.height = '100%';
+		this.block.style.zIndex = '-1';
+
+		renderDisposables.add(dom.addDisposableListener(this.block, dom.EventType.MOUSE_DOWN, e => e.stopPropagation()));
+
 		renderMenu.id = 'codeActionMenuWidget';
 		renderMenu.classList.add('codeActionMenuWidget');
 
@@ -222,6 +237,8 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		);
 
 		renderDisposables.add(this.codeActionList.value.onDidChangeSelection(e => this._onListSelection(e)));
+		renderDisposables.add(this._editor.onDidLayoutChange(e => this.hideCodeActionWidget()));
+
 
 		// Populating the list widget and tracking enabled options.
 		inputArray.forEach((item, index) => {
@@ -257,13 +274,17 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		const maxWidth = Math.max(...arr);
 
 		// 40 is the additional padding for the list widget (20 left, 20 right)
-		renderMenu.style.width = maxWidth + 40 + 'px';
+		renderMenu.style.width = maxWidth + 52 + 'px';
 		this.codeActionList.value?.layout(height, maxWidth);
 
 		// List selection
-		this.focusedEnabledItem = 0;
-		this.currSelectedItem = this.viewItems[0].index;
-		this.codeActionList.value.setFocus([this.currSelectedItem]);
+		if (this.viewItems.length < 1) {
+			this.currSelectedItem = 0;
+		} else {
+			this.focusedEnabledItem = 0;
+			this.currSelectedItem = this.viewItems[0].index;
+			this.codeActionList.value.setFocus([this.currSelectedItem]);
+		}
 
 		// List Focus
 		this.codeActionList.value.domFocus();
@@ -282,7 +303,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	protected focusPrevious() {
 		if (typeof this.focusedEnabledItem === 'undefined') {
 			this.focusedEnabledItem = this.viewItems[0].index;
-		} else if (this.viewItems.length <= 1) {
+		} else if (this.viewItems.length < 1) {
 			return false;
 		}
 
@@ -305,7 +326,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	protected focusNext() {
 		if (typeof this.focusedEnabledItem === 'undefined') {
 			this.focusedEnabledItem = this.viewItems.length - 1;
-		} else if (this.viewItems.length <= 1) {
+		} else if (this.viewItems.length < 1) {
 			return false;
 		}
 

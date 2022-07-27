@@ -36,6 +36,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -245,8 +246,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 				// this is a copy of what the merged environment collection is on the remote side
 				const env = await this._resolveEnvironment(backend, variableResolver, shellLaunchConfig);
-
-				const shouldPersist = (!!shellLaunchConfig.reconnectionOwner || !shellLaunchConfig.isFeatureTerminal) && this._configHelper.config.enablePersistentSessions && !shellLaunchConfig.isTransient;
+				const shouldPersist = ((this._configurationService.getValue(TaskSettingId.Reconnection) && shellLaunchConfig.reconnectionOwner) || !shellLaunchConfig.isFeatureTerminal) && this._configHelper.config.enablePersistentSessions && !shellLaunchConfig.isTransient;
 				if (shellLaunchConfig.attachPersistentProcess) {
 					const result = await backend.attachToProcess(shellLaunchConfig.attachPersistentProcess.id);
 					if (result) {
@@ -318,7 +318,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}
 
 		this._process = newProcess;
-
 		this._setProcessState(ProcessState.Launching);
 
 		// Add any capabilities inherit to the backend
@@ -441,7 +440,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			remoteAuthority: undefined,
 			os: OS
 		});
-
 		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
 
 		const initialCwd = await terminalEnvironment.getCwd(
@@ -462,7 +460,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			windowsEnableConpty: this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled,
 			environmentVariableCollections: this._extEnvironmentVariableCollection ? serializeEnvironmentVariableCollections(this._extEnvironmentVariableCollection.collections) : undefined
 		};
-		const shouldPersist = this._configHelper.config.enablePersistentSessions && (!!this.reconnectionOwner || !shellLaunchConfig.isFeatureTerminal);
+		const shouldPersist = ((this._configurationService.getValue(TaskSettingId.Reconnection) && shellLaunchConfig.reconnectionOwner) || !shellLaunchConfig.isFeatureTerminal) && this._configHelper.config.enablePersistentSessions && !shellLaunchConfig.isTransient;
 		return await backend.createProcess(shellLaunchConfig, initialCwd, cols, rows, this._configHelper.config.unicodeVersion, env, options, shouldPersist);
 	}
 

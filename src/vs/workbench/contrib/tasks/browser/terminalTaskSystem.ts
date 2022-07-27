@@ -30,14 +30,14 @@ import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IShellLaunchConfig, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, TerminalLocation, TerminalSettingId, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { TaskTerminalStatus } from 'vs/workbench/contrib/tasks/browser/taskTerminalStatus';
 import { ProblemCollectorEventKind, ProblemHandlingStrategy, StartStopProblemCollector, WatchingProblemCollector } from 'vs/workbench/contrib/tasks/common/problemCollectors';
 import { GroupKind } from 'vs/workbench/contrib/tasks/common/taskConfiguration';
-import { CommandOptions, CommandString, ContributedTask, CustomTask, DependsOrder, ICommandConfiguration, IExtensionTaskSource, InMemoryTask, IShellConfiguration, IShellQuotingOptions, ITaskEvent, PanelKind, RevealKind, RevealProblemKind, RuntimeType, ShellQuoting, Task, TaskEvent, TaskEventKind, TaskScope, TaskSettingId, TaskSourceKind } from 'vs/workbench/contrib/tasks/common/tasks';
+import { CommandOptions, CommandString, ContributedTask, CustomTask, DependsOrder, ICommandConfiguration, IConfigurationProperties, IExtensionTaskSource, InMemoryTask, IPresentationOptions, IShellConfiguration, IShellQuotingOptions, ITaskEvent, PanelKind, RevealKind, RevealProblemKind, RuntimeType, ShellQuoting, Task, TaskEvent, TaskEventKind, TaskScope, TaskSettingId, TaskSourceKind } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
 import { IResolvedVariables, IResolveSet, ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSystemInfo, ITaskSystemInfoResolver, ITaskTerminateResponse, TaskError, TaskErrors, TaskExecuteKind, Triggers } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import { ITerminalGroupService, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -284,6 +284,11 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 		if (this._tasksToReconnect.includes(task._id)) {
 			this._terminalForTask = terminals.find(t => t.shellLaunchConfig.attachPersistentProcess?.task?.id === task._id);
+			// Restore the waitOnExit value of the terminal because it may have been a function
+			// that cannot be persisted in the pty host
+			if ('command' in task && task.command.presentation && this._terminalForTask) {
+				this._terminalForTask.waitOnExit = getWaitOnExitValue(task.command.presentation, task.configurationProperties);
+			}
 			this.run(task, resolver, trigger);
 		}
 		return undefined;
@@ -541,35 +546,38 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		alreadyResolved = alreadyResolved ?? new Map<string, string>();
 		const promises: Promise<ITaskSummary>[] = [];
 		if (task.configurationProperties.dependsOn) {
-			for (const dependency of task.configurationProperties.dependsOn) {
-				const dependencyTask = await resolver.resolve(dependency.uri, dependency.task!);
-				if (dependencyTask) {
-					this._adoptConfigurationForDependencyTask(dependencyTask, task);
-					const key = dependencyTask.getMapKey();
-					let promise = this._activeTasks[key] ? this._getDependencyPromise(this._activeTasks[key]) : undefined;
-					if (!promise) {
-						this._fireTaskEvent(TaskEvent.create(TaskEventKind.DependsOnStarted, task));
-						encounteredDependencies.add(task.getCommonTaskId());
-						promise = this._executeDependencyTask(dependencyTask, resolver, trigger, encounteredDependencies, alreadyResolved);
-					}
-					promises.push(promise);
-					if (task.configurationProperties.dependsOrder === DependsOrder.sequence) {
-						const promiseResult = await promise;
-						if (promiseResult.exitCode === 0) {
-							promise = Promise.resolve(promiseResult);
-						} else {
-							promise = Promise.reject(promiseResult);
-							break;
+			if (!this._terminalForTask) {
+				// we already handle dependent tasks when reconnecting, don't create extras
+				for (const dependency of task.configurationProperties.dependsOn) {
+					const dependencyTask = await resolver.resolve(dependency.uri, dependency.task!);
+					if (dependencyTask) {
+						this._adoptConfigurationForDependencyTask(dependencyTask, task);
+						const key = dependencyTask.getMapKey();
+						let promise = this._activeTasks[key] ? this._getDependencyPromise(this._activeTasks[key]) : undefined;
+						if (!promise) {
+							this._fireTaskEvent(TaskEvent.create(TaskEventKind.DependsOnStarted, task));
+							encounteredDependencies.add(task.getCommonTaskId());
+							promise = this._executeDependencyTask(dependencyTask, resolver, trigger, encounteredDependencies, alreadyResolved);
 						}
+						promises.push(promise);
+						if (task.configurationProperties.dependsOrder === DependsOrder.sequence) {
+							const promiseResult = await promise;
+							if (promiseResult.exitCode === 0) {
+								promise = Promise.resolve(promiseResult);
+							} else {
+								promise = Promise.reject(promiseResult);
+								break;
+							}
+						}
+						promises.push(promise);
+					} else {
+						this._log(nls.localize('dependencyFailed',
+							'Couldn\'t resolve dependent task \'{0}\' in workspace folder \'{1}\'',
+							Types.isString(dependency.task) ? dependency.task : JSON.stringify(dependency.task, undefined, 0),
+							dependency.uri.toString()
+						));
+						this._showOutput();
 					}
-					promises.push(promise);
-				} else {
-					this._log(nls.localize('dependencyFailed',
-						'Couldn\'t resolve dependent task \'{0}\' in workspace folder \'{1}\'',
-						Types.isString(dependency.task) ? dependency.task : JSON.stringify(dependency.task, undefined, 0),
-						dependency.uri.toString()
-					));
-					this._showOutput();
 				}
 			}
 		}
@@ -951,7 +959,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 						this._fireTaskEvent(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal!.processId!));
 						processStartedSignaled = true;
 					}
-
 					this._fireTaskEvent(TaskEvent.create(TaskEventKind.ProcessEnded, task, exitCode ?? undefined));
 
 					for (let i = 0; i < eventCounter; i++) {
@@ -1065,7 +1072,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		return needsFolderQualification ? task.getQualifiedLabel() : (task.configurationProperties.name || '');
 	}
 
-	private async _createShellLaunchConfig(task: CustomTask | ContributedTask, workspaceFolder: IWorkspaceFolder | undefined, variableResolver: VariableResolver, platform: Platform.Platform, options: CommandOptions, command: CommandString, args: CommandString[], waitOnExit: boolean | string | ((exitCode: number) => string)): Promise<IShellLaunchConfig | undefined> {
+	private async _createShellLaunchConfig(task: CustomTask | ContributedTask, workspaceFolder: IWorkspaceFolder | undefined, variableResolver: VariableResolver, platform: Platform.Platform, options: CommandOptions, command: CommandString, args: CommandString[], waitOnExit: WaitOnExitValue): Promise<IShellLaunchConfig | undefined> {
 		let shellLaunchConfig: IShellLaunchConfig;
 		const isShellCommand = task.command.runtime === RuntimeType.Shell;
 		const needsFolderQualification = this._contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
@@ -1338,24 +1345,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		const options = await this._resolveOptions(resolver, task.command.options);
 		const presentationOptions = task.command.presentation;
 
-		let waitOnExit: boolean | string | ((exitCode: number) => string) = false;
 		if (!presentationOptions) {
 			throw new Error('Task presentation options should not be undefined here.');
 		}
-
-		if ((presentationOptions.close === undefined) || (presentationOptions.close === false)) {
-			if ((presentationOptions.reveal !== RevealKind.Never) || !task.configurationProperties.isBackground || (presentationOptions.close === false)) {
-				if (presentationOptions.panel === PanelKind.New) {
-					waitOnExit = taskShellIntegrationWaitOnExitSequence(nls.localize('closeTerminal', 'Press any key to close the terminal.'));
-				} else if (presentationOptions.showReuseMessage) {
-					waitOnExit = taskShellIntegrationWaitOnExitSequence(nls.localize('reuseTerminal', 'Terminal will be reused by tasks, press any key to close it.'));
-				} else {
-					waitOnExit = true;
-				}
-			}
-		} else {
-			waitOnExit = !presentationOptions.close;
-		}
+		const waitOnExit = getWaitOnExitValue(presentationOptions, task.configurationProperties);
 
 		let command: CommandString | undefined;
 		let args: CommandString[] | undefined;
@@ -1384,7 +1377,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				return [undefined, new TaskError(Severity.Error, nls.localize('TerminalTaskSystem', 'Can\'t execute a shell command on an UNC drive using cmd.exe.'), TaskErrors.UnknownError)];
 			}
 		}
-
 		const prefersSameTerminal = presentationOptions.panel === PanelKind.Dedicated;
 		const allowsSharedTerminal = presentationOptions.panel === PanelKind.Shared;
 		const group = presentationOptions.group;
@@ -1785,6 +1777,21 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		const outputChannel = this._outputService.getChannel(this._outputChannelId);
 		outputChannel?.append(output);
 	}
+}
+
+function getWaitOnExitValue(presentationOptions: IPresentationOptions, configurationProperties: IConfigurationProperties) {
+	if ((presentationOptions.close === undefined) || (presentationOptions.close === false)) {
+		if ((presentationOptions.reveal !== RevealKind.Never) || !configurationProperties.isBackground || (presentationOptions.close === false)) {
+			if (presentationOptions.panel === PanelKind.New) {
+				return taskShellIntegrationWaitOnExitSequence(nls.localize('closeTerminal', 'Press any key to close the terminal.'));
+			} else if (presentationOptions.showReuseMessage) {
+				return taskShellIntegrationWaitOnExitSequence(nls.localize('reuseTerminal', 'Terminal will be reused by tasks, press any key to close it.'));
+			} else {
+				return true;
+			}
+		}
+	}
+	return !presentationOptions.close;
 }
 
 function taskShellIntegrationWaitOnExitSequence(message: string): (exitCode: number) => string {

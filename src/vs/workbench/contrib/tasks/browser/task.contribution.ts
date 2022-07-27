@@ -513,6 +513,12 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('task.showDecorations', "Shows decorations at points of interest in the terminal buffer such as the first problem found via a watch task. Note that this will only take effect for future tasks."),
 			default: true
 		},
+		[TaskSettingId.Reconnection]: {
+			type: 'boolean',
+			description: nls.localize('task.experimental.reconnection', "On window reload, reconnect to running watch/background tasks. Note that this is experimental, so you could encounter issues."),
+			default: false,
+			tags: ['experimental']
+		},
 		[TaskSettingId.SaveBeforeRun]: {
 			markdownDescription: nls.localize(
 				'task.saveBeforeRun',
