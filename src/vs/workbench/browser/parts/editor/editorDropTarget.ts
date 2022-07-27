@@ -26,6 +26,7 @@ import { EDITOR_DRAG_AND_DROP_BACKGROUND, EDITOR_DROP_INTO_PROMPT_BACKGROUND, ED
 import { GroupDirection, IEditorGroupsService, IMergeGroupOptions, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITreeViewsService } from 'vs/workbench/services/views/browser/treeViewsService';
+import { terminalEditorId } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 interface IDropOperation {
 	splitDirection?: GroupDirection;
@@ -146,7 +147,10 @@ class DropOverlay extends Themable {
 		this._register(new DragAndDropObserver(container, {
 			onDragEnter: e => undefined,
 			onDragOver: e => {
-				if (this.enableDropIntoEditor && isDragIntoEditorEvent(e)) {
+				if (
+					(this.enableDropIntoEditor && isDragIntoEditorEvent(e)) ||
+					this.groupView.activeEditor?.editorId === terminalEditorId
+				) {
 					this.dispose();
 					return;
 				}
