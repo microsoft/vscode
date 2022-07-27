@@ -17,6 +17,7 @@ import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/vie
 import { SymbolKind } from 'vs/editor/common/languages';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
 
 const enum ScrollDirection {
 	Down = 0,
@@ -66,9 +67,28 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 			this._editor.addOverlayWidget(this.stickyScrollWidget);
 			this._sessionStore.add(this._editor.onDidChangeModel(() => this._update(true)));
 			this._sessionStore.add(this._editor.onDidScrollChange(() => this._update(false)));
+			this._sessionStore.add(this._editor.onDidChangeModelTokens((e) => this._onTokensChange(e)));
 			this._sessionStore.add(this._editor.onDidChangeModelContent(() => this._updateSoon.schedule()));
 			this._sessionStore.add(this._languageFeaturesService.documentSymbolProvider.onDidChange(() => this._update(true)));
 			this._update(true);
+		}
+	}
+
+	private _needsUpdate(event: IModelTokensChangedEvent) {
+		const stickyLineNumbers = this.stickyScrollWidget.getCurrentLines();
+		for (const stickyLineNumber of stickyLineNumbers) {
+			for (const range of event.ranges) {
+				if (stickyLineNumber >= range.fromLineNumber && stickyLineNumber <= range.toLineNumber) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	private _onTokensChange(event: IModelTokensChangedEvent) {
+		if (this._needsUpdate(event)) {
+			this._update(false);
 		}
 	}
 
@@ -235,6 +255,10 @@ class StickyScrollCodeLine {
 		this.effectiveLineHeight = this._editor.getOption(EditorOption.lineHeight) + this._relativePosition;
 	}
 
+	get lineNumber() {
+		return this._lineNumber;
+	}
+
 	getDomNode() {
 
 		const root: HTMLElement = document.createElement('div');
@@ -345,6 +369,14 @@ class StickyScrollWidget implements IOverlayWidget {
 
 	get codeLineCount() {
 		return this.arrayOfCodeLines.length;
+	}
+
+	getCurrentLines(): number[] {
+		const widgetLineRange: number[] = [];
+		for (const codeLine of this.arrayOfCodeLines) {
+			widgetLineRange.push(codeLine.lineNumber);
+		}
+		return widgetLineRange;
 	}
 
 	pushCodeLine(codeLine: StickyScrollCodeLine) {
