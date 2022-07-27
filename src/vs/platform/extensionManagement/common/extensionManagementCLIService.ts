@@ -223,8 +223,8 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 				output.log(version ? localize('installing with version', "Installing extension '{0}' v{1}...", id, version) : localize('installing', "Installing extension '{0}'...", id));
 			}
 
-			await this.extensionManagementService.installFromGallery(galleryExtension, { ...installOptions, installGivenVersion: !!version });
-			output.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed.", id, galleryExtension.version));
+			const local = await this.extensionManagementService.installFromGallery(galleryExtension, { ...installOptions, installGivenVersion: !!version });
+			output.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed.", id, local.manifest.version));
 			return manifest;
 		} catch (error) {
 			if (isCancellationError(error)) {

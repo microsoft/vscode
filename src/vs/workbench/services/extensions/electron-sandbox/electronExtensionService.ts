@@ -413,6 +413,32 @@ export abstract class ElectronExtensionService extends AbstractExtensionService 
 		throw new Error(`Cannot get canonical URI because no extension is installed to resolve ${getRemoteAuthorityPrefix(remoteAuthority)}`);
 	}
 
+	private async _resolveAuthorityInitial(remoteAuthority: string): Promise<ResolverResult> {
+		const MAX_ATTEMPTS = 5;
+
+		for (let attempt = 1; ; attempt++) {
+			const sw = StopWatch.create(false);
+			this._logService.info(`[attempt ${attempt}] Invoking resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)})`);
+			try {
+				const resolverResult = await this._resolveAuthority(remoteAuthority);
+				this._logService.info(`[attempt ${attempt}] resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)}) returned '${resolverResult.authority.host}:${resolverResult.authority.port}' after ${sw.elapsed()} ms`);
+				return resolverResult;
+			} catch (err) {
+				this._logService.error(`[attempt ${attempt}] resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)}) returned an error after ${sw.elapsed()} ms`, err);
+
+				if (RemoteAuthorityResolverError.isNoResolverFound(err)) {
+					// There is no point in retrying if there is no resolver found
+					throw err;
+				}
+
+				if (attempt >= MAX_ATTEMPTS) {
+					// Too many failed attempts, give up
+					throw err;
+				}
+			}
+		}
+	}
+
 	private async _resolveAuthorityAgain(): Promise<void> {
 		const remoteAuthority = this._environmentService.remoteAuthority;
 		if (!remoteAuthority) {
@@ -473,14 +499,9 @@ export abstract class ElectronExtensionService extends AbstractExtensionService 
 			}
 
 			let resolverResult: ResolverResult;
-
-			const sw = StopWatch.create(false);
-			this._logService.info(`Invoking resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)})`);
 			try {
-				resolverResult = await this._resolveAuthority(remoteAuthority);
-				this._logService.info(`resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)}) returned '${resolverResult.authority.host}:${resolverResult.authority.port}' after ${sw.elapsed()} ms`);
+				resolverResult = await this._resolveAuthorityInitial(remoteAuthority);
 			} catch (err) {
-				this._logService.error(`resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)}) returned an error after ${sw.elapsed()} ms`, err);
 				if (RemoteAuthorityResolverError.isNoResolverFound(err)) {
 					err.isHandled = await this._handleNoResolverFound(remoteAuthority);
 				} else {

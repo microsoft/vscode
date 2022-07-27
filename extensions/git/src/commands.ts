@@ -1558,6 +1558,8 @@ export class CommandCenter {
 			// amend allows changing only the commit message
 			&& !opts.amend
 			&& !opts.empty
+			// rebase not in progress
+			&& repository.rebaseCommit === undefined
 		) {
 			const commitAnyway = localize('commit anyway', "Create Empty Commit");
 			const answer = await window.showInformationMessage(localize('no changes', "There are no changes to commit."), commitAnyway);
