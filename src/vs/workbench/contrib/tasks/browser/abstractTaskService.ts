@@ -2828,6 +2828,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						taskQuickPick.dispose();
 						return;
 					} else {
+						if (!!filter) {
+							// filter yielded no results, so show all
+							this._runTaskCommand();
+						}
 						return;
 					}
 				} else {
