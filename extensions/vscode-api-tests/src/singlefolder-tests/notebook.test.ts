@@ -819,22 +819,17 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 	test('#115855 onDidSaveNotebookDocument', async function () {
 		const resource = await createRandomNotebookFile();
 		const notebook = await vscode.workspace.openNotebookDocument(resource);
-		const editor = await vscode.window.showNotebookDocument(notebook);
 
-		const cellsChangeEvent = asPromise<vscode.NotebookDocumentChangeEvent>(vscode.workspace.onDidChangeNotebookDocument);
-		await editor.edit(editBuilder => {
-			editBuilder.replaceCells(1, 0, [{ kind: vscode.NotebookCellKind.Code, languageId: 'javascript', value: 'test 2', outputs: [], metadata: undefined }]);
-		});
-
-		const cellChangeEventRet = await cellsChangeEvent;
-		assert.strictEqual(cellChangeEventRet.notebook === notebook, true);
-		assert.strictEqual(cellChangeEventRet.notebook.isDirty, true);
+		const notebookEdit = new vscode.NotebookEdit(new vscode.NotebookRange(1, 1), [new vscode.NotebookCellData(vscode.NotebookCellKind.Code, 'test 2', 'javascript')]);
+		const edit = new vscode.WorkspaceEdit();
+		edit.set(notebook.uri, [notebookEdit]);
+		await vscode.workspace.applyEdit(edit);
+		assert.strictEqual(notebook.isDirty, true);
 
 		const saveEvent = asPromise(vscode.workspace.onDidSaveNotebookDocument);
-
 		await notebook.save();
-
 		await saveEvent;
+
 		assert.strictEqual(notebook.isDirty, false);
 	});
 
@@ -1026,7 +1021,7 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 		suiteDisposables.push(vscode.workspace.registerNotebookContentProvider('notebookCoreTest', apiTestContentProvider));
 	});
 
-	test.skip('provideCellStatusBarItems called on metadata change', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/139324
+	test.skip('provideCellStatusBarItems called on metadata change', async function () { // TODO@roblourens https://github.com/microsoft/vscode/issues/139324
 		const provideCalled = asPromise(onDidCallProvide);
 		const resource = await createRandomNotebookFile();
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
