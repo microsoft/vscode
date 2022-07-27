@@ -46,6 +46,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { EditSessionsDataViews } from 'vs/workbench/contrib/editSessions/browser/editSessionsViews';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { EditSessionsContentProvider } from 'vs/workbench/contrib/editSessions/browser/editSessionsContentProvider';
+import { isNative } from 'vs/base/common/platform';
+import { WorkspaceFolderCountContext } from 'vs/workbench/common/contextkeys';
 
 registerSingleton(IEditSessionsLogService, EditSessionsLogService);
 registerSingleton(IEditSessionsWorkbenchService, EditSessionsWorkbenchService);
@@ -54,6 +56,7 @@ const continueEditSessionCommand: IAction2Options = {
 	id: '_workbench.experimental.editSessions.actions.continueEditSession',
 	title: { value: localize('continue edit session', "Continue Edit Session..."), original: 'Continue Edit Session...' },
 	category: EDIT_SESSION_SYNC_CATEGORY,
+	precondition: WorkspaceFolderCountContext.notEqualsTo('0'),
 	f1: true
 };
 const openLocalFolderCommand: IAction2Options = {
@@ -529,7 +532,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 	private createPickItems(): ContinueEditSessionItem[] {
 		const items = [...this.continueEditSessionOptions].filter((option) => option.when === undefined || this.contextKeyService.contextMatchesRules(option.when));
 
-		if (getVirtualWorkspaceLocation(this.contextService.getWorkspace()) !== undefined) {
+		if (getVirtualWorkspaceLocation(this.contextService.getWorkspace()) !== undefined && isNative) {
 			items.push(new ContinueEditSessionItem(
 				localize('continueEditSessionItem.openInLocalFolder', 'Open In Local Folder'),
 				openLocalFolderCommand.id,

@@ -204,7 +204,7 @@ export enum EditorOption {
 	disableMonospaceOptimizations = 29,
 	domReadOnly = 30,
 	dragAndDrop = 31,
-	enableDropIntoEditor = 32,
+	dropIntoEditor = 32,
 	emptySelectionClipboard = 33,
 	extraEditorClassName = 34,
 	fastScrollSensitivity = 35,

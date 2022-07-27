@@ -100,7 +100,7 @@ export class CustomEditorInputSerializer extends WebviewEditorInputSerializer {
 		}
 
 		const webview = reviveWebview(this._webviewService, data);
-		const customInput = this._instantiationService.createInstance(CustomEditorInput, data.editorResource, data.viewType, data.id, webview, { startsDirty: data.dirty, backupId: data.backupId });
+		const customInput = this._instantiationService.createInstance(CustomEditorInput, { resource: data.editorResource, viewType: data.viewType, id: data.id }, webview, { startsDirty: data.dirty, backupId: data.backupId });
 		if (typeof data.group === 'number') {
 			customInput.updateGroup(data.group);
 		}
@@ -196,7 +196,7 @@ export class ComplexCustomWorkingCopyEditorHandler extends Disposable implements
 					extension,
 				});
 
-				const editor = this._instantiationService.createInstance(CustomEditorInput, URI.revive(backupData.editorResource), backupData.viewType, id, webview, { backupId: backupData.backupId });
+				const editor = this._instantiationService.createInstance(CustomEditorInput, { resource: URI.revive(backupData.editorResource), viewType: backupData.viewType, id }, webview, { backupId: backupData.backupId });
 				editor.updateGroup(0);
 				return editor;
 			}

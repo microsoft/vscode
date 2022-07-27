@@ -138,7 +138,7 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 
 		this.updateEditorControlOptions({
 			readOnly,
-			enableDropIntoEditor: !readOnly
+			dropIntoEditor: { enabled: !readOnly },
 		});
 	}
 
@@ -150,7 +150,7 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 			lineNumbersMinChars: 3,
 			fixedOverflowWidgets: true,
 			readOnly,
-			enableDropIntoEditor: !readOnly,
+			dropIntoEditor: { enabled: !readOnly },
 			renderValidationDecorations: 'on' // render problems even in readonly editors (https://github.com/microsoft/vscode/issues/89057)
 		};
 	}

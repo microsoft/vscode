@@ -524,12 +524,12 @@ class ToogleConfigAction extends Action2 {
 
 registerAction2(class ToogleCommandCenter extends ToogleConfigAction {
 	constructor() {
-		super('window.commandCenter', localize('toggle.commandCenter', 'Show Command Center'), 1);
+		super('window.commandCenter', localize('toggle.commandCenter', 'Command Center'), 1);
 	}
 });
 
 registerAction2(class ToogleLayoutControl extends ToogleConfigAction {
 	constructor() {
-		super('workbench.layoutControl.enabled', localize('toggle.layout', 'Show Layout Controls'), 2);
+		super('workbench.layoutControl.enabled', localize('toggle.layout', 'Layout Controls'), 2);
 	}
 });

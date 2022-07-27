@@ -665,11 +665,11 @@ export interface IEditorOptions {
 	bracketPairColorization?: IBracketPairColorizationOptions;
 
 	/**
-	 * Enables dropping into the editor from an external source.
+	 * Controls dropping into the editor from an external source.
 	 *
-	 * This shows a preview of the drop location and triggers an `onDropIntoEditor` event.
+	 * When enabled, this shows a preview of the drop location and triggers an `onDropIntoEditor` event.
 	 */
-	enableDropIntoEditor?: boolean;
+	dropIntoEditor?: IDropIntoEditorOptions;
 }
 
 /**
@@ -880,7 +880,7 @@ function applyUpdate<T>(value: T | undefined, update: T): ApplyUpdateResult<T> {
 	}
 	if (Array.isArray(value) || Array.isArray(update)) {
 		const arrayEquals = Array.isArray(value) && Array.isArray(update) && arrays.equals(value, update);
-		return new ApplyUpdateResult(update, arrayEquals);
+		return new ApplyUpdateResult(update, !arrayEquals);
 	}
 	let didChange = false;
 	for (const key in update) {
@@ -2537,7 +2537,7 @@ class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEd
 				'editor.stickyScroll.enabled': {
 					type: 'boolean',
 					default: defaults.enabled,
-					description: nls.localize('editor.stickyScroll', "Enables the sticky scroll in the editor.")
+					description: nls.localize('editor.stickyScroll', "Shows the nested current scopes during the scroll at the top of the editor.")
 				},
 			}
 		);
@@ -4439,6 +4439,53 @@ class EditorWrappingInfoComputer extends ComputedEditorOption<EditorOption.wrapp
 
 //#endregion
 
+//#region dropIntoEditor
+
+/**
+ * Configuration options for editor drop into behavior
+ */
+export interface IDropIntoEditorOptions {
+	/**
+	 * Enable the dropping into editor.
+	 * Defaults to true.
+	 */
+	enabled?: boolean;
+}
+
+/**
+ * @internal
+ */
+export type EditorDropIntoEditorOptions = Readonly<Required<IDropIntoEditorOptions>>;
+
+class EditorDropIntoEditor extends BaseEditorOption<EditorOption.dropIntoEditor, IDropIntoEditorOptions, EditorDropIntoEditorOptions> {
+
+	constructor() {
+		const defaults: EditorDropIntoEditorOptions = { enabled: true };
+		super(
+			EditorOption.dropIntoEditor, 'dropIntoEditor', defaults,
+			{
+				'editor.dropIntoEditor.enabled': {
+					type: 'boolean',
+					default: defaults.enabled,
+					markdownDescription: nls.localize('dropIntoEditor.enabled', "Controls whether you can drag and drop a file into a text editor by holding down `shift` (instead of opening the file in an editor)."),
+				},
+			}
+		);
+	}
+
+	public validate(_input: any): EditorDropIntoEditorOptions {
+		if (!_input || typeof _input !== 'object') {
+			return this.defaultValue;
+		}
+		const input = _input as IDropIntoEditorOptions;
+		return {
+			enabled: boolean(input.enabled, this.defaultValue.enabled)
+		};
+	}
+}
+
+//#endregion
+
 const DEFAULT_WINDOWS_FONT_FAMILY = 'Consolas, \'Courier New\', monospace';
 const DEFAULT_MAC_FONT_FAMILY = 'Menlo, Monaco, \'Courier New\', monospace';
 const DEFAULT_LINUX_FONT_FAMILY = '\'Droid Sans Mono\', \'monospace\', monospace';
@@ -4501,7 +4548,7 @@ export const enum EditorOption {
 	disableMonospaceOptimizations,
 	domReadOnly,
 	dragAndDrop,
-	enableDropIntoEditor,
+	dropIntoEditor,
 	emptySelectionClipboard,
 	extraEditorClassName,
 	fastScrollSensitivity,
@@ -4811,9 +4858,7 @@ export const EditorOptions = {
 		{ description: nls.localize('dragAndDrop', "Controls whether the editor should allow moving selections via drag and drop.") }
 	)),
 	emptySelectionClipboard: register(new EditorEmptySelectionClipboard()),
-	enableDropIntoEditor: register(new EditorBooleanOption(
-		EditorOption.enableDropIntoEditor, 'enableDropIntoEditor', true
-	)),
+	dropIntoEditor: register(new EditorDropIntoEditor()),
 	extraEditorClassName: register(new EditorStringOption(
 		EditorOption.extraEditorClassName, 'extraEditorClassName', '',
 	)),
