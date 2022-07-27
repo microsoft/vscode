@@ -74,20 +74,20 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 		}
 	}
 
-	private _onTokensChange(event: IModelTokensChangedEvent) {
-		const widgetLineRange = this.stickyScrollWidget.getCurrentLineRange();
-		let rerender: boolean = false;
-		for (const range of event.ranges) {
-			const fromLineNumber = range.fromLineNumber;
-			const toLineNumber = range.toLineNumber;
-			const fromLineWidget = widgetLineRange[0];
-			const toLineWidget = widgetLineRange[1];
-			if (fromLineNumber <= toLineWidget && toLineNumber >= fromLineWidget) {
-				rerender = true;
-				break;
+	private _needsUpdate(event: IModelTokensChangedEvent) {
+		const stickyLineNumbers = this.stickyScrollWidget.getCurrentLines();
+		for (const stickyLineNumber of stickyLineNumbers) {
+			for (const range of event.ranges) {
+				if (stickyLineNumber >= range.fromLineNumber && stickyLineNumber <= range.toLineNumber) {
+					return true;
+				}
 			}
 		}
-		if (rerender === true) {
+		return false;
+	}
+
+	private _onTokensChange(event: IModelTokensChangedEvent) {
+		if (this._needsUpdate(event)) {
 			this._update(false);
 		}
 	}
@@ -219,16 +219,16 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 				if (!beginningLinesConsidered.has(start)) {
 					if (topOfElementAtDepth >= topOfEndLine - 1 && topOfElementAtDepth < bottomOfEndLine - 2) {
 						beginningLinesConsidered.add(start);
-						this.stickyScrollWidget.pushCodeLine(start, new StickyScrollCodeLine(model.getLineContent(start), start, this._editor, -1, bottomOfEndLine - bottomOfElementAtDepth));
+						this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(model.getLineContent(start), start, this._editor, -1, bottomOfEndLine - bottomOfElementAtDepth));
 						break;
 					}
 					else if (scrollDirection === ScrollDirection.Down && bottomOfElementAtDepth > bottomOfBeginningLine - 1 && bottomOfElementAtDepth < bottomOfEndLine - 1) {
 						beginningLinesConsidered.add(start);
-						this.stickyScrollWidget.pushCodeLine(start, new StickyScrollCodeLine(model.getLineContent(start), start, this._editor, 0, 0));
+						this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(model.getLineContent(start), start, this._editor, 0, 0));
 					} else if (scrollDirection === ScrollDirection.Up && scrollToBottomOfWidget > bottomOfBeginningLine - 1 && scrollToBottomOfWidget < bottomOfEndLine ||
 						scrollDirection === ScrollDirection.Up && bottomOfElementAtDepth > bottomOfBeginningLine && bottomOfElementAtDepth < topOfEndLine - 1) {
 						beginningLinesConsidered.add(start);
-						this.stickyScrollWidget.pushCodeLine(start, new StickyScrollCodeLine(model.getLineContent(start), start, this._editor, 0, 0));
+						this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(model.getLineContent(start), start, this._editor, 0, 0));
 					}
 				} else {
 					this._ranges.splice(index, 1);
@@ -253,6 +253,10 @@ class StickyScrollCodeLine {
 	constructor(private readonly _line: string, private readonly _lineNumber: number, private readonly _editor: IActiveCodeEditor,
 		private readonly _zIndex: number, private readonly _relativePosition: number) {
 		this.effectiveLineHeight = this._editor.getOption(EditorOption.lineHeight) + this._relativePosition;
+	}
+
+	get lineNumber() {
+		return this._lineNumber;
 	}
 
 	getDomNode() {
@@ -355,7 +359,6 @@ class StickyScrollCodeLine {
 class StickyScrollWidget implements IOverlayWidget {
 
 	private readonly arrayOfCodeLines: StickyScrollCodeLine[] = [];
-	private readonly linesRange: number[] = [];
 	private readonly rootDomNode: HTMLElement = document.createElement('div');
 
 	constructor(public readonly _editor: ICodeEditor) {
@@ -368,15 +371,15 @@ class StickyScrollWidget implements IOverlayWidget {
 		return this.arrayOfCodeLines.length;
 	}
 
-	getCurrentLineRange(): number[] {
-		const widgetLineRange = [];
-		widgetLineRange.push(this.linesRange[0]);
-		widgetLineRange.push(this.linesRange[this.linesRange.length - 1]);
+	getCurrentLines(): number[] {
+		const widgetLineRange: number[] = [];
+		for (const codeLine of this.arrayOfCodeLines) {
+			widgetLineRange.push(codeLine.lineNumber);
+		}
 		return widgetLineRange;
 	}
 
-	pushCodeLine(codeLineNumber: number, codeLine: StickyScrollCodeLine) {
-		this.linesRange.push(codeLineNumber);
+	pushCodeLine(codeLine: StickyScrollCodeLine) {
 		this.arrayOfCodeLines.push(codeLine);
 	}
 
