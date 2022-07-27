@@ -3439,11 +3439,11 @@ declare namespace monaco.editor {
 		*/
 		bracketPairColorization?: IBracketPairColorizationOptions;
 		/**
-		 * Enables dropping into the editor from an external source.
+		 * Controls dropping into the editor from an external source.
 		 *
-		 * This shows a preview of the drop location and triggers an `onDropIntoEditor` event.
+		 * When enabled, this shows a preview of the drop location and triggers an `onDropIntoEditor` event.
 		 */
-		enableDropIntoEditor?: boolean;
+		dropIntoEditor?: IDropIntoEditorOptions;
 	}
 
 	export interface IDiffEditorBaseOptions {
@@ -4330,6 +4330,17 @@ declare namespace monaco.editor {
 		readonly wrappingColumn: number;
 	}
 
+	/**
+	 * Configuration options for editor drop into behavior
+	 */
+	export interface IDropIntoEditorOptions {
+		/**
+		 * Enable the dropping into editor.
+		 * Defaults to true.
+		 */
+		enabled?: boolean;
+	}
+
 	export enum EditorOption {
 		acceptSuggestionOnCommitCharacter = 0,
 		acceptSuggestionOnEnter = 1,
@@ -4363,7 +4374,7 @@ declare namespace monaco.editor {
 		disableMonospaceOptimizations = 29,
 		domReadOnly = 30,
 		dragAndDrop = 31,
-		enableDropIntoEditor = 32,
+		dropIntoEditor = 32,
 		emptySelectionClipboard = 33,
 		extraEditorClassName = 34,
 		fastScrollSensitivity = 35,
@@ -4503,7 +4514,7 @@ declare namespace monaco.editor {
 		domReadOnly: IEditorOption<EditorOption.domReadOnly, boolean>;
 		dragAndDrop: IEditorOption<EditorOption.dragAndDrop, boolean>;
 		emptySelectionClipboard: IEditorOption<EditorOption.emptySelectionClipboard, boolean>;
-		enableDropIntoEditor: IEditorOption<EditorOption.enableDropIntoEditor, boolean>;
+		dropIntoEditor: IEditorOption<EditorOption.dropIntoEditor, Readonly<Required<IDropIntoEditorOptions>>>;
 		extraEditorClassName: IEditorOption<EditorOption.extraEditorClassName, string>;
 		fastScrollSensitivity: IEditorOption<EditorOption.fastScrollSensitivity, number>;
 		find: IEditorOption<EditorOption.find, Readonly<Required<IEditorFindOptions>>>;
