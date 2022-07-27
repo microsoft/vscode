@@ -355,6 +355,11 @@ const terminalConfiguration: IConfigurationNode = {
 			],
 			default: 'editor'
 		},
+		[TerminalSettingId.ShowPanelOnRunSelectedText]: {
+			description: localize('terminal.integrated.showPanelOnRunSelectedText', "Controls whether to focus the panel when the user sends selected text to the terminal."),
+			type: 'boolean',
+			default: true
+		},
 		[TerminalSettingId.EnableBell]: {
 			description: localize('terminal.integrated.enableBell', "Controls whether the terminal bell is enabled, this shows up as a visual bell next to the terminal's name."),
 			type: 'boolean',

@@ -560,7 +560,9 @@ export function registerTerminalActions() {
 				text = editor.getModel().getValueInRange(selection, endOfLinePreference);
 			}
 			instance.sendText(text, true);
-			return terminalGroupService.showPanel();
+			if (terminalService.configHelper.config.showPanelOnRunSelectedText) {
+				return terminalGroupService.showPanel();
+			}
 		}
 	});
 	registerAction2(class extends Action2 {

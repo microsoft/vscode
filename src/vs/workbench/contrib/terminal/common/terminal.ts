@@ -263,6 +263,7 @@ export interface ITerminalConfiguration {
 	cwd: string;
 	confirmOnExit: ConfirmOnExit;
 	confirmOnKill: ConfirmOnKill;
+	showPanelOnRunSelectedText: boolean;
 	enableBell: boolean;
 	env: {
 		linux: { [key: string]: string };
