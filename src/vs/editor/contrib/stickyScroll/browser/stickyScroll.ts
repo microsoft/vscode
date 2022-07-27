@@ -17,6 +17,7 @@ import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/vie
 import { SymbolKind } from 'vs/editor/common/languages';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
 
 const enum ScrollDirection {
 	Down = 0,
@@ -66,10 +67,22 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 			this._editor.addOverlayWidget(this.stickyScrollWidget);
 			this._sessionStore.add(this._editor.onDidChangeModel(() => this._update(true)));
 			this._sessionStore.add(this._editor.onDidScrollChange(() => this._update(false)));
+			this._sessionStore.add(this._editor.onDidChangeModelTokens((e) => this._onTokensChange(e)));
 			this._sessionStore.add(this._editor.onDidChangeModelContent(() => this._updateSoon.schedule()));
 			this._sessionStore.add(this._languageFeaturesService.documentSymbolProvider.onDidChange(() => this._update(true)));
 			this._update(true);
 		}
+	}
+
+	private _onTokensChange(event: IModelTokensChangedEvent) {
+		const beginningLine = this._editor.getVisibleRanges()[0].getStartPosition().lineNumber - 1;
+		const endLine = beginningLine + this.stickyScrollWidget.codeLineCount + 1;
+		const fromLineNumber = event.ranges[0].fromLineNumber;
+		const toLineNumber = event.ranges[0].toLineNumber;
+		if (fromLineNumber > endLine || beginningLine > toLineNumber) {
+			return;
+		}
+		this._update(false);
 	}
 
 	private async _update(updateOutline: boolean = false): Promise<void> {
