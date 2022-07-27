@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor, ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -16,6 +16,7 @@ import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { SymbolKind } from 'vs/editor/common/languages';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 const enum ScrollDirection {
 	Down = 0,
@@ -23,32 +24,34 @@ const enum ScrollDirection {
 	None = 2
 }
 
-class StickyScrollController implements IEditorContribution {
+class StickyScrollController extends Disposable implements IEditorContribution {
 
 	static readonly ID = 'store.contrib.stickyScrollController';
 	private readonly _editor: ICodeEditor;
 	private readonly stickyScrollWidget: StickyScrollWidget;
 	private readonly _languageFeaturesService: ILanguageFeaturesService;
-
-	private readonly _store: DisposableStore = new DisposableStore();
 	private readonly _sessionStore: DisposableStore = new DisposableStore();
 
 	private _ranges: [number, number, number][] = [];
+	private _rangesVersionId: number = 0;
 	private _cts: CancellationTokenSource | undefined;
 	private _lastScrollPosition: number = -1;
+	private readonly _updateSoon: RunOnceScheduler;
 
 	constructor(
 		editor: ICodeEditor,
 		@ILanguageFeaturesService _languageFeaturesService: ILanguageFeaturesService,
 	) {
+		super();
 		this._editor = editor;
 		this._languageFeaturesService = _languageFeaturesService;
 		this.stickyScrollWidget = new StickyScrollWidget(this._editor);
-		this._store.add(this._editor.onDidChangeConfiguration(e => {
+		this._register(this._editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.stickyScroll)) {
 				this.onConfigurationChange();
 			}
 		}));
+		this._updateSoon = this._register(new RunOnceScheduler(() => this._update(true), 50));
 		this.onConfigurationChange();
 	}
 
@@ -61,17 +64,12 @@ class StickyScrollController implements IEditorContribution {
 			return;
 		} else {
 			this._editor.addOverlayWidget(this.stickyScrollWidget);
-			this._sessionStore.add(this._editor.onDidChangeModel(() => this.onModelChange()));
+			this._sessionStore.add(this._editor.onDidChangeModel(() => this._update(true)));
 			this._sessionStore.add(this._editor.onDidScrollChange(() => this._update(false)));
-			this._sessionStore.add(this._editor.onDidChangeModelContent(() => setTimeout(() => this._update(true), 500)));
-			this._sessionStore.add(this._languageFeaturesService.documentSymbolProvider.onDidChange(() => setTimeout(() => this._update(true), 500)));
+			this._sessionStore.add(this._editor.onDidChangeModelContent(() => this._updateSoon.schedule()));
+			this._sessionStore.add(this._languageFeaturesService.documentSymbolProvider.onDidChange(() => this._update(true)));
 			this._update(true);
 		}
-	}
-
-	private onModelChange() {
-		this.stickyScrollWidget.emptyRootNode();
-		setTimeout(() => this._update(true), 500);
 	}
 
 	private async _update(updateOutline: boolean = false): Promise<void> {
@@ -124,12 +122,13 @@ class StickyScrollController implements IEditorContribution {
 	private async _updateOutlineModel(token: CancellationToken) {
 		if (this._editor.hasModel()) {
 			const model = this._editor.getModel();
+			const modelVersionId = model.getVersionId();
 			const outlineModel = await OutlineModel.create(this._languageFeaturesService.documentSymbolProvider, model, token);
-			console.log('outline model is : ', outlineModel);
 			if (token.isCancellationRequested) {
 				return;
 			}
 			this._ranges = [];
+			this._rangesVersionId = modelVersionId;
 			for (const outline of outlineModel.children.values()) {
 				if (outline instanceof OutlineElement) {
 					const kind: SymbolKind = outline.symbol.kind;
@@ -167,6 +166,10 @@ class StickyScrollController implements IEditorContribution {
 		}
 		const lineHeight: number = this._editor.getOption(EditorOption.lineHeight);
 		const model = this._editor.getModel();
+		if (this._rangesVersionId !== model.getVersionId()) {
+			// Old _ranges not updated yet
+			return;
+		}
 		const scrollTop = this._editor.getScrollTop();
 		let scrollDirection: ScrollDirection;
 		if (this._lastScrollPosition < scrollTop) {
@@ -193,33 +196,30 @@ class StickyScrollController implements IEditorContribution {
 				bottomOfBeginningLine = start * lineHeight;
 				topOfEndLine = (end - 1) * lineHeight;
 				bottomOfEndLine = end * lineHeight;
-
 				if (!beginningLinesConsidered.has(start)) {
 					if (topOfElementAtDepth >= topOfEndLine - 1 && topOfElementAtDepth < bottomOfEndLine - 2) {
 						beginningLinesConsidered.add(start);
-						this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(model.getLineContent(start), start, this._editor, -1, (depth - 1) * lineHeight + bottomOfEndLine - bottomOfElementAtDepth));
+						this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(model.getLineContent(start), start, this._editor, -1, bottomOfEndLine - bottomOfElementAtDepth));
 						break;
 					}
 					else if (scrollDirection === ScrollDirection.Down && bottomOfElementAtDepth > bottomOfBeginningLine - 1 && bottomOfElementAtDepth < bottomOfEndLine - 1) {
 						beginningLinesConsidered.add(start);
-						this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(model.getLineContent(start), start, this._editor, 0));
-
+						this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(model.getLineContent(start), start, this._editor, 0, 0));
 					} else if (scrollDirection === ScrollDirection.Up && scrollToBottomOfWidget > bottomOfBeginningLine - 1 && scrollToBottomOfWidget < bottomOfEndLine ||
 						scrollDirection === ScrollDirection.Up && bottomOfElementAtDepth > bottomOfBeginningLine && bottomOfElementAtDepth < topOfEndLine - 1) {
 						beginningLinesConsidered.add(start);
-						this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(model.getLineContent(start), start, this._editor, 0));
+						this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(model.getLineContent(start), start, this._editor, 0, 0));
 					}
 				} else {
 					this._ranges.splice(index, 1);
 				}
 			}
 		}
-
 		this.stickyScrollWidget.updateRootNode();
 	}
 
-	dispose(): void {
-		this._store.dispose();
+	override dispose(): void {
+		super.dispose();
 		this._sessionStore.dispose();
 	}
 }
@@ -227,8 +227,13 @@ class StickyScrollController implements IEditorContribution {
 const _ttPolicy = window.trustedTypes?.createPolicy('stickyScrollViewLayer', { createHTML: value => value });
 
 class StickyScrollCodeLine {
+
+	public readonly effectiveLineHeight: number = 0;
+
 	constructor(private readonly _line: string, private readonly _lineNumber: number, private readonly _editor: IActiveCodeEditor,
-		private readonly _zIndex: number, private readonly _position?: number) { }
+		private readonly _zIndex: number, private readonly _relativePosition: number) {
+		this.effectiveLineHeight = this._editor.getOption(EditorOption.lineHeight) + this._relativePosition;
+	}
 
 	getDomNode() {
 
@@ -313,13 +318,14 @@ class StickyScrollCodeLine {
 		root.style.backgroundColor = `var(--vscode-editorStickyScroll-background)`;
 		root.style.overflow = 'hidden';
 		root.style.whiteSpace = 'nowrap';
+		root.style.width = '100%';
 		root.style.lineHeight = this._editor.getOption(EditorOption.lineHeight).toString() + 'px';
 		root.style.height = this._editor.getOption(EditorOption.lineHeight).toString() + 'px';
 
 		// Special case for last line of sticky scroll
-		if (this._position) {
-			root.style.position = 'absolute';
-			root.style.top = this._position + 'px';
+		if (this._relativePosition) {
+			root.style.position = 'relative';
+			root.style.top = this._relativePosition + 'px';
 			root.style.width = '100%';
 		}
 		return root;
@@ -334,6 +340,7 @@ class StickyScrollWidget implements IOverlayWidget {
 	constructor(public readonly _editor: ICodeEditor) {
 		this.rootDomNode = document.createElement('div');
 		this.rootDomNode.style.width = '100%';
+		this.rootDomNode.style.boxShadow = `var(--vscode-scrollbar-shadow) 0 6px 6px -6px`; // '0px 0px 8px 2px #000000';
 	}
 
 	get codeLineCount() {
@@ -345,9 +352,12 @@ class StickyScrollWidget implements IOverlayWidget {
 	}
 
 	updateRootNode() {
+		let widgetHeight: number = 0;
 		for (const line of this.arrayOfCodeLines) {
+			widgetHeight += line.effectiveLineHeight;
 			this.rootDomNode.appendChild(line.getDomNode());
 		}
+		this.rootDomNode.style.height = widgetHeight.toString() + 'px';
 	}
 
 	emptyRootNode() {
