@@ -247,9 +247,8 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 
 	protected override updateReadonly(input: EditorInput): void {
 		if (input instanceof DiffEditorInput) {
-			const readonly = input.hasCapability(EditorInputCapabilities.Readonly);
 			this.diffEditorControl?.updateOptions({
-				readOnly: readonly,
+				readOnly: input.hasCapability(EditorInputCapabilities.Readonly),
 				originalEditable: !input.original.hasCapability(EditorInputCapabilities.Readonly),
 			});
 		} else {

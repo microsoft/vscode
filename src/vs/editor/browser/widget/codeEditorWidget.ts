@@ -400,8 +400,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				if (target?.position) {
 					this._onDropIntoEditor.fire({ position: target.position, event: e });
 				}
-
-
 			},
 			onDragLeave: () => {
 				this.removeDropIndicator();
