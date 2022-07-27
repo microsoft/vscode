@@ -155,7 +155,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 
 	readonly _serviceBrand: undefined;
 
-	private enabled: boolean = false;
+	protected enabled: boolean = false;
 	protected readonly defaultProfileShouldIncludeExtensionsResourceAlways: boolean = false;
 	readonly profilesHome: URI;
 
