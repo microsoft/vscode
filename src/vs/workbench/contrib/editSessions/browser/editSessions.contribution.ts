@@ -46,6 +46,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { EditSessionsDataViews } from 'vs/workbench/contrib/editSessions/browser/editSessionsViews';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { EditSessionsContentProvider } from 'vs/workbench/contrib/editSessions/browser/editSessionsContentProvider';
+import { isNative } from 'vs/base/common/platform';
 
 registerSingleton(IEditSessionsLogService, EditSessionsLogService);
 registerSingleton(IEditSessionsWorkbenchService, EditSessionsWorkbenchService);
@@ -529,7 +530,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 	private createPickItems(): ContinueEditSessionItem[] {
 		const items = [...this.continueEditSessionOptions].filter((option) => option.when === undefined || this.contextKeyService.contextMatchesRules(option.when));
 
-		if (getVirtualWorkspaceLocation(this.contextService.getWorkspace()) !== undefined) {
+		if (getVirtualWorkspaceLocation(this.contextService.getWorkspace()) !== undefined && isNative) {
 			items.push(new ContinueEditSessionItem(
 				localize('continueEditSessionItem.openInLocalFolder', 'Open In Local Folder'),
 				openLocalFolderCommand.id,
