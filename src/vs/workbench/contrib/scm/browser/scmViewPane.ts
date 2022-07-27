@@ -1963,7 +1963,7 @@ class SCMInputWidget {
 			scrollbar: { alwaysConsumeMouseWheel: false },
 			overflowWidgetsDomNode,
 			renderWhitespace: 'none',
-			enableDropIntoEditor: true,
+			dropIntoEditor: { enabled: true },
 			accessibilitySupport
 		};
 
