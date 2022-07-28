@@ -8,12 +8,21 @@ export function toBase64UrlEncoding(base64string: string) {
 	return base64string.replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_'); // Need to use base64url encoding
 }
 
+const LOCALHOST_ADDRESSES = ['localhost', '127.0.0.1', '0:0:0:0:0:0:0:1', '::1'];
+function isLocalhost(uri: Uri): boolean {
+	if (!/^https?$/i.test(uri.scheme)) {
+		return false;
+	}
+	const host = uri.authority.split(':')[0];
+	return LOCALHOST_ADDRESSES.indexOf(host) >= 0;
+}
+
 export function isSupportedEnvironment(uri: Uri): boolean {
 	if (env.uiKind === UIKind.Desktop) {
 		return true;
 	}
 	// local development (localhost:* or 127.0.0.1:*)
-	if (/^https?$/i.test(uri.scheme) && /^(localhost|127\.0\.0\.1):\d+$/i.test(uri.authority)) {
+	if (isLocalhost(uri)) {
 		return true;
 	}
 	// At this point we should only ever see https

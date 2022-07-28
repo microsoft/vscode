@@ -685,6 +685,7 @@ export class AzureActiveDirectoryService {
 			inputBox.onDidAccept(async () => {
 				const code = inputBox.value;
 				if (code) {
+					inputBox.dispose();
 					const session = await this.exchangeCodeForSession(code, verifier, scopeData);
 					resolve(session);
 				}
