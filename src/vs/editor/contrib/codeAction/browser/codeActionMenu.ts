@@ -164,6 +164,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	private currSelectedItem: number = 0;
 	private hasSeperator: boolean = false;
 	private block?: HTMLElement;
+	private allowEnterClick: boolean = true;
 
 	public static readonly documentationID: string = '_documentation';
 
@@ -213,21 +214,26 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 			e.elements.forEach(element => {
 				if (element.isEnabled) {
 					element.action.run();
+					this.hideCodeActionWidget();
 				}
 			});
-			this.hideCodeActionWidget();
 		}
 	}
 
 
 	private _onListHover(e: IListMouseEvent<ICodeActionMenuItem>): void {
 		if (!e.element) {
+			this.allowEnterClick = false;
 			this.codeActionList.value?.setFocus([]);
 		} else {
 			if (e.element?.isEnabled) {
+				this.allowEnterClick = true;
 				this.codeActionList.value?.setFocus([e.element.index]);
 				this.focusedEnabledItem = this.viewItems.indexOf(e.element);
 				this.currSelectedItem = e.element.index;
+			} else {
+				this.allowEnterClick = false;
+				this.codeActionList.value?.setFocus([e.element.index]);
 			}
 		}
 	}
@@ -319,6 +325,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		// List selection
 		if (this.viewItems.length < 1 || this.viewItems.every(item => item.isDocumentation)) {
 			this.currSelectedItem = 0;
+			this.allowEnterClick = false;
 		} else {
 			this.focusedEnabledItem = 0;
 			this.currSelectedItem = this.viewItems[0].index;
@@ -340,6 +347,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	}
 
 	protected focusPrevious() {
+		this.allowEnterClick = true;
 		if (typeof this.focusedEnabledItem === 'undefined') {
 			this.focusedEnabledItem = this.viewItems[0].index;
 		} else if (this.viewItems.length < 1) {
@@ -363,6 +371,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	}
 
 	protected focusNext() {
+		this.allowEnterClick = true;
 		if (typeof this.focusedEnabledItem === 'undefined') {
 			this.focusedEnabledItem = this.viewItems.length - 1;
 		} else if (this.viewItems.length < 1) {
@@ -391,7 +400,9 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	}
 
 	public onEnterSet() {
-		this.codeActionList.value?.setSelection([this.currSelectedItem]);
+		if (this.allowEnterClick) {
+			this.codeActionList.value?.setSelection([this.currSelectedItem]);
+		}
 	}
 
 	override dispose() {
