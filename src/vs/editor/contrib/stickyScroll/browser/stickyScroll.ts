@@ -210,12 +210,12 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 				if (!beginningLinesConsidered.has(start)) {
 					if (topOfElementAtDepth >= topOfEndLine - 1 && topOfElementAtDepth < bottomOfEndLine - 2) {
 						beginningLinesConsidered.add(start);
-						this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(start, this._editor, -1, bottomOfEndLine - bottomOfElementAtDepth));
+						this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(start, depth, this._editor, -1, bottomOfEndLine - bottomOfElementAtDepth));
 						break;
 					}
-					else if (bottomOfElementAtDepth > bottomOfBeginningLine - 1 && bottomOfElementAtDepth < bottomOfEndLine - 1) {
+					else if (bottomOfElementAtDepth > bottomOfBeginningLine && bottomOfElementAtDepth < bottomOfEndLine - 1) {
 						beginningLinesConsidered.add(start);
-						this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(start, this._editor, 0, 0));
+						this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(start, depth, this._editor, 0, 0));
 					}
 				} else {
 					this._ranges.splice(index, 1);
@@ -237,7 +237,7 @@ class StickyScrollCodeLine {
 
 	public readonly effectiveLineHeight: number = 0;
 
-	constructor(private readonly _lineNumber: number, private readonly _editor: IActiveCodeEditor,
+	constructor(private readonly _lineNumber: number, private readonly _depth: number, private readonly _editor: IActiveCodeEditor,
 		private readonly _zIndex: number, private readonly _relativePosition: number) {
 		this.effectiveLineHeight = this._editor.getOption(EditorOption.lineHeight) + this._relativePosition;
 	}
@@ -302,8 +302,9 @@ class StickyScrollCodeLine {
 		root.onclick = e => {
 			e.stopPropagation();
 			e.preventDefault();
-			this._editor.revealLine(this._lineNumber);
+			this._editor.revealPosition({ lineNumber: this._lineNumber - this._depth + 1, column: 1 });
 		};
+
 		root.onmouseover = e => {
 			innerLineNumberHTML.style.background = `var(--vscode-editorStickyScrollHover-background)`;
 			lineHTMLNode.style.backgroundColor = `var(--vscode-editorStickyScrollHover-background)`;
@@ -353,7 +354,7 @@ class StickyScrollWidget implements IOverlayWidget {
 	constructor(public readonly _editor: ICodeEditor) {
 		this.rootDomNode = document.createElement('div');
 		this.rootDomNode.style.width = '100%';
-		this.rootDomNode.style.boxShadow = `var(--vscode-scrollbar-shadow) 0 6px 6px -6px`; // '0px 0px 8px 2px #000000';
+		this.rootDomNode.style.boxShadow = `var(--vscode-scrollbar-shadow) 0 6px 6px -6px`;
 	}
 
 	get codeLineCount() {
