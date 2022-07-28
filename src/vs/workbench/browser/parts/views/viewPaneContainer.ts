@@ -39,7 +39,7 @@ import { PANEL_SECTION_BORDER, PANEL_SECTION_DRAG_AND_DROP_BACKGROUND, PANEL_SEC
 import { IAddedViewDescriptorRef, ICustomViewDescriptor, IView, IViewContainerModel, IViewDescriptor, IViewDescriptorRef, IViewDescriptorService, IViewPaneContainer, IViewsService, ViewContainer, ViewContainerLocation, ViewContainerLocationToString, ViewVisibilityState } from 'vs/workbench/common/views';
 import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
+import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 
 export const ViewsSubMenu = new MenuId('Views');
 MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, <ISubmenuItem>{
@@ -1255,12 +1255,44 @@ registerAction2(class MoveViews extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, options: { viewIds: string[]; destinationId: string }): Promise<void> {
-		if (!Array.isArray(options?.viewIds) || typeof options?.destinationId !== 'string') {
+	async run(accessor: ServicesAccessor, options: { viewIds: string[]; destinationId: string | 'activitybar' | 'panel' | 'auxiliarybar' }): Promise<void> {
+		if (!Array.isArray(options?.viewIds) || typeof options.destinationId !== 'string' || !options.destinationId) {
 			return Promise.reject('Invalid arguments');
 		}
 
 		const viewDescriptorService = accessor.get(IViewDescriptorService);
+
+		let location: ViewContainerLocation | undefined;
+		let part: Parts.ACTIVITYBAR_PART | Parts.PANEL_PART | Parts.AUXILIARYBAR_PART | undefined;
+		switch (options.destinationId) {
+			case 'activitybar':
+				location = ViewContainerLocation.Sidebar;
+				part = Parts.ACTIVITYBAR_PART;
+				break;
+			case 'panel':
+				location = ViewContainerLocation.Panel;
+				part = Parts.PANEL_PART;
+				break;
+			case 'auxiliarybar':
+				location = ViewContainerLocation.AuxiliaryBar;
+				part = Parts.AUXILIARYBAR_PART;
+				break;
+		}
+
+		if (location !== undefined) {
+			for (const viewId of options.viewIds) {
+				const viewDescriptor = viewDescriptorService.getViewDescriptorById(viewId);
+				if (viewDescriptor?.canMoveView) {
+					viewDescriptorService.moveViewToLocation(viewDescriptor, location);
+				}
+			}
+
+			const layoutService = accessor.get(IWorkbenchLayoutService);
+			layoutService.setPartHidden(false, part!);
+			layoutService.focusPart(part!);
+
+			return;
+		}
 
 		const destination = viewDescriptorService.getViewContainerById(options.destinationId);
 		if (!destination) {
