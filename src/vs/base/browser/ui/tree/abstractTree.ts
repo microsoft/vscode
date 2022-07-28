@@ -685,7 +685,7 @@ export enum TreeFindMode {
 class FindWidget<T, TFilterData> extends Disposable {
 
 	private readonly elements = h('.monaco-tree-type-filter', [
-		h('.monaco-tree-type-filter-grab.codicon.codicon-debug-gripper@grab'),
+		h('.monaco-tree-type-filter-grab.codicon.codicon-debug-gripper@grab', { tabIndex: 0 }),
 		h('.monaco-tree-type-filter-input@findInput'),
 		h('.monaco-tree-type-filter-actionbar@actionbar'),
 	]);
@@ -699,7 +699,7 @@ class FindWidget<T, TFilterData> extends Disposable {
 	private readonly findInput: FindInput;
 	private readonly actionbar: ActionBar;
 	private width = 0;
-	private right = 4;
+	private right = 0;
 
 	readonly _onDidDisable = new Emitter<void>();
 	readonly onDidDisable = this._onDidDisable.event;
@@ -772,6 +772,28 @@ class FindWidget<T, TFilterData> extends Disposable {
 			}));
 		}));
 
+		const onGrabKeyDown = this._register(Event.chain(this._register(new DomEmitter(this.elements.grab, 'keydown')).event))
+			.map(e => new StandardKeyboardEvent(e))
+			.event;
+
+		this._register(onGrabKeyDown((e): any => {
+			let right: number | undefined;
+
+			if (e.keyCode === KeyCode.LeftArrow) {
+				right = Number.POSITIVE_INFINITY;
+			} else if (e.keyCode === KeyCode.RightArrow) {
+				right = 0;
+			} else if (e.keyCode === KeyCode.Space) {
+				right = this.right === 0 ? Number.POSITIVE_INFINITY : 0;
+			}
+
+			if (right !== undefined) {
+				e.preventDefault();
+				e.stopPropagation();
+				this.right = right;
+				this.layout();
+			}
+		}));
 
 		this.onDidChangeValue = this.findInput.onDidChange;
 		this.style(options ?? {});
