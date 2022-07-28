@@ -19,6 +19,7 @@ import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
 import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 
 class StickyScrollController extends Disposable implements IEditorContribution {
 
@@ -61,6 +62,7 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 			this._editor.addOverlayWidget(this.stickyScrollWidget);
 			this._sessionStore.add(this._editor.onDidChangeModel(() => this._update(true)));
 			this._sessionStore.add(this._editor.onDidScrollChange(() => this._update(false)));
+			this._sessionStore.add(this._editor.onDidChangeHiddenAreas(() => this._update(true)));
 			this._sessionStore.add(this._editor.onDidChangeModelTokens((e) => this._onTokensChange(e)));
 			this._sessionStore.add(this._editor.onDidChangeModelContent(() => this._updateSoon.schedule()));
 			this._sessionStore.add(this._languageFeaturesService.documentSymbolProvider.onDidChange(() => this._update(true)));
@@ -91,6 +93,12 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 			this._cts?.dispose(true);
 			this._cts = new CancellationTokenSource();
 			await this._updateOutlineModel(this._cts.token);
+		}
+		const hiddenRanges: Range[] | undefined = this._editor._getViewModel()?.getHiddenAreas();
+		if (hiddenRanges) {
+			for (const hiddenRange of hiddenRanges) {
+				this._ranges = this._ranges.filter(range => { return !(range[0] >= hiddenRange.startLineNumber && range[1] <= hiddenRange.endLineNumber + 1); });
+			}
 		}
 		this._renderStickyScroll();
 	}
