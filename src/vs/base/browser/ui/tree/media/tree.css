@@ -74,8 +74,9 @@
 	display: flex;
 	padding: 3px;
 	transition: top 0.3s;
-	width: 160px;
+	max-width: 200px;
 	z-index: 100;
+	margin: 0 6px;
 }
 
 .monaco-tree-type-filter.disabled {
