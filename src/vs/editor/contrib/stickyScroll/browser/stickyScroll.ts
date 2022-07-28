@@ -18,6 +18,7 @@ import { SymbolKind } from 'vs/editor/common/languages';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
+import { Position } from 'vs/editor/common/core/position';
 
 class StickyScrollController extends Disposable implements IEditorContribution {
 
@@ -201,12 +202,12 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 				if (!beginningLinesConsidered.has(start)) {
 					if (topOfElementAtDepth >= topOfEndLine - 1 && topOfElementAtDepth < bottomOfEndLine - 2) {
 						beginningLinesConsidered.add(start);
-						this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(model.getLineContent(start), start, this._editor, -1, bottomOfEndLine - bottomOfElementAtDepth));
+						this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(start, this._editor, -1, bottomOfEndLine - bottomOfElementAtDepth));
 						break;
 					}
 					else if (bottomOfElementAtDepth > bottomOfBeginningLine - 1 && bottomOfElementAtDepth < bottomOfEndLine - 1) {
 						beginningLinesConsidered.add(start);
-						this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(model.getLineContent(start), start, this._editor, 0, 0));
+						this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(start, this._editor, 0, 0));
 					}
 				} else {
 					this._ranges.splice(index, 1);
@@ -228,7 +229,7 @@ class StickyScrollCodeLine {
 
 	public readonly effectiveLineHeight: number = 0;
 
-	constructor(private readonly _line: string, private readonly _lineNumber: number, private readonly _editor: IActiveCodeEditor,
+	constructor(private readonly _lineNumber: number, private readonly _editor: IActiveCodeEditor,
 		private readonly _zIndex: number, private readonly _relativePosition: number) {
 		this.effectiveLineHeight = this._editor.getOption(EditorOption.lineHeight) + this._relativePosition;
 	}
@@ -240,16 +241,18 @@ class StickyScrollCodeLine {
 	getDomNode() {
 
 		const root: HTMLElement = document.createElement('div');
-		const lineRenderingData = this._editor._getViewModel().getViewportViewLineRenderingData(this._editor.getVisibleRangesPlusViewportAboveBelow()[0], this._lineNumber);
+		const viewModel = this._editor._getViewModel();
+		const viewLineNumber = viewModel.coordinatesConverter.convertModelPositionToViewPosition(new Position(this._lineNumber, 1)).lineNumber;
+		const lineRenderingData = viewModel.getViewLineRenderingData(viewLineNumber);
 
 		let actualInlineDecorations: LineDecoration[];
 		try {
-			actualInlineDecorations = LineDecoration.filter(lineRenderingData.inlineDecorations, this._lineNumber, lineRenderingData.minColumn, lineRenderingData.maxColumn);
+			actualInlineDecorations = LineDecoration.filter(lineRenderingData.inlineDecorations, viewLineNumber, lineRenderingData.minColumn, lineRenderingData.maxColumn);
 		} catch (err) {
 			actualInlineDecorations = [];
 		}
 
-		const renderLineInput: RenderLineInput = new RenderLineInput(true, true, this._line, lineRenderingData.continuesWithWrappedLine,
+		const renderLineInput: RenderLineInput = new RenderLineInput(true, true, lineRenderingData.content, lineRenderingData.continuesWithWrappedLine,
 			lineRenderingData.isBasicASCII, lineRenderingData.containsRTL, 0, lineRenderingData.tokens, actualInlineDecorations, lineRenderingData.tabSize,
 			lineRenderingData.startVisibleColumn, 1, 1, 1, 100, 'none', true, true, null);
 
