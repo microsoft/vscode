@@ -1099,31 +1099,26 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!task) {
 			throw new TaskError(Severity.Info, nls.localize('TaskServer.noTask', 'Task to execute is undefined'), TaskErrors.TaskNotFound);
 		}
-
-		return new Promise<ITaskSummary | undefined>((resolve) => {
-			const resolver = this._createResolver();
+		const resolver = this._createResolver();
+		let executeTaskResult: ITaskSummary | undefined;
+		try {
 			if (options && options.attachProblemMatcher && this._shouldAttachProblemMatcher(task) && !InMemoryTask.is(task)) {
-				this._attachProblemMatcher(task).then(toExecute => {
-					if (toExecute) {
-						resolve(this._executeTask(toExecute, resolver, runSource));
-					} else {
-						resolve(undefined);
-					}
-				});
+				const taskToExecute = await this._attachProblemMatcher(task);
+				if (taskToExecute) {
+					executeTaskResult = await this._executeTask(taskToExecute, resolver, runSource);
+				}
 			} else {
-				resolve(this._executeTask(task, resolver, runSource));
+				executeTaskResult = await this._executeTask(task, resolver, runSource);
 			}
-		}).then((value) => {
 			if (runSource === TaskRunSource.User) {
-				this.getWorkspaceTasks().then(workspaceTasks => {
-					RunAutomaticTasks.promptForPermission(this, this._storageService, this._notificationService, this._workspaceTrustManagementService, this._openerService, this._configurationService, workspaceTasks);
-				});
+				const workspaceTasks = await this.getWorkspaceTasks();
+				RunAutomaticTasks.promptForPermission(this, this._storageService, this._notificationService, this._workspaceTrustManagementService, this._openerService, this._configurationService, workspaceTasks);
 			}
-			return value;
-		}, (error) => {
+			return executeTaskResult;
+		} catch (error) {
 			this._handleError(error);
 			return Promise.reject(error);
-		});
+		}
 	}
 
 	private _isProvideTasksEnabled(): boolean {
