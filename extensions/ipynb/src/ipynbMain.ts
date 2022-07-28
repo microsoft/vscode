@@ -84,8 +84,7 @@ export function activate(context: vscode.ExtensionContext) {
 	});
 	vscode.commands.executeCommand('setContext', 'jupyterEnabled', vscode.extensions.getExtension('ms-toolsai.jupyter'));
 
-	NotebookImagePaste.activate(context);
-	console.log('main activation');
+	NotebookImagePaste.imagePasteSetup(context);
 
 	return {
 		exportNotebook: (notebook: vscode.NotebookData): string => {

@@ -38,6 +38,10 @@
 			{
 				"command": "ipynb.openIpynbInNotebookEditor",
 				"title": "Open ipynb file in notebook editor"
+			},
+      {
+				"command": "ipynb.replaceAttachmentWithMrBase",
+				"title": "Covert image into Mr Base"
 			}
 		],
 		"notebooks": [
