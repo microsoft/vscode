@@ -732,16 +732,15 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 
 		// We didn't find the task, so we need to ask all resolvers about it
-		return this._getGroupedTasks().then((map) => {
-			let values = map.get(folder);
-			values = values.concat(map.get(USER_TASKS_GROUP_KEY));
+		const map = await this._getGroupedTasks();
+		let values = map.get(folder);
+		values = values.concat(map.get(USER_TASKS_GROUP_KEY));
 
-			if (!values) {
-				return undefined;
-			}
-			values = values.filter(task => task.matches(key, compareId)).sort(task => task._source.kind === TaskSourceKind.Extension ? 1 : -1);
-			return values.length > 0 ? values[0] : undefined;
-		});
+		if (!values) {
+			return undefined;
+		}
+		values = values.filter(task => task.matches(key, compareId)).sort(task => task._source.kind === TaskSourceKind.Extension ? 1 : -1);
+		return values.length > 0 ? values[0] : undefined;
 	}
 
 	public async tryResolveTask(configuringTask: ConfiguringTask): Promise<Task | undefined> {
@@ -804,29 +803,28 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!this._versionAndEngineCompatible(filter)) {
 			return Promise.resolve<Task[]>([]);
 		}
-		return this._getGroupedTasks(filter ? filter.type : undefined).then((map) => {
-			if (!filter || !filter.type) {
-				return map.all();
-			}
-			const result: Task[] = [];
-			map.forEach((tasks) => {
-				for (const task of tasks) {
-					if (ContributedTask.is(task) && ((task.defines.type === filter.type) || (task._source.label === filter.type))) {
+		const taskMap = await this._getGroupedTasks(filter ? filter.type : undefined);
+		if (!filter || !filter.type) {
+			return taskMap.all();
+		}
+		const result: Task[] = [];
+		for (const tasks of Object.values(taskMap)) {
+			for (const task of tasks) {
+				if (ContributedTask.is(task) && ((task.defines.type === filter.type) || (task._source.label === filter.type))) {
+					result.push(task);
+				} else if (CustomTask.is(task)) {
+					if (task.type === filter.type) {
 						result.push(task);
-					} else if (CustomTask.is(task)) {
-						if (task.type === filter.type) {
+					} else {
+						const customizes = task.customizes();
+						if (customizes && customizes.type === filter.type) {
 							result.push(task);
-						} else {
-							const customizes = task.customizes();
-							if (customizes && customizes.type === filter.type) {
-								result.push(task);
-							}
 						}
 					}
 				}
-			});
-			return result;
-		});
+			}
+		}
+		return result;
 	}
 
 	public taskTypes(): string[] {
@@ -1061,21 +1059,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (tryBuildShortcut) {
 			return tryBuildShortcut;
 		}
-
-		return this._getGroupedTasks().then((tasks) => {
-			const runnable = this._createRunnableTask(tasks, TaskGroup.Build);
-			if (!runnable || !runnable.task) {
-				if (this.schemaVersion === JsonSchemaVersion.V0_1_0) {
-					throw new TaskError(Severity.Info, nls.localize('TaskService.noBuildTask1', 'No build task defined. Mark a task with \'isBuildCommand\' in the tasks.json file.'), TaskErrors.NoBuildTask);
-				} else {
-					throw new TaskError(Severity.Info, nls.localize('TaskService.noBuildTask2', 'No build task defined. Mark a task with as a \'build\' group in the tasks.json file.'), TaskErrors.NoBuildTask);
-				}
-			}
-			return this._executeTask(runnable.task, runnable.resolver, TaskRunSource.User);
-		}).then(value => value, (error) => {
-			this._handleError(error);
-			return Promise.reject(error);
-		});
+		return this._getGroupedTasksAndExecute();
 	}
 
 	private async _runTest(): Promise<ITaskSummary> {
@@ -1084,20 +1068,27 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return tryTestShortcut;
 		}
 
-		return this._getGroupedTasks().then((tasks) => {
-			const runnable = this._createRunnableTask(tasks, TaskGroup.Test);
-			if (!runnable || !runnable.task) {
-				if (this.schemaVersion === JsonSchemaVersion.V0_1_0) {
-					throw new TaskError(Severity.Info, nls.localize('TaskService.noTestTask1', 'No test task defined. Mark a task with \'isTestCommand\' in the tasks.json file.'), TaskErrors.NoTestTask);
-				} else {
-					throw new TaskError(Severity.Info, nls.localize('TaskService.noTestTask2', 'No test task defined. Mark a task with as a \'test\' group in the tasks.json file.'), TaskErrors.NoTestTask);
-				}
+		return this._getGroupedTasksAndExecute();
+	}
+
+	private async _getGroupedTasksAndExecute(): Promise<ITaskSummary> {
+		const tasks = await this._getGroupedTasks();
+		const runnable = this._createRunnableTask(tasks, TaskGroup.Build);
+		if (!runnable || !runnable.task) {
+			if (this.schemaVersion === JsonSchemaVersion.V0_1_0) {
+				throw new TaskError(Severity.Info, nls.localize('TaskService.noBuildTask1', 'No build task defined. Mark a task with \'isBuildCommand\' in the tasks.json file.'), TaskErrors.NoBuildTask);
+			} else {
+				throw new TaskError(Severity.Info, nls.localize('TaskService.noBuildTask2', 'No build task defined. Mark a task with as a \'build\' group in the tasks.json file.'), TaskErrors.NoBuildTask);
 			}
-			return this._executeTask(runnable.task, runnable.resolver, TaskRunSource.User);
-		}).then(value => value, (error) => {
+		}
+		let executeTaskResult: ITaskSummary;
+		try {
+			executeTaskResult = await this._executeTask(runnable.task, runnable.resolver, TaskRunSource.User);
+		} catch (error) {
 			this._handleError(error);
 			return Promise.reject(error);
-		});
+		}
+		return executeTaskResult;
 	}
 
 	public async run(task: Task | undefined, options?: IProblemMatcherRunOptions, runSource: TaskRunSource = TaskRunSource.System): Promise<ITaskSummary | undefined> {
