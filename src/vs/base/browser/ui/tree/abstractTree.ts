@@ -1022,6 +1022,7 @@ export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTr
 	readonly filter?: ITreeFilter<T, TFilterData>;
 	readonly dnd?: ITreeDragAndDrop<T>;
 	readonly additionalScrollHeight?: number;
+	readonly findWidgetEnabled?: boolean;
 }
 
 function dfs<T, TFilterData>(node: ITreeNode<T, TFilterData>, fn: (node: ITreeNode<T, TFilterData>) => void): void {
@@ -1436,7 +1437,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 			onKeyDown.filter(e => e.keyCode === KeyCode.Space).on(this.onSpace, this, this.disposables);
 		}
 
-		if (_options.keyboardNavigationLabelProvider && _options.contextViewProvider) {
+		if ((_options.findWidgetEnabled ?? true) && _options.keyboardNavigationLabelProvider && _options.contextViewProvider) {
 			this.findController = new FindController(this, this.model, this.view, filter!, _options.contextViewProvider);
 			this.focusNavigationFilter = node => this.findController!.shouldAllowFocus(node);
 			this.onDidChangeFindOpenState = this.findController.onDidChangeOpenState;
