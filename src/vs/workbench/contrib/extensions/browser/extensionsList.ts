@@ -119,8 +119,8 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const actions = [
 			this.instantiationService.createInstance(ExtensionStatusLabelAction),
 			this.instantiationService.createInstance(MigrateDeprecatedExtensionAction, true),
-			this.instantiationService.createInstance(UpdateAction),
 			reloadAction,
+			this.instantiationService.createInstance(UpdateAction),
 			this.instantiationService.createInstance(InstallDropdownAction),
 			this.instantiationService.createInstance(InstallingLabelAction),
 			this.instantiationService.createInstance(SetLanguageAction),
