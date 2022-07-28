@@ -74,7 +74,7 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { toFormattedString } from 'vs/base/common/jsonFormatter';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { EditorResourceAccessor, SaveReason } from 'vs/workbench/common/editor';
-import { ITextEditorSelection, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
+import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
@@ -1846,222 +1846,222 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return !definition || !definition.when || this._contextKeyService.contextMatchesRules(definition.when);
 	}
 
-	private _getGroupedTasks(type?: string): Promise<TaskMap> {
+	private async _getGroupedTasks(type?: string): Promise<TaskMap> {
 		const needsRecentTasksMigration = this._needsRecentTasksMigration();
-		return this._activateTaskProviders(type).then(() => {
-			const validTypes: IStringDictionary<boolean> = Object.create(null);
-			TaskDefinitionRegistry.all().forEach(definition => validTypes[definition.taskType] = true);
-			validTypes['shell'] = true;
-			validTypes['process'] = true;
-			return new Promise<ITaskSet[]>(resolve => {
-				const result: ITaskSet[] = [];
-				let counter: number = 0;
-				const done = (value: ITaskSet | undefined) => {
-					if (value) {
-						result.push(value);
+		await this._activateTaskProviders(type);
+		const validTypes: IStringDictionary<boolean> = Object.create(null);
+		TaskDefinitionRegistry.all().forEach(definition => validTypes[definition.taskType] = true);
+		validTypes['shell'] = true;
+		validTypes['process'] = true;
+		const contributedTaskSets = await new Promise<ITaskSet[]>(resolve => {
+			const result: ITaskSet[] = [];
+			let counter: number = 0;
+			const done = (value: ITaskSet | undefined) => {
+				if (value) {
+					result.push(value);
+				}
+				if (--counter === 0) {
+					resolve(result);
+				}
+			};
+			const error = (error: any) => {
+				try {
+					if (error && Types.isString(error.message)) {
+						this._outputChannel.append('Error: ');
+						this._outputChannel.append(error.message);
+						this._outputChannel.append('\n');
+						this._showOutput();
+					} else {
+						this._outputChannel.append('Unknown error received while collecting tasks from providers.\n');
+						this._showOutput();
 					}
+				} finally {
 					if (--counter === 0) {
 						resolve(result);
 					}
-				};
-				const error = (error: any) => {
-					try {
-						if (error && Types.isString(error.message)) {
-							this._outputChannel.append('Error: ');
-							this._outputChannel.append(error.message);
-							this._outputChannel.append('\n');
-							this._showOutput();
-						} else {
-							this._outputChannel.append('Unknown error received while collecting tasks from providers.\n');
-							this._showOutput();
+				}
+			};
+			if (this._isProvideTasksEnabled() && (this.schemaVersion === JsonSchemaVersion.V2_0_0) && (this._providers.size > 0)) {
+				let foundAnyProviders = false;
+				for (const [handle, provider] of this._providers) {
+					const providerType = this._providerTypes.get(handle);
+					if ((type === undefined) || (type === providerType)) {
+						if (providerType && !this._isTaskProviderEnabled(providerType)) {
+							continue;
 						}
-					} finally {
-						if (--counter === 0) {
-							resolve(result);
-						}
-					}
-				};
-				if (this._isProvideTasksEnabled() && (this.schemaVersion === JsonSchemaVersion.V2_0_0) && (this._providers.size > 0)) {
-					let foundAnyProviders = false;
-					for (const [handle, provider] of this._providers) {
-						const providerType = this._providerTypes.get(handle);
-						if ((type === undefined) || (type === providerType)) {
-							if (providerType && !this._isTaskProviderEnabled(providerType)) {
-								continue;
-							}
-							foundAnyProviders = true;
-							counter++;
-							provider.provideTasks(validTypes).then((taskSet: ITaskSet) => {
-								// Check that the tasks provided are of the correct type
-								for (const task of taskSet.tasks) {
-									if (task.type !== this._providerTypes.get(handle)) {
-										this._outputChannel.append(nls.localize('unexpectedTaskType', "The task provider for \"{0}\" tasks unexpectedly provided a task of type \"{1}\".\n", this._providerTypes.get(handle), task.type));
-										if ((task.type !== 'shell') && (task.type !== 'process')) {
-											this._showOutput();
-										}
-										break;
+						foundAnyProviders = true;
+						counter++;
+						provider.provideTasks(validTypes).then((taskSet: ITaskSet) => {
+							// Check that the tasks provided are of the correct type
+							for (const task of taskSet.tasks) {
+								if (task.type !== this._providerTypes.get(handle)) {
+									this._outputChannel.append(nls.localize('unexpectedTaskType', "The task provider for \"{0}\" tasks unexpectedly provided a task of type \"{1}\".\n", this._providerTypes.get(handle), task.type));
+									if ((task.type !== 'shell') && (task.type !== 'process')) {
+										this._showOutput();
 									}
+									break;
 								}
-								return done(taskSet);
-							}, error);
-						}
+							}
+							return done(taskSet);
+						}, error);
 					}
-					if (!foundAnyProviders) {
-						resolve(result);
-					}
-				} else {
+				}
+				if (!foundAnyProviders) {
 					resolve(result);
 				}
-			});
-		}).then((contributedTaskSets) => {
-			const result: TaskMap = new TaskMap();
-			const contributedTasks: TaskMap = new TaskMap();
+			} else {
+				resolve(result);
+			}
+		});
 
-			for (const set of contributedTaskSets) {
-				for (const task of set.tasks) {
-					const workspaceFolder = task.getWorkspaceFolder();
-					if (workspaceFolder) {
-						contributedTasks.add(workspaceFolder, task);
-					}
+		const result: TaskMap = new TaskMap();
+		const contributedTasks: TaskMap = new TaskMap();
+
+		for (const set of contributedTaskSets) {
+			for (const task of set.tasks) {
+				const workspaceFolder = task.getWorkspaceFolder();
+				if (workspaceFolder) {
+					contributedTasks.add(workspaceFolder, task);
 				}
 			}
+		}
 
-			return this.getWorkspaceTasks().then(async (customTasks) => {
-				const customTasksKeyValuePairs = Array.from(customTasks);
-				const customTasksPromises = customTasksKeyValuePairs.map(async ([key, folderTasks]) => {
-					const contributed = contributedTasks.get(key);
-					if (!folderTasks.set) {
-						if (contributed) {
-							result.add(key, ...contributed);
-						}
-						return;
+		try {
+			const customTasks = await this.getWorkspaceTasks();
+			const customTasksKeyValuePairs = Array.from(customTasks);
+			const customTasksPromises = customTasksKeyValuePairs.map(async ([key, folderTasks]) => {
+				const contributed = contributedTasks.get(key);
+				if (!folderTasks.set) {
+					if (contributed) {
+						result.add(key, ...contributed);
 					}
+					return;
+				}
 
-					if (this._contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-						result.add(key, ...folderTasks.set.tasks);
-					} else {
-						const configurations = folderTasks.configurations;
-						const legacyTaskConfigurations = folderTasks.set ? this._getLegacyTaskConfigurations(folderTasks.set) : undefined;
-						const customTasksToDelete: Task[] = [];
-						if (configurations || legacyTaskConfigurations) {
-							const unUsedConfigurations: Set<string> = new Set<string>();
-							if (configurations) {
-								Object.keys(configurations.byIdentifier).forEach(key => unUsedConfigurations.add(key));
+				if (this._contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+					result.add(key, ...folderTasks.set.tasks);
+				} else {
+					const configurations = folderTasks.configurations;
+					const legacyTaskConfigurations = folderTasks.set ? this._getLegacyTaskConfigurations(folderTasks.set) : undefined;
+					const customTasksToDelete: Task[] = [];
+					if (configurations || legacyTaskConfigurations) {
+						const unUsedConfigurations: Set<string> = new Set<string>();
+						if (configurations) {
+							Object.keys(configurations.byIdentifier).forEach(key => unUsedConfigurations.add(key));
+						}
+						for (const task of contributed) {
+							if (!ContributedTask.is(task)) {
+								continue;
 							}
-							for (const task of contributed) {
-								if (!ContributedTask.is(task)) {
-									continue;
-								}
-								if (configurations) {
-									const configuringTask = configurations.byIdentifier[task.defines._key];
-									if (configuringTask) {
-										unUsedConfigurations.delete(task.defines._key);
-										result.add(key, TaskConfig.createCustomTask(task, configuringTask));
-									} else {
-										result.add(key, task);
-									}
-								} else if (legacyTaskConfigurations) {
-									const configuringTask = legacyTaskConfigurations[task.defines._key];
-									if (configuringTask) {
-										result.add(key, TaskConfig.createCustomTask(task, configuringTask));
-										customTasksToDelete.push(configuringTask);
-									} else {
-										result.add(key, task);
-									}
+							if (configurations) {
+								const configuringTask = configurations.byIdentifier[task.defines._key];
+								if (configuringTask) {
+									unUsedConfigurations.delete(task.defines._key);
+									result.add(key, TaskConfig.createCustomTask(task, configuringTask));
 								} else {
 									result.add(key, task);
 								}
-							}
-							if (customTasksToDelete.length > 0) {
-								const toDelete = customTasksToDelete.reduce<IStringDictionary<boolean>>((map, task) => {
-									map[task._id] = true;
-									return map;
-								}, Object.create(null));
-								for (const task of folderTasks.set.tasks) {
-									if (toDelete[task._id]) {
-										continue;
-									}
+							} else if (legacyTaskConfigurations) {
+								const configuringTask = legacyTaskConfigurations[task.defines._key];
+								if (configuringTask) {
+									result.add(key, TaskConfig.createCustomTask(task, configuringTask));
+									customTasksToDelete.push(configuringTask);
+								} else {
 									result.add(key, task);
 								}
 							} else {
-								result.add(key, ...folderTasks.set.tasks);
+								result.add(key, task);
 							}
-
-							const unUsedConfigurationsAsArray = Array.from(unUsedConfigurations);
-
-							const unUsedConfigurationPromises = unUsedConfigurationsAsArray.map(async (value) => {
-								const configuringTask = configurations!.byIdentifier[value];
-								if (type && (type !== configuringTask.configures.type)) {
-									return;
+						}
+						if (customTasksToDelete.length > 0) {
+							const toDelete = customTasksToDelete.reduce<IStringDictionary<boolean>>((map, task) => {
+								map[task._id] = true;
+								return map;
+							}, Object.create(null));
+							for (const task of folderTasks.set.tasks) {
+								if (toDelete[task._id]) {
+									continue;
 								}
-
-								let requiredTaskProviderUnavailable: boolean = false;
-
-								for (const [handle, provider] of this._providers) {
-									const providerType = this._providerTypes.get(handle);
-									if (configuringTask.type === providerType) {
-										if (providerType && !this._isTaskProviderEnabled(providerType)) {
-											requiredTaskProviderUnavailable = true;
-											continue;
-										}
-
-										try {
-											const resolvedTask = await provider.resolveTask(configuringTask);
-											if (resolvedTask && (resolvedTask._id === configuringTask._id)) {
-												result.add(key, TaskConfig.createCustomTask(resolvedTask, configuringTask));
-												return;
-											}
-										} catch (error) {
-											// Ignore errors. The task could not be provided by any of the providers.
-										}
-									}
-								}
-
-								if (requiredTaskProviderUnavailable) {
-									this._outputChannel.append(nls.localize(
-										'TaskService.providerUnavailable',
-										'Warning: {0} tasks are unavailable in the current environment.\n',
-										configuringTask.configures.type
-									));
-								} else {
-									this._outputChannel.append(nls.localize(
-										'TaskService.noConfiguration',
-										'Error: The {0} task detection didn\'t contribute a task for the following configuration:\n{1}\nThe task will be ignored.\n',
-										configuringTask.configures.type,
-										JSON.stringify(configuringTask._source.config.element, undefined, 4)
-									));
-									this._showOutput();
-								}
-							});
-
-							await Promise.all(unUsedConfigurationPromises);
+								result.add(key, task);
+							}
 						} else {
 							result.add(key, ...folderTasks.set.tasks);
-							result.add(key, ...contributed);
 						}
-					}
-				});
 
-				await Promise.all(customTasksPromises);
-				if (needsRecentTasksMigration) {
-					// At this point we have all the tasks and can migrate the recently used tasks.
-					await this._migrateRecentTasks(result.all());
-				}
-				return result;
-			}, () => {
-				// If we can't read the tasks.json file provide at least the contributed tasks
-				const result: TaskMap = new TaskMap();
-				for (const set of contributedTaskSets) {
-					for (const task of set.tasks) {
-						const folder = task.getWorkspaceFolder();
-						if (folder) {
-							result.add(folder, task);
-						}
+						const unUsedConfigurationsAsArray = Array.from(unUsedConfigurations);
+
+						const unUsedConfigurationPromises = unUsedConfigurationsAsArray.map(async (value) => {
+							const configuringTask = configurations!.byIdentifier[value];
+							if (type && (type !== configuringTask.configures.type)) {
+								return;
+							}
+
+							let requiredTaskProviderUnavailable: boolean = false;
+
+							for (const [handle, provider] of this._providers) {
+								const providerType = this._providerTypes.get(handle);
+								if (configuringTask.type === providerType) {
+									if (providerType && !this._isTaskProviderEnabled(providerType)) {
+										requiredTaskProviderUnavailable = true;
+										continue;
+									}
+
+									try {
+										const resolvedTask = await provider.resolveTask(configuringTask);
+										if (resolvedTask && (resolvedTask._id === configuringTask._id)) {
+											result.add(key, TaskConfig.createCustomTask(resolvedTask, configuringTask));
+											return;
+										}
+									} catch (error) {
+										// Ignore errors. The task could not be provided by any of the providers.
+									}
+								}
+							}
+
+							if (requiredTaskProviderUnavailable) {
+								this._outputChannel.append(nls.localize(
+									'TaskService.providerUnavailable',
+									'Warning: {0} tasks are unavailable in the current environment.\n',
+									configuringTask.configures.type
+								));
+							} else {
+								this._outputChannel.append(nls.localize(
+									'TaskService.noConfiguration',
+									'Error: The {0} task detection didn\'t contribute a task for the following configuration:\n{1}\nThe task will be ignored.\n',
+									configuringTask.configures.type,
+									JSON.stringify(configuringTask._source.config.element, undefined, 4)
+								));
+								this._showOutput();
+							}
+						});
+
+						await Promise.all(unUsedConfigurationPromises);
+					} else {
+						result.add(key, ...folderTasks.set.tasks);
+						result.add(key, ...contributed);
 					}
 				}
-				return result;
 			});
-		});
+
+			await Promise.all(customTasksPromises);
+			if (needsRecentTasksMigration) {
+				// At this point we have all the tasks and can migrate the recently used tasks.
+				await this._migrateRecentTasks(result.all());
+			}
+			return result;
+		} catch {
+			// If we can't read the tasks.json file provide at least the contributed tasks
+			const result: TaskMap = new TaskMap();
+			for (const set of contributedTaskSets) {
+				for (const task of set.tasks) {
+					const folder = task.getWorkspaceFolder();
+					if (folder) {
+						result.add(folder, task);
+					}
+				}
+			}
+			return result;
+		}
 	}
 
 	private _getLegacyTaskConfigurations(workspaceTasks: ITaskSet): IStringDictionary<CustomTask> | undefined {
