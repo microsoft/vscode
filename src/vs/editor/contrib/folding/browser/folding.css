@@ -32,6 +32,3 @@
 	cursor: pointer;
 }
 
-.monaco-editor .margin-view-overlays .codicon.codicon-folding-manual-expanded::before {
-	transform: rotate(90deg);
-}

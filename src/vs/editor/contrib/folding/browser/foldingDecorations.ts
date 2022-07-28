@@ -14,8 +14,8 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export const foldingExpandedIcon = registerIcon('folding-expanded', Codicon.chevronDown, localize('foldingExpandedIcon', 'Icon for expanded ranges in the editor glyph margin.'));
 export const foldingCollapsedIcon = registerIcon('folding-collapsed', Codicon.chevronRight, localize('foldingCollapsedIcon', 'Icon for collapsed ranges in the editor glyph margin.'));
-export const foldingManualCollapsedIcon = registerIcon('folding-manual-collapsed', Codicon.ellipsis, localize('foldingManualCollapedIcon', 'Icon for manually collapsed ranges in the editor glyph margin.'));
-export const foldingManualExpandedIcon = registerIcon('folding-manual-expanded', Codicon.ellipsis, localize('foldingManualExpandedIcon', 'Icon for manually expanded ranges in the editor glyph margin.'));
+export const foldingManualCollapsedIcon = registerIcon('folding-manual-collapsed', foldingCollapsedIcon, localize('foldingManualCollapedIcon', 'Icon for manually collapsed ranges in the editor glyph margin.'));
+export const foldingManualExpandedIcon = registerIcon('folding-manual-expanded', foldingExpandedIcon, localize('foldingManualExpandedIcon', 'Icon for manually expanded ranges in the editor glyph margin.'));
 
 export class FoldingDecorationProvider implements IDecorationProvider {
 

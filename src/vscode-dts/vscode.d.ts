@@ -5430,7 +5430,9 @@ declare module 'vscode' {
 	/**
 	 * Provider which handles dropping of resources into a text editor.
 	 *
-	 * The user can drop into a text editor by holding down `shift` while dragging. Requires `editor.dropIntoEditor.enabled` to be on.
+	 * This allows users to drag and drop resources (including resources from external apps) into the editor. While dragging
+	 * and dropping files, users can hold down `shift` to drop the file into the editor instead of opening it.
+	 * Requires `editor.dropIntoEditor.enabled` to be on.
 	 */
 	export interface DocumentDropEditProvider {
 		/**

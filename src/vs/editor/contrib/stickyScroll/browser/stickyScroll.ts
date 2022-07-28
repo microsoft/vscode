@@ -18,12 +18,8 @@ import { SymbolKind } from 'vs/editor/common/languages';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
-
-const enum ScrollDirection {
-	Down = 0,
-	Up = 1,
-	None = 2
-}
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 
 class StickyScrollController extends Disposable implements IEditorContribution {
 
@@ -36,7 +32,6 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 	private _ranges: [number, number, number][] = [];
 	private _rangesVersionId: number = 0;
 	private _cts: CancellationTokenSource | undefined;
-	private _lastScrollPosition: number = -1;
 	private readonly _updateSoon: RunOnceScheduler;
 
 	constructor(
@@ -67,6 +62,7 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 			this._editor.addOverlayWidget(this.stickyScrollWidget);
 			this._sessionStore.add(this._editor.onDidChangeModel(() => this._update(true)));
 			this._sessionStore.add(this._editor.onDidScrollChange(() => this._update(false)));
+			this._sessionStore.add(this._editor.onDidChangeHiddenAreas(() => this._update(true)));
 			this._sessionStore.add(this._editor.onDidChangeModelTokens((e) => this._onTokensChange(e)));
 			this._sessionStore.add(this._editor.onDidChangeModelContent(() => this._updateSoon.schedule()));
 			this._sessionStore.add(this._languageFeaturesService.documentSymbolProvider.onDidChange(() => this._update(true)));
@@ -97,6 +93,12 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 			this._cts?.dispose(true);
 			this._cts = new CancellationTokenSource();
 			await this._updateOutlineModel(this._cts.token);
+		}
+		const hiddenRanges: Range[] | undefined = this._editor._getViewModel()?.getHiddenAreas();
+		if (hiddenRanges) {
+			for (const hiddenRange of hiddenRanges) {
+				this._ranges = this._ranges.filter(range => { return !(range[0] >= hiddenRange.startLineNumber && range[1] <= hiddenRange.endLineNumber + 1); });
+			}
 		}
 		this._renderStickyScroll();
 	}
@@ -191,44 +193,29 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 			return;
 		}
 		const scrollTop = this._editor.getScrollTop();
-		let scrollDirection: ScrollDirection;
-		if (this._lastScrollPosition < scrollTop) {
-			scrollDirection = ScrollDirection.Down;
-		} else {
-			scrollDirection = ScrollDirection.Up;
-		}
-		this._lastScrollPosition = scrollTop;
 
-		const scrollToBottomOfWidget = this._editor.getScrollTop() + this.stickyScrollWidget.codeLineCount * lineHeight;
 		this.stickyScrollWidget.emptyRootNode();
 		const beginningLinesConsidered: Set<number> = new Set<number>();
-		let topOfElementAtDepth: number;
-		let bottomOfElementAtDepth: number;
-		let bottomOfBeginningLine: number;
-		let topOfEndLine: number;
-		let bottomOfEndLine: number;
 
 		for (const [index, arr] of this._ranges.entries()) {
 			const [start, end, depth] = arr;
 			if (end - start > 0 && model.getLineContent(start) !== '') {
-				topOfElementAtDepth = this._editor.getScrollTop() + (depth - 1) * lineHeight;
-				bottomOfElementAtDepth = this._editor.getScrollTop() + depth * lineHeight;
-				bottomOfBeginningLine = start * lineHeight;
-				topOfEndLine = (end - 1) * lineHeight;
-				bottomOfEndLine = end * lineHeight;
+				const topOfElementAtDepth = (depth - 1) * lineHeight;
+				const bottomOfElementAtDepth = depth * lineHeight;
+
+				const bottomOfBeginningLine = this._editor.getBottomForLineNumber(start) - scrollTop;
+				const topOfEndLine = this._editor.getTopForLineNumber(end) - scrollTop;
+				const bottomOfEndLine = this._editor.getBottomForLineNumber(end) - scrollTop;
+
 				if (!beginningLinesConsidered.has(start)) {
 					if (topOfElementAtDepth >= topOfEndLine - 1 && topOfElementAtDepth < bottomOfEndLine - 2) {
 						beginningLinesConsidered.add(start);
-						this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(model.getLineContent(start), start, this._editor, -1, bottomOfEndLine - bottomOfElementAtDepth));
+						this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(start, depth, this._editor, -1, bottomOfEndLine - bottomOfElementAtDepth));
 						break;
 					}
-					else if (scrollDirection === ScrollDirection.Down && bottomOfElementAtDepth > bottomOfBeginningLine - 1 && bottomOfElementAtDepth < bottomOfEndLine - 1) {
+					else if (bottomOfElementAtDepth > bottomOfBeginningLine && bottomOfElementAtDepth < bottomOfEndLine - 1) {
 						beginningLinesConsidered.add(start);
-						this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(model.getLineContent(start), start, this._editor, 0, 0));
-					} else if (scrollDirection === ScrollDirection.Up && scrollToBottomOfWidget > bottomOfBeginningLine - 1 && scrollToBottomOfWidget < bottomOfEndLine ||
-						scrollDirection === ScrollDirection.Up && bottomOfElementAtDepth > bottomOfBeginningLine && bottomOfElementAtDepth < topOfEndLine - 1) {
-						beginningLinesConsidered.add(start);
-						this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(model.getLineContent(start), start, this._editor, 0, 0));
+						this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(start, depth, this._editor, 0, 0));
 					}
 				} else {
 					this._ranges.splice(index, 1);
@@ -250,7 +237,7 @@ class StickyScrollCodeLine {
 
 	public readonly effectiveLineHeight: number = 0;
 
-	constructor(private readonly _line: string, private readonly _lineNumber: number, private readonly _editor: IActiveCodeEditor,
+	constructor(private readonly _lineNumber: number, private readonly _depth: number, private readonly _editor: IActiveCodeEditor,
 		private readonly _zIndex: number, private readonly _relativePosition: number) {
 		this.effectiveLineHeight = this._editor.getOption(EditorOption.lineHeight) + this._relativePosition;
 	}
@@ -262,16 +249,18 @@ class StickyScrollCodeLine {
 	getDomNode() {
 
 		const root: HTMLElement = document.createElement('div');
-		const lineRenderingData = this._editor._getViewModel().getViewLineRenderingData(this._editor.getVisibleRangesPlusViewportAboveBelow()[0], this._lineNumber);
+		const viewModel = this._editor._getViewModel();
+		const viewLineNumber = viewModel.coordinatesConverter.convertModelPositionToViewPosition(new Position(this._lineNumber, 1)).lineNumber;
+		const lineRenderingData = viewModel.getViewLineRenderingData(viewLineNumber);
 
 		let actualInlineDecorations: LineDecoration[];
 		try {
-			actualInlineDecorations = LineDecoration.filter(lineRenderingData.inlineDecorations, this._lineNumber, lineRenderingData.minColumn, lineRenderingData.maxColumn);
+			actualInlineDecorations = LineDecoration.filter(lineRenderingData.inlineDecorations, viewLineNumber, lineRenderingData.minColumn, lineRenderingData.maxColumn);
 		} catch (err) {
 			actualInlineDecorations = [];
 		}
 
-		const renderLineInput: RenderLineInput = new RenderLineInput(true, true, this._line, lineRenderingData.continuesWithWrappedLine,
+		const renderLineInput: RenderLineInput = new RenderLineInput(true, true, lineRenderingData.content, lineRenderingData.continuesWithWrappedLine,
 			lineRenderingData.isBasicASCII, lineRenderingData.containsRTL, 0, lineRenderingData.tokens, actualInlineDecorations, lineRenderingData.tabSize,
 			lineRenderingData.startVisibleColumn, 1, 1, 1, 100, 'none', true, true, null);
 
@@ -313,8 +302,9 @@ class StickyScrollCodeLine {
 		root.onclick = e => {
 			e.stopPropagation();
 			e.preventDefault();
-			this._editor.revealLine(this._lineNumber);
+			this._editor.revealPosition({ lineNumber: this._lineNumber - this._depth + 1, column: 1 });
 		};
+
 		root.onmouseover = e => {
 			innerLineNumberHTML.style.background = `var(--vscode-editorStickyScrollHover-background)`;
 			lineHTMLNode.style.backgroundColor = `var(--vscode-editorStickyScrollHover-background)`;
@@ -364,7 +354,7 @@ class StickyScrollWidget implements IOverlayWidget {
 	constructor(public readonly _editor: ICodeEditor) {
 		this.rootDomNode = document.createElement('div');
 		this.rootDomNode.style.width = '100%';
-		this.rootDomNode.style.boxShadow = `var(--vscode-scrollbar-shadow) 0 6px 6px -6px`; // '0px 0px 8px 2px #000000';
+		this.rootDomNode.style.boxShadow = `var(--vscode-scrollbar-shadow) 0 6px 6px -6px`;
 	}
 
 	get codeLineCount() {
