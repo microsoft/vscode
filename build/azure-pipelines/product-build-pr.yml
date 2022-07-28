@@ -30,6 +30,8 @@ stages:
         - job: MaintainNodeModulesCache
           displayName: Maintain node_modules cache
           pool: vscode-1es-vscode-linux-20.04
+          variables:
+            VSCODE_ARCH: x64
           steps:
             - template: product-build-pr-cache.yml
 
