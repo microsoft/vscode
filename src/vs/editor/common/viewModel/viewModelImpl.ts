@@ -485,7 +485,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._updateConfigurationViewLineCount.schedule();
 
 		if (lineMappingChanged) {
-			this._eventDispatcher.emitOutgoingEvent(new ViewZonesChangedEvent());
+			this._eventDispatcher.emitOutgoingEvent(new HiddenAreasChangedEvent());
 		}
 	}
 
