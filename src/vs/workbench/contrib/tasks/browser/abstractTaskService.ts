@@ -806,7 +806,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return taskMap.all();
 		}
 		const result: Task[] = [];
-		for (const tasks of Object.values(taskMap)) {
+		for (const tasks of Object.entries(taskMap)) {
 			for (const task of tasks) {
 				if (ContributedTask.is(task) && ((task.defines.type === filter.type) || (task._source.label === filter.type))) {
 					result.push(task);
@@ -1264,19 +1264,18 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return task;
 	}
 
-	private _getTasksForGroup(group: TaskGroup): Promise<Task[]> {
-		return this._getGroupedTasks().then((groups) => {
-			const result: Task[] = [];
-			groups.forEach((tasks) => {
-				for (const task of tasks) {
-					const configTaskGroup = TaskGroup.from(task.configurationProperties.group);
-					if (configTaskGroup?._id === group._id) {
-						result.push(task);
-					}
+	private async _getTasksForGroup(group: TaskGroup): Promise<Task[]> {
+		const groups = await this._getGroupedTasks();
+		const result: Task[] = [];
+		for (const tasks of Object.entries(groups)) {
+			for (const task of tasks) {
+				const configTaskGroup = TaskGroup.from(task.configurationProperties.group);
+				if (configTaskGroup?._id === group._id) {
+					result.push(task);
 				}
-			});
-			return result;
-		});
+			}
+		}
+		return result;
 	}
 
 	public needsFolderQualification(): boolean {
@@ -1317,58 +1316,56 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return stringValue;
 	}
 
-	private _openEditorAtTask(resource: URI | undefined, task: TaskConfig.ICustomTask | TaskConfig.IConfiguringTask | string | undefined, configIndex: number = -1): Promise<boolean> {
+	private async _openEditorAtTask(resource: URI | undefined, task: TaskConfig.ICustomTask | TaskConfig.IConfiguringTask | string | undefined, configIndex: number = -1): Promise<boolean> {
 		if (resource === undefined) {
 			return Promise.resolve(false);
 		}
-		let selection: ITextEditorSelection | undefined;
-		return this._fileService.readFile(resource).then(content => content.value).then(async content => {
-			if (!content) {
-				return false;
+		const fileContent = await this._fileService.readFile(resource);
+		const content = fileContent.value;
+		if (!content || !task) {
+			return false;
+		}
+		const contentValue = content.toString();
+		let stringValue: string | undefined;
+		if (configIndex !== -1) {
+			const json: TaskConfig.IExternalTaskRunnerConfiguration = this._configurationService.getValue<TaskConfig.IExternalTaskRunnerConfiguration>('tasks', { resource });
+			if (json.tasks && (json.tasks.length > configIndex)) {
+				stringValue = await this._formatTaskForJson(resource, json.tasks[configIndex]);
 			}
-			if (task) {
-				const contentValue = content.toString();
-				let stringValue: string | undefined;
-				if (configIndex !== -1) {
-					const json: TaskConfig.IExternalTaskRunnerConfiguration = this._configurationService.getValue<TaskConfig.IExternalTaskRunnerConfiguration>('tasks', { resource });
-					if (json.tasks && (json.tasks.length > configIndex)) {
-						stringValue = await this._formatTaskForJson(resource, json.tasks[configIndex]);
-					}
-				}
-				if (!stringValue) {
-					if (typeof task === 'string') {
-						stringValue = task;
-					} else {
-						stringValue = await this._formatTaskForJson(resource, task);
-					}
-				}
-
-				const index = contentValue.indexOf(stringValue);
-				let startLineNumber = 1;
-				for (let i = 0; i < index; i++) {
-					if (contentValue.charAt(i) === '\n') {
-						startLineNumber++;
-					}
-				}
-				let endLineNumber = startLineNumber;
-				for (let i = 0; i < stringValue.length; i++) {
-					if (stringValue.charAt(i) === '\n') {
-						endLineNumber++;
-					}
-				}
-				selection = startLineNumber > 1 ? { startLineNumber, startColumn: startLineNumber === endLineNumber ? 4 : 3, endLineNumber, endColumn: startLineNumber === endLineNumber ? undefined : 4 } : undefined;
+		}
+		if (!stringValue) {
+			if (typeof task === 'string') {
+				stringValue = task;
+			} else {
+				stringValue = await this._formatTaskForJson(resource, task);
 			}
+		}
 
-			return this._editorService.openEditor({
-				resource,
-				options: {
-					pinned: false,
-					forceReload: true, // because content might have changed
-					selection,
-					selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport
-				}
-			}).then(() => !!selection);
+		const index = contentValue.indexOf(stringValue);
+		let startLineNumber = 1;
+		for (let i = 0; i < index; i++) {
+			if (contentValue.charAt(i) === '\n') {
+				startLineNumber++;
+			}
+		}
+		let endLineNumber = startLineNumber;
+		for (let i = 0; i < stringValue.length; i++) {
+			if (stringValue.charAt(i) === '\n') {
+				endLineNumber++;
+			}
+		}
+		const selection = startLineNumber > 1 ? { startLineNumber, startColumn: startLineNumber === endLineNumber ? 4 : 3, endLineNumber, endColumn: startLineNumber === endLineNumber ? undefined : 4 } : undefined;
+
+		await this._editorService.openEditor({
+			resource,
+			options: {
+				pinned: false,
+				forceReload: true, // because content might have changed
+				selection,
+				selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport
+			}
 		});
+		return !!selection;
 	}
 
 	private _createCustomizableTask(task: ContributedTask | CustomTask | ConfiguringTask): TaskConfig.ICustomTask | TaskConfig.IConfiguringTask | undefined {
@@ -1434,7 +1431,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		}
 
-		let promise: Promise<void> | undefined;
 		if (!fileConfig) {
 			const value = {
 				version: '2.0.0',
@@ -1448,16 +1444,16 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			if (editorConfig.editor.insertSpaces) {
 				content = content.replace(/(\n)(\t+)/g, (_, s1, s2) => s1 + ' '.repeat(s2.length * editorConfig.editor.tabSize));
 			}
-			promise = this._textFileService.create([{ resource: workspaceFolder.toResource('.vscode/tasks.json'), value: content }]).then(() => { });
+			await this._textFileService.create([{ resource: workspaceFolder.toResource('.vscode/tasks.json'), value: content }]);
 		} else {
 			// We have a global task configuration
 			if ((index === -1) && properties) {
 				if (properties.problemMatcher !== undefined) {
 					fileConfig.problemMatcher = properties.problemMatcher;
-					promise = this._writeConfiguration(workspaceFolder, 'tasks.problemMatchers', fileConfig.problemMatcher, task._source.kind);
+					await this._writeConfiguration(workspaceFolder, 'tasks.problemMatchers', fileConfig.problemMatcher, task._source.kind);
 				} else if (properties.group !== undefined) {
 					fileConfig.group = properties.group;
-					promise = this._writeConfiguration(workspaceFolder, 'tasks.group', fileConfig.group, task._source.kind);
+					await this._writeConfiguration(workspaceFolder, 'tasks.group', fileConfig.group, task._source.kind);
 				}
 			} else {
 				if (!Array.isArray(fileConfig.tasks)) {
@@ -1468,17 +1464,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				} else {
 					fileConfig.tasks[index] = toCustomize;
 				}
-				promise = this._writeConfiguration(workspaceFolder, 'tasks.tasks', fileConfig.tasks, task._source.kind);
+				await this._writeConfiguration(workspaceFolder, 'tasks.tasks', fileConfig.tasks, task._source.kind);
 			}
 		}
-		if (!promise) {
-			return Promise.resolve(undefined);
+
+		if (openConfig) {
+			this._openEditorAtTask(this._getResourceForTask(task), toCustomize);
 		}
-		return promise.then(() => {
-			if (openConfig) {
-				this._openEditorAtTask(this._getResourceForTask(task), toCustomize);
-			}
-		});
 	}
 
 	private _writeConfiguration(workspaceFolder: IWorkspaceFolder, key: string, value: any, source?: string): Promise<void> | undefined {
@@ -1788,20 +1780,20 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return executeResult.promise;
 	}
 
-	private _restart(task: Task): void {
+	private async _restart(task: Task): Promise<void> {
 		if (!this._taskSystem) {
 			return;
 		}
-		this._taskSystem.terminate(task).then((response) => {
-			if (response.success) {
-				this.run(task).then(undefined, reason => {
-					// eat the error, it has already been surfaced to the user and we don't care about it here
-				});
-			} else {
-				this._notificationService.warn(nls.localize('TaskSystem.restartFailed', 'Failed to terminate and restart task {0}', Types.isString(task) ? task : task.configurationProperties.name));
+		const response = await this._taskSystem.terminate(task);
+		if (response.success) {
+			try {
+				await this.run(task);
+			} catch {
+				// eat the error, we don't care about it here
 			}
-			return response;
-		});
+		} else {
+			this._notificationService.warn(nls.localize('TaskSystem.restartFailed', 'Failed to terminate and restart task {0}', Types.isString(task) ? task : task.configurationProperties.name));
+		}
 	}
 
 	public async terminate(task: Task): Promise<ITaskTerminateResponse> {
