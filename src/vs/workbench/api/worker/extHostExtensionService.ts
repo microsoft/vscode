@@ -96,40 +96,8 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 			throw err;
 		}
 
-		let strings: { [key: string]: string[] } = {};
-		const translationsUri = Language.isDefaultVariant()
-			// If we are in the default variant, load the translations for en only.
-			? extension?.browserNlsBundleUris?.en
-			// Otherwise load the translations for the current locale with English as a fallback.
-			: extension?.browserNlsBundleUris?.[Language.value()] ?? extension?.browserNlsBundleUris?.en;
-		if (extension && translationsUri) {
-			try {
-				const response = await fetch(translationsUri.toString(true));
-				if (!response.ok) {
-					throw new Error(await response.text());
-				}
-				strings = await response.json();
-			} catch (e) {
-				try {
-					console.error(`Failed to load translations for ${extensionId} from ${translationsUri}: ${e.message}`);
-					const englishStrings = extension.browserNlsBundleUris?.en;
-					if (englishStrings) {
-						const response = await fetch(englishStrings.toString(true));
-						if (!response.ok) {
-							throw new Error(await response.text());
-						}
-						strings = await response.json();
-					}
-					throw new Error('No English strings found');
-				} catch (e) {
-					// TODO what should this do? We really shouldn't ever be here...
-					console.error(e);
-				}
-			}
-		}
+		const strings: { [key: string]: string[] } = await this.fetchTranslatedStrings(extension);
 
-		console.log(extensionId);
-		console.log(JSON.stringify(strings));
 		// define commonjs globals: `module`, `exports`, and `require`
 		const _exports = {};
 		const _module = { exports: _exports };
@@ -175,6 +143,44 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		while (Date.now() < deadline && !('__jsDebugIsReady' in globalThis)) {
 			await timeout(10);
 		}
+	}
+
+	private async fetchTranslatedStrings(extension: IExtensionDescription | null): Promise<{ [key: string]: string[] }> {
+		let strings: { [key: string]: string[] } = {};
+		if (!extension) {
+			return {};
+		}
+		const translationsUri = Language.isDefaultVariant()
+			// If we are in the default variant, load the translations for en only.
+			? extension.browserNlsBundleUris?.en
+			// Otherwise load the translations for the current locale with English as a fallback.
+			: extension.browserNlsBundleUris?.[Language.value()] ?? extension.browserNlsBundleUris?.en;
+		if (extension && translationsUri) {
+			try {
+				const response = await fetch(translationsUri.toString(true));
+				if (!response.ok) {
+					throw new Error(await response.text());
+				}
+				strings = await response.json();
+			} catch (e) {
+				try {
+					console.error(`Failed to load translations for ${extension.identifier.value} from ${translationsUri}: ${e.message}`);
+					const englishStrings = extension.browserNlsBundleUris?.en;
+					if (englishStrings) {
+						const response = await fetch(englishStrings.toString(true));
+						if (!response.ok) {
+							throw new Error(await response.text());
+						}
+						strings = await response.json();
+					}
+					throw new Error('No English strings found');
+				} catch (e) {
+					// TODO what should this do? We really shouldn't ever be here...
+					console.error(e);
+				}
+			}
+		}
+		return strings;
 	}
 }
 
