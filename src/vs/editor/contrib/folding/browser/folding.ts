@@ -32,7 +32,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { editorSelectionBackground, iconForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { foldingCollapsedIcon, FoldingDecorationProvider, foldingExpandedIcon, foldingManualCollapsedIcon, foldingManualExpandedIcon } from './foldingDecorations';
-import { FoldingRegion, FoldingRegions, FoldRange, ILineRange } from './foldingRanges';
+import { FoldingRegion, FoldingRegions, FoldRange, FoldSource, ILineRange } from './foldingRanges';
 import { SyntaxRangeProvider } from './syntaxRangeProvider';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import Severity from 'vs/base/common/severity';
@@ -1076,7 +1076,7 @@ class FoldRangeFromSelectionAction extends FoldingAction<void> {
 			precondition: CONTEXT_FOLDING_ENABLED,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.Period),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.Comma),
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -1097,8 +1097,7 @@ class FoldRangeFromSelectionAction extends FoldingAction<void> {
 						endLineNumber: endLineNumber,
 						type: undefined,
 						isCollapsed: true,
-						isUserDefined: true,
-						isRecovered: false
+						source: FoldSource.userDefined
 					});
 					editor.setSelection({
 						startLineNumber: selection.startLineNumber,
@@ -1140,12 +1139,8 @@ class RemoveFoldRangeFromSelectionAction extends FoldingAction<void> {
 		if (selections) {
 			const ranges: ILineRange[] = [];
 			for (const selection of selections) {
-				let endLineNumber = selection.endLineNumber;
-				if (selection.endColumn === 1) {
-					--endLineNumber;
-				}
-				const startLineNumber = selection.startLineNumber;
-				ranges.push(endLineNumber >= selection.startLineNumber ? { startLineNumber, endLineNumber } : { endLineNumber, startLineNumber });
+				const { startLineNumber, endLineNumber } = selection;
+				ranges.push(endLineNumber >= startLineNumber ? { startLineNumber, endLineNumber } : { endLineNumber, startLineNumber });
 			}
 			foldingModel.removeManualRanges(ranges);
 			foldingController.triggerFoldingModelChanged();

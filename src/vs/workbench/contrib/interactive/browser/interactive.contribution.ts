@@ -283,7 +283,7 @@ export class InteractiveEditorSerializer implements IEditorSerializer {
 	}
 
 	canSerialize(): boolean {
-		return this.configurationService.getValue<boolean>(InteractiveWindowSetting.interactiveWindowHotExit);
+		return this.configurationService.getValue<boolean>(InteractiveWindowSetting.interactiveWindowRestore);
 	}
 
 	serialize(input: EditorInput): string {
@@ -763,10 +763,10 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: true,
 			markdownDescription: localize('interactiveWindow.alwaysScrollOnNewCell', "Automatically scroll the interactive window to show the output of the last statement executed. If this value is false, the window will only scroll if the last cell was already the one scrolled to.")
 		},
-		[InteractiveWindowSetting.interactiveWindowHotExit]: {
+		[InteractiveWindowSetting.interactiveWindowRestore]: {
 			type: 'boolean',
 			default: false,
-			markdownDescription: localize('interactiveWindow.hotExit', "Controls whether the interactive window sessions should be restored when the workspace reloads.")
+			markdownDescription: localize('interactiveWindow.restore', "Controls whether the Interactive Window sessions/history should be restored across window reloads. Whether the state of controllers used in Interactive Windows is persisted across window reloads are controlled by extensions contributing controllers.")
 		}
 	}
 });

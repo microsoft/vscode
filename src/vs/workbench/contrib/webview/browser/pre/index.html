@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-31a+qtoOhPC136ibtip6gpqSiW72yo48kmtxyi0Qptc=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-JpX/ganPoxpavjxWCz9DUZgwVZ59o2lwSYTQrziPsdU=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -1071,8 +1071,10 @@
 							}
 
 							try {
-								context = { ...JSON.parse(el.getAttribute('data-vscode-context')), ...context };
-							} catch {}
+								context = { ...JSON.parse(el.dataset.vscodeContext), ...context };
+							} catch (e) {
+								console.error(`Error parsing 'data-vscode-context' as json`, el, e)
+							}
 
 							el = el.parentElement;
 						}

@@ -305,14 +305,33 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				this._win.hookWindowMessage(WM_INITMENU, () => {
 					const [x, y] = this._win.getPosition();
 					const cursorPos = screen.getCursorScreenPoint();
+					const cx = cursorPos.x - x;
+					const cy = cursorPos.y - y;
 
-					// This is necessary to make sure the native system context menu does not show up.
-					this._win.setEnabled(false);
-					this._win.setEnabled(true);
+					// In some cases, show the default system context menu
+					// 1) The mouse position is not within the title bar
+					// 2) The mouse position is within the title bar, but over the app icon
+					// We do not know the exact title bar height but we make an estimate based on window height
+					const shouldTriggerDefaultSystemContextMenu = () => {
+						// Use the custom context menu when over the title bar, but not over the app icon
+						// The app icon is estimated to be 30px wide
+						// The title bar is estimated to be the max of 35px and 15% of the window height
+						if (cx > 30 && cy >= 0 && cy <= Math.max(this._win.getBounds().height * 0.15, 35)) {
+							return false;
+						}
 
-					this._onDidTriggerSystemContextMenu.fire({ x: cursorPos.x - x, y: cursorPos.y - y });
+						return true;
+					};
 
-					return 0; // skip native menu
+					if (!shouldTriggerDefaultSystemContextMenu()) {
+						// This is necessary to make sure the native system context menu does not show up.
+						this._win.setEnabled(false);
+						this._win.setEnabled(true);
+
+						this._onDidTriggerSystemContextMenu.fire({ x: cx, y: cy });
+					}
+
+					return 0;
 				});
 			}
 

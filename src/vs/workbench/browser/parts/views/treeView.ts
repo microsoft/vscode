@@ -496,12 +496,12 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 
 	protected abstract activate(): void;
 
-	focus(reveal: boolean = true): void {
+	focus(reveal: boolean = true, revealItem?: ITreeItem): void {
 		if (this.tree && this.root.children && this.root.children.length > 0) {
 			// Make sure the current selected element is revealed
-			const selectedElement = this.tree.getSelection()[0];
-			if (selectedElement && reveal) {
-				this.tree.reveal(selectedElement, 0.5);
+			const element = revealItem ?? this.tree.getSelection()[0];
+			if (element && reveal) {
+				this.tree.reveal(element, 0.5);
 			}
 
 			// Pass Focus to Viewer
@@ -784,7 +784,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 
 	setFocus(item: ITreeItem): void {
 		if (this.tree) {
-			this.focus();
+			this.focus(true, item);
 			this.tree.setFocus([item]);
 		}
 	}

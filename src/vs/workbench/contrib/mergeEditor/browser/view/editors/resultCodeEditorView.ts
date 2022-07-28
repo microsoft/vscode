@@ -63,37 +63,40 @@ export class ResultCodeEditorView extends CodeEditorView {
 								position: MinimapPosition.Gutter,
 								color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
 							},
-							overviewRuler: {
+							overviewRuler: modifiedBaseRange.isConflicting ? {
 								position: OverviewRulerLane.Center,
 								color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
-							}
+							} : undefined
 						}
 					});
 				}
 			}
 
-			for (const diff of m.rights) {
-				const range = diff.outputRange.toInclusiveRange();
-				if (range) {
-					result.push({
-						range,
-						options: {
-							className: `merge-editor-diff result`,
-							description: 'Merge Editor',
-							isWholeLine: true,
-						}
-					});
-				}
 
-				if (diff.rangeMappings) {
-					for (const d of diff.rangeMappings) {
+			if (!modifiedBaseRange || modifiedBaseRange.isConflicting) {
+				for (const diff of m.rights) {
+					const range = diff.outputRange.toInclusiveRange();
+					if (range) {
 						result.push({
-							range: d.outputRange,
+							range,
 							options: {
-								className: `merge-editor-diff-word result`,
-								description: 'Merge Editor'
+								className: `merge-editor-diff result`,
+								description: 'Merge Editor',
+								isWholeLine: true,
 							}
 						});
+					}
+
+					if (diff.rangeMappings) {
+						for (const d of diff.rangeMappings) {
+							result.push({
+								range: d.outputRange,
+								options: {
+									className: `merge-editor-diff-word result`,
+									description: 'Merge Editor'
+								}
+							});
+						}
 					}
 				}
 			}
