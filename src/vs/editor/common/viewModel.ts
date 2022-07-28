@@ -48,6 +48,8 @@ export interface IViewModel extends ICursorSimpleModel {
 	getCompletelyVisibleViewRange(): Range;
 	getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range;
 
+	getHiddenAreas(): Range[];
+
 	getLineCount(): number;
 	getLineContent(lineNumber: number): string;
 	getLineLength(lineNumber: number): number;
