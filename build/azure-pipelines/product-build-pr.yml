@@ -87,8 +87,8 @@ jobs:
             VSCODE_RUN_SMOKE_TESTS: true
 
   - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
-    - job: MaintainNodeModulesCache
-      displayName: Maintain node_modules cache
+    - job: Linuxx64MaintainNodeModulesCache
+      displayName: Linux (Maintain node_modules cache)
       pool: vscode-1es-vscode-linux-20.04
       timeoutInMinutes: 30
       variables:
