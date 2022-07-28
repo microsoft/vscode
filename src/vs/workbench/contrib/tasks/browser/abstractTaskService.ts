@@ -293,9 +293,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}));
 		this._taskRunningState = TASK_RUNNING_STATE.bindTo(_contextKeyService);
 		this._onDidStateChange = this._register(new Emitter());
-		this._registerCommands().then(() => {
-			TaskCommandsRegistered.bindTo(this._contextKeyService).set(true);
-		});
+		this._registerCommands().then(() => TaskCommandsRegistered.bindTo(this._contextKeyService).set(true));
 		this._configurationResolverService.contributeVariable('defaultBuildTask', async (): Promise<string | undefined> => {
 			let tasks = await this._getTasksForGroup(TaskGroup.Build);
 			if (tasks.length > 0) {
@@ -1188,7 +1186,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return this._configurationService.updateValue(PROBLEM_MATCHER_NEVER_CONFIG, newValue);
 	}
 
-	private _attachProblemMatcher(task: ContributedTask | CustomTask): Promise<Task | undefined> {
+	private async _attachProblemMatcher(task: ContributedTask | CustomTask): Promise<Task | undefined> {
 		interface IProblemMatcherPickEntry extends IQuickPickItem {
 			matcher: INamedProblemMatcher | undefined;
 			never?: boolean;
@@ -1211,62 +1209,59 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				});
 			}
 		}
-		if (entries.length > 0) {
-			entries = entries.sort((a, b) => {
-				if (a.label && b.label) {
-					return a.label.localeCompare(b.label);
-				} else {
-					return 0;
-				}
-			});
-			entries.unshift({ type: 'separator', label: nls.localize('TaskService.associate', 'associate') });
-			let taskType: string;
-			if (CustomTask.is(task)) {
-				const configProperties: TaskConfig.IConfigurationProperties = task._source.config.element;
-				taskType = (<any>configProperties).type;
-			} else {
-				taskType = task.getDefinition().type;
-			}
-			entries.unshift(
-				{ label: nls.localize('TaskService.attachProblemMatcher.continueWithout', 'Continue without scanning the task output'), matcher: undefined },
-				{ label: nls.localize('TaskService.attachProblemMatcher.never', 'Never scan the task output for this task'), matcher: undefined, never: true },
-				{ label: nls.localize('TaskService.attachProblemMatcher.neverType', 'Never scan the task output for {0} tasks', taskType), matcher: undefined, setting: taskType },
-				{ label: nls.localize('TaskService.attachProblemMatcher.learnMoreAbout', 'Learn more about scanning the task output'), matcher: undefined, learnMore: true }
-			);
-			return this._quickInputService.pick(entries, {
-				placeHolder: nls.localize('selectProblemMatcher', 'Select for which kind of errors and warnings to scan the task output'),
-			}).then(async (selected) => {
-				if (selected) {
-					if (selected.learnMore) {
-						this._openDocumentation();
-						return undefined;
-					} else if (selected.never) {
-						this.customize(task, { problemMatcher: [] }, true);
-						return task;
-					} else if (selected.matcher) {
-						const newTask = task.clone();
-						const matcherReference = `$${selected.matcher.name}`;
-						const properties: ICustomizationProperties = { problemMatcher: [matcherReference] };
-						newTask.configurationProperties.problemMatchers = [matcherReference];
-						const matcher = ProblemMatcherRegistry.get(selected.matcher.name);
-						if (matcher && matcher.watching !== undefined) {
-							properties.isBackground = true;
-							newTask.configurationProperties.isBackground = true;
-						}
-						this.customize(task, properties, true);
-						return newTask;
-					} else if (selected.setting) {
-						await this._updateNeverProblemMatcherSetting(selected.setting);
-						return task;
-					} else {
-						return task;
-					}
-				} else {
-					return undefined;
-				}
-			});
+		if (entries.length === 0) {
+			return;
 		}
-		return Promise.resolve(task);
+		entries = entries.sort((a, b) => {
+			if (a.label && b.label) {
+				return a.label.localeCompare(b.label);
+			} else {
+				return 0;
+			}
+		});
+		entries.unshift({ type: 'separator', label: nls.localize('TaskService.associate', 'associate') });
+		let taskType: string;
+		if (CustomTask.is(task)) {
+			const configProperties: TaskConfig.IConfigurationProperties = task._source.config.element;
+			taskType = (<any>configProperties).type;
+		} else {
+			taskType = task.getDefinition().type;
+		}
+		entries.unshift(
+			{ label: nls.localize('TaskService.attachProblemMatcher.continueWithout', 'Continue without scanning the task output'), matcher: undefined },
+			{ label: nls.localize('TaskService.attachProblemMatcher.never', 'Never scan the task output for this task'), matcher: undefined, never: true },
+			{ label: nls.localize('TaskService.attachProblemMatcher.neverType', 'Never scan the task output for {0} tasks', taskType), matcher: undefined, setting: taskType },
+			{ label: nls.localize('TaskService.attachProblemMatcher.learnMoreAbout', 'Learn more about scanning the task output'), matcher: undefined, learnMore: true }
+		);
+		const problemMatcher = await this._quickInputService.pick(entries, { placeHolder: nls.localize('selectProblemMatcher', 'Select for which kind of errors and warnings to scan the task output') });
+		if (!problemMatcher) {
+			return task;
+		}
+		if (problemMatcher.learnMore) {
+			this._openDocumentation();
+			return undefined;
+		}
+		if (problemMatcher.never) {
+			this.customize(task, { problemMatcher: [] }, true);
+			return task;
+		}
+		if (problemMatcher.matcher) {
+			const newTask = task.clone();
+			const matcherReference = `$${problemMatcher.matcher.name}`;
+			const properties: ICustomizationProperties = { problemMatcher: [matcherReference] };
+			newTask.configurationProperties.problemMatchers = [matcherReference];
+			const matcher = ProblemMatcherRegistry.get(problemMatcher.matcher.name);
+			if (matcher && matcher.watching !== undefined) {
+				properties.isBackground = true;
+				newTask.configurationProperties.isBackground = true;
+			}
+			this.customize(task, properties, true);
+			return newTask;
+		}
+		if (problemMatcher.setting) {
+			await this._updateNeverProblemMatcherSetting(problemMatcher.setting);
+		}
+		return task;
 	}
 
 	private _getTasksForGroup(group: TaskGroup): Promise<Task[]> {
