@@ -679,7 +679,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this._lines.getInjectedTextAt(viewPosition);
 	}
 
-	public getViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData {
+	public getViewportViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData {
 		const mightContainRTL = this.model.mightContainRTL();
 		const mightContainNonBasicASCII = this.model.mightContainNonBasicASCII();
 		const tabSize = this.getTabSize();

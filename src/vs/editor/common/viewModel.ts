@@ -41,7 +41,7 @@ export interface IViewModel extends ICursorSimpleModel {
 	onCompositionEnd(): void;
 
 	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];
-	getViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData;
+	getViewportViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData;
 	getViewLineData(lineNumber: number): ViewLineData;
 	getMinimapLinesRenderingData(startLineNumber: number, endLineNumber: number, needed: boolean[]): MinimapLinesRenderingData;
 	getCompletelyVisibleViewRange(): Range;
