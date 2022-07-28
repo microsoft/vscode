@@ -799,7 +799,7 @@ class FindWidget<T, TFilterData> extends Disposable {
 
 	layout(width: number = this.width): void {
 		this.width = width;
-		this.right = Math.min(Math.max(20, this.right), Math.max(20, width - 170));
+		this.right = clamp(this.right, 0, Math.max(0, width - 212));
 		this.elements.root.style.right = `${this.right}px`;
 	}
 
