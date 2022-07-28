@@ -1869,9 +1869,11 @@ export function h(tag: string, ...args: [] | [attributes: { $: string } & Partia
 					typeof cssValue === 'number' ? cssValue + 'px' : '' + cssValue
 				);
 			}
-			continue;
+		} else if (key === 'tabIndex') {
+			el.tabIndex = value;
+		} else {
+			el.setAttribute(camelCaseToHyphenCase(key), value.toString());
 		}
-		el.setAttribute(camelCaseToHyphenCase(key), value.toString());
 	}
 
 	result['root'] = el;
