@@ -108,7 +108,7 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 			let didRecursion: boolean = false;
 			for (const outline of outlineElement?.children.values()) {
 				const kind: SymbolKind = outline.symbol.kind;
-				if (kind === SymbolKind.Class || kind === SymbolKind.Constructor || kind === SymbolKind.Function || kind === SymbolKind.Interface || kind === SymbolKind.Method) {
+				if (kind === SymbolKind.Class || kind === SymbolKind.Constructor || kind === SymbolKind.Function || kind === SymbolKind.Interface || kind === SymbolKind.Method || kind === SymbolKind.Module) {
 					didRecursion = true;
 					this._findLineRanges(outline, depth + 1);
 				}
@@ -127,7 +127,7 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 
 		while (outlineElement) {
 			const kind: SymbolKind = outlineElement.symbol.kind;
-			if (kind === SymbolKind.Class || kind === SymbolKind.Constructor || kind === SymbolKind.Function || kind === SymbolKind.Interface || kind === SymbolKind.Method) {
+			if (kind === SymbolKind.Class || kind === SymbolKind.Constructor || kind === SymbolKind.Function || kind === SymbolKind.Interface || kind === SymbolKind.Method || kind === SymbolKind.Module) {
 				currentStartLine = outlineElement?.symbol.range.startLineNumber as number;
 				currentEndLine = outlineElement?.symbol.range.endLineNumber as number;
 				this._ranges.push([currentStartLine, currentEndLine, depth]);
@@ -154,7 +154,7 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 			for (const outline of outlineModel.children.values()) {
 				if (outline instanceof OutlineElement) {
 					const kind: SymbolKind = outline.symbol.kind;
-					if (kind === SymbolKind.Class || kind === SymbolKind.Constructor || kind === SymbolKind.Function || kind === SymbolKind.Interface || kind === SymbolKind.Method) {
+					if (kind === SymbolKind.Class || kind === SymbolKind.Constructor || kind === SymbolKind.Function || kind === SymbolKind.Interface || kind === SymbolKind.Method || kind === SymbolKind.Module) {
 						this._findLineRanges(outline, 1);
 					} else {
 						this._findLineRanges(outline, 0);
