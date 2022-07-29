@@ -157,6 +157,7 @@ export interface IDebugger {
 	createDebugAdapter(session: IDebugSession): Promise<IDebugAdapter>;
 	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined>;
 	getCustomTelemetryEndpoint(): ITelemetryEndpoint | undefined;
+	getInitialConfigurationContent(initialConfigs?: IConfig[]): Promise<string>;
 }
 
 export interface IDebuggerMetadata {
@@ -882,6 +883,10 @@ export interface IAdapterManager {
 
 	substituteVariables(debugType: string, folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig>;
 	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined>;
+	getEnabledDebugger(type: string): (IDebugger & IDebuggerMetadata) | undefined;
+	guessDebugger(gettingConfigurations: boolean): Promise<(IDebugger & IDebuggerMetadata) | undefined>;
+
+	get onDidDebuggersExtPointRead(): Event<void>;
 }
 
 export interface ILaunch {
