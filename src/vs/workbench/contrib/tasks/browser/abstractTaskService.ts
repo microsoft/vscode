@@ -801,28 +801,29 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!this._versionAndEngineCompatible(filter)) {
 			return Promise.resolve<Task[]>([]);
 		}
-		const taskMap = await this._getGroupedTasks(filter ? filter.type : undefined);
-		if (!filter || !filter.type) {
-			return taskMap.all();
-		}
-		const result: Task[] = [];
-		for (const tasks of Object.entries(taskMap)) {
-			for (const task of tasks) {
-				if (ContributedTask.is(task) && ((task.defines.type === filter.type) || (task._source.label === filter.type))) {
-					result.push(task);
-				} else if (CustomTask.is(task)) {
-					if (task.type === filter.type) {
+		return this._getGroupedTasks(filter ? filter.type : undefined).then((map) => {
+			if (!filter || !filter.type) {
+				return map.all();
+			}
+			const result: Task[] = [];
+			map.forEach((tasks) => {
+				for (const task of tasks) {
+					if (ContributedTask.is(task) && ((task.defines.type === filter.type) || (task._source.label === filter.type))) {
 						result.push(task);
-					} else {
-						const customizes = task.customizes();
-						if (customizes && customizes.type === filter.type) {
+					} else if (CustomTask.is(task)) {
+						if (task.type === filter.type) {
 							result.push(task);
+						} else {
+							const customizes = task.customizes();
+							if (customizes && customizes.type === filter.type) {
+								result.push(task);
+							}
 						}
 					}
 				}
-			}
-		}
-		return result;
+			});
+			return result;
+		});
 	}
 
 	public taskTypes(): string[] {
