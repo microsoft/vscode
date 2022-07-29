@@ -125,6 +125,7 @@ export const WorkbenchTreeElementHasParent = new RawContextKey<boolean>('treeEle
 export const WorkbenchTreeElementCanExpand = new RawContextKey<boolean>('treeElementCanExpand', false);
 export const WorkbenchTreeElementHasChild = new RawContextKey<boolean>('treeElementHasChild', false);
 export const WorkbenchTreeFindOpen = new RawContextKey<boolean>('treeFindOpen', false);
+export const WorkbenchTreeSupportsFind = new RawContextKey<boolean>('treeSupportsFind', true);
 const WorkbenchListTypeNavigationModeKey = 'listTypeNavigationMode';
 
 /**
@@ -1143,6 +1144,7 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 	private treeElementCanExpand: IContextKey<boolean>;
 	private treeElementHasChild: IContextKey<boolean>;
 	private treeFindOpen: IContextKey<boolean>;
+	private treeSupportFindWidget: IContextKey<boolean>;
 	private _useAltAsMultipleSelectionModifier: boolean;
 	private disposables: IDisposable[] = [];
 	private styler: IDisposable | undefined;
@@ -1176,7 +1178,10 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 		this.treeElementHasParent = WorkbenchTreeElementHasParent.bindTo(this.contextKeyService);
 		this.treeElementCanExpand = WorkbenchTreeElementCanExpand.bindTo(this.contextKeyService);
 		this.treeElementHasChild = WorkbenchTreeElementHasChild.bindTo(this.contextKeyService);
+
 		this.treeFindOpen = WorkbenchTreeFindOpen.bindTo(this.contextKeyService);
+		this.treeSupportFindWidget = WorkbenchTreeSupportsFind.bindTo(this.contextKeyService);
+		this.treeSupportFindWidget.set(options.findWidgetEnabled ?? true);
 
 		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
 
