@@ -192,7 +192,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private _terminals: IStringDictionary<ITerminalData>;
 	private _idleTaskTerminals: LinkedMap<string, string>;
 	private _sameTaskTerminals: IStringDictionary<string>;
-	private _terminalForTask: ITerminalInstance | undefined;
 	private _taskSystemInfoResolver: ITaskSystemInfoResolver;
 	private _lastTask: VerifiedTask | undefined;
 	// Should always be set in run
@@ -523,38 +522,36 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		alreadyResolved = alreadyResolved ?? new Map<string, string>();
 		const promises: Promise<ITaskSummary>[] = [];
 		if (task.configurationProperties.dependsOn) {
-			if (!this._terminalForTask) {
-				// we already handle dependent tasks when reconnecting, don't create extras
-				for (const dependency of task.configurationProperties.dependsOn) {
-					const dependencyTask = await resolver.resolve(dependency.uri, dependency.task!);
-					if (dependencyTask) {
-						this._adoptConfigurationForDependencyTask(dependencyTask, task);
-						const key = dependencyTask.getMapKey();
-						let promise = this._activeTasks[key] ? this._getDependencyPromise(this._activeTasks[key]) : undefined;
-						if (!promise) {
-							this._fireTaskEvent(TaskEvent.create(TaskEventKind.DependsOnStarted, task));
-							encounteredDependencies.add(task.getCommonTaskId());
-							promise = this._executeDependencyTask(dependencyTask, resolver, trigger, encounteredDependencies, alreadyResolved);
-						}
-						promises.push(promise);
-						if (task.configurationProperties.dependsOrder === DependsOrder.sequence) {
-							const promiseResult = await promise;
-							if (promiseResult.exitCode === 0) {
-								promise = Promise.resolve(promiseResult);
-							} else {
-								promise = Promise.reject(promiseResult);
-								break;
-							}
-						}
-						promises.push(promise);
-					} else {
-						this._log(nls.localize('dependencyFailed',
-							'Couldn\'t resolve dependent task \'{0}\' in workspace folder \'{1}\'',
-							Types.isString(dependency.task) ? dependency.task : JSON.stringify(dependency.task, undefined, 0),
-							dependency.uri.toString()
-						));
-						this._showOutput();
+			// we already handle dependent tasks when reconnecting, don't create extras
+			for (const dependency of task.configurationProperties.dependsOn) {
+				const dependencyTask = await resolver.resolve(dependency.uri, dependency.task!);
+				if (dependencyTask) {
+					this._adoptConfigurationForDependencyTask(dependencyTask, task);
+					const key = dependencyTask.getMapKey();
+					let promise = this._activeTasks[key] ? this._getDependencyPromise(this._activeTasks[key]) : undefined;
+					if (!promise) {
+						this._fireTaskEvent(TaskEvent.create(TaskEventKind.DependsOnStarted, task));
+						encounteredDependencies.add(task.getCommonTaskId());
+						promise = this._executeDependencyTask(dependencyTask, resolver, trigger, encounteredDependencies, alreadyResolved);
 					}
+					promises.push(promise);
+					if (task.configurationProperties.dependsOrder === DependsOrder.sequence) {
+						const promiseResult = await promise;
+						if (promiseResult.exitCode === 0) {
+							promise = Promise.resolve(promiseResult);
+						} else {
+							promise = Promise.reject(promiseResult);
+							break;
+						}
+					}
+					promises.push(promise);
+				} else {
+					this._log(nls.localize('dependencyFailed',
+						'Couldn\'t resolve dependent task \'{0}\' in workspace folder \'{1}\'',
+						Types.isString(dependency.task) ? dependency.task : JSON.stringify(dependency.task, undefined, 0),
+						dependency.uri.toString()
+					));
+					this._showOutput();
 				}
 			}
 		}
@@ -866,8 +863,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			}));
 			watchingProblemMatcher.aboutToStart();
 			let delayer: Async.Delayer<any> | undefined = undefined;
-			[terminal, error] = this._terminalForTask ? [this._terminalForTask, undefined] : await this._createTerminal(task, resolver, workspaceFolder);
-			this._terminalForTask = undefined;
+			[terminal, error] = await this._createTerminal(task, resolver, workspaceFolder);
 
 			if (error) {
 				return Promise.reject(new Error((<TaskError>error).message));
@@ -961,8 +957,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				});
 			}
 		} else {
-			[terminal, error] = this._terminalForTask ? [this._terminalForTask, undefined] : await this._createTerminal(task, resolver, workspaceFolder);
-			this._terminalForTask = undefined;
+			[terminal, error] = await this._createTerminal(task, resolver, workspaceFolder);
 
 			if (error) {
 				return Promise.reject(new Error((<TaskError>error).message));
@@ -1290,6 +1285,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private async _doCreateTerminal(task: Task, group: string | undefined, launchConfigs: IShellLaunchConfig): Promise<ITerminalInstance> {
 		const reconnectedTerminal = await this._reconnectToTerminal(task);
 		if (reconnectedTerminal) {
+			if ('command' in task && task.command.presentation) {
+				reconnectedTerminal.waitOnExit = getWaitOnExitValue(task.command.presentation, task.configurationProperties);
+			}
 			return reconnectedTerminal;
 		}
 		if (group) {
