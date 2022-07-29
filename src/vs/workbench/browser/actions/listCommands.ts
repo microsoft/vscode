@@ -7,7 +7,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import { WorkbenchListFocusContextKey, IListService, WorkbenchListSupportsMultiSelectContextKey, ListWidget, WorkbenchListHasSelectionOrFocus, getSelectionKeyboardEvent, WorkbenchListWidget, WorkbenchListSelectionNavigation, WorkbenchTreeElementCanCollapse, WorkbenchTreeElementHasParent, WorkbenchTreeElementHasChild, WorkbenchTreeElementCanExpand, RawWorkbenchListFocusContextKey, WorkbenchTreeFindOpen } from 'vs/platform/list/browser/listService';
+import { WorkbenchListFocusContextKey, IListService, WorkbenchListSupportsMultiSelectContextKey, ListWidget, WorkbenchListHasSelectionOrFocus, getSelectionKeyboardEvent, WorkbenchListWidget, WorkbenchListSelectionNavigation, WorkbenchTreeElementCanCollapse, WorkbenchTreeElementHasParent, WorkbenchTreeElementHasChild, WorkbenchTreeElementCanExpand, RawWorkbenchListFocusContextKey, WorkbenchTreeFindOpen, WorkbenchTreeSupportsFind } from 'vs/platform/list/browser/listService';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { equals, range } from 'vs/base/common/arrays';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -634,7 +634,7 @@ CommandsRegistry.registerCommandAlias('list.toggleFilterOnType', 'list.toggleFin
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.find',
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: RawWorkbenchListFocusContextKey,
+	when: ContextKeyExpr.and(RawWorkbenchListFocusContextKey, WorkbenchTreeSupportsFind),
 	primary: KeyMod.CtrlCmd | KeyCode.KeyF,
 	secondary: [KeyCode.F3],
 	handler: (accessor) => {
