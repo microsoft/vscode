@@ -7,8 +7,10 @@ import { Event } from 'vs/base/common/event';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
+import { ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ISerializableEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariable';
 
 export const enum TerminalSettingPrefix {
 	Shell = 'terminal.integrated.shell.',
@@ -38,6 +40,8 @@ export const enum TerminalSettingId {
 	DefaultProfileMacOs = 'terminal.integrated.defaultProfile.osx',
 	DefaultProfileWindows = 'terminal.integrated.defaultProfile.windows',
 	UseWslProfiles = 'terminal.integrated.useWslProfiles',
+	TabsDefaultColor = 'terminal.integrated.tabs.defaultColor',
+	TabsDefaultIcon = 'terminal.integrated.tabs.defaultIcon',
 	TabsEnabled = 'terminal.integrated.tabs.enabled',
 	TabsEnableAnimation = 'terminal.integrated.tabs.enableAnimation',
 	TabsHideCondition = 'terminal.integrated.tabs.hideCondition',
@@ -102,19 +106,36 @@ export const enum TerminalSettingId {
 	ShowLinkHover = 'terminal.integrated.showLinkHover',
 	IgnoreProcessNames = 'terminal.integrated.ignoreProcessNames',
 	AutoReplies = 'terminal.integrated.autoReplies',
-	EnableShellIntegration = 'terminal.integrated.enableShellIntegration',
-	ShowShellIntegrationWelcome = 'terminal.integrated.showShellIntegrationWelcome',
-	CommandIcon = 'terminal.integrated.commandIcon',
-	CommandIconError = 'terminal.integrated.commandIconError'
+	ShellIntegrationEnabled = 'terminal.integrated.shellIntegration.enabled',
+	ShellIntegrationShowWelcome = 'terminal.integrated.shellIntegration.showWelcome',
+	ShellIntegrationDecorationsEnabled = 'terminal.integrated.shellIntegration.decorationsEnabled',
+	ShellIntegrationDecorationIcon = 'terminal.integrated.shellIntegration.decorationIcon',
+	ShellIntegrationDecorationIconError = 'terminal.integrated.shellIntegration.decorationIconError',
+	ShellIntegrationDecorationIconSuccess = 'terminal.integrated.shellIntegration.decorationIconSuccess',
+	ShellIntegrationCommandHistory = 'terminal.integrated.shellIntegration.history'
 }
 
-export enum WindowsShellType {
+export const enum TerminalLogConstants {
+	FileName = 'ptyhost'
+}
+
+export const enum PosixShellType {
+	PowerShell = 'pwsh',
+	Bash = 'bash',
+	Fish = 'fish',
+	Sh = 'sh',
+	Csh = 'csh',
+	Ksh = 'ksh',
+	Zsh = 'zsh',
+}
+export const enum WindowsShellType {
 	CommandPrompt = 'cmd',
 	PowerShell = 'pwsh',
 	Wsl = 'wsl',
 	GitBash = 'gitbash'
 }
-export type TerminalShellType = WindowsShellType | undefined;
+export type TerminalShellType = PosixShellType | WindowsShellType | undefined;
+
 export interface IRawTerminalInstanceLayoutInfo<T> {
 	relativeSize: number;
 	terminal: T;
@@ -145,7 +166,16 @@ export interface IPtyHostAttachTarget {
 	isOrphan: boolean;
 	icon: TerminalIcon | undefined;
 	fixedDimensions: IFixedTerminalDimensions | undefined;
+	environmentVariableCollections: ISerializableEnvironmentVariableCollections | undefined;
+	reconnectionOwner?: string;
+	task?: { label: string; id: string; lastTask: string; group?: string };
+	waitOnExit?: WaitOnExitValue;
+	hideFromUser?: boolean;
+	isFeatureTerminal?: boolean;
+	type?: TerminalType;
 }
+
+export type TerminalType = 'Task' | 'Local' | undefined;
 
 export enum TitleEventSource {
 	/** From the API or the rename command that overrides any other type */
@@ -160,11 +190,6 @@ export enum TitleEventSource {
 
 export type ITerminalsLayoutInfo = IRawTerminalsLayoutInfo<IPtyHostAttachTarget | null>;
 export type ITerminalsLayoutInfoById = IRawTerminalsLayoutInfo<number>;
-
-export interface IRawTerminalInstanceLayoutInfo<T> {
-	relativeSize: number;
-	terminal: T;
-}
 
 export enum TerminalIpcChannels {
 	/**
@@ -195,7 +220,9 @@ export const enum ProcessPropertyType {
 	ShellType = 'shellType',
 	HasChildProcesses = 'hasChildProcesses',
 	ResolvedShellLaunchConfig = 'resolvedShellLaunchConfig',
-	OverrideDimensions = 'overrideDimensions'
+	OverrideDimensions = 'overrideDimensions',
+	FailedShellIntegrationActivation = 'failedShellIntegrationActivation',
+	UsedShellIntegrationInjection = 'usedShellIntegrationInjection'
 }
 
 export interface IProcessProperty<T extends ProcessPropertyType> {
@@ -212,6 +239,8 @@ export interface IProcessPropertyMap {
 	[ProcessPropertyType.HasChildProcesses]: boolean;
 	[ProcessPropertyType.ResolvedShellLaunchConfig]: IShellLaunchConfig;
 	[ProcessPropertyType.OverrideDimensions]: ITerminalDimensionsOverride | undefined;
+	[ProcessPropertyType.FailedShellIntegrationActivation]: boolean | undefined;
+	[ProcessPropertyType.UsedShellIntegrationInjection]: boolean | undefined;
 }
 
 export interface IFixedTerminalDimensions {
@@ -260,7 +289,7 @@ export interface IPtyService extends IPtyHostController {
 		unicodeVersion: '6' | '11',
 		env: IProcessEnvironment,
 		executableEnv: IProcessEnvironment,
-		windowsEnableConpty: boolean,
+		options: ITerminalProcessOptions,
 		shouldPersist: boolean,
 		workspaceId: string,
 		workspaceName: string
@@ -294,6 +323,7 @@ export interface IPtyService extends IPtyHostController {
 	getProfiles?(workspaceId: string, profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
 	getEnvironment(): Promise<IProcessEnvironment>;
 	getWslPath(original: string): Promise<string>;
+	getRevivedPtyNewId(id: number): Promise<number | undefined>;
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void>;
 	getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined>;
 	reduceConnectionGraceTime(): Promise<void>;
@@ -328,16 +358,16 @@ export interface ISerializedTerminalState {
 	id: number;
 	shellLaunchConfig: IShellLaunchConfig;
 	processDetails: IProcessDetails;
-	processLaunchOptions: IPersistentTerminalProcessLaunchOptions;
+	processLaunchConfig: IPersistentTerminalProcessLaunchConfig;
 	unicodeVersion: '6' | '11';
 	replayEvent: IPtyHostProcessReplayEvent;
 	timestamp: number;
 }
 
-export interface IPersistentTerminalProcessLaunchOptions {
+export interface IPersistentTerminalProcessLaunchConfig {
 	env: IProcessEnvironment;
 	executableEnv: IProcessEnvironment;
-	windowsEnableConpty: boolean;
+	options: ITerminalProcessOptions;
 }
 
 export interface IRequestResolveVariablesEvent {
@@ -416,16 +446,21 @@ export interface IShellLaunchConfig {
 	 */
 	ignoreConfigurationCwd?: boolean;
 
+	/**
+	 * The owner of this terminal for reconnection.
+	 */
+	reconnectionOwner?: string;
+
 	/** Whether to wait for a key press before closing the terminal. */
-	waitOnExit?: boolean | string;
+	waitOnExit?: WaitOnExitValue;
 
 	/**
 	 * A string including ANSI escape sequences that will be written to the terminal emulator
-	 * _before_ the terminal process has launched, a trailing \n is added at the end of the string.
-	 * This allows for example the terminal instance to display a styled message as the first line
-	 * of the terminal. Use \x1b over \033 or \e for the escape control character.
+	 * _before_ the terminal process has launched, when a string is specified, a trailing \n is
+	 * added at the end. This allows for example the terminal instance to display a styled message
+	 * as the first line of the terminal. Use \x1b over \033 or \e for the escape control character.
 	 */
-	initialText?: string;
+	initialText?: string | { text: string; trailingNewLine: boolean };
 
 	/**
 	 * Custom PTY/pseudoterminal process to use.
@@ -440,7 +475,9 @@ export interface IShellLaunchConfig {
 	/**
 	 * This is a terminal that attaches to an already running terminal.
 	 */
-	attachPersistentProcess?: { id: number; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string; hasChildProcesses?: boolean; fixedDimensions?: IFixedTerminalDimensions };
+	attachPersistentProcess?: {
+		id: number; findRevivedId?: boolean; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string; hasChildProcesses?: boolean; fixedDimensions?: IFixedTerminalDimensions; environmentVariableCollections?: ISerializableEnvironmentVariableCollections; reconnectionOwner?: string; task?: { label: string; id: string; lastTask: string; group?: string }; type?: TerminalType; waitOnExit?: WaitOnExitValue; hideFromUser?: boolean; isFeatureTerminal?: boolean;
+	};
 
 	/**
 	 * Whether the terminal process environment should be exactly as provided in
@@ -506,7 +543,19 @@ export interface IShellLaunchConfig {
 	 * Opt-out of the default terminal persistence on restart and reload
 	 */
 	isTransient?: boolean;
+
+	/**
+	 * Create a terminal without shell integration even when it's enabled
+	 */
+	ignoreShellIntegration?: boolean;
+
+	/**
+	 * The task associated with this terminal
+	 */
+	task?: { label: string; id: string; lastTask: string; group?: string };
 }
+
+export type WaitOnExitValue = boolean | string | ((exitCode: number) => string);
 
 export interface ICreateContributedTerminalProfileOptions {
 	icon?: URI | string | { light: URI; dark: URI };
@@ -524,18 +573,6 @@ export const enum TerminalLocationString {
 	Editor = 'editor'
 }
 
-export const enum TerminalCommandIcon {
-	TriangleRight = 'triangle-right',
-	ChevronRight = 'chevron-right',
-}
-
-export const enum TerminalCommandIconError {
-	TriangleRight = 'triangle-right',
-	ChevronRight = 'chevron-right',
-	X = 'x'
-}
-
-
 export type TerminalIcon = ThemeIcon | URI | { light: URI; dark: URI };
 
 export interface IShellLaunchConfigDto {
@@ -546,6 +583,18 @@ export interface IShellLaunchConfigDto {
 	env?: ITerminalEnvironment;
 	useShellEnvironment?: boolean;
 	hideFromUser?: boolean;
+}
+
+/**
+ * A set of options for the terminal process. These differ from the shell launch config in that they
+ * are set internally to the terminal component, not from the outside.
+ */
+export interface ITerminalProcessOptions {
+	shellIntegration: {
+		enabled: boolean;
+	};
+	windowsEnableConpty: boolean;
+	environmentVariableCollections: ISerializableEnvironmentVariableCollections | undefined;
 }
 
 export interface ITerminalEnvironment {
@@ -584,6 +633,7 @@ export interface ITerminalChildProcess {
 	onProcessReady: Event<IProcessReadyEvent>;
 	onDidChangeProperty: Event<IProcessProperty<any>>;
 	onProcessExit: Event<number | undefined>;
+	onRestoreCommands?: Event<ISerializedCommandDetectionCapability>;
 
 	/**
 	 * Starts the process.
@@ -755,3 +805,29 @@ export interface IExtensionTerminalProfile extends ITerminalProfileContribution 
 
 export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSource | IExtensionTerminalProfile | null;
 export type ITerminalProfileType = ITerminalProfile | IExtensionTerminalProfile;
+
+export interface IShellIntegration {
+	readonly capabilities: ITerminalCapabilityStore;
+	readonly status: ShellIntegrationStatus;
+
+	readonly onDidChangeStatus: Event<ShellIntegrationStatus>;
+
+	deserialize(serialized: ISerializedCommandDetectionCapability): void;
+}
+
+export const enum ShellIntegrationStatus {
+	/** No shell integration sequences have been encountered. */
+	Off,
+	/** Final term shell integration sequences have been encountered. */
+	FinalTerm,
+	/** VS Code shell integration sequences have been encountered. Supercedes FinalTerm. */
+	VSCode
+}
+
+export enum TerminalExitReason {
+	Unknown = 0,
+	Shutdown = 1,
+	Process = 2,
+	User = 3,
+	Extension = 4,
+}

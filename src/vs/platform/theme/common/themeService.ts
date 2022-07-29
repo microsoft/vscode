@@ -48,7 +48,7 @@ export namespace ThemeIcon {
 		if (!match) {
 			return undefined;
 		}
-		let [, name] = match;
+		const [, name] = match;
 		return { id: name };
 	}
 
@@ -95,7 +95,8 @@ export const FolderThemeIcon = Codicon.folder;
 export function getThemeTypeSelector(type: ColorScheme): string {
 	switch (type) {
 		case ColorScheme.DARK: return 'vs-dark';
-		case ColorScheme.HIGH_CONTRAST: return 'hc-black';
+		case ColorScheme.HIGH_CONTRAST_DARK: return 'hc-black';
+		case ColorScheme.HIGH_CONTRAST_LIGHT: return 'hc-light';
 		default: return 'vs';
 	}
 }
@@ -229,7 +230,7 @@ class ThemingRegistry implements IThemingRegistry {
 	}
 }
 
-let themingRegistry = new ThemingRegistry();
+const themingRegistry = new ThemingRegistry();
 platform.Registry.add(Extensions.ThemingContribution, themingRegistry);
 
 export function registerThemingParticipant(participant: IThemingParticipant): IDisposable {

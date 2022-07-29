@@ -40,6 +40,7 @@ import 'vs/workbench/services/search/browser/searchService';
 import 'vs/workbench/services/textfile/browser/browserTextFileService';
 import 'vs/workbench/services/keybinding/browser/keyboardLayoutService';
 import 'vs/workbench/services/extensions/browser/extensionService';
+import 'vs/workbench/services/extensionManagement/browser/webExtensionsScannerService';
 import 'vs/workbench/services/extensionManagement/common/extensionManagementServerService';
 import 'vs/workbench/services/extensionManagement/browser/extensionUrlTrustService';
 import 'vs/workbench/services/telemetry/browser/telemetryService';
@@ -59,6 +60,9 @@ import 'vs/workbench/services/encryption/browser/encryptionService';
 import 'vs/workbench/services/workingCopy/browser/workingCopyBackupService';
 import 'vs/workbench/services/tunnel/browser/tunnelService';
 import 'vs/workbench/services/files/browser/elevatedFileService';
+import 'vs/workbench/services/workingCopy/browser/workingCopyHistoryService';
+import 'vs/workbench/services/userDataSync/browser/webUserDataSyncEnablementService';
+import 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -71,7 +75,7 @@ import { ExtensionManagementService } from 'vs/workbench/services/extensionManag
 import { ILoggerService, LogLevel } from 'vs/platform/log/common/log';
 import { FileLoggerService } from 'vs/platform/log/common/fileLog';
 import { UserDataSyncMachinesService, IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
-import { IUserDataSyncStoreService, IUserDataSyncService, IUserDataAutoSyncService, IUserDataSyncBackupStoreService, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncStoreService, IUserDataSyncService, IUserDataAutoSyncService, IUserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSyncBackupStoreService';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
@@ -83,11 +87,10 @@ import { NullEndpointTelemetryService } from 'vs/platform/telemetry/common/telem
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { TitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
 import { ITimerService, TimerService } from 'vs/workbench/services/timer/browser/timerService';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
-import { WebUserDataSyncEnablementService } from 'vs/workbench/services/userDataSync/browser/userDataSyncEnablementService';
+import { IDiagnosticsService, NullDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics';
+import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
+import { WebLanguagePacksService } from 'vs/platform/languagePacks/browser/languagePacks';
 
-registerSingleton(IUserDataSyncEnablementService, WebUserDataSyncEnablementService);
 registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService);
 registerSingleton(IAccessibilityService, AccessibilityService, true);
 registerSingleton(IContextMenuService, ContextMenuService);
@@ -101,8 +104,9 @@ registerSingleton(IUserDataAutoSyncService, UserDataAutoSyncService);
 registerSingleton(ITitleService, TitlebarPart);
 registerSingleton(IExtensionTipsService, ExtensionTipsService);
 registerSingleton(ITimerService, TimerService);
-registerSingleton(IConfigurationResolverService, ConfigurationResolverService, true);
 registerSingleton(ICustomEndpointTelemetryService, NullEndpointTelemetryService, true);
+registerSingleton(IDiagnosticsService, NullDiagnosticsService, true);
+registerSingleton(ILanguagePackService, WebLanguagePacksService, true);
 
 //#endregion
 
@@ -112,8 +116,14 @@ registerSingleton(ICustomEndpointTelemetryService, NullEndpointTelemetryService,
 // Output
 import 'vs/workbench/contrib/output/common/outputChannelModelService';
 
+// Logs
+import 'vs/workbench/contrib/logs/browser/logs.contribution';
+
 // Explorer
 import 'vs/workbench/contrib/files/browser/files.web.contribution';
+
+// Localization
+import 'vs/workbench/contrib/localization/browser/localization.contribution';
 
 // Performance
 import 'vs/workbench/contrib/performance/browser/performance.web.contribution';
@@ -166,7 +176,7 @@ import 'vs/workbench/contrib/offline/browser/offline.contribution';
 //
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-import { create, commands, env } from 'vs/workbench/browser/web.factory';
+import { create, commands, env, window, workspace, logger } from 'vs/workbench/browser/web.factory';
 import { IWorkbench, ICommand, ICommonTelemetryPropertiesResolver, IDefaultEditor, IDefaultLayout, IDefaultView, IDevelopmentOptions, IExternalUriResolver, IExternalURLOpener, IHomeIndicator, IInitialColorTheme, IPosition, IProductQualityChangeHandler, IRange, IResourceUriProvider, ISettingsSyncOptions, IShowPortCandidate, ITunnel, ITunnelFactory, ITunnelOptions, ITunnelProvider, IWelcomeBanner, IWelcomeBannerAction, IWindowIndicator, IWorkbenchConstructionOptions, Menu } from 'vs/workbench/browser/web.api';
 import { UriComponents, URI } from 'vs/base/common/uri';
 import { IWebSocketFactory, IWebSocket } from 'vs/platform/remote/browser/browserSocketFactory';
@@ -247,6 +257,12 @@ export {
 	commands,
 	Menu,
 
+	// Logger
+	logger,
+
+	// Window
+	window,
+
 	// Branding
 	IHomeIndicator,
 	IWelcomeBanner,
@@ -264,6 +280,9 @@ export {
 
 	// Env
 	env,
+
+	// Workspace
+	workspace,
 
 	// Development
 	IDevelopmentOptions

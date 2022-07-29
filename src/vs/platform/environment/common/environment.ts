@@ -48,23 +48,25 @@ export interface IEnvironmentService {
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 	// --- user roaming data
+	stateResource: URI;
 	userRoamingDataHome: URI;
-	settingsResource: URI;
-	keybindingsResource: URI;
 	keyboardLayoutResource: URI;
 	argvResource: URI;
-	snippetsHome: URI;
 
 	// --- data paths
 	untitledWorkspacesHome: URI;
-	globalStorageHome: URI;
 	workspaceStorageHome: URI;
+	localHistoryHome: URI;
 	cacheHome: URI;
 
 	// --- settings sync
 	userDataSyncHome: URI;
 	userDataSyncLogResource: URI;
 	sync: 'on' | 'off' | undefined;
+
+	// --- continue edit session
+	editSessionId?: string;
+	editSessionsLogResource: URI;
 
 	// --- extension development
 	debugExtensionHost: IExtensionHostDebugParams;
@@ -85,6 +87,9 @@ export interface IEnvironmentService {
 	disableTelemetry: boolean;
 	telemetryLogResource: URI;
 	serviceMachineIdResource: URI;
+
+	// --- Policy
+	policyFile?: URI;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//
@@ -130,9 +135,6 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	extensionsPath: string;
 	extensionsDownloadPath: string;
 	builtinExtensionsPath: string;
-
-	// --- smoke test support
-	driverHandle?: string;
 
 	// --- use keytar for credentials
 	disableKeytar?: boolean;

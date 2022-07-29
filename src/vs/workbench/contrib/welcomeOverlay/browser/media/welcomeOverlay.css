@@ -28,7 +28,10 @@
 
 .monaco-workbench.hc-black.blur-background #workbench\.parts\.panel,
 .monaco-workbench.hc-black.blur-background #workbench\.parts\.sidebar,
-.monaco-workbench.hc-black.blur-background #workbench\.parts\.editor {
+.monaco-workbench.hc-black.blur-background #workbench\.parts\.editor,
+.monaco-workbench.hc-light.blur-background #workbench\.parts\.panel,
+.monaco-workbench.hc-light.blur-background #workbench\.parts\.sidebar,
+.monaco-workbench.hc-light.blur-background #workbench\.parts\.editor {
 	opacity: .2;
 }
 

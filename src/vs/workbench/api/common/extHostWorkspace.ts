@@ -228,7 +228,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		if (this._actualWorkspace) {
 			if (this._actualWorkspace.configuration) {
 				if (this._actualWorkspace.isUntitled) {
-					return URI.from({ scheme: Schemas.untitled, path: basename(dirname(this._actualWorkspace.configuration)) }); // Untitled Worspace: return untitled URI
+					return URI.from({ scheme: Schemas.untitled, path: basename(dirname(this._actualWorkspace.configuration)) }); // Untitled Workspace: return untitled URI
 				}
 
 				return this._actualWorkspace.configuration; // Workspace: return the configuration location
@@ -546,9 +546,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	}
 
 	$handleTextSearchResult(result: IRawFileMatch2, requestId: number): void {
-		if (this._activeSearchCallbacks[requestId]) {
-			this._activeSearchCallbacks[requestId](result);
-		}
+		this._activeSearchCallbacks[requestId]?.(result);
 	}
 
 	saveAll(includeUntitled?: boolean): Promise<boolean> {

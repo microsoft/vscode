@@ -17,7 +17,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { URI } from 'vs/base/common/uri';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -48,22 +47,6 @@ class RemoteConnectionFailureNotificationContribution implements IWorkbenchContr
 		// Let's cover the case where connecting to fetch the remote extension info fails
 		this._remoteAgentService.getRawEnvironment()
 			.then(undefined, err => {
-
-				type RemoteConnectionFailureClassification = {
-					web: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-					remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-					message: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-				};
-				type RemoteConnectionFailureEvent = {
-					web: boolean;
-					remoteName: string | undefined;
-					message: string;
-				};
-				telemetryService.publicLog2<RemoteConnectionFailureEvent, RemoteConnectionFailureClassification>('remoteConnectionFailure', {
-					web: false,
-					remoteName: getRemoteName(environmentService.remoteAuthority),
-					message: err ? err.message : '',
-				});
 
 				if (!RemoteAuthorityResolverError.isHandled(err)) {
 					const choices: IPromptChoice[] = [

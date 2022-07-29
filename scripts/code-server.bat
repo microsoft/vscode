@@ -3,14 +3,16 @@ setlocal
 
 title VSCode Server
 
-pushd %~dp0\..
+set ROOT_DIR=%~dp0..
+
+pushd %ROOT_DIR%
 
 :: Configuration
 set NODE_ENV=development
 set VSCODE_DEV=1
 
-:: Sync built-in extensions
-call yarn download-builtin-extensions
+:: Get electron, compile, built-in extensions
+if "%VSCODE_SKIP_PRELAUNCH%"=="" node build/lib/preLaunch.js
 
 :: Node executable
 FOR /F "tokens=*" %%g IN ('node build/lib/node.js') do (SET NODE=%%g)
@@ -20,9 +22,10 @@ if not exist "%NODE%" (
 	call yarn gulp node
 )
 
-:: Launch Server
-call "%NODE%" scripts\code-server.js %*
-
 popd
+
+:: Launch Server
+call "%NODE%" %ROOT_DIR%\scripts\code-server.js %*
+
 
 endlocal

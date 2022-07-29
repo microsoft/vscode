@@ -3,16 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import severity from 'vs/base/common/severity';
-import { IReplElement, IStackFrame, IExpression, IReplElementSource, IDebugSession, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
-import { ExpressionContainer } from 'vs/workbench/contrib/debug/common/debugModel';
-import { isString, isUndefinedOrNull, isObject } from 'vs/base/common/types';
-import { basenameOrAuthority } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
 import { Emitter, Event } from 'vs/base/common/event';
+import severity from 'vs/base/common/severity';
+import { isObject, isString } from 'vs/base/common/types';
+import { generateUuid } from 'vs/base/common/uuid';
+import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IDebugConfiguration, IDebugSession, IExpression, IReplElement, IReplElementSource, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
+import { ExpressionContainer } from 'vs/workbench/contrib/debug/common/debugModel';
 
 const MAX_REPL_LENGTH = 10000;
 let topReplElementCounter = 0;
@@ -84,6 +82,10 @@ export class RawObjectReplElement implements IExpression {
 
 	get hasChildren(): boolean {
 		return (Array.isArray(this.valueObj) && this.valueObj.length > 0) || (isObject(this.valueObj) && Object.getOwnPropertyNames(this.valueObj).length > 0);
+	}
+
+	evaluateLazy(): Promise<void> {
+		throw new Error('Method not implemented.');
 	}
 
 	getChildren(): Promise<IExpression[]> {
@@ -287,79 +289,6 @@ export class ReplModel {
 		}
 
 		this._onDidChangeElements.fire();
-	}
-
-	logToRepl(session: IDebugSession, sev: severity, args: any[], frame?: { uri: URI; line: number; column: number }) {
-
-		let source: IReplElementSource | undefined;
-		if (frame) {
-			source = {
-				column: frame.column,
-				lineNumber: frame.line,
-				source: session.getSource({
-					name: basenameOrAuthority(frame.uri),
-					path: frame.uri.fsPath
-				})
-			};
-		}
-
-		// add output for each argument logged
-		let simpleVals: any[] = [];
-		for (let i = 0; i < args.length; i++) {
-			const a = args[i];
-
-			// undefined gets printed as 'undefined'
-			if (typeof a === 'undefined') {
-				simpleVals.push('undefined');
-			}
-
-			// null gets printed as 'null'
-			else if (a === null) {
-				simpleVals.push('null');
-			}
-
-			// objects & arrays are special because we want to inspect them in the REPL
-			else if (isObject(a) || Array.isArray(a)) {
-
-				// flush any existing simple values logged
-				if (simpleVals.length) {
-					this.appendToRepl(session, simpleVals.join(' '), sev, source);
-					simpleVals = [];
-				}
-
-				// show object
-				this.appendToRepl(session, new RawObjectReplElement(getUniqueId(), (<any>a).prototype, a, undefined, nls.localize('snapshotObj', "Only primitive values are shown for this object.")), sev, source);
-			}
-
-			// string: watch out for % replacement directive
-			// string substitution and formatting @ https://developer.chrome.com/devtools/docs/console
-			else if (typeof a === 'string') {
-				let buf = '';
-
-				for (let j = 0, len = a.length; j < len; j++) {
-					if (a[j] === '%' && (a[j + 1] === 's' || a[j + 1] === 'i' || a[j + 1] === 'd' || a[j + 1] === 'O')) {
-						i++; // read over substitution
-						buf += !isUndefinedOrNull(args[i]) ? args[i] : ''; // replace
-						j++; // read over directive
-					} else {
-						buf += a[j];
-					}
-				}
-
-				simpleVals.push(buf);
-			}
-
-			// number or boolean is joined together
-			else {
-				simpleVals.push(a);
-			}
-		}
-
-		// flush simple values
-		// always append a new line for output coming from an extension such that separate logs go to separate lines #23695
-		if (simpleVals.length) {
-			this.appendToRepl(session, simpleVals.join(' ') + '\n', sev, source);
-		}
 	}
 
 	removeReplExpressions(): void {

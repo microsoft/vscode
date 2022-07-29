@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
-import { INotebookEditor, CellFindMatch, CellEditState, CellFindMatchWithIndex, OutputFindMatch, ICellModelDecorations, ICellModelDeltaDecorations } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, CellFindMatch, CellEditState, CellFindMatchWithIndex, OutputFindMatch, ICellModelDecorations, ICellModelDeltaDecorations, INotebookDeltaDecoration } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { FindDecorations } from 'vs/editor/contrib/find/browser/findDecorations';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
@@ -18,6 +18,7 @@ import { findFirstInSorted } from 'vs/base/common/arrays';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
+import { overviewRulerFindMatchForeground, overviewRulerSelectionHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
 
 
 export class FindModel extends Disposable {
@@ -25,6 +26,8 @@ export class FindModel extends Disposable {
 	protected _findMatchesStarts: PrefixSumComputer | null = null;
 	private _currentMatch: number = -1;
 	private _allMatchesDecorations: ICellModelDecorations[] = [];
+	private _currentMatchCellDecorations: string[] = [];
+	private _allMatchesCellDecorations: string[] = [];
 	private _currentMatchDecorations: { kind: 'input'; decorations: ICellModelDecorations[] } | { kind: 'output'; index: number } | null = null;
 	private readonly _throttledDelayer: Delayer<void>;
 	private _computePromise: CancelablePromise<CellFindMatchWithIndex[] | null> | null = null;
@@ -85,7 +88,7 @@ export class FindModel extends Disposable {
 		};
 	}
 
-	find(previous: boolean) {
+	find(option: { previous: boolean } | { index: number }) {
 		if (!this.findMatches.length) {
 			return;
 		}
@@ -93,14 +96,20 @@ export class FindModel extends Disposable {
 		// let currCell;
 		if (!this._findMatchesStarts) {
 			this.set(this._findMatches, true);
+			if ('index' in option) {
+				this._currentMatch = option.index;
+			}
 		} else {
 			// const currIndex = this._findMatchesStarts!.getIndexOf(this._currentMatch);
 			// currCell = this._findMatches[currIndex.index].cell;
 			const totalVal = this._findMatchesStarts.getTotalSum();
-			if (this._currentMatch === -1) {
-				this._currentMatch = previous ? totalVal - 1 : 0;
+			if ('index' in option) {
+				this._currentMatch = option.index;
+			}
+			else if (this._currentMatch === -1) {
+				this._currentMatch = option.previous ? totalVal - 1 : 0;
 			} else {
-				const nextVal = (this._currentMatch + (previous ? -1 : 1) + totalVal) % totalVal;
+				const nextVal = (this._currentMatch + (option.previous ? -1 : 1) + totalVal) % totalVal;
 				this._currentMatch = nextVal;
 			}
 		}
@@ -154,8 +163,8 @@ export class FindModel extends Disposable {
 	}
 
 	async research() {
-		this._throttledDelayer.trigger(() => {
-			this._research();
+		return this._throttledDelayer.trigger(() => {
+			return this._research();
 		});
 	}
 
@@ -171,6 +180,7 @@ export class FindModel extends Disposable {
 
 		const findMatches = await this._computePromise;
 		if (!findMatches) {
+			this.set([], false);
 			return;
 		}
 
@@ -391,6 +401,18 @@ export class FindModel extends Disposable {
 				};
 			});
 
+			this._currentMatchCellDecorations = this._notebookEditor.deltaCellDecorations(this._currentMatchCellDecorations, [{
+				ownerId: cell.handle,
+				handle: cell.handle,
+				options: {
+					overviewRuler: {
+						color: overviewRulerSelectionHighlightForeground,
+						modelRanges: [match.range],
+						includeOutput: false
+					}
+				}
+			} as INotebookDeltaDecoration]);
+
 			return null;
 		} else {
 			this.clearCurrentFindMatchDecoration();
@@ -398,6 +420,19 @@ export class FindModel extends Disposable {
 			const match = this._findMatches[cellIndex].matches[matchIndex] as OutputFindMatch;
 			const offset = await this._notebookEditor.highlightFind(cell, match.index);
 			this._currentMatchDecorations = { kind: 'output', index: match.index };
+
+			this._currentMatchCellDecorations = this._notebookEditor.deltaCellDecorations(this._currentMatchCellDecorations, [{
+				ownerId: cell.handle,
+				handle: cell.handle,
+				options: {
+					overviewRuler: {
+						color: overviewRulerSelectionHighlightForeground,
+						modelRanges: [],
+						includeOutput: true
+					}
+				}
+			} as INotebookDeltaDecoration]);
+
 			return offset;
 		}
 	}
@@ -411,6 +446,8 @@ export class FindModel extends Disposable {
 		} else if (this._currentMatchDecorations?.kind === 'output') {
 			this._notebookEditor.unHighlightFind(this._currentMatchDecorations.index);
 		}
+
+		this._currentMatchCellDecorations = this._notebookEditor.deltaCellDecorations(this._currentMatchCellDecorations, []);
 	}
 
 	private setAllFindMatchesDecorations(cellFindMatches: CellFindMatch[]) {
@@ -435,6 +472,20 @@ export class FindModel extends Disposable {
 
 			this._allMatchesDecorations = accessor.deltaDecorations(this._allMatchesDecorations, deltaDecorations);
 		});
+
+		this._allMatchesCellDecorations = this._notebookEditor.deltaCellDecorations(this._allMatchesCellDecorations, cellFindMatches.map(cellFindMatch => {
+			return {
+				ownerId: cellFindMatch.cell.handle,
+				handle: cellFindMatch.cell.handle,
+				options: {
+					overviewRuler: {
+						color: overviewRulerFindMatchForeground,
+						modelRanges: cellFindMatch.matches.slice(0, cellFindMatch.modelMatchCount).map(match => (match as FindMatch).range),
+						includeOutput: cellFindMatch.modelMatchCount < cellFindMatch.matches.length
+					}
+				}
+			};
+		}));
 	}
 
 

@@ -10,6 +10,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { IMenu, IMenuService } from 'vs/platform/actions/common/actions';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { insertCellAtIndex } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
@@ -44,6 +45,16 @@ suite('NotebookExecutionStateService', () => {
 			override getNotebookTextModels() { return []; }
 			override getNotebookTextModel(uri: URI): NotebookTextModel | undefined {
 				return testNotebookModel;
+			}
+		});
+
+		instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
+			override createMenu() {
+				return new class extends mock<IMenu>() {
+					override onDidChange = Event.None;
+					override getActions() { return []; }
+					override dispose() { }
+				};
 			}
 		});
 
@@ -83,7 +94,7 @@ suite('NotebookExecutionStateService', () => {
 			const executionStateService: INotebookExecutionStateService = instantiationService.get(INotebookExecutionStateService);
 
 			const cell = insertCellAtIndex(viewModel, 0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true);
-			executionStateService.createCellExecution(kernel.id, viewModel.uri, cell.handle);
+			executionStateService.createCellExecution(viewModel.uri, cell.handle);
 			assert.strictEqual(didCancel, false);
 			viewModel.notebookDocument.applyEdits([{
 				editType: CellEditType.Replace, index: 0, count: 1, cells: []
@@ -102,7 +113,7 @@ suite('NotebookExecutionStateService', () => {
 
 			const executionStateService: INotebookExecutionStateService = instantiationService.get(INotebookExecutionStateService);
 			const cell = insertCellAtIndex(viewModel, 0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true);
-			const exe = executionStateService.createCellExecution(kernel.id, viewModel.uri, cell.handle);
+			const exe = executionStateService.createCellExecution(viewModel.uri, cell.handle);
 
 			let didFire = false;
 			disposables.add(executionStateService.onDidChangeCellExecution(e => {
@@ -143,7 +154,7 @@ suite('NotebookExecutionStateService', () => {
 				deferred.complete();
 			}));
 
-			executionStateService.createCellExecution(kernel.id, viewModel.uri, cell.handle);
+			executionStateService.createCellExecution(viewModel.uri, cell.handle);
 
 			return deferred.p;
 		});
@@ -159,7 +170,7 @@ suite('NotebookExecutionStateService', () => {
 
 			const executionStateService: INotebookExecutionStateService = instantiationService.get(INotebookExecutionStateService);
 			const cell = insertCellAtIndex(viewModel, 0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true);
-			executionStateService.createCellExecution(kernel.id, viewModel.uri, cell.handle);
+			executionStateService.createCellExecution(viewModel.uri, cell.handle);
 			const exe = executionStateService.getCellExecution(cell.uri);
 			assert.ok(exe);
 

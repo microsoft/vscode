@@ -12,7 +12,8 @@ import { setProperty } from 'vs/base/common/jsonEdit';
 import { Constants } from 'vs/base/common/uint';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { InlineValueContext, StandardTokenType } from 'vs/editor/common/languages';
+import { InlineValueContext } from 'vs/editor/common/languages';
+import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { distinct, flatten } from 'vs/base/common/arrays';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
@@ -57,13 +58,15 @@ const DEAFULT_INLINE_DEBOUNCE_DELAY = 200;
 export const debugInlineForeground = registerColor('editor.inlineValuesForeground', {
 	dark: '#ffffff80',
 	light: '#00000080',
-	hc: '#ffffff80'
+	hcDark: '#ffffff80',
+	hcLight: '#00000080'
 }, nls.localize('editor.inlineValuesForeground', "Color for the debug inline value text."));
 
 export const debugInlineBackground = registerColor('editor.inlineValuesBackground', {
 	dark: '#ffc80033',
 	light: '#ffc80033',
-	hc: '#ffc80033'
+	hcDark: '#ffc80033',
+	hcLight: '#ffc80033'
 }, nls.localize('editor.inlineValuesBackground', "Color for the debug inline value background."));
 
 class InlineSegment {
@@ -177,8 +180,8 @@ function getWordToLineNumbersMap(model: ITextModel | null): Map<string, number[]
 			continue;
 		}
 
-		model.forceTokenization(lineNumber);
-		const lineTokens = model.getLineTokens(lineNumber);
+		model.tokenization.forceTokenization(lineNumber);
+		const lineTokens = model.tokenization.getLineTokens(lineNumber);
 		for (let tokenIndex = 0, tokenCount = lineTokens.getCount(); tokenIndex < tokenCount; tokenIndex++) {
 			const tokenType = lineTokens.getStandardTokenType(tokenIndex);
 
@@ -219,7 +222,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private configurationWidget: FloatingClickWidget | undefined;
 	private altListener: IDisposable | undefined;
 	private altPressed = false;
-	private oldDecorations: string[] = [];
+	private oldDecorations = this.editor.createDecorationsCollection();
 	private readonly debounceInfo: IFeatureDebounceInformation;
 
 	constructor(
@@ -268,6 +271,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.updateInlineValuesScheduler.schedule();
 		}));
 		this.toDispose.push(this.debugService.getViewModel().onWillUpdateViews(() => this.updateInlineValuesScheduler.schedule()));
+		this.toDispose.push(this.debugService.getViewModel().onDidEvaluateLazyExpression(() => this.updateInlineValuesScheduler.schedule()));
 		this.toDispose.push(this.editor.onDidChangeModel(async () => {
 			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 			const model = this.editor.getModel();
@@ -499,13 +503,18 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, exceptionInfo, debugSession);
 		this.exceptionWidget.show({ lineNumber, column }, 0);
 		this.exceptionWidget.focus();
-		this.editor.revealLine(lineNumber);
+		this.editor.revealRangeInCenter({
+			startLineNumber: lineNumber,
+			startColumn: column,
+			endLineNumber: lineNumber,
+			endColumn: column,
+		});
 		this.exceptionWidgetVisible.set(true);
 	}
 
 	closeExceptionWidget(): void {
 		if (this.exceptionWidget) {
-			const shouldFocusEditor = this.exceptionWidget.hasfocus();
+			const shouldFocusEditor = this.exceptionWidget.hasFocus();
 			this.exceptionWidget.dispose();
 			this.exceptionWidget = undefined;
 			this.exceptionWidgetVisible.set(false);
@@ -597,7 +606,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private get removeInlineValuesScheduler(): RunOnceScheduler {
 		return new RunOnceScheduler(
 			() => {
-				this.oldDecorations = this.editor.deltaDecorations(this.oldDecorations, []);
+				this.oldDecorations.clear();
 			},
 			100
 		);
@@ -619,7 +628,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 		const model = this.editor.getModel();
 		const inlineValuesSetting = this.configurationService.getValue<IDebugConfiguration>('debug').inlineValues;
-		const inlineValuesTurnedOn = inlineValuesSetting === true || (inlineValuesSetting === 'auto' && model && this.languageFeaturesService.inlineValuesProvider.has(model));
+		const inlineValuesTurnedOn = inlineValuesSetting === true || inlineValuesSetting === 'on' || (inlineValuesSetting === 'auto' && model && this.languageFeaturesService.inlineValuesProvider.has(model));
 		if (!inlineValuesTurnedOn || !model || !stackFrame || model.uri.toString() !== stackFrame.source.uri.toString()) {
 			if (!this.removeInlineValuesScheduler.isScheduled()) {
 				this.removeInlineValuesScheduler.schedule();
@@ -687,7 +696,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 								}
 								if (expr) {
 									const expression = new Expression(expr);
-									await expression.evaluate(stackFrame.thread.session, stackFrame, 'watch');
+									await expression.evaluate(stackFrame.thread.session, stackFrame, 'watch', true);
 									if (expression.available) {
 										text = strings.format(var_value_format, expr, expression.value);
 									}
@@ -751,7 +760,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				decoration => `${decoration.range.startLineNumber}:${decoration?.options.after?.content}`);
 		}
 
-		this.oldDecorations = this.editor.deltaDecorations(this.oldDecorations, allDecorations);
+		this.oldDecorations.set(allDecorations);
 	}
 
 	dispose(): void {
@@ -763,6 +772,6 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		}
 		this.toDispose = dispose(this.toDispose);
 
-		this.oldDecorations = this.editor.deltaDecorations(this.oldDecorations, []);
+		this.oldDecorations.clear();
 	}
 }

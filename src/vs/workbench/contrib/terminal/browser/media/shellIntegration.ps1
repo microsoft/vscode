@@ -3,10 +3,10 @@
 #   Licensed under the MIT License. See License.txt in the project root for license information.
 # ---------------------------------------------------------------------------------------------
 
-param(
-	[Parameter(HelpMessage="Hides the shell integration welcome message")]
-	[switch] $HideWelcome = $False
-)
+# Prevent installing more than once per session
+if (Test-Path variable:global:__VSCodeOriginalPrompt) {
+	return;
+}
 
 $Global:__VSCodeOriginalPrompt = $function:Prompt
 
@@ -21,24 +21,28 @@ function Global:__VSCode-Get-LastExitCode {
 }
 
 function Global:Prompt() {
+	$LastExitCode = $(__VSCode-Get-LastExitCode);
 	$LastHistoryEntry = $(Get-History -Count 1)
-	if ($LastHistoryEntry.Id -eq $Global:__LastHistoryId) {
-		# Don't provide a command line or exit code if there was no history entry (eg. ctrl+c, enter on no command)
-		$Result  = "`e]633;E`a"
-		$Result += "`e]633;D`a"
-	} else {
-		# Command finished command line
-		# OSC 633 ; A ; <CommandLine?> ST
-		$Result  = "`e]633;E;"
-		# Sanitize the command line to ensure it can get transferred to the terminal and can be parsed
-		# correctly. This isn't entirely safe but good for most cases, it's important for the Pt parameter
-		# to only be composed of _printable_ characters as per the spec.
-		$CommandLine = $LastHistoryEntry.CommandLine ?? ""
-		$Result += $CommandLine.Replace("`n", "<LF>").Replace(";", "<CL>")
-		$Result += "`a"
-		# Command finished exit code
-		# OSC 633 ; D [; <ExitCode>] ST
-		$Result += "`e]633;D;$(__VSCode-Get-LastExitCode)`a"
+	# Skip finishing the command if the first command has not yet started
+	if ($Global:__LastHistoryId -ne -1) {
+		if ($LastHistoryEntry.Id -eq $Global:__LastHistoryId) {
+			# Don't provide a command line or exit code if there was no history entry (eg. ctrl+c, enter on no command)
+			$Result  = "`e]633;E`a"
+			$Result += "`e]633;D`a"
+		} else {
+			# Command finished command line
+			# OSC 633 ; A ; <CommandLine?> ST
+			$Result  = "`e]633;E;"
+			# Sanitize the command line to ensure it can get transferred to the terminal and can be parsed
+			# correctly. This isn't entirely safe but good for most cases, it's important for the Pt parameter
+			# to only be composed of _printable_ characters as per the spec.
+			$CommandLine = $LastHistoryEntry.CommandLine ?? ""
+			$Result += $CommandLine.Replace("`n", "<LF>").Replace(";", "<CL>")
+			$Result += "`a"
+			# Command finished exit code
+			# OSC 633 ; D [; <ExitCode>] ST
+			$Result += "`e]633;D;$LastExitCode`a"
+		}
 	}
 	# Prompt started
 	# OSC 633 ; A ST
@@ -54,19 +58,33 @@ function Global:Prompt() {
 	return $Result
 }
 
-# TODO: Gracefully fallback when PSReadLine is not loaded
-$__VSCodeOriginalPSConsoleHostReadLine = $function:PSConsoleHostReadLine
-function Global:PSConsoleHostReadLine {
-	$tmp = $__VSCodeOriginalPSConsoleHostReadLine.Invoke()
-	# Write command executed sequence directly to Console to avoid the new line from Write-Host
-	[Console]::Write("`e]633;C`a")
-	$tmp
+# Only send the command executed sequence when PSReadLine is loaded, if not shell integration should
+# still work thanks to the command line sequence
+if (Get-Module -Name PSReadLine) {
+	$__VSCodeOriginalPSConsoleHostReadLine = $function:PSConsoleHostReadLine
+	function Global:PSConsoleHostReadLine {
+		$tmp = $__VSCodeOriginalPSConsoleHostReadLine.Invoke()
+		# Write command executed sequence directly to Console to avoid the new line from Write-Host
+		[Console]::Write("`e]633;C`a")
+		$tmp
+	}
 }
 
 # Set IsWindows property
 [Console]::Write("`e]633;P;IsWindows=$($IsWindows)`a")
 
-# Show the welcome message
-if ($HideWelcome -eq $False) {
-	Write-Host "`e[1mShell integration activated!`e[0m" -ForegroundColor Green
+# Set always on key handlers which map to default VS Code keybindings
+function Set-MappedKeyHandler {
+	param ([string[]] $Chord, [string[]]$Sequence)
+	$Handler = $(Get-PSReadLineKeyHandler -Chord $Chord)
+	if ($Handler) {
+		Set-PSReadLineKeyHandler -Chord $Sequence -Function $Handler.Function
+	}
 }
+function Set-MappedKeyHandlers {
+	Set-MappedKeyHandler -Chord Ctrl+Spacebar -Sequence 'F12,a'
+	Set-MappedKeyHandler -Chord Alt+Spacebar -Sequence 'F12,b'
+	Set-MappedKeyHandler -Chord Shift+Enter -Sequence 'F12,c'
+	Set-MappedKeyHandler -Chord Shift+End -Sequence 'F12,d'
+}
+Set-MappedKeyHandlers

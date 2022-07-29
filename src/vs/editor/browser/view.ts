@@ -6,7 +6,6 @@
 import * as dom from 'vs/base/browser/dom';
 import { Selection } from 'vs/editor/common/core/selection';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
@@ -50,6 +49,7 @@ import { IViewModel } from 'vs/editor/common/viewModel';
 import { getThemeTypeSelector, IColorTheme } from 'vs/platform/theme/common/themeService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { PointerHandlerLastRenderData } from 'vs/editor/browser/controller/mouseTarget';
+import { BlockDecorations } from 'vs/editor/browser/viewParts/blockDecorations/blockDecorations';
 
 
 export interface IContentWidgetData {
@@ -181,6 +181,9 @@ export class View extends ViewEventHandler {
 		const rulers = new Rulers(this._context);
 		this._viewParts.push(rulers);
 
+		const blockOutline = new BlockDecorations(this._context);
+		this._viewParts.push(blockOutline);
+
 		const minimap = new Minimap(this._context);
 		this._viewParts.push(minimap);
 
@@ -193,6 +196,7 @@ export class View extends ViewEventHandler {
 
 		this._linesContent.appendChild(contentViewOverlays.getDomNode());
 		this._linesContent.appendChild(rulers.domNode);
+		this._linesContent.appendChild(blockOutline.domNode);
 		this._linesContent.appendChild(this._viewZones.domNode);
 		this._linesContent.appendChild(this._viewLines.getDomNode());
 		this._linesContent.appendChild(this._contentWidgets.domNode);
@@ -226,6 +230,7 @@ export class View extends ViewEventHandler {
 		return {
 			viewDomNode: this.domNode.domNode,
 			linesContentDomNode: this._linesContent.domNode,
+			viewLinesDomNode: this._viewLines.getDomNode().domNode,
 
 			focusTextArea: () => {
 				this.focus();
@@ -413,8 +418,8 @@ export class View extends ViewEventHandler {
 
 	// --- BEGIN CodeEditor helpers
 
-	public delegateVerticalScrollbarMouseDown(browserEvent: IMouseEvent): void {
-		this._scrollbar.delegateVerticalScrollbarMouseDown(browserEvent);
+	public delegateVerticalScrollbarPointerDown(browserEvent: PointerEvent): void {
+		this._scrollbar.delegateVerticalScrollbarPointerDown(browserEvent);
 	}
 
 	public restoreState(scrollPosition: { scrollLeft: number; scrollTop: number }): void {
@@ -502,7 +507,7 @@ export class View extends ViewEventHandler {
 			}
 		}
 		const newPreference = widgetData.position ? widgetData.position.preference : null;
-		this._contentWidgets.setWidgetPosition(widgetData.widget, newRange, newPreference);
+		this._contentWidgets.setWidgetPosition(widgetData.widget, newRange, newPreference, widgetData.position?.positionAffinity ?? null);
 		this._scheduleRender();
 	}
 

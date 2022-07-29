@@ -8,6 +8,7 @@ import { VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { Schemas } from 'vs/base/common/network';
 import { consumeStream } from 'vs/base/common/stream';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -22,8 +23,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
 import { FindInFrameOptions, IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
-import { WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewElement, WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/webviewElement';
+import { WebviewElement, WebviewInitInfo, WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/webviewElement';
 import { WindowIgnoreMenuShortcutsManager } from 'vs/workbench/contrib/webview/electron-sandbox/windowIgnoreMenuShortcutsManager';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
@@ -43,10 +43,7 @@ export class ElectronWebviewElement extends WebviewElement {
 	protected override get platform() { return 'electron'; }
 
 	constructor(
-		id: string,
-		options: WebviewOptions,
-		contentOptions: WebviewContentOptions,
-		extension: WebviewExtensionDescription | undefined,
+		initInfo: WebviewInitInfo,
 		webviewThemeDataProvider: WebviewThemeDataProvider,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@ITunnelService tunnelService: ITunnelService,
@@ -60,11 +57,12 @@ export class ElectronWebviewElement extends WebviewElement {
 		@IMainProcessService mainProcessService: IMainProcessService,
 		@INotificationService notificationService: INotificationService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IAccessibilityService accessibilityService: IAccessibilityService,
 	) {
-		super(id, options, contentOptions, extension, webviewThemeDataProvider,
+		super(initInfo, webviewThemeDataProvider,
 			configurationService, contextMenuService, menuService, notificationService, environmentService,
-			fileService, logService, remoteAuthorityResolverService, telemetryService, tunnelService, instantiationService);
+			fileService, logService, remoteAuthorityResolverService, telemetryService, tunnelService, instantiationService, accessibilityService);
 
 		this._webviewKeyboardHandler = new WindowIgnoreMenuShortcutsManager(configurationService, mainProcessService, nativeHostService);
 
@@ -78,7 +76,7 @@ export class ElectronWebviewElement extends WebviewElement {
 			this._webviewKeyboardHandler.didBlur();
 		}));
 
-		if (options.enableFindWidget) {
+		if (initInfo.options.enableFindWidget) {
 			this._register(this.onDidHtmlChange((newContent) => {
 				if (this._findStarted && this._cachedHtmlContent !== newContent) {
 					this.stopFind(false);
@@ -92,8 +90,15 @@ export class ElectronWebviewElement extends WebviewElement {
 		}
 	}
 
-	protected override get webviewContentEndpoint(): string {
-		return `${Schemas.vscodeWebview}://${this.iframeId}`;
+	override dispose(): void {
+		// Make sure keyboard handler knows it closed (#71800)
+		this._webviewKeyboardHandler.didBlur();
+
+		super.dispose();
+	}
+
+	protected override webviewContentEndpoint(iframeId: string): string {
+		return `${Schemas.vscodeWebview}://${iframeId}`;
 	}
 
 	protected override streamToBuffer(stream: VSBufferReadableStream): Promise<ArrayBufferLike> {

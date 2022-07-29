@@ -5,16 +5,15 @@
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { EventType, addDisposableListener, getClientArea, Dimension, position, size, IDimension, isAncestorUsingFlowTo } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, getClientArea, Dimension, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize } from 'vs/base/browser/dom';
 import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { isWindows, isLinux, isMacintosh, isWeb, isNative, isIOS } from 'vs/base/common/platform';
-import { IUntypedEditorInput, pathsToEditors } from 'vs/workbench/common/editor';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
+import { EditorInputCapabilities, isResourceEditorInput, IUntypedEditorInput, pathsToEditors } from 'vs/workbench/common/editor';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { Position, Parts, PanelOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, panelOpensMaximizedFromString, PanelAlignment } from 'vs/workbench/services/layout/browser/layoutService';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
@@ -33,7 +32,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { coalesce } from 'vs/base/common/arrays';
 import { assertIsDefined, isNumber } from 'vs/base/common/types';
-import { INotificationService, NotificationsFilter } from 'vs/platform/notification/common/notification';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER } from 'vs/workbench/common/theme';
 import { LineNumbersType } from 'vs/editor/common/config/editorOptions';
@@ -45,8 +44,6 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { ILogService } from 'vs/platform/log/common/log';
 import { DeferredPromise, Promises } from 'vs/base/common/async';
 import { IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
-import { getVirtualWorkspaceScheme } from 'vs/platform/workspace/common/virtualWorkspace';
-import { Schemas } from 'vs/base/common/network';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import { AuxiliaryBarPart } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart';
@@ -77,7 +74,7 @@ interface IWorkbenchLayoutWindowInitializationState {
 	};
 	editor: {
 		restoreEditors: boolean;
-		editorsToOpen: Promise<IUntypedEditorInput[]> | IUntypedEditorInput[];
+		editorsToOpen: Promise<IUntypedEditorInput[]>;
 	};
 }
 
@@ -97,7 +94,11 @@ enum WorkbenchLayoutClasses {
 	WINDOW_BORDER = 'border'
 }
 
-interface IInitialFilesToOpen { filesToOpenOrCreate?: IPath[]; filesToDiff?: IPath[] }
+interface IInitialFilesToOpen {
+	filesToOpenOrCreate?: IPath[];
+	filesToDiff?: IPath[];
+	filesToMerge?: IPath[];
+}
 
 export abstract class Layout extends Disposable implements IWorkbenchLayoutService {
 
@@ -143,16 +144,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	get dimension(): IDimension { return this._dimension; }
 
 	get offset() {
-		return {
-			top: (() => {
-				let offset = 0;
-				if (this.isVisible(Parts.TITLEBAR_PART)) {
-					offset = this.getPart(Parts.TITLEBAR_PART).maximumHeight;
-				}
-
-				return offset;
-			})()
-		};
+		let top = 0;
+		let quickPickTop = 0;
+		if (this.isVisible(Parts.TITLEBAR_PART)) {
+			top = this.getPart(Parts.TITLEBAR_PART).maximumHeight;
+			quickPickTop = this.titleService.isCommandCenterVisible ? 0 : top;
+		}
+		return { top, quickPickTop };
 	}
 
 	//#endregion
@@ -240,15 +238,17 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 		};
 
-		// Wait to register these listeners after the editor group service is ready to avoid conflicts on startup
+		// Wait to register these listeners after the editor group service
+		// is ready to avoid conflicts on startup
 		this.editorGroupService.whenRestored.then(() => {
+
 			// Restore editor part on any editor change
 			this._register(this.editorService.onDidVisibleEditorsChange(showEditorIfHidden));
 			this._register(this.editorGroupService.onDidActivateGroup(showEditorIfHidden));
-		});
 
-		// Revalidate center layout when active editor changes: diff editor quits centered mode.
-		this._register(this.editorService.onDidActiveEditorChange(() => this.centerEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_CENTERED))));
+			// Revalidate center layout when active editor changes: diff editor quits centered mode.
+			this._register(this.editorService.onDidActiveEditorChange(() => this.centerEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_CENTERED))));
+		});
 
 		// Configuration changes
 		this._register(this.configurationService.onDidChangeConfiguration(() => this.doUpdateLayoutConfiguration()));
@@ -268,6 +268,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this._register(this.titleService.onMenubarVisibilityChange(visible => this.onMenubarToggled(visible)));
 		}
 
+		// Title Menu changes
+		this._register(this.titleService.onDidChangeCommandCenterVisibility(() => this.layout()));
+
 		// Theme changes
 		this._register(this.themeService.onDidColorThemeChange(() => this.updateStyles()));
 
@@ -275,7 +278,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._register(this.hostService.onDidChangeFocus(e => this.onWindowFocusChanged(e)));
 	}
 
-	private onMenubarToggled(visible: boolean) {
+	private onMenubarToggled(visible: boolean): void {
 		if (visible !== this.windowState.runtime.menuBar.toggled) {
 			this.windowState.runtime.menuBar.toggled = visible;
 
@@ -285,6 +288,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			if (isWeb && menuBarVisibility === 'toggle') {
 				this.workbenchGrid.setViewVisible(this.titleBarPartView, this.shouldShowTitleBar());
 			}
+
 			// The menu bar toggles the title bar in full screen for toggle and classic settings
 			else if (this.windowState.runtime.fullscreen && (menuBarVisibility === 'toggle' || menuBarVisibility === 'classic')) {
 				this.workbenchGrid.setViewVisible(this.titleBarPartView, this.shouldShowTitleBar());
@@ -318,6 +322,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Changing fullscreen state of the window has an impact on custom title bar visibility, so we need to update
 		if (getTitleBarStyle(this.configurationService) === 'custom') {
+
 			// Propagate to grid
 			this.workbenchGrid.setViewVisible(this.titleBarPartView, this.shouldShowTitleBar());
 
@@ -342,7 +347,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.updateMenubarVisibility(!!skipLayout);
 
 		// Centered Layout
-		this.centerEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_CENTERED), skipLayout);
+		this.editorGroupService.whenRestored.then(() => {
+			this.centerEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_CENTERED), skipLayout);
+		});
 	}
 
 	private setSideBarPosition(position: Position): void {
@@ -374,7 +381,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		sideBar.updateStyles();
 		auxiliaryBar.updateStyles();
 
-		// Move activity bar, side bar, and side panel
+		// Move activity bar and side bars
 		this.adjustPartPositions(position, panelAlignment, panelPosition);
 	}
 
@@ -452,12 +459,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const windowInitializationState: IWorkbenchLayoutWindowInitializationState = {
 			editor: {
 				restoreEditors: this.shouldRestoreEditors(this.contextService, initialFilesToOpen),
-				editorsToOpen: this.resolveEditorsToOpen(fileService, this.contextService, initialFilesToOpen),
+				editorsToOpen: this.resolveEditorsToOpen(fileService, initialFilesToOpen)
 			},
 			views: {
 				defaults: this.getDefaultLayoutViews(this.environmentService, this.storageService),
 				containerToRestore: {}
-			},
+			}
 		};
 
 		// Window Runtime State
@@ -481,6 +488,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Sidebar View Container To Restore
 		if (this.isVisible(Parts.SIDEBAR_PART)) {
+
 			// Only restore last viewlet if window was reloaded or we are in development mode
 			let viewContainerToRestore: string | undefined;
 			if (!this.environmentService.isBuilt || lifecycleService.startupKind === StartupKind.ReloadedWindow || isWeb) {
@@ -498,7 +506,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Panel View Container To Restore
 		if (this.isVisible(Parts.PANEL_PART)) {
-			let viewContainerToRestore = this.storageService.get(PanelPart.activePanelSettingsKey, StorageScope.WORKSPACE, this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Panel)?.id);
+			const viewContainerToRestore = this.storageService.get(PanelPart.activePanelSettingsKey, StorageScope.WORKSPACE, this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Panel)?.id);
 
 			if (viewContainerToRestore) {
 				this.windowState.initialization.views.containerToRestore.panel = viewContainerToRestore;
@@ -509,7 +517,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Auxiliary Panel to restore
 		if (this.isVisible(Parts.AUXILIARYBAR_PART)) {
-			let viewContainerToRestore = this.storageService.get(AuxiliaryBarPart.activePanelSettingsKey, StorageScope.WORKSPACE, this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.AuxiliaryBar)?.id);
+			const viewContainerToRestore = this.storageService.get(AuxiliaryBarPart.activePanelSettingsKey, StorageScope.WORKSPACE, this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.AuxiliaryBar)?.id);
 
 			if (viewContainerToRestore) {
 				this.windowState.initialization.views.containerToRestore.auxiliaryBar = viewContainerToRestore;
@@ -541,41 +549,51 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private shouldRestoreEditors(contextService: IWorkspaceContextService, initialFilesToOpen: IInitialFilesToOpen | undefined): boolean {
+
 		// Restore editors based on a set of rules:
-		// - never when running in web on `tmp` scheme
+		// - never when running on temporary workspace
 		// - not when we have files to open, unless:
 		// - always when `window.restoreWindows: preserve`
-		if (isWeb && getVirtualWorkspaceScheme(contextService.getWorkspace()) === Schemas.tmp) {
+
+		if (isTemporaryWorkspace(contextService.getWorkspace())) {
 			return false;
-		} else {
-			const forceRestoreEditors = this.configurationService.getValue<string>('window.restoreWindows') === 'preserve';
-			return !!forceRestoreEditors || initialFilesToOpen === undefined;
 		}
+
+		const forceRestoreEditors = this.configurationService.getValue<string>('window.restoreWindows') === 'preserve';
+		return !!forceRestoreEditors || initialFilesToOpen === undefined;
 	}
 
 	protected willRestoreEditors(): boolean {
 		return this.windowState.initialization.editor.restoreEditors;
 	}
 
-	private resolveEditorsToOpen(fileService: IFileService, contextService: IWorkspaceContextService, initialFilesToOpen: IInitialFilesToOpen | undefined): Promise<IUntypedEditorInput[]> | IUntypedEditorInput[] {
-		// Files to open, diff or create
+	private async resolveEditorsToOpen(fileService: IFileService, initialFilesToOpen: IInitialFilesToOpen | undefined): Promise<IUntypedEditorInput[]> {
 		if (initialFilesToOpen) {
 
-			// Files to diff is exclusive
-			return pathsToEditors(initialFilesToOpen.filesToDiff, fileService).then(filesToDiff => {
-				if (filesToDiff.length === 2) {
-					const diffEditorInput: IUntypedEditorInput[] = [{
-						original: { resource: filesToDiff[0].resource },
-						modified: { resource: filesToDiff[1].resource },
-						options: { pinned: true }
-					}];
+			// Merge editor
+			const filesToMerge = await pathsToEditors(initialFilesToOpen.filesToMerge, fileService);
+			if (filesToMerge.length === 4 && isResourceEditorInput(filesToMerge[0]) && isResourceEditorInput(filesToMerge[1]) && isResourceEditorInput(filesToMerge[2]) && isResourceEditorInput(filesToMerge[3])) {
+				return [{
+					input1: { resource: filesToMerge[0].resource },
+					input2: { resource: filesToMerge[1].resource },
+					base: { resource: filesToMerge[2].resource },
+					result: { resource: filesToMerge[3].resource },
+					options: { pinned: true, override: 'mergeEditor.Input' } // TODO@bpasero remove the override once the resolver is ready
+				}];
+			}
 
-					return diffEditorInput;
-				}
+			// Diff editor
+			const filesToDiff = await pathsToEditors(initialFilesToOpen.filesToDiff, fileService);
+			if (filesToDiff.length === 2) {
+				return [{
+					original: { resource: filesToDiff[0].resource },
+					modified: { resource: filesToDiff[1].resource },
+					options: { pinned: true }
+				}];
+			}
 
-				// Otherwise: Open/Create files
-				return pathsToEditors(initialFilesToOpen.filesToOpenOrCreate, fileService);
-			});
+			// Normal editor
+			return pathsToEditors(initialFilesToOpen.filesToOpenOrCreate, fileService);
 		}
 
 		// Empty workbench configured to open untitled file if empty
@@ -584,13 +602,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				return []; // do not open any empty untitled file if we restored groups/editors from previous session
 			}
 
-			return this.workingCopyBackupService.hasBackups().then(hasBackups => {
-				if (hasBackups) {
-					return []; // do not open any empty untitled file if we have backups to restore
-				}
+			const hasBackups = await this.workingCopyBackupService.hasBackups();
+			if (hasBackups) {
+				return []; // do not open any empty untitled file if we have backups to restore
+			}
 
-				return [{ resource: undefined }]; // open empty untitled file
-			});
+			return [{ resource: undefined }]; // open empty untitled file
 		}
 
 		return [];
@@ -608,25 +625,31 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			return {
 				filesToOpenOrCreate: defaultLayout.editors.map<IPath>(file => {
+					const legacyOverride = file.openWith;
+					const legacySelection = file.selection && file.selection.start && isNumber(file.selection.start.line) ? {
+						startLineNumber: file.selection.start.line,
+						startColumn: isNumber(file.selection.start.column) ? file.selection.start.column : 1,
+						endLineNumber: isNumber(file.selection.end.line) ? file.selection.end.line : undefined,
+						endColumn: isNumber(file.selection.end.line) ? (isNumber(file.selection.end.column) ? file.selection.end.column : 1) : undefined,
+					} : undefined;
+
 					return {
 						fileUri: URI.revive(file.uri),
-						selection: file.selection && file.selection.start && isNumber(file.selection.start.line) ? {
-							startLineNumber: file.selection.start.line,
-							startColumn: isNumber(file.selection.start.column) ? file.selection.start.column : 1,
-							endLineNumber: isNumber(file.selection.end.line) ? file.selection.end.line : undefined,
-							endColumn: isNumber(file.selection.end.line) ? (isNumber(file.selection.end.column) ? file.selection.end.column : 1) : undefined,
-						} : undefined,
 						openOnlyIfExists: file.openOnlyIfExists,
-						editorOverrideId: file.openWith
+						options: {
+							selection: legacySelection,
+							override: legacyOverride,
+							...file.options // keep at the end to override legacy selection/override that may be `undefined`
+						}
 					};
 				})
 			};
 		}
 
-		// Then check for files to open, create or diff from main side
-		const { filesToOpenOrCreate, filesToDiff } = this.environmentService;
-		if (filesToOpenOrCreate || filesToDiff) {
-			return { filesToOpenOrCreate, filesToDiff };
+		// Then check for files to open, create or diff/merge from main side
+		const { filesToOpenOrCreate, filesToDiff, filesToMerge } = this.environmentService;
+		if (filesToOpenOrCreate || filesToDiff || filesToMerge) {
+			return { filesToOpenOrCreate, filesToDiff, filesToMerge };
 		}
 
 		return undefined;
@@ -666,12 +689,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// signaling that layout is restored, but we do
 			// not need to await the editors from having
 			// fully loaded.
-			let editors: IUntypedEditorInput[];
-			if (Array.isArray(this.windowState.initialization.editor.editorsToOpen)) {
-				editors = this.windowState.initialization.editor.editorsToOpen;
-			} else {
-				editors = await this.windowState.initialization.editor.editorsToOpen;
-			}
+			const editors = await this.windowState.initialization.editor.editorsToOpen;
 
 			let openEditorsPromise: Promise<unknown> | undefined = undefined;
 			if (editors.length) {
@@ -824,7 +842,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		})());
 
 		// Restore Zen Mode
-		if (this.stateModel.getRuntimeValue(LayoutStateKeys.ZEN_MODE_ACTIVE) && getZenModeConfiguration(this.configurationService).restore) {
+		const zenModeWasActive = this.stateModel.getRuntimeValue(LayoutStateKeys.ZEN_MODE_ACTIVE);
+		const restoreZenMode = getZenModeConfiguration(this.configurationService).restore;
+
+		if (zenModeWasActive) {
+			this.stateModel.setRuntimeValue(LayoutStateKeys.ZEN_MODE_ACTIVE, !restoreZenMode);
 			this.toggleZenMode(false, true);
 		}
 
@@ -958,6 +980,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private shouldShowTitleBar(): boolean {
+
 		// Using the native title bar, don't ever show the custom one
 		if (getTitleBarStyle(this.configurationService) === 'native') {
 			return false;
@@ -970,6 +993,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// non-fullscreen native must show the title bar
 		if (isNative && !this.windowState.runtime.fullscreen) {
+			return true;
+		}
+
+		// with the command center enabled, we should always show
+		if (this.configurationService.getValue<boolean>('window.commandCenter')) {
 			return true;
 		}
 
@@ -1023,6 +1051,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		const setLineNumbers = (lineNumbers?: LineNumbersType) => {
 			const setEditorLineNumbers = (editor: IEditor) => {
+
 				// To properly reset line numbers we need to read the configuration for each editor respecting it's uri.
 				if (!lineNumbers && isCodeEditor(editor) && editor.hasModel()) {
 					const model = editor.getModel();
@@ -1058,12 +1087,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			toggleFullScreen = !this.windowState.runtime.fullscreen && config.fullScreen && !isIOS;
 
-			zenModeExitInfo.transitionedToFullScreen = restoring ? config.fullScreen : toggleFullScreen;
-			zenModeExitInfo.transitionedToCenteredEditorLayout = !this.isEditorLayoutCentered() && config.centerLayout;
-			zenModeExitInfo.wasVisible.sideBar = this.isVisible(Parts.SIDEBAR_PART);
-			zenModeExitInfo.wasVisible.panel = this.isVisible(Parts.PANEL_PART);
-			zenModeExitInfo.wasVisible.auxiliaryBar = this.isVisible(Parts.AUXILIARYBAR_PART);
-			this.stateModel.setRuntimeValue(LayoutStateKeys.ZEN_MODE_EXIT_INFO, zenModeExitInfo);
+			if (!restoring) {
+				zenModeExitInfo.transitionedToFullScreen = toggleFullScreen;
+				zenModeExitInfo.transitionedToCenteredEditorLayout = !this.isEditorLayoutCentered() && config.centerLayout;
+				zenModeExitInfo.handleNotificationsDoNotDisturbMode = !this.notificationService.doNotDisturbMode;
+				zenModeExitInfo.wasVisible.sideBar = this.isVisible(Parts.SIDEBAR_PART);
+				zenModeExitInfo.wasVisible.panel = this.isVisible(Parts.PANEL_PART);
+				zenModeExitInfo.wasVisible.auxiliaryBar = this.isVisible(Parts.AUXILIARYBAR_PART);
+				this.stateModel.setRuntimeValue(LayoutStateKeys.ZEN_MODE_EXIT_INFO, zenModeExitInfo);
+			}
 
 			this.setPanelHidden(true, true);
 			this.setAuxiliaryBarHidden(true, true);
@@ -1086,13 +1118,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.windowState.runtime.zenMode.transitionDisposables.add(this.editorGroupService.enforcePartOptions({ showTabs: false }));
 			}
 
-			if (config.silentNotifications) {
-				this.notificationService.setFilter(NotificationsFilter.ERROR);
+			if (config.silentNotifications && zenModeExitInfo.handleNotificationsDoNotDisturbMode) {
+				this.notificationService.doNotDisturbMode = true;
 			}
 			this.windowState.runtime.zenMode.transitionDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
 				if (e.affectsConfiguration(WorkbenchLayoutSettings.ZEN_MODE_SILENT_NOTIFICATIONS)) {
-					const filter = this.configurationService.getValue(WorkbenchLayoutSettings.ZEN_MODE_SILENT_NOTIFICATIONS) ? NotificationsFilter.ERROR : NotificationsFilter.OFF;
-					this.notificationService.setFilter(filter);
+					const zenModeSilentNotifications = !!this.configurationService.getValue(WorkbenchLayoutSettings.ZEN_MODE_SILENT_NOTIFICATIONS);
+					if (zenModeExitInfo.handleNotificationsDoNotDisturbMode) {
+						this.notificationService.doNotDisturbMode = zenModeSilentNotifications;
+					}
 				}
 			}));
 
@@ -1127,12 +1161,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.centerEditorLayout(false, true);
 			}
 
+			if (zenModeExitInfo.handleNotificationsDoNotDisturbMode) {
+				this.notificationService.doNotDisturbMode = false;
+			}
+
 			setLineNumbers();
 
 			this.focus();
-
-			// Clear notifications filter
-			this.notificationService.setFilter(NotificationsFilter.OFF);
 
 			toggleFullScreen = zenModeExitInfo.transitionedToFullScreen && this.windowState.runtime.fullscreen;
 		}
@@ -1218,6 +1253,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					this.setEditorHidden(!visible, true);
 				}
 				this._onDidChangePartVisibility.fire();
+				this._onDidLayout.fire(this._dimension);
 			}));
 		}
 
@@ -1274,27 +1310,25 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	centerEditorLayout(active: boolean, skipLayout?: boolean): void {
 		this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_CENTERED, active);
 
-		let smartActive = active;
 		const activeEditor = this.editorService.activeEditor;
 
-		let isEditorSplit = false;
+		let isEditorComplex = false;
 		if (activeEditor instanceof DiffEditorInput) {
-			isEditorSplit = this.configurationService.getValue('diffEditor.renderSideBySide');
-		} else if (activeEditor instanceof SideBySideEditorInput) {
-			isEditorSplit = true;
+			isEditorComplex = this.configurationService.getValue('diffEditor.renderSideBySide');
+		} else if (activeEditor?.hasCapability(EditorInputCapabilities.MultipleEditors)) {
+			isEditorComplex = true;
 		}
 
 		const isCenteredLayoutAutoResizing = this.configurationService.getValue('workbench.editor.centeredLayoutAutoResize');
 		if (
 			isCenteredLayoutAutoResizing &&
-			(this.editorGroupService.groups.length > 1 || isEditorSplit)
+			(this.editorGroupService.groups.length > 1 || isEditorComplex)
 		) {
-			smartActive = false;
+			active = false; // disable centered layout for complex editors or when there is more than one group
 		}
 
-		// Enter Centered Editor Layout
-		if (this.editorGroupService.isLayoutCentered() !== smartActive) {
-			this.editorGroupService.centerLayout(smartActive);
+		if (this.editorGroupService.isLayoutCentered() !== active) {
+			this.editorGroupService.centerLayout(active);
 
 			if (!skipLayout) {
 				this.layout();
@@ -1305,8 +1339,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	resizePart(part: Parts, sizeChangeWidth: number, sizeChangeHeight: number): void {
-		const sizeChangePxWidth = this.workbenchGrid.width * sizeChangeWidth / 100;
-		const sizeChangePxHeight = this.workbenchGrid.height * sizeChangeHeight / 100;
+		const sizeChangePxWidth = Math.sign(sizeChangeWidth) * computeScreenAwareSize(Math.abs(sizeChangeWidth));
+		const sizeChangePxHeight = Math.sign(sizeChangeHeight) * computeScreenAwareSize(Math.abs(sizeChangeHeight));
 
 		let viewSize: IViewSize;
 
@@ -1466,7 +1500,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private adjustPartPositions(sideBarPosition: Position, panelAlignment: PanelAlignment, panelPosition: Position): void {
-		// Move activity bar, side bar, and side panel
+
+		// Move activity bar and side bars
 		const sideBarSiblingToEditor = panelPosition !== Position.BOTTOM || !(panelAlignment === 'center' || (sideBarPosition === Position.LEFT && panelAlignment === 'right') || (sideBarPosition === Position.RIGHT && panelAlignment === 'left'));
 		const auxiliaryBarSiblingToEditor = panelPosition !== Position.BOTTOM || !(panelAlignment === 'center' || (sideBarPosition === Position.RIGHT && panelAlignment === 'right') || (sideBarPosition === Position.LEFT && panelAlignment === 'left'));
 		const preMovePanelWidth = !this.isVisible(Parts.PANEL_PART) ? Sizing.Invisible(this.workbenchGrid.getViewCachedVisibleSize(this.panelPartView) ?? this.panelPartView.minimumWidth) : this.workbenchGrid.getViewSize(this.panelPartView).width;
@@ -1520,6 +1555,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	setPanelAlignment(alignment: PanelAlignment, skipLayout?: boolean): void {
+
 		// Panel alignment only applies to a panel in the bottom position
 		if (this.getPanelPosition() !== Position.BOTTOM) {
 			this.setPanelPosition(Position.BOTTOM);
@@ -1538,6 +1574,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private setPanelHidden(hidden: boolean, skipLayout?: boolean): void {
+
 		// Return if not initialized fully #105480
 		if (!this.workbenchGrid) {
 			return;
@@ -1639,7 +1676,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	 * Returns whether or not the panel opens maximized
 	 */
 	private panelOpensMaximized(): boolean {
-		// the workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
+
+		// The workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
 		if (this.getPanelAlignment() !== 'center' && this.getPanelPosition() === Position.BOTTOM) {
 			return false;
 		}
@@ -1725,6 +1763,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	isPanelMaximized(): boolean {
+
 		// the workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
 		return (this.getPanelAlignment() === 'center' || this.getPanelPosition() !== Position.BOTTOM) && !this.isVisible(Parts.EDITOR_PART);
 	}
@@ -2087,13 +2126,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		};
 
 		type StartupLayoutEventClassification = {
-			activityBarVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-			sideBarVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-			auxiliaryBarVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-			panelVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-			statusbarVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-			sideBarPosition: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			panelPosition: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			owner: 'sbatten';
+			comment: 'Information about the layout of the workbench during statup';
+			activityBarVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether or the not the activity bar is visible' };
+			sideBarVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether or the not the primary side bar is visible' };
+			auxiliaryBarVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether or the not the secondary side bar is visible' };
+			panelVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether or the not the panel is visible' };
+			statusbarVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether or the not the status bar is visible' };
+			sideBarPosition: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the primary side bar is on the left or right' };
+			panelPosition: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the panel is on the bottom, left, or right' };
 		};
 
 		const layoutDescriptor: StartupLayoutEvent = {

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import Severity from 'vs/base/common/severity';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionKind } from 'vs/platform/environment/common/environment';
@@ -257,34 +258,58 @@ export const EXTENSION_CATEGORIES = [
 	'Other',
 ];
 
-export interface IExtensionManifest {
-	readonly name: string;
-	readonly displayName?: string;
-	readonly publisher: string;
-	readonly version: string;
-	readonly engines: { readonly vscode: string };
-	readonly description?: string;
-	readonly main?: string;
-	readonly browser?: string;
-	readonly icon?: string;
-	readonly categories?: string[];
-	readonly keywords?: string[];
-	readonly activationEvents?: string[];
-	readonly extensionDependencies?: string[];
-	readonly extensionPack?: string[];
-	readonly extensionKind?: ExtensionKind | ExtensionKind[];
-	readonly contributes?: IExtensionContributions;
-	readonly repository?: { url: string };
-	readonly bugs?: { url: string };
-	readonly enabledApiProposals?: readonly string[];
-	readonly api?: string;
-	readonly scripts?: { [key: string]: string };
-	readonly capabilities?: IExtensionCapabilities;
+export interface IRelaxedExtensionManifest {
+	name: string;
+	displayName?: string;
+	publisher: string;
+	version: string;
+	engines: { readonly vscode: string };
+	description?: string;
+	main?: string;
+	browser?: string;
+	icon?: string;
+	categories?: string[];
+	keywords?: string[];
+	activationEvents?: string[];
+	extensionDependencies?: string[];
+	extensionPack?: string[];
+	extensionKind?: ExtensionKind | ExtensionKind[];
+	contributes?: IExtensionContributions;
+	repository?: { url: string };
+	bugs?: { url: string };
+	enabledApiProposals?: readonly string[];
+	api?: string;
+	scripts?: { [key: string]: string };
+	capabilities?: IExtensionCapabilities;
 }
+
+export type IExtensionManifest = Readonly<IRelaxedExtensionManifest>;
 
 export const enum ExtensionType {
 	System,
 	User
+}
+
+export const enum TargetPlatform {
+	WIN32_X64 = 'win32-x64',
+	WIN32_IA32 = 'win32-ia32',
+	WIN32_ARM64 = 'win32-arm64',
+
+	LINUX_X64 = 'linux-x64',
+	LINUX_ARM64 = 'linux-arm64',
+	LINUX_ARMHF = 'linux-armhf',
+
+	ALPINE_X64 = 'alpine-x64',
+	ALPINE_ARM64 = 'alpine-arm64',
+
+	DARWIN_X64 = 'darwin-x64',
+	DARWIN_ARM64 = 'darwin-arm64',
+
+	WEB = 'web',
+
+	UNIVERSAL = 'universal',
+	UNKNOWN = 'unknown',
+	UNDEFINED = 'undefined',
 }
 
 export interface IExtension {
@@ -293,8 +318,11 @@ export interface IExtension {
 	readonly identifier: IExtensionIdentifier;
 	readonly manifest: IExtensionManifest;
 	readonly location: URI;
+	readonly targetPlatform: TargetPlatform;
 	readonly readmeUrl?: URI;
 	readonly changelogUrl?: URI;
+	readonly isValid: boolean;
+	readonly validations: readonly [Severity, string][];
 }
 
 /**
@@ -332,8 +360,8 @@ export class ExtensionIdentifier {
 		if (typeof a === 'string' || typeof b === 'string') {
 			// At least one of the arguments is an extension id in string form,
 			// so we have to use the string comparison which ignores case.
-			let aValue = (typeof a === 'string' ? a : a.value);
-			let bValue = (typeof b === 'string' ? b : b.value);
+			const aValue = (typeof a === 'string' ? a : a.value);
+			const bValue = (typeof b === 'string' ? b : b.value);
 			return strings.equalsIgnoreCase(aValue, bValue);
 		}
 
@@ -352,13 +380,21 @@ export class ExtensionIdentifier {
 	}
 }
 
-export interface IExtensionDescription extends IExtensionManifest {
-	readonly identifier: ExtensionIdentifier;
-	readonly uuid?: string;
-	readonly isBuiltin: boolean;
-	readonly isUserBuiltin: boolean;
-	readonly isUnderDevelopment: boolean;
-	readonly extensionLocation: URI;
+export interface IRelaxedExtensionDescription extends IRelaxedExtensionManifest {
+	id?: string;
+	identifier: ExtensionIdentifier;
+	uuid?: string;
+	targetPlatform: TargetPlatform;
+	isBuiltin: boolean;
+	isUserBuiltin: boolean;
+	isUnderDevelopment: boolean;
+	extensionLocation: URI;
+}
+
+export type IExtensionDescription = Readonly<IRelaxedExtensionDescription>;
+
+export function isApplicationScopedExtension(manifest: IExtensionManifest): boolean {
+	return isLanguagePackExtension(manifest);
 }
 
 export function isLanguagePackExtension(manifest: IExtensionManifest): boolean {

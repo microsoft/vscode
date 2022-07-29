@@ -4,14 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ActivationFunction, OutputItem, RendererContext } from 'vscode-notebook-renderer';
-import { handleANSIOutput } from './ansi';
 import { truncatedArrayOfString } from './textHelper';
 
 interface IDisposable {
 	dispose(): void;
 }
 
+interface HtmlRenderingHook {
+	/**
+	 * Invoked after the output item has been rendered but before it has been appended to the document.
+	 *
+	 * @return A new `HTMLElement` or `undefined` to continue using the provided element.
+	 */
+	postRender(outputItem: OutputItem, element: HTMLElement): HTMLElement | undefined;
+}
 
+function clearContainer(container: HTMLElement) {
+	while (container.firstChild) {
+		container.removeChild(container.firstChild);
+	}
+}
 
 function renderImage(outputInfo: OutputItem, element: HTMLElement): IDisposable {
 	const blob = new Blob([outputInfo.data()], { type: outputInfo.mime });
@@ -60,11 +72,17 @@ const domEval = (container: Element) => {
 	}
 };
 
-function renderHTML(outputInfo: OutputItem, container: HTMLElement): void {
+function renderHTML(outputInfo: OutputItem, container: HTMLElement, hooks: Iterable<HtmlRenderingHook>): void {
+	clearContainer(container);
+	let element: HTMLElement = document.createElement('div');
 	const htmlContent = outputInfo.text();
-	const element = document.createElement('div');
 	const trustedHtml = ttPolicy?.createHTML(htmlContent) ?? htmlContent;
 	element.innerHTML = trustedHtml as string;
+
+	for (const hook of hooks) {
+		element = hook.postRender(outputInfo, element) ?? element;
+	}
+
 	container.appendChild(element);
 	domEval(element);
 }
@@ -79,7 +97,7 @@ function renderJavascript(outputInfo: OutputItem, container: HTMLElement): void 
 	domEval(element);
 }
 
-function renderError(outputInfo: OutputItem, container: HTMLElement): void {
+function renderError(outputInfo: OutputItem, container: HTMLElement, ctx: RendererContext<void> & { readonly settings: { readonly lineLimit: number } }): void {
 	const element = document.createElement('div');
 	container.appendChild(element);
 	type ErrorLike = Partial<Error>;
@@ -96,7 +114,9 @@ function renderError(outputInfo: OutputItem, container: HTMLElement): void {
 		const stack = document.createElement('pre');
 		stack.classList.add('traceback');
 		stack.style.margin = '8px 0';
-		stack.appendChild(handleANSIOutput(err.stack));
+		const element = document.createElement('span');
+		truncatedArrayOfString(outputInfo.id, [err.stack ?? ''], ctx.settings.lineLimit, element);
+		stack.appendChild(element);
 		container.appendChild(stack);
 	} else {
 		const header = document.createElement('div');
@@ -127,7 +147,7 @@ function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boo
 			const text = outputInfo.text();
 
 			const element = document.createElement('span');
-			truncatedArrayOfString(outputInfo.id, [text], 30, element);
+			truncatedArrayOfString(outputInfo.id, [text], ctx.settings.lineLimit, element);
 			outputElement.appendChild(element);
 			return;
 		}
@@ -138,6 +158,9 @@ function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boo
 
 	const text = outputInfo.text();
 	truncatedArrayOfString(outputInfo.id, [text], ctx.settings.lineLimit, element);
+	while (container.firstChild) {
+		container.removeChild(container.firstChild);
+	}
 	container.appendChild(element);
 	container.setAttribute('output-mime-type', outputInfo.mime);
 	if (error) {
@@ -146,8 +169,9 @@ function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boo
 }
 
 function renderText(outputInfo: OutputItem, container: HTMLElement, ctx: RendererContext<void> & { readonly settings: { readonly lineLimit: number } }): void {
+	clearContainer(container);
 	const contentNode = document.createElement('div');
-	contentNode.classList.add('.output-plaintext');
+	contentNode.classList.add('output-plaintext');
 	const text = outputInfo.text();
 	truncatedArrayOfString(outputInfo.id, [text], ctx.settings.lineLimit, contentNode);
 	container.appendChild(contentNode);
@@ -156,12 +180,16 @@ function renderText(outputInfo: OutputItem, container: HTMLElement, ctx: Rendere
 
 export const activate: ActivationFunction<void> = (ctx) => {
 	const disposables = new Map<string, IDisposable>();
+	const htmlHooks = new Set<HtmlRenderingHook>();
+
 	const latestContext = ctx as (RendererContext<void> & { readonly settings: { readonly lineLimit: number } });
 
 	const style = document.createElement('style');
 	style.textContent = `
-	.output-stream {
-		line-height: 22px;
+	.output-plaintext,
+	.output-stream,
+	.traceback {
+		line-height: var(--notebook-cell-output-line-height);
 		font-family: var(--notebook-cell-output-font-family);
 		white-space: pre-wrap;
 		word-wrap: break-word;
@@ -172,8 +200,32 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		-ms-user-select: text;
 		cursor: auto;
 	}
+	span.output-stream {
+		display: inline-block;
+	}
+	.output-plaintext .code-bold,
+	.output-stream .code-bold,
+	.traceback .code-bold {
+		font-weight: bold;
+	}
+	.output-plaintext .code-italic,
+	.output-stream .code-italic,
+	.traceback .code-italic {
+		font-style: italic;
+	}
+	.output-plaintext .code-strike-through,
+	.output-stream .code-strike-through,
+	.traceback .code-strike-through {
+		text-decoration: line-through;
+	}
+	.output-plaintext .code-underline,
+	.output-stream .code-underline,
+	.traceback .code-underline {
+		text-decoration: underline;
+	}
 	`;
 	document.body.appendChild(style);
+
 	return {
 		renderOutputItem: (outputInfo, element) => {
 			switch (outputInfo.mime) {
@@ -184,7 +236,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 							return;
 						}
 
-						renderHTML(outputInfo, element);
+						renderHTML(outputInfo, element, htmlHooks);
 					}
 					break;
 				case 'application/javascript':
@@ -207,7 +259,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 					break;
 				case 'application/vnd.code.notebook.error':
 					{
-						renderError(outputInfo, element);
+						renderError(outputInfo, element, latestContext);
 					}
 					break;
 				case 'application/vnd.code.notebook.stdout':
@@ -231,8 +283,6 @@ export const activate: ActivationFunction<void> = (ctx) => {
 				default:
 					break;
 			}
-
-
 		},
 		disposeOutputItem: (id: string | undefined) => {
 			if (id) {
@@ -240,6 +290,14 @@ export const activate: ActivationFunction<void> = (ctx) => {
 			} else {
 				disposables.forEach(d => d.dispose());
 			}
+		},
+		experimental_registerHtmlRenderingHook: (hook: HtmlRenderingHook): IDisposable => {
+			htmlHooks.add(hook);
+			return {
+				dispose: () => {
+					htmlHooks.delete(hook);
+				}
+			};
 		}
 	};
 };

@@ -6,6 +6,7 @@
 import { VSBuffer } from 'vs/base/common/buffer';
 import { regExpFlags } from 'vs/base/common/strings';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { MarshalledId } from './marshallingIds';
 
 export function stringify(obj: any): string {
 	return JSON.stringify(obj, replacer);
@@ -15,23 +16,6 @@ export function parse(text: string): any {
 	let data = JSON.parse(text);
 	data = revive(data);
 	return data;
-}
-
-export const enum MarshalledId {
-	Uri = 1,
-	Regexp,
-	ScmResource,
-	ScmResourceGroup,
-	ScmProvider,
-	CommentController,
-	CommentThread,
-	CommentThreadReply,
-	CommentNode,
-	CommentThreadNode,
-	TimelineActionContext,
-	NotebookCellActionContext,
-	TestItemContext,
-	Date,
 }
 
 export interface MarshalledObject {

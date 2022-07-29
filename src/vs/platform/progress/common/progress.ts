@@ -75,6 +75,7 @@ export interface IProgressDialogOptions extends IProgressOptions {
 export interface IProgressWindowOptions extends IProgressOptions {
 	readonly location: ProgressLocation.Window;
 	readonly command?: string;
+	readonly type?: 'syncing' | 'loading';
 }
 
 export interface IProgressCompositeOptions extends IProgressOptions {
@@ -94,7 +95,7 @@ export interface IProgressRunner {
 	done(): void;
 }
 
-export const emptyProgressRunner: IProgressRunner = Object.freeze({
+export const emptyProgressRunner = Object.freeze<IProgressRunner>({
 	total() { },
 	worked() { },
 	done() { }
@@ -106,7 +107,7 @@ export interface IProgress<T> {
 
 export class Progress<T> implements IProgress<T> {
 
-	static readonly None: IProgress<unknown> = Object.freeze({ report() { } });
+	static readonly None = Object.freeze<IProgress<unknown>>({ report() { } });
 
 	private _value?: T;
 	get value(): T | undefined { return this._value; }

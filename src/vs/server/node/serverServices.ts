@@ -16,7 +16,7 @@ import { ProtocolConstants } from 'vs/base/parts/ipc/common/ipc.net';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
 import { ICredentialsMainService } from 'vs/platform/credentials/common/credentials';
-import { CredentialsMainService } from 'vs/platform/credentials/node/credentialsMainService';
+import { CredentialsWebMainService } from 'vs/platform/credentials/node/credentialsMainService';
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadServiceChannelClient } from 'vs/platform/download/common/downloadIpc';
@@ -24,10 +24,10 @@ import { IEncryptionMainService } from 'vs/platform/encryption/common/encryption
 import { EncryptionMainService } from 'vs/platform/encryption/node/encryptionMainService';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ExtensionGalleryServiceWithNoStorageService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
-import { IExtensionGalleryService, IExtensionManagementCLIService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IExtensionManagementCLIService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementCLIService } from 'vs/platform/extensionManagement/common/extensionManagementCLIService';
 import { ExtensionManagementChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
-import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
+import { ExtensionManagementService, INativeServerExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
@@ -35,8 +35,8 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
-import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
+import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
+import { NativeLanguagePackService } from 'vs/platform/languagePacks/node/languagePacks';
 import { AbstractLogger, DEFAULT_LOG_LEVEL, getLogLevel, ILogService, LogLevel, LogService, MultiplexLogService } from 'vs/platform/log/common/log';
 import { LogLevelChannel } from 'vs/platform/log/common/logIpc';
 import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
@@ -49,8 +49,7 @@ import { RequestService } from 'vs/platform/request/node/requestService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
 import { ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
-import { ITelemetryAppender, NullAppender, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
-import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
+import { getPiiPathsFromEnvironment, isInternalTelemetry, ITelemetryAppender, NullAppender, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import ErrorTelemetry from 'vs/platform/telemetry/node/errorTelemetry';
 import { IPtyService, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
@@ -67,17 +66,15 @@ import { ServerEnvironmentService, ServerParsedArgs } from 'vs/server/node/serve
 import { REMOTE_TERMINAL_CHANNEL_NAME } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import { RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/workbench/services/remote/common/remoteFileSystemProviderClient';
+import { ExtensionHostStatusService, IExtensionHostStatusService } from 'vs/server/node/extensionHostStatusService';
+import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
+import { ExtensionsScannerService } from 'vs/server/node/extensionsScannerService';
+import { ExtensionsProfileScannerService, IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
+import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { NullPolicyService } from 'vs/platform/policy/common/policy';
+import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
 
 const eventPrefix = 'monacoworkbench';
-
-const _uriTransformerCache: { [remoteAuthority: string]: IURITransformer } = Object.create(null);
-
-function getUriTransformer(remoteAuthority: string): IURITransformer {
-	if (!_uriTransformerCache[remoteAuthority]) {
-		_uriTransformerCache[remoteAuthority] = createURITransformer(remoteAuthority);
-	}
-	return _uriTransformerCache[remoteAuthority];
-}
 
 export async function setupServerServices(connectionToken: ServerConnectionToken, args: ServerParsedArgs, REMOTE_DATA_FOLDER: string, disposables: DisposableStore) {
 	const services = new ServiceCollection();
@@ -113,30 +110,41 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	services.set(IFileService, fileService);
 	fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(logService)));
 
-	const configurationService = new ConfigurationService(environmentService.machineSettingsResource, fileService);
-	services.set(IConfigurationService, configurationService);
-
 	// URI Identity
-	services.set(IUriIdentityService, new UriIdentityService(fileService));
+	const uriIdentityService = new UriIdentityService(fileService);
+	services.set(IUriIdentityService, uriIdentityService);
+
+	// User Data Profiles
+	const userDataProfilesService = new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService);
+	services.set(IUserDataProfilesService, userDataProfilesService);
+
+	// Configuration
+	const configurationService = new ConfigurationService(environmentService.machineSettingsResource, fileService, new NullPolicyService(), logService);
+	services.set(IConfigurationService, configurationService);
+	await configurationService.initialize();
+
+	const extensionHostStatusService = new ExtensionHostStatusService();
+	services.set(IExtensionHostStatusService, extensionHostStatusService);
 
 	// Request
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 
-	let appInsightsAppender: ITelemetryAppender = NullAppender;
+	let oneDsAppender: ITelemetryAppender = NullAppender;
 	const machineId = await getMachineId();
+	const isInternal = isInternalTelemetry(productService, configurationService);
 	if (supportsTelemetry(productService, environmentService)) {
-		if (productService.aiConfig && productService.aiConfig.asimovKey) {
-			appInsightsAppender = new AppInsightsAppender(eventPrefix, null, productService.aiConfig.asimovKey);
-			disposables.add(toDisposable(() => appInsightsAppender!.flush())); // Ensure the AI appender is disposed so that it flushes remaining data
+		if (productService.aiConfig && productService.aiConfig.ariaKey) {
+			oneDsAppender = new OneDataSystemAppender(isInternal, eventPrefix, null, productService.aiConfig.ariaKey);
+			disposables.add(toDisposable(() => oneDsAppender?.flush())); // Ensure the AI appender is disposed so that it flushes remaining data
 		}
 
 		const config: ITelemetryServiceConfig = {
-			appenders: [appInsightsAppender],
-			commonProperties: resolveCommonProperties(fileService, release(), hostname(), process.arch, productService.commit, productService.version + '-remote', machineId, productService.msftInternalDomains, environmentService.installSourcePath, 'remoteAgent'),
-			piiPaths: [environmentService.appRoot]
+			appenders: [oneDsAppender],
+			commonProperties: resolveCommonProperties(fileService, release(), hostname(), process.arch, productService.commit, productService.version + '-remote', machineId, isInternal, environmentService.installSourcePath, 'remoteAgent'),
+			piiPaths: getPiiPathsFromEnvironment(environmentService)
 		};
 		const initialTelemetryLevelArg = environmentService.args['telemetry-level'];
-		let injectedTelemetryLevel: TelemetryLevel | undefined = undefined;
+		let injectedTelemetryLevel: TelemetryLevel = TelemetryLevel.USAGE;
 		// Convert the passed in CLI argument into a telemetry level for the telemetry service
 		if (initialTelemetryLevelArg === 'all') {
 			injectedTelemetryLevel = TelemetryLevel.USAGE;
@@ -157,10 +165,12 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	const downloadChannel = socketServer.getChannel('download', router);
 	services.set(IDownloadService, new DownloadServiceChannelClient(downloadChannel, () => getUriTransformer('renderer') /* TODO: @Sandy @Joao need dynamic context based router */));
 
-	services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
+	services.set(IExtensionsProfileScannerService, new SyncDescriptor(ExtensionsProfileScannerService));
+	services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService));
+	services.set(INativeServerExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 
 	const instantiationService: IInstantiationService = new InstantiationService(services);
-	services.set(ILocalizationsService, instantiationService.createInstance(LocalizationsService));
+	services.set(ILanguagePackService, instantiationService.createInstance(NativeLanguagePackService));
 
 	const extensionManagementCLIService = instantiationService.createInstance(ExtensionManagementCLIService);
 	services.set(IExtensionManagementCLIService, extensionManagementCLIService);
@@ -177,23 +187,24 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 
 	services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService, [machineId]));
 
-	services.set(ICredentialsMainService, new SyncDescriptor(CredentialsMainService, [true]));
+	services.set(ICredentialsMainService, new SyncDescriptor(CredentialsWebMainService));
 
 	instantiationService.invokeFunction(accessor => {
-		const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(connectionToken, environmentService, extensionManagementCLIService, logService, productService);
+		const extensionManagementService = accessor.get(INativeServerExtensionManagementService);
+		const extensionsScannerService = accessor.get(IExtensionsScannerService);
+		const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(connectionToken, environmentService, userDataProfilesService, extensionManagementCLIService, logService, extensionHostStatusService, extensionsScannerService);
 		socketServer.registerChannel('remoteextensionsenvironment', remoteExtensionEnvironmentChannel);
 
-		const telemetryChannel = new ServerTelemetryChannel(accessor.get(IServerTelemetryService), appInsightsAppender);
+		const telemetryChannel = new ServerTelemetryChannel(accessor.get(IServerTelemetryService), oneDsAppender);
 		socketServer.registerChannel('telemetry', telemetryChannel);
 
-		socketServer.registerChannel(REMOTE_TERMINAL_CHANNEL_NAME, new RemoteTerminalChannel(environmentService, logService, ptyService, productService));
+		socketServer.registerChannel(REMOTE_TERMINAL_CHANNEL_NAME, new RemoteTerminalChannel(environmentService, logService, ptyService, productService, extensionManagementService));
 
 		const remoteFileSystemChannel = new RemoteAgentFileSystemProviderChannel(logService, environmentService);
 		socketServer.registerChannel(REMOTE_FILE_SYSTEM_CHANNEL_NAME, remoteFileSystemChannel);
 
 		socketServer.registerChannel('request', new RequestChannel(accessor.get(IRequestService)));
 
-		const extensionManagementService = accessor.get(IExtensionManagementService);
 		const channel = new ExtensionManagementChannel(extensionManagementService, (ctx: RemoteAgentConnectionContext) => getUriTransformer(ctx.remoteAuthority));
 		socketServer.registerChannel('extensions', channel);
 
@@ -204,7 +215,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 		socketServer.registerChannel('credentials', credentialsChannel);
 
 		// clean up deprecated extensions
-		(extensionManagementService as ExtensionManagementService).removeDeprecatedExtensions();
+		extensionManagementService.removeUninstalledExtensions(true);
 
 		disposables.add(new ErrorTelemetry(accessor.get(ITelemetryService)));
 
@@ -214,6 +225,15 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	});
 
 	return { socketServer, instantiationService };
+}
+
+const _uriTransformerCache: { [remoteAuthority: string]: IURITransformer } = Object.create(null);
+
+function getUriTransformer(remoteAuthority: string): IURITransformer {
+	if (!_uriTransformerCache[remoteAuthority]) {
+		_uriTransformerCache[remoteAuthority] = createURITransformer(remoteAuthority);
+	}
+	return _uriTransformerCache[remoteAuthority];
 }
 
 export class SocketServer<TContext = string> extends IPCServer<TContext> {

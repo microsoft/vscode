@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { flakySuite } from 'vs/base/test/common/testUtils';
+import { Encryption } from 'vs/platform/encryption/node/encryptionMainService';
 
 function testErrorMessage(module: string): string {
 	return `Unable to load "${module}" dependency. It was probably not compiled for the right operating system architecture or had missing build tools.`;
@@ -16,11 +17,17 @@ flakySuite('Native Modules (all platforms)', () => {
 	test('native-is-elevated', async () => {
 		const isElevated = await import('native-is-elevated');
 		assert.ok(typeof isElevated === 'function', testErrorMessage('native-is-elevated '));
+
+		const result = isElevated();
+		assert.ok(typeof result === 'boolean', testErrorMessage('native-is-elevated'));
 	});
 
 	test('native-keymap', async () => {
 		const keyMap = await import('native-keymap');
 		assert.ok(typeof keyMap.getCurrentKeyboardLayout === 'function', testErrorMessage('native-keymap'));
+
+		const result = keyMap.getCurrentKeyboardLayout();
+		assert.ok(result, testErrorMessage('native-keymap'));
 	});
 
 	test('native-watchdog', async () => {
@@ -36,16 +43,45 @@ flakySuite('Native Modules (all platforms)', () => {
 	(process.type === 'renderer' ? test.skip /* TODO@electron module is not context aware yet and thus cannot load in Electron renderer used by tests */ : test)('spdlog', async () => {
 		const spdlog = await import('spdlog');
 		assert.ok(typeof spdlog.createRotatingLogger === 'function', testErrorMessage('spdlog'));
+		assert.ok(typeof spdlog.version === 'number', testErrorMessage('spdlog'));
 	});
 
 	test('@parcel/watcher', async () => {
 		const parcelWatcher = await import('@parcel/watcher');
-		assert.ok(typeof parcelWatcher.subscribe === 'function', testErrorMessage('parcel'));
+		assert.ok(typeof parcelWatcher.subscribe === 'function', testErrorMessage('@parcel/watcher'));
 	});
 
 	test('@vscode/sqlite3', async () => {
 		const sqlite3 = await import('@vscode/sqlite3');
 		assert.ok(typeof sqlite3.Database === 'function', testErrorMessage('@vscode/sqlite3'));
+	});
+
+	test('vscode-encrypt', async () => {
+		try {
+			const vscodeEncrypt: Encryption = require.__$__nodeRequire('vscode-encrypt');
+			const encrypted = await vscodeEncrypt.encrypt('salt', 'value');
+			const decrypted = await vscodeEncrypt.decrypt('salt', encrypted);
+
+			assert.ok(typeof encrypted === 'string', testErrorMessage('vscode-encrypt'));
+			assert.ok(typeof decrypted === 'string', testErrorMessage('vscode-encrypt'));
+		} catch (error) {
+			if (error.code !== 'MODULE_NOT_FOUND') {
+				throw error;
+			}
+		}
+	});
+
+	test('vsda', async () => {
+		try {
+			const vsda: any = require.__$__nodeRequire('vsda');
+			const signer = new vsda.signer();
+			const signed = await signer.sign('value');
+			assert.ok(typeof signed === 'string', testErrorMessage('vsda'));
+		} catch (error) {
+			if (error.code !== 'MODULE_NOT_FOUND') {
+				throw error;
+			}
+		}
 	});
 });
 
@@ -82,16 +118,32 @@ flakySuite('Native Modules (all platforms)', () => {
 	test('windows-foreground-love', async () => {
 		const foregroundLove = await import('windows-foreground-love');
 		assert.ok(typeof foregroundLove.allowSetForegroundWindow === 'function', testErrorMessage('windows-foreground-love'));
+
+		const result = foregroundLove.allowSetForegroundWindow(process.pid);
+		assert.ok(typeof result === 'boolean', testErrorMessage('windows-foreground-love'));
 	});
 
 	test('windows-process-tree', async () => {
 		const processTree = await import('windows-process-tree');
 		assert.ok(typeof processTree.getProcessTree === 'function', testErrorMessage('windows-process-tree'));
+
+		return new Promise((resolve, reject) => {
+			processTree.getProcessTree(process.pid, tree => {
+				if (tree) {
+					resolve();
+				} else {
+					reject(new Error(testErrorMessage('windows-process-tree')));
+				}
+			});
+		});
 	});
 
 	test('@vscode/windows-registry', async () => {
 		const windowsRegistry = await import('@vscode/windows-registry');
 		assert.ok(typeof windowsRegistry.GetStringRegKey === 'function', testErrorMessage('@vscode/windows-registry'));
+
+		const result = windowsRegistry.GetStringRegKey('HKEY_LOCAL_MACHINE', 'SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion', 'EditionID');
+		assert.ok(typeof result === 'string' || typeof result === 'undefined', testErrorMessage('@vscode/windows-registry'));
 	});
 
 	test('vscode-windows-ca-certs', async () => {

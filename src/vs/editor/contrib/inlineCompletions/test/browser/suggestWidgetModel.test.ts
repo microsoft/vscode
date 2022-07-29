@@ -27,14 +27,14 @@ import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import assert = require('assert');
+import * as assert from 'assert';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { minimizeInlineCompletion } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
 import { rangeStartsWith } from 'vs/editor/contrib/inlineCompletions/browser/suggestWidgetInlineCompletionProvider';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { minimizeInlineCompletion } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionToGhostText';
 
 suite('Suggest Widget Model', () => {
 	test('rangeStartsWith', () => {
@@ -104,11 +104,17 @@ suite('Suggest Widget Model', () => {
 
 	test('minimizeInlineCompletion', async () => {
 		const model = createTextModel('fun');
-		const result = minimizeInlineCompletion(model, { range: new Range(1, 1, 1, 4), text: 'function' })!;
+		const result = minimizeInlineCompletion(model, {
+			range: new Range(1, 1, 1, 4),
+			filterText: 'function',
+			insertText: 'function',
+			snippetInfo: undefined,
+			additionalTextEdits: [],
+		})!;
 
 		assert.deepStrictEqual({
 			range: result.range.toString(),
-			text: result.text
+			text: result.insertText
 		}, {
 			range: '[1,4 -> 1,4]',
 			text: 'ction'

@@ -142,6 +142,7 @@
 			'@vscode/iconv-lite-umd': `${baseNodeModulesPath}/@vscode/iconv-lite-umd/lib/iconv-lite-umd.js`,
 			'jschardet': `${baseNodeModulesPath}/jschardet/dist/jschardet.min.js`,
 			'@vscode/vscode-languagedetection': `${baseNodeModulesPath}/@vscode/vscode-languagedetection/dist/lib/index.js`,
+			'vscode-regexp-languagedetection': `${baseNodeModulesPath}/vscode-regexp-languagedetection/dist/index.js`,
 			'tas-client-umd': `${baseNodeModulesPath}/tas-client-umd/lib/tas-client-umd.js`
 		};
 
@@ -149,7 +150,7 @@
 		// which has a fallback to using node.js `require`
 		// (node.js enabled renderers only)
 		if (!safeProcess.sandboxed) {
-			loaderConfig.amdModulesPattern = /(^vs\/)|(^vscode-textmate$)|(^vscode-oniguruma$)|(^xterm$)|(^xterm-addon-search$)|(^xterm-addon-unicode11$)|(^xterm-addon-webgl$)|(^@vscode\/iconv-lite-umd$)|(^jschardet$)|(^@vscode\/vscode-languagedetection$)|(^tas-client-umd$)/;
+			loaderConfig.amdModulesPattern = /(^vs\/)|(^vscode-textmate$)|(^vscode-oniguruma$)|(^xterm$)|(^xterm-addon-search$)|(^xterm-addon-unicode11$)|(^xterm-addon-webgl$)|(^@vscode\/iconv-lite-umd$)|(^jschardet$)|(^@vscode\/vscode-languagedetection$)|(^vscode-regexp-languagedetection$)|(^tas-client-umd$)/;
 		}
 
 		// Signal before require.config()

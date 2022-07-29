@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce, equals, flatten, isNonEmptyArray } from 'vs/base/common/arrays';
+import { coalesce, equals, isNonEmptyArray } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { illegalArgument, isCancellationError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
@@ -16,12 +16,13 @@ import * as languages from 'vs/editor/common/languages';
 import { IModelService } from 'vs/editor/common/services/model';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IProgress, Progress } from 'vs/platform/progress/common/progress';
-import { CodeActionFilter, CodeActionKind, CodeActionTrigger, filtersAction, mayIncludeActionsOfKind } from './types';
+import { CodeActionFilter, CodeActionKind, CodeActionTrigger, CodeActionTriggerSource, filtersAction, mayIncludeActionsOfKind } from './types';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 export const codeActionCommandId = 'editor.action.codeAction';
 export const refactorCommandId = 'editor.action.refactor';
+export const refactorPreviewCommandId = 'editor.action.refactor.preview';
 export const sourceActionCommandId = 'editor.action.sourceAction';
 export const organizeImportsCommandId = 'editor.action.organizeImports';
 export const fixAllCommandId = 'editor.action.fixAll';
@@ -155,7 +156,7 @@ export function getCodeActions(
 	});
 
 	return Promise.all(promises).then(actions => {
-		const allActions = flatten(actions.map(x => x.actions));
+		const allActions = actions.map(x => x.actions).flat();
 		const allDocumentation = coalesce(actions.map(x => x.documentation));
 		return new ManagedCodeActionSet(allActions, allDocumentation, disposables);
 	})
@@ -223,7 +224,6 @@ function getDocumentation(
 			}
 		}
 	}
-
 	return undefined;
 }
 
@@ -253,7 +253,7 @@ CommandsRegistry.registerCommand('_executeCodeActionProvider', async function (a
 		codeActionProvider,
 		model,
 		validatedRangeOrSelection,
-		{ type: languages.CodeActionTriggerType.Invoke, filter: { includeSourceActions: true, include } },
+		{ type: languages.CodeActionTriggerType.Invoke, triggerAction: CodeActionTriggerSource.Default, filter: { includeSourceActions: true, include } },
 		Progress.None,
 		CancellationToken.None);
 

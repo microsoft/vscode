@@ -24,7 +24,9 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IExtensionHostProxy, IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { FileAccess } from 'vs/base/common/network';
+import { IExtensionDescriptionDelta } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 
 @extHostNamedCustomer(MainContext.MainThreadExtensionService)
 export class MainThreadExtensionService implements MainThreadExtensionServiceShape {
@@ -56,6 +58,9 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 	public dispose(): void {
 	}
 
+	$getExtension(extensionId: string) {
+		return this._extensionService.getExtension(extensionId);
+	}
 	$activateExtension(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> {
 		return this._internalExtensionService._activateById(extensionId, reason);
 	}
@@ -86,9 +91,9 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 			const extension = await this._extensionService.getExtension(extensionId.value);
 			if (extension) {
 				const local = await this._extensionsWorkbenchService.queryLocal();
-				const installedDependency = local.filter(i => areSameExtensions(i.identifier, { id: missingExtensionDependency.dependency }))[0];
-				if (installedDependency) {
-					await this._handleMissingInstalledDependency(extension, installedDependency.local!);
+				const installedDependency = local.find(i => areSameExtensions(i.identifier, { id: missingExtensionDependency.dependency }));
+				if (installedDependency?.local) {
+					await this._handleMissingInstalledDependency(extension, installedDependency.local);
 					return;
 				} else {
 					await this._handleMissingNotInstalledDependency(extension, missingExtensionDependency.dependency);
@@ -182,6 +187,10 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 			this._timerService.setPerformanceMarks('remoteExtHost', marks);
 		}
 	}
+
+	async $asBrowserUri(uri: UriComponents): Promise<UriComponents> {
+		return FileAccess.asBrowserUri(URI.revive(uri));
+	}
 }
 
 class ExtensionHostProxy implements IExtensionHostProxy {
@@ -192,18 +201,15 @@ class ExtensionHostProxy implements IExtensionHostProxy {
 	resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult> {
 		return this._actual.$resolveAuthority(remoteAuthority, resolveAttempt);
 	}
-	async getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI> {
+	async getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI | null> {
 		const uriComponents = await this._actual.$getCanonicalURI(remoteAuthority, uri);
-		return URI.revive(uriComponents);
+		return (uriComponents ? URI.revive(uriComponents) : uriComponents);
 	}
-	startExtensionHost(enabledExtensionIds: ExtensionIdentifier[]): Promise<void> {
-		return this._actual.$startExtensionHost(enabledExtensionIds);
+	startExtensionHost(extensionsDelta: IExtensionDescriptionDelta): Promise<void> {
+		return this._actual.$startExtensionHost(extensionsDelta);
 	}
 	extensionTestsExecute(): Promise<number> {
 		return this._actual.$extensionTestsExecute();
-	}
-	extensionTestsExit(code: number): Promise<void> {
-		return this._actual.$extensionTestsExit(code);
 	}
 	activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void> {
 		return this._actual.$activateByEvent(activationEvent, activationKind);
@@ -217,8 +223,8 @@ class ExtensionHostProxy implements IExtensionHostProxy {
 	updateRemoteConnectionData(connectionData: IRemoteConnectionData): Promise<void> {
 		return this._actual.$updateRemoteConnectionData(connectionData);
 	}
-	deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void> {
-		return this._actual.$deltaExtensions(toAdd, toRemove);
+	deltaExtensions(extensionsDelta: IExtensionDescriptionDelta): Promise<void> {
+		return this._actual.$deltaExtensions(extensionsDelta);
 	}
 	test_latency(n: number): Promise<number> {
 		return this._actual.$test_latency(n);

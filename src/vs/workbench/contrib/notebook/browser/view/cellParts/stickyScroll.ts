@@ -22,7 +22,7 @@ export function registerStickyScroll(notebookEditor: INotebookEditor, cell: ICel
 			const maxTop = cell.layoutInfo.editorHeight + cell.layoutInfo.statusBarHeight - 45; // subtract roughly the height of the execution order label plus padding
 			const top = maxTop > 20 ? // Don't move the run button if it can only move a very short distance
 				clamp(min, diff, maxTop) :
-				0;
+				min;
 			element.style.top = `${top}px`;
 		}
 	};

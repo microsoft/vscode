@@ -256,13 +256,13 @@ export class ExtHostConfigProvider {
 					return {
 						key,
 
-						defaultValue: config.default?.value,
-						globalValue: config.user?.value,
+						defaultValue: config.policy?.value ?? config.default?.value,
+						globalValue: config.user?.value ?? config.application?.value,
 						workspaceValue: config.workspace?.value,
 						workspaceFolderValue: config.workspaceFolder?.value,
 
 						defaultLanguageValue: config.default?.override,
-						globalLanguageValue: config.user?.override,
+						globalLanguageValue: config.user?.override ?? config.application?.override,
 						workspaceLanguageValue: config.workspace?.override,
 						workspaceFolderLanguageValue: config.workspaceFolder?.override,
 
@@ -277,7 +277,7 @@ export class ExtHostConfigProvider {
 			mixin(result, config, false);
 		}
 
-		return <vscode.WorkspaceConfiguration>Object.freeze(result);
+		return Object.freeze(result);
 	}
 
 	private _toReadonlyValue(result: any): any {

@@ -17,6 +17,7 @@ import { parseLineAndColumnAware } from 'vs/base/common/extpath';
 import { LogLevelToString } from 'vs/platform/log/common/log';
 import { isUndefined } from 'vs/base/common/types';
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 
 export const IBrowserWorkbenchEnvironmentService = refineServiceDecorator<IEnvironmentService, IBrowserWorkbenchEnvironmentService>(IEnvironmentService);
 
@@ -52,25 +53,22 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get logFile(): URI { return joinPath(this.logsHome, 'window.log'); }
 
 	@memoize
-	get userRoamingDataHome(): URI { return URI.file('/User').with({ scheme: Schemas.userData }); }
-
-	@memoize
-	get settingsResource(): URI { return joinPath(this.userRoamingDataHome, 'settings.json'); }
+	get userRoamingDataHome(): URI { return URI.file('/User').with({ scheme: Schemas.vscodeUserData }); }
 
 	@memoize
 	get argvResource(): URI { return joinPath(this.userRoamingDataHome, 'argv.json'); }
 
 	@memoize
-	get snippetsHome(): URI { return joinPath(this.userRoamingDataHome, 'snippets'); }
-
-	@memoize
 	get cacheHome(): URI { return joinPath(this.userRoamingDataHome, 'caches'); }
 
 	@memoize
-	get globalStorageHome(): URI { return URI.joinPath(this.userRoamingDataHome, 'globalStorage'); }
+	get workspaceStorageHome(): URI { return joinPath(this.userRoamingDataHome, 'workspaceStorage'); }
 
 	@memoize
-	get workspaceStorageHome(): URI { return URI.joinPath(this.userRoamingDataHome, 'workspaceStorage'); }
+	get localHistoryHome(): URI { return joinPath(this.userRoamingDataHome, 'History'); }
+
+	@memoize
+	get stateResource(): URI { return joinPath(this.userRoamingDataHome, 'State', 'storage.json'); }
 
 	/**
 	 * In Web every workspace can potentially have scoped user-data
@@ -86,10 +84,10 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get userDataSyncLogResource(): URI { return joinPath(this.logsHome, 'userDataSync.log'); }
 
 	@memoize
-	get sync(): 'on' | 'off' | undefined { return undefined; }
+	get editSessionsLogResource(): URI { return joinPath(this.logsHome, 'editSessions.log'); }
 
 	@memoize
-	get keybindingsResource(): URI { return joinPath(this.userRoamingDataHome, 'keybindings.json'); }
+	get sync(): 'on' | 'off' | undefined { return undefined; }
 
 	@memoize
 	get keyboardLayoutResource(): URI { return joinPath(this.userRoamingDataHome, 'keyboardLayout.json'); }
@@ -169,6 +167,9 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	}
 
 	@memoize
+	get enableSmokeTestDriver() { return this.options.developmentOptions?.enableSmokeTestDriver; }
+
+	@memoize
 	get disableExtensions() { return this.payload?.get('disableExtensions') === 'true'; }
 
 	@memoize
@@ -178,11 +179,11 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get webviewExternalEndpoint(): string {
 		const endpoint = this.options.webviewEndpoint
 			|| this.productService.webviewContentExternalBaseUrlTemplate
-			|| 'https://{{uuid}}.vscode-webview.net/{{quality}}/{{commit}}/out/vs/workbench/contrib/webview/browser/pre/';
+			|| 'https://{{uuid}}.vscode-cdn.net/{{quality}}/{{commit}}/out/vs/workbench/contrib/webview/browser/pre/';
 
 		const webviewExternalEndpointCommit = this.payload?.get('webviewExternalEndpointCommit');
 		return endpoint
-			.replace('{{commit}}', webviewExternalEndpointCommit ?? this.productService.commit ?? 'd372f9187401bd145a0a6e15ba369e2d82d02005')
+			.replace('{{commit}}', webviewExternalEndpointCommit ?? this.productService.commit ?? '3c8520fab514b9f56070214496b26ff68d1b1cb5')
 			.replace('{{quality}}', (webviewExternalEndpointCommit ? 'insider' : this.productService.quality) ?? 'insider');
 	}
 
@@ -199,13 +200,15 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get logExtensionHostCommunication(): boolean { return this.payload?.get('logExtensionHostCommunication') === 'true'; }
 
 	@memoize
-	get skipReleaseNotes(): boolean { return false; }
+	get skipReleaseNotes(): boolean { return this.payload?.get('skipReleaseNotes') === 'true'; }
 
 	@memoize
 	get skipWelcome(): boolean { return this.payload?.get('skipWelcome') === 'true'; }
 
 	@memoize
-	get disableWorkspaceTrust(): boolean { return true; }
+	get disableWorkspaceTrust(): boolean { return !this.options.enableWorkspaceTrust; }
+
+	editSessionId: string | undefined = this.options.editSessionId;
 
 	private payload: Map<string, string> | undefined;
 
@@ -289,7 +292,7 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	}
 
 	@memoize
-	get filesToOpenOrCreate(): IPath[] | undefined {
+	get filesToOpenOrCreate(): IPath<ITextEditorOptions>[] | undefined {
 		if (this.payload) {
 			const fileToOpen = this.payload.get('openFile');
 			if (fileToOpen) {
@@ -301,7 +304,9 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 
 					return [{
 						fileUri: fileUri.with({ path: pathColumnAware.path }),
-						selection: !isUndefined(pathColumnAware.line) ? { startLineNumber: pathColumnAware.line, startColumn: pathColumnAware.column || 1 } : undefined
+						options: {
+							selection: !isUndefined(pathColumnAware.line) ? { startLineNumber: pathColumnAware.line, startColumn: pathColumnAware.column || 1 } : undefined
+						}
 					}];
 				}
 
@@ -321,6 +326,26 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 				return [
 					{ fileUri: URI.parse(fileToDiffSecondary) },
 					{ fileUri: URI.parse(fileToDiffPrimary) }
+				];
+			}
+		}
+
+		return undefined;
+	}
+
+	@memoize
+	get filesToMerge(): IPath[] | undefined {
+		if (this.payload) {
+			const fileToMerge1 = this.payload.get('mergeFile1');
+			const fileToMerge2 = this.payload.get('mergeFile2');
+			const fileToMergeBase = this.payload.get('mergeFileBase');
+			const fileToMergeResult = this.payload.get('mergeFileResult');
+			if (fileToMerge1 && fileToMerge2 && fileToMergeBase && fileToMergeResult) {
+				return [
+					{ fileUri: URI.parse(fileToMerge1) },
+					{ fileUri: URI.parse(fileToMerge2) },
+					{ fileUri: URI.parse(fileToMergeBase) },
+					{ fileUri: URI.parse(fileToMergeResult) }
 				];
 			}
 		}

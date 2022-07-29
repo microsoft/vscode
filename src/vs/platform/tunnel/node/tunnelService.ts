@@ -167,7 +167,7 @@ export class BaseTunnelService extends AbstractTunnelService {
 		return (!settingValue || settingValue === 'localhost') ? '127.0.0.1' : '0.0.0.0';
 	}
 
-	protected retainOrCreateTunnel(addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localPort: number | undefined, elevateIfNeeded: boolean, privacy: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined {
+	protected retainOrCreateTunnel(addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localPort: number | undefined, elevateIfNeeded: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined {
 		const existing = this.getTunnelFromMap(remoteHost, remotePort);
 		if (existing) {
 			++existing.refcount;
@@ -180,6 +180,7 @@ export class BaseTunnelService extends AbstractTunnelService {
 			this.logService.trace(`ForwardedPorts: (TunnelService) Creating tunnel without provider ${remoteHost}:${remotePort} on local port ${localPort}.`);
 			const options: IConnectionOptions = {
 				commit: this.productService.commit,
+				quality: this.productService.quality,
 				socketFactory: this.socketFactory,
 				addressProvider,
 				signService: this.signService,

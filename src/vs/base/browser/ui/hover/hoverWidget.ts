@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./hover';
 
@@ -54,6 +56,8 @@ export class HoverAction extends Disposable {
 		super();
 
 		this.actionContainer = dom.append(parent, $('div.action-container'));
+		this.actionContainer.setAttribute('tabindex', '0');
+
 		this.action = dom.append(this.actionContainer, $('a.action'));
 		this.action.setAttribute('role', 'button');
 		if (actionOptions.iconClass) {
@@ -62,10 +66,19 @@ export class HoverAction extends Disposable {
 		const label = dom.append(this.action, $('span'));
 		label.textContent = keybindingLabel ? `${actionOptions.label} (${keybindingLabel})` : actionOptions.label;
 
-		this._register(dom.addDisposableListener(this.actionContainer, dom.EventType.MOUSE_DOWN, e => {
+		this._register(dom.addDisposableListener(this.actionContainer, dom.EventType.CLICK, e => {
 			e.stopPropagation();
 			e.preventDefault();
 			actionOptions.run(this.actionContainer);
+		}));
+
+		this._register(dom.addDisposableListener(this.actionContainer, dom.EventType.KEY_UP, e => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.equals(KeyCode.Enter)) {
+				e.stopPropagation();
+				e.preventDefault();
+				actionOptions.run(this.actionContainer);
+			}
 		}));
 
 		this.setEnabled(true);

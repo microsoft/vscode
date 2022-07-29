@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event as IpcEvent, ipcMain } from 'electron';
+import { Event as IpcEvent } from 'electron';
+import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
 import { IDiagnosticInfo, IDiagnosticInfoOptions, IRemoteDiagnosticError, IRemoteDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
@@ -49,7 +50,7 @@ export class DiagnosticsMainService implements IDiagnosticsMainService {
 
 					window.sendWhenReady('vscode:getDiagnosticInfo', CancellationToken.None, { replyChannel, args });
 
-					ipcMain.once(replyChannel, (_: IpcEvent, data: IRemoteDiagnosticInfo) => {
+					validatedIpcMain.once(replyChannel, (_: IpcEvent, data: IRemoteDiagnosticInfo) => {
 						// No data is returned if getting the connection fails.
 						if (!data) {
 							resolve({ hostName: remoteAuthority, errorMessage: `Unable to resolve connection to '${remoteAuthority}'.` });

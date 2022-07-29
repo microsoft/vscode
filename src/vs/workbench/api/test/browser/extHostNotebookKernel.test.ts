@@ -98,7 +98,7 @@ suite('NotebookKernel', function () {
 		extHostCommands = new ExtHostCommands(rpcProtocol, new NullLogService());
 		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, extHostDocuments, extHostStoragePaths);
 
-		extHostNotebookDocuments = new ExtHostNotebookDocuments(new NullLogService(), extHostNotebooks);
+		extHostNotebookDocuments = new ExtHostNotebookDocuments(extHostNotebooks);
 
 		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({
 			addedDocuments: [{
@@ -162,7 +162,7 @@ suite('NotebookKernel', function () {
 		await rpcProtocol.sync();
 		assert.strictEqual(kernelData.size, 1);
 
-		let [first] = kernelData.values();
+		const [first] = kernelData.values();
 		assert.strictEqual(first.id, 'nullExtensionDescription/foo');
 		assert.strictEqual(ExtensionIdentifier.equals(first.extensionId, nullExtensionDescription.identifier), true);
 		assert.strictEqual(first.label, 'Foo');
@@ -283,7 +283,7 @@ suite('NotebookKernel', function () {
 		assert.strictEqual(cellExecuteUpdates.length > 0, true);
 
 		let found = false;
-		for (let edit of cellExecuteUpdates) {
+		for (const edit of cellExecuteUpdates) {
 			if (edit.editType === CellExecutionUpdateType.Output) {
 				assert.strictEqual(edit.append, false);
 				assert.strictEqual(edit.outputs.length, 1);
@@ -317,7 +317,7 @@ suite('NotebookKernel', function () {
 		assert.strictEqual(cellExecuteUpdates.length > 0, true);
 
 		let found = false;
-		for (let edit of cellExecuteUpdates) {
+		for (const edit of cellExecuteUpdates) {
 			if (edit.editType === CellExecutionUpdateType.Output) {
 				assert.strictEqual(edit.append, false);
 				assert.strictEqual(edit.outputs.length, 1);

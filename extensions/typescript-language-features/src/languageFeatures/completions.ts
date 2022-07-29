@@ -85,6 +85,10 @@ class MyCompletionItem extends vscode.CompletionItem {
 			this.label = { label: tsEntry.name, description: Previewer.plainWithLinks(sourceDisplay, client) };
 		}
 
+		if (tsEntry.labelDetails) {
+			this.label = { label: tsEntry.name, ...tsEntry.labelDetails };
+		}
+
 		this.preselect = tsEntry.isRecommended;
 		this.position = position;
 		this.useCodeSnippet = completionContext.useCodeSnippetsOnMethodSuggest && (this.kind === vscode.CompletionItemKind.Function || this.kind === vscode.CompletionItemKind.Method);
@@ -134,18 +138,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 				this.kind = vscode.CompletionItemKind.Color;
 			}
 
-			if (tsEntry.kind === PConst.Kind.script) {
-				for (const extModifier of PConst.KindModifiers.fileExtensionKindModifiers) {
-					if (kindModifiers.has(extModifier)) {
-						if (tsEntry.name.toLowerCase().endsWith(extModifier)) {
-							this.detail = tsEntry.name;
-						} else {
-							this.detail = tsEntry.name + extModifier;
-						}
-						break;
-					}
-				}
-			}
+			this.detail = getScriptKindDetails(tsEntry);
 		}
 
 		this.resolveRange();
@@ -206,7 +199,11 @@ class MyCompletionItem extends vscode.CompletionItem {
 
 			const detail = response.body[0];
 
-			this.detail = this.getDetails(client, detail);
+			const newItemDetails = this.getDetails(client, detail);
+			if (newItemDetails) {
+				this.detail = newItemDetails;
+			}
+
 			this.documentation = this.getDocumentation(client, detail, this.document.uri);
 
 			const codeAction = this.getCodeActions(detail, filepath);
@@ -252,6 +249,11 @@ class MyCompletionItem extends vscode.CompletionItem {
 		detail: Proto.CompletionEntryDetails,
 	): string | undefined {
 		const parts: string[] = [];
+
+		if (detail.kind === PConst.Kind.script) {
+			// details were already added
+			return undefined;
+		}
 
 		for (const action of detail.codeActions ?? []) {
 			parts.push(action.description);
@@ -502,7 +504,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 	}
 
 	private static getCommitCharacters(context: CompletionContext, entry: Proto.CompletionEntry): string[] | undefined {
-		if (entry.kind === PConst.Kind.warning) { // Ambient JS word based suggestion
+		if (entry.kind === PConst.Kind.warning || entry.kind === PConst.Kind.string) { // Ambient JS word based suggestion, strings
 			return undefined;
 		}
 
@@ -517,6 +519,24 @@ class MyCompletionItem extends vscode.CompletionItem {
 
 		return commitCharacters;
 	}
+}
+
+function getScriptKindDetails(tsEntry: protocol.CompletionEntry,): string | undefined {
+	if (!tsEntry.kindModifiers || tsEntry.kind !== PConst.Kind.script) {
+		return;
+	}
+
+	const kindModifiers = parseKindModifier(tsEntry.kindModifiers);
+	for (const extModifier of PConst.KindModifiers.fileExtensionKindModifiers) {
+		if (kindModifiers.has(extModifier)) {
+			if (tsEntry.name.toLowerCase().endsWith(extModifier)) {
+				return tsEntry.name;
+			} else {
+				return tsEntry.name + extModifier;
+			}
+		}
+	}
+	return undefined;
 }
 
 
@@ -534,6 +554,7 @@ class CompletionAcceptedCommand implements Command {
 		if (item instanceof MyCompletionItem) {
 			/* __GDPR__
 				"completions.accept" : {
+					"owner": "mjbvz",
 					"isPackageJsonImport" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"isImportStatementCompletion" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"${include}": [
@@ -696,7 +717,14 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 			return undefined;
 		}
 
-		const wordRange = document.getWordRangeAtPosition(position);
+		let wordRange = document.getWordRangeAtPosition(position);
+		if (wordRange && !wordRange.isEmpty) {
+			const secondCharPosition = wordRange.start.translate(0, 1);
+			const firstChar = document.getText(new vscode.Range(wordRange.start, secondCharPosition));
+			if (firstChar === '@') {
+				wordRange = wordRange.with(secondCharPosition);
+			}
+		}
 
 		await this.client.interruptGetErr(() => this.fileConfigurationManager.ensureConfigurationForDocument(document, token));
 
@@ -793,9 +821,11 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 	) {
 		/* __GDPR__
 			"completions.execute" : {
+				"owner": "mjbvz",
 				"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"flags": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"updateGraphDurationMs" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"createAutoImportProviderProgramDurationMs" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"includesPackageJsonImport" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -808,6 +838,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		this.telemetryReporter.logTelemetry('completions.execute', {
 			duration: String(duration),
 			type: response?.type ?? 'unknown',
+			flags: response?.type === 'response' && typeof response.body?.flags === 'number' ? String(response.body.flags) : undefined,
 			count: String(response?.type === 'response' && response.body ? response.body.entries.length : 0),
 			updateGraphDurationMs: response?.type === 'response' && typeof response.performanceData?.updateGraphDurationMs === 'number'
 				? String(response.performanceData.updateGraphDurationMs)

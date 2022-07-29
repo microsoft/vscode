@@ -17,7 +17,7 @@ import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { ViewContainerLocation, ViewContainerLocations } from 'vs/workbench/common/views';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IView } from 'vs/base/browser/ui/grid/grid';
 
 export interface IPaneCompositePart extends IView {
@@ -78,7 +78,7 @@ export interface IPaneCompositeSelectorPart {
 	showActivity(id: string, badge: IBadge, clazz?: string, priority?: number): IDisposable;
 }
 
-export class PaneCompositeParts implements IPaneCompositePartService {
+export class PaneCompositeParts extends Disposable implements IPaneCompositePartService {
 	declare readonly _serviceBrand: undefined;
 
 	onDidPaneCompositeOpen: Event<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation }>;
@@ -88,6 +88,8 @@ export class PaneCompositeParts implements IPaneCompositePartService {
 	private paneCompositeSelectorParts = new Map<ViewContainerLocation, IPaneCompositeSelectorPart>();
 
 	constructor(@IInstantiationService instantiationService: IInstantiationService) {
+		super();
+
 		const panelPart = instantiationService.createInstance(PanelPart);
 		const sideBarPart = instantiationService.createInstance(SidebarPart);
 		const auxiliaryBarPart = instantiationService.createInstance(AuxiliaryBarPart);
@@ -101,8 +103,9 @@ export class PaneCompositeParts implements IPaneCompositePartService {
 		this.paneCompositeSelectorParts.set(ViewContainerLocation.Sidebar, activityBarPart);
 		this.paneCompositeSelectorParts.set(ViewContainerLocation.AuxiliaryBar, auxiliaryBarPart);
 
-		this.onDidPaneCompositeOpen = Event.any(...ViewContainerLocations.map(loc => Event.map(this.paneCompositeParts.get(loc)!.onDidPaneCompositeOpen, composite => { return { composite, viewContainerLocation: loc }; })));
-		this.onDidPaneCompositeClose = Event.any(...ViewContainerLocations.map(loc => Event.map(this.paneCompositeParts.get(loc)!.onDidPaneCompositeClose, composite => { return { composite, viewContainerLocation: loc }; })));
+		const eventDisposables = this._register(new DisposableStore());
+		this.onDidPaneCompositeOpen = Event.any(...ViewContainerLocations.map(loc => Event.map(this.paneCompositeParts.get(loc)!.onDidPaneCompositeOpen, composite => { return { composite, viewContainerLocation: loc }; }, eventDisposables)));
+		this.onDidPaneCompositeClose = Event.any(...ViewContainerLocations.map(loc => Event.map(this.paneCompositeParts.get(loc)!.onDidPaneCompositeClose, composite => { return { composite, viewContainerLocation: loc }; }, eventDisposables)));
 	}
 
 	openPaneComposite(id: string | undefined, viewContainerLocation: ViewContainerLocation, focus?: boolean): Promise<IPaneComposite | undefined> {

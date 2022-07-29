@@ -405,7 +405,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 
 		this.projectedModelLineLineCounts.setValue(lineIndex, newOutputLineCount);
 
-		const viewLinesChangedEvent = (changeFrom <= changeTo ? new viewEvents.ViewLinesChangedEvent(changeFrom, changeTo) : null);
+		const viewLinesChangedEvent = (changeFrom <= changeTo ? new viewEvents.ViewLinesChangedEvent(changeFrom, changeTo - changeFrom + 1) : null);
 		const viewLinesInsertedEvent = (insertFrom <= insertTo ? new viewEvents.ViewLinesInsertedEvent(insertFrom, insertTo) : null);
 		const viewLinesDeletedEvent = (deleteFrom <= deleteTo ? new viewEvents.ViewLinesDeletedEvent(deleteFrom, deleteTo) : null);
 
@@ -466,6 +466,14 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 
 	private getMinColumnOfViewLine(viewLineInfo: ViewLineInfo): number {
 		return this.modelLineProjections[viewLineInfo.modelLineNumber - 1].getViewLineMinColumn(
+			this.model,
+			viewLineInfo.modelLineNumber,
+			viewLineInfo.modelLineWrappedLineIdx
+		);
+	}
+
+	private getMaxColumnOfViewLine(viewLineInfo: ViewLineInfo): number {
+		return this.modelLineProjections[viewLineInfo.modelLineNumber - 1].getViewLineMaxColumn(
 			this.model,
 			viewLineInfo.modelLineNumber,
 			viewLineInfo.modelLineWrappedLineIdx
@@ -565,22 +573,69 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 			);
 
 			for (const viewLineInfo of group.viewLines) {
-				if (viewLineInfo.isWrappedLineContinuation && this.getMinColumnOfViewLine(viewLineInfo) === 1) {
-					// Don't add indent guides when the wrapped line continuation has no wrapping-indentation.
-					resultPerViewLine.push([]);
-				} else {
-					let bracketGuides = bracketGuidesPerModelLine[viewLineInfo.modelLineNumber - modelRangeStartLineNumber];
 
-					// visibleColumns stay as they are (this is a bug and needs to be fixed, but it is not a regression)
-					// model-columns must be converted to view-model columns.
-					bracketGuides = bracketGuides.map(g => g.horizontalLine ?
-						new IndentGuide(g.visibleColumn, g.className,
+				const bracketGuides = bracketGuidesPerModelLine[viewLineInfo.modelLineNumber - modelRangeStartLineNumber];
+
+				// visibleColumns stay as they are (this is a bug and needs to be fixed, but it is not a regression)
+				// model-columns must be converted to view-model columns.
+				const result = bracketGuides.map(g => {
+					if (g.forWrappedLinesAfterColumn !== -1) {
+						const p = this.modelLineProjections[viewLineInfo.modelLineNumber - 1].getViewPositionOfModelPosition(0, g.forWrappedLinesAfterColumn);
+						if (p.lineNumber >= viewLineInfo.modelLineWrappedLineIdx) {
+							return undefined;
+						}
+					}
+
+					if (g.forWrappedLinesBeforeOrAtColumn !== -1) {
+						const p = this.modelLineProjections[viewLineInfo.modelLineNumber - 1].getViewPositionOfModelPosition(0, g.forWrappedLinesBeforeOrAtColumn);
+						if (p.lineNumber < viewLineInfo.modelLineWrappedLineIdx) {
+							return undefined;
+						}
+					}
+
+					if (!g.horizontalLine) {
+						return g;
+					}
+
+					let column = -1;
+					if (g.column !== -1) {
+						const p = this.modelLineProjections[viewLineInfo.modelLineNumber - 1].getViewPositionOfModelPosition(0, g.column);
+						if (p.lineNumber === viewLineInfo.modelLineWrappedLineIdx) {
+							column = p.column;
+						} else if (p.lineNumber < viewLineInfo.modelLineWrappedLineIdx) {
+							column = this.getMinColumnOfViewLine(viewLineInfo);
+						} else if (p.lineNumber > viewLineInfo.modelLineWrappedLineIdx) {
+							return undefined;
+						}
+					}
+
+					const viewPosition = this.convertModelPositionToViewPosition(viewLineInfo.modelLineNumber, g.horizontalLine.endColumn);
+					const p = this.modelLineProjections[viewLineInfo.modelLineNumber - 1].getViewPositionOfModelPosition(0, g.horizontalLine.endColumn);
+					if (p.lineNumber === viewLineInfo.modelLineWrappedLineIdx) {
+						return new IndentGuide(g.visibleColumn, column, g.className,
 							new IndentGuideHorizontalLine(g.horizontalLine.top,
-								this.convertModelPositionToViewPosition(viewLineInfo.modelLineNumber, g.horizontalLine.endColumn).column
-							)
-						) : g);
-					resultPerViewLine.push(bracketGuides);
-				}
+								viewPosition.column),
+							- 1,
+							-1,
+						);
+					} else if (p.lineNumber < viewLineInfo.modelLineWrappedLineIdx) {
+						return undefined;
+					} else {
+						if (g.visibleColumn !== -1) {
+							// Don't repeat horizontal lines that use visibleColumn for unrelated lines.
+							return undefined;
+						}
+						return new IndentGuide(g.visibleColumn, column, g.className,
+							new IndentGuideHorizontalLine(g.horizontalLine.top,
+								this.getMaxColumnOfViewLine(viewLineInfo)
+							),
+							-1,
+							-1,
+						);
+					}
+				});
+				resultPerViewLine.push(result.filter((r): r is IndentGuide => !!r));
+
 			}
 		}
 
@@ -885,7 +940,8 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		});
 
 		// Eliminate duplicate decorations that might have intersected our visible ranges multiple times
-		let finalResult: IModelDecoration[] = [], finalResultLen = 0;
+		const finalResult: IModelDecoration[] = [];
+		let finalResultLen = 0;
 		let prevDecId: string | null = null;
 		for (const dec of result) {
 			const decId = dec.id;
@@ -1090,7 +1146,7 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 	}
 
 	public onModelLineChanged(_versionId: number | null, lineNumber: number, lineBreakData: ModelLineProjectionData | null): [boolean, viewEvents.ViewLinesChangedEvent | null, viewEvents.ViewLinesInsertedEvent | null, viewEvents.ViewLinesDeletedEvent | null] {
-		return [false, new viewEvents.ViewLinesChangedEvent(lineNumber, lineNumber), null, null];
+		return [false, new viewEvents.ViewLinesChangedEvent(lineNumber, 1), null, null];
 	}
 
 	public acceptVersionId(_versionId: number): void {
@@ -1138,7 +1194,7 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 	}
 
 	public getViewLineData(viewLineNumber: number): ViewLineData {
-		const lineTokens = this.model.getLineTokens(viewLineNumber);
+		const lineTokens = this.model.tokenization.getLineTokens(viewLineNumber);
 		const lineContent = lineTokens.getLineContent();
 		return new ViewLineData(
 			lineContent,

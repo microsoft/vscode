@@ -8,14 +8,16 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { DecorationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/decorationAddon';
-import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
+import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IDecoration, IDecorationOptions, Terminal } from 'xterm';
-import { TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
-import { CommandDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/commandDetectionCapability';
+import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 class TestTerminal extends Terminal {
 	override registerDecoration(decorationOptions: IDecorationOptions): IDecoration | undefined {
@@ -35,9 +37,17 @@ suite('DecorationAddon', () => {
 		const instantiationService = new TestInstantiationService();
 		const configurationService = new TestConfigurationService({
 			workbench: {
-				hover: { delay: 5 }
+				hover: { delay: 5 },
+			},
+			terminal: {
+				integrated: {
+					shellIntegration: {
+						decorationsEnabled: 'both'
+					}
+				}
 			}
 		});
+		instantiationService.stub(IThemeService, new TestThemeService());
 		xterm = new TestTerminal({
 			cols: 80,
 			rows: 30
@@ -53,21 +63,21 @@ suite('DecorationAddon', () => {
 
 	suite('registerDecoration', async () => {
 		test('should throw when command has no marker', async () => {
-			throws(() => decorationAddon.registerCommandDecoration({ command: 'cd src', timestamp: Date.now(), hasOutput: false } as ITerminalCommand));
+			throws(() => decorationAddon.registerCommandDecoration({ command: 'cd src', timestamp: Date.now(), hasOutput: () => false } as ITerminalCommand));
 		});
 		test('should return undefined when marker has been disposed of', async () => {
 			const marker = xterm.registerMarker(1);
 			marker?.dispose();
-			strictEqual(decorationAddon.registerCommandDecoration({ command: 'cd src', marker, timestamp: Date.now(), hasOutput: false } as ITerminalCommand), undefined);
+			strictEqual(decorationAddon.registerCommandDecoration({ command: 'cd src', marker, timestamp: Date.now(), hasOutput: () => false } as ITerminalCommand), undefined);
 		});
 		test('should return undefined when command is just empty chars', async () => {
 			const marker = xterm.registerMarker(1);
 			marker?.dispose();
-			strictEqual(decorationAddon.registerCommandDecoration({ command: ' ', marker, timestamp: Date.now(), hasOutput: false } as ITerminalCommand), undefined);
+			strictEqual(decorationAddon.registerCommandDecoration({ command: ' ', marker, timestamp: Date.now(), hasOutput: () => false } as ITerminalCommand), undefined);
 		});
 		test('should return decoration when marker has not been disposed of', async () => {
 			const marker = xterm.registerMarker(2);
-			notEqual(decorationAddon.registerCommandDecoration({ command: 'cd src', marker, timestamp: Date.now(), hasOutput: false } as ITerminalCommand), undefined);
+			notEqual(decorationAddon.registerCommandDecoration({ command: 'cd src', marker, timestamp: Date.now(), hasOutput: () => false } as ITerminalCommand), undefined);
 		});
 	});
 });

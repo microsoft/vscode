@@ -15,7 +15,7 @@ import { Range, IRange } from 'vs/editor/common/core/range';
 import { IContentWidget, ICodeEditor, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDebugService, IExpression, IExpressionContainer, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
-import { Expression } from 'vs/workbench/contrib/debug/common/debugModel';
+import { Expression, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 import { renderExpressionValue } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
@@ -77,7 +77,7 @@ export class DebugHoverWidget implements IContentWidget {
 	private tree!: AsyncDataTree<IExpression, IExpression, any>;
 	private showAtPosition: Position | null;
 	private positionPreference: ContentWidgetPositionPreference[];
-	private highlightDecorations: string[];
+	private readonly highlightDecorations = this.editor.createDecorationsCollection();
 	private complexValueContainer!: HTMLElement;
 	private complexValueTitle!: HTMLElement;
 	private valueContainer!: HTMLElement;
@@ -96,7 +96,6 @@ export class DebugHoverWidget implements IContentWidget {
 
 		this._isVisible = false;
 		this.showAtPosition = null;
-		this.highlightDecorations = [];
 		this.positionPreference = [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW];
 	}
 
@@ -117,8 +116,6 @@ export class DebugHoverWidget implements IContentWidget {
 			horizontalScrolling: true,
 			useShadows: false,
 			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IExpression) => e.name },
-			filterOnType: false,
-			simpleKeyboardNavigation: true,
 			overrideStyles: {
 				listBackground: editorHoverBackground
 			}
@@ -165,6 +162,13 @@ export class DebugHoverWidget implements IContentWidget {
 		this.toDispose.push(this.editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (e.hasChanged(EditorOption.fontInfo)) {
 				this.editor.applyFontInfo(this.domNode);
+			}
+		}));
+
+		this.toDispose.push(this.debugService.getViewModel().onDidEvaluateLazyExpression(async e => {
+			if (e instanceof Variable && this.tree.hasNode(e)) {
+				await this.tree.updateChildren(e, false, true);
+				await this.tree.expand(e);
 			}
 		}));
 	}
@@ -257,7 +261,7 @@ export class DebugHoverWidget implements IContentWidget {
 		}
 
 		if (rng) {
-			this.highlightDecorations = this.editor.deltaDecorations(this.highlightDecorations, [{
+			this.highlightDecorations.set([{
 				range: rng,
 				options: DebugHoverWidget._HOVER_HIGHLIGHT_DECORATION_OPTIONS
 			}]);
@@ -344,8 +348,7 @@ export class DebugHoverWidget implements IContentWidget {
 			this.editor.focus();
 		}
 		this._isVisible = false;
-		this.editor.deltaDecorations(this.highlightDecorations, []);
-		this.highlightDecorations = [];
+		this.highlightDecorations.clear();
 		this.editor.layoutContentWidget(this);
 		this.positionPreference = [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW];
 	}

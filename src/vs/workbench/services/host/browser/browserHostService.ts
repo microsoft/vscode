@@ -9,14 +9,13 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions, IPathData, IFileToOpen } from 'vs/platform/window/common/window';
-import { pathsToEditors } from 'vs/workbench/common/editor';
+import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions, IPathData, IFileToOpen, IWorkspaceToOpen, IFolderToOpen } from 'vs/platform/window/common/window';
+import { isResourceEditorInput, pathsToEditors } from 'vs/workbench/common/editor';
 import { whenEditorClosed } from 'vs/workbench/browser/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ModifierKeyEmitter, trackFocus } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { memoize } from 'vs/base/common/decorators';
 import { parseLineAndColumnAware } from 'vs/base/common/extpath';
@@ -32,6 +31,10 @@ import Severity from 'vs/base/common/severity';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DomEmitter } from 'vs/base/browser/event';
 import { isUndefined } from 'vs/base/common/types';
+import { isTemporaryWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { Schemas } from 'vs/base/common/network';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 
 /**
  * A workspace to open in the workbench can either be:
@@ -39,7 +42,7 @@ import { isUndefined } from 'vs/base/common/types';
  * - a single folder (via `folderUri`)
  * - empty (via `undefined`)
  */
-export type IWorkspace = { workspaceUri: URI } | { folderUri: URI } | undefined;
+export type IWorkspace = IWorkspaceToOpen | IFolderToOpen | undefined;
 
 export interface IWorkspaceProvider {
 
@@ -108,7 +111,8 @@ export class BrowserHostService extends Disposable implements IHostService {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILifecycleService private readonly lifecycleService: BrowserLifecycleService,
 		@ILogService private readonly logService: ILogService,
-		@IDialogService private readonly dialogService: IDialogService
+		@IDialogService private readonly dialogService: IDialogService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
 		super();
 
@@ -239,21 +243,51 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 		// Handle Folders to Add
 		if (foldersToAdd.length > 0) {
-			this.instantiationService.invokeFunction(accessor => {
-				const workspaceEditingService: IWorkspaceEditingService = accessor.get(IWorkspaceEditingService);  // avoid heavy dependencies (https://github.com/microsoft/vscode/issues/108522)
+			this.withServices(accessor => {
+				const workspaceEditingService: IWorkspaceEditingService = accessor.get(IWorkspaceEditingService);
 				workspaceEditingService.addFolders(foldersToAdd);
 			});
 		}
 
 		// Handle Files
 		if (fileOpenables.length > 0) {
-			this.instantiationService.invokeFunction(async accessor => {
-				const editorService = accessor.get(IEditorService); // avoid heavy dependencies (https://github.com/microsoft/vscode/issues/108522)
+			this.withServices(async accessor => {
+				const editorService = accessor.get(IEditorService);
+
+				// Support mergeMode
+				if (options?.mergeMode && fileOpenables.length === 4) {
+					const editors = await pathsToEditors(fileOpenables, this.fileService);
+					if (editors.length !== 4 || !isResourceEditorInput(editors[0]) || !isResourceEditorInput(editors[1]) || !isResourceEditorInput(editors[2]) || !isResourceEditorInput(editors[3])) {
+						return; // invalid resources
+					}
+
+					// Same Window: open via editor service in current window
+					if (this.shouldReuse(options, true /* file */)) {
+						editorService.openEditor({
+							input1: { resource: editors[0].resource },
+							input2: { resource: editors[1].resource },
+							base: { resource: editors[2].resource },
+							result: { resource: editors[3].resource },
+							options: { pinned: true, override: 'mergeEditor.Input' } // TODO@bpasero remove the override once the resolver is ready
+						});
+					}
+
+					// New Window: open into empty window
+					else {
+						const environment = new Map<string, string>();
+						environment.set('mergeFile1', editors[0].resource.toString());
+						environment.set('mergeFile2', editors[1].resource.toString());
+						environment.set('mergeFileBase', editors[2].resource.toString());
+						environment.set('mergeFileResult', editors[3].resource.toString());
+
+						this.doOpen(undefined, { payload: Array.from(environment.entries()) });
+					}
+				}
 
 				// Support diffMode
 				if (options?.diffMode && fileOpenables.length === 2) {
 					const editors = await pathsToEditors(fileOpenables, this.fileService);
-					if (editors.length !== 2 || !editors[0].resource || !editors[1].resource) {
+					if (editors.length !== 2 || !isResourceEditorInput(editors[0]) || !isResourceEditorInput(editors[1])) {
 						return; // invalid resources
 					}
 
@@ -282,14 +316,16 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 						// Same Window: open via editor service in current window
 						if (this.shouldReuse(options, true /* file */)) {
-							let openables: IPathData[] = [];
+							let openables: IPathData<ITextEditorOptions>[] = [];
 
 							// Support: --goto parameter to open on line/col
 							if (options?.gotoLineMode) {
 								const pathColumnAware = parseLineAndColumnAware(openable.fileUri.path);
 								openables = [{
 									fileUri: openable.fileUri.with({ path: pathColumnAware.path }),
-									selection: !isUndefined(pathColumnAware.line) ? { startLineNumber: pathColumnAware.line, startColumn: pathColumnAware.column || 1 } : undefined
+									options: {
+										selection: !isUndefined(pathColumnAware.line) ? { startLineNumber: pathColumnAware.line, startColumn: pathColumnAware.column || 1 } : undefined
+									}
 								}];
 							} else {
 								openables = [openable];
@@ -326,6 +362,13 @@ export class BrowserHostService extends Disposable implements IHostService {
 				}
 			});
 		}
+	}
+
+	private withServices(fn: (accessor: ServicesAccessor) => unknown): void {
+		// Host service is used in a lot of contexts and some services
+		// need to be resolved dynamically to avoid cyclic dependencies
+		// (https://github.com/microsoft/vscode/issues/108522)
+		this.instantiationService.invokeFunction(accessor => fn(accessor));
 	}
 
 	private preservePayload(): Array<unknown> | undefined {
@@ -382,6 +425,20 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	private async doOpen(workspace: IWorkspace, options?: { reuse?: boolean; payload?: object }): Promise<void> {
+
+		// When we are in a temporary workspace and are asked to open a local folder
+		// we swap that folder into the workspace to avoid a window reload. Access
+		// to local resources is only possible without a window reload because it
+		// needs user activation.
+		if (workspace && isFolderToOpen(workspace) && workspace.folderUri.scheme === Schemas.file && isTemporaryWorkspace(this.contextService.getWorkspace())) {
+			this.withServices(async accessor => {
+				const workspaceEditingService: IWorkspaceEditingService = accessor.get(IWorkspaceEditingService);
+
+				await workspaceEditingService.updateFolders(0, this.contextService.getWorkspace().folders.length, [{ uri: workspace.folderUri }]);
+			});
+
+			return;
+		}
 
 		// We know that `workspaceProvider.open` will trigger a shutdown
 		// with `options.reuse` so we handle this expected shutdown

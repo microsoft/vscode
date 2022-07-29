@@ -163,14 +163,16 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 			}
 		}
 
-		const decorations = this.editor.deltaDecorations(oldDecorations, newDecorations);
+		this.editor.changeDecorations((changeAccessor) => {
+			const decorations = changeAccessor.deltaDecorations(oldDecorations, newDecorations);
 
-		this.currentOccurrences = {};
-		this.activeLinkDecorationId = null;
-		for (let i = 0, len = decorations.length; i < len; i++) {
-			const occurence = new LinkOccurrence(links[i], decorations[i]);
-			this.currentOccurrences[occurence.decorationId] = occurence;
-		}
+			this.currentOccurrences = {};
+			this.activeLinkDecorationId = null;
+			for (let i = 0, len = decorations.length; i < len; i++) {
+				const occurence = new LinkOccurrence(links[i], decorations[i]);
+				this.currentOccurrences[occurence.decorationId] = occurence;
+			}
+		});
 	}
 
 	private _onEditorMouseMove(mouseEvent: ClickLinkMouseEvent, withKey: ClickLinkKeyboardEvent | null): void {
@@ -246,7 +248,7 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 				}
 			}
 
-			return this.openerService.open(uri, { openToSide, fromUserGesture, allowContributedOpeners: true, allowCommands: true });
+			return this.openerService.open(uri, { openToSide, fromUserGesture, allowContributedOpeners: true, allowCommands: true, fromWorkspace: true });
 
 		}, err => {
 			const messageOrError =
@@ -379,11 +381,12 @@ function getHoverMessage(link: Link, useMetaKey: boolean): MarkdownString {
 			const match = link.url.toString().match(/^command:([^?#]+)/);
 			if (match) {
 				const commandId = match[1];
-				const nativeLabelText = nls.localize('tooltip.explanation', "Execute command {0}", commandId);
-				nativeLabel = ` "${nativeLabelText}"`;
+				nativeLabel = nls.localize('tooltip.explanation', "Execute command {0}", commandId);
 			}
 		}
-		const hoverMessage = new MarkdownString('', true).appendMarkdown(`[${label}](${link.url.toString(true).replace(/ /g, '%20')}${nativeLabel}) (${kb})`);
+		const hoverMessage = new MarkdownString('', true)
+			.appendLink(link.url.toString(true).replace(/ /g, '%20'), label, nativeLabel)
+			.appendMarkdown(` (${kb})`);
 		return hoverMessage;
 	} else {
 		return new MarkdownString().appendText(`${label} (${kb})`);

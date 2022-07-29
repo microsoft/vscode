@@ -10,7 +10,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
-import { ModesRegistry, PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
@@ -18,6 +18,8 @@ import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { isReadable, isReadableStream } from 'vs/base/common/stream';
+import { readableToBuffer, streamToBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 
 suite('Untitled text editors', () => {
 
@@ -218,6 +220,17 @@ suite('Untitled text editors', () => {
 		const untitled = instantiationService.createInstance(UntitledTextEditorInput, service.create({ initialValue: 'Hello World' }));
 		assert.ok(untitled.isDirty());
 
+		const backup = (await untitled.model.backup(CancellationToken.None)).content;
+		if (isReadableStream(backup)) {
+			const value = await streamToBuffer(backup as VSBufferReadableStream);
+			assert.strictEqual(value.toString(), 'Hello World');
+		} else if (isReadable(backup)) {
+			const value = readableToBuffer(backup as VSBufferReadable);
+			assert.strictEqual(value.toString(), 'Hello World');
+		} else {
+			assert.fail('Missing untitled backup');
+		}
+
 		// dirty
 		const model = await untitled.resolve();
 		assert.ok(model.isDirty());
@@ -278,7 +291,7 @@ suite('Untitled text editors', () => {
 	test('can change language afterwards', async () => {
 		const languageId = 'untitled-input-test';
 
-		ModesRegistry.registerLanguage({
+		const registration = accessor.languageService.registerLanguage({
 			id: languageId,
 		});
 
@@ -296,12 +309,13 @@ suite('Untitled text editors', () => {
 
 		input.dispose();
 		model.dispose();
+		registration.dispose();
 	});
 
 	test('remembers that language was set explicitly', async () => {
 		const language = 'untitled-input-test';
 
-		ModesRegistry.registerLanguage({
+		const registration = accessor.languageService.registerLanguage({
 			id: language,
 		});
 
@@ -317,6 +331,7 @@ suite('Untitled text editors', () => {
 
 		input.dispose();
 		model.dispose();
+		registration.dispose();
 	});
 
 	test('service#onDidChangeEncoding', async () => {
@@ -480,7 +495,7 @@ suite('Untitled text editors', () => {
 		assert.strictEqual(counter, 7);
 
 		function createSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): ISingleEditOperation {
-			let range = new Range(
+			const range = new Range(
 				selectionLineNumber,
 				selectionColumn,
 				positionLineNumber,

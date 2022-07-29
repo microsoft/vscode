@@ -265,8 +265,8 @@ export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 		this.list.layout(listHeight, width);
 	}
 
-	toggleKeyboardNavigation(): void {
-		this.list.toggleKeyboardNavigation();
+	triggerTypeNavigation(): void {
+		this.list.triggerTypeNavigation();
 	}
 
 	style(styles: ITableStyles): void {
@@ -339,6 +339,10 @@ export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 
 	getFocusedElements(): TRow[] {
 		return this.list.getFocusedElements();
+	}
+
+	getRelativeTop(index: number): number | null {
+		return this.list.getRelativeTop(index);
 	}
 
 	reveal(index: number, relativeTop?: number): void {

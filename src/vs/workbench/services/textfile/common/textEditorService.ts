@@ -7,7 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ResourceMap } from 'vs/base/common/map';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorFactoryRegistry, IFileEditorInput, IUntypedEditorInput, IUntypedFileEditorInput, EditorExtensions, isResourceDiffEditorInput, isResourceSideBySideEditorInput, IUntitledTextResourceEditorInput, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { IEditorFactoryRegistry, IFileEditorInput, IUntypedEditorInput, IUntypedFileEditorInput, EditorExtensions, isResourceDiffEditorInput, isResourceSideBySideEditorInput, IUntitledTextResourceEditorInput, DEFAULT_EDITOR_ASSOCIATION, isResourceMergeEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { INewUntitledTextEditorOptions, IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { Schemas } from 'vs/base/common/network';
@@ -75,15 +75,22 @@ export class TextEditorService extends Disposable implements ITextEditorService 
 				priority: RegisteredEditorPriority.builtin
 			},
 			{},
-			editor => ({ editor: this.createTextEditor(editor) }),
-			untitledEditor => ({ editor: this.createTextEditor(untitledEditor) }),
-			diffEditor => ({ editor: this.createTextEditor(diffEditor) })
+			{
+				createEditorInput: editor => ({ editor: this.createTextEditor(editor) }),
+				createUntitledEditorInput: untitledEditor => ({ editor: this.createTextEditor(untitledEditor) }),
+				createDiffEditorInput: diffEditor => ({ editor: this.createTextEditor(diffEditor) })
+			}
 		));
 	}
 
 	createTextEditor(input: IUntypedEditorInput): EditorInput;
 	createTextEditor(input: IUntypedFileEditorInput): IFileEditorInput;
 	createTextEditor(input: IUntypedEditorInput | IUntypedFileEditorInput): EditorInput | IFileEditorInput {
+
+		// Merge Editor is Unsupported from here
+		if (isResourceMergeEditorInput(input)) {
+			throw new Error('Unsupported input');
+		}
 
 		// Diff Editor Support
 		if (isResourceDiffEditorInput(input)) {
@@ -227,9 +234,7 @@ export class TextEditorService extends Disposable implements ITextEditorService 
 		// Return early if already cached
 		let input = this.editorInputCache.get(resource);
 		if (input) {
-			if (cachedFn) {
-				cachedFn(input);
-			}
+			cachedFn?.(input);
 
 			return input;
 		}

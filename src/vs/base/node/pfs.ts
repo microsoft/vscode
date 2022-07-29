@@ -390,6 +390,9 @@ interface IEnsuredWriteFileOptions extends IWriteFileOptions {
 }
 
 let canFlush = true;
+export function configureFlushOnWrite(enabled: boolean): void {
+	canFlush = enabled;
+}
 
 // Calls fs.writeFile() followed by a fs.sync() call to flush the changes to disk
 // We do this in cases where we want to make sure the data is really on disk and
@@ -421,7 +424,7 @@ function doWriteFileAndFlush(path: string, data: string | Buffer | Uint8Array, o
 				// In that case we disable flushing and warn to the console
 				if (syncError) {
 					console.warn('[node.js fs] fdatasync is now disabled for this session because it failed: ', syncError);
-					canFlush = false;
+					configureFlushOnWrite(false);
 				}
 
 				return fs.close(fd, closeError => callback(closeError));
@@ -455,7 +458,7 @@ export function writeFileSync(path: string, data: string | Buffer, options?: IWr
 			fs.fdatasyncSync(fd); // https://github.com/microsoft/vscode/issues/9589
 		} catch (syncError) {
 			console.warn('[node.js fs] fdatasyncSync is now disabled for this session because it failed: ', syncError);
-			canFlush = false;
+			configureFlushOnWrite(false);
 		}
 	} finally {
 		fs.closeSync(fd);

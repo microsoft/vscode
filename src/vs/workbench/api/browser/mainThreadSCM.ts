@@ -12,7 +12,7 @@ import { Command } from 'vs/editor/common/languages';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { ISplice, Sequence } from 'vs/base/common/sequence';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { MarshalledId } from 'vs/base/common/marshalling';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 
@@ -419,6 +419,16 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		}
 
 		repository.input.placeholder = placeholder;
+	}
+
+	$setInputBoxEnablement(sourceControlHandle: number, enabled: boolean): void {
+		const repository = this._repositories.get(sourceControlHandle);
+
+		if (!repository) {
+			return;
+		}
+
+		repository.input.enabled = enabled;
 	}
 
 	$setInputBoxVisibility(sourceControlHandle: number, visible: boolean): void {

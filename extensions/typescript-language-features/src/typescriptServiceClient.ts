@@ -95,6 +95,7 @@ namespace ServerState {
 export default class TypeScriptServiceClient extends Disposable implements ITypeScriptServiceClient {
 
 	private readonly pathSeparator: string;
+	private readonly emptyAuthority = 'ts-nul-authority';
 	private readonly inMemoryResourcePrefix = '^';
 
 	private readonly workspaceState: vscode.Memento;
@@ -280,11 +281,18 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.loadingIndicator.reset();
 	}
 
-	public restartTsServer(): void {
+	public restartTsServer(fromUserAction = false): void {
 		if (this.serverState.type === ServerState.Type.Running) {
 			this.info('Killing TS Server');
 			this.isRestarting = true;
 			this.serverState.server.kill();
+		}
+
+		if (fromUserAction) {
+			// Reset crash trackers
+			this.hasServerFatallyCrashedTooManyTimes = false;
+			this.numberRestarts = 0;
+			this.lastStart = Date.now();
 		}
 
 		this.serverState = this.startService(true);
@@ -340,20 +348,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.telemetryReporter.logTelemetry(eventName, properties);
 	}
 
-	private service(): ServerState.Running {
-		if (this.serverState.type === ServerState.Type.Running) {
-			return this.serverState;
-		}
-		if (this.serverState.type === ServerState.Type.Errored) {
-			throw this.serverState.error;
-		}
-		const newState = this.startService();
-		if (newState.type === ServerState.Type.Running) {
-			return newState;
-		}
-		throw new Error(`Could not create TS service. Service state:${JSON.stringify(newState)}`);
-	}
-
 	public ensureServiceStarted() {
 		if (this.serverState.type !== ServerState.Type.Running) {
 			this.startService();
@@ -362,15 +356,15 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 	private token: number = 0;
 	private startService(resendModels: boolean = false): ServerState.State {
-		this.info(`Starting TS Server `);
+		this.info(`Starting TS Server`);
 
 		if (this.isDisposed) {
-			this.info(`Not starting server. Disposed `);
+			this.info(`Not starting server: disposed`);
 			return ServerState.None;
 		}
 
 		if (this.hasServerFatallyCrashedTooManyTimes) {
-			this.info(`Not starting server. Too many crashes.`);
+			this.info(`Not starting server: too many crashes`);
 			return ServerState.None;
 		}
 
@@ -394,6 +388,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 		/* __GDPR__
 			"tsserver.spawned" : {
+				"owner": "mjbvz",
 				"${include}": [
 					"${TypeScriptCommonProperties}"
 				],
@@ -424,6 +419,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 			/* __GDPR__
 				"tsserver.error" : {
+					"owner": "mjbvz",
 					"${include}": [
 						"${TypeScriptCommonProperties}"
 					]
@@ -434,29 +430,27 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		});
 
 		handle.onExit((data: TypeScriptServerExitEvent) => {
+			const { code, signal } = data;
+			this.error(`TSServer exited. Code: ${code}. Signal: ${signal}`);
+
+			// In practice, the exit code is an integer with no ties to any identity,
+			// so it can be classified as SystemMetaData, rather than CallstackOrException.
+			/* __GDPR__
+				"tsserver.exitWithCode" : {
+					"owner": "mjbvz",
+					"code" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"signal" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"${include}": [
+						"${TypeScriptCommonProperties}"
+					]
+				}
+			*/
+			this.logTelemetry('tsserver.exitWithCode', { code: code ?? undefined, signal: signal ?? undefined });
+
+
 			if (this.token !== mytoken) {
 				// this is coming from an old process
 				return;
-			}
-
-			const { code, signal } = data;
-
-			if (code === null || typeof code === 'undefined') {
-				this.info(`TSServer exited. Signal: ${signal}`);
-			} else {
-				// In practice, the exit code is an integer with no ties to any identity,
-				// so it can be classified as SystemMetaData, rather than CallstackOrException.
-				this.error(`TSServer exited with code: ${code}. Signal: ${signal}`);
-				/* __GDPR__
-					"tsserver.exitWithCode" : {
-						"code" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-						"signal" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-						"${include}": [
-							"${TypeScriptCommonProperties}"
-						]
-					}
-				*/
-				this.logTelemetry('tsserver.exitWithCode', { code, signal: signal ?? undefined });
 			}
 
 			if (handle.tsServerLogFile) {
@@ -557,8 +551,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		}
 
 		// Reconfigure any plugins
-		for (const [config, pluginName] of this.pluginManager.configurations()) {
-			this.configurePlugin(config, pluginName);
+		for (const [pluginName, config] of this.pluginManager.configurations()) {
+			this.configurePlugin(pluginName, config);
 		}
 	}
 
@@ -607,6 +601,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 					/* __GDPR__
 						"serviceExited" : {
+							"owner": "mjbvz",
 							"${include}": [
 								"${TypeScriptCommonProperties}"
 							]
@@ -681,7 +676,9 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				}
 			default:
 				{
-					return this.inMemoryResourcePrefix + '/' + resource.scheme
+					return this.inMemoryResourcePrefix
+						+ '/' + resource.scheme
+						+ '/' + (resource.authority || this.emptyAuthority)
 						+ (resource.path.startsWith('/') ? resource.path : '/' + resource.path)
 						+ (resource.fragment ? '#' + resource.fragment : '');
 				}
@@ -729,9 +726,9 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		}
 
 		if (filepath.startsWith(this.inMemoryResourcePrefix)) {
-			const parts = filepath.match(/^\^\/([^\/]+)\/(.+)$/);
+			const parts = filepath.match(/^\^\/([^\/]+)\/([^\/]*)\/(.+)$/);
 			if (parts) {
-				const resource = vscode.Uri.parse(parts[1] + ':' + parts[2]);
+				const resource = vscode.Uri.parse(parts[1] + '://' + (parts[2] === this.emptyAuthority ? '' : parts[2]) + '/' + parts[3]);
 				return this.bufferSyncSupport.toVsCodeResource(resource);
 			}
 		}
@@ -767,31 +764,34 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	public execute(command: keyof TypeScriptRequests, args: any, token: vscode.CancellationToken, config?: ExecConfig): Promise<ServerResponse.Response<Proto.Response>> {
-		let executions: Array<Promise<ServerResponse.Response<Proto.Response>> | undefined>;
+		let executions: Array<Promise<ServerResponse.Response<Proto.Response>> | undefined> | undefined;
 
 		if (config?.cancelOnResourceChange) {
-			const runningServerState = this.service();
+			const runningServerState = this.serverState;
+			if (runningServerState.type === ServerState.Type.Running) {
+				const source = new vscode.CancellationTokenSource();
+				token.onCancellationRequested(() => source.cancel());
 
-			const source = new vscode.CancellationTokenSource();
-			token.onCancellationRequested(() => source.cancel());
+				const inFlight: ToCancelOnResourceChanged = {
+					resource: config.cancelOnResourceChange,
+					cancel: () => source.cancel(),
+				};
+				runningServerState.toCancelOnResourceChange.add(inFlight);
 
-			const inFlight: ToCancelOnResourceChanged = {
-				resource: config.cancelOnResourceChange,
-				cancel: () => source.cancel(),
-			};
-			runningServerState.toCancelOnResourceChange.add(inFlight);
+				executions = this.executeImpl(command, args, {
+					isAsync: false,
+					token: source.token,
+					expectsResult: true,
+					...config,
+				});
+				executions[0]!.finally(() => {
+					runningServerState.toCancelOnResourceChange.delete(inFlight);
+					source.dispose();
+				});
+			}
+		}
 
-			executions = this.executeImpl(command, args, {
-				isAsync: false,
-				token: source.token,
-				expectsResult: true,
-				...config,
-			});
-			executions[0]!.finally(() => {
-				runningServerState.toCancelOnResourceChange.delete(inFlight);
-				source.dispose();
-			});
-		} else {
+		if (!executions) {
 			executions = this.executeImpl(command, args, {
 				isAsync: false,
 				token,
@@ -831,9 +831,13 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	private executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean; token?: vscode.CancellationToken; expectsResult: boolean; lowPriority?: boolean; requireSemantic?: boolean }): Array<Promise<ServerResponse.Response<Proto.Response>> | undefined> {
-		this.bufferSyncSupport.beforeCommand(command);
-		const runningServerState = this.service();
-		return runningServerState.server.executeImpl(command, args, executeInfo);
+		const serverState = this.serverState;
+		if (serverState.type === ServerState.Type.Running) {
+			this.bufferSyncSupport.beforeCommand(command);
+			return serverState.server.executeImpl(command, args, executeInfo);
+		} else {
+			return [Promise.resolve(ServerResponse.NoServer)];
+		}
 	}
 
 	public interruptGetErr<R>(f: () => R): R {
@@ -843,6 +847,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private fatalError(command: string, error: unknown): void {
 		/* __GDPR__
 			"fatalError" : {
+				"owner": "mjbvz",
 				"${include}": [
 					"${TypeScriptCommonProperties}",
 					"${TypeScriptRequestErrorProperties}"
@@ -875,7 +880,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				this.loadingIndicator.reset();
 
 				const diagnosticEvent = event as Proto.DiagnosticEvent;
-				if (diagnosticEvent.body && diagnosticEvent.body.diagnostics) {
+				if (diagnosticEvent.body?.diagnostics) {
 					this._onDiagnosticsReceived.fire({
 						kind: getDignosticsKind(event),
 						resource: this.toResource(diagnosticEvent.body.file),
@@ -974,6 +979,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 		/* __GDPR__
 			"typingsInstalled" : {
+				"owner": "mjbvz",
 				"installedPackages" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 				"installSuccess": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 				"typingsInstallerVersion": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },

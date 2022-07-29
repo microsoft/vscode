@@ -5,8 +5,9 @@
 
 import { VSBuffer } from 'vs/base/common/buffer';
 import { URI } from 'vs/base/common/uri';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IRemoteConnectionData, RemoteAuthorityResolverErrorCode, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IExtensionDescriptionDelta } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { ActivationKind, ExtensionActivationReason } from 'vs/workbench/services/extensions/common/extensions';
 
 export interface IResolveAuthorityErrorResult {
@@ -27,15 +28,17 @@ export type IResolveAuthorityResult = IResolveAuthorityErrorResult | IResolveAut
 
 export interface IExtensionHostProxy {
 	resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult>;
-	getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI>;
-	startExtensionHost(enabledExtensionIds: ExtensionIdentifier[]): Promise<void>;
+	/**
+	 * Returns `null` if no resolver for `remoteAuthority` is found.
+	 */
+	getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI | null>;
+	startExtensionHost(extensionsDelta: IExtensionDescriptionDelta): Promise<void>;
 	extensionTestsExecute(): Promise<number>;
-	extensionTestsExit(code: number): Promise<void>;
 	activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void>;
 	activate(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<boolean>;
 	setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void>;
 	updateRemoteConnectionData(connectionData: IRemoteConnectionData): Promise<void>;
-	deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void>;
+	deltaExtensions(extensionsDelta: IExtensionDescriptionDelta): Promise<void>;
 	test_latency(n: number): Promise<number>;
 	test_up(b: VSBuffer): Promise<number>;
 	test_down(size: number): Promise<VSBuffer>;

@@ -5,13 +5,13 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { isCancellationError } from 'vs/base/common/errors';
-import { getBaseLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
+import { basename } from 'vs/base/common/resources';
 import { gt } from 'vs/base/common/semver/semver';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { CLIOutput, getIdAndVersion, IExtensionGalleryService, IExtensionManagementCLIService, IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { CLIOutput, IExtensionGalleryService, IExtensionManagementCLIService, IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { areSameExtensions, getGalleryExtensionId, getIdAndVersion } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, EXTENSION_CATEGORIES, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 
 
@@ -71,7 +71,7 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 
 		extensions = extensions.sort((e1, e2) => e1.identifier.id.localeCompare(e2.identifier.id));
 		let lastId: string | undefined = undefined;
-		for (let extension of extensions) {
+		for (const extension of extensions) {
 			if (lastId !== extension.identifier.id) {
 				lastId = extension.identifier.id;
 				output.log(getId(extension.manifest, showVersions));
@@ -90,7 +90,7 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 		const checkIfNotInstalled = (id: string, version?: string): boolean => {
 			const installedExtension = installed.find(i => areSameExtensions(i.identifier, { id }));
 			if (installedExtension) {
-				if (!version && !force) {
+				if (!force && (!version || (version === 'prerelease' && installedExtension.preRelease))) {
 					output.log(localize('alreadyInstalled-checkAndUpdate', "Extension '{0}' v{1} is already installed. Use '--force' option to update to latest version or provide '@<version>' to install a specific version, for example: '{2}@1.2.3'.", id, installedExtension.manifest.version, id));
 					return false;
 				}
@@ -101,6 +101,9 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 			}
 			return true;
 		};
+		const addInstallExtensionInfo = (id: string, version: string | undefined, isBuiltin: boolean) => {
+			installExtensionInfos.push({ id, version: version !== 'prerelease' ? version : undefined, installOptions: { ...installOptions, isBuiltin, installPreReleaseVersion: version === 'prerelease' || installOptions.installPreReleaseVersion } });
+		};
 		const vsixs: URI[] = [];
 		const installExtensionInfos: InstallExtensionInfo[] = [];
 		for (const extension of extensions) {
@@ -109,14 +112,14 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 			} else {
 				const [id, version] = getIdAndVersion(extension);
 				if (checkIfNotInstalled(id, version)) {
-					installExtensionInfos.push({ id, version, installOptions: { ...installOptions, isBuiltin: false } });
+					addInstallExtensionInfo(id, version, false);
 				}
 			}
 		}
 		for (const extension of builtinExtensionIds) {
 			const [id, version] = getIdAndVersion(extension);
 			if (checkIfNotInstalled(id, version)) {
-				installExtensionInfos.push({ id, version, installOptions: { ...installOptions, isBuiltin: true } });
+				addInstallExtensionInfo(id, version, true);
 			}
 		}
 
@@ -174,11 +177,11 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 		if (valid) {
 			try {
 				await this.extensionManagementService.install(vsix, installOptions);
-				output.log(localize('successVsixInstall', "Extension '{0}' was successfully installed.", getBaseLabel(vsix)));
+				output.log(localize('successVsixInstall', "Extension '{0}' was successfully installed.", basename(vsix)));
 				return manifest;
 			} catch (error) {
 				if (isCancellationError(error)) {
-					output.log(localize('cancelVsixInstall', "Cancelled installing extension '{0}'.", getBaseLabel(vsix)));
+					output.log(localize('cancelVsixInstall', "Cancelled installing extension '{0}'.", basename(vsix)));
 					return null;
 				} else {
 					throw error;
@@ -220,8 +223,8 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 				output.log(version ? localize('installing with version', "Installing extension '{0}' v{1}...", id, version) : localize('installing', "Installing extension '{0}'...", id));
 			}
 
-			await this.extensionManagementService.installFromGallery(galleryExtension, { ...installOptions, installGivenVersion: !!version });
-			output.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed.", id, galleryExtension.version));
+			const local = await this.extensionManagementService.installFromGallery(galleryExtension, { ...installOptions, installGivenVersion: !!version });
+			output.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed.", id, local.manifest.version));
 			return manifest;
 		} catch (error) {
 			if (isCancellationError(error)) {

@@ -27,6 +27,7 @@ const WIN_PATH = new RegExp(`(${WIN_ABSOLUTE_PATH.source}|${WIN_RELATIVE_PATH.so
 const POSIX_PATH = /((?:\~|\.)?(?:\/[\w\.-]*)+)/;
 const LINE_COLUMN = /(?:\:([\d]+))?(?:\:([\d]+))?/;
 const PATH_LINK_REGEX = new RegExp(`${platform.isWindows ? WIN_PATH.source : POSIX_PATH.source}${LINE_COLUMN.source}`, 'g');
+const LINE_COLUMN_REGEX = /:([\d]+)(?::([\d]+))?$/;
 
 const MAX_LENGTH = 2000;
 
@@ -104,7 +105,17 @@ export class LinkDetector {
 	private createWebLink(url: string): Node {
 		const link = this.createLink(url);
 
-		const uri = URI.parse(url);
+		let uri = URI.parse(url);
+		// if the URI ends with something like `foo.js:12:3`, parse
+		// that into a fragment to reveal that location (#150702)
+		const lineCol = LINE_COLUMN_REGEX.exec(uri.path);
+		if (lineCol) {
+			uri = uri.with({
+				path: uri.path.slice(0, lineCol.index),
+				fragment: `L${lineCol[0].slice(1)}`
+			});
+		}
+
 		this.decorateLink(link, uri, async () => {
 
 			if (uri.scheme === Schemas.file) {
@@ -113,12 +124,19 @@ export class LinkDetector {
 				const path = await this.pathService.path;
 				const fileUrl = osPath.normalize(((path.sep === osPath.posix.sep) && platform.isWindows) ? fsPath.replace(/\\/g, osPath.posix.sep) : fsPath);
 
-				const resolvedLink = await this.fileService.resolve(URI.parse(fileUrl));
-				if (!resolvedLink) {
+				const fileUri = URI.parse(fileUrl);
+				const exists = await this.fileService.exists(fileUri);
+				if (!exists) {
 					return;
 				}
 
-				await this.editorService.openEditor({ resource: resolvedLink.resource, options: { pinned: true } });
+				await this.editorService.openEditor({
+					resource: fileUri,
+					options: {
+						pinned: true,
+						selection: lineCol ? { startLineNumber: +lineCol[1], startColumn: +lineCol[2] } : undefined,
+					},
+				});
 				return;
 			}
 
@@ -155,7 +173,7 @@ export class LinkDetector {
 		const link = this.createLink(text);
 		link.tabIndex = 0;
 		const uri = URI.file(osPath.normalize(path));
-		this.fileService.resolve(uri).then(stat => {
+		this.fileService.stat(uri).then(stat => {
 			if (stat.isDirectory) {
 				return;
 			}

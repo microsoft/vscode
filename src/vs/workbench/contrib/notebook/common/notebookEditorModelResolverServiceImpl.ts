@@ -10,15 +10,16 @@ import { ComplexNotebookEditorModel, NotebookFileWorkingCopyModel, NotebookFileW
 import { combinedDisposable, DisposableStore, dispose, IDisposable, IReference, ReferenceCollection, toDisposable } from 'vs/base/common/lifecycle';
 import { ComplexNotebookProviderInfo, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { Emitter, Event } from 'vs/base/common/event';
+import { AsyncEmitter, Emitter, Event } from 'vs/base/common/event';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { INotebookEditorModelResolverService, IUntitledNotebookResource } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
+import { INotebookConflictEvent, INotebookEditorModelResolverService, IUntitledNotebookResource } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { ResourceMap } from 'vs/base/common/map';
 import { FileWorkingCopyManager, IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
 import { Schemas } from 'vs/base/common/network';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { assertIsDefined } from 'vs/base/common/types';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IResolvedNotebookEditorModel>> {
 
@@ -61,7 +62,7 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 
 	protected async createReferencedObject(key: string, viewType: string, hasAssociatedFilePath: boolean): Promise<IResolvedNotebookEditorModel> {
 		const uri = URI.parse(key);
-		const info = await this._notebookService.withNotebookDataProvider(uri, viewType);
+		const info = await this._notebookService.withNotebookDataProvider(viewType);
 
 		let result: IResolvedNotebookEditorModel;
 
@@ -136,6 +137,9 @@ export class NotebookModelResolverServiceImpl implements INotebookEditorModelRes
 	readonly onDidSaveNotebook: Event<URI>;
 	readonly onDidChangeDirty: Event<IResolvedNotebookEditorModel>;
 
+	private readonly _onWillFailWithConflict = new AsyncEmitter<INotebookConflictEvent>();
+	readonly onWillFailWithConflict = this._onWillFailWithConflict.event;
+
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@INotebookService private readonly _notebookService: INotebookService,
@@ -208,7 +212,14 @@ export class NotebookModelResolverServiceImpl implements INotebookEditorModelRes
 		}
 
 		if (existingViewType && existingViewType !== viewType) {
-			throw new Error(`A notebook with view type '${existingViewType}' already exists for '${resource}', CANNOT create another notebook with view type ${viewType}`);
+
+			await this._onWillFailWithConflict.fireAsync({ resource, viewType }, CancellationToken.None);
+
+			// check again, listener should have done cleanup
+			const existingViewType2 = this._notebookService.getNotebookTextModel(resource)?.viewType;
+			if (existingViewType2 && existingViewType2 !== viewType) {
+				throw new Error(`A notebook with view type '${existingViewType2}' already exists for '${resource}', CANNOT create another notebook with view type ${viewType}`);
+			}
 		}
 
 		const reference = this._data.acquire(resource.toString(), viewType, hasAssociatedFilePath);

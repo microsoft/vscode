@@ -22,14 +22,13 @@ import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/termin
 import { TerminalLinkDetectorAdapter } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkDetectorAdapter';
 import { TerminalLocalFileLinkOpener, TerminalLocalFolderInWorkspaceLinkOpener, TerminalLocalFolderOutsideWorkspaceLinkOpener, TerminalSearchLinkOpener, TerminalUrlLinkOpener } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkOpeners';
 import { lineAndColumnClause, TerminalLocalLinkDetector, unixLocalLinkClause, winDrivePrefix, winLocalLinkClause } from 'vs/workbench/contrib/terminal/browser/links/terminalLocalLinkDetector';
-import { TerminalShellIntegrationLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalShellIntegrationLinkDetector';
 import { TerminalUriLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalUriLinkDetector';
 import { TerminalWordLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalWordLinkDetector';
 import { ITerminalExternalLinkProvider, TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILinkHoverTargetOptions, TerminalHover } from 'vs/workbench/contrib/terminal/browser/widgets/terminalHoverWidget';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
-import { ITerminalCapabilityStore, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ITerminalConfiguration, ITerminalProcessManager, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
 import type { ILink, ILinkProvider, IViewportRange, Terminal } from 'xterm';
@@ -58,6 +57,8 @@ export class TerminalLinkManager extends DisposableStore {
 	// both local and remote terminals are present
 	private readonly _resolvedLinkCache = new LinkCache();
 
+	private _lastTopLine: number | undefined;
+
 	constructor(
 		private readonly _xterm: Terminal,
 		private readonly _processManager: ITerminalProcessManager,
@@ -75,7 +76,6 @@ export class TerminalLinkManager extends DisposableStore {
 		if (this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).enableFileLinks) {
 			this._setupLinkDetector(TerminalLocalLinkDetector.id, this._instantiationService.createInstance(TerminalLocalLinkDetector, this._xterm, capabilities, this._processManager.os || OS, this._resolvePath.bind(this)));
 		}
-		this._setupLinkDetector(TerminalShellIntegrationLinkDetector.id, this._instantiationService.createInstance(TerminalShellIntegrationLinkDetector, this._xterm));
 		this._setupLinkDetector(TerminalWordLinkDetector.id, this._instantiationService.createInstance(TerminalWordLinkDetector, this._xterm));
 
 		capabilities.get(TerminalCapability.CwdDetection)?.onDidChangeCwd(cwd => {
@@ -88,7 +88,7 @@ export class TerminalLinkManager extends DisposableStore {
 		this._openers.set(TerminalBuiltinLinkType.LocalFile, localFileOpener);
 		this._openers.set(TerminalBuiltinLinkType.LocalFolderInWorkspace, localFolderInWorkspaceOpener);
 		this._openers.set(TerminalBuiltinLinkType.LocalFolderOutsideWorkspace, this._instantiationService.createInstance(TerminalLocalFolderOutsideWorkspaceLinkOpener));
-		this._openers.set(TerminalBuiltinLinkType.Search, this._instantiationService.createInstance(TerminalSearchLinkOpener, capabilities, localFileOpener, localFolderInWorkspaceOpener, this._processManager.os || OS));
+		this._openers.set(TerminalBuiltinLinkType.Search, this._instantiationService.createInstance(TerminalSearchLinkOpener, capabilities, this._processManager.getInitialCwd(), localFileOpener, localFolderInWorkspaceOpener, this._processManager.os || OS));
 		this._openers.set(TerminalBuiltinLinkType.Url, this._instantiationService.createInstance(TerminalUrlLinkOpener, !!this._processManager.remoteAuthority));
 
 		this._registerStandardLinkProviders();
@@ -143,12 +143,20 @@ export class TerminalLinkManager extends DisposableStore {
 		return links[0];
 	}
 
-	async getLinks(): Promise<IDetectedLinks> {
+	async getLinks(extended?: boolean): Promise<IDetectedLinks> {
 		const wordResults: ILink[] = [];
 		const webResults: ILink[] = [];
 		const fileResults: ILink[] = [];
-
-		for (let i = this._xterm.buffer.active.length - 1; i >= this._xterm.buffer.active.viewportY; i--) {
+		let noMoreResults: boolean = false;
+		let topLine = !extended ? this._xterm.buffer.active.viewportY - Math.min(this._xterm.rows, 50) : this._lastTopLine! - 1000;
+		if (topLine < 0 || topLine - Math.min(this._xterm.rows, 50) < 0) {
+			noMoreResults = true;
+		}
+		if (topLine < 0) {
+			topLine = 0;
+		}
+		this._lastTopLine = topLine;
+		for (let i = this._xterm.buffer.active.length - 1; i >= topLine; i--) {
 			const links = await this._getLinksForLine(i);
 			if (links) {
 				const { wordLinks, webLinks, fileLinks } = links;
@@ -163,11 +171,11 @@ export class TerminalLinkManager extends DisposableStore {
 				}
 			}
 		}
-		return { webLinks: webResults, fileLinks: fileResults, wordLinks: wordResults };
+		return { webLinks: webResults, fileLinks: fileResults, wordLinks: wordResults, noMoreResults };
 	}
 
 	private async _getLinksForLine(y: number): Promise<IDetectedLinks | undefined> {
-		let unfilteredWordLinks = await this._getLinksForType(y, 'word');
+		const unfilteredWordLinks = await this._getLinksForType(y, 'word');
 		const webLinks = await this._getLinksForType(y, 'url');
 		const fileLinks = await this._getLinksForType(y, 'localFile');
 		const words = new Set();
@@ -303,11 +311,13 @@ export class TerminalLinkManager extends DisposableStore {
 			}
 		}
 
-		let fallbackLabel: string;
-		if (this._tunnelService.canTunnel(URI.parse(uri))) {
-			fallbackLabel = nls.localize('followForwardedLink', "Follow link using forwarded port");
-		} else {
-			fallbackLabel = nls.localize('followLink', "Follow link");
+		let fallbackLabel = nls.localize('followLink', "Follow link");
+		try {
+			if (this._tunnelService.canTunnel(URI.parse(uri))) {
+				fallbackLabel = nls.localize('followForwardedLink', "Follow link using forwarded port");
+			}
+		} catch {
+			// No-op, already set to fallback
 		}
 
 		const markdown = new MarkdownString('', true);
@@ -329,7 +339,7 @@ export class TerminalLinkManager extends DisposableStore {
 			uri = nls.localize('followLinkUrl', 'Link');
 		}
 
-		return markdown.appendMarkdown(`[${label}](${uri}) (${clickLabel})`);
+		return markdown.appendLink(uri, label).appendMarkdown(` (${clickLabel})`);
 	}
 
 	private get _osPath(): IPath {
@@ -392,7 +402,7 @@ export class TerminalLinkManager extends DisposableStore {
 
 		if (uri) {
 			try {
-				const stat = await this._fileService.resolve(uri);
+				const stat = await this._fileService.stat(uri);
 				const result = { uri, link, isDirectory: stat.isDirectory };
 				this._resolvedLinkCache.set(uri, result);
 				return result;
@@ -429,7 +439,7 @@ export class TerminalLinkManager extends DisposableStore {
 			}
 
 			try {
-				const stat = await this._fileService.resolve(uri);
+				const stat = await this._fileService.stat(uri);
 				const result = { uri, link, isDirectory: stat.isDirectory };
 				this._resolvedLinkCache.set(link, result);
 				return result;
@@ -469,6 +479,7 @@ export interface IDetectedLinks {
 	wordLinks?: ILink[];
 	webLinks?: ILink[];
 	fileLinks?: ILink[];
+	noMoreResults?: boolean;
 }
 
 const enum LinkCacheConstants {

@@ -157,7 +157,7 @@ export class WalkThroughPart extends EditorPane {
 		this.content.addEventListener('click', event => {
 			for (let node = event.target as HTMLElement; node; node = node.parentNode as HTMLElement) {
 				if (node instanceof HTMLAnchorElement && node.href) {
-					let baseElement = window.document.getElementsByTagName('base')[0] || window.location;
+					const baseElement = window.document.getElementsByTagName('base')[0] || window.location;
 					if (baseElement && node.href.indexOf(baseElement.href) >= 0 && node.hash) {
 						const scrollTarget = this.content.querySelector(node.hash);
 						const innerContent = this.content.firstElementChild;
@@ -291,9 +291,7 @@ export class WalkThroughPart extends EditorPane {
 					this.updateSizeClasses();
 					this.decorateContent();
 					this.contentDisposables.push(this.keybindingService.onDidUpdateKeybindings(() => this.decorateContent()));
-					if (input.onReady) {
-						input.onReady(this.content.firstElementChild as HTMLElement, store);
-					}
+					input.onReady?.(this.content.firstElementChild as HTMLElement, store);
 					this.scrollbar.scanDomNode();
 					this.loadTextEditorViewState(input);
 					this.updatedScrollPosition();
@@ -371,9 +369,7 @@ export class WalkThroughPart extends EditorPane {
 						this.multiCursorModifier();
 					}
 				}));
-				if (input.onReady) {
-					input.onReady(innerContent, store);
-				}
+				input.onReady?.(innerContent, store);
 				this.scrollbar.scanDomNode();
 				this.loadTextEditorViewState(input);
 				this.updatedScrollPosition();
@@ -490,10 +486,10 @@ export class WalkThroughPart extends EditorPane {
 
 // theming
 
-export const embeddedEditorBackground = registerColor('walkThrough.embeddedEditorBackground', { dark: null, light: null, hc: null }, localize('walkThrough.embeddedEditorBackground', 'Background color for the embedded editors on the Interactive Playground.'));
+export const embeddedEditorBackground = registerColor('walkThrough.embeddedEditorBackground', { dark: null, light: null, hcDark: null, hcLight: null }, localize('walkThrough.embeddedEditorBackground', 'Background color for the embedded editors on the Interactive Playground.'));
 
 registerThemingParticipant((theme, collector) => {
-	const color = getExtraColor(theme, embeddedEditorBackground, { dark: 'rgba(0, 0, 0, .4)', extra_dark: 'rgba(200, 235, 255, .064)', light: '#f4f4f4', hc: null });
+	const color = getExtraColor(theme, embeddedEditorBackground, { dark: 'rgba(0, 0, 0, .4)', extra_dark: 'rgba(200, 235, 255, .064)', light: '#f4f4f4', hcDark: null, hcLight: null });
 	if (color) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .monaco-editor-background,
 			.monaco-workbench .part.editor > .content .walkThroughContent .margin-view-overlays { background: ${color}; }`);

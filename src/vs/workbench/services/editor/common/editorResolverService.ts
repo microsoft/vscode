@@ -16,7 +16,7 @@ import { Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurati
 import { IResourceEditorInput, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorInputWithOptions, EditorInputWithOptionsAndGroup, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { EditorInputWithOptions, EditorInputWithOptionsAndGroup, IResourceDiffEditorInput, IResourceMergeEditorInput, IUntitledTextResourceEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { PreferredGroup } from 'vs/workbench/services/editor/common/editorService';
 
@@ -84,10 +84,6 @@ export type RegisteredEditorOptions = {
 	 * If your editor cannot be opened in multiple groups for the same resource
 	 */
 	singlePerResource?: boolean | (() => boolean);
-	/**
-	 * If your editor supports diffs
-	 */
-	canHandleDiff?: boolean | (() => boolean);
 
 	/**
 	 * Whether or not you can support opening the given resource.
@@ -110,6 +106,15 @@ export type EditorInputFactoryFunction = (editorInput: IResourceEditorInput | IT
 export type UntitledEditorInputFactoryFunction = (untitledEditorInput: IUntitledTextResourceEditorInput, group: IEditorGroup) => EditorInputFactoryResult;
 
 export type DiffEditorInputFactoryFunction = (diffEditorInput: IResourceDiffEditorInput, group: IEditorGroup) => EditorInputFactoryResult;
+
+export type MergeEditorInputFactoryFunction = (mergeEditorInput: IResourceMergeEditorInput, group: IEditorGroup) => EditorInputFactoryResult;
+
+export type EditorInputFactoryObject = {
+	createEditorInput: EditorInputFactoryFunction;
+	createUntitledEditorInput?: UntitledEditorInputFactoryFunction;
+	createDiffEditorInput?: DiffEditorInputFactoryFunction;
+	createMergeEditorInput?: MergeEditorInputFactoryFunction;
+};
 
 export interface IEditorResolverService {
 	readonly _serviceBrand: undefined;
@@ -137,15 +142,13 @@ export interface IEditorResolverService {
 	 * @param globPattern The glob pattern for this registration
 	 * @param editorInfo Information about the registration
 	 * @param options Specific options which apply to this registration
-	 * @param createEditorInput The factory method for creating inputs
+	 * @param editorFactoryObject The editor input factory functions
 	 */
 	registerEditor(
 		globPattern: string | glob.IRelativePattern,
 		editorInfo: RegisteredEditorInfo,
 		options: RegisteredEditorOptions,
-		createEditorInput: EditorInputFactoryFunction,
-		createUntitledEditorInput?: UntitledEditorInputFactoryFunction | undefined,
-		createDiffEditorInput?: DiffEditorInputFactoryFunction
+		editorFactoryObject: EditorInputFactoryObject
 	): IDisposable;
 
 	/**

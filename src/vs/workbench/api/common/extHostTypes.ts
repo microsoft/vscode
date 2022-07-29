@@ -10,7 +10,7 @@ import { MarkdownString as BaseMarkdownString } from 'vs/base/common/htmlContent
 import { ResourceMap } from 'vs/base/common/map';
 import { Mimes, normalizeMimeType } from 'vs/base/common/mime';
 import { nextCharLength } from 'vs/base/common/strings';
-import { isArray, isStringArray } from 'vs/base/common/types';
+import { isArray, isString, isStringArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
@@ -19,6 +19,12 @@ import { IRelativePatternDto } from 'vs/workbench/api/common/extHost.protocol';
 import { CellEditType, ICellPartialMetadataEdit, IDocumentMetadataEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import type * as vscode from 'vscode';
 
+/**
+ * @deprecated
+ *
+ * This utility ensures that old JS code that uses functions for classes still works. Existing usages cannot be removed
+ * but new ones must not be added
+ * */
 function es5ClassCompat(target: Function): any {
 	///@ts-expect-error
 	function _() { return Reflect.construct(target, arguments, this.constructor); }
@@ -97,7 +103,7 @@ export class Position {
 		if (other instanceof Position) {
 			return true;
 		}
-		let { line, character } = <Position>other;
+		const { line, character } = <Position>other;
 		if (typeof line === 'number' && typeof character === 'number') {
 			return true;
 		}
@@ -598,6 +604,55 @@ export class TextEdit {
 	}
 }
 
+@es5ClassCompat
+export class NotebookEdit implements vscode.NotebookEdit {
+
+	static isNotebookCellEdit(thing: any): thing is NotebookEdit {
+		if (thing instanceof NotebookEdit) {
+			return true;
+		}
+		if (!thing) {
+			return false;
+		}
+		return NotebookRange.isNotebookRange((<NotebookEdit>thing))
+			&& Array.isArray((<NotebookEdit>thing).newCells);
+	}
+
+	static replaceCells(range: NotebookRange, newCells: NotebookCellData[]): NotebookEdit {
+		return new NotebookEdit(range, newCells);
+	}
+
+	static insertCells(index: number, newCells: vscode.NotebookCellData[]): vscode.NotebookEdit {
+		return new NotebookEdit(new NotebookRange(index, index), newCells);
+	}
+
+	static deleteCells(range: NotebookRange): NotebookEdit {
+		return new NotebookEdit(range, []);
+	}
+
+	static updateCellMetadata(index: number, newMetadata: { [key: string]: any }): NotebookEdit {
+		const edit = new NotebookEdit(new NotebookRange(index, index), []);
+		edit.newCellMetadata = newMetadata;
+		return edit;
+	}
+
+	static updateNotebookMetadata(newMetadata: { [key: string]: any }): NotebookEdit {
+		const edit = new NotebookEdit(new NotebookRange(0, 0), []);
+		edit.newNotebookMetadata = newMetadata;
+		return edit;
+	}
+
+	range: NotebookRange;
+	newCells: NotebookCellData[];
+	newCellMetadata?: { [key: string]: any };
+	newNotebookMetadata?: { [key: string]: any };
+
+	constructor(range: NotebookRange, newCells: NotebookCellData[]) {
+		this.range = range;
+		this.newCells = newCells;
+	}
+}
+
 export interface IFileOperationOptions {
 	overwrite?: boolean;
 	ignoreIfExists?: boolean;
@@ -610,6 +665,7 @@ export const enum FileEditType {
 	Text = 2,
 	Cell = 3,
 	CellReplace = 5,
+	Snippet = 6,
 }
 
 export interface IFileOperation {
@@ -624,6 +680,14 @@ export interface IFileTextEdit {
 	_type: FileEditType.Text;
 	uri: URI;
 	edit: TextEdit;
+	metadata?: vscode.WorkspaceEditEntryMetadata;
+}
+
+export interface IFileSnippetTextEdit {
+	_type: FileEditType.Snippet;
+	uri: URI;
+	range: vscode.Range;
+	edit: vscode.SnippetString;
 	metadata?: vscode.WorkspaceEditEntryMetadata;
 }
 
@@ -645,7 +709,7 @@ export interface ICellEdit {
 }
 
 
-type WorkspaceEditEntry = IFileOperation | IFileTextEdit | IFileCellEdit | ICellEdit;
+type WorkspaceEditEntry = IFileOperation | IFileTextEdit | IFileSnippetTextEdit | IFileCellEdit | ICellEdit;
 
 @es5ClassCompat
 export class WorkspaceEdit implements vscode.WorkspaceEdit {
@@ -712,8 +776,12 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
 	// --- text
 
-	replace(uri: URI, range: Range, newText: string, metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._edits.push({ _type: FileEditType.Text, uri, edit: new TextEdit(range, newText), metadata });
+	replace(uri: URI, range: Range, newText: string | vscode.SnippetString, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+		if (typeof newText === 'string') {
+			this._edits.push({ _type: FileEditType.Text, uri, edit: new TextEdit(range, newText), metadata });
+		} else {
+			this._edits.push({ _type: FileEditType.Snippet, uri, range, edit: newText, metadata });
+		}
 	}
 
 	insert(resource: URI, position: Position, newText: string, metadata?: vscode.WorkspaceEditEntryMetadata): void {
@@ -730,7 +798,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		return this._edits.some(edit => edit._type === FileEditType.Text && edit.uri.toString() === uri.toString());
 	}
 
-	set(uri: URI, edits: TextEdit[]): void {
+	set(uri: URI, edits: TextEdit[] | unknown): void {
 		if (!edits) {
 			// remove all text edits for `uri`
 			for (let i = 0; i < this._edits.length; i++) {
@@ -742,9 +810,19 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 			coalesceInPlace(this._edits);
 		} else {
 			// append edit to the end
-			for (const edit of edits) {
+			for (const edit of edits as TextEdit[] | NotebookEdit[]) {
 				if (edit) {
-					this._edits.push({ _type: FileEditType.Text, uri, edit });
+					if (NotebookEdit.isNotebookCellEdit(edit)) {
+						if (edit.newCellMetadata) {
+							this.replaceNotebookCellMetadata(uri, edit.range.start, edit.newCellMetadata);
+						} else if (edit.newNotebookMetadata) {
+							this.replaceNotebookMetadata(uri, edit.newNotebookMetadata);
+						} else {
+							this.replaceNotebookCells(uri, edit.range, edit.newCells);
+						}
+					} else {
+						this._edits.push({ _type: FileEditType.Text, uri, edit });
+					}
 				}
 			}
 		}
@@ -752,7 +830,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
 	get(uri: URI): TextEdit[] {
 		const res: TextEdit[] = [];
-		for (let candidate of this._edits) {
+		for (const candidate of this._edits) {
 			if (candidate._type === FileEditType.Text && candidate.uri.toString() === uri.toString()) {
 				res.push(candidate.edit);
 			}
@@ -762,7 +840,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
 	entries(): [URI, TextEdit[]][] {
 		const textEdits = new ResourceMap<[URI, TextEdit[]]>();
-		for (let candidate of this._edits) {
+		for (const candidate of this._edits) {
 			if (candidate._type === FileEditType.Text) {
 				let textEdit = textEdits.get(candidate.uri);
 				if (!textEdit) {
@@ -1150,9 +1228,7 @@ export class DocumentSymbol {
 		if (!candidate.range.contains(candidate.selectionRange)) {
 			throw new Error('selectionRange must be contained in fullRange');
 		}
-		if (candidate.children) {
-			candidate.children.forEach(DocumentSymbol.validate);
-		}
+		candidate.children?.forEach(DocumentSymbol.validate);
 	}
 
 	name: string;
@@ -1467,10 +1543,10 @@ export class InlayHint implements vscode.InlayHint {
 	label: string | InlayHintLabelPart[];
 	tooltip?: string | vscode.MarkdownString;
 	position: Position;
+	textEdits?: TextEdit[];
 	kind?: vscode.InlayHintKind;
 	paddingLeft?: boolean;
 	paddingRight?: boolean;
-	command?: vscode.Command;
 
 	constructor(position: Position, label: string | InlayHintLabelPart[], kind?: vscode.InlayHintKind) {
 		this.position = position;
@@ -1583,13 +1659,9 @@ export class CompletionList {
 
 @es5ClassCompat
 export class InlineSuggestion implements vscode.InlineCompletionItem {
-	insertText?: string;
 
-	/**
-	 * @deprecated Use `insertText` instead. Will be removed eventually.
-	*/
-	text?: string;
-
+	filterText?: string;
+	insertText: string;
 	range?: Range;
 	command?: vscode.Command;
 
@@ -1600,15 +1672,39 @@ export class InlineSuggestion implements vscode.InlineCompletionItem {
 	}
 }
 
-/**
- * @deprecated Return an array of inline completion items directly. Will be removed eventually.
-*/
 @es5ClassCompat
-export class InlineSuggestions implements vscode.InlineCompletionList {
-	items: vscode.InlineCompletionItem[];
+export class InlineSuggestionList implements vscode.InlineCompletionList {
+	items: vscode.InlineCompletionItemNew[];
 
-	constructor(items: vscode.InlineCompletionItem[]) {
+	commands: vscode.Command[] | undefined = undefined;
+
+	constructor(items: vscode.InlineCompletionItemNew[]) {
 		this.items = items;
+	}
+}
+
+@es5ClassCompat
+export class InlineSuggestionNew implements vscode.InlineCompletionItemNew {
+	insertText: string;
+	range?: Range;
+	command?: vscode.Command;
+
+	constructor(insertText: string, range?: Range, command?: vscode.Command) {
+		this.insertText = insertText;
+		this.range = range;
+		this.command = command;
+	}
+}
+
+@es5ClassCompat
+export class InlineSuggestionsNew implements vscode.InlineCompletionListNew {
+	items: vscode.InlineCompletionItemNew[];
+
+	commands: vscode.Command[] | undefined;
+
+	constructor(items: vscode.InlineCompletionItemNew[], commands?: vscode.Command[]) {
+		this.items = items;
+		this.commands = commands;
 	}
 }
 
@@ -1776,6 +1872,14 @@ export enum SourceControlInputBoxValidationType {
 	Information = 2
 }
 
+export enum TerminalExitReason {
+	Unknown = 0,
+	Shutdown = 1,
+	Process = 2,
+	User = 3,
+	Extension = 4
+}
+
 export class TerminalLink implements vscode.TerminalLink {
 	constructor(
 		public startIndex: number,
@@ -1804,7 +1908,7 @@ export class TerminalProfile implements vscode.TerminalProfile {
 		public options: vscode.TerminalOptions | vscode.ExtensionTerminalOptions
 	) {
 		if (typeof options !== 'object') {
-			illegalArgument('options');
+			throw illegalArgument('options');
 		}
 	}
 }
@@ -1940,7 +2044,7 @@ export class ProcessExecution implements vscode.ProcessExecution {
 			props.push(this._process);
 		}
 		if (this._args && this._args.length > 0) {
-			for (let arg of this._args) {
+			for (const arg of this._args) {
 				props.push(arg);
 			}
 		}
@@ -2026,7 +2130,7 @@ export class ShellExecution implements vscode.ShellExecution {
 			props.push(typeof this._command === 'string' ? this._command : this._command.value);
 		}
 		if (this._args && this._args.length > 0) {
-			for (let arg of this._args) {
+			for (const arg of this._args) {
 				props.push(typeof arg === 'string' ? arg : arg.value);
 			}
 		}
@@ -2325,10 +2429,59 @@ export class TreeItem {
 
 	label?: string | vscode.TreeItemLabel;
 	resourceUri?: URI;
-	iconPath?: string | URI | { light: string | URI; dark: string | URI };
+	iconPath?: string | URI | { light: string | URI; dark: string | URI } | ThemeIcon;
 	command?: vscode.Command;
 	contextValue?: string;
 	tooltip?: string | vscode.MarkdownString;
+
+	static isTreeItem(thing: any): thing is TreeItem {
+		if (thing instanceof TreeItem) {
+			return true;
+		}
+		const treeItemThing = thing as vscode.TreeItem;
+		if (treeItemThing.label !== undefined && !isString(treeItemThing.label) && !(treeItemThing.label.label)) {
+			console.log('INVALID tree item, invalid label', treeItemThing.label);
+			return false;
+		}
+		if ((treeItemThing.id !== undefined) && !isString(treeItemThing.id)) {
+			console.log('INVALID tree item, invalid id', treeItemThing.id);
+			return false;
+		}
+		if ((treeItemThing.iconPath !== undefined) && !isString(treeItemThing.iconPath) && !URI.isUri(treeItemThing.iconPath) && !isString((treeItemThing.iconPath as vscode.ThemeIcon).id)) {
+			console.log('INVALID tree item, invalid iconPath', treeItemThing.iconPath);
+			return false;
+		}
+		if ((treeItemThing.description !== undefined) && !isString(treeItemThing.description) && (typeof treeItemThing.description !== 'boolean')) {
+			console.log('INVALID tree item, invalid description', treeItemThing.description);
+			return false;
+		}
+		if ((treeItemThing.resourceUri !== undefined) && !URI.isUri(treeItemThing.resourceUri)) {
+			console.log('INVALID tree item, invalid resourceUri', treeItemThing.resourceUri);
+			return false;
+		}
+		if ((treeItemThing.tooltip !== undefined) && !isString(treeItemThing.tooltip) && !(treeItemThing.tooltip instanceof MarkdownString)) {
+			console.log('INVALID tree item, invalid tooltip', treeItemThing.tooltip);
+			return false;
+		}
+		if ((treeItemThing.command !== undefined) && !treeItemThing.command.command) {
+			console.log('INVALID tree item, invalid command', treeItemThing.command);
+			return false;
+		}
+		if ((treeItemThing.collapsibleState !== undefined) && (treeItemThing.collapsibleState < TreeItemCollapsibleState.None) && (treeItemThing.collapsibleState > TreeItemCollapsibleState.Expanded)) {
+			console.log('INVALID tree item, invalid collapsibleState', treeItemThing.collapsibleState);
+			return false;
+		}
+		if ((treeItemThing.contextValue !== undefined) && !isString(treeItemThing.contextValue)) {
+			console.log('INVALID tree item, invalid contextValue', treeItemThing.contextValue);
+			return false;
+		}
+		if ((treeItemThing.accessibilityInformation !== undefined) && !treeItemThing.accessibilityInformation.label) {
+			console.log('INVALID tree item, invalid accessibilityInformation', treeItemThing.accessibilityInformation);
+			return false;
+		}
+
+		return true;
+	}
 
 	constructor(label: string | vscode.TreeItemLabel, collapsibleState?: vscode.TreeItemCollapsibleState);
 	constructor(resourceUri: URI, collapsibleState?: vscode.TreeItemCollapsibleState);
@@ -2349,28 +2502,82 @@ export enum TreeItemCollapsibleState {
 }
 
 @es5ClassCompat
-export class TreeDataTransferItem {
+export class DataTransferItem {
+
 	async asString(): Promise<string> {
 		return typeof this.value === 'string' ? this.value : JSON.stringify(this.value);
+	}
+
+	asFile(): undefined | vscode.DataTransferFile {
+		return undefined;
 	}
 
 	constructor(public readonly value: any) { }
 }
 
 @es5ClassCompat
-export class TreeDataTransfer<T extends TreeDataTransferItem = TreeDataTransferItem> {
-	private readonly _items: Map<string, T> = new Map();
-	get(mimeType: string): T | undefined {
-		return this._items.get(mimeType);
+export class DataTransfer implements vscode.DataTransfer {
+	#items = new Map<string, DataTransferItem[]>();
+
+	constructor(init?: Iterable<readonly [string, DataTransferItem]>) {
+		for (const [mime, item] of init ?? []) {
+			const existing = this.#items.get(mime);
+			if (existing) {
+				existing.push(item);
+			} else {
+				this.#items.set(mime, [item]);
+			}
+		}
 	}
-	set(mimeType: string, value: T): void {
-		this._items.set(mimeType, value);
+
+	get(mimeType: string): DataTransferItem | undefined {
+		return this.#items.get(mimeType)?.[0];
 	}
-	forEach(callbackfn: (value: T, key: string) => void): void {
-		this._items.forEach(callbackfn);
+
+	set(mimeType: string, value: DataTransferItem): void {
+		// This intentionally overwrites all entries for a given mimetype.
+		// This is similar to how the DOM DataTransfer type works
+		this.#items.set(mimeType, [value]);
+	}
+
+	forEach(callbackfn: (value: DataTransferItem, key: string, dataTransfer: DataTransfer) => void, thisArg?: unknown): void {
+		for (const [mime, items] of this.#items) {
+			for (const item of items) {
+				callbackfn.call(thisArg, item, mime, this);
+			}
+		}
+	}
+
+	*[Symbol.iterator](): IterableIterator<[mimeType: string, item: vscode.DataTransferItem]> {
+		for (const [mime, items] of this.#items) {
+			for (const item of items) {
+				yield [mime, item];
+			}
+		}
 	}
 }
 
+@es5ClassCompat
+export class DocumentDropEdit {
+	insertText: string | SnippetString;
+
+	additionalEdit?: WorkspaceEdit;
+
+	constructor(insertText: string | SnippetString) {
+		this.insertText = insertText;
+	}
+}
+
+@es5ClassCompat
+export class DocumentPasteEdit {
+	insertText: string | SnippetString;
+
+	additionalEdit?: WorkspaceEdit;
+
+	constructor(insertText: string | SnippetString) {
+		this.insertText = insertText;
+	}
+}
 
 @es5ClassCompat
 export class ThemeIcon {
@@ -2583,8 +2790,13 @@ export class EvaluatableExpression implements vscode.EvaluatableExpression {
 }
 
 export enum InlineCompletionTriggerKind {
-	Automatic = 0,
-	Explicit = 1,
+	Invoke = 0,
+	Automatic = 1,
+}
+
+export enum InlineCompletionTriggerKindNew {
+	Invoke = 0,
+	Automatic = 1,
 }
 
 @es5ClassCompat
@@ -2881,7 +3093,7 @@ export class SemanticTokensBuilder {
 	}
 
 	private static _sortAndDeltaEncode(data: number[]): Uint32Array {
-		let pos: number[] = [];
+		const pos: number[] = [];
 		const tokenCount = (data.length / 5) | 0;
 		for (let i = 0; i < tokenCount; i++) {
 			pos[i] = i;
@@ -2995,6 +3207,12 @@ export enum QuickPickItemKind {
 	Default = 0,
 }
 
+export enum InputBoxValidationSeverity {
+	Info = 1,
+	Warning = 2,
+	Error = 3
+}
+
 export enum ExtensionKind {
 	UI = 1,
 	Workspace = 2
@@ -3041,7 +3259,8 @@ export class ColorTheme implements vscode.ColorTheme {
 export enum ColorThemeKind {
 	Light = 1,
 	Dark = 2,
-	HighContrast = 3
+	HighContrast = 3,
+	HighContrastLight = 4
 }
 
 //#endregion Theming
@@ -3204,7 +3423,7 @@ export class NotebookCellOutputItem {
 		return new NotebookCellOutputItem(bytes, mime);
 	}
 
-	static json(value: any, mime: string = 'application/json'): NotebookCellOutputItem {
+	static json(value: any, mime: string = 'text/x-json'): NotebookCellOutputItem {
 		const rawStr = JSON.stringify(value, undefined, '\t');
 		return NotebookCellOutputItem.text(rawStr, mime);
 	}
@@ -3567,3 +3786,41 @@ export class TypeHierarchyItem {
 		this.selectionRange = selectionRange;
 	}
 }
+
+//#region Tab Inputs
+
+export class TextTabInput {
+	constructor(readonly uri: URI) { }
+}
+
+export class TextDiffTabInput {
+	constructor(readonly original: URI, readonly modified: URI) { }
+}
+
+export class TextMergeTabInput {
+	constructor(readonly base: URI, readonly input1: URI, readonly input2: URI, readonly result: URI) { }
+}
+
+export class CustomEditorTabInput {
+	constructor(readonly uri: URI, readonly viewType: string) { }
+}
+
+export class WebviewEditorTabInput {
+	constructor(readonly viewType: string) { }
+}
+
+export class NotebookEditorTabInput {
+	constructor(readonly uri: URI, readonly notebookType: string) { }
+}
+
+export class NotebookDiffEditorTabInput {
+	constructor(readonly original: URI, readonly modified: URI, readonly notebookType: string) { }
+}
+
+export class TerminalEditorTabInput {
+	constructor() { }
+}
+export class InteractiveWindowInput {
+	constructor(readonly uri: URI, readonly inputBoxUri: URI) { }
+}
+//#endregion

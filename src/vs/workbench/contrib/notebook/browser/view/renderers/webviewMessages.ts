@@ -5,6 +5,7 @@
 
 import type { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import type { PreloadOptions } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
+import { NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 interface BaseToWebviewMessage {
 	readonly __vscode_notebook_message: true;
@@ -139,15 +140,22 @@ export interface IInitializedMarkupMessage extends BaseToWebviewMessage {
 	readonly type: 'initializedMarkup';
 }
 
+export interface ICodeBlockHighlightRequest {
+	readonly id: string;
+	readonly value: string;
+	readonly lang: string;
+}
+
 export interface IRenderedMarkupMessage extends BaseToWebviewMessage {
 	readonly type: 'renderedMarkup';
 	readonly cellId: string;
 	readonly html: string;
-	readonly codeBlocks: ReadonlyArray<{
-		readonly id: string;
-		readonly value: string;
-		readonly lang: string;
-	}>;
+	readonly codeBlocks: ReadonlyArray<ICodeBlockHighlightRequest>;
+}
+
+export interface IRenderedCellOutputMessage extends BaseToWebviewMessage {
+	readonly type: 'renderedCellOutput';
+	readonly codeBlocks: ReadonlyArray<ICodeBlockHighlightRequest>;
 }
 
 export interface IClearMessage {
@@ -235,6 +243,7 @@ export interface IShowOutputMessage {
 	readonly outputId: string;
 	readonly cellTop: number;
 	readonly outputOffset: number;
+	readonly content?: ICreationContent;
 }
 
 export interface IFocusOutputMessage {
@@ -321,6 +330,7 @@ export interface IMarkupCellInitialization {
 	content: string;
 	offset: number;
 	visible: boolean;
+	metadata: NotebookCellMetadata;
 }
 
 export interface IInitializeMarkupCells {
@@ -393,6 +403,12 @@ export interface IDidFindHighlightMessage extends BaseToWebviewMessage {
 	readonly offset: number;
 }
 
+export interface IOutputResizedMessage extends BaseToWebviewMessage {
+	readonly type: 'outputResized';
+	readonly cellId: string;
+}
+
+
 export type FromWebviewMessage = WebviewInitialized |
 	IDimensionMessage |
 	IMouseEnterMessage |
@@ -418,8 +434,10 @@ export type FromWebviewMessage = WebviewInitialized |
 	ICellDragEndMessage |
 	IInitializedMarkupMessage |
 	IRenderedMarkupMessage |
+	IRenderedCellOutputMessage |
 	IDidFindMessage |
-	IDidFindHighlightMessage;
+	IDidFindHighlightMessage |
+	IOutputResizedMessage;
 
 export type ToWebviewMessage = IClearMessage |
 	IFocusOutputMessage |
@@ -450,5 +468,6 @@ export type ToWebviewMessage = IClearMessage |
 	IFindHighlightMessage |
 	IFindUnHighlightMessage |
 	IFindStopMessage;
+
 
 export type AnyMessage = FromWebviewMessage | ToWebviewMessage;

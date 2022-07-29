@@ -55,7 +55,7 @@ export class ConfigureLanguageBasedSettingsAction extends Action {
 				if (pick) {
 					const languageId = this.languageService.getLanguageIdByLanguageName(pick.label);
 					if (typeof languageId === 'string') {
-						return this.preferencesService.openUserSettings({ jsonEditor: true, revealSetting: { key: `[${languageId}]`, edit: true } });
+						return this.preferencesService.openLanguageSpecificSettings(languageId);
 					}
 				}
 				return undefined;

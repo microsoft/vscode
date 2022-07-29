@@ -113,7 +113,7 @@ suite('Notebook Outline', function () {
 		], outline => {
 			assert.ok(outline instanceof NotebookCellOutline);
 			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, '!@#$\n Überschrïft');
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, '!@#$');
 		});
 	});
 

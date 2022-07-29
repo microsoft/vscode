@@ -230,6 +230,7 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 					if (!executeInfo.token || !executeInfo.token.isCancellationRequested) {
 						/* __GDPR__
 							"languageServiceErrorResponse" : {
+								"owner": "mjbvz",
 								"${include}": [
 									"${TypeScriptCommonProperties}",
 									"${TypeScriptRequestErrorProperties}"
@@ -324,7 +325,7 @@ class RequestRouter {
 	constructor(
 		private readonly servers: ReadonlyArray<{
 			readonly server: ITypeScriptServer;
-			canRun?(command: keyof TypeScriptRequests, executeInfo: ExecuteInfo): void;
+			canRun?(command: keyof TypeScriptRequests, executeInfo: ExecuteInfo): boolean;
 		}>,
 		private readonly delegate: TsServerDelegate,
 	) { }

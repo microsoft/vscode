@@ -3,15 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IStringDictionary } from 'vs/base/common/collections';
 import { PerformanceMark } from 'vs/base/common/performance';
-import { isLinux, isMacintosh, isNative, isWeb } from 'vs/base/common/platform';
+import { isLinux, isMacintosh, isNative, isWeb, isWindows } from 'vs/base/common/platform';
+import { UriDto } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FileType } from 'vs/platform/files/common/files';
 import { LogLevel } from 'vs/platform/log/common/log';
+import { PolicyDefinition, PolicyValue } from 'vs/platform/policy/common/policy';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
+import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export const WindowMinimumSize = {
@@ -46,6 +52,7 @@ export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
 	readonly addMode?: boolean;
 
 	readonly diffMode?: boolean;
+	readonly mergeMode?: boolean;
 	readonly gotoLineMode?: boolean;
 
 	readonly waitMarkerFileURI?: URI;
@@ -121,6 +128,7 @@ export interface IWindowSettings {
 	readonly zoomLevel: number;
 	readonly titleBarStyle: 'native' | 'custom';
 	readonly autoDetectHighContrast: boolean;
+	readonly autoDetectColorScheme: boolean;
 	readonly menuBarVisibility: MenuBarVisibility;
 	readonly newWindowDimensions: 'default' | 'inherit' | 'offset' | 'maximized' | 'fullscreen';
 	readonly nativeTabs: boolean;
@@ -128,6 +136,7 @@ export interface IWindowSettings {
 	readonly enableMenuBarMnemonics: boolean;
 	readonly closeWhenEmpty: boolean;
 	readonly clickThroughInactive: boolean;
+	readonly experimental?: { useSandbox: boolean };
 }
 
 interface IWindowBorderColors {
@@ -166,43 +175,57 @@ export function getTitleBarStyle(configurationService: IConfigurationService): '
 	return isLinux ? 'native' : 'custom'; // default to custom on all macOS and Windows
 }
 
-export interface IPath extends IPathData {
+export function useWindowControlsOverlay(configurationService: IConfigurationService, environmentService: IEnvironmentService): boolean {
+	// Window Controls Overlay are only configurable on Windows
+	if (!isWindows || isWeb || !environmentService.isBuilt) {
+		return false;
+	}
 
-	// the file path to open within the instance
+	if (getTitleBarStyle(configurationService) === 'native') {
+		return false;
+	}
+
+	return configurationService.getValue<boolean>('window.experimental.windowControlsOverlay.enabled');
+}
+
+export interface IPath<T = IEditorOptions> extends IPathData<T> {
+
+	/**
+	 * The file path to open within the instance
+	 */
 	fileUri?: URI;
 }
 
-export interface IPathData {
+export interface IPathData<T = IEditorOptions> {
 
-	// the file path to open within the instance
+	/**
+	 * The file path to open within the instance
+	 */
 	readonly fileUri?: UriComponents;
 
 	/**
-	 * An optional selection to apply in the file
+	 * Optional editor options to apply in the file
 	 */
-	readonly selection?: {
-		readonly startLineNumber: number;
-		readonly startColumn: number;
-		readonly endLineNumber?: number;
-		readonly endColumn?: number;
-	};
+	readonly options?: T;
 
-	// a hint that the file exists. if true, the
-	// file exists, if false it does not. with
-	// `undefined` the state is unknown.
+	/**
+	 * A hint that the file exists. if true, the
+	 * file exists, if false it does not. with
+	 * `undefined` the state is unknown.
+	 */
 	readonly exists?: boolean;
 
-	// a hint about the file type of this path.
-	// with `undefined` the type is unknown.
+	/**
+	 * A hint about the file type of this path.
+	 * with `undefined` the type is unknown.
+	 */
 	readonly type?: FileType;
 
-	// Specifies if the file should be only be opened
-	// if it exists
+	/**
+	 * Specifies if the file should be only be opened
+	 * if it exists.
+	 */
 	readonly openOnlyIfExists?: boolean;
-
-	// Specifies an optional id to override the editor
-	// used to edit the resource, e.g. custom editor.
-	readonly editorOverrideId?: string;
 }
 
 export interface IPathsToWaitFor extends IPathsToWaitForData {
@@ -218,6 +241,7 @@ interface IPathsToWaitForData {
 export interface IOpenFileRequest {
 	readonly filesToOpenOrCreate?: IPathData[];
 	readonly filesToDiff?: IPathData[];
+	readonly filesToMerge?: IPathData[];
 }
 
 /**
@@ -248,6 +272,7 @@ export interface IWindowConfiguration {
 
 	filesToOpenOrCreate?: IPath[];
 	filesToDiff?: IPath[];
+	filesToMerge?: IPath[];
 }
 
 export interface IOSConfiguration {
@@ -262,6 +287,11 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 
 	execPath: string;
 	backupPath?: string;
+
+	profiles: {
+		all: UriDto<IUserDataProfile>[];
+		current: UriDto<IUserDataProfile>;
+	};
 
 	homeDir: string;
 	tmpDir: string;
@@ -279,12 +309,14 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	accessibilitySupport?: boolean;
 	colorScheme: IColorScheme;
 	autoDetectHighContrast?: boolean;
+	autoDetectColorScheme?: boolean;
 
 	perfMarks: PerformanceMark[];
 
 	filesToWait?: IPathsToWaitFor;
 
 	os: IOSConfiguration;
+	policiesData?: IStringDictionary<{ definition: PolicyDefinition; value: PolicyValue }>;
 }
 
 /**

@@ -28,7 +28,7 @@ export const BrowserFeatures = {
 		)
 	},
 	keyboard: (() => {
-		if (platform.isNative || browser.isStandalone) {
+		if (platform.isNative || browser.isStandalone()) {
 			return KeyboardSupport.Always;
 		}
 

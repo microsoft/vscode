@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, Dimension, EventType, isAncestor } from 'vs/base/browser/dom';
+import { addDisposableListener, Dimension, DragAndDropObserver, EventType, isAncestor } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -31,7 +31,7 @@ import { attachStyler, IColorMapping } from 'vs/platform/theme/common/styler';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { CompositeMenuActions } from 'vs/workbench/browser/actions';
-import { CompositeDragAndDropObserver, DragAndDropObserver, toggleDropEffect } from 'vs/workbench/browser/dnd';
+import { CompositeDragAndDropObserver, toggleDropEffect } from 'vs/workbench/browser/dnd';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { Component } from 'vs/workbench/common/component';
@@ -580,7 +580,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		event.stopPropagation();
 		event.preventDefault();
 
-		let anchor: { x: number; y: number } = { x: event.posx, y: event.posy };
+		const anchor: { x: number; y: number } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => this.menuActions?.getContextMenuActions() ?? []
@@ -692,9 +692,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	private saveViewSizes(): void {
 		// Save size only when the layout has happened
 		if (this.didLayout) {
-			for (const view of this.panes) {
-				this.viewContainerModel.setSize(view.id, this.getPaneSize(view));
-			}
+			this.viewContainerModel.setSizes(this.panes.map(view => ({ id: view.id, size: this.getPaneSize(view) })));
 		}
 	}
 
@@ -743,7 +741,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 		const actions: IAction[] = viewPane.menuActions.getContextMenuActions();
 
-		let anchor: { x: number; y: number } = { x: event.posx, y: event.posy };
+		const anchor: { x: number; y: number } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => actions
@@ -822,11 +820,6 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		// Check if view is active
 		if (this.viewContainerModel.activeViewDescriptors.some(viewDescriptor => viewDescriptor.id === viewId)) {
 			const visible = !this.viewContainerModel.isVisible(viewId);
-			type ViewsToggleVisibilityClassification = {
-				viewId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-				visible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			};
-			this.telemetryService.publicLog2<{ viewId: String; visible: boolean }, ViewsToggleVisibilityClassification>('views.toggleVisibility', { viewId, visible });
 			this.viewContainerModel.setVisible(viewId, visible);
 		}
 	}
@@ -968,7 +961,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 						if (viewsToMove.length > 1) {
 							viewsToMove.slice(1).forEach(view => {
 								let toIndex = this.panes.findIndex(p => p.id === anchorView!.id);
-								let fromIndex = this.panes.findIndex(p => p.id === view.id);
+								const fromIndex = this.panes.findIndex(p => p.id === view.id);
 								if (fromIndex >= 0 && toIndex >= 0) {
 									if (fromIndex > toIndex) {
 										toIndex++;

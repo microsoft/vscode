@@ -15,7 +15,7 @@ export namespace _util {
 	export const DI_TARGET = '$di$target';
 	export const DI_DEPENDENCIES = '$di$dependencies';
 
-	export function getServiceDependencies(ctor: any): { id: ServiceIdentifier<any>; index: number; optional: boolean }[] {
+	export function getServiceDependencies(ctor: any): { id: ServiceIdentifier<any>; index: number }[] {
 		return ctor[DI_DEPENDENCIES] || [];
 	}
 }
@@ -75,11 +75,11 @@ export interface ServiceIdentifier<T> {
 	type: T;
 }
 
-function storeServiceDependency(id: Function, target: Function, index: number, optional: boolean): void {
+function storeServiceDependency(id: Function, target: Function, index: number): void {
 	if ((target as any)[_util.DI_TARGET] === target) {
-		(target as any)[_util.DI_DEPENDENCIES].push({ id, index, optional });
+		(target as any)[_util.DI_DEPENDENCIES].push({ id, index });
 	} else {
-		(target as any)[_util.DI_DEPENDENCIES] = [{ id, index, optional }];
+		(target as any)[_util.DI_DEPENDENCIES] = [{ id, index }];
 		(target as any)[_util.DI_TARGET] = target;
 	}
 }
@@ -97,7 +97,7 @@ export function createDecorator<T>(serviceId: string): ServiceIdentifier<T> {
 		if (arguments.length !== 3) {
 			throw new Error('@IServiceName-decorator can only be used to decorate a parameter');
 		}
-		storeServiceDependency(id, target, index, false);
+		storeServiceDependency(id, target, index);
 	};
 
 	id.toString = () => serviceId;

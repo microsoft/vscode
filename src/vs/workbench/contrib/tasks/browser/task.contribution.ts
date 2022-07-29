@@ -20,8 +20,8 @@ import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatus
 
 import { IOutputChannelRegistry, Extensions as OutputExt } from 'vs/workbench/services/output/common/output';
 
-import { TaskEvent, TaskEventKind, TaskGroup, TASKS_CATEGORY, TASK_RUNNING_STATE } from 'vs/workbench/contrib/tasks/common/tasks';
-import { ITaskService, ProcessExecutionSupportedContext, ShellExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
+import { ITaskEvent, TaskEventKind, TaskGroup, TaskSettingId, TASKS_CATEGORY, TASK_RUNNING_STATE } from 'vs/workbench/contrib/tasks/common/tasks';
+import { ITaskService, ProcessExecutionSupportedContext, ShellExecutionSupportedContext, TaskCommandsRegistered } from 'vs/workbench/contrib/tasks/common/taskService';
 
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { RunAutomaticTasks, ManageAutomaticTaskRunning } from 'vs/workbench/contrib/tasks/browser/runAutomaticTasks';
@@ -40,7 +40,7 @@ import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDe
 import { TerminalMenuBarGroup } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
 import { isString } from 'vs/base/common/types';
 
-const SHOW_TASKS_COMMANDS_CONTEXT = ContextKeyExpr.or(ShellExecutionSupportedContext, ProcessExecutionSupportedContext);
+const SHOW_TASKS_COMMANDS_CONTEXT = ContextKeyExpr.and(ShellExecutionSupportedContext, ProcessExecutionSupportedContext);
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(RunAutomaticTasks, LifecyclePhase.Eventually);
@@ -56,31 +56,31 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 });
 
 export class TaskStatusBarContributions extends Disposable implements IWorkbenchContribution {
-	private runningTasksStatusItem: IStatusbarEntryAccessor | undefined;
-	private activeTasksCount: number = 0;
+	private _runningTasksStatusItem: IStatusbarEntryAccessor | undefined;
+	private _activeTasksCount: number = 0;
 
 	constructor(
-		@ITaskService private readonly taskService: ITaskService,
-		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@IProgressService private readonly progressService: IProgressService
+		@ITaskService private readonly _taskService: ITaskService,
+		@IStatusbarService private readonly _statusbarService: IStatusbarService,
+		@IProgressService private readonly _progressService: IProgressService
 	) {
 		super();
-		this.registerListeners();
+		this._registerListeners();
 	}
 
-	private registerListeners(): void {
+	private _registerListeners(): void {
 		let promise: Promise<void> | undefined = undefined;
 		let resolver: (value?: void | Thenable<void>) => void;
-		this.taskService.onDidStateChange(event => {
+		this._taskService.onDidStateChange(event => {
 			if (event.kind === TaskEventKind.Changed) {
-				this.updateRunningTasksStatus();
+				this._updateRunningTasksStatus();
 			}
 
-			if (!this.ignoreEventForUpdateRunningTasksCount(event)) {
+			if (!this._ignoreEventForUpdateRunningTasksCount(event)) {
 				switch (event.kind) {
 					case TaskEventKind.Active:
-						this.activeTasksCount++;
-						if (this.activeTasksCount === 1) {
+						this._activeTasksCount++;
+						if (this._activeTasksCount === 1) {
 							if (!promise) {
 								promise = new Promise<void>((resolve) => {
 									resolver = resolve;
@@ -91,9 +91,9 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 					case TaskEventKind.Inactive:
 						// Since the exiting of the sub process is communicated async we can't order inactive and terminate events.
 						// So try to treat them accordingly.
-						if (this.activeTasksCount > 0) {
-							this.activeTasksCount--;
-							if (this.activeTasksCount === 0) {
+						if (this._activeTasksCount > 0) {
+							this._activeTasksCount--;
+							if (this._activeTasksCount === 0) {
 								if (promise && resolver!) {
 									resolver!();
 								}
@@ -101,8 +101,8 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 						}
 						break;
 					case TaskEventKind.Terminated:
-						if (this.activeTasksCount !== 0) {
-							this.activeTasksCount = 0;
+						if (this._activeTasksCount !== 0) {
+							this._activeTasksCount = 0;
 							if (promise && resolver!) {
 								resolver!();
 							}
@@ -111,8 +111,8 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 				}
 			}
 
-			if (promise && (event.kind === TaskEventKind.Active) && (this.activeTasksCount === 1)) {
-				this.progressService.withProgress({ location: ProgressLocation.Window, command: 'workbench.action.tasks.showTasks' }, progress => {
+			if (promise && (event.kind === TaskEventKind.Active) && (this._activeTasksCount === 1)) {
+				this._progressService.withProgress({ location: ProgressLocation.Window, command: 'workbench.action.tasks.showTasks', type: 'loading' }, progress => {
 					progress.report({ message: nls.localize('building', 'Building...') });
 					return promise!;
 				}).then(() => {
@@ -122,12 +122,12 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 		});
 	}
 
-	private async updateRunningTasksStatus(): Promise<void> {
-		const tasks = await this.taskService.getActiveTasks();
+	private async _updateRunningTasksStatus(): Promise<void> {
+		const tasks = await this._taskService.getActiveTasks();
 		if (tasks.length === 0) {
-			if (this.runningTasksStatusItem) {
-				this.runningTasksStatusItem.dispose();
-				this.runningTasksStatusItem = undefined;
+			if (this._runningTasksStatusItem) {
+				this._runningTasksStatusItem.dispose();
+				this._runningTasksStatusItem = undefined;
 			}
 		} else {
 			const itemProps: IStatusbarEntry = {
@@ -138,16 +138,16 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 				command: 'workbench.action.tasks.showTasks',
 			};
 
-			if (!this.runningTasksStatusItem) {
-				this.runningTasksStatusItem = this.statusbarService.addEntry(itemProps, 'status.runningTasks', StatusbarAlignment.LEFT, 49 /* Medium Priority, next to Markers */);
+			if (!this._runningTasksStatusItem) {
+				this._runningTasksStatusItem = this._statusbarService.addEntry(itemProps, 'status.runningTasks', StatusbarAlignment.LEFT, 49 /* Medium Priority, next to Markers */);
 			} else {
-				this.runningTasksStatusItem.update(itemProps);
+				this._runningTasksStatusItem.update(itemProps);
 			}
 		}
 	}
 
-	private ignoreEventForUpdateRunningTasksCount(event: TaskEvent): boolean {
-		if (!this.taskService.inTerminal()) {
+	private _ignoreEventForUpdateRunningTasksCount(event: ITaskEvent): boolean {
+		if (!this._taskService.inTerminal()) {
 			return false;
 		}
 
@@ -359,12 +359,12 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 KeybindingsRegistry.registerKeybindingRule({
 	id: 'workbench.action.tasks.build',
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: undefined,
+	when: TaskCommandsRegistered,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyB
 });
 
 // Tasks Output channel. Register it before using it in Task Service.
-let outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
+const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
 outputChannelRegistry.registerChannel({ id: AbstractTaskService.OutputChannelId, label: AbstractTaskService.OutputChannelLabel, log: false });
 
 
@@ -377,11 +377,11 @@ quickAccessRegistry.registerQuickAccessProvider({
 	prefix: TasksQuickAccessProvider.PREFIX,
 	contextKey: tasksPickerContextKey,
 	placeholder: nls.localize('tasksQuickAccessPlaceholder', "Type the name of a task to run."),
-	helpEntries: [{ description: nls.localize('tasksQuickAccessHelp', "Run Task"), needsEditor: false }]
+	helpEntries: [{ description: nls.localize('tasksQuickAccessHelp', "Run Task") }]
 });
 
 // tasks.json validation
-let schema: IJSONSchema = {
+const schema: IJSONSchema = {
 	id: tasksSchemaId,
 	description: 'Task definition file',
 	type: 'object',
@@ -411,7 +411,7 @@ schema.definitions = {
 };
 schema.oneOf = [...(schemaVersion2.oneOf || []), ...(schemaVersion1.oneOf || [])];
 
-let jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
+const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
 jsonRegistry.registerSchema(tasksSchemaId, schema);
 
 ProblemMatcherRegistry.onMatcherChanged(() => {
@@ -431,7 +431,7 @@ configurationRegistry.registerConfiguration({
 	title: nls.localize('tasksConfigurationTitle', "Tasks"),
 	type: 'object',
 	properties: {
-		'task.problemMatchers.neverPrompt': {
+		[TaskSettingId.ProblemMatchersNeverPrompt]: {
 			markdownDescription: nls.localize('task.problemMatchers.neverPrompt', "Configures whether to show the problem matcher prompt when running a task. Set to `true` to never prompt, or use a dictionary of task types to turn off prompting only for specific task types."),
 			'oneOf': [
 				{
@@ -453,13 +453,13 @@ configurationRegistry.registerConfiguration({
 			],
 			default: false
 		},
-		'task.autoDetect': {
+		[TaskSettingId.AutoDetect]: {
 			markdownDescription: nls.localize('task.autoDetect', "Controls enablement of `provideTasks` for all task provider extension. If the Tasks: Run Task command is slow, disabling auto detect for task providers may help. Individual extensions may also provide settings that disable auto detection."),
 			type: 'string',
 			enum: ['on', 'off'],
 			default: 'on'
 		},
-		'task.slowProviderWarning': {
+		[TaskSettingId.SlowProviderWarning]: {
 			markdownDescription: nls.localize('task.slowProviderWarning', "Configures whether a warning is shown when a provider is slow"),
 			'oneOf': [
 				{
@@ -476,27 +476,50 @@ configurationRegistry.registerConfiguration({
 			],
 			default: true
 		},
-		'task.quickOpen.history': {
+		[TaskSettingId.QuickOpenHistory]: {
 			markdownDescription: nls.localize('task.quickOpen.history', "Controls the number of recent items tracked in task quick open dialog."),
 			type: 'number',
 			default: 30, minimum: 0, maximum: 30
 		},
-		'task.quickOpen.detail': {
+		[TaskSettingId.QuickOpenDetail]: {
 			markdownDescription: nls.localize('task.quickOpen.detail', "Controls whether to show the task detail for tasks that have a detail in task quick picks, such as Run Task."),
 			type: 'boolean',
 			default: true
 		},
-		'task.quickOpen.skip': {
+		[TaskSettingId.QuickOpenSkip]: {
 			type: 'boolean',
 			description: nls.localize('task.quickOpen.skip', "Controls whether the task quick pick is skipped when there is only one task to pick from."),
 			default: false
 		},
-		'task.quickOpen.showAll': {
+		[TaskSettingId.QuickOpenShowAll]: {
 			type: 'boolean',
 			description: nls.localize('task.quickOpen.showAll', "Causes the Tasks: Run Task command to use the slower \"show all\" behavior instead of the faster two level picker where tasks are grouped by provider."),
 			default: false
 		},
-		'task.saveBeforeRun': {
+		[TaskSettingId.AllowAutomaticTasks]: {
+			type: 'string',
+			enum: ['on', 'auto', 'off'],
+			enumDescriptions: [
+				nls.localize('ttask.allowAutomaticTasks.on', "Always"),
+				nls.localize('task.allowAutomaticTasks.auto', "Prompt for permission for each folder"),
+				nls.localize('task.allowAutomaticTasks.off', "Never"),
+			],
+			description: nls.localize('task.allowAutomaticTasks', "Enable automatic tasks in the folder."),
+			default: 'auto',
+			restricted: true
+		},
+		[TaskSettingId.ShowDecorations]: {
+			type: 'boolean',
+			description: nls.localize('task.showDecorations', "Shows decorations at points of interest in the terminal buffer such as the first problem found via a watch task. Note that this will only take effect for future tasks."),
+			default: true
+		},
+		[TaskSettingId.Reconnection]: {
+			type: 'boolean',
+			description: nls.localize('task.experimental.reconnection', "On window reload, reconnect to running watch/background tasks. Note that this is experimental, so you could encounter issues."),
+			default: false,
+			tags: ['experimental']
+		},
+		[TaskSettingId.SaveBeforeRun]: {
 			markdownDescription: nls.localize(
 				'task.saveBeforeRun',
 				'Save all dirty editors before running a task.'

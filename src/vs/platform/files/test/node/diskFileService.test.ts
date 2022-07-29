@@ -16,7 +16,7 @@ import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Promises } from 'vs/base/node/pfs';
 import { flakySuite, getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { etag, FileAtomicReadOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, hasFileAtomicReadCapability, hasOpenReadWriteCloseCapability, IFileStat, IFileStatWithMetadata, IReadFileOptions, IStat, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
+import { etag, IFileAtomicReadOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, hasFileAtomicReadCapability, hasOpenReadWriteCloseCapability, IFileStat, IFileStatWithMetadata, IReadFileOptions, IStat, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -67,9 +67,10 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 				FileSystemProviderCapabilities.FileOpenReadWriteClose |
 				FileSystemProviderCapabilities.FileReadStream |
 				FileSystemProviderCapabilities.Trash |
+				FileSystemProviderCapabilities.FileFolderCopy |
 				FileSystemProviderCapabilities.FileWriteUnlock |
 				FileSystemProviderCapabilities.FileAtomicRead |
-				FileSystemProviderCapabilities.FileFolderCopy;
+				FileSystemProviderCapabilities.FileClone;
 
 			if (isLinux) {
 				this._testCapabilities |= FileSystemProviderCapabilities.PathCaseSensitive;
@@ -117,7 +118,7 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 		return bytesRead;
 	}
 
-	override async readFile(resource: URI, options?: FileAtomicReadOptions): Promise<Uint8Array> {
+	override async readFile(resource: URI, options?: IFileAtomicReadOptions): Promise<Uint8Array> {
 		const res = await super.readFile(resource, options);
 
 		this.totalBytesRead += res.byteLength;
@@ -125,6 +126,8 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 		return res;
 	}
 }
+
+DiskFileSystemProvider.configureFlushOnWrite(false); // speed up all unit tests by disabling flush on write
 
 flakySuite('Disk File Service', function () {
 
@@ -242,7 +245,7 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(result.name, 'resolver');
 		assert.ok(result.children);
 		assert.ok(result.children!.length > 0);
-		assert.ok(result!.isDirectory);
+		assert.ok(result.isDirectory);
 		assert.strictEqual(result.readonly, false);
 		assert.ok(result.mtime! > 0);
 		assert.ok(result.ctime! > 0);
@@ -285,7 +288,7 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(result.name, 'resolver');
 		assert.ok(result.children);
 		assert.ok(result.children!.length > 0);
-		assert.ok(result!.isDirectory);
+		assert.ok(result.isDirectory);
 		assert.ok(result.mtime! > 0);
 		assert.ok(result.ctime! > 0);
 		assert.strictEqual(result.children!.length, testsElements.length);
@@ -402,7 +405,7 @@ flakySuite('Disk File Service', function () {
 		const children = result.children!;
 		assert.strictEqual(children.length, 1);
 
-		let deep = getByName(result, 'deep');
+		const deep = getByName(result, 'deep');
 		assert.ok(deep);
 		assert.ok(deep!.children!.length > 0);
 		assert.strictEqual(deep!.children!.length, 4);
@@ -456,6 +459,34 @@ flakySuite('Disk File Service', function () {
 
 		assert.ok(!resolvedLink?.isDirectory);
 		assert.ok(!resolvedLink?.isFile);
+	});
+
+	test('stat - file', async () => {
+		const resource = URI.file(getPathFromAmdModule(require, './fixtures/resolver/index.html'));
+		const resolved = await service.stat(resource);
+
+		assert.strictEqual(resolved.name, 'index.html');
+		assert.strictEqual(resolved.isFile, true);
+		assert.strictEqual(resolved.isDirectory, false);
+		assert.strictEqual(resolved.readonly, false);
+		assert.strictEqual(resolved.isSymbolicLink, false);
+		assert.strictEqual(resolved.resource.toString(), resource.toString());
+		assert.ok(resolved.mtime! > 0);
+		assert.ok(resolved.ctime! > 0);
+		assert.ok(resolved.size! > 0);
+	});
+
+	test('stat - directory', async () => {
+		const resource = URI.file(getPathFromAmdModule(require, './fixtures/resolver'));
+		const result = await service.stat(resource);
+
+		assert.ok(result);
+		assert.strictEqual(result.resource.toString(), resource.toString());
+		assert.strictEqual(result.name, 'resolver');
+		assert.ok(result.isDirectory);
+		assert.strictEqual(result.readonly, false);
+		assert.ok(result.mtime! > 0);
+		assert.ok(result.ctime! > 0);
 	});
 
 	test('deleteFile', async () => {
@@ -1074,7 +1105,7 @@ flakySuite('Disk File Service', function () {
 		}
 	});
 
-	test('copy - MIX CASE different taget - overwrite', async () => {
+	test('copy - MIX CASE different target - overwrite', async () => {
 		const source1 = await service.resolve(URI.file(join(testDir, 'index.html')), { resolveMetadata: true });
 		assert.ok(source1.size > 0);
 
@@ -1137,6 +1168,67 @@ flakySuite('Disk File Service', function () {
 		copied = await service.resolve(source.resource, { resolveMetadata: true });
 		assert.strictEqual(source.size, copied.size);
 	});
+
+	test('cloneFile - basics', () => {
+		return testCloneFile();
+	});
+
+	test('cloneFile - via copy capability', () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose | FileSystemProviderCapabilities.FileFolderCopy);
+
+		return testCloneFile();
+	});
+
+	test('cloneFile - via pipe', () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+
+		return testCloneFile();
+	});
+
+	async function testCloneFile(): Promise<void> {
+		const source1 = URI.file(join(testDir, 'index.html'));
+		const source1Size = (await service.resolve(source1, { resolveMetadata: true })).size;
+
+		const source2 = URI.file(join(testDir, 'lorem.txt'));
+		const source2Size = (await service.resolve(source2, { resolveMetadata: true })).size;
+
+		const targetParent = URI.file(testDir);
+
+		// same path is a no-op
+		await service.cloneFile(source1, source1);
+
+		// simple clone to existing parent folder path
+		const target1 = targetParent.with({ path: posix.join(targetParent.path, `${posix.basename(source1.path)}-clone`) });
+
+		await service.cloneFile(source1, URI.file(target1.fsPath));
+
+		assert.strictEqual(existsSync(target1.fsPath), true);
+		assert.strictEqual(basename(target1.fsPath), 'index.html-clone');
+
+		let target1Size = (await service.resolve(target1, { resolveMetadata: true })).size;
+
+		assert.strictEqual(source1Size, target1Size);
+
+		// clone to same path overwrites
+		await service.cloneFile(source2, URI.file(target1.fsPath));
+
+		target1Size = (await service.resolve(target1, { resolveMetadata: true })).size;
+
+		assert.strictEqual(source2Size, target1Size);
+		assert.notStrictEqual(source1Size, target1Size);
+
+		// clone creates missing folders ad-hoc
+		const target2 = targetParent.with({ path: posix.join(targetParent.path, 'foo', 'bar', `${posix.basename(source1.path)}-clone`) });
+
+		await service.cloneFile(source1, URI.file(target2.fsPath));
+
+		assert.strictEqual(existsSync(target2.fsPath), true);
+		assert.strictEqual(basename(target2.fsPath), 'index.html-clone');
+
+		const target2Size = (await service.resolve(target2, { resolveMetadata: true })).size;
+
+		assert.strictEqual(source1Size, target2Size);
+	}
 
 	test('readFile - small file - default', () => {
 		return testReadFile(URI.file(join(testDir, 'small.txt')));
@@ -1269,8 +1361,8 @@ flakySuite('Disk File Service', function () {
 	});
 
 	async function testFilesNotIntermingled() {
-		let resource1 = URI.file(join(testDir, 'lorem.txt'));
-		let resource2 = URI.file(join(testDir, 'some_utf16le.css'));
+		const resource1 = URI.file(join(testDir, 'lorem.txt'));
+		const resource2 = URI.file(join(testDir, 'some_utf16le.css'));
 
 		// load in sequence and keep data
 		const value1 = await service.readFile(resource1);
@@ -1702,6 +1794,15 @@ flakySuite('Disk File Service', function () {
 
 	test('writeFile - default', async () => {
 		return testWriteFile();
+	});
+
+	test('writeFile - flush on write', async () => {
+		DiskFileSystemProvider.configureFlushOnWrite(true);
+		try {
+			return await testWriteFile();
+		} finally {
+			DiskFileSystemProvider.configureFlushOnWrite(false);
+		}
 	});
 
 	test('writeFile - buffered', async () => {

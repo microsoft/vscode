@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { WorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackupService';
 import { URI } from 'vs/base/common/uri';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -33,7 +34,7 @@ export class NativeWorkingCopyBackupService extends WorkingCopyBackupService {
 		// Lifecycle: ensure to prolong the shutdown for as long
 		// as pending backup operations have not finished yet.
 		// Otherwise, we risk writing partial backups to disk.
-		this.lifecycleService.onWillShutdown(event => event.join(this.joinBackups(), 'join.workingCopyBackups'));
+		this.lifecycleService.onWillShutdown(event => event.join(this.joinBackups(), { id: 'join.workingCopyBackups', label: localize('join.workingCopyBackups', "Backup working copies") }));
 	}
 }
 

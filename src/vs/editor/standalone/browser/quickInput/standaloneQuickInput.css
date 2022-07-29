@@ -27,6 +27,11 @@
 	color: #F38518;
 }
 
+.hc-light .quick-input-widget .monaco-highlighted-label .highlight,
+.hc-light .quick-input-widget .monaco-highlighted-label .highlight {
+	color: #0F4A85;
+}
+
 .monaco-keybinding > .monaco-keybinding-key {
 	background-color: rgba(221, 221, 221, 0.4);
 	border: solid 1px rgba(204, 204, 204, 0.4);
@@ -40,6 +45,13 @@
 	border: solid 1px rgb(111, 195, 223);
 	box-shadow: none;
 	color: #fff;
+}
+
+.hc-light .monaco-keybinding > .monaco-keybinding-key {
+	background-color: transparent;
+	border: solid 1px #0F4A85;
+	box-shadow: none;
+	color: #292929;
 }
 
 .vs-dark .monaco-keybinding > .monaco-keybinding-key {

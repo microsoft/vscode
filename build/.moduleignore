@@ -76,6 +76,7 @@ keytar/node_modules/**
 node-pty/binding.gyp
 node-pty/build/**
 node-pty/src/**
+node-pty/lib/*.test.js
 node-pty/tools/**
 node-pty/deps/**
 node-pty/scripts/**
@@ -106,11 +107,20 @@ vscode-encrypt/binding.gyp
 vscode-encrypt/README.md
 !vscode-encrypt/build/Release/vscode-encrypt-native.node
 
+vscode-policy-watcher/build/**
+vscode-policy-watcher/.husky/**
+vscode-policy-watcher/src/**
+vscode-policy-watcher/binding.gyp
+vscode-policy-watcher/README.md
+vscode-policy-watcher/index.d.ts
+!vscode-policy-watcher/build/Release/vscode-policy-watcher.node
+
 vscode-windows-ca-certs/**/*
 !vscode-windows-ca-certs/package.json
 !vscode-windows-ca-certs/**/*.node
 
 node-addon-api/**/*
+prebuild-install/**/*
 
 # other node modules
 
@@ -125,6 +135,9 @@ node-addon-api/**/*
 **/README.md
 **/readme.md
 **/readme.markdown
+**/CODE_OF_CONDUCT.md
+**/SUPPORT.md
+**/CONTRIBUTING.md
 
 **/*.ts
 !typescript/**/*.d.ts

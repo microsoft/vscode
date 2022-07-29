@@ -40,10 +40,12 @@ import { isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { isAbsolute } from 'vs/base/common/path';
 import { Constants } from 'vs/base/common/uint';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
+import { binarySearch2 } from 'vs/base/common/arrays';
 
 interface IDisassembledInstructionEntry {
 	allowBreakpoint: boolean;
 	isBreakpointSet: boolean;
+	isBreakpointEnabled: boolean;
 	instruction: DebugProtocol.DisassembledInstruction;
 	instructionAddress?: bigint;
 }
@@ -52,6 +54,7 @@ interface IDisassembledInstructionEntry {
 const disassemblyNotAvailable: IDisassembledInstructionEntry = {
 	allowBreakpoint: false,
 	isBreakpointSet: false,
+	isBreakpointEnabled: false,
 	instruction: {
 		address: '-1',
 		instruction: localize('instructionNotAvailable', "Disassembly not available.")
@@ -232,6 +235,7 @@ export class DisassemblyView extends EditorPane {
 						const index = this.getIndexFromAddress(bp.instructionReference);
 						if (index >= 0) {
 							this._disassembledInstructions!.row(index).isBreakpointSet = true;
+							this._disassembledInstructions!.row(index).isBreakpointEnabled = bp.enabled;
 							changed = true;
 						}
 					}
@@ -243,6 +247,18 @@ export class DisassemblyView extends EditorPane {
 						if (index >= 0) {
 							this._disassembledInstructions!.row(index).isBreakpointSet = false;
 							changed = true;
+						}
+					}
+				});
+
+				bpEvent.changed?.forEach((bp) => {
+					if (bp instanceof InstructionBreakpoint) {
+						const index = this.getIndexFromAddress(bp.instructionReference);
+						if (index >= 0) {
+							if (this._disassembledInstructions!.row(index).isBreakpointEnabled !== bp.enabled) {
+								this._disassembledInstructions!.row(index).isBreakpointEnabled = bp.enabled;
+								changed = true;
+							}
 						}
 					}
 				});
@@ -268,9 +284,7 @@ export class DisassemblyView extends EditorPane {
 	}
 
 	layout(dimension: Dimension): void {
-		if (this._disassembledInstructions) {
-			this._disassembledInstructions.layout(dimension.height);
-		}
+		this._disassembledInstructions?.layout(dimension.height);
 	}
 
 	/**
@@ -363,7 +377,7 @@ export class DisassemblyView extends EditorPane {
 					}
 				}
 
-				newEntries.push({ allowBreakpoint: true, isBreakpointSet: found !== undefined, instruction: instruction });
+				newEntries.push({ allowBreakpoint: true, isBreakpointSet: found !== undefined, isBreakpointEnabled: !!found?.enabled, instruction: instruction });
 			}
 
 			const specialEntriesToRemove = this._disassembledInstructions.length === 1 ? 1 : 0;
@@ -382,40 +396,22 @@ export class DisassemblyView extends EditorPane {
 	}
 
 	private getIndexFromAddress(instructionAddress: string): number {
-		if (this._disassembledInstructions && this._disassembledInstructions.length > 0) {
+		const disassembledInstructions = this._disassembledInstructions;
+		if (disassembledInstructions && disassembledInstructions.length > 0) {
 			const address = BigInt(instructionAddress);
 			if (address) {
-				let startIndex = 0;
-				let endIndex = this._disassembledInstructions.length - 1;
-				const start = this._disassembledInstructions.row(startIndex);
-				const end = this._disassembledInstructions.row(endIndex);
+				return binarySearch2(disassembledInstructions.length, index => {
+					const row = disassembledInstructions.row(index);
 
-				this.ensureAddressParsed(start);
-				this.ensureAddressParsed(end);
-				if (start.instructionAddress! > address ||
-					end.instructionAddress! < address) {
-					return -1;
-				} else if (start.instructionAddress! === address) {
-					return startIndex;
-				} else if (end.instructionAddress! === address) {
-					return endIndex;
-				}
-
-				while (endIndex > startIndex) {
-					const midIndex = Math.floor((endIndex - startIndex) / 2) + startIndex;
-					const mid = this._disassembledInstructions.row(midIndex);
-
-					this.ensureAddressParsed(mid);
-					if (mid.instructionAddress! > address) {
-						endIndex = midIndex;
-					} else if (mid.instructionAddress! < address) {
-						startIndex = midIndex;
+					this.ensureAddressParsed(row);
+					if (row.instructionAddress! > address) {
+						return 1;
+					} else if (row.instructionAddress! < address) {
+						return -1;
 					} else {
-						return midIndex;
+						return 0;
 					}
-				}
-
-				return startIndex;
+				});
 			}
 		}
 
@@ -467,6 +463,7 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 	templateId: string = BreakpointRenderer.TEMPLATE_ID;
 
 	private readonly _breakpointIcon = 'codicon-' + icons.breakpoint.regular.id;
+	private readonly _breakpointDisabledIcon = 'codicon-' + icons.breakpoint.disabled.id;
 	private readonly _breakpointHintIcon = 'codicon-' + icons.debugBreakpointHint.id;
 	private readonly _debugStackframe = 'codicon-' + icons.debugStackframe.id;
 	private readonly _debugStackframeFocused = 'codicon-' + icons.debugStackframeFocused.id;
@@ -542,9 +539,16 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 		icon.classList.remove(this._breakpointHintIcon);
 
 		if (element?.isBreakpointSet) {
-			icon.classList.add(this._breakpointIcon);
+			if (element.isBreakpointEnabled) {
+				icon.classList.add(this._breakpointIcon);
+				icon.classList.remove(this._breakpointDisabledIcon);
+			} else {
+				icon.classList.remove(this._breakpointIcon);
+				icon.classList.add(this._breakpointDisabledIcon);
+			}
 		} else {
 			icon.classList.remove(this._breakpointIcon);
+			icon.classList.remove(this._breakpointDisabledIcon);
 		}
 	}
 }
@@ -794,10 +798,10 @@ export class DisassemblyViewContribution implements IWorkbenchContribution {
 				const language = activeTextEditorControl.getModel()?.getLanguageId();
 				// TODO: instead of using idDebuggerInterestedInLanguage, have a specific ext point for languages
 				// support disassembly
-				this._languageSupportsDisassemleRequest?.set(!!language && debugService.getAdapterManager().isDebuggerInterestedInLanguage(language));
+				this._languageSupportsDisassemleRequest?.set(!!language && debugService.getAdapterManager().someDebuggerInterestedInLanguage(language));
 
 				this._onDidChangeModelLanguage = activeTextEditorControl.onDidChangeModelLanguage(e => {
-					this._languageSupportsDisassemleRequest?.set(debugService.getAdapterManager().isDebuggerInterestedInLanguage(e.newLanguage));
+					this._languageSupportsDisassemleRequest?.set(debugService.getAdapterManager().someDebuggerInterestedInLanguage(e.newLanguage));
 				});
 			} else {
 				this._languageSupportsDisassemleRequest?.set(false);

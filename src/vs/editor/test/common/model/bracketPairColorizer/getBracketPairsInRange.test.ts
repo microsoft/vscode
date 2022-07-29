@@ -3,34 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert = require('assert');
-import { Disposable, disposeOnReturn } from 'vs/base/common/lifecycle';
+import * as assert from 'assert';
+import { DisposableStore, disposeOnReturn } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { BracketPairInfo } from 'vs/editor/common/textModelBracketPairs';
-import { LanguageConfiguration } from 'vs/editor/common/languages/languageConfiguration';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { createModelServices, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
+import { TextModel } from 'vs/editor/common/model/textModel';
 
 suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
-	function createLang() {
-		return MockLanguage.create({
-			configuration: {
-				colorizedBracketPairs: [
-					['{', '}'],
-					['[', ']'],
-					['(', ')'],
-				]
-			},
-		});
+
+	function createTextModelWithColorizedBracketPairs(store: DisposableStore, text: string): TextModel {
+		const languageId = 'testLanguage';
+		const instantiationService = createModelServices(store);
+		const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+
+		store.add(languageConfigurationService.register(languageId, {
+			colorizedBracketPairs: [
+				['{', '}'],
+				['[', ']'],
+				['(', ')'],
+			]
+		}));
+		return store.add(instantiateTextModel(instantiationService, text, languageId));
 	}
 
 	test('Basic 1', () => {
 		disposeOnReturn(store => {
 			const doc = new AnnotatedDocument(`{ ( [] ¹ ) [ ² { } ] () } []`);
-			const model = store.add(
-				createTextModel(doc.text, store.add(createLang()).id)
-			);
+			const model = createTextModelWithColorizedBracketPairs(store, doc.text);
 			assert.deepStrictEqual(
 				model.bracketPairs
 					.getBracketPairsInRange(doc.range(1, 2))
@@ -62,9 +64,7 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 	test('Basic 2', () => {
 		disposeOnReturn(store => {
 			const doc = new AnnotatedDocument(`{ ( [] ¹ ²) [  { } ] () } []`);
-			const model = store.add(
-				createTextModel(doc.text, store.add(createLang()).id)
-			);
+			const model = createTextModelWithColorizedBracketPairs(store, doc.text);
 			assert.deepStrictEqual(
 				model.bracketPairs
 					.getBracketPairsInRange(doc.range(1, 2))
@@ -90,9 +90,7 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 	test('Basic Empty', () => {
 		disposeOnReturn(store => {
 			const doc = new AnnotatedDocument(`¹ ² { ( [] ) [  { } ] () } []`);
-			const model = store.add(
-				createTextModel(doc.text, store.add(createLang()).id)
-			);
+			const model = createTextModelWithColorizedBracketPairs(store, doc.text);
 			assert.deepStrictEqual(
 				model.bracketPairs
 					.getBracketPairsInRange(doc.range(1, 2))
@@ -105,9 +103,7 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 	test('Basic All', () => {
 		disposeOnReturn(store => {
 			const doc = new AnnotatedDocument(`¹ { ( [] ) [  { } ] () } [] ²`);
-			const model = store.add(
-				createTextModel(doc.text, store.add(createLang()).id)
-			);
+			const model = createTextModelWithColorizedBracketPairs(store, doc.text);
 			assert.deepStrictEqual(
 				model.bracketPairs
 					.getBracketPairsInRange(doc.range(1, 2))
@@ -201,7 +197,7 @@ class AnnotatedDocument {
 		const numbers = ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'];
 
 		let text = '';
-		let offsetPositions = new Map<number, number>();
+		const offsetPositions = new Map<number, number>();
 
 		let offset = 0;
 		for (let i = 0; i < src.length; i++) {
@@ -217,7 +213,7 @@ class AnnotatedDocument {
 		this.text = text;
 
 		const mapper = new PositionOffsetTransformer(this.text);
-		let positions = new Map<number, Position>();
+		const positions = new Map<number, Position>();
 		for (const [idx, offset] of offsetPositions.entries()) {
 			positions.set(idx, mapper.getPosition(offset));
 		}
@@ -226,30 +222,5 @@ class AnnotatedDocument {
 
 	range(start: number, end: number): Range {
 		return Range.fromPositions(this.positions.get(start)!, this.positions.get(end)!);
-	}
-}
-
-interface MockLanguageOptions {
-	configuration?: LanguageConfiguration;
-}
-
-class MockLanguage extends Disposable {
-	private static id = 0;
-
-	public static create(options: MockLanguageOptions) {
-		const id = `lang${this.id++}`;
-
-		return new MockLanguage(id, options);
-	}
-
-	constructor(
-		public readonly id: string,
-		options: MockLanguageOptions
-	) {
-		super();
-
-		if (options.configuration) {
-			this._register(LanguageConfigurationRegistry.register(id, options.configuration));
-		}
 	}
 }

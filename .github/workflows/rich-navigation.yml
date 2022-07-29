@@ -10,9 +10,9 @@ on:
 
 jobs:
   richnav:
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - uses: actions/cache@v2
         id: caching-stage
@@ -22,7 +22,7 @@ jobs:
           key: ${{ runner.os }}-dependencies-${{ hashfiles('yarn.lock') }}
           restore-keys: ${{ runner.os }}-dependencies-
 
-      - uses: actions/setup-node@v2
+      - uses: actions/setup-node@v3
         with:
           node-version: 16
 

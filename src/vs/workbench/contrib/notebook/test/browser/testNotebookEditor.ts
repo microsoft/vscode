@@ -37,22 +37,25 @@ import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/work
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { CellFindMatchWithIndex, IActiveNotebookEditorDelegate, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { ListViewInfoAccessor } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
+import { ListViewInfoAccessor, NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellKind, CellUri, INotebookDiffEditorModel, INotebookEditorModel, INotebookSearchOptions, IOutputDto, IResolvedNotebookEditorModel, NotebookCellExecutionState, NotebookCellMetadata, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionStateChangedEvent, INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionStateChangedEvent, INotebookCellExecution, INotebookExecutionStateService, INotebookFailStateChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
-import { TestClipboardService, TestLayoutService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestLayoutService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { ResourceMap } from 'vs/base/common/map';
+import { TestClipboardService } from 'vs/platform/clipboard/test/common/testClipboardService';
+import { IWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -71,7 +74,7 @@ export class TestCell extends NotebookCellTextModel {
 export class NotebookEditorTestModel extends EditorModel implements INotebookEditorModel {
 	private _dirty = false;
 
-	protected readonly _onDidSave = this._register(new Emitter<void>());
+	protected readonly _onDidSave = this._register(new Emitter<IWorkingCopySaveEvent>());
 	readonly onDidSave = this._onDidSave.event;
 
 	protected readonly _onDidChangeDirty = this._register(new Emitter<void>());
@@ -92,7 +95,7 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 		return this._notebook.uri;
 	}
 
-	get notebook() {
+	get notebook(): NotebookTextModel {
 		return this._notebook;
 	}
 
@@ -138,7 +141,7 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 		if (this._notebook) {
 			this._dirty = false;
 			this._onDidChangeDirty.fire();
-			this._onDidSave.fire();
+			this._onDidSave.fire({});
 			// todo, flush all states
 			return true;
 		}
@@ -172,6 +175,7 @@ export function setupInstantiationService(disposables = new DisposableStore()) {
 	instantiationService.stub(IStorageService, new TestStorageService());
 	instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService(true));
 	instantiationService.stub(INotebookExecutionStateService, new TestNotebookExecutionStateService());
+	instantiationService.stub(IKeybindingService, new MockKeybindingService());
 
 	return instantiationService;
 }
@@ -265,6 +269,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 			const findMatches = viewModel.find(query, options).filter(match => match.matches.length > 0);
 			return findMatches;
 		}
+		override deltaCellDecorations() { return []; }
 	};
 
 	return { editor: notebookEditor, viewModel };
@@ -364,7 +369,6 @@ export function createNotebookCellList(instantiationService: TestInstantiationSe
 		{
 			supportDynamicHeights: true,
 			multipleSelectionSupport: true,
-			enableKeyboardNavigation: true,
 			focusNextPreviousDelegate: {
 				onFocusNext: (applyFocusNext: () => void) => { applyFocusNext(); },
 				onFocusPrevious: (applyFocusPrevious: () => void) => { applyFocusPrevious(); },
@@ -403,11 +407,17 @@ class TestCellExecution implements INotebookCellExecution {
 }
 
 class TestNotebookExecutionStateService implements INotebookExecutionStateService {
+
+	getLastFailedCellForNotebook(notebook: URI): number | undefined {
+		return;
+	}
+
 	_serviceBrand: undefined;
 
 	private _executions = new ResourceMap<INotebookCellExecution>();
 
 	onDidChangeCellExecution = new Emitter<ICellExecutionStateChangedEvent>().event;
+	onDidChangeLastRunFailState = new Emitter<INotebookFailStateChangedEvent>().event;
 
 	forceCancelNotebookExecutions(notebookUri: URI): void {
 	}
@@ -420,7 +430,7 @@ class TestNotebookExecutionStateService implements INotebookExecutionStateServic
 		return this._executions.get(cellUri);
 	}
 
-	createCellExecution(controllerId: string, notebook: URI, cellHandle: number): INotebookCellExecution {
+	createCellExecution(notebook: URI, cellHandle: number): INotebookCellExecution {
 		const onComplete = () => this._executions.delete(CellUri.generate(notebook, cellHandle));
 		const exe = new TestCellExecution(notebook, cellHandle, onComplete);
 		this._executions.set(CellUri.generate(notebook, cellHandle), exe);

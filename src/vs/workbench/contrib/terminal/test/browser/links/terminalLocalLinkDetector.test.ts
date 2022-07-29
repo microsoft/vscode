@@ -10,7 +10,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ITerminalSimpleLink, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
 import { TerminalLocalLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalLocalLinkDetector';
-import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
+import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { assertLinkHelper, resolveLinkForTest } from 'vs/workbench/contrib/terminal/test/browser/links/linkTestUtils';
 import { Terminal } from 'xterm';
 
@@ -58,6 +58,8 @@ const supportedLinkFormats: LinkFormatInfo[] = [
 	{ urlFormat: '{0} on line {1}, column {2}', line: '5', column: '3' },
 	{ urlFormat: '{0}:line {1}', line: '5' },
 	{ urlFormat: '{0}:line {1}, column {2}', line: '5', column: '3' },
+	{ urlFormat: '{0}: line {1}', line: '5' },
+	{ urlFormat: '{0}: line {1}, col {2}', line: '5', column: '3' },
 	{ urlFormat: '{0}({1})', line: '5' },
 	{ urlFormat: '{0} ({1})', line: '5' },
 	{ urlFormat: '{0}({1},{2})', line: '5', column: '3' },
@@ -66,6 +68,7 @@ const supportedLinkFormats: LinkFormatInfo[] = [
 	{ urlFormat: '{0} ({1}, {2})', line: '5', column: '3' },
 	{ urlFormat: '{0}:{1}', line: '5' },
 	{ urlFormat: '{0}:{1}:{2}', line: '5', column: '3' },
+	{ urlFormat: '{0} {1}:{2}', line: '5', column: '3' },
 	{ urlFormat: '{0}[{1}]', line: '5' },
 	{ urlFormat: '{0} [{1}]', line: '5' },
 	{ urlFormat: '{0}[{1},{2}]', line: '5', column: '3' },

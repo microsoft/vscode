@@ -23,6 +23,7 @@ export interface IMarkdownRenderResult extends IDisposable {
 export interface IMarkdownRendererOptions {
 	editor?: ICodeEditor;
 	codeBlockFontFamily?: string;
+	codeBlockFontSize?: string;
 }
 
 /**
@@ -64,7 +65,7 @@ export class MarkdownRenderer {
 		};
 	}
 
-	protected _getRenderOptions(markdown: IMarkdownString, disposeables: DisposableStore): MarkdownRenderOptions {
+	protected _getRenderOptions(markdown: IMarkdownString, disposables: DisposableStore): MarkdownRenderOptions {
 		return {
 			codeBlockRenderer: async (languageAlias, value) => {
 				// In markdown,
@@ -93,12 +94,16 @@ export class MarkdownRenderer {
 					element.style.fontFamily = this._options.codeBlockFontFamily;
 				}
 
+				if (this._options.codeBlockFontSize !== undefined) {
+					element.style.fontSize = this._options.codeBlockFontSize;
+				}
+
 				return element;
 			},
 			asyncRenderCallback: () => this._onDidRenderAsync.fire(),
 			actionHandler: {
 				callback: (content) => this._openerService.open(content, { fromUserGesture: true, allowContributedOpeners: true, allowCommands: markdown.isTrusted }).catch(onUnexpectedError),
-				disposables: disposeables
+				disposables: disposables
 			}
 		};
 	}

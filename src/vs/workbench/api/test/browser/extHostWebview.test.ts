@@ -32,7 +32,7 @@ suite('ExtHostWebview', () => {
 	test('Cannot register multiple serializers for the same view type', async () => {
 		const viewType = 'view.type';
 
-		const extHostWebviews = new ExtHostWebviews(rpcProtocol!, { remote: { authority: undefined, isRemote: false } }, undefined, new NullLogService(), NullApiDeprecationService);
+		const extHostWebviews = new ExtHostWebviews(rpcProtocol!, { authority: undefined, isRemote: false }, undefined, new NullLogService(), NullApiDeprecationService);
 
 		const extHostWebviewPanels = new ExtHostWebviewPanels(rpcProtocol!, extHostWebviews, undefined);
 
@@ -55,7 +55,8 @@ suite('ExtHostWebview', () => {
 			title: 'title',
 			state: {},
 			panelOptions: {},
-			webviewOptions: {}
+			webviewOptions: {},
+			active: true,
 		}, 0 as EditorGroupColumn);
 		assert.strictEqual(lastInvokedDeserializer, serializerA);
 
@@ -71,7 +72,8 @@ suite('ExtHostWebview', () => {
 			title: 'title',
 			state: {},
 			panelOptions: {},
-			webviewOptions: {}
+			webviewOptions: {},
+			active: true,
 		}, 0 as EditorGroupColumn);
 		assert.strictEqual(lastInvokedDeserializer, serializerB);
 	});
@@ -133,12 +135,12 @@ suite('ExtHostWebview', () => {
 		const webviewUri = webview.webview.asWebviewUri(sourceUri);
 		assert.strictEqual(
 			webviewUri.toString(),
-			`https://vscode-remote%2Bssh-002dremote-002blocalhost-003dfoo-002fbar.vscode-resource.vscode-webview.net/Users/cody/x.png`,
+			`https://vscode-remote%2Bssh-002dremote-002blocalhost-003dfoo-002fbar.vscode-resource.vscode-cdn.net/Users/cody/x.png`,
 			'Check transform');
 
 		assert.strictEqual(
 			decodeAuthority(webviewUri.authority),
-			`vscode-remote+${authority}.vscode-resource.vscode-webview.net`,
+			`vscode-remote+${authority}.vscode-resource.vscode-cdn.net`,
 			'Check decoded authority'
 		);
 	});
@@ -156,12 +158,12 @@ suite('ExtHostWebview', () => {
 		const webviewUri = webview.webview.asWebviewUri(sourceUri);
 		assert.strictEqual(
 			webviewUri.toString(),
-			`https://vscode-remote%2Blocalhost-003a8080.vscode-resource.vscode-webview.net/Users/cody/x.png`,
+			`https://vscode-remote%2Blocalhost-003a8080.vscode-resource.vscode-cdn.net/Users/cody/x.png`,
 			'Check transform');
 
 		assert.strictEqual(
 			decodeAuthority(webviewUri.authority),
-			`vscode-remote+${authority}.vscode-resource.vscode-webview.net`,
+			`vscode-remote+${authority}.vscode-resource.vscode-cdn.net`,
 			'Check decoded authority'
 		);
 	});
@@ -169,10 +171,8 @@ suite('ExtHostWebview', () => {
 
 function createWebview(rpcProtocol: (IExtHostRpcService & IExtHostContext) | undefined, remoteAuthority: string | undefined) {
 	const extHostWebviews = new ExtHostWebviews(rpcProtocol!, {
-		remote: {
-			authority: remoteAuthority,
-			isRemote: !!remoteAuthority,
-		},
+		authority: remoteAuthority,
+		isRemote: !!remoteAuthority,
 	}, undefined, new NullLogService(), NullApiDeprecationService);
 
 	const extHostWebviewPanels = new ExtHostWebviewPanels(rpcProtocol!, extHostWebviews, undefined);

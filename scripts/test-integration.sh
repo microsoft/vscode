@@ -6,9 +6,9 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
 	ROOT=$(dirname $(dirname $(realpath "$0")))
 else
 	ROOT=$(dirname $(dirname $(readlink -f $0)))
-	# --disable-dev-shm-usage --use-gl=swiftshader: when run on docker containers where size of /dev/shm
+	# --disable-dev-shm-usage: when run on docker containers where size of /dev/shm
 	# partition < 64MB which causes OOM failure for chromium compositor that uses the partition for shared memory
-	LINUX_EXTRA_ARGS="--disable-dev-shm-usage --use-gl=swiftshader"
+	LINUX_EXTRA_ARGS="--disable-dev-shm-usage"
 fi
 
 VSCODEUSERDATADIR=`mktemp -d 2>/dev/null`
@@ -30,19 +30,19 @@ else
 	# Run from a built: need to compile all test extensions
 	# because we run extension tests from their source folders
 	# and the build bundles extensions into .build webpacked
-	yarn gulp 	compile-extension:vscode-api-tests \
-				compile-extension:vscode-colorize-tests \
-				compile-extension:vscode-custom-editor-tests \
-				compile-extension:vscode-notebook-tests \
-				compile-extension:markdown-language-features \
-				compile-extension:typescript-language-features \
-				compile-extension:emmet \
-				compile-extension:css-language-features-server \
-				compile-extension:html-language-features-server \
-				compile-extension:json-language-features-server \
-				compile-extension:git \
-				compile-extension:ipynb \
-				compile-extension-media
+	# yarn gulp 	compile-extension:vscode-api-tests \
+	#			compile-extension:vscode-colorize-tests \
+	#			compile-extension:vscode-notebook-tests \
+	#			compile-extension:markdown-language-features \
+	#			compile-extension:typescript-language-features \
+	#			compile-extension:emmet \
+	#			compile-extension:css-language-features-server \
+	#			compile-extension:html-language-features-server \
+	#			compile-extension:json-language-features-server \
+	#			compile-extension:git \
+	#			compile-extension:ipynb \
+	#			compile-extension:configuration-editing \
+	#			compile-extension-media
 
 	# Configuration for more verbose output
 	export VSCODE_CLI=1
@@ -93,7 +93,7 @@ kill_app
 echo
 echo "### TypeScript tests"
 echo
-"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $ROOT/extensions/typescript-language-features/test-workspace --enable-proposed-api=vscode.typescript-language-features --extensionDevelopmentPath=$ROOT/extensions/typescript-language-features --extensionTestsPath=$ROOT/extensions/typescript-language-features/out/test/unit $API_TESTS_EXTRA_ARGS
+"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $ROOT/extensions/typescript-language-features/test-workspace --extensionDevelopmentPath=$ROOT/extensions/typescript-language-features --extensionTestsPath=$ROOT/extensions/typescript-language-features/out/test/unit $API_TESTS_EXTRA_ARGS
 kill_app
 
 echo
@@ -111,13 +111,19 @@ kill_app
 echo
 echo "### Git tests"
 echo
-"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $(mktemp -d 2>/dev/null) --enable-proposed-api=vscode.git --extensionDevelopmentPath=$ROOT/extensions/git --extensionTestsPath=$ROOT/extensions/git/out/test $API_TESTS_EXTRA_ARGS
+"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $(mktemp -d 2>/dev/null) --extensionDevelopmentPath=$ROOT/extensions/git --extensionTestsPath=$ROOT/extensions/git/out/test $API_TESTS_EXTRA_ARGS
 kill_app
 
 echo
 echo "### Ipynb tests"
 echo
 "$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $(mktemp -d 2>/dev/null) --extensionDevelopmentPath=$ROOT/extensions/ipynb --extensionTestsPath=$ROOT/extensions/ipynb/out/test $API_TESTS_EXTRA_ARGS
+kill_app
+
+echo
+echo "### Configuration editing tests"
+echo
+"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $(mktemp -d 2>/dev/null) --extensionDevelopmentPath=$ROOT/extensions/configuration-editing --extensionTestsPath=$ROOT/extensions/configuration-editing/out/test $API_TESTS_EXTRA_ARGS
 kill_app
 
 

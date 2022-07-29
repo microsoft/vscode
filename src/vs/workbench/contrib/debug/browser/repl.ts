@@ -29,20 +29,21 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ITextModel } from 'vs/editor/common/model';
 import { CompletionContext, CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemKinds, CompletionList } from 'vs/editor/common/languages';
+import { ITextModel } from 'vs/editor/common/model';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { localize } from 'vs/nls';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { createAndBindHistoryNavigationWidgetScopedContextKeyService } from 'vs/platform/history/browser/contextScopedHistoryWidget';
-import { showHistoryKeybindingHint } from 'vs/platform/history/browser/historyWidgetKeybindingHint';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { registerAndCreateHistoryNavigationContext } from 'vs/platform/history/browser/contextScopedHistoryWidget';
+import { showHistoryKeybindingHint } from 'vs/platform/history/browser/historyWidgetKeybindingHint';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -62,9 +63,9 @@ import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { ReplFilter, ReplFilterActionViewItem, ReplFilterState } from 'vs/workbench/contrib/debug/browser/replFilter';
 import { ReplAccessibilityProvider, ReplDataSource, ReplDelegate, ReplEvaluationInputsRenderer, ReplEvaluationResultsRenderer, ReplGroupRenderer, ReplRawObjectsRenderer, ReplSimpleElementsRenderer, ReplVariablesRenderer } from 'vs/workbench/contrib/debug/browser/replViewer';
 import { CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_REPL, CONTEXT_MULTI_SESSION_REPL, DEBUG_SCHEME, getStateLabel, IDebugConfiguration, IDebugService, IDebugSession, IReplElement, REPL_VIEW_ID, State } from 'vs/workbench/contrib/debug/common/debug';
+import { Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 import { ReplGroup } from 'vs/workbench/contrib/debug/common/replModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 const $ = dom.$;
 
@@ -76,6 +77,7 @@ const FILTER_ACTION_ID = `workbench.actions.treeView.repl.filter`;
 
 function revealLastElement(tree: WorkbenchAsyncDataTree<any, any, any>) {
 	tree.scrollTop = tree.scrollHeight - tree.renderHeight;
+	// tree.scrollTop = 1e6;
 }
 
 const sessionsToIgnore = new Set<IDebugSession>();
@@ -89,6 +91,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 	private history: HistoryNavigator<string>;
 	private tree!: WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>;
+	private previousTreeScrollHeight: number = 0;
 	private replDelegate!: ReplDelegate;
 	private container!: HTMLElement;
 	private treeContainer!: HTMLElement;
@@ -150,6 +153,12 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		}
 
 		this._register(this.debugService.getViewModel().onDidFocusSession(async session => this.onDidFocusSession(session)));
+		this._register(this.debugService.getViewModel().onDidEvaluateLazyExpression(async e => {
+			if (e instanceof Variable && this.tree.hasNode(e)) {
+				await this.tree.updateChildren(e, false, true);
+				await this.tree.expand(e);
+			}
+		}));
 		this._register(this.debugService.onWillNewSession(async newSession => {
 			// Need to listen to output events for sessions which are not yet fully initialised
 			const input = this.tree.getInput();
@@ -254,6 +263,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 										suggestions.push({
 											label: item.label,
 											insertText,
+											detail: item.detail,
 											kind: CompletionItemKinds.fromString(item.type || 'property'),
 											filterText: (item.start && item.length) ? text.substring(item.start, item.start + item.length).concat(item.label) : undefined,
 											range: computeRange(item.length || overwriteBefore),
@@ -523,7 +533,6 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 				return;
 			}
 
-			const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
 			await this.tree.updateChildren(undefined, true, false, { diffIdentityProvider: identityProvider });
 
 			const session = this.tree.getInput();
@@ -544,11 +553,6 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 					}
 				};
 				await autoExpandElements(session.getReplElements());
-			}
-
-			if (lastElementVisible) {
-				// Only scroll if we were scrolled all the way down before tree refreshed #10486
-				revealLastElement(this.tree);
 			}
 			// Repl elements count changed, need to update filter stats on the badge
 			this.filterState.updateFilterStats();
@@ -598,6 +602,21 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 					listBackground: this.getBackgroundColor()
 				}
 			});
+
+		this._register(this.tree.onDidChangeContentHeight(() => {
+			if (this.tree.scrollHeight !== this.previousTreeScrollHeight) {
+				const lastElementWasVisible = this.tree.scrollTop + this.tree.renderHeight >= this.previousTreeScrollHeight;
+				if (lastElementWasVisible) {
+					setTimeout(() => {
+						// Can't set scrollTop during this event listener, the list might overwrite the change
+						revealLastElement(this.tree);
+					}, 0);
+				}
+			}
+
+			this.previousTreeScrollHeight = this.tree.scrollHeight;
+		}));
+
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		let lastSelectedString: string;
 		this._register(this.tree.onMouseClick(() => {
@@ -618,12 +637,11 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		this.replInputContainer = dom.append(container, $('.repl-input-wrapper'));
 		dom.append(this.replInputContainer, $('.repl-input-chevron' + ThemeIcon.asCSSSelector(debugConsoleEvaluationPrompt)));
 
-		const { scopedContextKeyService, historyNavigationBackwardsEnablement, historyNavigationForwardsEnablement } = createAndBindHistoryNavigationWidgetScopedContextKeyService(this.contextKeyService, { target: container, historyNavigator: this });
+		const { scopedContextKeyService, historyNavigationBackwardsEnablement, historyNavigationForwardsEnablement } = this._register(registerAndCreateHistoryNavigationContext(this.contextKeyService, this));
 		this.setHistoryNavigationEnablement = enabled => {
 			historyNavigationBackwardsEnablement.set(enabled);
 			historyNavigationForwardsEnablement.set(enabled);
 		};
-		this._register(scopedContextKeyService);
 		CONTEXT_IN_DEBUG_REPL.bindTo(scopedContextKeyService).set(true);
 
 		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
@@ -700,7 +718,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			});
 		}
 
-		this.replInput.setDecorations('repl-decoration', DECORATION_KEY, decorations);
+		this.replInput.setDecorationsByType('repl-decoration', DECORATION_KEY, decorations);
 	}
 
 	override saveState(): void {
@@ -876,7 +894,7 @@ registerAction2(class extends ViewAction<Repl> {
 					session = stopppedChildSession;
 				}
 			}
-			await debugService.focusStackFrame(undefined, undefined, session, true);
+			await debugService.focusStackFrame(undefined, undefined, session, { explicit: true });
 		}
 		// Need to select the session in the view since the focussed session might not have changed
 		await view.selectSession(session);

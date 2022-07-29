@@ -27,13 +27,17 @@ import { EnablementState, IWorkbenchExtensionManagementService, IWorkbenchExtens
 import { IExtensionIgnoredRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 
 type ExtensionRecommendationsNotificationClassification = {
-	userReaction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-	extensionId?: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
-	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	owner: 'sandy081';
+	comment: 'Response information when an extension is recommended';
+	userReaction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'User reaction after showing the recommendation prompt. Eg., install, cancel, show, neverShowAgain' };
+	extensionId?: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'Id of the extension that is recommended' };
+	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source from which this recommendation is coming from. Eg., file, exe.,' };
 };
 
 type ExtensionWorkspaceRecommendationsNotificationClassification = {
-	userReaction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	owner: 'sandy081';
+	comment: 'Response information when a recommendation from workspace is recommended';
+	userReaction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'User reaction after showing the recommendation prompt. Eg., install, cancel, show, neverShowAgain' };
 };
 
 const ignoreImportantExtensionRecommendationStorageKey = 'extensionsAssistant/importantRecommendationsIgnore';
@@ -113,7 +117,7 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 
 	// Ignored Important Recommendations
 	get ignoredRecommendations(): string[] {
-		return distinct([...(<string[]>JSON.parse(this.storageService.get(ignoreImportantExtensionRecommendationStorageKey, StorageScope.GLOBAL, '[]')))].map(i => i.toLowerCase()));
+		return distinct([...(<string[]>JSON.parse(this.storageService.get(ignoreImportantExtensionRecommendationStorageKey, StorageScope.PROFILE, '[]')))].map(i => i.toLowerCase()));
 	}
 
 	private recommendedExtensions: string[] = [];
@@ -410,7 +414,7 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 		const importantRecommendationsIgnoreList = [...this.ignoredRecommendations];
 		if (!importantRecommendationsIgnoreList.includes(id.toLowerCase())) {
 			importantRecommendationsIgnoreList.push(id.toLowerCase());
-			this.storageService.store(ignoreImportantExtensionRecommendationStorageKey, JSON.stringify(importantRecommendationsIgnoreList), StorageScope.GLOBAL, StorageTarget.USER);
+			this.storageService.store(ignoreImportantExtensionRecommendationStorageKey, JSON.stringify(importantRecommendationsIgnoreList), StorageScope.PROFILE, StorageTarget.USER);
 		}
 	}
 

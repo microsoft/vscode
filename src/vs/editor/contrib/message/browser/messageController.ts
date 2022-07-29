@@ -13,6 +13,7 @@ import { EditorCommand, registerEditorCommand, registerEditorContribution } from
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
+import { PositionAffinity } from 'vs/editor/common/model';
 import * as nls from 'vs/nls';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -31,7 +32,6 @@ export class MessageController implements IEditorContribution {
 	private readonly _visible: IContextKey<boolean>;
 	private readonly _messageWidget = new MutableDisposable<MessageWidget>();
 	private readonly _messageListeners = new DisposableStore();
-	private readonly _editorListener: IDisposable;
 
 	constructor(
 		editor: ICodeEditor,
@@ -40,11 +40,9 @@ export class MessageController implements IEditorContribution {
 
 		this._editor = editor;
 		this._visible = MessageController.MESSAGE_VISIBLE.bindTo(contextKeyService);
-		this._editorListener = this._editor.onDidAttemptReadOnlyEdit(() => this._onDidAttemptReadOnlyEdit());
 	}
 
 	dispose(): void {
-		this._editorListener.dispose();
 		this._messageListeners.dispose();
 		this._messageWidget.dispose();
 		this._visible.reset();
@@ -97,12 +95,6 @@ export class MessageController implements IEditorContribution {
 			this._messageListeners.add(MessageWidget.fadeOut(this._messageWidget.value));
 		}
 	}
-
-	private _onDidAttemptReadOnlyEdit(): void {
-		if (this._editor.hasModel()) {
-			this.showMessage(nls.localize('editor.readonly', "Cannot edit in read-only editor"), this._editor.getPosition());
-		}
-	}
 }
 
 const MessageCommand = EditorCommand.bindToContribution<MessageController>(MessageController.get);
@@ -129,13 +121,12 @@ class MessageWidget implements IContentWidget {
 	private readonly _domNode: HTMLDivElement;
 
 	static fadeOut(messageWidget: MessageWidget): IDisposable {
-		let handle: any;
 		const dispose = () => {
 			messageWidget.dispose();
 			clearTimeout(handle);
 			messageWidget.getDomNode().removeEventListener('animationend', dispose);
 		};
-		handle = setTimeout(dispose, 110);
+		const handle = setTimeout(dispose, 110);
 		messageWidget.getDomNode().addEventListener('animationend', dispose);
 		messageWidget.getDomNode().classList.add('fadeOut');
 		return { dispose };
@@ -145,10 +136,11 @@ class MessageWidget implements IContentWidget {
 
 		this._editor = editor;
 		this._editor.revealLinesInCenterIfOutsideViewport(lineNumber, lineNumber, ScrollType.Smooth);
-		this._position = { lineNumber, column: column - 1 };
+		this._position = { lineNumber, column };
 
 		this._domNode = document.createElement('div');
 		this._domNode.classList.add('monaco-editor-overlaymessage');
+		this._domNode.style.marginLeft = '-6px';
 
 		const anchorTop = document.createElement('div');
 		anchorTop.classList.add('anchor', 'top');
@@ -180,7 +172,14 @@ class MessageWidget implements IContentWidget {
 	}
 
 	getPosition(): IContentWidgetPosition {
-		return { position: this._position, preference: [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW] };
+		return {
+			position: this._position,
+			preference: [
+				ContentWidgetPositionPreference.ABOVE,
+				ContentWidgetPositionPreference.BELOW,
+			],
+			positionAffinity: PositionAffinity.Right,
+		};
 	}
 
 	afterRender(position: ContentWidgetPositionPreference | null): void {

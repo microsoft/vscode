@@ -231,9 +231,7 @@ abstract class ViewItem<TLayoutContext> {
 
 		this.container.classList.toggle('visible', visible);
 
-		if (this.view.setVisible) {
-			this.view.setVisible(visible);
-		}
+		this.view.setVisible?.(visible);
 	}
 
 	get minimumSize(): number { return this.visible ? this.view.minimumSize : 0; }
@@ -324,14 +322,14 @@ enum State {
 }
 
 /**
- * When adding or removing views, distribute the delta space among
- * all other views.
+ * When adding or removing views, uniformly distribute the entire split view space among
+ * all views.
  */
 export type DistributeSizing = { type: 'distribute' };
 
 /**
- * When adding or removing views, split the delta space with another
- * specific view, indexed by the provided `index`.
+ * When adding a view, make space for it by reducing the size of another view,
+ * indexed by the provided `index`.
  */
 export type SplitSizing = { type: 'split'; index: number };
 
@@ -934,6 +932,23 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 	}
 
 	/**
+	 * Returns whether all other {@link IView views} are at their minimum size.
+	 */
+	isViewSizeMaximized(index: number): boolean {
+		if (index < 0 || index >= this.viewItems.length) {
+			return false;
+		}
+
+		for (const item of this.viewItems) {
+			if (item !== this.viewItems[index] && item.size > item.minimumSize) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/**
 	 * Distribute the entire {@link SplitView} size among all {@link IView views}.
 	 */
 	distributeViewSizes(): void {
@@ -1011,7 +1026,7 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 
 		// Add sash
 		if (this.viewItems.length > 1) {
-			let opts = { orthogonalStartSash: this.orthogonalStartSash, orthogonalEndSash: this.orthogonalEndSash };
+			const opts = { orthogonalStartSash: this.orthogonalStartSash, orthogonalEndSash: this.orthogonalEndSash };
 
 			const sash = this.orientation === Orientation.VERTICAL
 				? new Sash(this.sashContainer, { getHorizontalSashTop: s => this.getSashPosition(s), getHorizontalSashWidth: this.getSashOrthogonalSize }, { ...opts, orientation: Orientation.HORIZONTAL })

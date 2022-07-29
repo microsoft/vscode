@@ -69,7 +69,7 @@ class FixedLabelStrategy implements IActionLayoutStrategy {
 
 		const a = this.editorToolbar.primaryActions.find(a => a.action.id === action.id);
 		if (a && a.renderLabel) {
-			return action instanceof MenuItemAction ? this.instantiationService.createInstance(ActionViewWithLabel, action) : undefined;
+			return action instanceof MenuItemAction ? this.instantiationService.createInstance(ActionViewWithLabel, action, undefined) : undefined;
 		} else {
 			return action instanceof MenuItemAction ? this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined) : undefined;
 		}
@@ -144,7 +144,7 @@ class DynamicLabelStrategy implements IActionLayoutStrategy {
 
 		const a = this.editorToolbar.primaryActions.find(a => a.action.id === action.id);
 		if (a && a.renderLabel) {
-			return action instanceof MenuItemAction ? this.instantiationService.createInstance(ActionViewWithLabel, action) : undefined;
+			return action instanceof MenuItemAction ? this.instantiationService.createInstance(ActionViewWithLabel, action, undefined) : undefined;
 		} else {
 			return action instanceof MenuItemAction ? this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined) : undefined;
 		}
@@ -317,7 +317,7 @@ export class NotebookEditorToolbar extends Disposable {
 			}
 		}));
 
-		this._reigsterNotebookActionsToolbar();
+		this._registerNotebookActionsToolbar();
 	}
 
 	private _buildBody() {
@@ -338,7 +338,7 @@ export class NotebookEditorToolbar extends Disposable {
 		DOM.append(this.domNode, this._notebookTopRightToolbarContainer);
 	}
 
-	private _reigsterNotebookActionsToolbar() {
+	private _registerNotebookActionsToolbar() {
 		this._notebookGlobalActionsMenu = this._register(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.notebookToolbar, this.contextKeyService));
 		this._register(this._notebookGlobalActionsMenu);
 
@@ -360,7 +360,7 @@ export class NotebookEditorToolbar extends Disposable {
 			if (this._renderLabel !== RenderLabel.Never) {
 				const a = this._primaryActions.find(a => a.action.id === action.id);
 				if (a && a.renderLabel) {
-					return action instanceof MenuItemAction ? this.instantiationService.createInstance(ActionViewWithLabel, action) : undefined;
+					return action instanceof MenuItemAction ? this.instantiationService.createInstance(ActionViewWithLabel, action, undefined) : undefined;
 				} else {
 					return action instanceof MenuItemAction ? this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined) : undefined;
 				}
@@ -405,9 +405,7 @@ export class NotebookEditorToolbar extends Disposable {
 
 			if (deferredUpdate && !visible) {
 				setTimeout(() => {
-					if (deferredUpdate) {
-						deferredUpdate();
-					}
+					deferredUpdate?.();
 				}, 0);
 				deferredUpdate = undefined;
 			}
@@ -601,6 +599,17 @@ export class NotebookEditorToolbar extends Disposable {
 			this.domNode.style.display = 'flex';
 		}
 		this._computeSizes();
+	}
+
+	override dispose() {
+		this._notebookLeftToolbar.context = undefined;
+		this._notebookRightToolbar.context = undefined;
+		this._notebookLeftToolbar.dispose();
+		this._notebookRightToolbar.dispose();
+		this._notebookLeftToolbar = null!;
+		this._notebookRightToolbar = null!;
+
+		super.dispose();
 	}
 }
 

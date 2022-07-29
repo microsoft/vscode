@@ -354,9 +354,7 @@ export class Delayer<T> implements IDisposable {
 		this.cancelTimeout();
 
 		if (this.completionPromise) {
-			if (this.doReject) {
-				this.doReject(new CancellationError());
-			}
+			this.doReject?.(new CancellationError());
 			this.completionPromise = null;
 		}
 	}
@@ -595,19 +593,27 @@ export class Limiter<T> implements ILimiter<T>{
 
 	private _size = 0;
 	private runningPromises: number;
-	private maxDegreeOfParalellism: number;
-	private outstandingPromises: ILimitedTaskFactory<T>[];
-	private readonly _onFinished: Emitter<void>;
+	private readonly maxDegreeOfParalellism: number;
+	private readonly outstandingPromises: ILimitedTaskFactory<T>[];
+	private readonly _onDrained: Emitter<void>;
 
 	constructor(maxDegreeOfParalellism: number) {
 		this.maxDegreeOfParalellism = maxDegreeOfParalellism;
 		this.outstandingPromises = [];
 		this.runningPromises = 0;
-		this._onFinished = new Emitter<void>();
+		this._onDrained = new Emitter<void>();
 	}
 
-	get onFinished(): Event<void> {
-		return this._onFinished.event;
+	/**
+	 * An event that fires when every promise in the queue
+	 * has started to execute. In other words: no work is
+	 * pending to be scheduled.
+	 *
+	 * This is NOT an event that signals when all promises
+	 * have finished though.
+	 */
+	get onDrained(): Event<void> {
+		return this._onDrained.event;
 	}
 
 	get size(): number {
@@ -641,12 +647,12 @@ export class Limiter<T> implements ILimiter<T>{
 		if (this.outstandingPromises.length > 0) {
 			this.consume();
 		} else {
-			this._onFinished.fire();
+			this._onDrained.fire();
 		}
 	}
 
 	dispose(): void {
-		this._onFinished.dispose();
+		this._onDrained.dispose();
 	}
 }
 
@@ -697,10 +703,10 @@ export class ResourceQueue implements IDisposable {
 		let queue = this.queues.get(key);
 		if (!queue) {
 			queue = new Queue<void>();
-			Event.once(queue.onFinished)(() => {
+			Event.once(queue.onDrained)(() => {
 				queue?.dispose();
 				this.queues.delete(key);
-				this.onDidQueueFinish();
+				this.onDidQueueDrain();
 			});
 
 			this.queues.set(key, queue);
@@ -709,7 +715,7 @@ export class ResourceQueue implements IDisposable {
 		return queue;
 	}
 
-	private onDidQueueFinish(): void {
+	private onDidQueueDrain(): void {
 		if (!this.isDrained()) {
 			return; // not done yet
 		}
@@ -877,9 +883,7 @@ export class RunOnceScheduler {
 	}
 
 	protected doRun(): void {
-		if (this.runner) {
-			this.runner();
-		}
+		this.runner?.();
 	}
 }
 
@@ -952,9 +956,7 @@ export class ProcessTimeRunOnceScheduler {
 		// time elapsed
 		clearInterval(this.intervalToken);
 		this.intervalToken = -1;
-		if (this.runner) {
-			this.runner();
-		}
+		this.runner?.();
 	}
 }
 
@@ -977,9 +979,7 @@ export class RunOnceWorker<T> extends RunOnceScheduler {
 		const units = this.units;
 		this.units = [];
 
-		if (this.runner) {
-			this.runner(units);
-		}
+		this.runner?.(units);
 	}
 
 	override dispose(): void {

@@ -9,7 +9,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { consumeStream, newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
-import { FileOpenOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileType, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IStat } from 'vs/platform/files/common/files';
+import { IFileOpenOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileType, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IStat } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullFileSystemProvider } from 'vs/platform/files/test/common/nullFileSystemProvider';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -121,6 +121,7 @@ suite('File Service', () => {
 		const resource3 = URI.parse('test://foo/bar3');
 		const watcher3Disposable1 = service.watch(resource3);
 		const watcher3Disposable2 = service.watch(resource3, { recursive: true, excludes: [] });
+		const watcher3Disposable3 = service.watch(resource3, { recursive: false, excludes: [], includes: [] });
 
 		await timeout(0); // service.watch() is async
 		assert.strictEqual(disposeCounter, 0);
@@ -128,6 +129,8 @@ suite('File Service', () => {
 		assert.strictEqual(disposeCounter, 1);
 		watcher3Disposable2.dispose();
 		assert.strictEqual(disposeCounter, 2);
+		watcher3Disposable3.dispose();
+		assert.strictEqual(disposeCounter, 3);
 
 		service.dispose();
 	});
@@ -161,7 +164,7 @@ suite('File Service', () => {
 				throw new Error('failed');
 			}
 
-			override open(resource: URI, opts: FileOpenOptions): Promise<number> {
+			override open(resource: URI, opts: IFileOpenOptions): Promise<number> {
 				if (async) {
 					return timeout(5).then(() => { throw new Error('failed'); });
 				}
@@ -169,7 +172,7 @@ suite('File Service', () => {
 				throw new Error('failed');
 			}
 
-			readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
+			readFileStream(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
 				if (async) {
 					const stream = newWriteableStream<Uint8Array>(chunk => chunk[0]);
 					timeout(5).then(() => stream.error(new Error('failed')));
@@ -226,7 +229,7 @@ suite('File Service', () => {
 				};
 			}
 
-			readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
+			readFileStream(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
 				const stream = newWriteableStream<Uint8Array>(chunk => chunk[0]);
 				token.onCancellationRequested(() => {
 					stream.error(new Error('Expected cancellation'));

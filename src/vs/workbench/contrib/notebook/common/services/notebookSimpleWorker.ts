@@ -122,7 +122,7 @@ class MirrorNotebookDocument {
 			} else if (e.kind === NotebookCellsChangeType.Output) {
 				const cell = this.cells[e.index];
 				cell.outputs = e.outputs;
-			} else if (e.kind === NotebookCellsChangeType.ChangeLanguage) {
+			} else if (e.kind === NotebookCellsChangeType.ChangeCellLanguage) {
 				const cell = this.cells[e.index];
 				cell.language = e.language;
 			} else if (e.kind === NotebookCellsChangeType.ChangeCellMetadata) {
@@ -199,9 +199,7 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 
 	public acceptModelChanged(strURL: string, event: NotebookCellsChangedEventDto) {
 		const model = this._models[strURL];
-		if (model) {
-			model.acceptModelChanged(event);
-		}
+		model?.acceptModelChanged(event);
 	}
 
 	public acceptRemovedModel(strURL: string): void {

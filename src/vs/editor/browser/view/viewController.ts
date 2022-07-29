@@ -32,6 +32,7 @@ export interface IMouseDispatchData {
 
 	leftButton: boolean;
 	middleButton: boolean;
+	onInjectedText: boolean;
 }
 
 export interface ICommandDelegate {
@@ -165,13 +166,15 @@ export class ViewController {
 				}
 			}
 		} else if (data.mouseDownCount === 2) {
-			if (this._hasMulticursorModifier(data)) {
-				this._lastCursorWordSelect(data.position);
-			} else {
-				if (data.inSelectionMode) {
-					this._wordSelectDrag(data.position);
+			if (!data.onInjectedText) {
+				if (this._hasMulticursorModifier(data)) {
+					this._lastCursorWordSelect(data.position);
 				} else {
-					this._wordSelect(data.position);
+					if (data.inSelectionMode) {
+						this._wordSelectDrag(data.position);
+					} else {
+						this._wordSelect(data.position);
+					}
 				}
 			}
 		} else {

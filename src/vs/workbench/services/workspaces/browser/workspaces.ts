@@ -11,10 +11,10 @@ import { hash } from 'vs/base/common/hash';
 // NOTE: DO NOT CHANGE. IDENTIFIERS HAVE TO REMAIN STABLE
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-export function getWorkspaceIdentifier(workspacePath: URI): IWorkspaceIdentifier {
+export function getWorkspaceIdentifier(workspaceUri: URI): IWorkspaceIdentifier {
 	return {
-		id: getWorkspaceId(workspacePath),
-		configPath: workspacePath
+		id: getWorkspaceId(workspaceUri),
+		configPath: workspaceUri
 	};
 }
 
@@ -22,10 +22,10 @@ export function getWorkspaceIdentifier(workspacePath: URI): IWorkspaceIdentifier
 // NOTE: DO NOT CHANGE. IDENTIFIERS HAVE TO REMAIN STABLE
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-export function getSingleFolderWorkspaceIdentifier(folderPath: URI): ISingleFolderWorkspaceIdentifier {
+export function getSingleFolderWorkspaceIdentifier(folderUri: URI): ISingleFolderWorkspaceIdentifier {
 	return {
-		id: getWorkspaceId(folderPath),
-		uri: folderPath
+		id: getWorkspaceId(folderUri),
+		uri: folderUri
 	};
 }
 

@@ -199,7 +199,9 @@ export class UriIterator implements IKeyIterator<URI> {
 	private _states: UriIteratorState[] = [];
 	private _stateIdx: number = 0;
 
-	constructor(private readonly _ignorePathCasing: (uri: URI) => boolean) { }
+	constructor(
+		private readonly _ignorePathCasing: (uri: URI) => boolean,
+		private readonly _ignoreQueryAndFragment: (uri: URI) => boolean) { }
 
 	reset(key: URI): this {
 		this._value = key;
@@ -217,11 +219,13 @@ export class UriIterator implements IKeyIterator<URI> {
 				this._states.push(UriIteratorState.Path);
 			}
 		}
-		if (this._value.query) {
-			this._states.push(UriIteratorState.Query);
-		}
-		if (this._value.fragment) {
-			this._states.push(UriIteratorState.Fragment);
+		if (!this._ignoreQueryAndFragment(key)) {
+			if (this._value.query) {
+				this._states.push(UriIteratorState.Query);
+			}
+			if (this._value.fragment) {
+				this._states.push(UriIteratorState.Fragment);
+			}
 		}
 		this._stateIdx = 0;
 		return this;
@@ -328,8 +332,8 @@ const enum Dir {
 
 export class TernarySearchTree<K, V> {
 
-	static forUris<E>(ignorePathCasing: (key: URI) => boolean = () => false): TernarySearchTree<URI, E> {
-		return new TernarySearchTree<URI, E>(new UriIterator(ignorePathCasing));
+	static forUris<E>(ignorePathCasing: (key: URI) => boolean = () => false, ignoreQueryAndFragment: (key: URI) => boolean = () => false): TernarySearchTree<URI, E> {
+		return new TernarySearchTree<URI, E>(new UriIterator(ignorePathCasing, ignoreQueryAndFragment));
 	}
 
 	static forPaths<E>(ignorePathCasing = false): TernarySearchTree<string, E> {
@@ -367,13 +371,13 @@ export class TernarySearchTree<K, V> {
 		if (keys) {
 			const arr = keys.slice(0);
 			shuffle(arr);
-			for (let k of arr) {
+			for (const k of arr) {
 				this.set(k, (<V>values));
 			}
 		} else {
 			const arr = (<[K, V][]>values).slice(0);
 			shuffle(arr);
-			for (let entry of arr) {
+			for (const entry of arr) {
 				this.set(entry[0], entry[1]);
 			}
 		}
@@ -711,22 +715,28 @@ export class TernarySearchTree<K, V> {
 		yield* this._entries(this._root);
 	}
 
-	private *_entries(node: TernarySearchTreeNode<K, V> | undefined): IterableIterator<[K, V]> {
+	private _entries(node: TernarySearchTreeNode<K, V> | undefined): IterableIterator<[K, V]> {
+		const result: [K, V][] = [];
+		this._dfsEntries(node, result);
+		return result[Symbol.iterator]();
+	}
+
+	private _dfsEntries(node: TernarySearchTreeNode<K, V> | undefined, bucket: [K, V][]) {
 		// DFS
 		if (!node) {
 			return;
 		}
 		if (node.left) {
-			yield* this._entries(node.left);
+			this._dfsEntries(node.left, bucket);
 		}
 		if (node.value) {
-			yield [node.key!, node.value];
+			bucket.push([node.key!, node.value]);
 		}
 		if (node.mid) {
-			yield* this._entries(node.mid);
+			this._dfsEntries(node.mid, bucket);
 		}
 		if (node.right) {
-			yield* this._entries(node.right);
+			this._dfsEntries(node.right, bucket);
 		}
 	}
 
@@ -815,35 +825,96 @@ export class ResourceMap<T> implements Map<URI, T> {
 		if (typeof thisArg !== 'undefined') {
 			clb = clb.bind(thisArg);
 		}
-		for (let [_, entry] of this.map) {
+		for (const [_, entry] of this.map) {
 			clb(entry.value, entry.uri, <any>this);
 		}
 	}
 
 	*values(): IterableIterator<T> {
-		for (let entry of this.map.values()) {
+		for (const entry of this.map.values()) {
 			yield entry.value;
 		}
 	}
 
 	*keys(): IterableIterator<URI> {
-		for (let entry of this.map.values()) {
+		for (const entry of this.map.values()) {
 			yield entry.uri;
 		}
 	}
 
 	*entries(): IterableIterator<[URI, T]> {
-		for (let entry of this.map.values()) {
+		for (const entry of this.map.values()) {
 			yield [entry.uri, entry.value];
 		}
 	}
 
 	*[Symbol.iterator](): IterableIterator<[URI, T]> {
-		for (let [, entry] of this.map) {
+		for (const [, entry] of this.map) {
 			yield [entry.uri, entry.value];
 		}
 	}
 }
+
+export class ResourceSet implements Set<URI> {
+
+	readonly [Symbol.toStringTag]: string = 'ResourceSet';
+
+	private readonly _map: ResourceMap<URI>;
+
+	constructor(toKey?: ResourceMapKeyFn);
+	constructor(entries: readonly URI[], toKey?: ResourceMapKeyFn);
+	constructor(entriesOrKey?: readonly URI[] | ResourceMapKeyFn, toKey?: ResourceMapKeyFn) {
+		if (!entriesOrKey || typeof entriesOrKey === 'function') {
+			this._map = new ResourceMap(entriesOrKey);
+		} else {
+			this._map = new ResourceMap(toKey);
+			entriesOrKey.forEach(this.add, this);
+		}
+	}
+
+
+	get size(): number {
+		return this._map.size;
+	}
+
+	add(value: URI): this {
+		this._map.set(value, value);
+		return this;
+	}
+
+	clear(): void {
+		this._map.clear();
+	}
+
+	delete(value: URI): boolean {
+		return this._map.delete(value);
+	}
+
+	forEach(callbackfn: (value: URI, value2: URI, set: Set<URI>) => void, thisArg?: any): void {
+		this._map.forEach((_value, key) => callbackfn.call(thisArg, key, key, this));
+	}
+
+	has(value: URI): boolean {
+		return this._map.has(value);
+	}
+
+	entries(): IterableIterator<[URI, URI]> {
+		return this._map.entries();
+	}
+
+	keys(): IterableIterator<URI> {
+		return this._map.keys();
+	}
+
+	values(): IterableIterator<URI> {
+		return this._map.keys();
+	}
+
+	[Symbol.iterator](): IterableIterator<URI> {
+		return this.keys();
+	}
+}
+
 
 interface Item<K, V> {
 	previous: Item<K, V> | undefined;

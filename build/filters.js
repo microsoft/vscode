@@ -48,7 +48,6 @@ module.exports.unicodeFilter = [
 	'!extensions/typescript-language-features/test-workspace/**',
 	'!extensions/vscode-api-tests/testWorkspace/**',
 	'!extensions/vscode-api-tests/testWorkspace2/**',
-	'!extensions/vscode-custom-editor-tests/test-workspace/**',
 	'!extensions/**/dist/**',
 	'!extensions/**/out/**',
 	'!extensions/**/snippets/**',
@@ -66,10 +65,6 @@ module.exports.indentationFilter = [
 	'!**/LICENSE.{txt,rtf}',
 	'!LICENSES.chromium.html',
 	'!**/LICENSE',
-	'!src/vs/nls.js',
-	'!src/vs/nls.build.js',
-	'!src/vs/css.js',
-	'!src/vs/css.build.js',
 	'!src/vs/loader.js',
 	'!src/vs/base/browser/dompurify/*',
 	'!src/vs/base/common/marked/marked.js',
@@ -88,7 +83,6 @@ module.exports.indentationFilter = [
 	'!extensions/markdown-math/notebook-out/**',
 	'!extensions/vscode-api-tests/testWorkspace/**',
 	'!extensions/vscode-api-tests/testWorkspace2/**',
-	'!extensions/vscode-custom-editor-tests/test-workspace/**',
 	'!build/monaco/**',
 	'!build/win32/**',
 
@@ -112,7 +106,7 @@ module.exports.indentationFilter = [
 	'!src/vs/*/**/*.d.ts',
 	'!src/typings/**/*.d.ts',
 	'!extensions/**/*.d.ts',
-	'!**/*.{svg,exe,png,bmp,jpg,scpt,bat,cmd,cur,ttf,woff,eot,md,ps1,template,yaml,yml,d.ts.recipe,ico,icns,plist,opus}',
+	'!**/*.{svg,exe,png,bmp,jpg,scpt,bat,cmd,cur,ttf,woff,eot,md,ps1,template,yaml,yml,d.ts.recipe,ico,icns,plist,opus,admx,adml}',
 	'!build/{lib,download,linux,darwin}/**/*.js',
 	'!build/**/*.sh',
 	'!build/azure-pipelines/**/*.js',
@@ -121,9 +115,12 @@ module.exports.indentationFilter = [
 	'!**/Dockerfile.*',
 	'!**/*.Dockerfile',
 	'!**/*.dockerfile',
+
+	// except for built files
 	'!extensions/markdown-language-features/media/*.js',
 	'!extensions/markdown-language-features/notebook-out/*.js',
 	'!extensions/markdown-math/notebook-out/*.js',
+	'!extensions/notebook-renderers/renderer-out/*.js',
 	'!extensions/simple-browser/media/*.js',
 ];
 
@@ -141,6 +138,7 @@ module.exports.copyrightFilter = [
 	'!**/*.icns',
 	'!**/*.xml',
 	'!**/*.sh',
+	'!**/*.zsh',
 	'!**/*.txt',
 	'!**/*.xpm',
 	'!**/*.opts',

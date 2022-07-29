@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { CaseSensitiveCheckbox, RegexCheckbox, WholeWordsCheckbox } from 'vs/base/browser/ui/findinput/findInputCheckboxes';
+import { CaseSensitiveToggle, RegexToggle, WholeWordsToggle } from 'vs/base/browser/ui/findinput/findInputToggles';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
@@ -23,9 +23,9 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 	private readonly _keybindingService: IKeybindingService;
 
 	private readonly _domNode: HTMLElement;
-	private readonly regex: RegexCheckbox;
-	private readonly wholeWords: WholeWordsCheckbox;
-	private readonly caseSensitive: CaseSensitiveCheckbox;
+	private readonly regex: RegexToggle;
+	private readonly wholeWords: WholeWordsToggle;
+	private readonly caseSensitive: CaseSensitiveToggle;
 
 	constructor(
 		editor: ICodeEditor,
@@ -50,7 +50,7 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 		const inputActiveOptionForegroundColor = themeService.getColorTheme().getColor(inputActiveOptionForeground);
 		const inputActiveOptionBackgroundColor = themeService.getColorTheme().getColor(inputActiveOptionBackground);
 
-		this.caseSensitive = this._register(new CaseSensitiveCheckbox({
+		this.caseSensitive = this._register(new CaseSensitiveToggle({
 			appendTitle: this._keybindingLabelFor(FIND_IDS.ToggleCaseSensitiveCommand),
 			isChecked: this._state.matchCase,
 			inputActiveOptionBorder: inputActiveOptionBorderColor,
@@ -64,7 +64,7 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 			}, false);
 		}));
 
-		this.wholeWords = this._register(new WholeWordsCheckbox({
+		this.wholeWords = this._register(new WholeWordsToggle({
 			appendTitle: this._keybindingLabelFor(FIND_IDS.ToggleWholeWordCommand),
 			isChecked: this._state.wholeWord,
 			inputActiveOptionBorder: inputActiveOptionBorderColor,
@@ -78,7 +78,7 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 			}, false);
 		}));
 
-		this.regex = this._register(new RegexCheckbox({
+		this.regex = this._register(new RegexToggle({
 			appendTitle: this._keybindingLabelFor(FIND_IDS.ToggleRegexCommand),
 			isChecked: this._state.isRegex,
 			inputActiveOptionBorder: inputActiveOptionBorderColor,
@@ -113,7 +113,7 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 			}
 		}));
 
-		this._register(dom.addDisposableNonBubblingMouseOutListener(this._domNode, (e) => this._onMouseOut()));
+		this._register(dom.addDisposableListener(this._domNode, dom.EventType.MOUSE_LEAVE, (e) => this._onMouseLeave()));
 		this._register(dom.addDisposableListener(this._domNode, 'mouseover', (e) => this._onMouseOver()));
 
 		this._applyTheme(themeService.getColorTheme());
@@ -121,7 +121,7 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 	}
 
 	private _keybindingLabelFor(actionId: string): string {
-		let kb = this._keybindingService.lookupKeybinding(actionId);
+		const kb = this._keybindingService.lookupKeybinding(actionId);
 		if (!kb) {
 			return '';
 		}
@@ -160,7 +160,7 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 		this._hideSoon.schedule();
 	}
 
-	private _onMouseOut(): void {
+	private _onMouseLeave(): void {
 		this._hideSoon.schedule();
 	}
 
@@ -187,7 +187,7 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 	}
 
 	private _applyTheme(theme: IColorTheme) {
-		let inputStyles = {
+		const inputStyles = {
 			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
 			inputActiveOptionForeground: theme.getColor(inputActiveOptionForeground),
 			inputActiveOptionBackground: theme.getColor(inputActiveOptionBackground)

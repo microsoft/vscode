@@ -466,7 +466,7 @@ export class ExtHostTextEditor {
 						}
 					}
 				}
-				return _proxy.$tryInsertSnippet(id, snippet.value, ranges, options);
+				return _proxy.$tryInsertSnippet(id, document.getValue().version, snippet.value, ranges, options);
 			},
 			setDecorations(decorationType: vscode.TextEditorDecorationType, ranges: Range[] | vscode.DecorationOptions[]): void {
 				const willBeEmpty = (ranges.length === 0);

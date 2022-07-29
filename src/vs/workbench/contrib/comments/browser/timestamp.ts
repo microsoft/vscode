@@ -7,8 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { fromNow } from 'vs/base/common/date';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-
-const USE_RELATIVE_TIME_CONFIGURATION = 'comments.useRelativeTime';
+import { COMMENTS_SECTION, ICommentsConfiguration } from 'vs/workbench/contrib/comments/common/commentsConfiguration';
 
 export class TimestampWidget extends Disposable {
 	private _date: HTMLElement;
@@ -18,12 +17,13 @@ export class TimestampWidget extends Disposable {
 	constructor(private configurationService: IConfigurationService, container: HTMLElement, timeStamp?: Date) {
 		super();
 		this._date = dom.append(container, dom.$('span.timestamp'));
+		this._date.style.display = 'none';
 		this._useRelativeTime = this.useRelativeTimeSetting;
 		this.setTimestamp(timeStamp);
 	}
 
 	private get useRelativeTimeSetting(): boolean {
-		return this.configurationService.getValue<boolean>(USE_RELATIVE_TIME_CONFIGURATION);
+		return this.configurationService.getValue<ICommentsConfiguration>(COMMENTS_SECTION).useRelativeTime;
 	}
 
 	public async setTimestamp(timestamp: Date | undefined) {
@@ -37,9 +37,10 @@ export class TimestampWidget extends Disposable {
 	private updateDate(timestamp?: Date) {
 		if (!timestamp) {
 			this._date.textContent = '';
+			this._date.style.display = 'none';
 		} else if ((timestamp !== this._timestamp)
 			|| (this.useRelativeTimeSetting !== this._useRelativeTime)) {
-
+			this._date.style.display = '';
 			let textContent: string;
 			let tooltip: string | undefined;
 			if (this.useRelativeTimeSetting) {

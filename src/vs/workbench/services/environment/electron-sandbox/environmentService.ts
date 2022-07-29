@@ -82,7 +82,7 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 	}
 
 	@memoize
-	override get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.userData }); }
+	override get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.vscodeUserData }); }
 
 	@memoize
 	get logFile(): URI { return URI.file(join(this.logsPath, `renderer${this.configuration.windowId}.log`)); }
@@ -101,6 +101,9 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 
 	@memoize
 	get logExtensionHostCommunication(): boolean { return !!this.args.logExtensionHostCommunication; }
+
+	@memoize
+	get enableSmokeTestDriver(): boolean { return !!this.args['enable-smoke-test-driver']; }
 
 	@memoize
 	get extensionEnabledProposedApi(): string[] | undefined {
@@ -123,6 +126,9 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 
 	@memoize
 	get filesToDiff(): IPath[] | undefined { return this.configuration.filesToDiff; }
+
+	@memoize
+	get filesToMerge(): IPath[] | undefined { return this.configuration.filesToMerge; }
 
 	@memoize
 	get filesToWait(): IPathsToWaitFor | undefined { return this.configuration.filesToWait; }

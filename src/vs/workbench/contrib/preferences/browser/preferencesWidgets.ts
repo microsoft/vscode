@@ -36,6 +36,8 @@ import { PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIV
 import { settingsEditIcon, settingsScopeDropDownIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { CONTEXT_SETTINGS_EDITOR_IN_USER_TAB } from 'vs/workbench/contrib/preferences/common/preferences';
 
 export class FolderSettingsActionViewItem extends BaseActionViewItem {
 
@@ -204,7 +206,7 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 	}
 }
 
-export type SettingsTarget = ConfigurationTarget.USER_LOCAL | ConfigurationTarget.USER_REMOTE | ConfigurationTarget.WORKSPACE | URI;
+export type SettingsTarget = ConfigurationTarget.APPLICATION | ConfigurationTarget.USER_LOCAL | ConfigurationTarget.USER_REMOTE | ConfigurationTarget.WORKSPACE | URI;
 
 export interface ISettingsTargetsWidgetOptions {
 	enableRemoteSettings?: boolean;
@@ -216,8 +218,10 @@ export class SettingsTargetsWidget extends Widget {
 	private userLocalSettings!: Action;
 	private userRemoteSettings!: Action;
 	private workspaceSettings!: Action;
+	private folderSettingsAction!: Action;
 	private folderSettings!: FolderSettingsActionViewItem;
 	private options: ISettingsTargetsWidgetOptions;
+	private inUserTab: IContextKey<boolean>;
 
 	private _settingsTarget: SettingsTarget | null = null;
 
@@ -232,12 +236,24 @@ export class SettingsTargetsWidget extends Widget {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@ILanguageService private readonly languageService: ILanguageService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
-		this.options = options || {};
+		this.options = options ?? {};
 		this.create(parent);
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.onWorkbenchStateChanged()));
 		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.update()));
+		this.inUserTab = CONTEXT_SETTINGS_EDITOR_IN_USER_TAB.bindTo(contextKeyService);
+	}
+
+	private resetLabels() {
+		const remoteAuthority = this.environmentService.remoteAuthority;
+		const hostLabel = remoteAuthority && this.labelService.getHostLabel(Schemas.vscodeRemote, remoteAuthority);
+		this.userLocalSettings.label = localize('userSettings', "User");
+		this.userRemoteSettings.label = localize('userSettingsRemote', "Remote") + (hostLabel ? ` [${hostLabel}]` : '');
+		this.workspaceSettings.label = localize('workspaceSettings', "Workspace");
+		this.folderSettingsAction.label = localize('folderSettings', "Folder");
 	}
 
 	private create(parent: HTMLElement): void {
@@ -250,31 +266,28 @@ export class SettingsTargetsWidget extends Widget {
 			actionViewItemProvider: (action: IAction) => action.id === 'folderSettings' ? this.folderSettings : undefined
 		}));
 
-		this.userLocalSettings = new Action('userSettings', localize('userSettings', "User"), '.settings-tab', true, () => this.updateTarget(ConfigurationTarget.USER_LOCAL));
+		this.userLocalSettings = new Action('userSettings', '', '.settings-tab', true, () => this.updateTarget(ConfigurationTarget.USER_LOCAL));
 		this.preferencesService.getEditableSettingsURI(ConfigurationTarget.USER_LOCAL).then(uri => {
 			// Don't wait to create UI on resolving remote
-			this.userLocalSettings.tooltip = uri?.fsPath || '';
+			this.userLocalSettings.tooltip = uri?.fsPath ?? '';
 		});
 
-		const remoteAuthority = this.environmentService.remoteAuthority;
-		const hostLabel = remoteAuthority && this.labelService.getHostLabel(Schemas.vscodeRemote, remoteAuthority);
-		const remoteSettingsLabel = localize('userSettingsRemote', "Remote") +
-			(hostLabel ? ` [${hostLabel}]` : '');
-		this.userRemoteSettings = new Action('userSettingsRemote', remoteSettingsLabel, '.settings-tab', true, () => this.updateTarget(ConfigurationTarget.USER_REMOTE));
+		this.userRemoteSettings = new Action('userSettingsRemote', '', '.settings-tab', true, () => this.updateTarget(ConfigurationTarget.USER_REMOTE));
 		this.preferencesService.getEditableSettingsURI(ConfigurationTarget.USER_REMOTE).then(uri => {
-			this.userRemoteSettings.tooltip = uri?.fsPath || '';
+			this.userRemoteSettings.tooltip = uri?.fsPath ?? '';
 		});
 
-		this.workspaceSettings = new Action('workspaceSettings', localize('workspaceSettings', "Workspace"), '.settings-tab', false, () => this.updateTarget(ConfigurationTarget.WORKSPACE));
+		this.workspaceSettings = new Action('workspaceSettings', '', '.settings-tab', false, () => this.updateTarget(ConfigurationTarget.WORKSPACE));
 
-		const folderSettingsAction = new Action('folderSettings', localize('folderSettings', "Folder"), '.settings-tab', false, async folder => {
+		this.folderSettingsAction = new Action('folderSettings', '', '.settings-tab', false, async folder => {
 			this.updateTarget(isWorkspaceFolder(folder) ? folder.uri : ConfigurationTarget.USER_LOCAL);
 		});
-		this.folderSettings = this.instantiationService.createInstance(FolderSettingsActionViewItem, folderSettingsAction);
+		this.folderSettings = this.instantiationService.createInstance(FolderSettingsActionViewItem, this.folderSettingsAction);
 
+		this.resetLabels();
 		this.update();
 
-		this.settingsSwitcherBar.push([this.userLocalSettings, this.userRemoteSettings, this.workspaceSettings, folderSettingsAction]);
+		this.settingsSwitcherBar.push([this.userLocalSettings, this.userRemoteSettings, this.workspaceSettings, this.folderSettingsAction]);
 	}
 
 	get settingsTarget(): SettingsTarget | null {
@@ -292,6 +305,7 @@ export class SettingsTargetsWidget extends Widget {
 		} else {
 			this.folderSettings.getAction().checked = false;
 		}
+		this.inUserTab.set(this.userLocalSettings.checked);
 	}
 
 	setResultCount(settingsTarget: SettingsTarget, count: number): void {
@@ -311,6 +325,20 @@ export class SettingsTargetsWidget extends Widget {
 			this.userLocalSettings.label = label;
 		} else if (settingsTarget instanceof URI) {
 			this.folderSettings.setCount(settingsTarget, count);
+		}
+	}
+
+	updateLanguageFilterIndicators(filter: string | undefined) {
+		this.resetLabels();
+		if (filter) {
+			const languageToUse = this.languageService.getLanguageName(filter);
+			if (languageToUse) {
+				const languageSuffix = ` [${languageToUse}]`;
+				this.userLocalSettings.label += languageSuffix;
+				this.userRemoteSettings.label += languageSuffix;
+				this.workspaceSettings.label += languageSuffix;
+				this.folderSettingsAction.label += languageSuffix;
+			}
 		}
 	}
 
@@ -441,15 +469,11 @@ export class SearchWidget extends Widget {
 
 	layout(dimension: DOM.Dimension) {
 		if (dimension.width < 400) {
-			if (this.countElement) {
-				this.countElement.classList.add('hide');
-			}
+			this.countElement?.classList.add('hide');
 
 			this.inputBox.inputElement.style.paddingRight = '0px';
 		} else {
-			if (this.countElement) {
-				this.countElement.classList.remove('hide');
-			}
+			this.countElement?.classList.remove('hide');
 
 			this.inputBox.inputElement.style.paddingRight = this.getControlsWidth() + 'px';
 		}
@@ -484,9 +508,7 @@ export class SearchWidget extends Widget {
 	}
 
 	override dispose(): void {
-		if (this.options.focusKey) {
-			this.options.focusKey.set(false);
-		}
+		this.options.focusKey?.set(false);
 		super.dispose();
 	}
 }
@@ -496,14 +518,13 @@ export class EditPreferenceWidget<T> extends Disposable {
 	private _line: number = -1;
 	private _preferences: T[] = [];
 
-	private _editPreferenceDecoration: string[];
+	private readonly _editPreferenceDecoration = this.editor.createDecorationsCollection();
 
 	private readonly _onClick = this._register(new Emitter<IEditorMouseEvent>());
 	readonly onClick: Event<IEditorMouseEvent> = this._onClick.event;
 
 	constructor(private editor: ICodeEditor) {
 		super();
-		this._editPreferenceDecoration = [];
 		this._register(this.editor.onMouseDown((e: IEditorMouseEvent) => {
 			if (e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN || e.target.detail.isAfterLines || !this.isVisible()) {
 				return;
@@ -538,11 +559,11 @@ export class EditPreferenceWidget<T> extends Disposable {
 				endColumn: 1
 			}
 		});
-		this._editPreferenceDecoration = this.editor.deltaDecorations(this._editPreferenceDecoration, newDecoration);
+		this._editPreferenceDecoration.set(newDecoration);
 	}
 
 	hide(): void {
-		this._editPreferenceDecoration = this.editor.deltaDecorations(this._editPreferenceDecoration, []);
+		this._editPreferenceDecoration.clear();
 	}
 
 	isVisible(): boolean {

@@ -148,6 +148,8 @@ configurationRegistry.registerConfiguration({
 				'anyOf': [
 					{
 						'type': 'boolean',
+						'enum': [true, false],
+						'enumDescriptions': [nls.localize('trueDescription', "Enable the pattern."), nls.localize('falseDescription', "Disable the pattern.")],
 						'description': nls.localize('files.exclude.boolean', "The glob pattern to match file paths against. Set to true or false to enable or disable the pattern."),
 					},
 					{
@@ -157,7 +159,7 @@ configurationRegistry.registerConfiguration({
 								'type': 'string', // expression ({ "**/*.js": { "when": "$(basename).js" } })
 								'pattern': '\\w*\\$\\(basename\\)\\w*',
 								'default': '$(basename).ext',
-								'description': nls.localize('files.exclude.when', "Additional check on the siblings of a matching file. Use $(basename) as variable for the matching file name.")
+								'markdownDescription': nls.localize({ key: 'files.exclude.when', comment: ['\\$(basename) should not be translated'] }, "Additional check on the siblings of a matching file. Use \\$(basename) as variable for the matching file name.")
 							}
 						}
 					}
@@ -183,7 +185,7 @@ configurationRegistry.registerConfiguration({
 		'files.autoGuessEncoding': {
 			'type': 'boolean',
 			'default': false,
-			'markdownDescription': nls.localize('autoGuessEncoding', "When enabled, the editor will attempt to guess the character set encoding when opening files. This setting can also be configured per language. Note, this setting is not respected by text search. Only `#files.encoding#` is respected."),
+			'markdownDescription': nls.localize('autoGuessEncoding', "When enabled, the editor will attempt to guess the character set encoding when opening files. This setting can also be configured per language. Note, this setting is not respected by text search. Only {0} is respected.", '`#files.encoding#`'),
 			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
 		},
 		'files.eol': {
@@ -246,7 +248,7 @@ configurationRegistry.registerConfiguration({
 		'files.watcherExclude': {
 			'type': 'object',
 			'default': { '**/.git/objects/**': true, '**/.git/subtree-cache/**': true, '**/node_modules/*/**': true, '**/.hg/store/**': true },
-			'markdownDescription': nls.localize('watcherExclude', "Configure paths or glob patterns to exclude from file watching. Paths that are relative (for example `build/output`) will be resolved to an absolute path using the currently opened workspace. Glob patterns must match on absolute paths (i.e. prefix with `**/` or the full path and suffix with `/**` to match files within a path) to match properly (for example `**/build/output/**` or `/Users/name/workspaces/project/build/output/**`). When you experience the file watcher process consuming a lot of CPU, make sure to exclude large folders that are of less interest (such as build output folders)."),
+			'markdownDescription': nls.localize('watcherExclude', "Configure paths or glob patterns to exclude from file watching. Paths or basic glob patterns that are relative (for example `build/output` or `*.js`) will be resolved to an absolute path using the currently opened workspace. Complex glob patterns must match on absolute paths (i.e. prefix with `**/` or the full path and suffix with `/**` to match files within a path) to match properly (for example `**/build/output/**` or `/Users/name/workspaces/project/build/output/**`). When you experience the file watcher process consuming a lot of CPU, make sure to exclude large folders that are of less interest (such as build output folders)."),
 			'scope': ConfigurationScope.RESOURCE
 		},
 		'files.watcherInclude': {
@@ -266,6 +268,7 @@ configurationRegistry.registerConfiguration({
 		'files.maxMemoryForLargeFilesMB': {
 			'type': 'number',
 			'default': 4096,
+			'minimum': 0,
 			'markdownDescription': nls.localize('maxMemoryForLargeFilesMB', "Controls the memory available to VS Code after restart when trying to open large files. Same effect as specifying `--max-memory=NEWSIZE` on the command line."),
 			included: isNative
 		},
@@ -292,6 +295,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'description': nls.localize('files.simpleDialog.enable', "Enables the simple file dialog. The simple file dialog replaces the system file dialog when enabled."),
 			'default': false
+		},
+		'files.participants.timeout': {
+			type: 'number',
+			default: 60000,
+			markdownDescription: nls.localize('files.participants.timeout', "Timeout in milliseconds after which file participants for create, rename, and delete are cancelled. Use `0` to disable participants."),
 		}
 	}
 });
@@ -331,8 +339,15 @@ configurationRegistry.registerConfiguration({
 	'properties': {
 		'explorer.openEditors.visible': {
 			'type': 'number',
-			'description': nls.localize({ key: 'openEditorsVisible', comment: ['Open is an adjective'] }, "Number of editors shown in the Open Editors pane. Setting this to 0 hides the Open Editors pane."),
-			'default': 9
+			'description': nls.localize({ key: 'openEditorsVisible', comment: ['Open is an adjective'] }, "The maximum number of editors shown in the Open Editors pane. Setting this to 0 hides the Open Editors pane."),
+			'default': 9,
+			'minimum': 0
+		},
+		'explorer.openEditors.minVisible': {
+			'type': 'number',
+			'description': nls.localize({ key: 'openEditorsVisibleMin', comment: ['Open is an adjective'] }, "The minimum number of editor slots shown in the Open Editors pane. If set to 0 the Open Editors pane will dynamically resize based on the number of editors."),
+			'default': 0,
+			'minimum': 0
 		},
 		'explorer.openEditors.sortOrder': {
 			'type': 'string',
@@ -389,7 +404,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'explorer.expandSingleFolderWorkspaces': {
 			'type': 'boolean',
-			'description': nls.localize('expandSingleFolderWorkspaces', "Controls whether the explorer should expand multi-root workspaces containing only one folder during initilization"),
+			'description': nls.localize('expandSingleFolderWorkspaces', "Controls whether the explorer should expand multi-root workspaces containing only one folder during initialization"),
 			'default': true
 		},
 		'explorer.sortOrder': {
@@ -404,7 +419,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('sortOrder.modified', 'Files and folders are sorted by last modified date in descending order. Folders are displayed before  files.'),
 				nls.localize('sortOrder.foldersNestsFiles', 'Files and folders are sorted by their names. Folders are displayed before files. Files with nested children are displayed before other files.')
 			],
-			'description': nls.localize('sortOrder', "Controls the property-based sorting of files and folders in the explorer. When `#explorer.experimental.fileNesting.enabled#` is enabled, also controls sorting of nested files.")
+			'markdownDescription': nls.localize('sortOrder', "Controls the property-based sorting of files and folders in the explorer. When `#explorer.fileNesting.enabled#` is enabled, also controls sorting of nested files.")
 		},
 		'explorer.sortOrderLexicographicOptions': {
 			'type': 'string',
@@ -458,34 +473,42 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('copyRelativePathSeparator', "The path separation character used when copying relative file paths."),
 			'default': 'auto'
 		},
-		'explorer.experimental.fileNesting.enabled': {
+		'explorer.excludeGitIgnore': {
+			type: 'boolean',
+			markdownDescription: nls.localize('excludeGitignore', "Controls whether entries in .gitignore should be parsed and excluded from the explorer. Similar to {0}.", '`#files.exclude#`'),
+			default: false,
+			scope: ConfigurationScope.RESOURCE
+		},
+		'explorer.fileNesting.enabled': {
 			'type': 'boolean',
-			'markdownDescription': nls.localize('fileNestingEnabled', "Experimental. Controls whether file nesting is enabled in the explorer. File nesting allows for related files in a directory to be visually grouped together under a single parent file."),
+			scope: ConfigurationScope.RESOURCE,
+			'markdownDescription': nls.localize('fileNestingEnabled', "Controls whether file nesting is enabled in the explorer. File nesting allows for related files in a directory to be visually grouped together under a single parent file."),
 			'default': false,
 		},
-		'explorer.experimental.fileNesting.expand': {
+		'explorer.fileNesting.expand': {
 			'type': 'boolean',
-			'markdownDescription': nls.localize('fileNestingExpand', "Experimental. Controls whether file nests are automatically expanded. `#explorer.experimental.fileNesting.enabled#` must be set for this to take effect."),
+			'markdownDescription': nls.localize('fileNestingExpand', "Controls whether file nests are automatically expanded. {0} must be set for this to take effect.", '`#explorer.fileNesting.enabled#`'),
 			'default': true,
 		},
-		'explorer.experimental.fileNesting.patterns': {
+		'explorer.fileNesting.patterns': {
 			'type': 'object',
-			'markdownDescription': nls.localize('fileNestingPatterns', "Experimental. Controls nesting of files in the explorer. `#explorer.experimental.fileNesting.enabled#` must be set for this to take effect. Each key describes a parent file pattern and each value should be a comma separated list of children file patterns that will be nested under the parent.\n\nA single `*` in a parent pattern may be used to capture any substring, which can then be matched against using `$\u200b(capture)` in a child pattern. Child patterns may also contain one `*` to match any substring.\n\nFor example, given the configuration `*.ts => $(capture).js, $(capture).*.ts`, and a directory containing `a.ts, a.js, a.d.ts`, and `b.js`, nesting would apply as follows: \n- `*.ts` matches `a.ts`, capturing `a`. This causes any sibilings matching `a.js` or `a.*.ts` to be nested under `a.ts`\n    - `a.js` matches `a.js` exactly, so is nested under `a.ts`\n    - `a.d.ts` matches `a.*.ts`, so is also nested under `a.ts`\n\nThe final directory will be rendered with `a.ts` containg `a.js` and `a.d.ts` as nested children, and `b.js` as normal file."),
+			scope: ConfigurationScope.RESOURCE,
+			'markdownDescription': nls.localize('fileNestingPatterns', "Controls nesting of files in the explorer. Each __Item__ represents a parent pattern and may contain a single `*` character that matches any string. Each __Value__ represents a comma separated list of the child patterns that should be shown nested under a given parent. Child patterns may contain several special tokens:\n- `${capture}`: Matches the resolved value of the `*` from the parent pattern\n- `${basename}`: Matches the parent file's basename, the `file` in `file.ts`\n- `${extname}`: Matches the parent file's extension, the `ts` in `file.ts`\n- `${dirname}`: Matches the parent file's directory name, the `src` in `src/file.ts`\n- `*`:  Matches any string, may only be used once per child pattern"),
 			patternProperties: {
 				'^[^*]*\\*?[^*]*$': {
-					markdownDescription: nls.localize('fileNesting.description', "Key patterns may contain a single `*` capture group which matches any string. Each value pattern may contain one `$\u200b(capture)` token to be substituted with the parent capture group and one `*` token to match any string"),
+					markdownDescription: nls.localize('fileNesting.description', "Each key pattern may contain a single `*` character which will match any string."),
 					type: 'string',
 					pattern: '^([^,*]*\\*?[^,*]*)(, ?[^,*]*\\*?[^,*]*)*$',
 				}
 			},
 			additionalProperties: false,
 			'default': {
-				'*.ts': '$(capture).js, $(capture).*.ts',
-				'*.js': '$(capture).js.map, $(capture).min.js, $(capture).d.ts',
-				'*.jsx': '$(capture).js',
-				'*.tsx': '$(capture).ts',
+				'*.ts': '${capture}.js',
+				'*.js': '${capture}.js.map, ${capture}.min.js, ${capture}.d.ts',
+				'*.jsx': '${capture}.js',
+				'*.tsx': '${capture}.ts',
 				'tsconfig.json': 'tsconfig.*.json',
-				'package.json': 'package-lock.json, .npmrc, yarn.lock, .yarnrc, pnpm-lock.yaml',
+				'package.json': 'package-lock.json, yarn.lock, pnpm-lock.yaml',
 			}
 		}
 	}

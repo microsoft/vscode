@@ -5,11 +5,34 @@
 
 import * as vscode from 'vscode';
 
-export function disposeAll(disposables: vscode.Disposable[]) {
-	while (disposables.length) {
-		const item = disposables.pop();
-		item?.dispose();
+export class MultiDisposeError extends Error {
+	constructor(
+		public readonly errors: any[]
+	) {
+		super(`Encountered errors while disposing of store. Errors: [${errors.join(', ')}]`);
 	}
+}
+
+export function disposeAll(disposables: Iterable<vscode.Disposable>) {
+	const errors: any[] = [];
+
+	for (const disposable of disposables) {
+		try {
+			disposable.dispose();
+		} catch (e) {
+			errors.push(e);
+		}
+	}
+
+	if (errors.length === 1) {
+		throw errors[0];
+	} else if (errors.length > 1) {
+		throw new MultiDisposeError(errors);
+	}
+}
+
+export interface IDisposable {
+	dispose(): void;
 }
 
 export abstract class Disposable {
@@ -25,7 +48,7 @@ export abstract class Disposable {
 		disposeAll(this._disposables);
 	}
 
-	protected _register<T extends vscode.Disposable>(value: T): T {
+	protected _register<T extends IDisposable>(value: T): T {
 		if (this._isDisposed) {
 			value.dispose();
 		} else {
@@ -36,5 +59,24 @@ export abstract class Disposable {
 
 	protected get isDisposed() {
 		return this._isDisposed;
+	}
+}
+
+export class DisposableStore extends Disposable {
+	private readonly items = new Set<IDisposable>();
+
+	public override dispose() {
+		super.dispose();
+		disposeAll(this.items);
+		this.items.clear();
+	}
+
+	public add<T extends IDisposable>(item: T): T {
+		if (this.isDisposed) {
+			console.warn('Adding to disposed store. Item will be leaked');
+		}
+
+		this.items.add(item);
+		return item;
 	}
 }

@@ -8,7 +8,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { combinedDisposable, IDisposable, Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IActiveNotebookEditor, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellRevealType, IActiveNotebookEditor, ICellViewModel, INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IOutline, IOutlineComparator, IOutlineCreator, IOutlineListConfig, IOutlineService, IQuickPickDataSource, IQuickPickOutlineElement, OutlineChangeEvent, OutlineConfigKeys, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
@@ -430,11 +430,12 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 			// cap the amount of characters that we look at and use the following logic
 			// - for MD prefer headings (each header is an entry)
 			// - otherwise use the first none-empty line of the cell (MD or code)
-			let content = cell.getText().substring(0, 10_000);
+			let content = this._getCellFirstNonEmptyLine(cell);
 			let hasHeader = false;
 
 			if (isMarkdown) {
-				for (const token of marked.lexer(content, { gfm: true })) {
+				const fullContent = cell.getText().substring(0, 10_000);
+				for (const token of marked.lexer(fullContent, { gfm: true })) {
 					if (token.type === 'heading') {
 						hasHeader = true;
 						entries.push(new OutlineEntry(entries.length, token.depth, cell, renderMarkdownAsPlaintext({ value: token.text }).trim(), false, false));
@@ -558,6 +559,19 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 		}
 	}
 
+	private _getCellFirstNonEmptyLine(cell: ICellViewModel) {
+		const textBuffer = cell.textBuffer;
+		for (let i = 0; i < textBuffer.getLineCount(); i++) {
+			const firstNonWhitespace = textBuffer.getLineFirstNonWhitespaceColumn(i + 1);
+			const lineLength = textBuffer.getLineLength(i + 1);
+			if (firstNonWhitespace < lineLength) {
+				return textBuffer.getLineContent(i + 1);
+			}
+		}
+
+		return cell.getText().substring(0, 10_000);
+	}
+
 	get isEmpty(): boolean {
 		return this._entries.length === 0;
 	}
@@ -569,7 +583,11 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 	async reveal(entry: OutlineEntry, options: IEditorOptions, sideBySide: boolean): Promise<void> {
 		await this._editorService.openEditor({
 			resource: entry.cell.uri,
-			options: { ...options, override: this._editor.input?.editorId },
+			options: {
+				...options,
+				override: this._editor.input?.editorId,
+				cellRevealType: CellRevealType.NearTopIfOutsideViewport
+			} as INotebookEditorOptions,
 		}, sideBySide ? SIDE_GROUP : undefined);
 	}
 

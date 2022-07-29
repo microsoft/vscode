@@ -3,15 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import MarkdownIt = require('markdown-it');
-import Token = require('markdown-it/lib/token');
+import type MarkdownIt = require('markdown-it');
+import type Token = require('markdown-it/lib/token');
 import * as vscode from 'vscode';
-import { MarkdownContributionProvider as MarkdownContributionProvider } from './markdownExtensions';
+import { ILogger } from './logging';
+import { MarkdownContributionProvider } from './markdownExtensions';
 import { Slugifier } from './slugify';
-import { SkinnyTextDocument } from './tableOfContentsProvider';
-import { hash } from './util/hash';
-import { isOfScheme, Schemes } from './util/links';
+import { ITextDocument } from './types/textDocument';
+import { Disposable } from './util/dispose';
+import { stringHash } from './util/hash';
 import { WebviewResourceProvider } from './util/resources';
+import { isOfScheme, Schemes } from './util/schemes';
+import { MdDocumentInfoCache } from './util/workspaceCache';
+import { IMdWorkspace } from './workspace';
 
 const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
 
@@ -53,7 +57,7 @@ class TokenCache {
 	};
 	private tokens?: Token[];
 
-	public tryGetCached(document: SkinnyTextDocument, config: MarkdownItConfig): Token[] | undefined {
+	public tryGetCached(document: ITextDocument, config: MarkdownItConfig): Token[] | undefined {
 		if (this.cachedDocument
 			&& this.cachedDocument.uri.toString() === document.uri.toString()
 			&& this.cachedDocument.version === document.version
@@ -65,7 +69,7 @@ class TokenCache {
 		return undefined;
 	}
 
-	public update(document: SkinnyTextDocument, config: MarkdownItConfig, tokens: Token[]) {
+	public update(document: ITextDocument, config: MarkdownItConfig, tokens: Token[]) {
 		this.cachedDocument = {
 			uri: document.uri,
 			version: document.version,
@@ -91,17 +95,28 @@ interface RenderEnv {
 	resourceProvider: WebviewResourceProvider | undefined;
 }
 
-export class MarkdownEngine {
+export interface IMdParser {
+	readonly slugifier: Slugifier;
+
+	tokenize(document: ITextDocument): Promise<Token[]>;
+}
+
+export class MarkdownItEngine implements IMdParser {
 
 	private md?: Promise<MarkdownIt>;
 
 	private _slugCount = new Map<string, number>();
 	private _tokenCache = new TokenCache();
 
+	public readonly slugifier: Slugifier;
+
 	public constructor(
 		private readonly contributionProvider: MarkdownContributionProvider,
-		private readonly slugifier: Slugifier,
+		slugifier: Slugifier,
+		private readonly logger: ILogger,
 	) {
+		this.slugifier = slugifier;
+
 		contributionProvider.onContributionsChanged(() => {
 			// Markdown plugin contributions may have changed
 			this.md = undefined;
@@ -159,7 +174,7 @@ export class MarkdownEngine {
 	}
 
 	private tokenizeDocument(
-		document: SkinnyTextDocument,
+		document: ITextDocument,
 		config: MarkdownItConfig,
 		engine: MarkdownIt
 	): Token[] {
@@ -169,6 +184,7 @@ export class MarkdownEngine {
 			return cached;
 		}
 
+		this.logger.verbose('MarkdownItEngine', `tokenizeDocument - ${document.uri}`);
 		const tokens = this.tokenizeString(document.getText(), engine);
 		this._tokenCache.update(document, config, tokens);
 		return tokens;
@@ -180,11 +196,11 @@ export class MarkdownEngine {
 		return engine.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {});
 	}
 
-	public resetSlugCount(): void {
+	private resetSlugCount(): void {
 		this._slugCount = new Map<string, number>();
 	}
 
-	public async render(input: SkinnyTextDocument | string, resourceProvider?: WebviewResourceProvider): Promise<RenderOutput> {
+	public async render(input: ITextDocument | string, resourceProvider?: WebviewResourceProvider): Promise<RenderOutput> {
 		const config = this.getConfig(typeof input === 'string' ? undefined : input.uri);
 		const engine = await this.getEngine(config);
 
@@ -209,7 +225,7 @@ export class MarkdownEngine {
 		};
 	}
 
-	public async parse(document: SkinnyTextDocument): Promise<Token[]> {
+	public async tokenize(document: ITextDocument): Promise<Token[]> {
 		const config = this.getConfig(document.uri);
 		const engine = await this.getEngine(config);
 		return this.tokenizeDocument(document, config, engine);
@@ -237,7 +253,7 @@ export class MarkdownEngine {
 			const src = token.attrGet('src');
 			if (src) {
 				env.containingImages?.push({ src });
-				const imgHash = hash(src);
+				const imgHash = stringHash(src);
 				token.attrSet('id', `image-hash-${imgHash}`);
 
 				if (!token.attrGet('data-src')) {
@@ -384,14 +400,18 @@ export class MarkdownEngine {
 }
 
 async function getMarkdownOptions(md: () => MarkdownIt): Promise<MarkdownIt.Options> {
-	const hljs = await import('highlight.js');
+	const hljs = (await import('highlight.js')).default;
 	return {
 		html: true,
 		highlight: (str: string, lang?: string) => {
 			lang = normalizeHighlightLang(lang);
 			if (lang && hljs.getLanguage(lang)) {
 				try {
-					return `<div>${hljs.highlight(lang, str, true).value}</div>`;
+					const highlighted = hljs.highlight(str, {
+						language: lang,
+						ignoreIllegals: true,
+					}).value;
+					return `<div>${highlighted}</div>`;
 				}
 				catch (error) { }
 			}
@@ -417,5 +437,29 @@ function normalizeHighlightLang(lang: string | undefined) {
 
 		default:
 			return lang;
+	}
+}
+
+export class MdParsingProvider extends Disposable implements IMdParser {
+
+	private readonly _cache: MdDocumentInfoCache<Token[]>;
+
+	public readonly slugifier: Slugifier;
+
+	constructor(
+		engine: MarkdownItEngine,
+		workspace: IMdWorkspace,
+	) {
+		super();
+
+		this.slugifier = engine.slugifier;
+
+		this._cache = this._register(new MdDocumentInfoCache<Token[]>(workspace, doc => {
+			return engine.tokenize(doc);
+		}));
+	}
+
+	public tokenize(document: ITextDocument): Promise<Token[]> {
+		return this._cache.getForDocument(document);
 	}
 }

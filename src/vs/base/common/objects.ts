@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isArray, isObject, isUndefinedOrNull } from 'vs/base/common/types';
+import { isArray, isTypedArray, isObject, isUndefinedOrNull } from 'vs/base/common/types';
 
 export function deepClone<T>(obj: T): T {
 	if (!obj || typeof obj !== 'object') {
@@ -35,7 +35,7 @@ export function deepFreeze<T>(obj: T): T {
 		for (const key in obj) {
 			if (_hasOwnProperty.call(obj, key)) {
 				const prop = obj[key];
-				if (typeof prop === 'object' && !Object.isFrozen(prop)) {
+				if (typeof prop === 'object' && !Object.isFrozen(prop) && !isTypedArray(prop)) {
 					stack.push(prop);
 				}
 			}
@@ -45,6 +45,7 @@ export function deepFreeze<T>(obj: T): T {
 }
 
 const _hasOwnProperty = Object.prototype.hasOwnProperty;
+
 
 export function cloneAndChange(obj: any, changer: (orig: any) => any): any {
 	return _cloneAndChange(obj, changer, new Set());
@@ -74,7 +75,7 @@ function _cloneAndChange(obj: any, changer: (orig: any) => any, seen: Set<any>):
 		}
 		seen.add(obj);
 		const r2 = {};
-		for (let i2 in obj) {
+		for (const i2 in obj) {
 			if (_hasOwnProperty.call(obj, i2)) {
 				(r2 as any)[i2] = _cloneAndChange(obj[i2], changer, seen);
 			}
@@ -183,11 +184,6 @@ export function safeStringify(obj: any): string {
 		}
 		return value;
 	});
-}
-
-export function getOrDefault<T, R>(obj: T, fn: (obj: T) => R | undefined, defaultValue: R): R {
-	const result = fn(obj);
-	return typeof result === 'undefined' ? defaultValue : result;
 }
 
 type obj = { [key: string]: any };

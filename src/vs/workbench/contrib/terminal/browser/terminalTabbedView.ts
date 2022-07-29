@@ -133,6 +133,7 @@ export class TerminalTabbedView extends Disposable {
 		this._register(this._terminalGroupService.onDidChangeInstances(() => this._refreshShowTabs()));
 		this._register(this._terminalGroupService.onDidChangeGroups(() => this._refreshShowTabs()));
 		this._register(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
+		this._register(this._terminalService.onDidRequestHideFindWidget(() => this.hideFindWidget()));
 		this._updateTheme();
 
 		this._findWidget.focusTracker.onDidFocus(() => this._terminalContainer.classList.add(CssClass.FindFocus));
@@ -150,7 +151,11 @@ export class TerminalTabbedView extends Disposable {
 		});
 
 		this._splitView = new SplitView(parentElement, { orientation: Orientation.HORIZONTAL, proportionalLayout: false });
-
+		this._terminalService.onDidCreateInstance(instance => {
+			instance.onDidChangeFindResults(() => {
+				this._findWidget.updateResultCount();
+			});
+		});
 		this._setupSplitView(terminalOuterContainer);
 	}
 
@@ -197,7 +202,7 @@ export class TerminalTabbedView extends Disposable {
 
 	private _getLastListWidth(): number {
 		const widthKey = this._panelOrientation === Orientation.VERTICAL ? TerminalStorageKeys.TabsListWidthVertical : TerminalStorageKeys.TabsListWidthHorizontal;
-		const storedValue = this._storageService.get(widthKey, StorageScope.GLOBAL);
+		const storedValue = this._storageService.get(widthKey, StorageScope.PROFILE);
 
 		if (!storedValue || !parseInt(storedValue)) {
 			// we want to use the min width by default for the vertical orientation bc
@@ -257,7 +262,7 @@ export class TerminalTabbedView extends Disposable {
 		}
 		this.rerenderTabs();
 		const widthKey = this._panelOrientation === Orientation.VERTICAL ? TerminalStorageKeys.TabsListWidthVertical : TerminalStorageKeys.TabsListWidthHorizontal;
-		this._storageService.store(widthKey, width, StorageScope.GLOBAL, StorageTarget.USER);
+		this._storageService.store(widthKey, width, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	private _setupSplitView(terminalOuterContainer: HTMLElement): void {
@@ -367,7 +372,13 @@ export class TerminalTabbedView extends Disposable {
 				terminal.focus();
 			} else if (event.which === 3) {
 				const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
-				if (rightClickBehavior === 'copyPaste' || rightClickBehavior === 'paste') {
+				if (rightClickBehavior === 'nothing') {
+					if (!event.shiftKey) {
+						this._cancelContextMenu = true;
+					}
+					return;
+				}
+				else if (rightClickBehavior === 'copyPaste' || rightClickBehavior === 'paste') {
 					// copyPaste: Shift+right click should open context menu
 					if (rightClickBehavior === 'copyPaste' && event.shiftKey) {
 						openContextMenu(event, this._parentElement, this._instanceMenu, this._contextMenuService);
@@ -398,6 +409,10 @@ export class TerminalTabbedView extends Disposable {
 			}
 		}));
 		this._register(dom.addDisposableListener(terminalContainer, 'contextmenu', (event: MouseEvent) => {
+			const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
+			if (rightClickBehavior === 'nothing' && !event.shiftKey) {
+				this._cancelContextMenu = true;
+			}
 			if (!this._cancelContextMenu) {
 				openContextMenu(event, this._parentElement, this._instanceMenu, this._contextMenuService);
 			}
@@ -406,6 +421,10 @@ export class TerminalTabbedView extends Disposable {
 			this._cancelContextMenu = false;
 		}));
 		this._register(dom.addDisposableListener(this._tabContainer, 'contextmenu', (event: MouseEvent) => {
+			const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
+			if (rightClickBehavior === 'nothing' && !event.shiftKey) {
+				this._cancelContextMenu = true;
+			}
 			if (!this._cancelContextMenu) {
 				const emptyList = this._tabList.getFocus().length === 0;
 				openContextMenu(event, this._parentElement, emptyList ? this._tabsListEmptyMenu : this._tabsListMenu, this._contextMenuService, emptyList ? this._getTabActions() : undefined);

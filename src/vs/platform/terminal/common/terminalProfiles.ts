@@ -5,19 +5,24 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
 import { IExtensionTerminalProfile, ITerminalProfile, TerminalIcon } from 'vs/platform/terminal/common/terminal';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export function createProfileSchemaEnums(detectedProfiles: ITerminalProfile[], extensionProfiles?: readonly IExtensionTerminalProfile[]): {
-	values: string[] | undefined;
+	values: (string | null)[] | undefined;
 	markdownDescriptions: string[] | undefined;
 } {
-	const result = detectedProfiles.map(e => {
+	const result: { name: string | null; description: string }[] = [{
+		name: null,
+		description: localize('terminalAutomaticProfile', 'Automatically detect the default')
+	}];
+	result.push(...detectedProfiles.map(e => {
 		return {
 			name: e.profileName,
 			description: createProfileDescription(e)
 		};
-	});
+	}));
 	if (extensionProfiles) {
 		result.push(...extensionProfiles.map(extensionProfile => {
 			return {
@@ -54,7 +59,7 @@ function createProfileDescription(profile: ITerminalProfile): string {
 }
 
 function createExtensionProfileDescription(profile: IExtensionTerminalProfile): string {
-	let description = `$(${ThemeIcon.isThemeIcon(profile.icon) ? profile.icon.id : profile.icon ? profile.icon : Codicon.terminal.id}) ${profile.title}\n- extensionIdenfifier: ${profile.extensionIdentifier}`;
+	const description = `$(${ThemeIcon.isThemeIcon(profile.icon) ? profile.icon.id : profile.icon ? profile.icon : Codicon.terminal.id}) ${profile.title}\n- extensionIdentifier: ${profile.extensionIdentifier}`;
 	return description;
 }
 

@@ -60,7 +60,7 @@ export class ViewContainerActivityAction extends ActivityAction {
 		this.activity = activity;
 	}
 
-	override async run(event: any | { preserveFocus: boolean }): Promise<void> {
+	override async run(event: { preserveFocus: boolean }): Promise<void> {
 		if (event instanceof MouseEvent && event.button === 2) {
 			return; // do not run on right click
 		}
@@ -102,8 +102,10 @@ export class ViewContainerActivityAction extends ActivityAction {
 
 	private logAction(action: string) {
 		type ActivityBarActionClassification = {
-			viewletId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			owner: 'sbatten';
+			comment: 'Event logged when an activity bar action is triggered.';
+			viewletId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The view in the activity bar for which the action was performed.' };
+			action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The action that was performed. e.g. "hide", "show", or "refocus"' };
 		};
 		this.telemetryService.publicLog2<{ viewletId: String; action: String }, ActivityBarActionClassification>('activityBarAction', { viewletId: this.activity.id, action });
 	}
@@ -141,7 +143,7 @@ class MenuActivityActionViewItem extends ActivityActionViewItem {
 		}));
 
 		this._register(addDisposableListener(this.container, EventType.KEY_UP, (e: KeyboardEvent) => {
-			let event = new StandardKeyboardEvent(e);
+			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				EventHelper.stop(e, true);
 				this.showContextMenu();
@@ -295,7 +297,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 		const actions = await super.resolveContextMenuActions(disposables);
 
 		actions.unshift(...[
-			toAction({ id: 'hideAccounts', label: localize('hideAccounts', "Hide Accounts"), run: () => this.storageService.store(AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, false, StorageScope.GLOBAL, StorageTarget.USER) }),
+			toAction({ id: 'hideAccounts', label: localize('hideAccounts', "Hide Accounts"), run: () => this.storageService.store(AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, false, StorageScope.PROFILE, StorageTarget.USER) }),
 			new Separator()
 		]);
 
@@ -371,7 +373,7 @@ registerAction2(
 		constructor() {
 			super({
 				id: 'workbench.action.previousSideBarView',
-				title: { value: localize('previousSideBarView', "Previous Side Bar View"), original: 'Previous Side Bar View' },
+				title: { value: localize('previousSideBarView', "Previous Primary Side Bar View"), original: 'Previous Primary Side Bar View' },
 				category: CATEGORIES.View,
 				f1: true
 			}, -1);
@@ -384,7 +386,7 @@ registerAction2(
 		constructor() {
 			super({
 				id: 'workbench.action.nextSideBarView',
-				title: { value: localize('nextSideBarView', "Next Side Bar View"), original: 'Next Side Bar View' },
+				title: { value: localize('nextSideBarView', "Next Primary Side Bar View"), original: 'Next Primary Side Bar View' },
 				category: CATEGORIES.View,
 				f1: true
 			}, 1);
@@ -467,8 +469,8 @@ registerThemingParticipant((theme, collector) => {
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:before {
 				content: "";
 				position: absolute;
-				top: 9px;
-				left: 9px;
+				top: 8px;
+				left: 8px;
 				height: 32px;
 				width: 32px;
 				z-index: 1;

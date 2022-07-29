@@ -11,11 +11,10 @@ import { Queue } from 'vs/base/common/async';
 import { Edit, FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService, IConfigurationUpdateOverrides } from 'vs/platform/configuration/common/configuration';
 import { FOLDER_SETTINGS_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY, USER_STANDALONE_CONFIGURATIONS, TASKS_DEFAULT, FOLDER_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
-import { IFileService } from 'vs/platform/files/common/files';
+import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, keyFromOverrideIdentifiers, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -29,6 +28,8 @@ import { IReference } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Selection } from 'vs/editor/common/core/selection';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export const enum ConfigurationEditingErrorCode {
 
@@ -90,7 +91,17 @@ export const enum ConfigurationEditingErrorCode {
 	/**
 	 * Error when trying to write to a configuration file that contains JSON errors.
 	 */
-	ERROR_INVALID_CONFIGURATION
+	ERROR_INVALID_CONFIGURATION,
+
+	/**
+	 * Error when trying to write a policy configuration
+	 */
+	ERROR_POLICY_CONFIGURATION,
+
+	/**
+	 * Internal Error.
+	 */
+	ERROR_INTERNAL
 }
 
 export class ConfigurationEditingError extends Error {
@@ -130,7 +141,7 @@ interface IConfigurationEditOperation extends IConfigurationValue {
 }
 
 interface ConfigurationEditingOptions extends IConfigurationEditingOptions {
-	ignoreDirtyFile?: boolean;
+	handleDirtyFile?: 'save' | 'revert';
 }
 
 export class ConfigurationEditingService {
@@ -143,7 +154,8 @@ export class ConfigurationEditingService {
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IFileService private readonly fileService: IFileService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@ITextFileService private readonly textFileService: ITextFileService,
@@ -161,38 +173,59 @@ export class ConfigurationEditingService {
 		});
 	}
 
-	writeConfiguration(target: EditableConfigurationTarget, value: IConfigurationValue, options: IConfigurationEditingOptions = {}): Promise<void> {
+	async writeConfiguration(target: EditableConfigurationTarget, value: IConfigurationValue, options: IConfigurationEditingOptions = {}): Promise<void> {
 		const operation = this.getConfigurationEditOperation(target, value, options.scopes || {});
-		return Promise.resolve(this.queue.queue(() => this.doWriteConfiguration(operation, options) // queue up writes to prevent race conditions
-			.then(() => { },
-				async error => {
-					if (!options.donotNotifyError) {
-						await this.onError(error, operation, options.scopes);
-					}
-					return Promise.reject(error);
-				})));
+		// queue up writes to prevent race conditions
+		return this.queue.queue(async () => {
+			try {
+				await this.doWriteConfiguration(operation, options);
+			} catch (error) {
+				if (options.donotNotifyError) {
+					throw error;
+				}
+				await this.onError(error, operation, options.scopes);
+			}
+		});
 	}
 
 	private async doWriteConfiguration(operation: IConfigurationEditOperation, options: ConfigurationEditingOptions): Promise<void> {
-		await this.validate(operation.target, operation, !options.ignoreDirtyFile, options.scopes || {});
+		await this.validate(operation.target, operation, !options.handleDirtyFile, options.scopes || {});
 		const resource: URI = operation.resource!;
 		const reference = await this.resolveModelReference(resource);
 		try {
 			const formattingOptions = this.getFormattingOptions(reference.object.textEditorModel);
-			await this.updateConfiguration(operation, reference.object.textEditorModel, formattingOptions);
+			await this.updateConfiguration(operation, reference.object.textEditorModel, formattingOptions, options);
 		} finally {
 			reference.dispose();
 		}
 	}
 
-	private async updateConfiguration(operation: IConfigurationEditOperation, model: ITextModel, formattingOptions: FormattingOptions): Promise<void> {
+	private async updateConfiguration(operation: IConfigurationEditOperation, model: ITextModel, formattingOptions: FormattingOptions, options: ConfigurationEditingOptions): Promise<void> {
 		if (this.hasParseErrors(model.getValue(), operation)) {
 			throw this.toConfigurationEditingError(ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION, operation.target, operation);
 		}
 
+		if (this.textFileService.isDirty(model.uri) && options.handleDirtyFile) {
+			switch (options.handleDirtyFile) {
+				case 'save': await this.save(model, operation); break;
+				case 'revert': await this.textFileService.revert(model.uri); break;
+			}
+		}
+
 		const edit = this.getEdits(operation, model.getValue(), formattingOptions)[0];
 		if (edit && this.applyEditsToBuffer(edit, model)) {
-			await this.textFileService.save(model.uri);
+			await this.save(model, operation);
+		}
+	}
+
+	private async save(model: ITextModel, operation: IConfigurationEditOperation): Promise<void> {
+		try {
+			await this.textFileService.save(model.uri, { ignoreErrorHandler: true });
+		} catch (error) {
+			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
+				throw this.toConfigurationEditingError(ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_MODIFIED_SINCE, operation.target, operation);
+			}
+			throw this.toConfigurationEditingError(ConfigurationEditingErrorCode.ERROR_INTERNAL, operation.target, operation);
 		}
 	}
 
@@ -200,7 +233,7 @@ export class ConfigurationEditingService {
 		const startPosition = model.getPositionAt(edit.offset);
 		const endPosition = model.getPositionAt(edit.offset + edit.length);
 		const range = new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column);
-		let currentText = model.getValueInRange(range);
+		const currentText = model.getValueInRange(range);
 		if (edit.content !== currentText) {
 			const editOperation = currentText ? EditOperation.replace(range, edit.content) : EditOperation.insert(startPosition, edit.content);
 			model.pushEditOperations([new Selection(startPosition.lineNumber, startPosition.column, startPosition.lineNumber, startPosition.column)], [editOperation], () => []);
@@ -238,7 +271,7 @@ export class ConfigurationEditingService {
 				this.onConfigurationFileDirtyError(error, operation, scopes);
 				break;
 			case ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_MODIFIED_SINCE:
-				return this.doWriteConfiguration(operation, { scopes });
+				return this.doWriteConfiguration(operation, { scopes, handleDirtyFile: 'revert' });
 			default:
 				this.notificationService.error(error.message);
 		}
@@ -275,7 +308,7 @@ export class ConfigurationEditingService {
 					label: nls.localize('saveAndRetry', "Save and Retry"),
 					run: () => {
 						const key = operation.key ? `${operation.workspaceStandAloneConfigurationKey}.${operation.key}` : operation.workspaceStandAloneConfigurationKey!;
-						this.writeConfiguration(operation.target, { key, value: operation.value }, <ConfigurationEditingOptions>{ ignoreDirtyFile: true, scopes });
+						this.writeConfiguration(operation.target, { key, value: operation.value }, <ConfigurationEditingOptions>{ handleDirtyFile: 'save', scopes });
 					}
 				},
 				{
@@ -287,7 +320,7 @@ export class ConfigurationEditingService {
 			this.notificationService.prompt(Severity.Error, error.message,
 				[{
 					label: nls.localize('saveAndRetry', "Save and Retry"),
-					run: () => this.writeConfiguration(operation.target, { key: operation.key, value: operation.value }, <ConfigurationEditingOptions>{ ignoreDirtyFile: true, scopes })
+					run: () => this.writeConfiguration(operation.target, { key: operation.key, value: operation.value }, <ConfigurationEditingOptions>{ handleDirtyFile: 'save', scopes })
 				},
 				{
 					label: nls.localize('open', "Open Settings"),
@@ -333,6 +366,7 @@ export class ConfigurationEditingService {
 		switch (error) {
 
 			// API constraints
+			case ConfigurationEditingErrorCode.ERROR_POLICY_CONFIGURATION: return nls.localize('errorPolicyConfiguration', "Unable to write {0} because it is configured in system policy.", operation.key);
 			case ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY: return nls.localize('errorUnknownKey', "Unable to write to {0} because {1} is not a registered configuration.", this.stringifyTarget(target), operation.key);
 			case ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_APPLICATION: return nls.localize('errorInvalidWorkspaceConfigurationApplication', "Unable to write {0} to Workspace Settings. This setting can be written only into User settings.", operation.key);
 			case ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_MACHINE: return nls.localize('errorInvalidWorkspaceConfigurationMachine', "Unable to write {0} to Workspace Settings. This setting can be written only into User settings.", operation.key);
@@ -340,7 +374,7 @@ export class ConfigurationEditingService {
 			case ConfigurationEditingErrorCode.ERROR_INVALID_USER_TARGET: return nls.localize('errorInvalidUserTarget', "Unable to write to User Settings because {0} does not support for global scope.", operation.key);
 			case ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_TARGET: return nls.localize('errorInvalidWorkspaceTarget', "Unable to write to Workspace Settings because {0} does not support for workspace scope in a multi folder workspace.", operation.key);
 			case ConfigurationEditingErrorCode.ERROR_INVALID_FOLDER_TARGET: return nls.localize('errorInvalidFolderTarget', "Unable to write to Folder Settings because no resource is provided.");
-			case ConfigurationEditingErrorCode.ERROR_INVALID_RESOURCE_LANGUAGE_CONFIGURATION: return nls.localize('errorInvalidResourceLanguageConfiguraiton', "Unable to write to Language Settings because {0} is not a resource language setting.", operation.key);
+			case ConfigurationEditingErrorCode.ERROR_INVALID_RESOURCE_LANGUAGE_CONFIGURATION: return nls.localize('errorInvalidResourceLanguageConfiguration', "Unable to write to Language Settings because {0} is not a resource language setting.", operation.key);
 			case ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED: return nls.localize('errorNoWorkspaceOpened', "Unable to write to {0} because no workspace is opened. Please open a workspace first and try again.", this.stringifyTarget(target));
 
 			// User issues
@@ -417,6 +451,7 @@ export class ConfigurationEditingService {
 					case EditableConfigurationTarget.WORKSPACE_FOLDER:
 						return nls.localize('errorConfigurationFileModifiedSinceFolder', "Unable to write into folder settings because the content of the file is newer.");
 				}
+			case ConfigurationEditingErrorCode.ERROR_INTERNAL: return nls.localize('errorUnknown', "Unable to write to {0} because of an internal error.", this.stringifyTarget(target));
 		}
 	}
 
@@ -464,6 +499,10 @@ export class ConfigurationEditingService {
 	}
 
 	private async validate(target: EditableConfigurationTarget, operation: IConfigurationEditOperation, checkDirty: boolean, overrides: IConfigurationUpdateOverrides): Promise<void> {
+
+		if (this.configurationService.inspect(operation.key).policyValue !== undefined) {
+			throw this.toConfigurationEditingError(ConfigurationEditingErrorCode.ERROR_POLICY_CONFIGURATION, target, operation);
+		}
 
 		const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 		const configurationScope = configurationProperties[operation.key]?.scope;
@@ -539,7 +578,7 @@ export class ConfigurationEditingService {
 			const standaloneConfigurationMap = target === EditableConfigurationTarget.USER_LOCAL ? USER_STANDALONE_CONFIGURATIONS : WORKSPACE_STANDALONE_CONFIGURATIONS;
 			const standaloneConfigurationKeys = Object.keys(standaloneConfigurationMap);
 			for (const key of standaloneConfigurationKeys) {
-				const resource = this.getConfigurationFileResource(target, standaloneConfigurationMap[key], overrides.resource);
+				const resource = this.getConfigurationFileResource(target, key, standaloneConfigurationMap[key], overrides.resource, undefined);
 
 				// Check for prefix
 				if (config.key === key) {
@@ -556,13 +595,15 @@ export class ConfigurationEditingService {
 			}
 		}
 
-		let key = config.key;
+		const key = config.key;
+		const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
+		const configurationScope = configurationProperties[key]?.scope;
 		let jsonPath = overrides.overrideIdentifiers?.length ? [keyFromOverrideIdentifiers(overrides.overrideIdentifiers), key] : [key];
 		if (target === EditableConfigurationTarget.USER_LOCAL || target === EditableConfigurationTarget.USER_REMOTE) {
-			return { key, jsonPath, value: config.value, resource: withNullAsUndefined(this.getConfigurationFileResource(target, '', null)), target };
+			return { key, jsonPath, value: config.value, resource: withNullAsUndefined(this.getConfigurationFileResource(target, undefined, '', null, configurationScope)), target };
 		}
 
-		const resource = this.getConfigurationFileResource(target, FOLDER_SETTINGS_PATH, overrides.resource);
+		const resource = this.getConfigurationFileResource(target, undefined, FOLDER_SETTINGS_PATH, overrides.resource, configurationScope);
 		if (this.isWorkspaceConfigurationResource(resource)) {
 			jsonPath = ['settings', ...jsonPath];
 		}
@@ -574,12 +615,15 @@ export class ConfigurationEditingService {
 		return !!(workspace.configuration && resource && workspace.configuration.fsPath === resource.fsPath);
 	}
 
-	private getConfigurationFileResource(target: EditableConfigurationTarget, relativePath: string, resource: URI | null | undefined): URI | null {
+	private getConfigurationFileResource(target: EditableConfigurationTarget, standAloneConfigurationKey: string | undefined, relativePath: string, resource: URI | null | undefined, scope: ConfigurationScope | undefined): URI | null {
 		if (target === EditableConfigurationTarget.USER_LOCAL) {
-			if (relativePath) {
-				return this.uriIdentityService.extUri.joinPath(this.uriIdentityService.extUri.dirname(this.environmentService.settingsResource), relativePath);
+			if (standAloneConfigurationKey === TASKS_CONFIGURATION_KEY) {
+				return this.userDataProfileService.currentProfile.tasksResource;
 			} else {
-				return this.environmentService.settingsResource;
+				if (scope === ConfigurationScope.APPLICATION && !this.userDataProfileService.currentProfile.isDefault) {
+					return this.userDataProfilesService.defaultProfile.settingsResource;
+				}
+				return this.userDataProfileService.currentProfile.settingsResource;
 			}
 		}
 		if (target === EditableConfigurationTarget.USER_REMOTE) {

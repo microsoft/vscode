@@ -3,16 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// all constants are const
 import * as vscode from 'vscode';
 import * as Proto from '../protocol';
-import { ClientCapability, ExecConfig, ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
+import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { conditionalRegistration, requireMinVersion, requireSomeCapability } from '../utils/dependentRegistration';
 import { DocumentSelector } from '../utils/documentSelector';
-
-
-const minTypeScriptVersion = API.fromVersionString(`${VersionRequirement.major}.${VersionRequirement.minor}`);
 
 // as we don't do deltas, for performance reasons, don't compute semantic tokens for documents above that limit
 const CONTENT_LENGTH_LIMIT = 100000;
@@ -22,35 +18,33 @@ export function register(
 	client: ITypeScriptServiceClient,
 ) {
 	return conditionalRegistration([
-		requireMinVersion(client, minTypeScriptVersion),
+		requireMinVersion(client, API.v370),
 		requireSomeCapability(client, ClientCapability.Semantic),
 	], () => {
 		const provider = new DocumentSemanticTokensProvider(client);
-		return vscode.Disposable.from(
-			// register only as a range provider
-			vscode.languages.registerDocumentRangeSemanticTokensProvider(selector.semantic, provider, provider.getLegend()),
-		);
+		return vscode.languages.registerDocumentRangeSemanticTokensProvider(selector.semantic, provider, provider.getLegend());
 	});
 }
 
 class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensProvider, vscode.DocumentRangeSemanticTokensProvider {
 
-	constructor(private readonly client: ITypeScriptServiceClient) {
-	}
+	constructor(
+		private readonly client: ITypeScriptServiceClient
+	) { }
 
-	getLegend(): vscode.SemanticTokensLegend {
+	public getLegend(): vscode.SemanticTokensLegend {
 		return new vscode.SemanticTokensLegend(tokenTypes, tokenModifiers);
 	}
 
-	async provideDocumentSemanticTokens(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.SemanticTokens | null> {
+	public async provideDocumentSemanticTokens(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.SemanticTokens | null> {
 		const file = this.client.toOpenedFilePath(document);
 		if (!file || document.getText().length > CONTENT_LENGTH_LIMIT) {
 			return null;
 		}
-		return this._provideSemanticTokens(document, { file, start: 0, length: document.getText().length }, token);
+		return this.provideSemanticTokens(document, { file, start: 0, length: document.getText().length }, token);
 	}
 
-	async provideDocumentRangeSemanticTokens(document: vscode.TextDocument, range: vscode.Range, token: vscode.CancellationToken): Promise<vscode.SemanticTokens | null> {
+	public async provideDocumentRangeSemanticTokens(document: vscode.TextDocument, range: vscode.Range, token: vscode.CancellationToken): Promise<vscode.SemanticTokens | null> {
 		const file = this.client.toOpenedFilePath(document);
 		if (!file || (document.offsetAt(range.end) - document.offsetAt(range.start) > CONTENT_LENGTH_LIMIT)) {
 			return null;
@@ -58,10 +52,10 @@ class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensPro
 
 		const start = document.offsetAt(range.start);
 		const length = document.offsetAt(range.end) - start;
-		return this._provideSemanticTokens(document, { file, start, length }, token);
+		return this.provideSemanticTokens(document, { file, start, length }, token);
 	}
 
-	async _provideSemanticTokens(document: vscode.TextDocument, requestArg: Proto.EncodedSemanticClassificationsRequestArgs, token: vscode.CancellationToken): Promise<vscode.SemanticTokens | null> {
+	private async provideSemanticTokens(document: vscode.TextDocument, requestArg: Proto.EncodedSemanticClassificationsRequestArgs, token: vscode.CancellationToken): Promise<vscode.SemanticTokens | null> {
 		const file = this.client.toOpenedFilePath(document);
 		if (!file) {
 			return null;
@@ -69,9 +63,7 @@ class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensPro
 
 		const versionBeforeRequest = document.version;
 
-		requestArg.format = '2020';
-
-		const response = await (this.client as ExperimentalProtocol.IExtendedTypeScriptServiceClient).execute('encodedSemanticClassifications-full', requestArg, token, {
+		const response = await this.client.execute('encodedSemanticClassifications-full', { ...requestArg, format: '2020' }, token, {
 			cancelOnResourceChange: document.uri
 		});
 		if (response.type !== 'response' || !response.body) {
@@ -97,23 +89,17 @@ class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensPro
 		const tokenSpan = response.body.spans;
 
 		const builder = new vscode.SemanticTokensBuilder();
-		let i = 0;
-		while (i < tokenSpan.length) {
+		for (let i = 0; i < tokenSpan.length;) {
 			const offset = tokenSpan[i++];
 			const length = tokenSpan[i++];
 			const tsClassification = tokenSpan[i++];
 
-			let tokenModifiers = 0;
-			let tokenType = getTokenTypeFromClassification(tsClassification);
-			if (tokenType !== undefined) {
-				tokenModifiers = getTokenModifierFromClassification(tsClassification);
-			} else {
-				// an old TypeScript server that uses the original ExperimentalProtocol.ClassificationType's
-				tokenType = tokenTypeMap[tsClassification];
-				if (tokenType === undefined) {
-					continue;
-				}
+			const tokenType = getTokenTypeFromClassification(tsClassification);
+			if (tokenType === undefined) {
+				continue;
 			}
+
+			const tokenModifiers = getTokenModifierFromClassification(tsClassification);
 
 			// we can use the document's range conversion methods because the result is at the same version as the document
 			const startPos = document.positionAt(offset);
@@ -125,17 +111,18 @@ class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensPro
 				builder.push(line, startCharacter, endCharacter - startCharacter, tokenType, tokenModifiers);
 			}
 		}
+
 		return builder.build();
 	}
 }
 
 function waitForDocumentChangesToEnd(document: vscode.TextDocument) {
 	let version = document.version;
-	return new Promise<void>((s) => {
+	return new Promise<void>((resolve) => {
 		const iv = setInterval(_ => {
 			if (document.version === version) {
 				clearInterval(iv);
-				s();
+				resolve();
 			}
 			version = document.version;
 		}, 400);
@@ -146,7 +133,7 @@ function waitForDocumentChangesToEnd(document: vscode.TextDocument) {
 // typescript encodes type and modifiers in the classification:
 // TSClassification = (TokenType + 1) << 8 + TokenModifier
 
-declare const enum TokenType {
+const enum TokenType {
 	class = 0,
 	enum = 1,
 	interface = 2,
@@ -161,7 +148,8 @@ declare const enum TokenType {
 	method = 11,
 	_ = 12
 }
-declare const enum TokenModifier {
+
+const enum TokenModifier {
 	declaration = 0,
 	static = 1,
 	async = 2,
@@ -170,13 +158,10 @@ declare const enum TokenModifier {
 	local = 5,
 	_ = 6
 }
-declare const enum TokenEncodingConsts {
+
+const enum TokenEncodingConsts {
 	typeOffset = 8,
 	modifierMask = 255
-}
-declare const enum VersionRequirement {
-	major = 3,
-	minor = 7
 }
 
 function getTokenTypeFromClassification(tsClassification: number): number | undefined {
@@ -211,95 +196,3 @@ tokenModifiers[TokenModifier.readonly] = 'readonly';
 tokenModifiers[TokenModifier.static] = 'static';
 tokenModifiers[TokenModifier.local] = 'local';
 tokenModifiers[TokenModifier.defaultLibrary] = 'defaultLibrary';
-
-// mapping for the original ExperimentalProtocol.ClassificationType from TypeScript (only used when plugin is not available)
-const tokenTypeMap: number[] = [];
-tokenTypeMap[ExperimentalProtocol.ClassificationType.className] = TokenType.class;
-tokenTypeMap[ExperimentalProtocol.ClassificationType.enumName] = TokenType.enum;
-tokenTypeMap[ExperimentalProtocol.ClassificationType.interfaceName] = TokenType.interface;
-tokenTypeMap[ExperimentalProtocol.ClassificationType.moduleName] = TokenType.namespace;
-tokenTypeMap[ExperimentalProtocol.ClassificationType.typeParameterName] = TokenType.typeParameter;
-tokenTypeMap[ExperimentalProtocol.ClassificationType.typeAliasName] = TokenType.type;
-tokenTypeMap[ExperimentalProtocol.ClassificationType.parameterName] = TokenType.parameter;
-
-namespace ExperimentalProtocol {
-
-	export interface IExtendedTypeScriptServiceClient {
-		execute<K extends keyof ExperimentalProtocol.ExtendedTsServerRequests>(
-			command: K,
-			args: ExperimentalProtocol.ExtendedTsServerRequests[K][0],
-			token: vscode.CancellationToken,
-			config?: ExecConfig
-		): Promise<ServerResponse.Response<ExperimentalProtocol.ExtendedTsServerRequests[K][1]>>;
-	}
-
-	/**
-	 * A request to get encoded semantic classifications for a span in the file
-	 */
-	export interface EncodedSemanticClassificationsRequest extends Proto.FileRequest {
-		arguments: EncodedSemanticClassificationsRequestArgs;
-	}
-
-	/**
-	 * Arguments for EncodedSemanticClassificationsRequest request.
-	 */
-	export interface EncodedSemanticClassificationsRequestArgs extends Proto.FileRequestArgs {
-		/**
-		 * Start position of the span.
-		 */
-		start: number;
-		/**
-		 * Length of the span.
-		 */
-		length: number;
-	}
-
-	export const enum EndOfLineState {
-		None,
-		InMultiLineCommentTrivia,
-		InSingleQuoteStringLiteral,
-		InDoubleQuoteStringLiteral,
-		InTemplateHeadOrNoSubstitutionTemplate,
-		InTemplateMiddleOrTail,
-		InTemplateSubstitutionPosition,
-	}
-
-	export const enum ClassificationType {
-		comment = 1,
-		identifier = 2,
-		keyword = 3,
-		numericLiteral = 4,
-		operator = 5,
-		stringLiteral = 6,
-		regularExpressionLiteral = 7,
-		whiteSpace = 8,
-		text = 9,
-		punctuation = 10,
-		className = 11,
-		enumName = 12,
-		interfaceName = 13,
-		moduleName = 14,
-		typeParameterName = 15,
-		typeAliasName = 16,
-		parameterName = 17,
-		docCommentTagName = 18,
-		jsxOpenTagName = 19,
-		jsxCloseTagName = 20,
-		jsxSelfClosingTagName = 21,
-		jsxAttribute = 22,
-		jsxText = 23,
-		jsxAttributeStringLiteralValue = 24,
-		bigintLiteral = 25,
-	}
-
-	export interface EncodedSemanticClassificationsResponse extends Proto.Response {
-		body?: {
-			endOfLineState: EndOfLineState;
-			spans: number[];
-		};
-	}
-
-	export interface ExtendedTsServerRequests {
-		'encodedSemanticClassifications-full': [ExperimentalProtocol.EncodedSemanticClassificationsRequestArgs, ExperimentalProtocol.EncodedSemanticClassificationsResponse];
-	}
-}

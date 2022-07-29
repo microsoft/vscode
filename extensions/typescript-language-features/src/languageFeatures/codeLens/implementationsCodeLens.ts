@@ -68,8 +68,8 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 	protected extractSymbol(
 		document: vscode.TextDocument,
 		item: Proto.NavigationTree,
-		_parent: Proto.NavigationTree | null
-	): vscode.Range | null {
+		_parent: Proto.NavigationTree | undefined
+	): vscode.Range | undefined {
 		switch (item.kind) {
 			case PConst.Kind.interface:
 				return getSymbolRange(document, item);
@@ -84,7 +84,7 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 				}
 				break;
 		}
-		return null;
+		return undefined;
 	}
 }
 

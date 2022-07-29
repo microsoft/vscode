@@ -21,7 +21,7 @@ example: yarn smoketest --build /Applications/Visual\ Studio\ Code\ -\ Insiders.
 # Build (Web - read instructions below)
 yarn smoketest --build <path to server web build (ends in -web)> --web --browser [chromium|webkit]
 
-# Remote (Electron - Must be run on distro)
+# Remote (Electron)
 yarn smoketest --build <path to latest version> --remote
 ```
 
@@ -41,7 +41,7 @@ yarn --cwd test/smoke
 #### Web
 
 There is no support for testing an old version to a new one yet.
-Instead, simply configure the `--build` command line argument to point to the absolute path of the extracted server web build folder (e.g. `<rest of path here>/vscode-server-darwin-web` for macOS). The server web build is available from the builds page (see previous subsection).
+Instead, simply configure the `--build` command line argument to point to the absolute path of the extracted server web build folder (e.g. `<rest of path here>/vscode-server-darwin-x64-web` for macOS). The server web build is available from the builds page (see previous subsection).
 
 **macOS**: if you have downloaded the server with web bits, make sure to run the following command before unzipping it to avoid security issues on startup:
 
@@ -57,7 +57,7 @@ xattr -d com.apple.quarantine <path to server with web folder zip>
 - `-f PATTERN` (alias `-g PATTERN`) filters the tests to be run. You can also use pretty much any mocha argument;
 - `--headless` will run playwright in headless mode when `--web` is used.
 
-**Note**: you can enable verbose logging of playwright library by setting a `DEBUG` environment variable before running the tests (https://playwright.dev/docs/debug#verbose-api-logs)
+**Note**: you can enable verbose logging of playwright library by setting a `DEBUG` environment variable before running the tests (https://playwright.dev/docs/debug#verbose-api-logs), for example to `pw:browser`.
 
 ### Develop
 

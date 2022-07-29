@@ -50,10 +50,12 @@ export class MarkerList {
 		const compareOrder = this._configService.getValue<string>('problems.sortOrder');
 		const compareMarker = (a: IMarker, b: IMarker): number => {
 			let res = compare(a.resource.toString(), b.resource.toString());
-			if (compareOrder === 'position') {
-				res = Range.compareRangesUsingStarts(a, b) || MarkerSeverity.compare(a.severity, b.severity);
-			} else {
-				res = MarkerSeverity.compare(a.severity, b.severity) || Range.compareRangesUsingStarts(a, b);
+			if (res === 0) {
+				if (compareOrder === 'position') {
+					res = Range.compareRangesUsingStarts(a, b) || MarkerSeverity.compare(a.severity, b.severity);
+				} else {
+					res = MarkerSeverity.compare(a.severity, b.severity) || Range.compareRangesUsingStarts(a, b);
+				}
 			}
 			return res;
 		};
@@ -150,7 +152,7 @@ export class MarkerList {
 			return false;
 		}
 
-		let oldIdx = this._nextIdx;
+		const oldIdx = this._nextIdx;
 		if (this._nextIdx === -1) {
 			this._initIdx(model, position, fwd);
 		} else if (fwd) {
@@ -208,7 +210,7 @@ class MarkerNavigationService implements IMarkerNavigationService, IMarkerListPr
 	}
 
 	getMarkerList(resource: URI | undefined): MarkerList {
-		for (let provider of this._provider) {
+		for (const provider of this._provider) {
 			const result = provider.getMarkerList(resource);
 			if (result) {
 				return result;

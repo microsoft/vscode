@@ -43,6 +43,16 @@ export function isObject(obj: unknown): obj is Object {
 }
 
 /**
+ *
+ * @returns whether the provided parameter is of type `Buffer` or Uint8Array dervived type
+ */
+export function isTypedArray(obj: unknown): obj is Object {
+	const TypedArray = Object.getPrototypeOf(Uint8Array);
+	return typeof obj === 'object'
+		&& obj instanceof TypedArray;
+}
+
+/**
  * In **contrast** to just checking `typeof` this will return `false` for `NaN`.
  * @returns whether the provided parameter is a JavaScript Number or not.
  */
@@ -135,7 +145,7 @@ export function isEmptyObject(obj: unknown): obj is object {
 		return false;
 	}
 
-	for (let key in obj) {
+	for (const key in obj) {
 		if (hasOwnProperty.call(obj, key)) {
 			return false;
 		}
@@ -219,7 +229,7 @@ export function createProxyObject<T extends object>(methodNames: string[], invok
 		};
 	};
 
-	let result = {} as T;
+	const result = {} as T;
 	for (const methodName of methodNames) {
 		(<any>result)[methodName] = createProxyMethod(methodName);
 	}

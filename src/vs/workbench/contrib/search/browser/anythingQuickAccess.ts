@@ -683,7 +683,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			}
 
 			try {
-				if ((await this.fileService.resolve(resource)).isFile) {
+				if ((await this.fileService.stat(resource)).isFile) {
 					return resource;
 				}
 			} catch (error) {
@@ -716,7 +716,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 				);
 
 				try {
-					if ((await this.fileService.resolve(resource)).isFile) {
+					if ((await this.fileService.stat(resource)).isFile) {
 						resources.push(resource);
 					}
 				} catch (error) {

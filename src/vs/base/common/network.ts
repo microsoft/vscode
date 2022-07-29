@@ -52,7 +52,7 @@ export namespace Schemas {
 
 	export const vscodeRemoteResource = 'vscode-remote-resource';
 
-	export const userData = 'vscode-userdata';
+	export const vscodeUserData = 'vscode-userdata';
 
 	export const vscodeCustomEditor = 'vscode-custom-editor';
 
@@ -101,6 +101,11 @@ export namespace Schemas {
 	 * Scheme used vs live share
 	 */
 	export const vsls = 'vsls';
+
+	/**
+	 * Scheme used for the Source Control commit input's text document
+	 */
+	export const vscodeSourceControl = 'vscode-scm';
 }
 
 export const connectionTokenCookieName = 'vscode-tkn';
@@ -112,6 +117,7 @@ class RemoteAuthoritiesImpl {
 	private readonly _connectionTokens: { [authority: string]: string | undefined } = Object.create(null);
 	private _preferredWebSchema: 'http' | 'https' = 'http';
 	private _delegate: ((uri: URI) => URI) | null = null;
+	private _remoteResourcesPath: string = `/${Schemas.vscodeRemoteResource}`;
 
 	setPreferredWebSchema(schema: 'http' | 'https') {
 		this._preferredWebSchema = schema;
@@ -119,6 +125,10 @@ class RemoteAuthoritiesImpl {
 
 	setDelegate(delegate: (uri: URI) => URI): void {
 		this._delegate = delegate;
+	}
+
+	setServerRootPath(serverRootPath: string): void {
+		this._remoteResourcesPath = `${serverRootPath}/${Schemas.vscodeRemoteResource}`;
 	}
 
 	set(authority: string, host: string, port: number): void {
@@ -152,7 +162,7 @@ class RemoteAuthoritiesImpl {
 		return URI.from({
 			scheme: platform.isWeb ? this._preferredWebSchema : Schemas.vscodeRemoteResource,
 			authority: `${host}:${port}`,
-			path: `/vscode-remote-resource`,
+			path: this._remoteResourcesPath,
 			query
 		});
 	}
@@ -188,7 +198,7 @@ class FileAccessImpl {
 				// ...and we run in native environments
 				platform.isNative ||
 				// ...or web worker extensions on desktop
-				(typeof platform.globals.importScripts === 'function' && platform.globals.origin === `${Schemas.vscodeFileResource}://${FileAccessImpl.FALLBACK_AUTHORITY}`)
+				(platform.isWebWorker && platform.globals.origin === `${Schemas.vscodeFileResource}://${FileAccessImpl.FALLBACK_AUTHORITY}`)
 			)
 		) {
 			return uri.with({

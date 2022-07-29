@@ -7,7 +7,7 @@ import type { IViewportRange, IBufferRange, IBufferLine, IBuffer, IBufferCellPos
 import { IRange } from 'vs/editor/common/core/range';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IPath, posix, win32 } from 'vs/base/common/path';
-import { ITerminalCapabilityStore, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 
 /**
  * Converts a possibly wrapped link's range (comprised of string indices) into a buffer range that plays nicely with xterm.js
@@ -122,6 +122,10 @@ export function convertBufferRangeToViewport(bufferRange: IBufferRange, viewport
 }
 
 export function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd: number, cols: number): string {
+	// Cap the maximum number of lines generated to prevent potential performance problems. This is
+	// more of a sanity check as the wrapped line should already be trimmed down at this point.
+	const maxLineLength = Math.max(2048 / cols * 2);
+	lineEnd = Math.min(lineEnd, lineStart + maxLineLength);
 	let content = '';
 	for (let i = lineStart; i <= lineEnd; i++) {
 		// Make sure only 0 to cols are considered as resizing when windows mode is enabled will

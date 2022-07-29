@@ -21,6 +21,7 @@ export function SingleProxyRPCProtocol(thing: any): IExtHostContext & IExtHostRp
 		set<T, R extends T>(identifier: ProxyIdentifier<T>, value: R): R {
 			return value;
 		},
+		dispose: undefined!,
 		assertRegistered: undefined!,
 		drain: undefined!,
 		extensionHostKind: ExtensionHostKind.LocalProcess
@@ -56,9 +57,7 @@ export class TestRPCProtocol implements IExtHostContext, IExtHostRpcService {
 	private set _callCount(value: number) {
 		this._callCountValue = value;
 		if (this._callCountValue === 0) {
-			if (this._completeIdle) {
-				this._completeIdle();
-			}
+			this._completeIdle?.();
 			this._idle = undefined;
 		}
 	}
@@ -87,7 +86,7 @@ export class TestRPCProtocol implements IExtHostContext, IExtHostRpcService {
 	}
 
 	private _createProxy<T>(proxyId: string): T {
-		let handler = {
+		const handler = {
 			get: (target: any, name: PropertyKey) => {
 				if (typeof name === 'string' && !target[name] && name.charCodeAt(0) === CharCode.DollarSign) {
 					target[name] = (...myArgs: any[]) => {
@@ -117,7 +116,7 @@ export class TestRPCProtocol implements IExtHostContext, IExtHostRpcService {
 			const wireArgs = simulateWireTransfer(args);
 			let p: Promise<any>;
 			try {
-				let result = (<Function>instance[path]).apply(instance, wireArgs);
+				const result = (<Function>instance[path]).apply(instance, wireArgs);
 				p = isThenable(result) ? result : Promise.resolve(result);
 			} catch (err) {
 				p = Promise.reject(err);
@@ -133,6 +132,10 @@ export class TestRPCProtocol implements IExtHostContext, IExtHostRpcService {
 				return Promise.reject(err);
 			});
 		});
+	}
+
+	public dispose() {
+		throw new Error('Not implemented!');
 	}
 
 	public assertRegistered(identifiers: ProxyIdentifier<any>[]): void {

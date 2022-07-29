@@ -141,11 +141,22 @@ export function setupTerminalMenus(): void {
 				id: MenuId.TerminalInstanceContext,
 				item: {
 					command: {
+						id: TerminalCommandId.CopySelectionAsHtml,
+						title: localize('workbench.action.terminal.copySelectionAsHtml', "Copy as HTML")
+					},
+					group: ContextMenuGroup.Edit,
+					order: 2
+				}
+			},
+			{
+				id: MenuId.TerminalInstanceContext,
+				item: {
+					command: {
 						id: TerminalCommandId.Paste,
 						title: localize('workbench.action.terminal.paste.short', "Paste")
 					},
 					group: ContextMenuGroup.Edit,
-					order: 2
+					order: 3
 				}
 			},
 			{
@@ -241,11 +252,22 @@ export function setupTerminalMenus(): void {
 				id: MenuId.TerminalEditorInstanceContext,
 				item: {
 					command: {
+						id: TerminalCommandId.CopySelectionAsHtml,
+						title: localize('workbench.action.terminal.copySelectionAsHtml', "Copy as HTML")
+					},
+					group: ContextMenuGroup.Edit,
+					order: 2
+				}
+			},
+			{
+				id: MenuId.TerminalEditorInstanceContext,
+				item: {
+					command: {
 						id: TerminalCommandId.Paste,
 						title: localize('workbench.action.terminal.paste.short', "Paste")
 					},
 					group: ContextMenuGroup.Edit,
-					order: 2
+					order: 3
 				}
 			},
 			{
@@ -395,6 +417,7 @@ export function setupTerminalMenus(): void {
 					order: 2,
 					when: ContextKeyExpr.and(
 						ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
+						ContextKeyExpr.notEquals(`config.${TerminalSettingId.TabsHideCondition}`, 'never'),
 						ContextKeyExpr.or(
 							ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`),
 							ContextKeyExpr.and(
@@ -429,6 +452,7 @@ export function setupTerminalMenus(): void {
 					order: 3,
 					when: ContextKeyExpr.and(
 						ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
+						ContextKeyExpr.notEquals(`config.${TerminalSettingId.TabsHideCondition}`, 'never'),
 						ContextKeyExpr.or(
 							ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`),
 							ContextKeyExpr.and(
@@ -728,11 +752,11 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 			shouldForwardArgs: true
 		};
 		if (isDefault) {
-			dropdownActions.unshift(new MenuItemAction({ id: TerminalCommandId.NewWithProfile, title: localize('defaultTerminalProfile', "{0} (Default)", p.profileName), category: TerminalTabContextMenuGroup.Profile }, undefined, options, contextKeyService, commandService));
-			submenuActions.unshift(new MenuItemAction({ id: TerminalCommandId.Split, title: localize('defaultTerminalProfile', "{0} (Default)", p.profileName), category: TerminalTabContextMenuGroup.Profile }, undefined, splitOptions, contextKeyService, commandService));
+			dropdownActions.unshift(new MenuItemAction({ id: TerminalCommandId.NewWithProfile, title: localize('defaultTerminalProfile', "{0} (Default)", p.profileName), category: TerminalTabContextMenuGroup.Profile }, undefined, options, undefined, contextKeyService, commandService));
+			submenuActions.unshift(new MenuItemAction({ id: TerminalCommandId.Split, title: localize('defaultTerminalProfile', "{0} (Default)", p.profileName), category: TerminalTabContextMenuGroup.Profile }, undefined, splitOptions, undefined, contextKeyService, commandService));
 		} else {
-			dropdownActions.push(new MenuItemAction({ id: TerminalCommandId.NewWithProfile, title: p.profileName.replace(/[\n\r\t]/g, ''), category: TerminalTabContextMenuGroup.Profile }, undefined, options, contextKeyService, commandService));
-			submenuActions.push(new MenuItemAction({ id: TerminalCommandId.Split, title: p.profileName.replace(/[\n\r\t]/g, ''), category: TerminalTabContextMenuGroup.Profile }, undefined, splitOptions, contextKeyService, commandService));
+			dropdownActions.push(new MenuItemAction({ id: TerminalCommandId.NewWithProfile, title: p.profileName.replace(/[\n\r\t]/g, ''), category: TerminalTabContextMenuGroup.Profile }, undefined, options, undefined, contextKeyService, commandService));
+			submenuActions.push(new MenuItemAction({ id: TerminalCommandId.Split, title: p.profileName.replace(/[\n\r\t]/g, ''), category: TerminalTabContextMenuGroup.Profile }, undefined, splitOptions, undefined, contextKeyService, commandService));
 		}
 	}
 
@@ -799,7 +823,8 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 		{
 			shouldForwardArgs: true,
 			arg: { location } as ICreateTerminalOptions,
-		});
+		},
+		undefined);
 
 	const dropdownAction = new Action('refresh profiles', 'Launch Profile...', 'codicon-chevron-down', true);
 	return { primaryAction, dropdownAction, dropdownMenuActions: dropdownActions, className: `terminal-tab-actions-${terminalService.resolveLocation(location)}` };

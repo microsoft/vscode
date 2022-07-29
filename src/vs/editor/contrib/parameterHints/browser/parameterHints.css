@@ -9,6 +9,7 @@
 	display: flex;
 	flex-direction: column;
 	line-height: 1.5em;
+	cursor: default;
 }
 
 .monaco-editor .parameter-hints-widget > .phwrapper {
@@ -54,6 +55,10 @@
 
 .monaco-editor .parameter-hints-widget .docs .markdown-docs {
 	white-space: initial;
+}
+
+.monaco-editor .parameter-hints-widget .docs .markdown-docs a:hover {
+	cursor: pointer;
 }
 
 .monaco-editor .parameter-hints-widget .docs .markdown-docs code {

@@ -19,8 +19,8 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { debugStackframe, debugStackframeFocused } from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { ILogService } from 'vs/platform/log/common/log';
 
-export const topStackFrameColor = registerColor('editor.stackFrameHighlightBackground', { dark: '#ffff0033', light: '#ffff6673', hc: '#ffff0033' }, localize('topStackFrameLineHighlight', 'Background color for the highlight of line at the top stack frame position.'));
-export const focusedStackFrameColor = registerColor('editor.focusedStackFrameHighlightBackground', { dark: '#7abd7a4d', light: '#cee7ce73', hc: '#7abd7a4d' }, localize('focusedStackFrameLineHighlight', 'Background color for the highlight of line at focused stack frame position.'));
+export const topStackFrameColor = registerColor('editor.stackFrameHighlightBackground', { dark: '#ffff0033', light: '#ffff6673', hcDark: '#ffff0033', hcLight: '#ffff6673' }, localize('topStackFrameLineHighlight', 'Background color for the highlight of line at the top stack frame position.'));
+export const focusedStackFrameColor = registerColor('editor.focusedStackFrameHighlightBackground', { dark: '#7abd7a4d', light: '#cee7ce73', hcDark: '#7abd7a4d', hcLight: '#cee7ce73' }, localize('focusedStackFrameLineHighlight', 'Background color for the highlight of line at focused stack frame position.'));
 const stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 
 // we need a separate decoration for glyph margin, since we do not want it on each line of a multi line statement.
@@ -109,7 +109,7 @@ export function createDecorationsForStackFrame(stackFrame: IStackFrame, isFocuse
 
 export class CallStackEditorContribution implements IEditorContribution {
 	private toDispose: IDisposable[] = [];
-	private decorationIds: string[] = [];
+	private decorations = this.editor.createDecorationsCollection();
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -117,7 +117,7 @@ export class CallStackEditorContribution implements IEditorContribution {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ILogService private readonly logService: ILogService,
 	) {
-		const setDecorations = () => this.decorationIds = this.editor.deltaDecorations(this.decorationIds, this.createCallStackDecorations());
+		const setDecorations = () => this.decorations.set(this.createCallStackDecorations());
 		this.toDispose.push(Event.any(this.debugService.getViewModel().onDidFocusStackFrame, this.debugService.getModel().onDidChangeCallStack)(() => {
 			setDecorations();
 		}));
@@ -152,7 +152,7 @@ export class CallStackEditorContribution implements IEditorContribution {
 
 					stackFrames.forEach(candidateStackFrame => {
 						if (candidateStackFrame && this.uriIdentityService.extUri.isEqual(candidateStackFrame.source.uri, editor.getModel()?.uri)) {
-							if (candidateStackFrame.range.startLineNumber > editor.getModel()?.getLineCount()) {
+							if (candidateStackFrame.range.startLineNumber > editor.getModel()?.getLineCount() || candidateStackFrame.range.startLineNumber < 1) {
 								this.logService.warn(`CallStackEditorContribution: invalid stack frame line number: ${candidateStackFrame.range.startLineNumber}`);
 								return;
 							}
@@ -170,7 +170,7 @@ export class CallStackEditorContribution implements IEditorContribution {
 	}
 
 	dispose(): void {
-		this.editor.deltaDecorations(this.decorationIds, []);
+		this.decorations.clear();
 		this.toDispose = dispose(this.toDispose);
 	}
 }

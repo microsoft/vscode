@@ -39,6 +39,10 @@ export class OverviewRulerZone {
 
 	public readonly startLineNumber: number;
 	public readonly endLineNumber: number;
+	/**
+	 * If set to 0, the height in lines will be determined based on `endLineNumber`.
+	 */
+	public readonly heightInLines: number;
 	public readonly color: string;
 
 	private _colorZone: ColorZone | null;
@@ -46,10 +50,12 @@ export class OverviewRulerZone {
 	constructor(
 		startLineNumber: number,
 		endLineNumber: number,
+		heightInLines: number,
 		color: string
 	) {
 		this.startLineNumber = startLineNumber;
 		this.endLineNumber = endLineNumber;
+		this.heightInLines = heightInLines;
 		this.color = color;
 		this._colorZone = null;
 	}
@@ -57,7 +63,10 @@ export class OverviewRulerZone {
 	public static compare(a: OverviewRulerZone, b: OverviewRulerZone): number {
 		if (a.color === b.color) {
 			if (a.startLineNumber === b.startLineNumber) {
-				return a.endLineNumber - b.endLineNumber;
+				if (a.heightInLines === b.heightInLines) {
+					return a.endLineNumber - b.endLineNumber;
+				}
+				return a.heightInLines - b.heightInLines;
 			}
 			return a.startLineNumber - b.startLineNumber;
 		}
@@ -193,8 +202,15 @@ export class OverviewZoneManager {
 				}
 			}
 
-			const y1 = Math.floor(heightRatio * (this._getVerticalOffsetForLine(zone.startLineNumber)));
-			const y2 = Math.floor(heightRatio * (this._getVerticalOffsetForLine(zone.endLineNumber) + lineHeight));
+			const offset1 = this._getVerticalOffsetForLine(zone.startLineNumber);
+			const offset2 = (
+				zone.heightInLines === 0
+					? this._getVerticalOffsetForLine(zone.endLineNumber) + lineHeight
+					: offset1 + zone.heightInLines * lineHeight
+			);
+
+			const y1 = Math.floor(heightRatio * offset1);
+			const y2 = Math.floor(heightRatio * offset2);
 
 			let ycenter = Math.floor((y1 + y2) / 2);
 			let halfHeight = (y2 - ycenter);

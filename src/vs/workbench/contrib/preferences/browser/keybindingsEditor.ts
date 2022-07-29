@@ -9,7 +9,7 @@ import { Delayer } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
 import { isIOS, OS } from 'vs/base/common/platform';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { CheckboxActionViewItem } from 'vs/base/browser/ui/checkbox/checkbox';
+import { ToggleActionViewItem } from 'vs/base/browser/ui/toggle/toggle';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IAction, Action, Separator } from 'vs/base/common/actions';
@@ -35,7 +35,7 @@ import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { WorkbenchTable } from 'vs/platform/list/browser/listService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { attachStylerCallback, attachInputBoxStyler, attachCheckboxStyler, attachKeybindingLabelStyler } from 'vs/platform/theme/common/styler';
+import { attachStylerCallback, attachInputBoxStyler, attachToggleStyler, attachKeybindingLabelStyler } from 'vs/platform/theme/common/styler';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -50,14 +50,9 @@ import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/browse
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 
-type KeybindingEditorActionClassification = {
-	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-	command: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-};
-
 const $ = DOM.$;
 
-class ThemableCheckboxActionViewItem extends CheckboxActionViewItem {
+class ThemableToggleActionViewItem extends ToggleActionViewItem {
 
 	constructor(context: any, action: IAction, options: IActionViewItemOptions, private readonly themeService: IThemeService) {
 		super(context, action, options);
@@ -65,7 +60,7 @@ class ThemableCheckboxActionViewItem extends CheckboxActionViewItem {
 
 	override render(container: HTMLElement): void {
 		super.render(container);
-		this._register(attachCheckboxStyler(this.checkbox, this.themeService));
+		this._register(attachToggleStyler(this.toggle, this.themeService));
 	}
 }
 
@@ -188,7 +183,6 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		try {
 			const key = await this.defineKeybindingWidget.define();
 			if (key) {
-				this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_DEFINE, keybindingEntry.keybindingItem.command);
 				await this.updateKeybinding(keybindingEntry, key, keybindingEntry.keybindingItem.when, add);
 			}
 		} catch (error) {
@@ -223,7 +217,6 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 	async removeKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<void> {
 		this.selectEntry(keybindingEntry);
 		if (keybindingEntry.keybindingItem.keybinding) { // This should be a pre-condition
-			this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_REMOVE, keybindingEntry.keybindingItem.command);
 			try {
 				await this.keybindingEditingService.removeKeybinding(keybindingEntry.keybindingItem.keybindingItem);
 				this.focus();
@@ -236,7 +229,6 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 
 	async resetKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<void> {
 		this.selectEntry(keybindingEntry);
-		this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_RESET, keybindingEntry.keybindingItem.command);
 		try {
 			await this.keybindingEditingService.resetKeybinding(keybindingEntry.keybindingItem.keybindingItem);
 			if (!keybindingEntry.keybindingItem.keybinding) { // reveal only if keybinding was added to unassinged. Because the entry will be placed in different position after rendering
@@ -251,7 +243,6 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 
 	async copyKeybinding(keybinding: IKeybindingItemEntry): Promise<void> {
 		this.selectEntry(keybinding);
-		this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_COPY, keybinding.keybindingItem.command);
 		const userFriendlyKeybinding: IUserFriendlyKeybinding = {
 			key: keybinding.keybindingItem.keybinding ? keybinding.keybindingItem.keybinding.getUserSettingsLabel() || '' : '',
 			command: keybinding.keybindingItem.command
@@ -264,13 +255,11 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 
 	async copyKeybindingCommand(keybinding: IKeybindingItemEntry): Promise<void> {
 		this.selectEntry(keybinding);
-		this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, keybinding.keybindingItem.command);
 		await this.clipboardService.writeText(keybinding.keybindingItem.command);
 	}
 
 	async copyKeybindingCommandTitle(keybinding: IKeybindingItemEntry): Promise<void> {
 		this.selectEntry(keybinding);
-		this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_TITLE, keybinding.keybindingItem.command);
 		await this.clipboardService.writeText(keybinding.keybindingItem.commandLabel);
 	}
 
@@ -304,7 +293,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 	private createOverlayContainer(parent: HTMLElement): void {
 		this.overlayContainer = DOM.append(parent, $('.overlay-container'));
 		this.overlayContainer.style.position = 'absolute';
-		this.overlayContainer.style.zIndex = '10';
+		this.overlayContainer.style.zIndex = '40'; // has to greater than sash z-index which is 35
 		this.defineKeybindingWidget = this._register(this.instantiationService.createInstance(DefineKeybindingWidget, this.overlayContainer));
 		this._register(this.defineKeybindingWidget.onDidChange(keybindingStr => this.defineKeybindingWidget.printExisting(this.keybindingsEditorModel!.fetch(`"${keybindingStr}"`).length)));
 		this._register(this.defineKeybindingWidget.onShowExistingKeybidings(keybindingStr => this.searchWidget.setValue(`"${keybindingStr}"`)));
@@ -334,7 +323,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 			ariaLabelledBy: 'keybindings-editor-aria-label-element',
 			recordEnter: true,
 			quoteRecordedKeys: true,
-			history: this.getMemento(StorageScope.GLOBAL, StorageTarget.USER)['searchHistory'] || [],
+			history: this.getMemento(StorageScope.PROFILE, StorageTarget.USER)['searchHistory'] || [],
 		}));
 		this._register(this.searchWidget.onDidChange(searchValue => {
 			clearInputAction.enabled = !!searchValue;
@@ -375,14 +364,14 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		const toolBar = this._register(new ToolBar(this.actionsContainer, this.contextMenuService, {
 			actionViewItemProvider: (action: IAction) => {
 				if (action.id === this.sortByPrecedenceAction.id || action.id === this.recordKeysAction.id) {
-					return new ThemableCheckboxActionViewItem(null, action, { keybinding: this.keybindingsService.lookupKeybinding(action.id)?.getLabel() }, this.themeService);
+					return new ThemableToggleActionViewItem(null, action, { keybinding: this.keybindingsService.lookupKeybinding(action.id)?.getLabel() }, this.themeService);
 				}
 				return undefined;
 			},
 			getKeyBinding: action => this.keybindingsService.lookupKeybinding(action.id)
 		}));
 		toolBar.setActions(actions);
-		this._register(this.keybindingsService.onDidUpdateKeybindings(e => toolBar.setActions(actions)));
+		this._register(this.keybindingsService.onDidUpdateKeybindings(() => toolBar.setActions(actions)));
 	}
 
 	private updateSearchOptions(): void {
@@ -501,6 +490,10 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 			this.keybindingFocusContextKey.reset();
 		}));
 		this._register(this.keybindingsTable.onDidOpen((e) => {
+			// stop double click action on the input #148493
+			if (e.browserEvent?.defaultPrevented) {
+				return;
+			}
 			const activeKeybindingEntry = this.activeKeybindingEntry;
 			if (activeKeybindingEntry) {
 				this.defineKeybinding(activeKeybindingEntry, false);
@@ -541,9 +534,15 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		this.renderKeybindingsEntries(this.searchWidget.hasFocus());
 		this.searchHistoryDelayer.trigger(() => {
 			this.searchWidget.inputBox.addToHistory();
-			this.getMemento(StorageScope.GLOBAL, StorageTarget.USER)['searchHistory'] = this.searchWidget.inputBox.getHistory();
+			this.getMemento(StorageScope.PROFILE, StorageTarget.USER)['searchHistory'] = this.searchWidget.inputBox.getHistory();
 			this.saveState();
 		});
+	}
+
+	public clearKeyboardShortcutSearchHistory(): void {
+		this.searchWidget.inputBox.clearHistory();
+		this.getMemento(StorageScope.PROFILE, StorageTarget.USER)['searchHistory'] = this.searchWidget.inputBox.getHistory();
+		this.saveState();
 	}
 
 	private renderKeybindingsEntries(reset: boolean, preserveFocus?: boolean): void {
@@ -772,10 +771,6 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 			id: KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_TITLE,
 			run: () => this.copyKeybindingCommandTitle(keybinding)
 		};
-	}
-
-	private reportKeybindingAction(action: string, command: string): void {
-		this.telemetryService.publicLog2<{ action: string; command: string }, KeybindingEditorActionClassification>('keybindingsEditor.action', { command, action });
 	}
 
 	private onKeybindingEditingError(error: any): void {
@@ -1072,6 +1067,9 @@ class WhenColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IWhenCo
 			_onDidReject.fire();
 		})));
 
+		// stop double click action on the input #148493
+		disposables.add((DOM.addDisposableListener(whenInput.inputElement, DOM.EventType.DBLCLICK, e => DOM.EventHelper.stop(e))));
+
 		const renderDisposables = disposables.add(new DisposableStore());
 
 		return {
@@ -1145,8 +1143,8 @@ class AccessibilityProvider implements IListAccessibilityProvider<IKeybindingIte
 
 }
 
-const keybindingTableHeader = registerColor('keybindingTable.headerBackground', { dark: tableOddRowsBackgroundColor, light: tableOddRowsBackgroundColor, hc: tableOddRowsBackgroundColor }, 'Background color for the keyboard shortcuts table header.');
-const keybindingTableRows = registerColor('keybindingTable.rowsBackground', { light: tableOddRowsBackgroundColor, dark: tableOddRowsBackgroundColor, hc: tableOddRowsBackgroundColor }, 'Background color for the keyboard shortcuts table alternating rows.');
+const keybindingTableHeader = registerColor('keybindingTable.headerBackground', { dark: tableOddRowsBackgroundColor, light: tableOddRowsBackgroundColor, hcDark: tableOddRowsBackgroundColor, hcLight: tableOddRowsBackgroundColor }, 'Background color for the keyboard shortcuts table header.');
+const keybindingTableRows = registerColor('keybindingTable.rowsBackground', { light: tableOddRowsBackgroundColor, dark: tableOddRowsBackgroundColor, hcDark: tableOddRowsBackgroundColor, hcLight: tableOddRowsBackgroundColor }, 'Background color for the keyboard shortcuts table alternating rows.');
 
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 

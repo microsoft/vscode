@@ -156,8 +156,6 @@ export class MockDebugService implements IDebugService {
 		throw new Error('not implemented');
 	}
 
-	logToRepl(session: IDebugSession, value: string): void { }
-
 	sourceIsNotAvailable(uri: uri): void { }
 
 	tryToAutoFocusStackFrame(thread: IThread): Promise<any> {
@@ -170,6 +168,8 @@ export class MockDebugService implements IDebugService {
 }
 
 export class MockSession implements IDebugSession {
+	readonly autoExpandLazyVariables = false;
+
 	getMemory(memoryReference: string): IMemoryRegion {
 		throw new Error('Method not implemented.');
 	}
@@ -188,6 +188,10 @@ export class MockSession implements IDebugSession {
 
 	get compoundRoot(): DebugCompoundRoot | undefined {
 		return undefined;
+	}
+
+	get saveBeforeStart(): boolean {
+		return true;
 	}
 
 	get isSimpleUI(): boolean {
@@ -245,8 +249,7 @@ export class MockSession implements IDebugSession {
 		return Promise.resolve(undefined);
 	}
 
-	appendToRepl(data: string | IExpression, severity: Severity, source?: IReplElementSource): void { }
-	logToRepl(sev: Severity, args: any[], frame?: { uri: uri; line: number; column: number }) { }
+	appendToRepl(data: string | IExpression, severity: Severity, isImportant?: boolean, source?: IReplElementSource): void { }
 
 	configuration: IConfig = { type: 'mock', name: 'mock', request: 'launch' };
 	unresolvedConfiguration: IConfig = { type: 'mock', name: 'mock', request: 'launch' };

@@ -91,13 +91,13 @@ suite('NotebookViewModel', () => {
 				const lastViewCell = viewModel.cellAt(viewModel.length - 1)!;
 
 				const insertIndex = viewModel.getCellIndex(firstViewCell) + 1;
-				const cell = insertCellAtIndex(viewModel, insertIndex, 'var c = 3;', 'javascript', CellKind.Code, {}, [], true);
+				const cell = insertCellAtIndex(viewModel, insertIndex, 'var c = 3;', 'javascript', CellKind.Code, {}, [], true, true);
 
 				const addedCellIndex = viewModel.getCellIndex(cell);
 				runDeleteAction(editor, viewModel.cellAt(addedCellIndex)!);
 
 				const secondInsertIndex = viewModel.getCellIndex(lastViewCell) + 1;
-				const cell2 = insertCellAtIndex(viewModel, secondInsertIndex, 'var d = 4;', 'javascript', CellKind.Code, {}, [], true);
+				const cell2 = insertCellAtIndex(viewModel, secondInsertIndex, 'var d = 4;', 'javascript', CellKind.Code, {}, [], true, true);
 
 				assert.strictEqual(viewModel.length, 3);
 				assert.strictEqual(viewModel.notebookDocument.cells.length, 3);
@@ -150,7 +150,7 @@ suite('NotebookViewModel Decorations', () => {
 					end: 2,
 				});
 
-				insertCellAtIndex(viewModel, 0, 'var d = 6;', 'javascript', CellKind.Code, {}, [], true);
+				insertCellAtIndex(viewModel, 0, 'var d = 6;', 'javascript', CellKind.Code, {}, [], true, true);
 				assert.deepStrictEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 2,
 
@@ -164,7 +164,7 @@ suite('NotebookViewModel Decorations', () => {
 					end: 2
 				});
 
-				insertCellAtIndex(viewModel, 3, 'var d = 7;', 'javascript', CellKind.Code, {}, [], true);
+				insertCellAtIndex(viewModel, 3, 'var d = 7;', 'javascript', CellKind.Code, {}, [], true, true);
 				assert.deepStrictEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 1,
 
@@ -207,14 +207,14 @@ suite('NotebookViewModel Decorations', () => {
 					end: 3
 				});
 
-				insertCellAtIndex(viewModel, 5, 'var d = 9;', 'javascript', CellKind.Code, {}, [], true);
+				insertCellAtIndex(viewModel, 5, 'var d = 9;', 'javascript', CellKind.Code, {}, [], true, true);
 				assert.deepStrictEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 1,
 
 					end: 3
 				});
 
-				insertCellAtIndex(viewModel, 4, 'var d = 10;', 'javascript', CellKind.Code, {}, [], true);
+				insertCellAtIndex(viewModel, 4, 'var d = 10;', 'javascript', CellKind.Code, {}, [], true, true);
 				assert.deepStrictEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 1,
 
