@@ -199,7 +199,7 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 
 		for (const [index, arr] of this._ranges.entries()) {
 			const [start, end, depth] = arr;
-			if (end - start > 0 && model.getLineContent(start) !== '') {
+			if (end - start > 0) {
 				const topOfElementAtDepth = (depth - 1) * lineHeight;
 				const bottomOfElementAtDepth = depth * lineHeight;
 
