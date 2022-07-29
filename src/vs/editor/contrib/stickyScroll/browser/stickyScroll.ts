@@ -43,7 +43,7 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 		this._languageFeaturesService = _languageFeaturesService;
 		this.stickyScrollWidget = new StickyScrollWidget(this._editor);
 		this._register(this._editor.onDidChangeConfiguration(e => {
-			if (e.hasChanged(EditorOption.stickyScroll)) {
+			if (e.hasChanged(EditorOption.experimental)) {
 				this.onConfigurationChange();
 			}
 		}));
@@ -52,8 +52,8 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 	}
 
 	private onConfigurationChange() {
-		const options = this._editor.getOption(EditorOption.stickyScroll);
-		if (options.enabled === false) {
+		const options = this._editor.getOption(EditorOption.experimental);
+		if (options.stickyScroll.enabled === false) {
 			this.stickyScrollWidget.emptyRootNode();
 			this._editor.removeOverlayWidget(this.stickyScrollWidget);
 			this._sessionStore.clear();
