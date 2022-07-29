@@ -124,7 +124,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		await this.adapterManager.activateDebuggers('onDebugResolve', type);
 		const anyTypeProviders = this.configProviders.filter(p => p.type === '*' && p.resolveDebugConfiguration);
 
-		let resolveDebugConfigurationForType = async (type: string | undefined, config: IConfig | null | undefined) => {
+		const resolveDebugConfigurationForType = async (type: string | undefined, config: IConfig | null | undefined) => {
 			await this.adapterManager.activateDebuggers('onDebugResolve', type);
 			// pipe the config through the promises sequentially. Append at the end the '*' types
 			const providers = this.configProviders.filter(p => p.type === type && p.resolveDebugConfiguration)
