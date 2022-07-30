@@ -51,8 +51,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	private static readonly conflictingDefaultsStorageID = 'editorOverrideService.conflictingDefaults';
 
 	// Data Stores
-	private _editors: Map<string | glob.IRelativePattern, Map<string, RegisteredEditors>> = new Map<string | glob.IRelativePattern, Map<string, RegisteredEditors>>();
-	private _flattenedEditors: Map<string | glob.IRelativePattern, RegisteredEditors> = new Map();
+	private _editors: Map<string | glob.IRelativePattern, RegisteredEditors> = new Map<string | glob.IRelativePattern, RegisteredEditors>();
 	private cache: Set<string> | undefined;
 
 	constructor(
@@ -236,29 +235,18 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	): IDisposable {
 		let registeredEditor = this._editors.get(globPattern);
 		if (registeredEditor === undefined) {
-			registeredEditor = new Map<string, RegisteredEditors>();
+			registeredEditor = [];
 			this._editors.set(globPattern, registeredEditor);
 		}
-
-		let editorsWithId = registeredEditor.get(editorInfo.id);
-		if (editorsWithId === undefined) {
-			editorsWithId = [];
-		}
-		const remove = insert(editorsWithId, {
+		const remove = insert(registeredEditor, {
 			globPattern,
 			editorInfo,
 			options,
 			editorFactoryObject
 		});
-		registeredEditor.set(editorInfo.id, editorsWithId);
-		this._flattenedEditors = this._flattenEditorsMap();
 		this._onDidChangeEditorRegistrations.fire();
 		return toDisposable(() => {
 			remove();
-			if (editorsWithId && editorsWithId.length === 0) {
-				registeredEditor?.delete(editorInfo.id);
-			}
-			this._flattenedEditors = this._flattenEditorsMap();
 			this._onDidChangeEditorRegistrations.fire();
 		});
 	}
@@ -294,42 +282,10 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	}
 
 	/**
-	 * Given the nested nature of the editors map, we should merge factories of the same glob and id to make it flat
-	 */
-	private _flattenEditorsMap() {
-		const editors = new Map<string | glob.IRelativePattern, RegisteredEditors>();
-		for (const [glob, value] of this._editors) {
-			const registeredEditors: RegisteredEditors = [];
-			for (const editors of value.values()) {
-				let registeredEditor: RegisteredEditor | undefined = undefined;
-				// Merge all editors with the same id and glob pattern together
-				for (const editor of editors) {
-					if (!registeredEditor) {
-						registeredEditor = {
-							editorInfo: editor.editorInfo,
-							globPattern: editor.globPattern,
-							options: {},
-							editorFactoryObject: {}
-						};
-					}
-					// Merge options and factories
-					registeredEditor.options = { ...registeredEditor.options, ...editor.options };
-					registeredEditor.editorFactoryObject = { ...registeredEditor.editorFactoryObject, ...editor.editorFactoryObject };
-				}
-				if (registeredEditor) {
-					registeredEditors.push(registeredEditor);
-				}
-			}
-			editors.set(glob, registeredEditors);
-		}
-		return editors;
-	}
-
-	/**
 	 * Returns all editors as an array. Possible to contain duplicates
 	 */
 	private get _registeredEditors(): RegisteredEditors {
-		return flatten(Array.from(this._flattenedEditors.values()));
+		return flatten(Array.from(this._editors.values()));
 	}
 
 	updateUserAssociations(globPattern: string, editorID: string): void {
@@ -350,7 +306,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		const userSettings = this.getAssociationsForResource(resource);
 		const matchingEditors: RegisteredEditor[] = [];
 		// Then all glob patterns
-		for (const [key, editors] of this._flattenedEditors) {
+		for (const [key, editors] of this._editors) {
 			for (const editor of editors) {
 				const foundInSettings = userSettings.find(setting => setting.viewType === editor.editorInfo.id);
 				if ((foundInSettings && editor.editorInfo.priority !== RegisteredEditorPriority.exclusive) || globMatchesResource(key, resource)) {
@@ -488,11 +444,6 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			if (foundInput) {
 				return { editor: foundInput, options };
 			}
-		}
-
-		// If no factory is above, return flow back to caller letting them know we could not resolve it
-		if (!selectedEditor.editorFactoryObject.createEditorInput) {
-			return;
 		}
 
 		// Respect options passed back
@@ -788,7 +739,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		const cacheStorage: Set<string> = new Set<string>();
 
 		// Store just the relative pattern pieces without any path info
-		for (const [globPattern, contribPoint] of this._flattenedEditors) {
+		for (const [globPattern, contribPoint] of this._editors) {
 			const nonOptional = !!contribPoint.find(c => c.editorInfo.priority !== RegisteredEditorPriority.option && c.editorInfo.id !== DEFAULT_EDITOR_ASSOCIATION.id);
 			// Don't keep a cache of the optional ones as those wouldn't be opened on start anyways
 			if (!nonOptional) {

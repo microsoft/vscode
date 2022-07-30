@@ -98,6 +98,18 @@ export interface IWorkbench {
 		): Promise<R>;
 	};
 
+	workspace: {
+		/**
+		 * Forwards a port. If the current embedder implements a tunnelFactory then that will be used to make the tunnel.
+		 * By default, openTunnel only support localhost; however, a tunnelFactory can be used to support other ips.
+		 *
+		 * @throws When run in an environment without a remote.
+		 *
+		 * @param tunnelOptions The `localPort` is a suggestion only. If that port is not available another will be chosen.
+		 */
+		openTunnel(tunnelOptions: ITunnelOptions): Thenable<ITunnel>;
+	};
+
 	/**
 	 * Triggers shutdown of the workbench programmatically. After this method is
 	 * called, the workbench is not usable anymore and the page needs to reload
@@ -110,16 +122,6 @@ export interface IWorkbench {
 	 * has been persisted.
 	 */
 	shutdown: () => Promise<void>;
-
-	/**
-	 * Forwards a port. If the current embedder implements a tunnelFactory then that will be used to make the tunnel.
-	 * By default, openTunnel only support localhost; however, a tunnelFactory can be used to support other ips.
-	 *
-	 * @throws When run in an environment without a remote.
-	 *
-	 * @param tunnelOptions The `localPort` is a suggestion only. If that port is not available another will be chosen.
-	 */
-	openTunnel(tunnelOptions: ITunnelOptions): Thenable<ITunnel>;
 }
 
 export interface IWorkbenchConstructionOptions {

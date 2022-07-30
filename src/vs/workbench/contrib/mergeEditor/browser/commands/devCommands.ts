@@ -10,15 +10,16 @@ import { localize } from 'vs/nls';
 import { Action2 } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { MergeEditor } from 'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchFileService } from 'vs/workbench/services/files/common/files';
 import { URI } from 'vs/base/common/uri';
-import { IResourceMergeEditorInput } from 'vs/workbench/common/editor';
+import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { ctxIsMergeEditor } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
+import { EditorResolution } from 'vs/platform/editor/common/editor';
 
 interface MergeEditorContents {
 	languageId: string;
@@ -98,6 +99,8 @@ export class MergeEditorOpenContents extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const service = accessor.get(IWorkbenchFileService);
+		const instaService = accessor.get(IInstantiationService);
+		const editorService = accessor.get(IEditorService);
 		const inputService = accessor.get(IQuickInputService);
 		const clipboardService = accessor.get(IClipboardService);
 		const textModelService = accessor.get(ITextModelService);
@@ -151,12 +154,13 @@ export class MergeEditorOpenContents extends Action2 {
 			setLanguageId(resultUri, content.languageId),
 		]);
 
-		const input: IResourceMergeEditorInput = {
-			base: { resource: baseUri },
-			input1: { resource: input1Uri, label: 'Input 1', description: 'Input 1', detail: '(from JSON)' },
-			input2: { resource: input2Uri, label: 'Input 2', description: 'Input 2', detail: '(from JSON)' },
-			result: { resource: resultUri },
-		};
-		accessor.get(IEditorService).openEditor(input);
+		const input = instaService.createInstance(
+			MergeEditorInput,
+			baseUri,
+			{ uri: input1Uri, title: 'Input 1', description: 'Input 1', detail: '(from JSON)' },
+			{ uri: input2Uri, title: 'Input 2', description: 'Input 2', detail: '(from JSON)' },
+			resultUri,
+		);
+		editorService.openEditor(input, { override: EditorResolution.DISABLED });
 	}
 }

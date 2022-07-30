@@ -699,7 +699,7 @@ export async function provideInlineCompletions(
 		}
 
 		for (const item of completions.items) {
-			const range = item.range ? Range.lift(item.range) : defaultReplaceRange;
+			let range = item.range ? Range.lift(item.range) : defaultReplaceRange;
 
 			if (range.startLineNumber !== range.endLineNumber) {
 				// Ignore invalid ranges.
@@ -724,6 +724,12 @@ export async function provideInlineCompletions(
 						model,
 						languageConfigurationService
 					);
+
+					// Modify range depending on if brackets are added or removed
+					const diff = insertText.length - item.insertText.length;
+					if (diff !== 0) {
+						range = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn + diff);
+					}
 				}
 
 				snippetInfo = undefined;

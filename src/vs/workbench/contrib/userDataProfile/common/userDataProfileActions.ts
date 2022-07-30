@@ -375,6 +375,7 @@ registerAction2(class ImportProfileAction extends Action2 {
 		const userDataProfileImportExportService = accessor.get(IUserDataProfileImportExportService);
 		const dialogService = accessor.get(IDialogService);
 		const contextKeyService = accessor.get(IContextKeyService);
+		const notificationService = accessor.get(INotificationService);
 
 		const isSettingProfilesEnabled = contextKeyService.contextMatchesRules(PROFILES_ENABLEMENT_CONTEXT);
 
@@ -401,14 +402,18 @@ registerAction2(class ImportProfileAction extends Action2 {
 		quickPick.matchOnLabel = false;
 		quickPick.matchOnDescription = false;
 		disposables.add(quickPick.onDidAccept(async () => {
-			quickPick.hide();
-			const profile = quickPick.selectedItems[0].description ? await this.getProfileFromURL(quickPick.value, requestService) : await this.getProfileFromFileSystem(fileDialogService, fileService);
-			if (profile) {
-				if (isSettingProfilesEnabled) {
-					await userDataProfileImportExportService.importProfile(profile);
-				} else {
-					await userDataProfileImportExportService.setProfile(profile);
+			try {
+				quickPick.hide();
+				const profile = quickPick.selectedItems[0].description ? await this.getProfileFromURL(quickPick.value, requestService) : await this.getProfileFromFileSystem(fileDialogService, fileService);
+				if (profile) {
+					if (isSettingProfilesEnabled) {
+						await userDataProfileImportExportService.importProfile(profile);
+					} else {
+						await userDataProfileImportExportService.setProfile(profile);
+					}
 				}
+			} catch (error) {
+				notificationService.error(error);
 			}
 		}));
 		disposables.add(quickPick.onDidHide(() => disposables.dispose()));

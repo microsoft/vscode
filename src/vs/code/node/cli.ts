@@ -63,10 +63,6 @@ export async function main(argv: string[]): Promise<any> {
 
 	// Shell integration
 	else if (args['locate-shell-integration-path']) {
-		// Silently fail when the terminal is not VS Code's integrated terminal
-		if (process.env['TERM_PROGRAM'] !== 'vscode') {
-			return;
-		}
 		let file: string;
 		switch (args['locate-shell-integration-path']) {
 			// Usage: `[[ "$TERM_PROGRAM" == "vscode" ]] && . "$(code --locate-shell-integration-path bash)"`

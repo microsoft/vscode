@@ -126,7 +126,20 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 			};
 		}
 
+		this.updateTooltip();
 		this.updateEnabled();
+	}
+
+	override getTooltip(): string | undefined {
+		let title: string | null = null;
+
+		if (this.getAction().tooltip) {
+			title = this.getAction().tooltip;
+		} else if (this.getAction().label) {
+			title = this.getAction().label;
+		}
+
+		return title ?? undefined;
 	}
 
 	override setActionContext(newContext: unknown): void {

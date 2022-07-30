@@ -65,7 +65,6 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { registerWindowDriver } from 'vs/platform/driver/electron-sandbox/driver';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { dirname } from 'vs/base/common/resources';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 export class NativeWindow extends Disposable {
 
@@ -116,8 +115,7 @@ export class NativeWindow extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ISharedProcessService private readonly sharedProcessService: ISharedProcessService,
 		@IProgressService private readonly progressService: IProgressService,
-		@ILabelService private readonly labelService: ILabelService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		super();
 
@@ -131,15 +129,7 @@ export class NativeWindow extends Disposable {
 		this._register(addDisposableListener(window, EventType.RESIZE, e => this.onWindowResize(e, true)));
 
 		// React to editor input changes
-		const appRootUri = URI.file(this.environmentService.appRoot);
-		this._register(this.editorService.onDidActiveEditorChange(() => {
-
-			// Touchbar
-			this.updateTouchbarMenu();
-
-			// Potential data loss
-			this.notifyOnAppRootEditors(appRootUri);
-		}));
+		this._register(this.editorService.onDidActiveEditorChange(() => this.updateTouchbarMenu()));
 
 		// prevent opening a real URL inside the window
 		for (const event of [EventType.DRAG_OVER, EventType.DROP]) {
@@ -805,46 +795,6 @@ export class NativeWindow extends Disposable {
 		}
 	}
 
-	private notifyOnAppRootEditors(appRootUri: URI): void {
-		const resourceUri = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.BOTH });
-		const isResourceAppRootedFn = (uri: URI): boolean => this.uriIdentityService.extUri.isEqualOrParent(uri, appRootUri);
-		let isResourceAppRooted = false;
-		if (URI.isUri(resourceUri)) {
-			if (isResourceAppRootedFn(resourceUri)) {
-				isResourceAppRooted = true;
-			}
-		} else if (resourceUri) {
-			if (resourceUri.primary && isResourceAppRootedFn(resourceUri.primary)) {
-				isResourceAppRooted = true;
-			} else if (resourceUri.secondary && isResourceAppRootedFn(resourceUri.secondary)) {
-				isResourceAppRooted = true;
-			}
-		}
-
-		// It is dangerous to edit files in the installation directory of Code because
-		// an update will remove all files and replace them with the new version.
-		// As such, we notify the user whenever an editor opens that is located somewhere
-		// in the installation directory.
-		// https://github.com/microsoft/vscode/issues/138815
-
-		if (isResourceAppRooted) {
-			this.notificationService.prompt(
-				Severity.Warning,
-				localize('notifyOnAppRootEditors', "Files within the installation folder of '{0}' ({1}) will be OVERWRITTEN or DELETED IRREVERSIBLY without warning during a future update.", this.productService.nameShort, this.environmentService.appRoot),
-				[{
-					label: localize('understood', 'Understood'),
-					run: async () => {
-						// Nothing to do
-					}
-				}],
-				{
-					neverShowAgain: { id: 'window.notifyOnAppRootEditors', isSecondary: true },
-					sticky: true
-				}
-			);
-		}
-	}
-
 	private onAddFoldersRequest(request: IAddFoldersRequest): void {
 
 		// Buffer all pending requests
@@ -912,7 +862,7 @@ export class NativeWindow extends Disposable {
 				input2: { resource: resources[1].resource },
 				base: { resource: resources[2].resource },
 				result: { resource: resources[3].resource },
-				options: { pinned: true }
+				options: { pinned: true, override: 'mergeEditor.Input' } // TODO@bpasero remove the override once the resolver is ready
 			};
 			editors.push(mergeEditor);
 		} else if (diffMode && isResourceEditorInput(resources[0]) && isResourceEditorInput(resources[1])) {

@@ -20,7 +20,7 @@ import { WebviewInitInfo } from 'vs/workbench/contrib/webview/browser/webviewEle
 import { WebviewIconManager, WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
-import { WebviewInput } from './webviewEditorInput';
+import { WebviewInput, WebviewInputInitInfo } from './webviewEditorInput';
 
 export const IWebviewWorkbenchService = createDecorator<IWebviewWorkbenchService>('webviewEditorService');
 
@@ -94,13 +94,11 @@ export class LazilyResolvedWebviewEditorInput extends WebviewInput {
 
 
 	constructor(
-		id: string,
-		viewType: string,
-		name: string,
+		init: WebviewInputInitInfo,
 		webview: IOverlayWebview,
 		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
 	) {
-		super(id, viewType, name, webview, _webviewWorkbenchService.iconManager);
+		super(init, webview, _webviewWorkbenchService.iconManager);
 	}
 
 	override dispose() {
@@ -244,7 +242,7 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 		showOptions: ICreateWebViewShowOptions,
 	): WebviewInput {
 		const webview = this._webviewService.createWebviewOverlay(webviewInitInfo);
-		const webviewInput = this._instantiationService.createInstance(WebviewInput, webviewInitInfo.id, viewType, title, webview, this.iconManager);
+		const webviewInput = this._instantiationService.createInstance(WebviewInput, { id: webviewInitInfo.id, viewType, name: title, providedId: webviewInitInfo.providedId }, webview, this.iconManager);
 		this._editorService.openEditor(webviewInput, {
 			pinned: true,
 			preserveFocus: showOptions.preserveFocus,
@@ -295,7 +293,7 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 		const webview = this._webviewService.createWebviewOverlay(options.webviewInitInfo);
 		webview.state = options.state;
 
-		const webviewInput = this._instantiationService.createInstance(LazilyResolvedWebviewEditorInput, options.webviewInitInfo.id, options.viewType, options.title, webview);
+		const webviewInput = this._instantiationService.createInstance(LazilyResolvedWebviewEditorInput, { id: options.webviewInitInfo.id, viewType: options.viewType, providedId: options.webviewInitInfo.providedId, name: options.title }, webview);
 		webviewInput.iconPath = options.iconPath;
 
 		if (typeof options.group === 'number') {

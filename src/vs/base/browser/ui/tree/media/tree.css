@@ -74,8 +74,9 @@
 	display: flex;
 	padding: 3px;
 	transition: top 0.3s;
-	width: 160px;
+	max-width: 200px;
 	z-index: 100;
+	margin: 0 6px;
 }
 
 .monaco-tree-type-filter.disabled {
@@ -87,6 +88,7 @@
 	align-items: center;
 	justify-content: center;
 	cursor: grab;
+	margin-right: 2px;
 }
 
 .monaco-tree-type-filter-grab.grabbing {
@@ -98,12 +100,16 @@
 }
 
 .monaco-tree-type-filter-input .monaco-inputbox {
-	height: 26px;
+	height: 23px;
 }
 
 .monaco-tree-type-filter-input .monaco-inputbox > .ibwrapper > .input,
 .monaco-tree-type-filter-input .monaco-inputbox > .ibwrapper > .mirror {
-	padding: 2px;
+	padding: 2px 4px;
+}
+
+.monaco-tree-type-filter-input .monaco-findInput > .controls {
+	top: 2px;
 }
 
 .monaco-tree-type-filter-actionbar {
