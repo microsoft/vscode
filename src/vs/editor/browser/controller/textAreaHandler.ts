@@ -242,6 +242,17 @@ export class TextAreaHandler extends ViewPart {
 							return new TextAreaState(textBefore, textBefore.length, textBefore.length, position, position);
 						}
 					}
+					// on macOS, write current selection into textarea will allow system text services pick selected text
+					// https://github.com/microsoft/vscode/issues/27799#issuecomment-1200088452
+					if (platform.isMacintosh && !selection.isEmpty()) {
+						let text = simpleModel.getValueInRange(selection, EndOfLinePreference.TextDefined);
+						// Trim long text to avoid stalling the entire UI
+						const LIMIT_CHARS = 1000;
+						if (text.length > LIMIT_CHARS) {
+							text = text.substring(0, LIMIT_CHARS) + String.fromCharCode(8230);
+						}
+						return new TextAreaState(text, 0, text.length, selection.getStartPosition(), selection.getEndPosition());
+					}
 
 					// on Safari, document.execCommand('cut') and document.execCommand('copy') will just not work
 					// if the textarea has no content selected. So if there is an editor selection, ensure something
