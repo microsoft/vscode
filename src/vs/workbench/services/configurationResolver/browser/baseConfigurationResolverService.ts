@@ -204,7 +204,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 
 		for (const variable of variables) {
 
-			const [type, name] = variable.split(':', 2);
+			const [type, name, args] = variable.split(':', 3);
 
 			let result: string | undefined;
 
@@ -217,7 +217,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 				case 'command': {
 					// use the name as a command ID #12735
 					const commandId = (variableToCommandMap ? variableToCommandMap[name] : undefined) || name;
-					result = await this.commandService.executeCommand(commandId, configuration);
+					result = await this.commandService.executeCommand(commandId, configuration, args);
 					if (typeof result !== 'string' && !Types.isUndefinedOrNull(result)) {
 						throw new Error(nls.localize('commandVariable.noStringType', "Cannot substitute command variable '{0}' because command did not return a result of type string.", commandId));
 					}
