@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual, fail, strictEqual } from 'assert';
+import { deepStrictEqual, fail, strictEqual, ok } from 'assert';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Schemas } from 'vs/base/common/network';
 import { join } from 'vs/base/common/path';
@@ -539,14 +539,20 @@ suite('Terminal history', () => {
 		});
 
 		suite('sanitizeFishHistoryCmd', () => {
-			test('valid new lines', () => {
+			test('valid new-lines', () => {
+				/**
+				 * Valid new-lines have odd number of leading backslashes: \n, \\\n, \\\\\n
+				 */
 				const cases = [
+					'\\n',
 					'\\n at start',
 					'some \\n in the middle',
 					'at the end \\n',
+					'\\\\\\n',
 					'\\\\\\n valid at start',
 					'valid \\\\\\n in the middle',
 					'valid in the end \\\\\\n',
+					'\\\\\\\\\\n',
 					'\\\\\\\\\\n valid at start',
 					'valid \\\\\\\\\\n in the middle',
 					'valid in the end \\\\\\\\\\n',
@@ -556,17 +562,20 @@ suite('Terminal history', () => {
 				];
 
 				for (const x of cases) {
-					if (!sanitizeFishHistoryCmd(x).includes('\n')) {
-						fail(x);
-					}
+					ok(sanitizeFishHistoryCmd(x).includes('\n'));
 				}
 			});
 
-			test('invalid new lines', () => {
+			test('invalid new-lines', () => {
+				/**
+				 * Invalid new-lines have even number of leading backslashes: \\n, \\\\n, \\\\\\n
+				 */
 				const cases = [
+					'\\\\n',
 					'\\\\n invalid at start',
 					'invalid \\\\n in the middle',
 					'invalid in the end \\\\n',
+					'\\\\\\\\n',
 					'\\\\\\\\n invalid at start',
 					'invalid \\\\\\\\n in the middle',
 					'invalid in the end \\\\\\\\n',
@@ -576,9 +585,7 @@ suite('Terminal history', () => {
 				];
 
 				for (const x of cases) {
-					if (sanitizeFishHistoryCmd(x).includes('\n')) {
-						fail(x);
-					}
+					ok(!sanitizeFishHistoryCmd(x).includes('\n'));
 				}
 			});
 
