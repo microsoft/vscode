@@ -16,7 +16,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { fetchBashHistory, fetchFishHistory, fetchPwshHistory, fetchZshHistory, ITerminalPersistedHistory, TerminalPersistedHistory } from 'vs/workbench/contrib/terminal/common/history';
+import { fetchBashHistory, fetchFishHistory, fetchPwshHistory, fetchZshHistory, ITerminalPersistedHistory, sanitizeFishHistoryCmd, TerminalPersistedHistory } from 'vs/workbench/contrib/terminal/common/history';
 import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
@@ -536,6 +536,52 @@ suite('Terminal history', () => {
 				remoteEnvironment = { os: OperatingSystem.Linux };
 				deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchFishHistory))!), expectedCommands);
 			});
+		});
+
+		suite('sanitizeFishHistoryCmd', () => {
+			test('valid new lines', () => {
+				const cases = [
+					'\\n at start',
+					'some \\n in the middle',
+					'at the end \\n',
+					'\\\\\\n valid at start',
+					'valid \\\\\\n in the middle',
+					'valid in the end \\\\\\n',
+					'\\\\\\\\\\n valid at start',
+					'valid \\\\\\\\\\n in the middle',
+					'valid in the end \\\\\\\\\\n',
+					'mixed valid \\r\\n',
+					'mixed valid \\\\\\r\\n',
+					'mixed valid \\r\\\\\\n',
+				];
+
+				for (const x of cases) {
+					if (!sanitizeFishHistoryCmd(x).includes('\n')) {
+						fail(x);
+					}
+				}
+			});
+
+			test('invalid new lines', () => {
+				const cases = [
+					'\\\\n invalid at start',
+					'invalid \\\\n in the middle',
+					'invalid in the end \\\\n',
+					'\\\\\\\\n invalid at start',
+					'invalid \\\\\\\\n in the middle',
+					'invalid in the end \\\\\\\\n',
+					'mixed invalid \\r\\\\n',
+					'mixed invalid \\r\\\\\\\\n',
+					'echo "\\\\n"',
+				];
+
+				for (const x of cases) {
+					if (sanitizeFishHistoryCmd(x).includes('\n')) {
+						fail(x);
+					}
+				}
+			});
+
 		});
 	});
 });
