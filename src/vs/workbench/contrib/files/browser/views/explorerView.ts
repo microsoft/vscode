@@ -310,6 +310,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			if (visible) {
 				// Always refresh explorer when it becomes visible to compensate for missing file events #126817
 				await this.setTreeInput();
+				// Update the collapse / expand  button state
+				this.updateAnyCollapsedContext();
 				// Find resource to focus from active editor input if set
 				this.selectActiveFile(true);
 			}
@@ -505,9 +507,10 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 				const navigationController = this.renderer.getCompressedNavigationController(element instanceof Array ? element[0] : element);
 				navigationController?.updateCollapsed(e.node.collapsed);
 			}
+			// Update showing expand / collapse button
+			this.updateAnyCollapsedContext();
 		}));
 
-		this._register(this.tree.onDidChangeCollapseState(() => this.updateAnyCollapsedContext()));
 		this.updateAnyCollapsedContext();
 
 		this._register(this.tree.onMouseDblClick(e => {
@@ -986,7 +989,7 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), ViewHasSomeCollapsibleRootItemContext),
+				when: ContextKeyExpr.equals('view', VIEW_ID),
 				order: 40
 			}
 		});
@@ -996,28 +999,5 @@ registerAction2(class extends Action2 {
 		const viewsService = accessor.get(IViewsService);
 		const explorerView = viewsService.getViewWithId(VIEW_ID) as ExplorerView;
 		explorerView.collapseAll();
-	}
-});
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.files.action.expandExplorerFolders',
-			title: { value: nls.localize('expandExplorerFolders', "Expand Folders in Explorer"), original: 'Expand Folders in Explorer' },
-			f1: true,
-			icon: Codicon.expandAll,
-			menu: {
-				id: MenuId.ViewTitle,
-				group: 'navigation',
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), ViewHasSomeCollapsibleRootItemContext.toNegated()),
-				order: 40
-			}
-		});
-	}
-
-	run(accessor: ServicesAccessor) {
-		const viewsService = accessor.get(IViewsService);
-		const explorerView = viewsService.getViewWithId(VIEW_ID) as ExplorerView;
-		explorerView.expandAll();
 	}
 });

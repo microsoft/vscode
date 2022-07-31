@@ -292,17 +292,46 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 			// Windows Custom System Context Menu
 			// See https://github.com/electron/electron/issues/24893
+			//
+			// The purpose of this is to allow for the context menu in the Windows Title Bar
+			//
+			// Currently, all mouse events in the title bar are captured by the OS
+			// thus we need to capture them here with a window hook specific to Windows
+			// and then forward them to the correct window.
 			if (isWindows && useCustomTitleStyle) {
-				const WM_INITMENU = 0x0116;
+				const WM_INITMENU = 0x0116; // https://docs.microsoft.com/en-us/windows/win32/menurc/wm-initmenu
+
+				// This sets up a listener for the window hook. This is a Windows-only API provided by electron.
 				this._win.hookWindowMessage(WM_INITMENU, () => {
 					const [x, y] = this._win.getPosition();
 					const cursorPos = screen.getCursorScreenPoint();
+					const cx = cursorPos.x - x;
+					const cy = cursorPos.y - y;
 
-					this._win.setEnabled(false);
-					this._win.setEnabled(true);
+					// In some cases, show the default system context menu
+					// 1) The mouse position is not within the title bar
+					// 2) The mouse position is within the title bar, but over the app icon
+					// We do not know the exact title bar height but we make an estimate based on window height
+					const shouldTriggerDefaultSystemContextMenu = () => {
+						// Use the custom context menu when over the title bar, but not over the app icon
+						// The app icon is estimated to be 30px wide
+						// The title bar is estimated to be the max of 35px and 15% of the window height
+						if (cx > 30 && cy >= 0 && cy <= Math.max(this._win.getBounds().height * 0.15, 35)) {
+							return false;
+						}
 
-					this._onDidTriggerSystemContextMenu.fire({ x: cursorPos.x - x, y: cursorPos.y - y });
-					return 0; // skip native menu
+						return true;
+					};
+
+					if (!shouldTriggerDefaultSystemContextMenu()) {
+						// This is necessary to make sure the native system context menu does not show up.
+						this._win.setEnabled(false);
+						this._win.setEnabled(true);
+
+						this._onDidTriggerSystemContextMenu.fire({ x: cx, y: cy });
+					}
+
+					return 0;
 				});
 			}
 

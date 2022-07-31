@@ -219,8 +219,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		const window = this.windowById(windowId);
 		if (window?.win) {
 			window.win.setTitleBarOverlay({
-				color: options.backgroundColor,
-				symbolColor: options.foregroundColor,
+				color: options.backgroundColor?.trim() === '' ? undefined : options.backgroundColor,
+				symbolColor: options.foregroundColor?.trim() === '' ? undefined : options.foregroundColor,
 				height: options.height ? options.height - 1 : undefined // account for window border
 			});
 		}

@@ -1,0 +1,111 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.codeActionMenuWidget {
+	padding: 8px 0px 8px 0px;
+	overflow: auto;
+	font-size: 13px;
+	border-radius: 5px;
+	min-width: 160px;
+	z-index: 40;
+	display: block;
+	/* flex-direction: column;
+	flex: 0 1 auto; */
+	width: 100%;
+	border-width: 0px;
+	border-color: none;
+	background-color: var(--vscode-menu-background);
+	color: var(--vscode-menu-foreground);
+	box-shadow: rgb(0,0,0, 16%) 0px 2px 8px;
+}
+
+.codeActionMenuWidget .monaco-list:not(.element-focused):focus:before {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	z-index: 5; /* make sure we are on top of the tree items */
+	content: "";
+	pointer-events: none; /* enable click through */
+	outline: 0px solid !important; /* we still need to handle the empty tree or no focus item case */
+	outline-width: 0px !important;
+	outline-style: none !important;
+	outline-offset: 0px !important;
+}
+
+.codeActionMenuWidget .monaco-list {
+	user-select: none;
+	-webkit-user-select: none;
+	-ms-user-select: none;
+	border: none !important;
+	border-width: 0px !important;
+}
+
+/* .codeActionMenuWidget .monaco-list:not(.element-focus) {
+	border: none !important;
+	border-width: 0px !important;
+} */
+
+.codeActionMenuWidget .monaco-list .monaco-scrollable-element .monaco-list-rows {
+	height: 100% !important;
+}
+
+.codeActionMenuWidget .monaco-list .monaco-scrollable-element {
+	overflow: visible;
+}
+/** Styles for each row in the list element **/
+
+.codeActionMenuWidget .monaco-list .monaco-list-row:not(.separator) {
+	display: flex;
+	-mox-box-sizing: border-box;
+	box-sizing: border-box;
+	padding: 0px 26px 0px 26px;
+	background-repeat: no-repeat;
+	background-position: 2px 2px;
+	white-space: nowrap;
+	cursor: pointer;
+	touch-action: none;
+	width: 100%;
+}
+
+
+.codeActionMenuWidget .monaco-list .monaco-list-row:hover:not(.option-disabled),
+.codeActionMenuWidget .monaco-list .moncao-list-row.focused:not(.option-disabled) {
+	color: var(--vscode-menu-selectionForeground) !important;
+	background-color: var(--vscode-menu-selectionBackground) !important;
+}
+
+.codeActionMenuWidget .monaco-list .option-disabled,
+.codeActionMenuWidget .monaco-list .option-disabled .focused {
+	pointer-events: none;
+	-webkit-touch-callout: none;
+	-webkit-user-select: none;
+	-khtml-user-select: none;
+	-moz-user-select: none;
+	-ms-user-select: none;
+	user-select: none;
+	color: var(--vscode-disabledForeground) !important;
+}
+
+.codeActionMenuWidget .monaco-list .separator {
+	border-bottom: 1px solid var(--vscode-menu-separatorBackground);
+	padding-top: 0px !important;
+	/* padding: 30px; */
+	width: 100%;
+	height: 0px !important;
+	opacity: 1;
+	font-size: inherit;
+	margin: 5px 0 !important;
+	border-radius: 0;
+	display: flex;
+	-mox-box-sizing: border-box;
+	box-sizing: border-box;
+	background-repeat: no-repeat;
+	background-position: 2px 2px;
+	white-space: nowrap;
+	cursor: pointer;
+	touch-action: none;
+}

@@ -491,6 +491,7 @@ export class TestingExplorerViewModel extends Disposable {
 				keyboardNavigationLabelProvider: instantiationService.createInstance(TreeKeyboardNavigationLabelProvider),
 				accessibilityProvider: instantiationService.createInstance(ListAccessibilityProvider),
 				filter: this.filter,
+				findWidgetEnabled: false
 			}) as WorkbenchObjectTree<TestExplorerTreeElement, FuzzyScore>;
 
 		this._register(this.tree.onDidChangeCollapseState(evt => {

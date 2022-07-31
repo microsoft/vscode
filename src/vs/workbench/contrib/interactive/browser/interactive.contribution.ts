@@ -203,9 +203,11 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 				canSupportResource: uri => uri.scheme === Schemas.vscodeInteractiveInput,
 				singlePerResource: true
 			},
-			({ resource }) => {
-				const editorInput = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editor => editor.editor instanceof InteractiveEditorInput && editor.editor.inputResource.toString() === resource.toString());
-				return editorInput!;
+			{
+				createEditorInput: ({ resource }) => {
+					const editorInput = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editor => editor.editor instanceof InteractiveEditorInput && editor.editor.inputResource.toString() === resource.toString());
+					return editorInput!;
+				}
 			}
 		);
 
@@ -220,23 +222,25 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 				canSupportResource: uri => uri.scheme === Schemas.vscodeInteractive || (uri.scheme === Schemas.vscodeNotebookCell && extname(uri) === '.interactive'),
 				singlePerResource: true
 			},
-			({ resource, options }) => {
-				const data = CellUri.parse(resource);
-				let notebookUri: URI = resource;
-				let cellOptions: IResourceEditorInput | undefined;
+			{
+				createEditorInput: ({ resource, options }) => {
+					const data = CellUri.parse(resource);
+					let notebookUri: URI = resource;
+					let cellOptions: IResourceEditorInput | undefined;
 
-				if (data) {
-					notebookUri = data.notebook;
-					cellOptions = { resource, options };
+					if (data) {
+						notebookUri = data.notebook;
+						cellOptions = { resource, options };
+					}
+
+					const notebookOptions = { ...options, cellOptions } as INotebookEditorOptions;
+
+					const editorInput = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editor => editor.editor instanceof InteractiveEditorInput && editor.editor.resource?.toString() === notebookUri.toString());
+					return {
+						editor: editorInput!.editor,
+						options: notebookOptions
+					};
 				}
-
-				const notebookOptions = { ...options, cellOptions } as INotebookEditorOptions;
-
-				const editorInput = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editor => editor.editor instanceof InteractiveEditorInput && editor.editor.resource?.toString() === notebookUri.toString());
-				return {
-					editor: editorInput!.editor,
-					options: notebookOptions
-				};
 			}
 		);
 	}
@@ -279,7 +283,7 @@ export class InteractiveEditorSerializer implements IEditorSerializer {
 	}
 
 	canSerialize(): boolean {
-		return this.configurationService.getValue<boolean>(InteractiveWindowSetting.interactiveWindowHotExit);
+		return this.configurationService.getValue<boolean>(InteractiveWindowSetting.interactiveWindowRestore);
 	}
 
 	serialize(input: EditorInput): string {
@@ -759,10 +763,10 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: true,
 			markdownDescription: localize('interactiveWindow.alwaysScrollOnNewCell', "Automatically scroll the interactive window to show the output of the last statement executed. If this value is false, the window will only scroll if the last cell was already the one scrolled to.")
 		},
-		[InteractiveWindowSetting.interactiveWindowHotExit]: {
+		[InteractiveWindowSetting.interactiveWindowRestore]: {
 			type: 'boolean',
 			default: false,
-			markdownDescription: localize('interactiveWindow.hotExit', "Controls whether the interactive window sessions should be restored when the workspace reloads.")
+			markdownDescription: localize('interactiveWindow.restore', "Controls whether the Interactive Window sessions/history should be restored across window reloads. Whether the state of controllers used in Interactive Windows is persisted across window reloads are controlled by extensions contributing controllers.")
 		}
 	}
 });

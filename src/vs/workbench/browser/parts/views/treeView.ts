@@ -226,7 +226,8 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IActivityService private readonly activityService: IActivityService
+		@IActivityService private readonly activityService: IActivityService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 		this.root = new Root();
@@ -495,12 +496,12 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 
 	protected abstract activate(): void;
 
-	focus(reveal: boolean = true): void {
+	focus(reveal: boolean = true, revealItem?: ITreeItem): void {
 		if (this.tree && this.root.children && this.root.children.length > 0) {
 			// Make sure the current selected element is revealed
-			const selectedElement = this.tree.getSelection()[0];
-			if (selectedElement && reveal) {
-				this.tree.reveal(selectedElement, 0.5);
+			const element = revealItem ?? this.tree.getSelection()[0];
+			if (element && reveal) {
+				this.tree.reveal(element, 0.5);
 			}
 
 			// Pass Focus to Viewer
@@ -783,7 +784,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 
 	setFocus(item: ITreeItem): void {
 		if (this.tree) {
-			this.focus();
+			this.focus(true, item);
 			this.tree.setFocus([item]);
 		}
 	}
@@ -799,7 +800,14 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		const tree = this.tree;
 		if (tree && this.visible) {
 			this.refreshing = true;
-			await Promise.all(elements.map(element => tree.updateChildren(element, true, true)));
+			try {
+				await Promise.all(elements.map(element => tree.updateChildren(element, true, true)));
+			} catch (e) {
+				// When multiple calls are made to refresh the tree in quick succession,
+				// we can get a "Tree element not found" error. This is expected.
+				// Ideally this is fixable, so log instead of ignoring so the error is preserved.
+				this.logService.error(e);
+			}
 			this.refreshing = false;
 			this._onDidCompleteRefresh.fire();
 			this.updateContentAreas();
@@ -1283,9 +1291,10 @@ export class CustomTreeView extends AbstractTreeView {
 		@IHoverService hoverService: IHoverService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IActivityService activityService: IActivityService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILogService logService: ILogService,
 	) {
-		super(id, title, themeService, instantiationService, commandService, configurationService, progressService, contextMenuService, keybindingService, notificationService, viewDescriptorService, hoverService, contextKeyService, activityService);
+		super(id, title, themeService, instantiationService, commandService, configurationService, progressService, contextMenuService, keybindingService, notificationService, viewDescriptorService, hoverService, contextKeyService, activityService, logService);
 	}
 
 	protected activate() {

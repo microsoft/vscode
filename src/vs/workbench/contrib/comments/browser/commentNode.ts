@@ -528,15 +528,17 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			this.updateCommentBody(newComment.body);
 		}
 
-		if (newComment.mode !== undefined && newComment.mode !== this.comment.mode) {
+		const isChangingMode: boolean = newComment.mode !== undefined && newComment.mode !== this.comment.mode;
+
+		this.comment = newComment;
+
+		if (isChangingMode) {
 			if (newComment.mode === languages.CommentMode.Editing) {
 				this.switchToEditMode();
 			} else {
 				this.removeCommentEditor();
 			}
 		}
-
-		this.comment = newComment;
 
 		if (newComment.label) {
 			this._isPendingLabel.innerText = newComment.label;

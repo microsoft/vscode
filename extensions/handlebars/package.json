@@ -36,6 +36,12 @@
         "scopeName": "text.html.handlebars",
         "path": "./syntaxes/Handlebars.tmLanguage.json"
       }
+    ],
+    "htmlLanguageParticipants": [
+      {
+        "languageId": "handlebars",
+        "autoInsert": true
+      }
     ]
   },
   "repository": {

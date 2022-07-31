@@ -6,13 +6,8 @@
 import { localize } from 'vs/nls';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 
-export function getShellIntegrationTooltip(instance: ITerminalInstance, markdown: boolean, configurationService: IConfigurationService): string {
-	if (!configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled) || instance.disableShellIntegrationReporting) {
-		return '';
-	}
+export function getShellIntegrationTooltip(instance: ITerminalInstance, markdown: boolean): string {
 	const shellIntegrationCapabilities: TerminalCapability[] = [];
 	if (instance.capabilities.has(TerminalCapability.CommandDetection)) {
 		shellIntegrationCapabilities.push(TerminalCapability.CommandDetection);
