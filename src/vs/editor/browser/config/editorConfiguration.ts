@@ -206,7 +206,7 @@ function digitCount(n: number): number {
 
 function getExtraEditorClassName(): string {
 	let extra = '';
-	if (!browser.isSafari && !browser.isWebkitWebView) {
+	if (!browser.isSafari && !browser.isWebkitWebView && !platform.isMacintosh) {
 		// Use user-select: none in all browsers except Safari and native macOS WebView
 		extra += 'no-user-select ';
 	}
@@ -217,6 +217,11 @@ function getExtraEditorClassName(): string {
 	}
 	if (platform.isMacintosh) {
 		extra += 'mac ';
+		// Use user-select: initial for lookup feature on macOS
+		// https://github.com/microsoft/vscode/issues/85632
+		if (!extra.includes('enable-user-select')) {
+			extra += 'enable-user-select ';
+		}
 	}
 	return extra;
 }
