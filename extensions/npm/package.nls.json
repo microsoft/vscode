@@ -15,6 +15,7 @@
 	"config.npm.scriptExplorerExclude": "An array of regular expressions that indicate which scripts should be excluded from the NPM Scripts view.",
 	"config.npm.enableRunFromFolder": "Enable running npm scripts contained in a folder from the Explorer context menu.",
 	"config.npm.fetchOnlinePackageInfo": "Fetch data from https://registry.npmjs.org and https://registry.bower.io to provide auto-completion and information on hover features on npm dependencies.",
+	"config.npm.scriptHover": "Display hover with 'Run' and 'Debug' commands for scripts.",
 	"npm.parseError": "Npm task detection: failed to parse the file {0}",
 	"taskdef.script": "The npm script to customize.",
 	"taskdef.path": "The path to the folder of the package.json file that provides the script. Can be omitted.",
