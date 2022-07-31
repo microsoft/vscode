@@ -738,7 +738,13 @@ export const enum EditorInputCapabilities {
 	 * Signals that the editor is composed of multiple editors
 	 * within.
 	 */
-	MultipleEditors = 1 << 8
+	MultipleEditors = 1 << 8,
+
+	/**
+	 * Signals that the editor is should always handle dropping
+	 * int the editor.
+	 */
+	ForceDropIntoEditor = 1 << 9
 }
 
 export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceSideBySideEditorInput | IResourceMergeEditorInput;

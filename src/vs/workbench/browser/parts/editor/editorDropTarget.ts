@@ -26,7 +26,6 @@ import { EDITOR_DRAG_AND_DROP_BACKGROUND, EDITOR_DROP_INTO_PROMPT_BACKGROUND, ED
 import { GroupDirection, IEditorGroupsService, IMergeGroupOptions, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITreeViewsService } from 'vs/workbench/services/views/browser/treeViewsService';
-import { terminalEditorId } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 interface IDropOperation {
 	splitDirection?: GroupDirection;
@@ -149,7 +148,7 @@ class DropOverlay extends Themable {
 			onDragOver: e => {
 				if (
 					(this.enableDropIntoEditor && isDragIntoEditorEvent(e)) ||
-					this.groupView.activeEditor?.editorId === terminalEditorId
+					this.isDropIntoActiveEditorForced()
 				) {
 					this.dispose();
 					return;
@@ -232,6 +231,10 @@ class DropOverlay extends Themable {
 
 	private isDropIntoActiveEditorEnabled(): boolean {
 		return !!this.groupView.activeEditor?.hasCapability(EditorInputCapabilities.CanDropIntoEditor);
+	}
+
+	private isDropIntoActiveEditorForced(): boolean {
+		return !!this.groupView.activeEditor?.hasCapability(EditorInputCapabilities.ForceDropIntoEditor);
 	}
 
 	private findSourceGroupView(): IEditorGroupView | undefined {
@@ -614,6 +617,12 @@ export class EditorDropTarget extends Themable {
 			return;
 		}
 
+		const target = event.target as HTMLElement;
+		const targetGroupView = this.findTargetGroupView(target);
+		if (!!targetGroupView?.activeEditor?.hasCapability(EditorInputCapabilities.ForceDropIntoEditor)) {
+			return;
+		}
+
 		this.counter++;
 
 		// Validate transfer
@@ -633,7 +642,6 @@ export class EditorDropTarget extends Themable {
 		// Signal DND start
 		this.updateContainer(true);
 
-		const target = event.target as HTMLElement;
 		if (target) {
 
 			// Somehow we managed to move the mouse quickly out of the current overlay, so destroy it
@@ -643,7 +651,6 @@ export class EditorDropTarget extends Themable {
 
 			// Create overlay over target
 			if (!this.overlay) {
-				const targetGroupView = this.findTargetGroupView(target);
 				if (targetGroupView) {
 					this._overlay = this.instantiationService.createInstance(DropOverlay, this.accessor, targetGroupView);
 				}
