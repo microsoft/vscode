@@ -412,25 +412,29 @@ export async function fetchFishHistory(accessor: ServicesAccessor) {
 		.filter(x => x.startsWith('- cmd:'))
 		.map(x => x.substring(6).trimStart());
 	for (let i = 0; i < cmds.length; i++) {
-		/**
-		 * NOTE
-		 * This repeatedReplace() call can be eliminated by using look-ahead
-		 * caluses in the original RegExp pattern:
-		 *
-		 * >>> ```ts
-		 * >>> cmds[i].replace(/(?<=^|[^\\])((?:\\\\)*)(\\n)/g, '$1\n')
-		 * >>> ```
-		 *
-		 * But since not all browsers support look aheads we opted to a simple
-		 * pattern and repeatedly calling replace method.
-		 */
-		const sanitized = repeatedReplace(/(^|[^\\])((?:\\\\)*)(\\n)/g, cmds[i], '$1$2\n')
-			.replace(/\\/g, '\\').trim();
+		const sanitized = sanitizeFishHistoryCmd(cmds[i]).trim();
 		if (sanitized.length > 0) {
 			result.add(sanitized);
 		}
 	}
 	return result.values();
+}
+
+export function sanitizeFishHistoryCmd(cmd: string): string {
+	/**
+	 * NOTE
+	 * This repeatedReplace() call can be eliminated by using look-ahead
+	 * caluses in the original RegExp pattern:
+	 *
+	 * >>> ```ts
+	 * >>> cmds[i].replace(/(?<=^|[^\\])((?:\\\\)*)(\\n)/g, '$1\n')
+	 * >>> ```
+	 *
+	 * But since not all browsers support look aheads we opted to a simple
+	 * pattern and repeatedly calling replace method.
+	 */
+	return repeatedReplace(/(^|[^\\])((?:\\\\)*)(\\n)/g, cmd, '$1$2\n')
+		.replace(/\\/g, '\\');
 }
 
 function repeatedReplace(pattern: RegExp, value: string, replaceValue: string): string {
