@@ -712,6 +712,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 						matchWholeWord: { 'type': 'boolean' },
 						useExcludeSettingsAndIgnoreFiles: { 'type': 'boolean' },
 						onlyOpenEditors: { 'type': 'boolean' },
+						shouldReveal: { 'type': 'boolean' },
 					}
 				}
 			},

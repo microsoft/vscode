@@ -173,6 +173,7 @@ export interface IFindInFilesArgs {
 	matchWholeWord?: boolean;
 	useExcludeSettingsAndIgnoreFiles?: boolean;
 	onlyOpenEditors?: boolean;
+	shouldReveal?: boolean;
 }
 export const FindInFilesCommand: ICommandHandler = (accessor, args: IFindInFilesArgs = {}) => {
 	const searchConfig = accessor.get(IConfigurationService).getValue<ISearchConfiguration>().search;
@@ -189,7 +190,9 @@ export const FindInFilesCommand: ICommandHandler = (accessor, args: IFindInFiles
 				} else {
 					updatedText = openedView.updateTextFromFindWidgetOrSelection({ allowUnselectedWord: typeof args.replace !== 'string' });
 				}
-				openedView.searchAndReplaceWidget.focus(undefined, updatedText, updatedText);
+				if (args.shouldReveal !== false) {
+					openedView.searchAndReplaceWidget.focus(undefined, updatedText, updatedText);
+				}
 			}
 		});
 	} else {

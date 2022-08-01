@@ -55,6 +55,7 @@ export function getSelectionSearchString(editor: ICodeEditor, seedSearchStringFr
 }
 
 export const enum FindStartFocusAction {
+	NoReveal,
 	NoFocusChange,
 	FocusFindInput,
 	FocusReplaceInput
@@ -79,6 +80,7 @@ export interface IFindStartArguments {
 	isCaseSensitive?: boolean;
 	preserveCase?: boolean;
 	findInSelection?: boolean;
+	shouldReveal?: boolean;
 }
 
 export class CommonFindController extends Disposable implements IEditorContribution {
@@ -291,10 +293,7 @@ export class CommonFindController extends Disposable implements IEditorContribut
 			return;
 		}
 
-		const stateChanges: INewFindReplaceState = {
-			...newState,
-			isRevealed: true
-		};
+		const stateChanges: INewFindReplaceState = opts.shouldFocus !== FindStartFocusAction.NoReveal ? { ...newState, isRevealed: true, } : { ...newState };
 
 		if (opts.seedSearchStringFromSelection === 'single') {
 			const selectionSearchString = getSelectionSearchString(this._editor, opts.seedSearchStringFromSelection, opts.seedSearchStringFromNonEmptySelection);
@@ -560,6 +559,7 @@ const findArgDescription = {
 					description: nls.localize('actions.find.preserveCaseOverride', 'Overrides "Preserve Case" flag.\nThe flag will not be saved for the future.\n0: Do Nothing\n1: True\n2: False')
 				},
 				findInSelection: { type: 'boolean' },
+				shouldReveal: { type: 'boolean' },
 			}
 		}
 	}]
@@ -604,7 +604,7 @@ export class StartFindWithArgsAction extends EditorAction {
 				seedSearchStringFromSelection: (controller.getState().searchString.length === 0) && editor.getOption(EditorOption.find).seedSearchStringFromSelection !== 'never' ? 'single' : 'none',
 				seedSearchStringFromNonEmptySelection: editor.getOption(EditorOption.find).seedSearchStringFromSelection === 'selection',
 				seedSearchStringFromGlobalClipboard: true,
-				shouldFocus: FindStartFocusAction.FocusFindInput,
+				shouldFocus: args?.shouldReveal === false ? FindStartFocusAction.NoReveal : FindStartFocusAction.FocusFindInput,
 				shouldAnimate: true,
 				updateSearchScope: args?.findInSelection || false,
 				loop: editor.getOption(EditorOption.find).loop

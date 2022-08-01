@@ -13,8 +13,9 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { CommonFindController, FindStartFocusAction, IFindStartOptions, NextMatchFindAction, NextSelectionMatchFindAction, StartFindAction, StartFindReplaceAction, StartFindWithSelectionAction } from 'vs/editor/contrib/find/browser/findController';
+import { CommonFindController, FindStartFocusAction, IFindStartOptions, NextMatchFindAction, NextSelectionMatchFindAction, StartFindAction, StartFindReplaceAction, StartFindWithArgsAction, StartFindWithSelectionAction } from 'vs/editor/contrib/find/browser/findController';
 import { CONTEXT_FIND_INPUT_FOCUSED } from 'vs/editor/contrib/find/browser/findModel';
+import { INewFindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { withAsyncTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -41,10 +42,10 @@ export class TestFindController extends CommonFindController {
 		this.hasFocus = false;
 	}
 
-	protected override async _start(opts: IFindStartOptions): Promise<void> {
-		await super._start(opts);
+	protected override async _start(opts: IFindStartOptions, newState?: INewFindReplaceState): Promise<void> {
+		await super._start(opts, newState);
 
-		if (opts.shouldFocus !== FindStartFocusAction.NoFocusChange) {
+		if (opts.shouldFocus !== FindStartFocusAction.NoFocusChange && opts.shouldFocus !== FindStartFocusAction.NoReveal) {
 			this.hasFocus = true;
 		}
 
@@ -487,6 +488,41 @@ suite('FindController', async () => {
 
 			const findState = findController.getState();
 			assert.deepStrictEqual(findState.searchString, 'ABC');
+			findController.dispose();
+		});
+	});
+
+	test('issue #156633, shouldReveal', async () => {
+		await withAsyncTestCodeEditor([
+			'ABC',
+			'ABC',
+			'XYZ',
+		], { serviceCollection: serviceCollection }, async (editor) => {
+			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
+
+			let findState = findController.getState();
+			assert.deepStrictEqual(findState.matchesCount, 0);
+
+			const startFindWithArgsAction = new StartFindWithArgsAction();
+			startFindWithArgsAction.run(null, editor, {
+				searchString: "XYZ",
+				shouldReveal: false,
+			});
+			findState = findController.getState();
+			assert.deepStrictEqual(findState.isRevealed, false);
+			assert.deepStrictEqual(findState.matchesCount, 1);
+
+			new NextMatchFindAction().run(null, editor);
+			findState = findController.getState();
+			assert.deepStrictEqual(findState.isRevealed, false);
+
+			startFindWithArgsAction.run(null, editor, {
+				searchString: "XYZ",
+				shouldReveal: true,
+			});
+			findState = findController.getState();
+			assert.deepStrictEqual(findState.isRevealed, true);
+
 			findController.dispose();
 		});
 	});
