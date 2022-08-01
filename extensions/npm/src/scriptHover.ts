@@ -33,6 +33,7 @@ export function invalidateHoverScriptsCache(document?: TextDocument) {
 }
 
 export class NpmScriptHoverProvider implements HoverProvider {
+	private enabled: boolean;
 
 	constructor(private context: ExtensionContext) {
 		context.subscriptions.push(commands.registerCommand('npm.runScriptFromHover', this.runScriptFromHover, this));
@@ -40,9 +41,21 @@ export class NpmScriptHoverProvider implements HoverProvider {
 		context.subscriptions.push(workspace.onDidChangeTextDocument((e) => {
 			invalidateHoverScriptsCache(e.document);
 		}));
+
+		const isEnabled = () => workspace.getConfiguration('npm').get<boolean>('scriptHover', true);
+		this.enabled = isEnabled();
+		context.subscriptions.push(workspace.onDidChangeConfiguration((e) => {
+			if (e.affectsConfiguration('npm.scriptHover')) {
+				this.enabled = isEnabled();
+			}
+		}));
 	}
 
 	public provideHover(document: TextDocument, position: Position, _token: CancellationToken): ProviderResult<Hover> {
+		if (!this.enabled) {
+			return;
+		}
+
 		let hover: Hover | undefined = undefined;
 
 		if (!cachedDocument || cachedDocument.fsPath !== document.uri.fsPath) {
