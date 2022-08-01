@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IBuffer, IMarker, ITheme, RendererType, Terminal as RawXtermTerminal } from 'xterm';
+import type { IBuffer, IMarker, ITheme, Terminal as RawXtermTerminal } from 'xterm';
 import type { ISearchOptions, SearchAddon as SearchAddonType } from 'xterm-addon-search';
 import type { Unicode11Addon as Unicode11AddonType } from 'xterm-addon-unicode11';
 import type { WebglAddon as WebglAddonType } from 'xterm-addon-webgl';
@@ -117,6 +117,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		const editorOptions = this._configurationService.getValue<IEditorOptions>('editor');
 
 		this.raw = this.add(new xtermCtor({
+			allowProposedApi: true,
 			cols,
 			rows,
 			altClickMovesCursor: config.altClickMovesCursor && editorOptions.multiCursorModifier === 'alt',
@@ -133,14 +134,13 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			cursorBlink: config.cursorBlinking,
 			cursorStyle: config.cursorStyle === 'line' ? 'bar' : config.cursorStyle,
 			cursorWidth: config.cursorWidth,
-			bellStyle: 'none',
 			macOptionIsMeta: config.macOptionIsMeta,
 			macOptionClickForcesSelection: config.macOptionClickForcesSelection,
 			rightClickSelectsWord: config.rightClickBehavior === 'selectWord',
 			fastScrollModifier: 'alt',
 			fastScrollSensitivity: config.fastScrollSensitivity,
 			scrollSensitivity: config.mouseWheelScrollSensitivity,
-			rendererType: this._getBuiltInXtermRenderer(config.gpuAcceleration, XtermTerminal._suggestedRendererType),
+			// rendererType: this._getBuiltInXtermRenderer(config.gpuAcceleration, XtermTerminal._suggestedRendererType),
 			wordSeparator: config.wordSeparators,
 			overviewRulerWidth: 10
 		}));
@@ -241,7 +241,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			this._enableWebglRenderer();
 		} else {
 			this._disposeOfWebglRenderer();
-			this.raw.options.rendererType = this._getBuiltInXtermRenderer(config.gpuAcceleration, XtermTerminal._suggestedRendererType);
+			// TODO: Fix renderer
+			// this.raw.options.rendererType = this._getBuiltInXtermRenderer(config.gpuAcceleration, XtermTerminal._suggestedRendererType);
 		}
 	}
 
@@ -267,12 +268,13 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		// This is to fix an issue where dragging the windpow to the top of the screen to
 		// maximize on Windows/Linux would fire an event saying that the terminal was not
 		// visible.
-		if (this.raw.getOption('rendererType') === 'canvas') {
-			this._core._renderService?._onIntersectionChange({ intersectionRatio: 1 });
-			// HACK: Force a refresh of the screen to ensure links are refresh corrected.
-			// This can probably be removed when the above hack is fixed in Chromium.
-			this.raw.refresh(0, this.raw.rows - 1);
-		}
+		// TODO: Fix renderer
+		// if (this.raw.getOption('rendererType') === 'canvas') {
+		// 	this._core._renderService?._onIntersectionChange({ intersectionRatio: 1 });
+		// 	// HACK: Force a refresh of the screen to ensure links are refresh corrected.
+		// 	// This can probably be removed when the above hack is fixed in Chromium.
+		// 	this.raw.refresh(0, this.raw.rows - 1);
+		// }
 	}
 
 	async findNext(term: string, searchOptions: ISearchOptions): Promise<boolean> {
@@ -419,13 +421,14 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		}
 	}
 
-	private _getBuiltInXtermRenderer(gpuAcceleration: string, suggestedRendererType?: string): RendererType {
-		let rendererType: RendererType = 'canvas';
-		if (gpuAcceleration === 'off' || (gpuAcceleration === 'auto' && suggestedRendererType === 'dom')) {
-			rendererType = 'dom';
-		}
-		return rendererType;
-	}
+	// TODO: Fix renderer
+	// private _getBuiltInXtermRenderer(gpuAcceleration: string, suggestedRendererType?: string): RendererType {
+	// 	let rendererType: RendererType = 'canvas';
+	// 	if (gpuAcceleration === 'off' || (gpuAcceleration === 'auto' && suggestedRendererType === 'dom')) {
+	// 		rendererType = 'dom';
+	// 	}
+	// 	return rendererType;
+	// }
 
 	private async _enableWebglRenderer(): Promise<void> {
 		if (!this.raw.element || this._webglAddon) {
@@ -439,7 +442,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			this._webglAddon.onContextLoss(() => {
 				this._logService.info(`Webgl lost context, disposing of webgl renderer`);
 				this._disposeOfWebglRenderer();
-				this.raw.options.rendererType = 'dom';
+				// TODO: Fix renderer
+				// this.raw.options.rendererType = 'dom';
 			});
 			// Uncomment to add the texture atlas to the DOM
 			// setTimeout(() => {
@@ -454,8 +458,9 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			if (!neverMeasureRenderTime && this._configHelper.config.gpuAcceleration !== 'off') {
 				this._measureRenderTime();
 			}
-			this.raw.options.rendererType = 'canvas';
-			XtermTerminal._suggestedRendererType = 'canvas';
+			// TODO: Fix renderer
+			// this.raw.options.rendererType = 'canvas';
+			// XtermTerminal._suggestedRendererType = 'canvas';
 			this._disposeOfWebglRenderer();
 		}
 	}
@@ -573,7 +578,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			foreground: foregroundColor?.toString(),
 			cursor: cursorColor?.toString(),
 			cursorAccent: cursorAccentColor?.toString(),
-			selection: selectionBackgroundColor?.toString(),
+			selectionBackground: selectionBackgroundColor?.toString(),
 			selectionForeground: selectionForegroundColor?.toString(),
 			black: theme.getColor(ansiColorIdentifiers[0])?.toString(),
 			red: theme.getColor(ansiColorIdentifiers[1])?.toString(),
@@ -595,7 +600,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	}
 
 	private _updateTheme(theme?: IColorTheme): void {
-		this.raw.setOption('theme', this._getXtermTheme(theme));
+		this.raw.options.theme = this._getXtermTheme(theme);
 	}
 
 	private async _updateUnicodeVersion(): Promise<void> {
