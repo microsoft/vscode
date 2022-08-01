@@ -786,7 +786,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 	private _reportTelemetry() {
 		const extensionIds = this.installed.filter(extension =>
-			extension.type === ExtensionType.User &&
+			!extension.isBuiltin &&
 			(extension.enablementState === EnablementState.EnabledWorkspace ||
 				extension.enablementState === EnablementState.EnabledGlobally))
 			.map(extension => ExtensionIdentifier.toKey(extension.identifier.id));

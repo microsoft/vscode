@@ -398,9 +398,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 										type: 'string',
 										description: nls.localize('runTask.type', "The contributed task type")
 									},
-									taskName: {
+									task: {
 										type: 'string',
-										description: nls.localize('runTask.taskName', "The task's label or a term to filter by")
+										description: nls.localize('runTask.task', "The task's label or a term to filter by")
 									}
 								}
 							}
@@ -2700,7 +2700,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			})) === true;
 	}
 
-	private async _runTaskCommand(filter?: { type?: string; taskName?: string } | string): Promise<void> {
+	private async _runTaskCommand(filter?: any | { type?: string; task?: string }): Promise<void> {
 		if (!this._canRunCommand()) {
 			return;
 		}
@@ -2708,8 +2708,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		let typeFilter: boolean = false;
 		if (filter && typeof filter !== 'string') {
 			// name takes precedence
-			typeFilter = !filter?.taskName && !!filter?.type;
-			filter = filter?.taskName || filter?.type;
+			typeFilter = !filter?.task && !!filter?.type;
+			filter = filter?.task || filter?.type;
 		}
 
 		const taskIdentifier: KeyedTaskIdentifier | undefined | string = this._getTaskIdentifier(filter);
