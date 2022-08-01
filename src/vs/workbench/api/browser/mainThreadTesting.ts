@@ -41,17 +41,6 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 		super();
 		this.proxy = extHostContext.getProxy(ExtHostContext.ExtHostTesting);
 
-		const prevResults = resultService.results.map(r => r.toJSON()).filter(isDefined);
-		if (prevResults.length) {
-			try {
-				this.proxy.$publishTestResults(prevResults);
-			} catch (err) {
-				// See https://github.com/microsoft/vscode/issues/151147
-				// Trying to send more than 1GB of data can cause the method to throw.
-				onUnexpectedError(err);
-			}
-		}
-
 		this._register(this.testService.onDidCancelTestRun(({ runId }) => {
 			this.proxy.$cancelExtensionTestRun(runId);
 		}));
