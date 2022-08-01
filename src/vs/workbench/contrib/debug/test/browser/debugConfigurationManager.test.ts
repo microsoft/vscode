@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Event } from 'vs/base/common/event';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { FileService } from 'vs/platform/files/common/fileService';
@@ -16,6 +17,9 @@ import { ConfigurationManager } from 'vs/workbench/contrib/debug/browser/debugCo
 import { DebugConfigurationProviderTriggerKind, IAdapterManager, IConfig, IDebugAdapterExecutable, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
 import { TestHistoryService, TestQuickInputService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestContextService, TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { URI } from 'vs/base/common/uri';
 
 suite('debugConfigurationManager', () => {
 	const configurationProviderType = 'custom-type';
@@ -25,7 +29,19 @@ suite('debugConfigurationManager', () => {
 	const adapterManager = <IAdapterManager>{
 		getDebugAdapterDescriptor(session: IDebugSession, config: IConfig): Promise<IDebugAdapterExecutable | undefined> {
 			return Promise.resolve(undefined);
+		},
+
+		activateDebuggers(activationEvent: string, debugType?: string): Promise<void> {
+			return Promise.resolve();
+		},
+
+		get onDidDebuggersExtPointRead(): Event<void> {
+			return Event.None;
 		}
+	};
+
+	const preferencesService = <IPreferencesService>{
+		userSettingsResource: URI.file('/tmp/settings.json')
 	};
 
 	const configurationService = new TestConfigurationService();
@@ -36,7 +52,7 @@ suite('debugConfigurationManager', () => {
 			new TestContextService(),
 			configurationService,
 			new TestQuickInputService(),
-			new TestInstantiationService(),
+			new TestInstantiationService(new ServiceCollection([IPreferencesService, preferencesService])),
 			new TestStorageService(),
 			new TestExtensionService(),
 			new TestHistoryService(),
