@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IBuffer, IMarker, ITheme, Terminal as RawXtermTerminal } from 'xterm';
+import type { CanvasAddon as CanvasAddonType } from 'xterm-addon-canvas';
 import type { ISearchOptions, SearchAddon as SearchAddonType } from 'xterm-addon-search';
 import type { Unicode11Addon as Unicode11AddonType } from 'xterm-addon-unicode11';
 import type { WebglAddon as WebglAddonType } from 'xterm-addon-webgl';
-import { SerializeAddon as SerializeAddonType } from 'xterm-addon-serialize';
+import type { SerializeAddon as SerializeAddonType } from 'xterm-addon-serialize';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
@@ -42,10 +43,11 @@ import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProc
 const SLOW_CANVAS_RENDER_THRESHOLD = 50;
 const NUMBER_OF_FRAMES_TO_MEASURE = 20;
 
+let CanvasAddon: typeof CanvasAddonType;
 let SearchAddon: typeof SearchAddonType;
+let SerializeAddon: typeof SerializeAddonType;
 let Unicode11Addon: typeof Unicode11AddonType;
 let WebglAddon: typeof WebglAddonType;
-let SerializeAddon: typeof SerializeAddonType;
 
 /**
  * Wraps the xterm object with additional functionality. Interaction with the backing process is out
@@ -65,6 +67,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	private _decorationAddon: DecorationAddon;
 
 	// Optional addons
+	private _canvasAddon?: CanvasAddonType;
 	private _searchAddon?: SearchAddonType;
 	private _unicode11Addon?: Unicode11AddonType;
 	private _webglAddon?: WebglAddonType;
@@ -140,7 +143,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			fastScrollModifier: 'alt',
 			fastScrollSensitivity: config.fastScrollSensitivity,
 			scrollSensitivity: config.mouseWheelScrollSensitivity,
-			// rendererType: this._getBuiltInXtermRenderer(config.gpuAcceleration, XtermTerminal._suggestedRendererType),
 			wordSeparator: config.wordSeparators,
 			overviewRulerWidth: 10
 		}));
@@ -214,6 +216,9 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this._container = container;
 		if (this._shouldLoadWebgl()) {
 			this._enableWebglRenderer();
+		} else if (this._shouldLoadCanvas()) {
+			this._enableCanvasRenderer();
+			// rendererType: this._getBuiltInXtermRenderer(config.gpuAcceleration, XtermTerminal._suggestedRendererType),
 		}
 		// Screen must be created at this point as xterm.open is called
 		return this._container.querySelector('.xterm-screen')!;
@@ -241,13 +246,20 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			this._enableWebglRenderer();
 		} else {
 			this._disposeOfWebglRenderer();
-			// TODO: Fix renderer
-			// this.raw.options.rendererType = this._getBuiltInXtermRenderer(config.gpuAcceleration, XtermTerminal._suggestedRendererType);
+			if (this._shouldLoadCanvas()) {
+				this._enableCanvasRenderer();
+			} else {
+				this._disposeOfCanvasRenderer();
+			}
 		}
 	}
 
 	private _shouldLoadWebgl(): boolean {
 		return !isSafari && (this._configHelper.config.gpuAcceleration === 'auto' && XtermTerminal._suggestedRendererType === undefined) || this._configHelper.config.gpuAcceleration === 'on';
+	}
+
+	private _shouldLoadCanvas(): boolean {
+		return (this._configHelper.config.gpuAcceleration === 'auto' && (XtermTerminal._suggestedRendererType === undefined || XtermTerminal._suggestedRendererType === 'canvas')) || this._configHelper.config.gpuAcceleration === 'canvas';
 	}
 
 	forceRedraw() {
@@ -436,6 +448,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		}
 		const Addon = await this._getWebglAddonConstructor();
 		this._webglAddon = new Addon();
+		this._disposeOfCanvasRenderer();
 		try {
 			this.raw.loadAddon(this._webglAddon);
 			this._logService.trace('Webgl was loaded');
@@ -458,11 +471,39 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			if (!neverMeasureRenderTime && this._configHelper.config.gpuAcceleration !== 'off') {
 				this._measureRenderTime();
 			}
-			// TODO: Fix renderer
-			// this.raw.options.rendererType = 'canvas';
-			// XtermTerminal._suggestedRendererType = 'canvas';
+			XtermTerminal._suggestedRendererType = 'canvas';
 			this._disposeOfWebglRenderer();
+			this._enableCanvasRenderer();
 		}
+	}
+
+	private async _enableCanvasRenderer(): Promise<void> {
+		if (!this.raw.element || this._canvasAddon) {
+			return;
+		}
+		const Addon = await this._getCanvasAddonConstructor();
+		this._canvasAddon = new Addon();
+		this._disposeOfWebglRenderer();
+		try {
+			this.raw.loadAddon(this._canvasAddon);
+			this._logService.trace('Canvas was loaded');
+		} catch (e) {
+			this._logService.warn(`Canvas could not be loaded. Falling back to the dom renderer type.`, e);
+			const neverMeasureRenderTime = this._storageService.getBoolean(TerminalStorageKeys.NeverMeasureRenderTime, StorageScope.APPLICATION, false);
+			// if it's already set to dom, no need to measure render time
+			if (!neverMeasureRenderTime && this._configHelper.config.gpuAcceleration !== 'off') {
+				this._measureRenderTime();
+			}
+			XtermTerminal._suggestedRendererType = 'dom';
+			this._disposeOfCanvasRenderer();
+		}
+	}
+
+	protected async _getCanvasAddonConstructor(): Promise<typeof CanvasAddonType> {
+		if (!CanvasAddon) {
+			CanvasAddon = (await import('xterm-addon-canvas')).CanvasAddon;
+		}
+		return CanvasAddon;
 	}
 
 	protected async _getSearchAddonConstructor(): Promise<typeof SearchAddonType> {
@@ -491,6 +532,15 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			SerializeAddon = (await import('xterm-addon-serialize')).SerializeAddon;
 		}
 		return SerializeAddon;
+	}
+
+	private _disposeOfCanvasRenderer(): void {
+		try {
+			this._canvasAddon?.dispose();
+		} catch {
+			// ignore
+		}
+		this._canvasAddon = undefined;
 	}
 
 	private _disposeOfWebglRenderer(): void {

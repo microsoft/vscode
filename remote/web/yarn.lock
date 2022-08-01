@@ -68,6 +68,11 @@ vscode-textmate@7.0.1:
   resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-7.0.1.tgz#8118a32b02735dccd14f893b495fa5389ad7de79"
   integrity sha512-zQ5U/nuXAAMsh691FtV0wPz89nSkHbs+IQV8FDk+wew9BlSDhf4UmWGlWJfTR2Ti6xZv87Tj5fENzKf6Qk7aLw==
 
+xterm-addon-canvas@0.2.0-beta.15:
+  version "0.2.0-beta.15"
+  resolved "https://registry.yarnpkg.com/xterm-addon-canvas/-/xterm-addon-canvas-0.2.0-beta.15.tgz#de863e46410b1de357b153abf1984227777760e4"
+  integrity sha512-E1pNCDSVTINchwWLysZ9ZD/BPv1WLGV52xRHB00US1PHHELbhtvms+6dZ44WZEDXhtfpptRZ1VBx+QpvfJIuvw==
+
 xterm-addon-search@0.10.0-beta.3:
   version "0.10.0-beta.3"
   resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.10.0-beta.3.tgz#5194434d86105637c71f6f20139a9d0b5c1a956a"

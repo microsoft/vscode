@@ -788,6 +788,11 @@ wrappy@1:
   resolved "https://registry.yarnpkg.com/wrappy/-/wrappy-1.0.2.tgz#b5243d8f3ec1aa35f1364605bc0d1036e30ab69f"
   integrity sha1-tSQ9jz7BqjXxNkYFvA0QNuMKtp8=
 
+xterm-addon-canvas@0.2.0-beta.15:
+  version "0.2.0-beta.15"
+  resolved "https://registry.yarnpkg.com/xterm-addon-canvas/-/xterm-addon-canvas-0.2.0-beta.15.tgz#de863e46410b1de357b153abf1984227777760e4"
+  integrity sha512-E1pNCDSVTINchwWLysZ9ZD/BPv1WLGV52xRHB00US1PHHELbhtvms+6dZ44WZEDXhtfpptRZ1VBx+QpvfJIuvw==
+
 xterm-addon-search@0.10.0-beta.3:
   version "0.10.0-beta.3"
   resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.10.0-beta.3.tgz#5194434d86105637c71f6f20139a9d0b5c1a956a"
