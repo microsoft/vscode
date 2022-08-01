@@ -918,7 +918,7 @@ export interface IXtermTerminal {
 	readonly shellIntegration: IShellIntegration;
 
 	/**
-	 * An array representing the buffer lines
+	 * An array representing the buffer lines as strings
 	 */
 	readonly bufferLines: string[];
 

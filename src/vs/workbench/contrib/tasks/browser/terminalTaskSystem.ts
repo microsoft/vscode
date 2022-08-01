@@ -522,7 +522,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		alreadyResolved = alreadyResolved ?? new Map<string, string>();
 		const promises: Promise<ITaskSummary>[] = [];
 		if (task.configurationProperties.dependsOn) {
-			// we already handle dependent tasks when reconnecting, don't create extras
 			for (const dependency of task.configurationProperties.dependsOn) {
 				const dependencyTask = await resolver.resolve(dependency.uri, dependency.task!);
 				if (dependencyTask) {
@@ -1275,7 +1274,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			const taskForTerminal = terminal.shellLaunchConfig.attachPersistentProcess?.task;
 			if (taskForTerminal?.id && task.getRecentlyUsedKey() === taskForTerminal.lastTask) {
 				this._reconnectTerminals.splice(i, 1);
-				console.log('returning terminal', terminal);
 				return terminal;
 			}
 		}
@@ -1367,7 +1365,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				initialText: task.command.presentation && task.command.presentation.echo ? formatMessageForTerminal(nls.localize({
 					key: 'task.executing',
 					comment: ['The task command line or label']
-				}, 'Executing  0}', task._label), { excludeLeadingNewLine: true }) : undefined,
+				}, 'Executing task: {0}', task._label), { excludeLeadingNewLine: true }) : undefined,
 				isFeatureTerminal: true,
 				icon: task.configurationProperties.icon?.id ? ThemeIcon.fromId(task.configurationProperties.icon.id) : undefined,
 				color: task.configurationProperties.icon?.color || undefined
