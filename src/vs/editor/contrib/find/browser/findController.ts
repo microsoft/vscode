@@ -601,11 +601,14 @@ export class StartFindWithArgsAction extends EditorAction {
 				// preserveCaseOverride: args.preserveCaseOverride,
 			} : {};
 
+			const noSearchStringPassed = !args?.searchString;
+			const editorConfigSeedFromSelection = editor.getOption(EditorOption.find).seedSearchStringFromSelection;
+			const noCurrentSearchString = controller.getState().searchString.length === 0;
 			await controller.start({
 				forceRevealReplace: false,
-				seedSearchStringFromSelection: (controller.getState().searchString.length === 0) && editor.getOption(EditorOption.find).seedSearchStringFromSelection !== 'never' ? 'single' : 'none',
-				seedSearchStringFromNonEmptySelection: editor.getOption(EditorOption.find).seedSearchStringFromSelection === 'selection',
-				seedSearchStringFromGlobalClipboard: true,
+				seedSearchStringFromSelection: noSearchStringPassed && noCurrentSearchString && editorConfigSeedFromSelection !== 'never' ? 'single' : 'none',
+				seedSearchStringFromNonEmptySelection: noSearchStringPassed && editorConfigSeedFromSelection === 'selection',
+				seedSearchStringFromGlobalClipboard: noSearchStringPassed,
 				shouldFocus: args?.shouldReveal === false ? FindStartFocusAction.NoReveal : FindStartFocusAction.FocusFindInput,
 				moveCursor: args?.moveCursor,
 				shouldAnimate: true,
