@@ -212,9 +212,9 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 			addedCells: [editor.notebook.cellAt(1)]
 		});
 
-		const moveCellEvent = asPromise<vscode.NotebookDocumentChangeEvent>(vscode.workspace.onDidChangeNotebookDocument);
-		await vscode.commands.executeCommand('notebook.cell.moveUp');
-		await moveCellEvent;
+		// const moveCellEvent = asPromise<vscode.NotebookDocumentChangeEvent>(vscode.workspace.onDidChangeNotebookDocument);
+		// await vscode.commands.executeCommand('notebook.cell.moveUp');
+		// await moveCellEvent;
 
 		const cellOutputChange = asPromise<vscode.NotebookDocumentChangeEvent>(vscode.workspace.onDidChangeNotebookDocument);
 		await vscode.commands.executeCommand('notebook.cell.execute');
@@ -393,56 +393,9 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 		activeCell = getFocusedCell(editor);
 		assert.strictEqual(editor.notebook.getCells().indexOf(activeCell!), 0);
 
-
-		// ---- move up and down ---- //
-
-		await vscode.commands.executeCommand('notebook.cell.moveDown');
-		assert.strictEqual(editor.notebook.getCells().indexOf(getFocusedCell(editor)!), 1,
-			`first move down, active cell ${getFocusedCell(editor)!.document.uri.toString()}, ${getFocusedCell(editor)!.document.getText()}`);
-
 		await vscode.commands.executeCommand('workbench.action.files.save');
 		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 	});
-
-	test('editor move command - event and move cells will not recreate cells in ExtHost (#98126)', async function () {
-		const notebook = await openRandomNotebookDocument();
-		const editor = await vscode.window.showNotebookDocument(notebook);
-
-		const activeCell = getFocusedCell(editor);
-		assert.strictEqual(activeCell?.index, 0);
-		const notebookChangeEvent = asPromise(vscode.workspace.onDidChangeNotebookDocument);
-		await vscode.commands.executeCommand('notebook.cell.moveDown');
-		assert.ok(await notebookChangeEvent);
-
-		const newActiveCell = getFocusedCell(editor);
-		assert.strictEqual(newActiveCell?.index, 1);
-		assert.deepStrictEqual(activeCell, newActiveCell);
-	});
-
-	// test('document runnable based on kernel count', async () => {
-	// 	const resource = await createRandomNotebookFile();
-	// 	await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
-	// 	assert.strictEqual(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
-	// 	const editor = vscode.window.activeNotebookEditor!;
-
-	// 	const cell = editor.notebook.cellAt(0);
-	// 	assert.strictEqual(cell.outputs.length, 0);
-
-	// 	currentKernelProvider.setHasKernels(false);
-	// 	await vscode.commands.executeCommand('notebook.execute');
-	// 	assert.strictEqual(cell.outputs.length, 0, 'should not execute'); // not runnable, didn't work
-
-	// 	currentKernelProvider.setHasKernels(true);
-
-	// 	await withEvent<vscode.NotebookCellOutputsChangeEvent>(vscode.notebooks.onDidChangeCellOutputs, async (event) => {
-	// 		await vscode.commands.executeCommand('notebook.execute');
-	// 		await event;
-	// 		assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
-	// 	});
-
-	// 	await saveAllFilesAndCloseAll(undefined);
-	// });
-
 
 	// TODO@rebornix this is wrong, `await vscode.commands.executeCommand('notebook.execute');` doesn't wait until the workspace edit is applied
 	test.skip('cell execute command takes arguments', async () => {
