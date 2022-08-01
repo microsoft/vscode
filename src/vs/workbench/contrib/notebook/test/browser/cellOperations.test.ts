@@ -28,7 +28,7 @@ suite('CellOperations', () => {
 				assert.ok(cell);
 				await moveCellRange({ notebookEditor: editor, cell: cell }, 'down');
 				assert.strictEqual(viewModel.cellAt(2)?.getText(), 'var b = 1;');
-				assert.strictEqual(cell, viewModel.cellAt(1));
+				assert.strictEqual(cell, viewModel.cellAt(2));
 			});
 	});
 
