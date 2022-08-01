@@ -74,19 +74,35 @@ export abstract class LanguagePackBaseService extends Disposable implements ILan
 	}
 
 	protected createQuickPickItem(locale: string, languageName?: string, languagePack?: IGalleryExtension): IQuickPickItem {
+		const label = languageName ?? locale;
 		let description: string | undefined;
+		if (label !== locale) {
+			description = `(${locale})`;
+		}
+
 		if (locale.toLowerCase() === language.toLowerCase()) {
-			description = localize('currentDisplayLanguage', " (Current)");
+			description ??= '';
+			description += localize('currentDisplayLanguage', " (Current)");
 		}
 
 		if (languagePack?.installCount) {
 			description ??= '';
-			description += ` $(cloud-download) ${languagePack.installCount.toLocaleString()}`;
+
+			const count = languagePack.installCount;
+			let countLabel: string;
+			if (count > 1000000) {
+				countLabel = `${Math.floor(count / 100000) / 10}M`;
+			} else if (count > 1000) {
+				countLabel = `${Math.floor(count / 1000)}K`;
+			} else {
+				countLabel = String(count);
+			}
+			description += ` $(cloud-download) ${countLabel}`;
 		}
 
 		return {
 			id: locale,
-			label: languageName ?? locale,
+			label,
 			description
 		};
 	}
