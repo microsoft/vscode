@@ -197,10 +197,10 @@
 	},
 	{
 		"type": "label",
-		"name": "~needs version info",
+		"name": "~version-info-needed",
 		"action": "updateLabels",
 		"addLabel": "info-needed",
-		"removeLabel": "~needs version info",
+		"removeLabel": "~version-info-needed",
 		"comment": "Thanks for creating this issue! We figured it's missing some basic information, such as a version number, or in some other way doesn't follow our [issue reporting guidelines](https://aka.ms/vscodeissuereporting). Please take the time to review these and update the issue.\n\nHappy Coding!"
 	},
 	{
