@@ -117,8 +117,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	get openedWorkspace(): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined { return this._config?.workspace; }
 
-	private _profile: IUserDataProfile | undefined;
-	get profile(): IUserDataProfile | undefined { if (!this._profile) { this._profile = revive(this._config?.profiles.current); } return this._profile; }
+	get profile(): IUserDataProfile | undefined { return this.config ? this.userDataProfilesService.getProfile(this.config.workspace ?? 'empty-window', revive(this.config.profiles.current)) : undefined; }
 
 	get remoteAuthority(): string | undefined { return this._config?.remoteAuthority; }
 
@@ -948,7 +947,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		configuration.editSessionId = this.environmentMainService.editSessionId; // set latest edit session id
 		configuration.profiles = {
 			all: this.userDataProfilesService.profiles,
-			current: this.userDataProfilesService.getProfile(configuration.workspace ?? 'empty-window'),
+			current: this.profile || this.userDataProfilesService.defaultProfile,
 		};
 
 		// Load config
