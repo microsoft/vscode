@@ -24,9 +24,17 @@ export async function activate(ctx: RendererContext<void>) {
 			const src = token.attrGet('src');
 			const attachments: Record<string, Record<string, string>> = env.outputItem.metadata().custom?.attachments;
 			if (attachments && src) {
-				const [attachmentKey, attachmentVal] = Object.entries(attachments[src.replace('attachment:', '')])[0];
-				const b64Markdown = 'data:' + attachmentKey + ';base64,' + attachmentVal;
-				token.attrSet('src', b64Markdown);
+				const imageAttachment = attachments[src.replace('attachment:', '')];
+				if (imageAttachment) {
+					// objEntries will always be length 1, with objEntries[0] holding [0]=mime,[1]=b64
+					// if length = 0, something is wrong with the attachment, mime/b64 weren't copied over
+					const objEntries = Object.entries(imageAttachment);
+					if (objEntries.length) {
+						const [attachmentKey, attachmentVal] = objEntries[0];
+						const b64Markdown = 'data:' + attachmentKey + ';base64,' + attachmentVal;
+						token.attrSet('src', b64Markdown);
+					}
+				}
 			}
 
 			if (original) {

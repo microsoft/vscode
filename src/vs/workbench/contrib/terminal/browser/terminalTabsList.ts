@@ -458,12 +458,14 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 	disposeElement(instance: ITerminalInstance, index: number, templateData: ITerminalTabEntryTemplate): void {
 		templateData.elementDisposables?.dispose();
 		templateData.elementDisposables = undefined;
+		templateData.actionBar.clear();
 	}
 
 	disposeTemplate(templateData: ITerminalTabEntryTemplate): void {
 		templateData.elementDisposables?.dispose();
 		templateData.elementDisposables = undefined;
 		templateData.label.dispose();
+		templateData.actionBar.clear();
 	}
 
 	fillActionBar(instance: ITerminalInstance, template: ITerminalTabEntryTemplate): void {

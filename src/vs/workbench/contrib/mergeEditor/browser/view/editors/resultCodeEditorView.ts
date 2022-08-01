@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CompareResult } from 'vs/base/common/arrays';
+import { BugIndicatingError } from 'vs/base/common/errors';
 import { autorun, derived } from 'vs/base/common/observable';
 import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
@@ -11,6 +12,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 import { applyObservableDecorations, join } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from 'vs/workbench/contrib/mergeEditor/browser/view/colors';
+import { EditorGutter } from 'vs/workbench/contrib/mergeEditor/browser/view/editorGutter';
 import { CodeEditorView } from './codeEditorView';
 
 export class ResultCodeEditorView extends CodeEditorView {
@@ -61,37 +63,40 @@ export class ResultCodeEditorView extends CodeEditorView {
 								position: MinimapPosition.Gutter,
 								color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
 							},
-							overviewRuler: {
+							overviewRuler: modifiedBaseRange.isConflicting ? {
 								position: OverviewRulerLane.Center,
 								color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
-							}
+							} : undefined
 						}
 					});
 				}
 			}
 
-			for (const diff of m.rights) {
-				const range = diff.outputRange.toInclusiveRange();
-				if (range) {
-					result.push({
-						range,
-						options: {
-							className: `merge-editor-diff result`,
-							description: 'Merge Editor',
-							isWholeLine: true,
-						}
-					});
-				}
 
-				if (diff.rangeMappings) {
-					for (const d of diff.rangeMappings) {
+			if (!modifiedBaseRange || modifiedBaseRange.isConflicting) {
+				for (const diff of m.rights) {
+					const range = diff.outputRange.toInclusiveRange();
+					if (range) {
 						result.push({
-							range: d.outputRange,
+							range,
 							options: {
-								className: `merge-editor-diff-word result`,
-								description: 'Merge Editor'
+								className: `merge-editor-diff result`,
+								description: 'Merge Editor',
+								isWholeLine: true,
 							}
 						});
+					}
+
+					if (diff.rangeMappings) {
+						for (const d of diff.rangeMappings) {
+							result.push({
+								range: d.outputRange,
+								options: {
+									className: `merge-editor-diff-word result`,
+									description: 'Merge Editor'
+								}
+							});
+						}
 					}
 				}
 			}
@@ -106,6 +111,14 @@ export class ResultCodeEditorView extends CodeEditorView {
 
 		this._register(applyObservableDecorations(this.editor, this.decorations));
 
+		this.htmlElements.gutterDiv.style.width = '5px';
+
+		this._register(
+			new EditorGutter(this.editor, this.htmlElements.gutterDiv, {
+				getIntersectingGutterItems: (range, reader) => [],
+				createView: (item, target) => { throw new BugIndicatingError(); },
+			})
+		);
 
 		this._register(autorun('update remainingConflicts label', reader => {
 			const model = this.model.read(reader);

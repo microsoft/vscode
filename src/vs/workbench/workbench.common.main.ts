@@ -347,4 +347,7 @@ import 'vs/workbench/contrib/audioCues/browser/audioCues.contribution';
 // Deprecated Extension Migrator
 import 'vs/workbench/contrib/deprecatedExtensionMigrator/browser/deprecatedExtensionMigrator.contribution';
 
+// Bracket Pair Colorizer 2 Telemetry
+import 'vs/workbench/contrib/bracketPairColorizer2Telemetry/browser/bracketPairColorizer2Telemetry.contribution';
+
 //#endregion

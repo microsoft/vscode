@@ -87,7 +87,16 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 	}
 
 	private async enterProfile(profile: IUserDataProfile, preserveData: boolean, reloadMessage?: string): Promise<void> {
-		if (this.environmentService.remoteAuthority) {
+		const isRemoteWindow = !!this.environmentService.remoteAuthority;
+
+		if (!isRemoteWindow) {
+			this.extensionService.stopExtensionHosts();
+		}
+
+		// In a remote window update current profile before reloading so that data is preserved from current profile if asked to preserve
+		await this.userDataProfileService.updateCurrentProfile(profile, preserveData);
+
+		if (isRemoteWindow) {
 			const result = await this.dialogService.confirm({
 				type: 'info',
 				message: reloadMessage ?? localize('reload message', "Switching a settings profile requires reloading VS Code."),
@@ -96,12 +105,9 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 			if (result.confirmed) {
 				await this.hostService.reload();
 			}
-			return;
+		} else {
+			await this.extensionService.startExtensionHosts();
 		}
-
-		this.extensionService.stopExtensionHosts();
-		await this.userDataProfileService.updateCurrentProfile(profile, preserveData);
-		await this.extensionService.startExtensionHosts();
 	}
 }
 

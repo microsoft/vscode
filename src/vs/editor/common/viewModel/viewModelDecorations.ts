@@ -100,17 +100,21 @@ export class ViewModelDecorations implements IDisposable {
 		let cacheIsValid = (this._cachedModelDecorationsResolver !== null);
 		cacheIsValid = cacheIsValid && (viewRange.equalsRange(this._cachedModelDecorationsResolverViewRange));
 		if (!cacheIsValid) {
-			this._cachedModelDecorationsResolver = this._getDecorationsViewportData(viewRange);
+			this._cachedModelDecorationsResolver = this._getDecorationsInRange(viewRange);
 			this._cachedModelDecorationsResolverViewRange = viewRange;
 		}
 		return this._cachedModelDecorationsResolver!;
 	}
 
-	private _getDecorationsViewportData(viewportRange: Range): IDecorationsViewportData {
-		const modelDecorations = this._linesCollection.getDecorationsInRange(viewportRange, this.editorId, filterValidationDecorations(this.configuration.options));
+	public getInlineDecorationsOnLine(lineNumber: number): InlineDecoration[] {
+		const range = new Range(lineNumber, this._linesCollection.getViewLineMinColumn(lineNumber), lineNumber, this._linesCollection.getViewLineMaxColumn(lineNumber));
+		return this._getDecorationsInRange(range).inlineDecorations[0];
+	}
 
-		const startLineNumber = viewportRange.startLineNumber;
-		const endLineNumber = viewportRange.endLineNumber;
+	private _getDecorationsInRange(viewRange: Range): IDecorationsViewportData {
+		const modelDecorations = this._linesCollection.getDecorationsInRange(viewRange, this.editorId, filterValidationDecorations(this.configuration.options));
+		const startLineNumber = viewRange.startLineNumber;
+		const endLineNumber = viewRange.endLineNumber;
 
 		const decorationsInViewport: ViewModelDecoration[] = [];
 		let decorationsInViewportLen = 0;
