@@ -578,8 +578,7 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 
 	test.skip('onDidChangeCellExecutionState is fired', async () => { // TODO@rebornix https://github.com/microsoft/vscode/issues/139350
 		const notebook = await openRandomNotebookDocument();
-		await vscode.window.showNotebookDocument(notebook);
-		const editor = vscode.window.activeNotebookEditor!;
+		const editor = await vscode.window.showNotebookDocument(notebook);
 		const cell = editor.notebook.cellAt(0);
 
 		vscode.commands.executeCommand('notebook.cell.execute');
@@ -852,8 +851,7 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 
 	test('executionSummary', async () => {
 		const notebook = await openRandomNotebookDocument();
-		await vscode.window.showNotebookDocument(notebook);
-		const editor = vscode.window.activeNotebookEditor!;
+		const editor = await vscode.window.showNotebookDocument(notebook);
 		const cell = editor.notebook.cellAt(0);
 
 		assert.strictEqual(cell.executionSummary?.success, undefined);
