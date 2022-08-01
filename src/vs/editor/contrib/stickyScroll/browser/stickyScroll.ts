@@ -43,7 +43,7 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 		this._languageFeaturesService = _languageFeaturesService;
 		this.stickyScrollWidget = new StickyScrollWidget(this._editor);
 		this._register(this._editor.onDidChangeConfiguration(e => {
-			if (e.hasChanged(EditorOption.stickyScroll)) {
+			if (e.hasChanged(EditorOption.experimental)) {
 				this.onConfigurationChange();
 			}
 		}));
@@ -52,8 +52,8 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 	}
 
 	private onConfigurationChange() {
-		const options = this._editor.getOption(EditorOption.stickyScroll);
-		if (options.enabled === false) {
+		const options = this._editor.getOption(EditorOption.experimental);
+		if (options.stickyScroll.enabled === false) {
 			this.stickyScrollWidget.emptyRootNode();
 			this._editor.removeOverlayWidget(this.stickyScrollWidget);
 			this._sessionStore.clear();
@@ -108,7 +108,7 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 			let didRecursion: boolean = false;
 			for (const outline of outlineElement?.children.values()) {
 				const kind: SymbolKind = outline.symbol.kind;
-				if (kind === SymbolKind.Class || kind === SymbolKind.Constructor || kind === SymbolKind.Function || kind === SymbolKind.Interface || kind === SymbolKind.Method) {
+				if (kind === SymbolKind.Class || kind === SymbolKind.Constructor || kind === SymbolKind.Function || kind === SymbolKind.Interface || kind === SymbolKind.Method || kind === SymbolKind.Module) {
 					didRecursion = true;
 					this._findLineRanges(outline, depth + 1);
 				}
@@ -127,7 +127,7 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 
 		while (outlineElement) {
 			const kind: SymbolKind = outlineElement.symbol.kind;
-			if (kind === SymbolKind.Class || kind === SymbolKind.Constructor || kind === SymbolKind.Function || kind === SymbolKind.Interface || kind === SymbolKind.Method) {
+			if (kind === SymbolKind.Class || kind === SymbolKind.Constructor || kind === SymbolKind.Function || kind === SymbolKind.Interface || kind === SymbolKind.Method || kind === SymbolKind.Module) {
 				currentStartLine = outlineElement?.symbol.range.startLineNumber as number;
 				currentEndLine = outlineElement?.symbol.range.endLineNumber as number;
 				this._ranges.push([currentStartLine, currentEndLine, depth]);
@@ -154,7 +154,7 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 			for (const outline of outlineModel.children.values()) {
 				if (outline instanceof OutlineElement) {
 					const kind: SymbolKind = outline.symbol.kind;
-					if (kind === SymbolKind.Class || kind === SymbolKind.Constructor || kind === SymbolKind.Function || kind === SymbolKind.Interface || kind === SymbolKind.Method) {
+					if (kind === SymbolKind.Class || kind === SymbolKind.Constructor || kind === SymbolKind.Function || kind === SymbolKind.Interface || kind === SymbolKind.Method || kind === SymbolKind.Module) {
 						this._findLineRanges(outline, 1);
 					} else {
 						this._findLineRanges(outline, 0);

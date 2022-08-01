@@ -11,7 +11,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
-import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
+import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { ITelemetryData, TelemetryConfiguration, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { ITelemetryAppender, NullAppender } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -240,7 +240,7 @@ suite('TelemetryService', () => {
 			return p;
 		}
 
-		override publicLogError2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>): Promise<any> {
+		override publicLogError2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): Promise<any> {
 			return this.publicLogError(eventName, data as ITelemetryData);
 		}
 	}

@@ -170,9 +170,9 @@ export interface IEditorOptions {
 	 */
 	scrollbar?: IEditorScrollbarOptions;
 	/**
-	 * Control the behavior of the sticky scroll
+	 * Control the behavior of experimental options
 	 */
-	stickyScroll?: IEditorStickyScrollOptions;
+	experimental?: IEditorExperimentalOptions;
 	/**
 	 * Control the behavior and rendering of the minimap.
 	 */
@@ -2508,48 +2508,51 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 
 //#endregion
 
-//#region sticky scroll
+//#region experimental
 
-/**
- * Configuration options for editor sticky scroll
- */
-
-export interface IEditorStickyScrollOptions {
+export interface IEditorExperimentalOptions {
 	/**
-	 * Enable the sticky scroll
+	 * Configuration options for editor sticky scroll
 	 */
-	enabled?: boolean;
+	stickyScroll?: {
+		/**
+		 * Enable the sticky scroll
+		 */
+		enabled?: boolean;
+	};
 }
 
-/**
- * @internal
- */
+export interface EditorExperimentalOptions {
+	stickyScroll: {
+		enabled: boolean;
+	};
+}
 
-export type EditorStickyScrollOptions = Readonly<Required<IEditorStickyScrollOptions>>;
-
-class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEditorStickyScrollOptions, EditorStickyScrollOptions> {
+class EditorExperimental extends BaseEditorOption<EditorOption.experimental, IEditorExperimentalOptions, EditorExperimentalOptions> {
 
 	constructor() {
-		const defaults: EditorStickyScrollOptions = { enabled: false };
+		const defaults: EditorExperimentalOptions = { stickyScroll: { enabled: false } };
 		super(
-			EditorOption.stickyScroll, 'stickyScroll', defaults,
+			EditorOption.experimental, 'experimental', defaults,
 			{
-				'editor.stickyScroll.enabled': {
+				'editor.experimental.stickyScroll.enabled': {
 					type: 'boolean',
-					default: defaults.enabled,
-					description: nls.localize('editor.stickyScroll', "Shows the nested current scopes during the scroll at the top of the editor.")
+					default: defaults.stickyScroll.enabled,
+					description: nls.localize('editor.experimental.stickyScroll', "Shows the nested current scopes during the scroll at the top of the editor.")
 				},
 			}
 		);
 	}
 
-	public validate(_input: any): EditorStickyScrollOptions {
+	public validate(_input: any): EditorExperimentalOptions {
 		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
-		const input = _input as IEditorStickyScrollOptions;
+		const input = _input as IEditorExperimentalOptions;
 		return {
-			enabled: boolean(input.enabled, this.defaultValue.enabled)
+			stickyScroll: {
+				enabled: boolean(input.stickyScroll?.enabled, this.defaultValue.stickyScroll.enabled)
+			}
 		};
 	}
 }
@@ -4550,6 +4553,7 @@ export const enum EditorOption {
 	dragAndDrop,
 	dropIntoEditor,
 	emptySelectionClipboard,
+	experimental,
 	extraEditorClassName,
 	fastScrollSensitivity,
 	find,
@@ -4622,7 +4626,6 @@ export const enum EditorOption {
 	smartSelect,
 	smoothScrolling,
 	stickyTabStops,
-	stickyScroll,
 	stopRenderingLineAfter,
 	suggest,
 	suggestFontSize,
@@ -4859,6 +4862,7 @@ export const EditorOptions = {
 	)),
 	emptySelectionClipboard: register(new EditorEmptySelectionClipboard()),
 	dropIntoEditor: register(new EditorDropIntoEditor()),
+	experimental: register(new EditorExperimental()),
 	extraEditorClassName: register(new EditorStringOption(
 		EditorOption.extraEditorClassName, 'extraEditorClassName', '',
 	)),
@@ -5177,7 +5181,6 @@ export const EditorOptions = {
 		EditorOption.smoothScrolling, 'smoothScrolling', false,
 		{ description: nls.localize('smoothScrolling', "Controls whether the editor will scroll using an animation.") }
 	)),
-	stickyScroll: register(new EditorStickyScroll()),
 	stopRenderingLineAfter: register(new EditorIntOption(
 		EditorOption.stopRenderingLineAfter, 'stopRenderingLineAfter',
 		10000, -1, Constants.MAX_SAFE_SMALL_INTEGER,
