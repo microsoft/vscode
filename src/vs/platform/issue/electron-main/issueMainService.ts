@@ -317,7 +317,7 @@ export class IssueMainService implements ICommonIssueService {
 	private createBrowserWindow<T>(position: IWindowState, ipcObjectUrl: IIPCObjectUrl<T>, options: IBrowserWindowOptions, windowKind: string): BrowserWindow {
 		const window = new BrowserWindow({
 			fullscreen: false,
-			skipTaskbar: true,
+			skipTaskbar: false,
 			resizable: true,
 			width: position.width,
 			height: position.height,
