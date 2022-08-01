@@ -87,7 +87,7 @@ export class FindModelBoundToEditorModel {
 	private readonly _updateDecorationsScheduler: RunOnceScheduler;
 	private _isDisposed: boolean;
 
-	constructor(editor: IActiveCodeEditor, state: FindReplaceState) {
+	constructor(editor: IActiveCodeEditor, state: FindReplaceState, moveCursor?: boolean) {
 		this._editor = editor;
 		this._state = state;
 		this._isDisposed = false;
@@ -124,7 +124,7 @@ export class FindModelBoundToEditorModel {
 
 		this._toDispose.add(this._state.onFindReplaceStateChange((e) => this._onStateChanged(e)));
 
-		this.research(false, this._state.searchScope);
+		this.research(!!moveCursor, this._state.searchScope);
 	}
 
 	public dispose(): void {

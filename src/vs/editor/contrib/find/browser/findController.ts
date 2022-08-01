@@ -70,6 +70,7 @@ export interface IFindStartOptions {
 	shouldAnimate: boolean;
 	updateSearchScope: boolean;
 	loop: boolean;
+	moveCursor?: boolean;
 }
 
 export interface IFindStartArguments {
@@ -81,6 +82,7 @@ export interface IFindStartArguments {
 	preserveCase?: boolean;
 	findInSelection?: boolean;
 	shouldReveal?: boolean;
+	moveCursor?: boolean;
 }
 
 export class CommonFindController extends Disposable implements IEditorContribution {
@@ -343,7 +345,7 @@ export class CommonFindController extends Disposable implements IEditorContribut
 		this._state.change(stateChanges, false);
 
 		if (!this._model) {
-			this._model = new FindModelBoundToEditorModel(this._editor, this._state);
+			this._model = new FindModelBoundToEditorModel(this._editor, this._state, opts.moveCursor);
 		}
 	}
 
@@ -605,6 +607,7 @@ export class StartFindWithArgsAction extends EditorAction {
 				seedSearchStringFromNonEmptySelection: editor.getOption(EditorOption.find).seedSearchStringFromSelection === 'selection',
 				seedSearchStringFromGlobalClipboard: true,
 				shouldFocus: args?.shouldReveal === false ? FindStartFocusAction.NoReveal : FindStartFocusAction.FocusFindInput,
+				moveCursor: args?.moveCursor,
 				shouldAnimate: true,
 				updateSearchScope: args?.findInSelection || false,
 				loop: editor.getOption(EditorOption.find).loop
