@@ -446,8 +446,8 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 
 	// TODO@rebornix this is wrong, `await vscode.commands.executeCommand('notebook.execute');` doesn't wait until the workspace edit is applied
 	test.skip('cell execute command takes arguments', async () => {
-		const resource = await createRandomNotebookFile();
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+		const notebook = await openRandomNotebookDocument();
+		await vscode.window.showNotebookDocument(notebook);
 		assert.strictEqual(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
 		const editor = vscode.window.activeNotebookEditor!;
 		const cell = editor.notebook.cellAt(0);
@@ -457,8 +457,8 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 	});
 
 	test('cell execute command takes arguments 2', async () => {
-		const resource = await createRandomNotebookFile();
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+		const notebook = await openRandomNotebookDocument();
+		await vscode.window.showNotebookDocument(notebook);
 		assert.strictEqual(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
 		const editor = vscode.window.activeNotebookEditor!;
 		const cell = editor.notebook.cellAt(0);
@@ -479,7 +479,7 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 		await vscode.commands.executeCommand('vscode.openWith', secondResource, 'notebookCoreTest');
 
 		await withEvent<vscode.NotebookDocumentChangeEvent>(vscode.workspace.onDidChangeNotebookDocument, async (event) => {
-			await vscode.commands.executeCommand('notebook.cell.execute', { start: 0, end: 1 }, resource);
+			await vscode.commands.executeCommand('notebook.cell.execute', { start: 0, end: 1 }, notebook.uri);
 			await event;
 			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
 			assert.strictEqual(vscode.window.activeNotebookEditor?.notebook.uri.fsPath, secondResource.fsPath);
@@ -488,8 +488,8 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 
 	// #126371
 	test.skip('cell execute command takes arguments ICellRange[]', async () => {
-		const resource = await createRandomNotebookFile();
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+		const notebook = await openRandomNotebookDocument();
+		await vscode.window.showNotebookDocument(notebook);
 
 		vscode.commands.executeCommand('notebook.cell.execute', { ranges: [{ start: 0, end: 1 }, { start: 1, end: 2 }] });
 		let firstCellExecuted = false;
@@ -518,31 +518,16 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 	});
 
 	test('document execute command takes arguments', async () => {
-		const resource = await createRandomNotebookFile();
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+		const notebook = await openRandomNotebookDocument();
+		await vscode.window.showNotebookDocument(notebook);
 		assert.strictEqual(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
 		const editor = vscode.window.activeNotebookEditor!;
 		const cell = editor.notebook.cellAt(0);
 
 		await withEvent<vscode.NotebookDocumentChangeEvent>(vscode.workspace.onDidChangeNotebookDocument, async (event) => {
-			await vscode.commands.executeCommand('notebook.execute');
+			await vscode.commands.executeCommand('notebook.execute', notebook.uri);
 			await event;
 			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
-		});
-
-		const clearChangeEvent = asPromise<vscode.NotebookDocumentChangeEvent>(vscode.workspace.onDidChangeNotebookDocument);
-		await vscode.commands.executeCommand('notebook.cell.clearOutputs');
-		await clearChangeEvent;
-		assert.strictEqual(cell.outputs.length, 0, 'should clear');
-
-		const secondResource = await createRandomNotebookFile();
-		await vscode.commands.executeCommand('vscode.openWith', secondResource, 'notebookCoreTest');
-
-		await withEvent<vscode.NotebookDocumentChangeEvent>(vscode.workspace.onDidChangeNotebookDocument, async (event) => {
-			await vscode.commands.executeCommand('notebook.execute', resource);
-			await event;
-			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
-			assert.strictEqual(vscode.window.activeNotebookEditor?.notebook.uri.fsPath, secondResource.fsPath);
 		});
 	});
 
@@ -592,8 +577,8 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 	});
 
 	test.skip('onDidChangeCellExecutionState is fired', async () => { // TODO@rebornix https://github.com/microsoft/vscode/issues/139350
-		const resource = await createRandomNotebookFile();
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+		const notebook = await openRandomNotebookDocument();
+		await vscode.window.showNotebookDocument(notebook);
 		const editor = vscode.window.activeNotebookEditor!;
 		const cell = editor.notebook.cellAt(0);
 
@@ -794,8 +779,8 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 	});
 
 	test('#102423 - copy/paste shares the same text buffer', async function () {
-		const resource = await createRandomNotebookFile();
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+		const notebook = await openRandomNotebookDocument();
+		await vscode.window.showNotebookDocument(notebook);
 
 		let activeCell = getFocusedCell(vscode.window.activeNotebookEditor);
 		assert.strictEqual(activeCell?.document.getText(), 'test');
@@ -866,8 +851,8 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 	});
 
 	test('executionSummary', async () => {
-		const resource = await createRandomNotebookFile();
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+		const notebook = await openRandomNotebookDocument();
+		await vscode.window.showNotebookDocument(notebook);
 		const editor = vscode.window.activeNotebookEditor!;
 		const cell = editor.notebook.cellAt(0);
 
@@ -1023,12 +1008,12 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 
 	test.skip('provideCellStatusBarItems called on metadata change', async function () { // TODO@roblourens https://github.com/microsoft/vscode/issues/139324
 		const provideCalled = asPromise(onDidCallProvide);
-		const resource = await createRandomNotebookFile();
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+		const notebook = await openRandomNotebookDocument();
+		await vscode.window.showNotebookDocument(notebook);
 		await provideCalled;
 
 		const edit = new vscode.WorkspaceEdit();
-		edit.replaceNotebookCellMetadata(resource, 0, { inputCollapsed: true });
+		edit.replaceNotebookCellMetadata(notebook.uri, 0, { inputCollapsed: true });
 		vscode.workspace.applyEdit(edit);
 		await provideCalled;
 	});
