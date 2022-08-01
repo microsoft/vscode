@@ -44,12 +44,12 @@ suite('Search - Viewlet', () => {
 			type: QueryType.Text,
 			contentPattern: { pattern: 'foo' },
 			folderQueries: [{
-				folder: uri.parse('file://c:/')
+				folder: uri.parse('file://C:/')
 			}]
 		};
 
 		result.add([{
-			resource: uri.parse('file:///c:/foo'),
+			resource: uri.parse('file:///C:/foo'),
 			results: [{
 				preview: {
 					text: 'bar',
@@ -72,8 +72,8 @@ suite('Search - Viewlet', () => {
 		const fileMatch = result.matches()[0];
 		const lineMatch = fileMatch.matches()[0];
 
-		assert.strictEqual(fileMatch.id(), 'file:///c%3A/foo');
-		assert.strictEqual(lineMatch.id(), 'file:///c%3A/foo>[2,1 -> 2,2]b');
+		assert.strictEqual(fileMatch.id(), 'file:///C%3A/foo');
+		assert.strictEqual(lineMatch.id(), 'file:///C%3A/foo>[2,1 -> 2,2]b');
 	});
 
 	test('Comparer', () => {

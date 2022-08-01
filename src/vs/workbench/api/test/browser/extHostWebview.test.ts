@@ -107,7 +107,7 @@ suite('ExtHostWebview', () => {
 
 		assert.strictEqual(
 			(webview.webview.asWebviewUri(URI.parse('file:///c:/codey/file.txt')).toString()),
-			`https://file%2B.vscode-resource.${webviewResourceBaseHost}/c%3A/codey/file.txt`,
+			`https://file%2B.vscode-resource.${webviewResourceBaseHost}/C%3A/codey/file.txt`,
 			'Windows C drive'
 		);
 	});

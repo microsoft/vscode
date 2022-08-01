@@ -155,24 +155,24 @@ suite('Labels', () => {
 	});
 
 	test('getPathLabel', () => {
-		const winFileUri = URI.file('c:/some/folder/file.txt');
+		const winFileUri = URI.file('C:/some/folder/file.txt');
 		const nixFileUri = URI.file('/some/folder/file.txt');
-		const uncFileUri = URI.file('c:/some/folder/file.txt').with({ authority: 'auth' });
+		const uncFileUri = URI.file('C:/some/folder/file.txt').with({ authority: 'auth' });
 		const remoteFileUri = URI.file('/some/folder/file.txt').with({ scheme: 'vscode-test', authority: 'auth' });
 
 		// Basics
 
 		assert.strictEqual(labels.getPathLabel(winFileUri, { os: OperatingSystem.Windows }), 'C:\\some\\folder\\file.txt');
-		assert.strictEqual(labels.getPathLabel(winFileUri, { os: OperatingSystem.Macintosh }), 'c:/some/folder/file.txt');
-		assert.strictEqual(labels.getPathLabel(winFileUri, { os: OperatingSystem.Linux }), 'c:/some/folder/file.txt');
+		assert.strictEqual(labels.getPathLabel(winFileUri, { os: OperatingSystem.Macintosh }), 'C:/some/folder/file.txt');
+		assert.strictEqual(labels.getPathLabel(winFileUri, { os: OperatingSystem.Linux }), 'C:/some/folder/file.txt');
 
 		assert.strictEqual(labels.getPathLabel(nixFileUri, { os: OperatingSystem.Windows }), '\\some\\folder\\file.txt');
 		assert.strictEqual(labels.getPathLabel(nixFileUri, { os: OperatingSystem.Macintosh }), '/some/folder/file.txt');
 		assert.strictEqual(labels.getPathLabel(nixFileUri, { os: OperatingSystem.Linux }), '/some/folder/file.txt');
 
-		assert.strictEqual(labels.getPathLabel(uncFileUri, { os: OperatingSystem.Windows }), '\\\\auth\\c:\\some\\folder\\file.txt');
-		assert.strictEqual(labels.getPathLabel(uncFileUri, { os: OperatingSystem.Macintosh }), '/auth/c:/some/folder/file.txt');
-		assert.strictEqual(labels.getPathLabel(uncFileUri, { os: OperatingSystem.Linux }), '/auth/c:/some/folder/file.txt');
+		assert.strictEqual(labels.getPathLabel(uncFileUri, { os: OperatingSystem.Windows }), '\\\\auth\\C:\\some\\folder\\file.txt');
+		assert.strictEqual(labels.getPathLabel(uncFileUri, { os: OperatingSystem.Macintosh }), '/auth/C:/some/folder/file.txt');
+		assert.strictEqual(labels.getPathLabel(uncFileUri, { os: OperatingSystem.Linux }), '/auth/C:/some/folder/file.txt');
 
 		assert.strictEqual(labels.getPathLabel(remoteFileUri, { os: OperatingSystem.Windows }), '\\some\\folder\\file.txt');
 		assert.strictEqual(labels.getPathLabel(remoteFileUri, { os: OperatingSystem.Macintosh }), '/some/folder/file.txt');
@@ -203,7 +203,7 @@ suite('Labels', () => {
 
 		// Relative
 
-		const winFolder = URI.file('c:/some');
+		const winFolder = URI.file('C:/some');
 		const winRelativePathProvider: labels.IRelativePathProvider = {
 			getWorkspace() { return { folders: [{ uri: winFolder }] }; },
 			getWorkspaceFolder(resource) { return { uri: winFolder }; }
@@ -227,4 +227,14 @@ suite('Labels', () => {
 		assert.strictEqual(labels.getPathLabel(nixUntitledUri, { os: OperatingSystem.Macintosh, relative: nixRelativePathProvider }), 'folder/file.txt');
 		assert.strictEqual(labels.getPathLabel(nixUntitledUri, { os: OperatingSystem.Linux, relative: nixRelativePathProvider }), 'folder/file.txt');
 	});
+
+	test('winDiskLetter', () => {
+		const winFileUri = URI.file('c:/some/folder/file.txt');
+
+
+		assert.strictEqual(labels.getPathLabel(winFileUri, { os: OperatingSystem.Windows }), 'C:\\some\\folder\\file.txt');
+		assert.strictEqual(labels.getPathLabel(winFileUri, { os: OperatingSystem.Macintosh }), 'C:/some/folder/file.txt');
+		assert.strictEqual(labels.getPathLabel(winFileUri, { os: OperatingSystem.Linux }), 'C:/some/folder/file.txt');
+	});
+
 });

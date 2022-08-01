@@ -11,7 +11,7 @@ import { getShellIntegrationInjection, IShellIntegrationConfigInjection } from '
 const enabledProcessOptions: ITerminalProcessOptions['shellIntegration'] = { enabled: true };
 const disabledProcessOptions: ITerminalProcessOptions['shellIntegration'] = { enabled: false };
 const pwshExe = process.platform === 'win32' ? 'pwsh.exe' : 'pwsh';
-const repoRoot = process.platform === 'win32' ? process.cwd()[0].toLowerCase() + process.cwd().substring(1) : process.cwd();
+const repoRoot = process.platform === 'win32' ? process.cwd()[0].toUpperCase() + process.cwd().substring(1) : process.cwd();
 const logService = new NullLogService();
 
 suite('platform - terminalEnvironment', () => {

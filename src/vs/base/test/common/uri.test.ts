@@ -9,38 +9,38 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 
 suite('URI', () => {
 	test('file#toString', () => {
-		assert.strictEqual(URI.file('c:/win/path').toString(), 'file:///c%3A/win/path');
-		assert.strictEqual(URI.file('C:/win/path').toString(), 'file:///c%3A/win/path');
-		assert.strictEqual(URI.file('c:/win/path/').toString(), 'file:///c%3A/win/path/');
-		assert.strictEqual(URI.file('/c:/win/path').toString(), 'file:///c%3A/win/path');
+		assert.strictEqual(URI.file('c:/win/path').toString(), 'file:///C%3A/win/path');
+		assert.strictEqual(URI.file('C:/win/path').toString(), 'file:///C%3A/win/path');
+		assert.strictEqual(URI.file('C:/win/path/').toString(), 'file:///C%3A/win/path/');
+		assert.strictEqual(URI.file('/C:/win/path').toString(), 'file:///C%3A/win/path');
 	});
 
 	test('URI.file (win-special)', () => {
 		if (isWindows) {
-			assert.strictEqual(URI.file('c:\\win\\path').toString(), 'file:///c%3A/win/path');
-			assert.strictEqual(URI.file('c:\\win/path').toString(), 'file:///c%3A/win/path');
+			assert.strictEqual(URI.file('C:\\win\\path').toString(), 'file:///C%3A/win/path');
+			assert.strictEqual(URI.file('C:\\win/path').toString(), 'file:///C%3A/win/path');
 		} else {
-			assert.strictEqual(URI.file('c:\\win\\path').toString(), 'file:///c%3A%5Cwin%5Cpath');
-			assert.strictEqual(URI.file('c:\\win/path').toString(), 'file:///c%3A%5Cwin/path');
+			assert.strictEqual(URI.file('C:\\win\\path').toString(), 'file:///C%3A%5Cwin%5Cpath');
+			assert.strictEqual(URI.file('C:\\win/path').toString(), 'file:///C%3A%5Cwin/path');
 
 		}
 	});
 
 	test('file#fsPath (win-special)', () => {
 		if (isWindows) {
-			assert.strictEqual(URI.file('c:\\win\\path').fsPath, 'c:\\win\\path');
-			assert.strictEqual(URI.file('c:\\win/path').fsPath, 'c:\\win\\path');
+			assert.strictEqual(URI.file('C:\\win\\path').fsPath, 'C:\\win\\path');
+			assert.strictEqual(URI.file('C:\\win/path').fsPath, 'C:\\win\\path');
 
-			assert.strictEqual(URI.file('c:/win/path').fsPath, 'c:\\win\\path');
-			assert.strictEqual(URI.file('c:/win/path/').fsPath, 'c:\\win\\path\\');
-			assert.strictEqual(URI.file('C:/win/path').fsPath, 'c:\\win\\path');
-			assert.strictEqual(URI.file('/c:/win/path').fsPath, 'c:\\win\\path');
-			assert.strictEqual(URI.file('./c/win/path').fsPath, '\\.\\c\\win\\path');
+			assert.strictEqual(URI.file('C:/win/path').fsPath, 'C:\\win\\path');
+			assert.strictEqual(URI.file('C:/win/path/').fsPath, 'C:\\win\\path\\');
+			assert.strictEqual(URI.file('c:/win/path').fsPath, 'C:\\win\\path');
+			assert.strictEqual(URI.file('/C:/win/path').fsPath, 'C:\\win\\path');
+			assert.strictEqual(URI.file('./C/win/path').fsPath, '\\.\\C\\win\\path');
 		} else {
-			assert.strictEqual(URI.file('c:/win/path').fsPath, 'c:/win/path');
-			assert.strictEqual(URI.file('c:/win/path/').fsPath, 'c:/win/path/');
-			assert.strictEqual(URI.file('C:/win/path').fsPath, 'c:/win/path');
-			assert.strictEqual(URI.file('/c:/win/path').fsPath, 'c:/win/path');
+			assert.strictEqual(URI.file('C:/win/path').fsPath, 'C:/win/path');
+			assert.strictEqual(URI.file('C:/win/path/').fsPath, 'C:/win/path/');
+			assert.strictEqual(URI.file('c:/win/path').fsPath, 'C:/win/path');
+			assert.strictEqual(URI.file('/C:/win/path').fsPath, 'C:/win/path');
 			assert.strictEqual(URI.file('./c/win/path').fsPath, '/./c/win/path');
 		}
 	});
@@ -143,13 +143,13 @@ suite('URI', () => {
 		assert.strictEqual(value.query, 't=1234');
 		assert.strictEqual(value.fragment, '');
 
-		value = URI.parse('file:///c:/test/me');
+		value = URI.parse('file:///C:/test/me');
 		assert.strictEqual(value.scheme, 'file');
 		assert.strictEqual(value.authority, '');
-		assert.strictEqual(value.path, '/c:/test/me');
+		assert.strictEqual(value.path, '/C:/test/me');
 		assert.strictEqual(value.fragment, '');
 		assert.strictEqual(value.query, '');
-		assert.strictEqual(value.fsPath, isWindows ? 'c:\\test\\me' : 'c:/test/me');
+		assert.strictEqual(value.fsPath, isWindows ? 'C:\\test\\me' : 'C:/test/me');
 
 		value = URI.parse('file://shares/files/c%23/p.cs');
 		assert.strictEqual(value.scheme, 'file');
@@ -159,17 +159,17 @@ suite('URI', () => {
 		assert.strictEqual(value.query, '');
 		assert.strictEqual(value.fsPath, isWindows ? '\\\\shares\\files\\c#\\p.cs' : '//shares/files/c#/p.cs');
 
-		value = URI.parse('file:///c:/Source/Z%C3%BCrich%20or%20Zurich%20(%CB%88zj%CA%8A%C9%99r%C9%AAk,/Code/resources/app/plugins/c%23/plugin.json');
+		value = URI.parse('file:///C:/Source/Z%C3%BCrich%20or%20Zurich%20(%CB%88zj%CA%8A%C9%99r%C9%AAk,/Code/resources/app/plugins/c%23/plugin.json');
 		assert.strictEqual(value.scheme, 'file');
 		assert.strictEqual(value.authority, '');
-		assert.strictEqual(value.path, '/c:/Source/Zürich or Zurich (ˈzjʊərɪk,/Code/resources/app/plugins/c#/plugin.json');
+		assert.strictEqual(value.path, '/C:/Source/Zürich or Zurich (ˈzjʊərɪk,/Code/resources/app/plugins/c#/plugin.json');
 		assert.strictEqual(value.fragment, '');
 		assert.strictEqual(value.query, '');
 
-		value = URI.parse('file:///c:/test %25/path');
+		value = URI.parse('file:///C:/test %25/path');
 		assert.strictEqual(value.scheme, 'file');
 		assert.strictEqual(value.authority, '');
-		assert.strictEqual(value.path, '/c:/test %/path');
+		assert.strictEqual(value.path, '/C:/test %/path');
 		assert.strictEqual(value.fragment, '');
 		assert.strictEqual(value.query, '');
 
@@ -236,9 +236,9 @@ suite('URI', () => {
 
 	test('URI#file, win-speciale', () => {
 		if (isWindows) {
-			let value = URI.file('c:\\test\\drive');
-			assert.strictEqual(value.path, '/c:/test/drive');
-			assert.strictEqual(value.toString(), 'file:///c%3A/test/drive');
+			let value = URI.file('C:\\test\\drive');
+			assert.strictEqual(value.path, '/C:/test/drive');
+			assert.strictEqual(value.toString(), 'file:///C%3A/test/drive');
 
 			value = URI.file('\\\\shäres\\path\\c#\\plugin.json');
 			assert.strictEqual(value.scheme, 'file');
@@ -256,17 +256,17 @@ suite('URI', () => {
 			assert.strictEqual(value.fragment, '');
 			assert.strictEqual(value.toString(), 'file://localhost/c%24/GitDevelopment/express');
 
-			value = URI.file('c:\\test with %\\path');
-			assert.strictEqual(value.path, '/c:/test with %/path');
-			assert.strictEqual(value.toString(), 'file:///c%3A/test%20with%20%25/path');
+			value = URI.file('C:\\test with %\\path');
+			assert.strictEqual(value.path, '/C:/test with %/path');
+			assert.strictEqual(value.toString(), 'file:///C%3A/test%20with%20%25/path');
 
-			value = URI.file('c:\\test with %25\\path');
-			assert.strictEqual(value.path, '/c:/test with %25/path');
-			assert.strictEqual(value.toString(), 'file:///c%3A/test%20with%20%2525/path');
+			value = URI.file('C:\\test with %25\\path');
+			assert.strictEqual(value.path, '/C:/test with %25/path');
+			assert.strictEqual(value.toString(), 'file:///C%3A/test%20with%20%2525/path');
 
-			value = URI.file('c:\\test with %25\\c#code');
-			assert.strictEqual(value.path, '/c:/test with %25/c#code');
-			assert.strictEqual(value.toString(), 'file:///c%3A/test%20with%20%2525/c%23code');
+			value = URI.file('C:\\test with %25\\c#code');
+			assert.strictEqual(value.path, '/C:/test with %25/c#code');
+			assert.strictEqual(value.toString(), 'file:///C%3A/test%20with%20%2525/c%23code');
 
 			value = URI.file('\\\\shares');
 			assert.strictEqual(value.scheme, 'file');
@@ -320,8 +320,8 @@ suite('URI', () => {
 	});
 
 	test('URI#toString, lower-case windows drive letter', () => {
-		assert.strictEqual(URI.parse('untitled:c:/Users/jrieken/Code/abc.txt').toString(), 'untitled:c%3A/Users/jrieken/Code/abc.txt');
-		assert.strictEqual(URI.parse('untitled:C:/Users/jrieken/Code/abc.txt').toString(), 'untitled:c%3A/Users/jrieken/Code/abc.txt');
+		assert.strictEqual(URI.parse('untitled:C:/Users/jrieken/Code/abc.txt').toString(), 'untitled:C%3A/Users/jrieken/Code/abc.txt');
+		assert.strictEqual(URI.parse('untitled:C:/Users/jrieken/Code/abc.txt').toString(), 'untitled:C%3A/Users/jrieken/Code/abc.txt');
 	});
 
 	test('URI#toString, escape all the bits', () => {
@@ -365,8 +365,8 @@ suite('URI', () => {
 			assert.strictEqual(value.toString(), value2.toString());
 		};
 
-		test('file:///c:/alex.txt', isWindows ? 'c:\\alex.txt' : 'c:/alex.txt');
-		test('file:///c:/Source/Z%C3%BCrich%20or%20Zurich%20(%CB%88zj%CA%8A%C9%99r%C9%AAk,/Code/resources/app/plugins', isWindows ? 'c:\\Source\\Zürich or Zurich (ˈzjʊərɪk,\\Code\\resources\\app\\plugins' : 'c:/Source/Zürich or Zurich (ˈzjʊərɪk,/Code/resources/app/plugins');
+		test('file:///C:/alex.txt', isWindows ? 'C:\\alex.txt' : 'C:/alex.txt');
+		test('file:///C:/Source/Z%C3%BCrich%20or%20Zurich%20(%CB%88zj%CA%8A%C9%99r%C9%AAk,/Code/resources/app/plugins', isWindows ? 'C:\\Source\\Zürich or Zurich (ˈzjʊərɪk,\\Code\\resources\\app\\plugins' : 'C:/Source/Zürich or Zurich (ˈzjʊərɪk,/Code/resources/app/plugins');
 		test('file://monacotools/folder/isi.txt', isWindows ? '\\\\monacotools\\folder\\isi.txt' : '//monacotools/folder/isi.txt');
 		test('file://monacotools1/certificates/SSL/', isWindows ? '\\\\monacotools1\\certificates\\SSL\\' : '//monacotools1/certificates/SSL/');
 	});
@@ -506,7 +506,7 @@ suite('URI', () => {
 
 		const values = [
 			URI.parse('http://localhost:8080/far'),
-			URI.file('c:\\test with %25\\c#code'),
+			URI.file('C:\\test with %25\\c#code'),
 			URI.file('\\\\shäres\\path\\c#\\plugin.json'),
 			URI.parse('http://api/files/test.me?t=1234'),
 			URI.parse('http://api/files/test.me?t=1234#fff'),
@@ -573,9 +573,9 @@ suite('URI', () => {
 		if (isWindows) {
 			this.skip();
 		}
-		assertJoined(('file:///c:/foo/'), '../../bazz', 'file:///bazz', false);
-		assertJoined(('file://server/share/c:/'), '../../bazz', 'file://server/bazz', false);
-		assertJoined(('file://server/share/c:'), '../../bazz', 'file://server/bazz', false);
+		assertJoined(('file:///C:/foo/'), '../../bazz', 'file:///bazz', false);
+		assertJoined(('file://server/share/C:/'), '../../bazz', 'file://server/bazz', false);
+		assertJoined(('file://server/share/C:'), '../../bazz', 'file://server/bazz', false);
 
 		assertJoined(('file://ser/foo/'), '../../bazz', 'file://ser/bazz', false); // Firefox -> Different, Edge, Chrome, Safar -> OK
 		assertJoined(('file://ser/foo'), '../../bazz', 'file://ser/bazz', false); // Firefox -> Different, Edge, Chrome, Safar -> OK
@@ -585,14 +585,14 @@ suite('URI', () => {
 		if (!isWindows) {
 			this.skip();
 		}
-		assertJoined(('file:///c:/foo/'), '../../bazz', 'file:///c:/bazz', false);
-		assertJoined(('file://server/share/c:/'), '../../bazz', 'file://server/share/bazz', false);
-		assertJoined(('file://server/share/c:'), '../../bazz', 'file://server/share/bazz', false);
+		assertJoined(('file:///C:/foo/'), '../../bazz', 'file:///C:/bazz', false);
+		assertJoined(('file://server/share/C:/'), '../../bazz', 'file://server/share/bazz', false);
+		assertJoined(('file://server/share/C:'), '../../bazz', 'file://server/share/bazz', false);
 
 		assertJoined(('file://ser/foo/'), '../../bazz', 'file://ser/foo/bazz', false);
 		assertJoined(('file://ser/foo'), '../../bazz', 'file://ser/foo/bazz', false);
 
 		//https://github.com/microsoft/vscode/issues/93831
-		assertJoined('file:///c:/foo/bar', './other/foo.img', 'file:///c:/foo/bar/other/foo.img', false);
+		assertJoined('file:///C:/foo/bar', './other/foo.img', 'file:///C:/foo/bar/other/foo.img', false);
 	});
 });

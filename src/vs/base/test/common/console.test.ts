@@ -24,17 +24,17 @@ suite('Console', () => {
 		assert.strictEqual(frame.line, 18);
 		assert.strictEqual(frame.column, 17);
 
-		stack = 'at c:\\Users\\someone\\Desktop\\end-js\\extension.js:18:17';
+		stack = 'at C:\\Users\\someone\\Desktop\\end-js\\extension.js:18:17';
 		frame = getFirstFrame(stack)!;
 
-		assert.strictEqual(frame.uri.fsPath, 'c:\\Users\\someone\\Desktop\\end-js\\extension.js');
+		assert.strictEqual(frame.uri.fsPath, 'C:\\Users\\someone\\Desktop\\end-js\\extension.js');
 		assert.strictEqual(frame.line, 18);
 		assert.strictEqual(frame.column, 17);
 
-		stack = 'at e.$executeContributedCommand(c:\\Users\\someone\\Desktop\\end-js\\extension.js:18:17)';
+		stack = 'at e.$executeContributedCommand(C:\\Users\\someone\\Desktop\\end-js\\extension.js:18:17)';
 		frame = getFirstFrame(stack)!;
 
-		assert.strictEqual(frame.uri.fsPath, 'c:\\Users\\someone\\Desktop\\end-js\\extension.js');
+		assert.strictEqual(frame.uri.fsPath, 'C:\\Users\\someone\\Desktop\\end-js\\extension.js');
 		assert.strictEqual(frame.line, 18);
 		assert.strictEqual(frame.column, 17);
 
