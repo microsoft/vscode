@@ -17,6 +17,7 @@ export const COMPARE_RESOURCE_COMMAND_ID = 'compareFiles';
 export const COMPARE_WITH_SAVED_COMMAND_ID = 'workbench.files.action.compareWithSaved';
 export const COPY_PATH_COMMAND_ID = 'copyFilePath';
 export const COPY_RELATIVE_PATH_COMMAND_ID = 'copyRelativeFilePath';
+export const COPY_FILE_NAME_COMMAND_ID = 'copyFileName';
 
 export const SAVE_FILE_AS_COMMAND_ID = 'workbench.action.files.saveAs';
 export const SAVE_FILE_AS_LABEL = nls.localize('saveAs', "Save As...");

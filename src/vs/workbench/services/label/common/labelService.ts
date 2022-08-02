@@ -210,6 +210,12 @@ export class LabelService extends Disposable implements ILabelService {
 		return label;
 	}
 
+	getUriName(resource: URI): string {
+		const formatting = this.findFormatting(resource);
+		const labelPath = this.doGetUriLabel(resource, formatting).split('\\');
+		return labelPath[labelPath.length - 1];
+	}
+
 	private doGetUriLabel(resource: URI, formatting?: ResourceLabelFormatting, options: { relative?: boolean; noPrefix?: boolean } = {}): string {
 		if (!formatting) {
 			return getPathLabel(resource, {

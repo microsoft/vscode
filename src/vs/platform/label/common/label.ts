@@ -22,6 +22,7 @@ export interface ILabelService {
 	 * If `separator` is passed, will use that over the defined path separator of the formatter.
 	 */
 	getUriLabel(resource: URI, options?: { relative?: boolean; noPrefix?: boolean; separator?: '/' | '\\' }): string;
+	getUriName(resource: URI): string;
 	getUriBasenameLabel(resource: URI): string;
 	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | IWorkspace), options?: { verbose: boolean }): string;
 	getHostLabel(scheme: string, authority?: string): string;
