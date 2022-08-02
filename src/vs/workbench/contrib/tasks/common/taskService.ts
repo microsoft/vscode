@@ -72,7 +72,7 @@ export interface ITaskService {
 	tasks(filter?: ITaskFilter): Promise<Task[]>;
 	taskTypes(): string[];
 	getWorkspaceTasks(runSource?: TaskRunSource): Promise<Map<string, IWorkspaceFolderTaskResult>>;
-	readRecentTasks(): Promise<(Task | ConfiguringTask)[]>;
+	getSavedTasks(type: 'persistent' | 'historical'): Promise<(Task | ConfiguringTask)[]>;
 	removeRecentlyUsedTask(taskRecentlyUsedKey: string): void;
 	/**
 	 * @param alias The task's name, label or defined identifier.

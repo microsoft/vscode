@@ -1615,6 +1615,8 @@ export class SettingsEditor2 extends EditorPane {
 						'message': string;
 					};
 					type SettingsSearchErrorClassification = {
+						owner: 'rzhao271';
+						comment: 'Helps understand when settings search errors out';
 						'message': { 'classification': 'CallstackOrException'; 'purpose': 'FeatureInsight'; 'owner': 'rzhao271'; 'comment': 'The error message of the search error.' };
 					};
 

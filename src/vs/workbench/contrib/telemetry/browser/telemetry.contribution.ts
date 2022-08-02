@@ -71,6 +71,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 			innerWidth: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The width of the current window.' };
 			outerHeight: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The height of the current window with all decoration removed.' };
 			outerWidth: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The width of the current window with all decoration removed.' };
+			owner: 'bpasero';
 			comment: 'The size of the window.';
 		};
 
@@ -82,7 +83,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 			'workbench.filesToOpenOrCreate': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files that should open or be created.' };
 			'workbench.filesToDiff': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files that should be compared.' };
 			'workbench.filesToMerge': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files that should be merged.' };
-			customKeybindingsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+			customKeybindingsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of custom keybindings' };
 			theme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The current theme of the window.' };
 			language: { classification: 'SystemMetaData'; purpose: 'BusinessInsight'; comment: 'The display language of the window.' };
 			pinnedViewlets: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifiers of views that are pinned.' };

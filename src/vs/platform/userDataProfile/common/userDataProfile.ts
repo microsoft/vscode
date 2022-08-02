@@ -91,11 +91,14 @@ export interface IUserDataProfilesService {
 	readonly onDidChangeProfiles: Event<DidChangeProfilesEvent>;
 	readonly profiles: IUserDataProfile[];
 
+	readonly onDidResetWorkspaces: Event<void>;
+
 	createProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags, workspaceIdentifier?: WorkspaceIdentifier): Promise<IUserDataProfile>;
 	updateProfile(profile: IUserDataProfile, name: string, useDefaultFlags?: UseDefaultProfileFlags): Promise<IUserDataProfile>;
 	setProfileForWorkspace(profile: IUserDataProfile, workspaceIdentifier: WorkspaceIdentifier): Promise<void>;
-	getProfile(workspaceIdentifier: WorkspaceIdentifier): IUserDataProfile;
+	getProfile(workspaceIdentifier: WorkspaceIdentifier, profileToUseIfNotSet: IUserDataProfile): IUserDataProfile;
 	removeProfile(profile: IUserDataProfile): Promise<void>;
+	resetWorkspaces(): Promise<void>;
 }
 
 export function reviveProfile(profile: UriDto<IUserDataProfile>, scheme: string): IUserDataProfile {
@@ -171,6 +174,9 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 	protected readonly _onWillRemoveProfile = this._register(new Emitter<WillRemoveProfileEvent>());
 	readonly onWillRemoveProfile = this._onWillRemoveProfile.event;
 
+	private readonly _onDidResetWorkspaces = this._register(new Emitter<void>());
+	readonly onDidResetWorkspaces = this._onDidResetWorkspaces.event;
+
 	constructor(
 		@IEnvironmentService protected readonly environmentService: IEnvironmentService,
 		@IFileService protected readonly fileService: IFileService,
@@ -194,6 +200,8 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 			const profiles = this.enabled ? this.getStoredProfiles().map<IUserDataProfile>(storedProfile => toUserDataProfile(storedProfile.name, storedProfile.location, storedProfile.useDefaultFlags)) : [];
 			let emptyWindow: IUserDataProfile | undefined;
 			const workspaces = new ResourceMap<IUserDataProfile>();
+			const defaultProfile = toUserDataProfile(localize('defaultProfile', "Default"), this.environmentService.userRoamingDataHome);
+			profiles.unshift({ ...defaultProfile, isDefault: true, extensionsResource: this.defaultProfileShouldIncludeExtensionsResourceAlways || profiles.length > 0 ? defaultProfile.extensionsResource : undefined });
 			if (profiles.length) {
 				const profileAssicaitions = this.getStoredProfileAssociations();
 				if (profileAssicaitions.workspaces) {
@@ -211,17 +219,23 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 					emptyWindow = profiles.find(p => this.uriIdentityService.extUri.isEqual(p.location, emptyWindowProfileLocation));
 				}
 			}
-			const profile = toUserDataProfile(localize('defaultProfile', "Default"), this.environmentService.userRoamingDataHome);
-			profiles.unshift({ ...profile, isDefault: true, extensionsResource: this.defaultProfileShouldIncludeExtensionsResourceAlways || profiles.length > 0 ? profile.extensionsResource : undefined });
 			this._profilesObject = { profiles, workspaces, emptyWindow };
 		}
 		return this._profilesObject;
 	}
 
-	getProfile(workspaceIdentifier: WorkspaceIdentifier): IUserDataProfile {
+	getProfile(workspaceIdentifier: WorkspaceIdentifier, profileToUseIfNotSet: IUserDataProfile): IUserDataProfile {
 		const workspace = this.getWorkspace(workspaceIdentifier);
-		const profile = URI.isUri(workspace) ? this.profilesObject.workspaces.get(workspace) : this.profilesObject.emptyWindow;
-		return profile ?? this.defaultProfile;
+		let profile = URI.isUri(workspace) ? this.profilesObject.workspaces.get(workspace) : this.profilesObject.emptyWindow;
+		if (!profile) {
+			profile = profileToUseIfNotSet;
+			// Associate the profile to workspace only if there are user profiles
+			// If there are no profiles, workspaces are associated to default profile by default
+			if (this.profiles.length > 1) {
+				this.updateWorkspaceAssociation(workspaceIdentifier, profile);
+			}
+		}
+		return profile;
 	}
 
 	protected getWorkspace(workspaceIdentifier: WorkspaceIdentifier): URI | EmptyWindowWorkspaceIdentifier {
@@ -299,6 +313,13 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		this.updateWorkspaceAssociation(workspaceIdentifier);
 	}
 
+	async resetWorkspaces(): Promise<void> {
+		this.profilesObject.workspaces.clear();
+		this.profilesObject.emptyWindow = undefined;
+		this.updateStoredProfileAssociations();
+		this._onDidResetWorkspaces.fire();
+	}
+
 	async removeProfile(profileToRemove: IUserDataProfile): Promise<void> {
 		if (!this.enabled) {
 			throw new Error(`Settings Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
@@ -364,19 +385,19 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		this._onDidChangeProfiles.fire({ added, removed, updated, all: this.profiles });
 	}
 
-	private updateWorkspaceAssociation(workspaceIdentifier: WorkspaceIdentifier, newProfile?: IUserDataProfile) {
+	private updateWorkspaceAssociation(workspaceIdentifier: WorkspaceIdentifier, newProfile?: IUserDataProfile): void {
 		const workspace = this.getWorkspace(workspaceIdentifier);
 
 		// Folder or Multiroot workspace
 		if (URI.isUri(workspace)) {
 			this.profilesObject.workspaces.delete(workspace);
-			if (newProfile && !newProfile.isDefault) {
+			if (newProfile) {
 				this.profilesObject.workspaces.set(workspace, newProfile);
 			}
 		}
 		// Empty Window
 		else {
-			this.profilesObject.emptyWindow = !newProfile?.isDefault ? newProfile : undefined;
+			this.profilesObject.emptyWindow = newProfile;
 		}
 
 		this.updateStoredProfileAssociations();

@@ -295,31 +295,6 @@ registerAction2(class SwitchProfileAction extends Action2 {
 	}
 });
 
-registerAction2(class CleanupProfilesAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.profiles.actions.cleanupProfiles',
-			title: {
-				value: localize('cleanup profile', "Cleanup Settings Profiles"),
-				original: 'Cleanup Profiles'
-			},
-			category: CATEGORIES.Developer,
-			f1: true,
-			precondition: PROFILES_ENABLEMENT_CONTEXT,
-		});
-	}
-
-	async run(accessor: ServicesAccessor) {
-		const userDataProfilesService = accessor.get(IUserDataProfilesService);
-		const fileService = accessor.get(IFileService);
-		const uriIdentityService = accessor.get(IUriIdentityService);
-
-		const stat = await fileService.resolve(userDataProfilesService.profilesHome);
-		await Promise.all((stat.children || [])?.filter(child => child.isDirectory && userDataProfilesService.profiles.every(p => !uriIdentityService.extUri.isEqual(p.location, child.resource)))
-			.map(child => fileService.del(child.resource, { recursive: true })));
-	}
-});
-
 registerAction2(class ExportProfileAction extends Action2 {
 	constructor() {
 		super({
@@ -468,4 +443,51 @@ registerAction2(class ImportProfileAction extends Action2 {
 		}
 	}
 
+});
+
+// Developer Actions
+
+registerAction2(class CleanupProfilesAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.profiles.actions.cleanupProfiles',
+			title: {
+				value: localize('cleanup profile', "Cleanup Settings Profiles"),
+				original: 'Cleanup Profiles'
+			},
+			category: CATEGORIES.Developer,
+			f1: true,
+			precondition: PROFILES_ENABLEMENT_CONTEXT,
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const userDataProfilesService = accessor.get(IUserDataProfilesService);
+		const fileService = accessor.get(IFileService);
+		const uriIdentityService = accessor.get(IUriIdentityService);
+
+		const stat = await fileService.resolve(userDataProfilesService.profilesHome);
+		await Promise.all((stat.children || [])?.filter(child => child.isDirectory && userDataProfilesService.profiles.every(p => !uriIdentityService.extUri.isEqual(p.location, child.resource)))
+			.map(child => fileService.del(child.resource, { recursive: true })));
+	}
+});
+
+registerAction2(class ResetWorkspacesAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.profiles.actions.resetWorkspaces',
+			title: {
+				value: localize('reset workspaces', "Reset Workspace Settings Profiles Associations"),
+				original: 'Reset Workspace Settings Profiles Associations'
+			},
+			category: CATEGORIES.Developer,
+			f1: true,
+			precondition: PROFILES_ENABLEMENT_CONTEXT,
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const userDataProfilesService = accessor.get(IUserDataProfilesService);
+		return userDataProfilesService.resetWorkspaces();
+	}
 });

@@ -12,7 +12,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
-import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
 import { Constants } from 'vs/base/common/uint';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -440,6 +439,7 @@ const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[]
 	let computedState = TestResultState.Unset;
 	const hoverMessageParts: string[] = [];
 	let testIdWithMessages: string | undefined;
+	let retired = false;
 	for (let i = 0; i < tests.length; i++) {
 		const test = tests[i];
 		const resultItem = states[i];
@@ -448,6 +448,7 @@ const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[]
 			hoverMessageParts.push(labelForTestInState(test.item.label, state));
 		}
 		computedState = maxPriority(computedState, state);
+		retired = retired || !!resultItem?.retired;
 		if (!testIdWithMessages && resultItem?.tasks.some(t => t.messages.length)) {
 			testIdWithMessages = test.item.extId;
 		}
@@ -460,7 +461,10 @@ const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[]
 
 	let hoverMessage: IMarkdownString | undefined;
 
-	const glyphMarginClassName = ThemeIcon.asClassName(icon) + ' testing-run-glyph';
+	let glyphMarginClassName = ThemeIcon.asClassName(icon) + ' testing-run-glyph';
+	if (retired) {
+		glyphMarginClassName += ' retired';
+	}
 
 	return {
 		range: firstLineRange(range),
@@ -901,7 +905,7 @@ class TestMessageDecoration implements ITestDecoration {
 		this.location = testMessage.location!;
 		this.line = this.location.range.startLineNumber;
 		const severity = testMessage.type;
-		const message = typeof testMessage.message === 'string' ? removeAnsiEscapeCodes(testMessage.message) : testMessage.message;
+		const message = testMessage.message;
 
 		const options = editorService.resolveDecorationOptions(TestMessageDecoration.decorationId, true);
 		options.hoverMessage = typeof message === 'string' ? new MarkdownString().appendText(message) : message;
