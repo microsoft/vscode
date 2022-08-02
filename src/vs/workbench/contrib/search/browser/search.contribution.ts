@@ -88,9 +88,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 	handler: (accessor, args: any) => {
 		const searchView = getSearchView(accessor.get(IViewsService));
-		if (searchView) {
-			searchView.focusPreviousInputBox();
-		}
+		searchView?.focusPreviousInputBox();
 	}
 });
 
@@ -576,9 +574,7 @@ CommandsRegistry.registerCommand({
 
 		if (mode === 'view') {
 			const searchView = await openSearchView(accessor.get(IViewsService), true);
-			if (searchView) {
-				searchView.searchInFolders();
-			}
+			searchView?.searchInFolders();
 		}
 		else {
 			return accessor.get(ICommandService).executeCommand(SearchEditorConstants.OpenEditorCommandId, {

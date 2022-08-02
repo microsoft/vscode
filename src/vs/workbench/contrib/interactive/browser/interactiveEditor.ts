@@ -316,13 +316,9 @@ export class InteractiveEditor extends EditorPane {
 
 		// there currently is a widget which we still own so
 		// we need to hide it before getting a new widget
-		if (this.#notebookWidget.value) {
-			this.#notebookWidget.value.onWillHide();
-		}
+		this.#notebookWidget.value?.onWillHide();
 
-		if (this.#codeEditorWidget) {
-			this.#codeEditorWidget.dispose();
-		}
+		this.#codeEditorWidget?.dispose();
 
 		this.#widgetDisposableStore.clear();
 
@@ -665,9 +661,7 @@ export class InteractiveEditor extends EditorPane {
 			this.#notebookWidget.value.onWillHide();
 		}
 
-		if (this.#codeEditorWidget) {
-			this.#codeEditorWidget.dispose();
-		}
+		this.#codeEditorWidget?.dispose();
 
 		this.#notebookWidget = { value: undefined };
 		this.#widgetDisposableStore.clear();

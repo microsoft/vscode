@@ -1130,9 +1130,7 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 		let disposableStore: DisposableStore | undefined = undefined;
 		const pid = this._references.createReferenceId({
 			dispose() {
-				if (disposableStore) {
-					disposableStore.dispose();
-				}
+				disposableStore?.dispose();
 			},
 			items: normalizedResult
 		});
@@ -1236,9 +1234,7 @@ class InlineCompletionAdapterNew extends InlineCompletionAdapterBase {
 		let disposableStore: DisposableStore | undefined = undefined;
 		const pid = this._references.createReferenceId({
 			dispose() {
-				if (disposableStore) {
-					disposableStore.dispose();
-				}
+				disposableStore?.dispose();
 			},
 			items: normalizedResult
 		});

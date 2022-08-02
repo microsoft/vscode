@@ -151,14 +151,10 @@ export class IssueReporter extends Disposable {
 		const { fileOnExtension } = this.issueReporterModel.getData();
 		if (fileOnExtension) {
 			const issueTitle = document.getElementById('issue-title');
-			if (issueTitle) {
-				issueTitle.focus();
-			}
+			issueTitle?.focus();
 		} else {
 			const issueType = document.getElementById('issue-type');
-			if (issueType) {
-				issueType.focus();
-			}
+			issueType?.focus();
 		}
 	}
 

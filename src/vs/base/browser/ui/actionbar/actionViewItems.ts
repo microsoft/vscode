@@ -439,15 +439,11 @@ export class SelectActionViewItem extends BaseActionViewItem {
 	}
 
 	override focus(): void {
-		if (this.selectBox) {
-			this.selectBox.focus();
-		}
+		this.selectBox?.focus();
 	}
 
 	override blur(): void {
-		if (this.selectBox) {
-			this.selectBox.blur();
-		}
+		this.selectBox?.blur();
 	}
 
 	override render(container: HTMLElement): void {

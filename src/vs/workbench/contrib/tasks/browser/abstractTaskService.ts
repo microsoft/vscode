@@ -594,9 +594,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	protected _disposeTaskSystemListeners(): void {
-		if (this._taskSystemListener) {
-			this._taskSystemListener.dispose();
-		}
+		this._taskSystemListener?.dispose();
 	}
 
 	public registerTaskProvider(provider: ITaskProvider, type: string): IDisposable {
@@ -1394,9 +1392,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			const twoTabs = insertSpaces ? ' '.repeat(tabSize * 2) : '\t\t';
 			stringValue = twoTabs + stringified.slice(0, stringified.length - 1) + twoTabs + stringified.slice(stringified.length - 1);
 		} finally {
-			if (reference) {
-				reference.dispose();
-			}
+			reference?.dispose();
 		}
 		return stringValue;
 	}
