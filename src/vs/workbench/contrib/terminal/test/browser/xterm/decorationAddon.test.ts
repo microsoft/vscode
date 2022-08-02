@@ -37,7 +37,14 @@ suite('DecorationAddon', () => {
 		const instantiationService = new TestInstantiationService();
 		const configurationService = new TestConfigurationService({
 			workbench: {
-				hover: { delay: 5 }
+				hover: { delay: 5 },
+			},
+			terminal: {
+				integrated: {
+					shellIntegration: {
+						decorationsEnabled: 'both'
+					}
+				}
 			}
 		});
 		instantiationService.stub(IThemeService, new TestThemeService());
@@ -56,21 +63,21 @@ suite('DecorationAddon', () => {
 
 	suite('registerDecoration', async () => {
 		test('should throw when command has no marker', async () => {
-			throws(() => decorationAddon.registerCommandDecoration({ command: 'cd src', timestamp: Date.now(), hasOutput: false } as ITerminalCommand));
+			throws(() => decorationAddon.registerCommandDecoration({ command: 'cd src', timestamp: Date.now(), hasOutput: () => false } as ITerminalCommand));
 		});
 		test('should return undefined when marker has been disposed of', async () => {
 			const marker = xterm.registerMarker(1);
 			marker?.dispose();
-			strictEqual(decorationAddon.registerCommandDecoration({ command: 'cd src', marker, timestamp: Date.now(), hasOutput: false } as ITerminalCommand), undefined);
+			strictEqual(decorationAddon.registerCommandDecoration({ command: 'cd src', marker, timestamp: Date.now(), hasOutput: () => false } as ITerminalCommand), undefined);
 		});
 		test('should return undefined when command is just empty chars', async () => {
 			const marker = xterm.registerMarker(1);
 			marker?.dispose();
-			strictEqual(decorationAddon.registerCommandDecoration({ command: ' ', marker, timestamp: Date.now(), hasOutput: false } as ITerminalCommand), undefined);
+			strictEqual(decorationAddon.registerCommandDecoration({ command: ' ', marker, timestamp: Date.now(), hasOutput: () => false } as ITerminalCommand), undefined);
 		});
 		test('should return decoration when marker has not been disposed of', async () => {
 			const marker = xterm.registerMarker(2);
-			notEqual(decorationAddon.registerCommandDecoration({ command: 'cd src', marker, timestamp: Date.now(), hasOutput: false } as ITerminalCommand), undefined);
+			notEqual(decorationAddon.registerCommandDecoration({ command: 'cd src', marker, timestamp: Date.now(), hasOutput: () => false } as ITerminalCommand), undefined);
 		});
 	});
 });

@@ -13,11 +13,11 @@ const fs = require('fs');
 const merge = require('merge-options');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 const { NLSBundlePlugin } = require('vscode-nls-dev/lib/webpack-bundler');
-const { DefinePlugin } = require('webpack');
+const { DefinePlugin, optimize } = require('webpack');
 
 function withNodeDefaults(/**@type WebpackConfig*/extConfig) {
 	/** @type WebpackConfig */
-	let defaultConfig = {
+	const defaultConfig = {
 		mode: 'none', // this leaves the source code as close as possible to the original (when packaging we set this to 'production')
 		target: 'node', // extensions run in a node context
 		node: {
@@ -93,7 +93,7 @@ function nodePlugins(context) {
 
 function withBrowserDefaults(/**@type WebpackConfig*/extConfig, /** @type AdditionalBrowserConfig */ additionalOptions = {}) {
 	/** @type WebpackConfig */
-	let defaultConfig = {
+	const defaultConfig = {
 		mode: 'none', // this leaves the source code as close as possible to the original (when packaging we set this to 'production')
 		target: 'webworker', // extensions run in a webworker context
 		resolve: {
@@ -145,6 +145,9 @@ function withBrowserDefaults(/**@type WebpackConfig*/extConfig, /** @type Additi
 }
 
 const browserPlugins = [
+	new optimize.LimitChunkCountPlugin({
+		maxChunks: 1
+	}),
 	new CopyWebpackPlugin({
 		patterns: [
 			{ from: 'src', to: '.', globOptions: { ignore: ['**/test/**', '**/*.ts'] }, noErrorOnMissing: true }

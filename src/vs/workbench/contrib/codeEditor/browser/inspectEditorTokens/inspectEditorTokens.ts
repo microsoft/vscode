@@ -125,7 +125,7 @@ class InspectEditorTokens extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let controller = InspectEditorTokensController.get(editor);
+		const controller = InspectEditorTokensController.get(editor);
 		if (controller) {
 			controller.toggle();
 		}
@@ -162,7 +162,7 @@ function renderTokenText(tokenText: string): string {
 	}
 	let result: string = '';
 	for (let charIndex = 0, len = tokenText.length; charIndex < len; charIndex++) {
-		let charCode = tokenText.charCodeAt(charIndex);
+		const charCode = tokenText.charCodeAt(charIndex);
 		switch (charCode) {
 			case CharCode.Tab:
 				result += '\u2192'; // &rarr;
@@ -280,8 +280,8 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			return;
 		}
 
-		let tmMetadata = textMateTokenInfo?.metadata;
-		let semMetadata = semanticTokenInfo?.metadata;
+		const tmMetadata = textMateTokenInfo?.metadata;
+		const semMetadata = semanticTokenInfo?.metadata;
 
 		const semTokenText = semanticTokenInfo && renderTokenText(this._model.getValueInRange(semanticTokenInfo.range));
 		const tmTokenText = textMateTokenInfo && renderTokenText(this._model.getLineContent(position.lineNumber).substring(textMateTokenInfo.token.startIndex, textMateTokenInfo.token.endIndex));
@@ -327,7 +327,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 				const propertiesByDefValue: { [rule: string]: string[] } = {};
 				const allDefValues = new Array<[Array<HTMLElement | string>, string]>(); // remember the order
 				// first collect to detect when the same rule is used for multiple properties
-				for (let property of properties) {
+				for (const property of properties) {
 					if (semanticTokenInfo.metadata[property] !== undefined) {
 						const definition = semanticTokenInfo.definitions[property];
 						const defValue = this._renderTokenStyleDefinition(definition, property);
@@ -350,7 +350,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		}
 
 		if (textMateTokenInfo) {
-			let theme = this._themeService.getColorTheme();
+			const theme = this._themeService.getColorTheme();
 			dom.append(this._domNode, $('hr.tiw-metadata-separator'));
 			const table = dom.append(this._domNode, $('table.tiw-metadata-table'));
 			const tbody = dom.append(table, $('tbody'));
@@ -373,7 +373,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 				$('td.tiw-metadata-value.tiw-metadata-scopes', undefined, ...scopes),
 			));
 
-			let matchingRule = findMatchingThemeRule(theme, textMateTokenInfo.token.scopes, false);
+			const matchingRule = findMatchingThemeRule(theme, textMateTokenInfo.token.scopes, false);
 			const semForeground = semanticTokenInfo?.metadata?.foreground;
 			if (matchingRule) {
 				if (semForeground !== textMateTokenInfo.metadata.foreground) {
@@ -400,7 +400,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		const elements = new Array<HTMLElement | string>();
 
 		function render(property: 'foreground' | 'background') {
-			let value = semantic?.[property] || tm?.[property];
+			const value = semantic?.[property] || tm?.[property];
 			if (value !== undefined) {
 				const semanticStyle = semantic?.[property] ? 'tiw-metadata-semantic' : '';
 				elements.push($('tr', undefined,
@@ -458,12 +458,12 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 	}
 
 	private _decodeMetadata(metadata: number): IDecodedMetadata {
-		let colorMap = this._themeService.getColorTheme().tokenColorMap;
-		let languageId = TokenMetadata.getLanguageId(metadata);
-		let tokenType = TokenMetadata.getTokenType(metadata);
-		let fontStyle = TokenMetadata.getFontStyle(metadata);
-		let foreground = TokenMetadata.getForeground(metadata);
-		let background = TokenMetadata.getBackground(metadata);
+		const colorMap = this._themeService.getColorTheme().tokenColorMap;
+		const languageId = TokenMetadata.getLanguageId(metadata);
+		const tokenType = TokenMetadata.getTokenType(metadata);
+		const fontStyle = TokenMetadata.getFontStyle(metadata);
+		const foreground = TokenMetadata.getForeground(metadata);
+		const background = TokenMetadata.getBackground(metadata);
 		return {
 			languageId: this._languageService.languageIdCodec.decodeLanguageId(languageId),
 			tokenType: tokenType,
@@ -488,14 +488,14 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 
 	private _getTokensAtPosition(grammar: IGrammar, position: Position): ITextMateTokenInfo {
 		const lineNumber = position.lineNumber;
-		let stateBeforeLine = this._getStateBeforeLine(grammar, lineNumber);
+		const stateBeforeLine = this._getStateBeforeLine(grammar, lineNumber);
 
-		let tokenizationResult1 = grammar.tokenizeLine(this._model.getLineContent(lineNumber), stateBeforeLine);
-		let tokenizationResult2 = grammar.tokenizeLine2(this._model.getLineContent(lineNumber), stateBeforeLine);
+		const tokenizationResult1 = grammar.tokenizeLine(this._model.getLineContent(lineNumber), stateBeforeLine);
+		const tokenizationResult2 = grammar.tokenizeLine2(this._model.getLineContent(lineNumber), stateBeforeLine);
 
 		let token1Index = 0;
 		for (let i = tokenizationResult1.tokens.length - 1; i >= 0; i--) {
-			let t = tokenizationResult1.tokens[i];
+			const t = tokenizationResult1.tokens[i];
 			if (position.column - 1 >= t.startIndex) {
 				token1Index = i;
 				break;
@@ -520,7 +520,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		let state: StackElement | null = null;
 
 		for (let i = 1; i < lineNumber; i++) {
-			let tokenizationResult = grammar.tokenizeLine(this._model.getLineContent(i), state);
+			const tokenizationResult = grammar.tokenizeLine(this._model.getLineContent(i), state);
 			state = tokenizationResult.ruleStack;
 		}
 
@@ -623,7 +623,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 				const scopes = $('ul.tiw-metadata-values');
 				const strScopes = Array.isArray(matchingRule.scope) ? matchingRule.scope : [String(matchingRule.scope)];
 
-				for (let strScope of strScopes) {
+				for (const strScope of strScopes) {
 					scopes.appendChild($('li.tiw-metadata-value.tiw-metadata-scopes', undefined, strScope));
 				}
 
@@ -676,7 +676,7 @@ registerEditorAction(InspectEditorTokens);
 registerThemingParticipant((theme, collector) => {
 	const border = theme.getColor(editorHoverBorder);
 	if (border) {
-		let borderWidth = isHighContrast(theme.type) ? 2 : 1;
+		const borderWidth = isHighContrast(theme.type) ? 2 : 1;
 		collector.addRule(`.monaco-editor .token-inspect-widget { border: ${borderWidth}px solid ${border}; }`);
 		collector.addRule(`.monaco-editor .token-inspect-widget .tiw-metadata-separator { background-color: ${border}; }`);
 	}

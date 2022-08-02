@@ -96,12 +96,12 @@ function getSearchString(editor: ICodeEditor, opts: IFindStartOptions) {
 	// Get the search string result, following the same logic in _start function in 'vs/editor/contrib/find/browser/findController'
 	let searchString = '';
 	if (opts.seedSearchStringFromSelection === 'single') {
-		let selectionSearchString = getSelectionSearchString(editor, opts.seedSearchStringFromSelection, opts.seedSearchStringFromNonEmptySelection);
+		const selectionSearchString = getSelectionSearchString(editor, opts.seedSearchStringFromSelection, opts.seedSearchStringFromNonEmptySelection);
 		if (selectionSearchString) {
 			searchString = selectionSearchString;
 		}
 	} else if (opts.seedSearchStringFromSelection === 'multiple' && !opts.updateSearchScope) {
-		let selectionSearchString = getSelectionSearchString(editor, opts.seedSearchStringFromSelection);
+		const selectionSearchString = getSelectionSearchString(editor, opts.seedSearchStringFromSelection);
 		if (selectionSearchString) {
 			searchString = selectionSearchString;
 		}

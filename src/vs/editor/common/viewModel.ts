@@ -41,11 +41,14 @@ export interface IViewModel extends ICursorSimpleModel {
 	onCompositionEnd(): void;
 
 	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];
-	getViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData;
+	getViewportViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData;
+	getViewLineRenderingData(lineNumber: number): ViewLineRenderingData;
 	getViewLineData(lineNumber: number): ViewLineData;
 	getMinimapLinesRenderingData(startLineNumber: number, endLineNumber: number, needed: boolean[]): MinimapLinesRenderingData;
 	getCompletelyVisibleViewRange(): Range;
 	getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range;
+
+	getHiddenAreas(): Range[];
 
 	getLineCount(): number;
 	getLineContent(lineNumber: number): string;
@@ -133,7 +136,7 @@ export interface IEditorWhitespace {
 }
 
 /**
- * An accessor that allows for whtiespace to be added, removed or changed in bulk.
+ * An accessor that allows for whitespace to be added, removed or changed in bulk.
  */
 export interface IWhitespaceChangeAccessor {
 	insertWhitespace(afterLineNumber: number, ordinal: number, heightInPx: number, minWidth: number): string;

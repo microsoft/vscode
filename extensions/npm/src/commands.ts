@@ -16,17 +16,17 @@ import {
 const localize = nls.loadMessageBundle();
 
 export function runSelectedScript(context: vscode.ExtensionContext) {
-	let editor = vscode.window.activeTextEditor;
+	const editor = vscode.window.activeTextEditor;
 	if (!editor) {
 		return;
 	}
-	let document = editor.document;
-	let contents = document.getText();
-	let script = findScriptAtPosition(editor.document, contents, editor.selection.anchor);
+	const document = editor.document;
+	const contents = document.getText();
+	const script = findScriptAtPosition(editor.document, contents, editor.selection.anchor);
 	if (script) {
 		runScript(context, script, document);
 	} else {
-		let message = localize('noScriptFound', 'Could not find a valid npm script at the selection.');
+		const message = localize('noScriptFound', 'Could not find a valid npm script at the selection.');
 		vscode.window.showErrorMessage(message);
 	}
 }
@@ -37,7 +37,7 @@ export async function selectAndRunScriptFromFolder(context: vscode.ExtensionCont
 	}
 	const selectedFolder = selectedFolders[0];
 
-	let taskList: IFolderTaskItem[] = await detectNpmScriptsForFolder(context, selectedFolder);
+	const taskList: IFolderTaskItem[] = await detectNpmScriptsForFolder(context, selectedFolder);
 
 	if (taskList && taskList.length > 0) {
 		const quickPick = vscode.window.createQuickPick<IFolderTaskItem>();
@@ -47,7 +47,7 @@ export async function selectAndRunScriptFromFolder(context: vscode.ExtensionCont
 
 		const toDispose: vscode.Disposable[] = [];
 
-		let pickPromise = new Promise<IFolderTaskItem | undefined>((c) => {
+		const pickPromise = new Promise<IFolderTaskItem | undefined>((c) => {
 			toDispose.push(quickPick.onDidAccept(() => {
 				toDispose.forEach(d => d.dispose());
 				c(quickPick.selectedItems[0]);
@@ -58,7 +58,7 @@ export async function selectAndRunScriptFromFolder(context: vscode.ExtensionCont
 			}));
 		});
 		quickPick.show();
-		let result = await pickPromise;
+		const result = await pickPromise;
 		quickPick.dispose();
 		if (result) {
 			vscode.tasks.executeTask(result.task);

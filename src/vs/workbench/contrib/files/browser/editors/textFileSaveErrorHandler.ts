@@ -110,7 +110,7 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 
 			// If the user tried to save from the opened conflict editor, show its message again
 			if (this.activeConflictResolutionResource && isEqual(this.activeConflictResolutionResource, model.resource)) {
-				if (this.storageService.getBoolean(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, StorageScope.GLOBAL)) {
+				if (this.storageService.getBoolean(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, StorageScope.APPLICATION)) {
 					return; // return if this message is ignored
 				}
 
@@ -225,8 +225,8 @@ class DoNotShowResolveConflictLearnMoreAction extends Action {
 
 	override async run(notification: IDisposable): Promise<void> {
 
-		// Remember this as global state
-		this.storageService.store(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, true, StorageScope.GLOBAL, StorageTarget.USER);
+		// Remember this as application state
+		this.storageService.store(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
 
 		// Hide notification
 		notification.dispose();

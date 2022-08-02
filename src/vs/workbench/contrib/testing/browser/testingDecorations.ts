@@ -438,7 +438,7 @@ const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[]
 	}
 
 	let computedState = TestResultState.Unset;
-	let hoverMessageParts: string[] = [];
+	const hoverMessageParts: string[] = [];
 	let testIdWithMessages: string | undefined;
 	for (let i = 0; i < tests.length; i++) {
 		const test = tests[i];
@@ -460,7 +460,7 @@ const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[]
 
 	let hoverMessage: IMarkdownString | undefined;
 
-	let glyphMarginClassName = ThemeIcon.asClassName(icon) + ' testing-run-glyph';
+	const glyphMarginClassName = ThemeIcon.asClassName(icon) + ' testing-run-glyph';
 
 	return {
 		range: firstLineRange(range),
@@ -815,11 +815,39 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 			allActions.push(new Action('testing.gutter.debugAll', localize('debug all test', 'Debug All Tests'), undefined, undefined, () => this.defaultDebug()));
 		}
 
+		const testItems = this.tests.map(testItem => ({
+			currentLabel: testItem.test.item.label,
+			testItem,
+			parent: testItem.test.parent,
+		}));
+
+		const getLabelConflicts = (tests: typeof testItems) => {
+			const labelCount = new Map<string, number>();
+			for (const test of tests) {
+				labelCount.set(test.currentLabel, (labelCount.get(test.currentLabel) || 0) + 1);
+			}
+
+			return tests.filter(e => labelCount.get(e.currentLabel)! > 1);
+		};
+
+		let conflicts, hasParent = true;
+		while ((conflicts = getLabelConflicts(testItems)).length && hasParent) {
+			for (const conflict of conflicts) {
+				if (conflict.parent) {
+					const parent = this.testService.collection.getNodeById(conflict.parent);
+					conflict.currentLabel = parent?.item.label + ' > ' + conflict.currentLabel;
+					conflict.parent = parent?.parent ? parent.parent : null;
+				} else {
+					hasParent = false;
+				}
+			}
+		}
+
 		const disposable = new DisposableStore();
-		const testSubmenus = this.tests.map(({ test, resultItem }) => {
-			const actions = this.getTestContextMenuActions(test, resultItem);
+		const testSubmenus = testItems.map(({ currentLabel, testItem }) => {
+			const actions = this.getTestContextMenuActions(testItem.test, testItem.resultItem);
 			disposable.add(actions);
-			return new SubmenuAction(test.item.extId, stripIcons(test.item.label), actions.object);
+			return new SubmenuAction(testItem.test.item.extId, stripIcons(currentLabel), actions.object);
 		});
 
 		return { object: Separator.join(allActions, testSubmenus), dispose: () => disposable.dispose() };

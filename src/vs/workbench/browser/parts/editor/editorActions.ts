@@ -573,24 +573,31 @@ abstract class AbstractCloseAllAction extends Action {
 	override async run(): Promise<void> {
 
 		// Depending on the editor and auto save configuration,
-		// split dirty editors into buckets
+		// split editors into buckets for handling confirmation
 
 		const dirtyEditorsWithDefaultConfirm = new Set<IEditorIdentifier>();
 		const dirtyAutoSaveOnFocusChangeEditors = new Set<IEditorIdentifier>();
 		const dirtyAutoSaveOnWindowChangeEditors = new Set<IEditorIdentifier>();
-		const dirtyEditorsWithCustomConfirm = new Map<string /* typeId */, Set<IEditorIdentifier>>();
+		const editorsWithCustomConfirm = new Map<string /* typeId */, Set<IEditorIdentifier>>();
 
 		for (const { editor, groupId } of this.editorService.getEditors(EditorsOrder.SEQUENTIAL, { excludeSticky: this.excludeSticky })) {
-			if (!editor.isDirty() || editor.isSaving()) {
-				continue; // only interested in dirty editors that are not in the process of saving
+			let confirmClose = false;
+			if (editor.closeHandler) {
+				confirmClose = editor.closeHandler.showConfirm(); // custom handling of confirmation on close
+			} else {
+				confirmClose = editor.isDirty() && !editor.isSaving(); // default confirm only when dirty and not saving
+			}
+
+			if (!confirmClose) {
+				continue;
 			}
 
 			// Editor has custom confirm implementation
-			if (typeof editor.confirm === 'function') {
-				let customEditorsToConfirm = dirtyEditorsWithCustomConfirm.get(editor.typeId);
+			if (typeof editor.closeHandler?.confirm === 'function') {
+				let customEditorsToConfirm = editorsWithCustomConfirm.get(editor.typeId);
 				if (!customEditorsToConfirm) {
 					customEditorsToConfirm = new Set();
-					dirtyEditorsWithCustomConfirm.set(editor.typeId, customEditorsToConfirm);
+					editorsWithCustomConfirm.set(editor.typeId, customEditorsToConfirm);
 				}
 
 				customEditorsToConfirm.add({ editor, groupId });
@@ -619,7 +626,7 @@ abstract class AbstractCloseAllAction extends Action {
 		if (dirtyEditorsWithDefaultConfirm.size > 0) {
 			const editors = Array.from(dirtyEditorsWithDefaultConfirm.values());
 
-			await this.revealDirtyEditors(editors); // help user make a decision by revealing editors
+			await this.revealEditorsToConfirm(editors); // help user make a decision by revealing editors
 
 			const confirmation = await this.fileDialogService.showSaveConfirm(editors.map(({ editor }) => {
 				if (editor instanceof SideBySideEditorInput) {
@@ -642,12 +649,12 @@ abstract class AbstractCloseAllAction extends Action {
 		}
 
 		// 2.) Show custom confirm based dialog
-		for (const [, editorIdentifiers] of dirtyEditorsWithCustomConfirm) {
+		for (const [, editorIdentifiers] of editorsWithCustomConfirm) {
 			const editors = Array.from(editorIdentifiers.values());
 
-			await this.revealDirtyEditors(editors); // help user make a decision by revealing editors
+			await this.revealEditorsToConfirm(editors); // help user make a decision by revealing editors
 
-			const confirmation = await firstOrDefault(editors)?.editor.confirm?.(editors);
+			const confirmation = await firstOrDefault(editors)?.editor.closeHandler?.confirm?.(editors);
 			if (typeof confirmation === 'number') {
 				switch (confirmation) {
 					case ConfirmResult.CANCEL:
@@ -683,7 +690,7 @@ abstract class AbstractCloseAllAction extends Action {
 		return this.doCloseAll();
 	}
 
-	private async revealDirtyEditors(editors: ReadonlyArray<IEditorIdentifier>): Promise<void> {
+	private async revealEditorsToConfirm(editors: ReadonlyArray<IEditorIdentifier>): Promise<void> {
 		try {
 			const handledGroups = new Set<GroupIdentifier>();
 			for (const { editor, groupId } of editors) {
@@ -1016,7 +1023,7 @@ export class MinimizeOtherGroupsAction extends Action {
 	}
 
 	override async run(): Promise<void> {
-		this.editorGroupService.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS);
+		this.editorGroupService.arrangeGroups(GroupsArrangement.MAXIMIZE);
 	}
 }
 
@@ -1067,7 +1074,7 @@ export class MaximizeGroupAction extends Action {
 		if (this.editorService.activeEditor) {
 			this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
 			this.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
-			this.editorGroupService.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS);
+			this.editorGroupService.arrangeGroups(GroupsArrangement.MAXIMIZE);
 		}
 	}
 }

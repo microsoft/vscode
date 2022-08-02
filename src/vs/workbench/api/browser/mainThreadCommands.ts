@@ -49,7 +49,7 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 
 		// print all as markdown
 		const all: string[] = [];
-		for (let id in result) {
+		for (const id in result) {
 			all.push('`' + id + '` - ' + _generateMarkdown(result[id]));
 		}
 		console.log(all.join('\n'));
@@ -74,17 +74,25 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 		}
 	}
 
-	async $activateByCommandEvent(id: string): Promise<void> {
+	$fireCommandActivationEvent(id: string): void {
 		const activationEvent = `onCommand:${id}`;
-		await this._extensionService.activateByEvent(activationEvent);
+		if (!this._extensionService.activationEventIsDone(activationEvent)) {
+			// this is NOT awaited because we only use it as drive-by-activation
+			// for commands that are already known inside the extension host
+			this._extensionService.activateByEvent(activationEvent);
+		}
 	}
 
-	async $executeCommand<T>(id: string, args: any[] | SerializableObjectWithBuffers<any[]>): Promise<T | undefined> {
+	async $executeCommand<T>(id: string, args: any[] | SerializableObjectWithBuffers<any[]>, retry: boolean): Promise<T | undefined> {
 		if (args instanceof SerializableObjectWithBuffers) {
 			args = args.value;
 		}
 		for (let i = 0; i < args.length; i++) {
 			args[i] = revive(args[i]);
+		}
+		if (retry && args.length > 0 && !CommandsRegistry.getCommand(id)) {
+			await this._extensionService.activateByEvent(`onCommand:${id}`);
+			throw new Error('$executeCommand:retry');
 		}
 		return this._commandService.executeCommand<T>(id, ...args);
 	}
@@ -103,7 +111,7 @@ function _generateMarkdown(description: string | Dto<ICommandHandlerDescription>
 		const parts = [description.description];
 		parts.push('\n\n');
 		if (description.args) {
-			for (let arg of description.args) {
+			for (const arg of description.args) {
 				parts.push(`* _${arg.name}_ - ${arg.description || ''}\n`);
 			}
 		}

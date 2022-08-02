@@ -22,8 +22,8 @@ export function compareMarkersByUri(a: IMarker, b: IMarker) {
 }
 
 function compareResourceMarkers(a: ResourceMarkers, b: ResourceMarkers): number {
-	let [firstMarkerOfA] = a.markers;
-	let [firstMarkerOfB] = b.markers;
+	const [firstMarkerOfA] = a.markers;
+	const [firstMarkerOfB] = b.markers;
 	let res = 0;
 	if (firstMarkerOfA && firstMarkerOfB) {
 		res = MarkerSeverity.compare(firstMarkerOfA.marker.severity, firstMarkerOfB.marker.severity);
@@ -71,7 +71,7 @@ export class ResourceMarkers {
 	}
 
 	delete(uri: URI) {
-		let array = this._markersMap.get(uri);
+		const array = this._markersMap.get(uri);
 		if (array) {
 			this._total -= array.length;
 			this._cachedMarkers = undefined;

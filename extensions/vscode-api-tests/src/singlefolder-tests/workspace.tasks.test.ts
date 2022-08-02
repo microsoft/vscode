@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { commands, ConfigurationTarget, CustomExecution, Disposable, env, Event, EventEmitter, Pseudoterminal, ShellExecution, Task, TaskDefinition, TaskExecution, TaskProcessStartEvent, tasks, TaskScope, Terminal, UIKind, window, workspace } from 'vscode';
+import { commands, ConfigurationTarget, CustomExecution, Disposable, env, Event, EventEmitter, Pseudoterminal, ShellExecution, Task, TaskDefinition, TaskProcessStartEvent, tasks, TaskScope, Terminal, UIKind, window, workspace } from 'vscode';
 import { assertNoRpc } from '../utils';
 
 // Disable tasks tests:
@@ -24,7 +24,7 @@ import { assertNoRpc } from '../utils';
 	});
 
 	suite('Tasks', () => {
-		let disposables: Disposable[] = [];
+		const disposables: Disposable[] = [];
 
 		teardown(() => {
 			assertNoRpc();
@@ -57,7 +57,6 @@ import { assertNoRpc } from '../utils';
 				});
 
 				const task = new Task({ type: 'testTask' }, TaskScope.Workspace, 'echo', 'testTask', new ShellExecution('echo', ['hello test']));
-				let taskExecution: TaskExecution | undefined;
 
 				disposables.push(tasks.onDidStartTaskProcess(async (e) => {
 					await taskExecutionShouldBeSet;
@@ -74,7 +73,7 @@ import { assertNoRpc } from '../utils';
 						progressMade.fire();
 					}
 				}));
-				taskExecution = await tasks.executeTask(task);
+				const taskExecution = await tasks.executeTask(task);
 				executeDoneEvent.fire();
 				await testDonePromise;
 			});

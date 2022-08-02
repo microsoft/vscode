@@ -329,7 +329,6 @@ export class StatefulMarkdownCell extends Disposable {
 					width: width,
 					height: editorHeight
 				},
-				enableDropIntoEditor: true,
 				// overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
 			}, {
 				contributions: this.notebookEditor.creationOptions.cellEditorContributions
@@ -435,9 +434,7 @@ export class StatefulMarkdownCell extends Disposable {
 
 	updateEditorOptions(newValue: IEditorOptions): void {
 		this.editorOptions = newValue;
-		if (this.editor) {
-			this.editor.updateOptions(this.editorOptions);
-		}
+		this.editor?.updateOptions(this.editorOptions);
 	}
 
 	private layoutFoldingIndicator() {

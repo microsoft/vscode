@@ -8,7 +8,7 @@ import * as processes from 'vs/base/common/processes';
 
 suite('Processes', () => {
 	test('sanitizeProcessEnvironment', () => {
-		let env = {
+		const env = {
 			FOO: 'bar',
 			ELECTRON_ENABLE_STACK_DUMPING: 'x',
 			ELECTRON_ENABLE_LOGGING: 'x',

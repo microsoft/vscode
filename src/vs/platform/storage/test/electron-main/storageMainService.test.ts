@@ -6,6 +6,9 @@
 import { notStrictEqual, strictEqual } from 'assert';
 import { Promises } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
+import { Schemas } from 'vs/base/common/network';
+import { joinPath } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
@@ -15,15 +18,33 @@ import { ILifecycleMainService, LifecycleMainPhase, ShutdownEvent, ShutdownReaso
 import { NullLogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IS_NEW_KEY } from 'vs/platform/storage/common/storage';
+import { StateMainService } from 'vs/platform/state/electron-main/stateMainService';
+import { IS_NEW_KEY, StorageScope } from 'vs/platform/storage/common/storage';
 import { IStorageChangeEvent, IStorageMain, IStorageMainOptions } from 'vs/platform/storage/electron-main/storageMain';
 import { StorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { currentSessionDateStorageKey, firstSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { UserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 import { ICodeWindow, UnloadReason } from 'vs/platform/window/electron-main/window';
 
 suite('StorageMainService', function () {
 
 	const productService: IProductService = { _serviceBrand: undefined, ...product };
+
+	const inMemoryProfileRoot = URI.file('/location').with({ scheme: Schemas.inMemory });
+	const inMemoryProfile: IUserDataProfile = {
+		id: 'id',
+		name: 'inMemory',
+		isDefault: false,
+		location: inMemoryProfileRoot,
+		globalStorageHome: joinPath(inMemoryProfileRoot, 'globalStorageHome'),
+		settingsResource: joinPath(inMemoryProfileRoot, 'settingsResource'),
+		keybindingsResource: joinPath(inMemoryProfileRoot, 'keybindingsResource'),
+		tasksResource: joinPath(inMemoryProfileRoot, 'tasksResource'),
+		snippetsHome: joinPath(inMemoryProfileRoot, 'snippetsHome'),
+		extensionsResource: joinPath(inMemoryProfileRoot, 'extensionsResource')
+	};
 
 	class TestStorageMainService extends StorageMainService {
 
@@ -73,10 +94,10 @@ suite('StorageMainService', function () {
 		async when(phase: LifecycleMainPhase): Promise<void> { }
 	}
 
-	async function testStorage(storage: IStorageMain, isGlobal: boolean): Promise<void> {
+	async function testStorage(storage: IStorageMain, scope: StorageScope): Promise<void> {
 
-		// Telemetry: added after init
-		if (isGlobal) {
+		// Telemetry: added after init unless workspace/profile scoped
+		if (scope === StorageScope.APPLICATION) {
 			strictEqual(storage.items.size, 0);
 			await storage.init();
 			strictEqual(typeof storage.get(firstSessionDateStorageKey), 'string');
@@ -125,101 +146,144 @@ suite('StorageMainService', function () {
 	}
 
 	function createStorageService(lifecycleMainService: ILifecycleMainService = new StorageTestLifecycleMainService()): TestStorageMainService {
-		return new TestStorageMainService(new NullLogService(), new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService), lifecycleMainService, new FileService(new NullLogService()));
+		const environmentService = new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService);
+		const fileService = new FileService(new NullLogService());
+		return new TestStorageMainService(new NullLogService(), environmentService, new UserDataProfilesMainService(new StateMainService(environmentService, new NullLogService(), fileService), new UriIdentityService(fileService), environmentService, fileService, new NullLogService()), lifecycleMainService, fileService);
 	}
 
-	test('basics (global)', function () {
+	test('basics (application)', function () {
 		const storageMainService = createStorageService();
 
-		return testStorage(storageMainService.globalStorage, true);
+		return testStorage(storageMainService.applicationStorage, StorageScope.APPLICATION);
+	});
+
+	test('basics (profile)', function () {
+		const storageMainService = createStorageService();
+		const profile = inMemoryProfile;
+
+		return testStorage(storageMainService.profileStorage(profile), StorageScope.PROFILE);
 	});
 
 	test('basics (workspace)', function () {
 		const workspace = { id: generateUuid() };
 		const storageMainService = createStorageService();
 
-		return testStorage(storageMainService.workspaceStorage(workspace), false);
+		return testStorage(storageMainService.workspaceStorage(workspace), StorageScope.WORKSPACE);
 	});
 
 	test('storage closed onWillShutdown', async function () {
 		const lifecycleMainService = new StorageTestLifecycleMainService();
-		const workspace = { id: generateUuid() };
 		const storageMainService = createStorageService(lifecycleMainService);
 
-		let workspaceStorage = storageMainService.workspaceStorage(workspace);
+		const profile = inMemoryProfile;
+		const workspace = { id: generateUuid() };
+
+		const workspaceStorage = storageMainService.workspaceStorage(workspace);
 		let didCloseWorkspaceStorage = false;
 		workspaceStorage.onDidCloseStorage(() => {
 			didCloseWorkspaceStorage = true;
 		});
 
-		let globalStorage = storageMainService.globalStorage;
-		let didCloseGlobalStorage = false;
-		globalStorage.onDidCloseStorage(() => {
-			didCloseGlobalStorage = true;
+		const profileStorage = storageMainService.profileStorage(profile);
+		let didCloseProfileStorage = false;
+		profileStorage.onDidCloseStorage(() => {
+			didCloseProfileStorage = true;
 		});
 
+		const applicationStorage = storageMainService.applicationStorage;
+		let didCloseApplicationStorage = false;
+		applicationStorage.onDidCloseStorage(() => {
+			didCloseApplicationStorage = true;
+		});
+
+		strictEqual(applicationStorage, storageMainService.applicationStorage); // same instance as long as not closed
+		strictEqual(profileStorage, storageMainService.profileStorage(profile)); // same instance as long as not closed
 		strictEqual(workspaceStorage, storageMainService.workspaceStorage(workspace)); // same instance as long as not closed
 
-		await globalStorage.init();
+		await applicationStorage.init();
+		await profileStorage.init();
 		await workspaceStorage.init();
 
 		await lifecycleMainService.fireOnWillShutdown();
 
-		strictEqual(didCloseGlobalStorage, true);
+		strictEqual(didCloseApplicationStorage, true);
+		strictEqual(didCloseProfileStorage, true);
 		strictEqual(didCloseWorkspaceStorage, true);
 
-		let storage2 = storageMainService.workspaceStorage(workspace);
-		notStrictEqual(workspaceStorage, storage2);
+		const profileStorage2 = storageMainService.profileStorage(profile);
+		notStrictEqual(profileStorage, profileStorage2);
 
-		return storage2.close();
+		const workspaceStorage2 = storageMainService.workspaceStorage(workspace);
+		notStrictEqual(workspaceStorage, workspaceStorage2);
+
+		return workspaceStorage2.close();
 	});
 
 	test('storage closed before init works', async function () {
 		const storageMainService = createStorageService();
+		const profile = inMemoryProfile;
 		const workspace = { id: generateUuid() };
 
-		let workspaceStorage = storageMainService.workspaceStorage(workspace);
+		const workspaceStorage = storageMainService.workspaceStorage(workspace);
 		let didCloseWorkspaceStorage = false;
 		workspaceStorage.onDidCloseStorage(() => {
 			didCloseWorkspaceStorage = true;
 		});
 
-		let globalStorage = storageMainService.globalStorage;
-		let didCloseGlobalStorage = false;
-		globalStorage.onDidCloseStorage(() => {
-			didCloseGlobalStorage = true;
+		const profileStorage = storageMainService.profileStorage(profile);
+		let didCloseProfileStorage = false;
+		profileStorage.onDidCloseStorage(() => {
+			didCloseProfileStorage = true;
 		});
 
-		await globalStorage.close();
+		const applicationStorage = storageMainService.applicationStorage;
+		let didCloseApplicationStorage = false;
+		applicationStorage.onDidCloseStorage(() => {
+			didCloseApplicationStorage = true;
+		});
+
+		await applicationStorage.close();
+		await profileStorage.close();
 		await workspaceStorage.close();
 
-		strictEqual(didCloseGlobalStorage, true);
+		strictEqual(didCloseApplicationStorage, true);
+		strictEqual(didCloseProfileStorage, true);
 		strictEqual(didCloseWorkspaceStorage, true);
 	});
 
 	test('storage closed before init awaits works', async function () {
 		const storageMainService = createStorageService();
+		const profile = inMemoryProfile;
 		const workspace = { id: generateUuid() };
 
-		let workspaceStorage = storageMainService.workspaceStorage(workspace);
+		const workspaceStorage = storageMainService.workspaceStorage(workspace);
 		let didCloseWorkspaceStorage = false;
 		workspaceStorage.onDidCloseStorage(() => {
 			didCloseWorkspaceStorage = true;
 		});
 
-		let globalStorage = storageMainService.globalStorage;
-		let didCloseGlobalStorage = false;
-		globalStorage.onDidCloseStorage(() => {
-			didCloseGlobalStorage = true;
+		const profileStorage = storageMainService.profileStorage(profile);
+		let didCloseProfileStorage = false;
+		profileStorage.onDidCloseStorage(() => {
+			didCloseProfileStorage = true;
 		});
 
-		globalStorage.init();
+		const applicationtorage = storageMainService.applicationStorage;
+		let didCloseApplicationStorage = false;
+		applicationtorage.onDidCloseStorage(() => {
+			didCloseApplicationStorage = true;
+		});
+
+		applicationtorage.init();
+		profileStorage.init();
 		workspaceStorage.init();
 
-		await globalStorage.close();
+		await applicationtorage.close();
+		await profileStorage.close();
 		await workspaceStorage.close();
 
-		strictEqual(didCloseGlobalStorage, true);
+		strictEqual(didCloseApplicationStorage, true);
+		strictEqual(didCloseProfileStorage, true);
 		strictEqual(didCloseWorkspaceStorage, true);
 	});
 });

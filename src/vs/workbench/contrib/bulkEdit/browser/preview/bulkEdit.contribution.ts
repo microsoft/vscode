@@ -62,11 +62,11 @@ class UXState {
 
 		// (2) close preview editors
 		if (editors) {
-			for (let group of this._editorGroupsService.groups) {
-				let previewEditors: EditorInput[] = [];
-				for (let input of group.editors) {
+			for (const group of this._editorGroupsService.groups) {
+				const previewEditors: EditorInput[] = [];
+				for (const input of group.editors) {
 
-					let resource = EditorResourceAccessor.getCanonicalUri(input, { supportSideBySide: SideBySideEditor.PRIMARY });
+					const resource = EditorResourceAccessor.getCanonicalUri(input, { supportSideBySide: SideBySideEditor.PRIMARY });
 					if (resource?.scheme === BulkEditPreviewProvider.Schema) {
 						previewEditors.push(input);
 					}
@@ -122,11 +122,14 @@ class BulkEditPreviewContribution {
 			const choice = await this._dialogService.show(
 				Severity.Info,
 				localize('overlap', "Another refactoring is being previewed."),
-				[localize('cancel', "Cancel"), localize('continue', "Continue")],
-				{ detail: localize('detail', "Press 'Continue' to discard the previous refactoring and continue with the current refactoring.") }
+				[localize('continue', "Continue"), localize('cancel', "Cancel")],
+				{
+					detail: localize('detail', "Press 'Continue' to discard the previous refactoring and continue with the current refactoring."),
+					cancelId: 1
+				}
 			);
 
-			if (choice.choice === 0) {
+			if (choice.choice === 1) {
 				// this refactoring is being cancelled
 				return [];
 			}

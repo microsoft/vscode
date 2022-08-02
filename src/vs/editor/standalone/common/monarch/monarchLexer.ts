@@ -444,7 +444,7 @@ export class MonarchTokenizer implements languages.ITokenizationSupport {
 
 	public getLoadStatus(): ILoadStatus {
 		const promises: Thenable<any>[] = [];
-		for (let nestedLanguageId in this._embeddedLanguages) {
+		for (const nestedLanguageId in this._embeddedLanguages) {
 			const tokenizationSupport = languages.TokenizationRegistry.get(nestedLanguageId);
 			if (tokenizationSupport) {
 				// The nested language is already loaded
@@ -644,7 +644,7 @@ export class MonarchTokenizer implements languages.ITokenizationSupport {
 				}
 
 				// try each rule until we match
-				let restOfLine = line.substr(pos);
+				const restOfLine = line.substr(pos);
 				for (const rule of rules) {
 					if (pos === 0 || !rule.matchOnlyAtLineStart) {
 						matches = restOfLine.match(rule.regex);

@@ -16,6 +16,7 @@ import { TestStoredFileWorkingCopyModel, TestStoredFileWorkingCopyModelFactory }
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { isWeb } from 'vs/base/common/platform';
 
 suite('StoredFileWorkingCopyManager', () => {
 
@@ -598,7 +599,7 @@ suite('StoredFileWorkingCopyManager', () => {
 		const workingCopy = await manager.resolve(resource);
 		workingCopy.model?.updateContents('make dirty');
 
-		let canDisposePromise = manager.canDispose(workingCopy);
+		const canDisposePromise = manager.canDispose(workingCopy);
 		assert.ok(canDisposePromise instanceof Promise);
 
 		let canDispose = false;
@@ -613,11 +614,11 @@ suite('StoredFileWorkingCopyManager', () => {
 
 		assert.strictEqual(canDispose, true);
 
-		let canDispose2 = manager.canDispose(workingCopy);
+		const canDispose2 = manager.canDispose(workingCopy);
 		assert.strictEqual(canDispose2, true);
 	});
 
-	test('pending saves join on shutdown', async () => {
+	(isWeb ? test.skip : test)('pending saves join on shutdown', async () => {
 		const resource1 = URI.file('/path/index_something1.txt');
 		const resource2 = URI.file('/path/index_something2.txt');
 

@@ -19,6 +19,11 @@
 .test-output-peek-tree .test-peek-item .name {
 	display: flex;
 	align-items: center;
+	flex-grow: 1;
+	gap: 0.15em;
+	width: 0;
+	overflow: hidden;
+	white-space: nowrap;
 }
 
 .test-explorer .test-item,

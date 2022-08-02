@@ -168,9 +168,7 @@ export class IssueMainService implements ICommonIssueService {
 					throw new Error(`Unexpected command source: ${from}`);
 			}
 
-			if (parentWindow) {
-				parentWindow.webContents.send('vscode:runAction', { id, from, args });
-			}
+			parentWindow?.webContents.send('vscode:runAction', { id, from, args });
 		});
 
 		validatedIpcMain.on('vscode:openExternal', (_: unknown, arg: string) => {
@@ -319,7 +317,7 @@ export class IssueMainService implements ICommonIssueService {
 	private createBrowserWindow<T>(position: IWindowState, ipcObjectUrl: IIPCObjectUrl<T>, options: IBrowserWindowOptions, windowKind: string): BrowserWindow {
 		const window = new BrowserWindow({
 			fullscreen: false,
-			skipTaskbar: true,
+			skipTaskbar: false,
 			resizable: true,
 			width: position.width,
 			height: position.height,
@@ -335,7 +333,6 @@ export class IssueMainService implements ICommonIssueService {
 				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
 				enableWebSQL: false,
 				spellcheck: false,
-				nativeWindowOpen: true,
 				zoomFactor: zoomLevelToZoomFactor(options.zoomLevel),
 				sandbox: true,
 				contextIsolation: true

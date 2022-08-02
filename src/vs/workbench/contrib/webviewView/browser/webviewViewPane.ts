@@ -169,6 +169,7 @@ export class WebviewViewPane extends ViewPane {
 		const webviewId = generateUuid();
 		const webview = this.webviewService.createWebviewOverlay({
 			id: webviewId,
+			providedId: this.id,
 			options: { purpose: WebviewContentPurpose.WebviewView },
 			contentOptions: {},
 			extension: this.extensionId ? { id: this.extensionId } : undefined
@@ -204,7 +205,7 @@ export class WebviewViewPane extends ViewPane {
 		this.withProgress(async () => {
 			await this.extensionService.activateByEvent(`onView:${this.id}`);
 
-			let self = this;
+			const self = this;
 			const webviewView: WebviewView = {
 				webview,
 				onDidChangeVisibility: this.onDidChangeBodyVisibility,

@@ -71,7 +71,7 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 
 		extensions = extensions.sort((e1, e2) => e1.identifier.id.localeCompare(e2.identifier.id));
 		let lastId: string | undefined = undefined;
-		for (let extension of extensions) {
+		for (const extension of extensions) {
 			if (lastId !== extension.identifier.id) {
 				lastId = extension.identifier.id;
 				output.log(getId(extension.manifest, showVersions));
@@ -223,8 +223,8 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 				output.log(version ? localize('installing with version', "Installing extension '{0}' v{1}...", id, version) : localize('installing', "Installing extension '{0}'...", id));
 			}
 
-			await this.extensionManagementService.installFromGallery(galleryExtension, { ...installOptions, installGivenVersion: !!version });
-			output.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed.", id, galleryExtension.version));
+			const local = await this.extensionManagementService.installFromGallery(galleryExtension, { ...installOptions, installGivenVersion: !!version });
+			output.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed.", id, local.manifest.version));
 			return manifest;
 		} catch (error) {
 			if (isCancellationError(error)) {

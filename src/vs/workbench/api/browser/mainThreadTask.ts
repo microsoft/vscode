@@ -9,7 +9,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import * as Types from 'vs/base/common/types';
 import * as Platform from 'vs/base/common/platform';
-import { IStringDictionary, forEach } from 'vs/base/common/collections';
+import { IStringDictionary } from 'vs/base/common/collections';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -333,7 +333,7 @@ namespace TaskDTO {
 			}
 		}
 		if (task.configurationProperties.problemMatchers) {
-			for (let matcher of task.configurationProperties.problemMatchers) {
+			for (const matcher of task.configurationProperties.problemMatchers) {
 				if (Types.isString(matcher)) {
 					result.problemMatchers.push(matcher);
 				}
@@ -342,7 +342,7 @@ namespace TaskDTO {
 		return result;
 	}
 
-	export function to(task: ITaskDTO | undefined, workspace: IWorkspaceContextService, executeOnly: boolean): ContributedTask | undefined {
+	export function to(task: ITaskDTO | undefined, workspace: IWorkspaceContextService, executeOnly: boolean, icon?: { id?: string; color?: string }, hide?: boolean): ContributedTask | undefined {
 		if (!task || (typeof task.name !== 'string')) {
 			return undefined;
 		}
@@ -382,7 +382,9 @@ namespace TaskDTO {
 				group: task.group,
 				isBackground: !!task.isBackground,
 				problemMatchers: task.problemMatchers.slice(),
-				detail: task.detail
+				detail: task.detail,
+				icon,
+				hide
 			}
 		);
 		return result;
@@ -432,7 +434,9 @@ export class MainThreadTask implements MainThreadTaskShape {
 				let resolvedDefinition: ITaskDefinitionDTO = execution.task!.definition;
 				if (execution.task?.execution && CustomExecutionDTO.is(execution.task.execution) && event.resolvedVariables) {
 					const dictionary: IStringDictionary<string> = {};
-					Array.from(event.resolvedVariables.entries()).forEach(entry => dictionary[entry[0]] = entry[1]);
+					for (const [key, value] of event.resolvedVariables.entries()) {
+						dictionary[key] = value;
+					}
 					resolvedDefinition = await this._configurationResolverService.resolveAnyAsync(task.getWorkspaceFolder(),
 						execution.task.definition, dictionary);
 				}
@@ -448,15 +452,15 @@ export class MainThreadTask implements MainThreadTaskShape {
 	}
 
 	public dispose(): void {
-		this._providers.forEach((value) => {
+		for (const value of this._providers.values()) {
 			value.disposable.dispose();
-		});
+		}
 		this._providers.clear();
 	}
 
 	$createTaskId(taskDTO: ITaskDTO): Promise<string> {
 		return new Promise((resolve, reject) => {
-			let task = TaskDTO.to(taskDTO, this._workspaceContextServer, true);
+			const task = TaskDTO.to(taskDTO, this._workspaceContextServer, true);
 			if (task) {
 				resolve(task._id);
 			} else {
@@ -470,7 +474,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 			provideTasks: (validTypes: IStringDictionary<boolean>) => {
 				return Promise.resolve(this._proxy.$provideTasks(handle, validTypes)).then((value) => {
 					const tasks: Task[] = [];
-					for (let dto of value.tasks) {
+					for (const dto of value.tasks) {
 						const task = TaskDTO.to(dto, this._workspaceContextServer, true);
 						if (task) {
 							tasks.push(task);
@@ -491,7 +495,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 					dto.name = ((dto.name === undefined) ? '' : dto.name); // Using an empty name causes the name to default to the one given by the provider.
 					return Promise.resolve(this._proxy.$resolveTask(handle, dto)).then(resolvedTask => {
 						if (resolvedTask) {
-							return TaskDTO.to(resolvedTask, this._workspaceContextServer, true);
+							return TaskDTO.to(resolvedTask, this._workspaceContextServer, true, task.configurationProperties.icon, task.configurationProperties.hide);
 						}
 
 						return undefined;
@@ -517,7 +521,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 	public $fetchTasks(filter?: ITaskFilterDTO): Promise<ITaskDTO[]> {
 		return this._taskService.tasks(TaskFilterDTO.to(filter)).then((tasks) => {
 			const result: ITaskDTO[] = [];
-			for (let task of tasks) {
+			for (const task of tasks) {
 				const item = TaskDTO.from(task);
 				if (item) {
 					result.push(item);
@@ -617,7 +621,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 	public $customExecutionComplete(id: string, result?: number): Promise<void> {
 		return new Promise<void>((resolve, reject) => {
 			this._taskService.getActiveTasks().then((tasks) => {
-				for (let task of tasks) {
+				for (const task of tasks) {
 					if (id === task._id) {
 						this._taskService.extensionCallbackTaskComplete(task, result).then((value) => {
 							resolve(undefined);
@@ -635,7 +639,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 	public $terminateTask(id: string): Promise<void> {
 		return new Promise<void>((resolve, reject) => {
 			this._taskService.getActiveTasks().then((tasks) => {
-				for (let task of tasks) {
+				for (const task of tasks) {
 					if (id === task._id) {
 						this._taskService.terminate(task).then((value) => {
 							resolve(undefined);
@@ -678,10 +682,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 				const vars: string[] = [];
 				toResolve.variables.forEach(item => vars.push(item));
 				return Promise.resolve(this._proxy.$resolveVariables(workspaceFolder.uri, { process: toResolve.process, variables: vars })).then(values => {
-					const partiallyResolvedVars = new Array<string>();
-					forEach(values.variables, (entry) => {
-						partiallyResolvedVars.push(entry.value);
-					});
+					const partiallyResolvedVars = Array.from(Object.values(values.variables));
 					return new Promise<IResolvedVariables | undefined>((resolve, reject) => {
 						this._configurationResolverService.resolveWithInteraction(workspaceFolder, partiallyResolvedVars, 'tasks', undefined, target).then(resolvedVars => {
 							if (!resolvedVars) {

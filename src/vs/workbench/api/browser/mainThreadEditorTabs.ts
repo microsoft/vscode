@@ -22,6 +22,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { isEqual } from 'vs/base/common/resources';
 import { isGroupEditorMoveEvent } from 'vs/workbench/common/editor/editorGroupModel';
+import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
+import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 
 interface TabInfo {
 	tab: IEditorTabDto;
@@ -89,6 +91,16 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 	}
 
 	private _editorInputToDto(editor: EditorInput): AnyInputDto {
+
+		if (editor instanceof MergeEditorInput) {
+			return {
+				kind: TabInputKind.TextMergeInput,
+				base: editor.base,
+				input1: editor.input1.uri,
+				input2: editor.input2.uri,
+				result: editor.resource
+			};
+		}
 
 		if (editor instanceof AbstractTextResourceEditorInput) {
 			return {
@@ -162,6 +174,14 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 			}
 		}
 
+		if (editor instanceof InteractiveEditorInput) {
+			return {
+				kind: TabInputKind.InteractiveEditorInput,
+				uri: editor.resource,
+				inputBoxUri: editor.inputResource
+			};
+		}
+
 		return { kind: TabInputKind.UnknownInput };
 	}
 
@@ -173,7 +193,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 	 */
 	private _generateTabId(editor: EditorInput, groupId: number) {
 		let resourceString: string | undefined;
-		// Properly get the reousrce and account for sideby side editors
+		// Properly get the resource and account for side by side editors
 		const resource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.BOTH });
 		if (resource instanceof URI) {
 			resourceString = resource.toString();
@@ -587,7 +607,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 			}
 		}
 		// Loop over keys of the groups map and call closeEditors
-		let results: boolean[] = [];
+		const results: boolean[] = [];
 		for (const [group, editors] of groups) {
 			results.push(await group.closeEditors(editors, { preserveFocus }));
 		}

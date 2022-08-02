@@ -77,14 +77,14 @@ class ConfiguationBuilder {
 	}
 
 	public task(name: string, command: string): CustomTaskBuilder {
-		let builder = new CustomTaskBuilder(this, name, command);
+		const builder = new CustomTaskBuilder(this, name, command);
 		this.builders.push(builder);
 		this.result.push(builder.result);
 		return builder;
 	}
 
 	public done(): void {
-		for (let builder of this.builders) {
+		for (const builder of this.builders) {
 			builder.done();
 		}
 	}
@@ -237,7 +237,7 @@ class CustomTaskBuilder {
 	}
 
 	public problemMatcher(): ProblemMatcherBuilder {
-		let builder = new ProblemMatcherBuilder(this);
+		const builder = new ProblemMatcherBuilder(this);
 		this.result.configurationProperties.problemMatchers!.push(builder.result);
 		return builder;
 	}
@@ -294,7 +294,7 @@ class ProblemMatcherBuilder {
 	}
 
 	public pattern(regExp: RegExp): PatternBuilder {
-		let builder = new PatternBuilder(this, regExp);
+		const builder = new PatternBuilder(this, regExp);
 		if (!this.result.pattern) {
 			this.result.pattern = builder.result;
 		}
@@ -377,19 +377,19 @@ class TasksMockContextKeyService extends MockContextKeyService {
 }
 
 function testDefaultProblemMatcher(external: IExternalTaskRunnerConfiguration, resolved: number) {
-	let reporter = new ProblemReporter();
-	let result = parse(workspaceFolder, workspace, Platform.platform, external, reporter, TaskConfigSource.TasksJson, new TasksMockContextKeyService());
+	const reporter = new ProblemReporter();
+	const result = parse(workspaceFolder, workspace, Platform.platform, external, reporter, TaskConfigSource.TasksJson, new TasksMockContextKeyService());
 	assert.ok(!reporter.receivedMessage);
 	assert.strictEqual(result.custom.length, 1);
-	let task = result.custom[0];
+	const task = result.custom[0];
 	assert.ok(task);
 	assert.strictEqual(task.configurationProperties.problemMatchers!.length, resolved);
 }
 
 function testConfiguration(external: IExternalTaskRunnerConfiguration, builder: ConfiguationBuilder): void {
 	builder.done();
-	let reporter = new ProblemReporter();
-	let result = parse(workspaceFolder, workspace, Platform.platform, external, reporter, TaskConfigSource.TasksJson, new TasksMockContextKeyService());
+	const reporter = new ProblemReporter();
+	const result = parse(workspaceFolder, workspace, Platform.platform, external, reporter, TaskConfigSource.TasksJson, new TasksMockContextKeyService());
 	if (reporter.receivedMessage) {
 		assert.ok(false, reporter.lastMessage);
 	}
@@ -413,8 +413,8 @@ class TaskGroupMap {
 	}
 
 	public static assert(actual: TaskGroupMap, expected: TaskGroupMap): void {
-		let actualKeys = Object.keys(actual._store);
-		let expectedKeys = Object.keys(expected._store);
+		const actualKeys = Object.keys(actual._store);
+		const expectedKeys = Object.keys(expected._store);
 		if (actualKeys.length === 0 && expectedKeys.length === 0) {
 			return;
 		}
@@ -422,14 +422,14 @@ class TaskGroupMap {
 		actualKeys.forEach(key => assert.ok(expected._store[key]));
 		expectedKeys.forEach(key => actual._store[key]);
 		actualKeys.forEach((key) => {
-			let actualTasks = actual._store[key];
-			let expectedTasks = expected._store[key];
+			const actualTasks = actual._store[key];
+			const expectedTasks = expected._store[key];
 			assert.strictEqual(actualTasks.length, expectedTasks.length);
 			if (actualTasks.length === 1) {
 				assert.strictEqual(actualTasks[0].configurationProperties.name, expectedTasks[0].configurationProperties.name);
 				return;
 			}
-			let expectedTaskMap: { [key: string]: boolean } = Object.create(null);
+			const expectedTaskMap: { [key: string]: boolean } = Object.create(null);
 			expectedTasks.forEach(task => expectedTaskMap[task.configurationProperties.name!] = true);
 			actualTasks.forEach(task => delete expectedTaskMap[task.configurationProperties.name!]);
 			assert.strictEqual(Object.keys(expectedTaskMap).length, 0);
@@ -439,7 +439,7 @@ class TaskGroupMap {
 
 function assertConfiguration(result: IParseResult, expected: Tasks.Task[]): void {
 	assert.ok(result.validationStatus.isOK());
-	let actual = result.custom;
+	const actual = result.custom;
 	assert.strictEqual(typeof actual, typeof expected);
 	if (!actual) {
 		return;
@@ -447,34 +447,34 @@ function assertConfiguration(result: IParseResult, expected: Tasks.Task[]): void
 
 	// We can't compare Ids since the parser uses UUID which are random
 	// So create a new map using the name.
-	let actualTasks: { [key: string]: Tasks.Task } = Object.create(null);
-	let actualId2Name: { [key: string]: string } = Object.create(null);
-	let actualTaskGroups = new TaskGroupMap();
+	const actualTasks: { [key: string]: Tasks.Task } = Object.create(null);
+	const actualId2Name: { [key: string]: string } = Object.create(null);
+	const actualTaskGroups = new TaskGroupMap();
 	actual.forEach(task => {
 		assert.ok(!actualTasks[task.configurationProperties.name!]);
 		actualTasks[task.configurationProperties.name!] = task;
 		actualId2Name[task._id] = task.configurationProperties.name!;
 
-		let taskId = Tasks.TaskGroup.from(task.configurationProperties.group)?._id;
+		const taskId = Tasks.TaskGroup.from(task.configurationProperties.group)?._id;
 		if (taskId) {
 			actualTaskGroups.add(taskId, task);
 		}
 	});
-	let expectedTasks: { [key: string]: Tasks.Task } = Object.create(null);
-	let expectedTaskGroup = new TaskGroupMap();
+	const expectedTasks: { [key: string]: Tasks.Task } = Object.create(null);
+	const expectedTaskGroup = new TaskGroupMap();
 	expected.forEach(task => {
 		assert.ok(!expectedTasks[task.configurationProperties.name!]);
 		expectedTasks[task.configurationProperties.name!] = task;
-		let taskId = Tasks.TaskGroup.from(task.configurationProperties.group)?._id;
+		const taskId = Tasks.TaskGroup.from(task.configurationProperties.group)?._id;
 		if (taskId) {
 			expectedTaskGroup.add(taskId, task);
 		}
 	});
-	let actualKeys = Object.keys(actualTasks);
+	const actualKeys = Object.keys(actualTasks);
 	assert.strictEqual(actualKeys.length, expected.length);
 	actualKeys.forEach((key) => {
-		let actualTask = actualTasks[key];
-		let expectedTask = expectedTasks[key];
+		const actualTask = actualTasks[key];
+		const expectedTask = expectedTasks[key];
 		assert.ok(expectedTask);
 		assertTask(actualTask, expectedTask);
 	});
@@ -569,8 +569,8 @@ function assertProblemMatcher(actual: string | ProblemMatcher, expected: string 
 function assertProblemPatterns(actual: IProblemPattern | IProblemPattern[], expected: IProblemPattern | IProblemPattern[]) {
 	assert.strictEqual(typeof actual, typeof expected);
 	if (Array.isArray(actual)) {
-		let actuals = <IProblemPattern[]>actual;
-		let expecteds = <IProblemPattern[]>expected;
+		const actuals = <IProblemPattern[]>actual;
+		const expecteds = <IProblemPattern[]>expected;
 		assert.strictEqual(actuals.length, expecteds.length);
 		for (let i = 0; i < actuals.length; i++) {
 			assertProblemPattern(actuals[i], expecteds[i]);
@@ -599,7 +599,7 @@ function assertProblemPattern(actual: IProblemPattern, expected: IProblemPattern
 
 suite('Tasks version 0.1.0', () => {
 	test('tasks: all default', () => {
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('tsc', 'tsc').
 			group(Tasks.TaskGroup.Build).
 			command().suppressTaskName(true);
@@ -611,7 +611,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: global isShellCommand', () => {
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('tsc', 'tsc').
 			group(Tasks.TaskGroup.Build).
 			command().suppressTaskName(true).
@@ -626,7 +626,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: global show output silent', () => {
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.
 			task('tsc', 'tsc').
 			group(Tasks.TaskGroup.Build).
@@ -643,7 +643,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: global promptOnClose default', () => {
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('tsc', 'tsc').
 			group(Tasks.TaskGroup.Build).
 			command().suppressTaskName(true);
@@ -658,7 +658,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: global promptOnClose', () => {
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('tsc', 'tsc').
 			group(Tasks.TaskGroup.Build).
 			promptOnClose(false).
@@ -674,7 +674,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: global promptOnClose default watching', () => {
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('tsc', 'tsc').
 			group(Tasks.TaskGroup.Build).
 			isBackground(true).
@@ -691,7 +691,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: global show output never', () => {
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.
 			task('tsc', 'tsc').
 			group(Tasks.TaskGroup.Build).
@@ -708,7 +708,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: global echo Command', () => {
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.
 			task('tsc', 'tsc').
 			group(Tasks.TaskGroup.Build).
@@ -726,7 +726,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: global args', () => {
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.
 			task('tsc', 'tsc').
 			group(Tasks.TaskGroup.Build).
@@ -745,7 +745,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: options - cwd', () => {
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.
 			task('tsc', 'tsc').
 			group(Tasks.TaskGroup.Build).
@@ -766,7 +766,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: options - env', () => {
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.
 			task('tsc', 'tsc').
 			group(Tasks.TaskGroup.Build).
@@ -787,13 +787,13 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: os windows', () => {
-		let name: string = Platform.isWindows ? 'tsc.win' : 'tsc';
-		let builder = new ConfiguationBuilder();
+		const name: string = Platform.isWindows ? 'tsc.win' : 'tsc';
+		const builder = new ConfiguationBuilder();
 		builder.
 			task(name, name).
 			group(Tasks.TaskGroup.Build).
 			command().suppressTaskName(true);
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			windows: {
@@ -804,14 +804,14 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: os windows & global isShellCommand', () => {
-		let name: string = Platform.isWindows ? 'tsc.win' : 'tsc';
-		let builder = new ConfiguationBuilder();
+		const name: string = Platform.isWindows ? 'tsc.win' : 'tsc';
+		const builder = new ConfiguationBuilder();
 		builder.
 			task(name, name).
 			group(Tasks.TaskGroup.Build).
 			command().suppressTaskName(true).
 			runtime(Tasks.RuntimeType.Shell);
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			isShellCommand: true,
@@ -823,13 +823,13 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: os mac', () => {
-		let name: string = Platform.isMacintosh ? 'tsc.osx' : 'tsc';
-		let builder = new ConfiguationBuilder();
+		const name: string = Platform.isMacintosh ? 'tsc.osx' : 'tsc';
+		const builder = new ConfiguationBuilder();
 		builder.
 			task(name, name).
 			group(Tasks.TaskGroup.Build).
 			command().suppressTaskName(true);
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			osx: {
@@ -840,13 +840,13 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: os linux', () => {
-		let name: string = Platform.isLinux ? 'tsc.linux' : 'tsc';
-		let builder = new ConfiguationBuilder();
+		const name: string = Platform.isLinux ? 'tsc.linux' : 'tsc';
+		const builder = new ConfiguationBuilder();
 		builder.
 			task(name, name).
 			group(Tasks.TaskGroup.Build).
 			command().suppressTaskName(true);
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			linux: {
@@ -857,13 +857,13 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: overwrite showOutput', () => {
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.
 			task('tsc', 'tsc').
 			group(Tasks.TaskGroup.Build).
 			command().suppressTaskName(true).
 			presentation().reveal(Platform.isWindows ? Tasks.RevealKind.Always : Tasks.RevealKind.Never);
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			showOutput: 'never',
@@ -875,14 +875,14 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: overwrite echo Command', () => {
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.
 			task('tsc', 'tsc').
 			group(Tasks.TaskGroup.Build).
 			command().suppressTaskName(true).
 			presentation().
 			echo(Platform.isWindows ? false : true);
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			echoCommand: true,
@@ -894,7 +894,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: global problemMatcher one', () => {
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			problemMatcher: '$msCompile'
@@ -903,7 +903,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: global problemMatcher two', () => {
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			problemMatcher: ['$eslint-compact', '$msCompile']
@@ -912,7 +912,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: task definition', () => {
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			tasks: [
@@ -921,13 +921,13 @@ suite('Tasks version 0.1.0', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('taskName', 'tsc').command().args(['$name']);
 		testConfiguration(external, builder);
 	});
 
 	test('tasks: build task', () => {
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			tasks: [
@@ -937,13 +937,13 @@ suite('Tasks version 0.1.0', () => {
 				} as ICustomTask
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('taskName', 'tsc').group(Tasks.TaskGroup.Build).command().args(['$name']);
 		testConfiguration(external, builder);
 	});
 
 	test('tasks: default build task', () => {
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			tasks: [
@@ -952,13 +952,13 @@ suite('Tasks version 0.1.0', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('build', 'tsc').group(Tasks.TaskGroup.Build).command().args(['$name']);
 		testConfiguration(external, builder);
 	});
 
 	test('tasks: test task', () => {
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			tasks: [
@@ -968,13 +968,13 @@ suite('Tasks version 0.1.0', () => {
 				} as ICustomTask
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('taskName', 'tsc').group(Tasks.TaskGroup.Test).command().args(['$name']);
 		testConfiguration(external, builder);
 	});
 
 	test('tasks: default test task', () => {
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			tasks: [
@@ -983,13 +983,13 @@ suite('Tasks version 0.1.0', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('test', 'tsc').group(Tasks.TaskGroup.Test).command().args(['$name']);
 		testConfiguration(external, builder);
 	});
 
 	test('tasks: task with values', () => {
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			tasks: [
@@ -1002,7 +1002,7 @@ suite('Tasks version 0.1.0', () => {
 				} as ICustomTask
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('test', 'tsc').
 			group(Tasks.TaskGroup.Test).
 			isBackground(true).
@@ -1015,7 +1015,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: task inherits global values', () => {
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			showOutput: 'never',
@@ -1026,7 +1026,7 @@ suite('Tasks version 0.1.0', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('test', 'tsc').
 			group(Tasks.TaskGroup.Test).
 			command().args(['$name']).presentation().
@@ -1036,7 +1036,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: problem matcher default', () => {
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			tasks: [
@@ -1050,7 +1050,7 @@ suite('Tasks version 0.1.0', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('taskName', 'tsc').
 			command().args(['$name']).parent.
 			problemMatcher().pattern(/abc/);
@@ -1058,7 +1058,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: problem matcher .* regular expression', () => {
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			tasks: [
@@ -1072,7 +1072,7 @@ suite('Tasks version 0.1.0', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('taskName', 'tsc').
 			command().args(['$name']).parent.
 			problemMatcher().pattern(/.*/);
@@ -1080,7 +1080,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: problem matcher owner, applyTo, severity and fileLocation', () => {
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			tasks: [
@@ -1098,7 +1098,7 @@ suite('Tasks version 0.1.0', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('taskName', 'tsc').
 			command().args(['$name']).parent.
 			problemMatcher().
@@ -1112,7 +1112,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: problem matcher fileLocation and filePrefix', () => {
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			tasks: [
@@ -1127,7 +1127,7 @@ suite('Tasks version 0.1.0', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('taskName', 'tsc').
 			command().args(['$name']).parent.
 			problemMatcher().
@@ -1138,7 +1138,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: problem pattern location', () => {
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			tasks: [
@@ -1157,7 +1157,7 @@ suite('Tasks version 0.1.0', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('taskName', 'tsc').
 			command().args(['$name']).parent.
 			problemMatcher().
@@ -1166,7 +1166,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: problem pattern line & column', () => {
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			tasks: [
@@ -1188,7 +1188,7 @@ suite('Tasks version 0.1.0', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('taskName', 'tsc').
 			command().args(['$name']).parent.
 			problemMatcher().
@@ -1199,7 +1199,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: prompt on close default', () => {
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			tasks: [
@@ -1208,7 +1208,7 @@ suite('Tasks version 0.1.0', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('taskName', 'tsc').
 			promptOnClose(true).
 			command().args(['$name']);
@@ -1216,7 +1216,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: prompt on close watching', () => {
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			tasks: [
@@ -1226,7 +1226,7 @@ suite('Tasks version 0.1.0', () => {
 				} as ICustomTask
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('taskName', 'tsc').
 			isBackground(true).promptOnClose(false).
 			command().args(['$name']);
@@ -1234,7 +1234,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: prompt on close set', () => {
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			tasks: [
@@ -1244,7 +1244,7 @@ suite('Tasks version 0.1.0', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('taskName', 'tsc').
 			promptOnClose(false).
 			command().args(['$name']);
@@ -1252,7 +1252,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: task selector set', () => {
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			taskSelector: '/t:',
@@ -1262,7 +1262,7 @@ suite('Tasks version 0.1.0', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('taskName', 'tsc').
 			command().
 			taskSelector('/t:').
@@ -1271,7 +1271,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: suppress task name set', () => {
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			suppressTaskName: false,
@@ -1282,14 +1282,14 @@ suite('Tasks version 0.1.0', () => {
 				} as ICustomTask
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('taskName', 'tsc').
 			command().suppressTaskName(true);
 		testConfiguration(external, builder);
 	});
 
 	test('tasks: suppress task name inherit', () => {
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			suppressTaskName: true,
@@ -1299,14 +1299,14 @@ suite('Tasks version 0.1.0', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('taskName', 'tsc').
 			command().suppressTaskName(true);
 		testConfiguration(external, builder);
 	});
 
 	test('tasks: two tasks', () => {
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			tasks: [
@@ -1318,7 +1318,7 @@ suite('Tasks version 0.1.0', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('taskNameOne', 'tsc').
 			command().args(['$name']);
 		builder.task('taskNameTwo', 'tsc').
@@ -1327,7 +1327,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: with command', () => {
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			tasks: [
 				{
@@ -1336,13 +1336,13 @@ suite('Tasks version 0.1.0', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('taskNameOne', 'tsc').command().suppressTaskName(true);
 		testConfiguration(external, builder);
 	});
 
 	test('tasks: two tasks with command', () => {
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			tasks: [
 				{
@@ -1355,14 +1355,14 @@ suite('Tasks version 0.1.0', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('taskNameOne', 'tsc').command().suppressTaskName(true);
 		builder.task('taskNameTwo', 'dir').command().suppressTaskName(true);
 		testConfiguration(external, builder);
 	});
 
 	test('tasks: with command and args', () => {
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			tasks: [
 				{
@@ -1379,15 +1379,15 @@ suite('Tasks version 0.1.0', () => {
 				} as ICustomTask
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('taskNameOne', 'tsc').command().suppressTaskName(true).
 			runtime(Tasks.RuntimeType.Shell).args(['arg']).options({ cwd: 'cwd', env: { env: 'env' } });
 		testConfiguration(external, builder);
 	});
 
 	test('tasks: with command os specific', () => {
-		let name: string = Platform.isWindows ? 'tsc.win' : 'tsc';
-		let external: IExternalTaskRunnerConfiguration = {
+		const name: string = Platform.isWindows ? 'tsc.win' : 'tsc';
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			tasks: [
 				{
@@ -1399,14 +1399,14 @@ suite('Tasks version 0.1.0', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('taskNameOne', name).command().suppressTaskName(true);
 		testConfiguration(external, builder);
 	});
 
 	test('tasks: with Windows specific args', () => {
-		let args: string[] = Platform.isWindows ? ['arg1', 'arg2'] : ['arg1'];
-		let external: IExternalTaskRunnerConfiguration = {
+		const args: string[] = Platform.isWindows ? ['arg1', 'arg2'] : ['arg1'];
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			tasks: [
 				{
@@ -1419,14 +1419,14 @@ suite('Tasks version 0.1.0', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('tsc', 'tsc').command().suppressTaskName(true).args(args);
 		testConfiguration(external, builder);
 	});
 
 	test('tasks: with Linux specific args', () => {
-		let args: string[] = Platform.isLinux ? ['arg1', 'arg2'] : ['arg1'];
-		let external: IExternalTaskRunnerConfiguration = {
+		const args: string[] = Platform.isLinux ? ['arg1', 'arg2'] : ['arg1'];
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			tasks: [
 				{
@@ -1439,13 +1439,13 @@ suite('Tasks version 0.1.0', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('tsc', 'tsc').command().suppressTaskName(true).args(args);
 		testConfiguration(external, builder);
 	});
 
 	test('tasks: global command and task command properties', () => {
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			tasks: [
@@ -1455,13 +1455,13 @@ suite('Tasks version 0.1.0', () => {
 				} as ICustomTask
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('taskNameOne', 'tsc').command().runtime(Tasks.RuntimeType.Shell).args(['$name']);
 		testConfiguration(external, builder);
 	});
 
 	test('tasks: global and tasks args', () => {
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			args: ['global'],
@@ -1472,13 +1472,13 @@ suite('Tasks version 0.1.0', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('taskNameOne', 'tsc').command().args(['global', '$name', 'local']);
 		testConfiguration(external, builder);
 	});
 
 	test('tasks: global and tasks args with task selector', () => {
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			args: ['global'],
@@ -1490,7 +1490,7 @@ suite('Tasks version 0.1.0', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('taskNameOne', 'tsc').command().taskSelector('/t:').args(['global', '/t:taskNameOne', 'local']);
 		testConfiguration(external, builder);
 	});
@@ -1498,7 +1498,7 @@ suite('Tasks version 0.1.0', () => {
 
 suite('Tasks version 2.0.0', () => {
 	test.skip('Build workspace task', () => {
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '2.0.0',
 			tasks: [
 				{
@@ -1509,7 +1509,7 @@ suite('Tasks version 2.0.0', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('dir', 'dir').
 			group(Tasks.TaskGroup.Build).
 			command().suppressTaskName(true).
@@ -1518,13 +1518,13 @@ suite('Tasks version 2.0.0', () => {
 		testConfiguration(external, builder);
 	});
 	test('Global group none', () => {
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '2.0.0',
 			command: 'dir',
 			type: 'shell',
 			group: 'none'
 		};
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('dir', 'dir').
 			command().suppressTaskName(true).
 			runtime(Tasks.RuntimeType.Shell).
@@ -1532,13 +1532,13 @@ suite('Tasks version 2.0.0', () => {
 		testConfiguration(external, builder);
 	});
 	test.skip('Global group build', () => {
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '2.0.0',
 			command: 'dir',
 			type: 'shell',
 			group: 'build'
 		};
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('dir', 'dir').
 			group(Tasks.TaskGroup.Build).
 			command().suppressTaskName(true).
@@ -1547,14 +1547,14 @@ suite('Tasks version 2.0.0', () => {
 		testConfiguration(external, builder);
 	});
 	test.skip('Global group default build', () => {
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '2.0.0',
 			command: 'dir',
 			type: 'shell',
 			group: { kind: 'build', isDefault: true }
 		};
-		let builder = new ConfiguationBuilder();
-		let taskGroup = Tasks.TaskGroup.Build;
+		const builder = new ConfiguationBuilder();
+		const taskGroup = Tasks.TaskGroup.Build;
 		taskGroup.isDefault = true;
 		builder.task('dir', 'dir').
 			group(taskGroup).
@@ -1564,7 +1564,7 @@ suite('Tasks version 2.0.0', () => {
 		testConfiguration(external, builder);
 	});
 	test('Local group none', () => {
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '2.0.0',
 			tasks: [
 				{
@@ -1575,7 +1575,7 @@ suite('Tasks version 2.0.0', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('dir', 'dir').
 			command().suppressTaskName(true).
 			runtime(Tasks.RuntimeType.Shell).
@@ -1583,7 +1583,7 @@ suite('Tasks version 2.0.0', () => {
 		testConfiguration(external, builder);
 	});
 	test.skip('Local group build', () => {
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '2.0.0',
 			tasks: [
 				{
@@ -1594,7 +1594,7 @@ suite('Tasks version 2.0.0', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('dir', 'dir').
 			group(Tasks.TaskGroup.Build).
 			command().suppressTaskName(true).
@@ -1603,7 +1603,7 @@ suite('Tasks version 2.0.0', () => {
 		testConfiguration(external, builder);
 	});
 	test.skip('Local group default build', () => {
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '2.0.0',
 			tasks: [
 				{
@@ -1614,8 +1614,8 @@ suite('Tasks version 2.0.0', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
-		let taskGroup = Tasks.TaskGroup.Build;
+		const builder = new ConfiguationBuilder();
+		const taskGroup = Tasks.TaskGroup.Build;
 		taskGroup.isDefault = true;
 		builder.task('dir', 'dir').
 			group(taskGroup).
@@ -1625,7 +1625,7 @@ suite('Tasks version 2.0.0', () => {
 		testConfiguration(external, builder);
 	});
 	test('Arg overwrite', () => {
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '2.0.0',
 			tasks: [
 				{
@@ -1653,7 +1653,7 @@ suite('Tasks version 2.0.0', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		if (Platform.isWindows) {
 			builder.task('echo', 'echo').
 				command().suppressTaskName(true).args(['windows']).
@@ -1678,7 +1678,7 @@ suite('Tasks version 2.0.0', () => {
 
 suite('Bugs / regression tests', () => {
 	(Platform.isLinux ? test.skip : test)('Bug 19548', () => {
-		let external: IExternalTaskRunnerConfiguration = {
+		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			windows: {
 				command: 'powershell',
@@ -1722,7 +1722,7 @@ suite('Bugs / regression tests', () => {
 				]
 			}
 		};
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		if (Platform.isWindows) {
 			builder.task('composeForDebug', 'powershell').
 				command().suppressTaskName(true).
@@ -1741,7 +1741,7 @@ suite('Bugs / regression tests', () => {
 	});
 
 	test('Bug 28489', () => {
-		let external = {
+		const external = {
 			version: '0.1.0',
 			command: '',
 			isShellCommand: true,
@@ -1757,7 +1757,7 @@ suite('Bugs / regression tests', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
+		const builder = new ConfiguationBuilder();
 		builder.task('build', 'bash').
 			group(Tasks.TaskGroup.Build).
 			command().suppressTaskName(true).

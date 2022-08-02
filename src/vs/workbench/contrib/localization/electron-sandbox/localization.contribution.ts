@@ -11,7 +11,7 @@ import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/exte
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { IExtensionManagementService, IExtensionGalleryService, IGalleryExtension, InstallOperation, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
 import Severity from 'vs/base/common/severity';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -77,7 +77,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 						}],
 						{
 							sticky: true,
-							neverShowAgain: { id: 'langugage.update.donotask', isSecondary: true }
+							neverShowAgain: { id: 'langugage.update.donotask', isSecondary: true, scope: NeverShowAgainScope.APPLICATION }
 						}
 					);
 				}
@@ -88,7 +88,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 	private checkAndInstall(): void {
 		const language = platform.language;
 		const locale = platform.locale;
-		const languagePackSuggestionIgnoreList = <string[]>JSON.parse(this.storageService.get(LANGUAGEPACK_SUGGESTION_IGNORE_STORAGE_KEY, StorageScope.GLOBAL, '[]'));
+		const languagePackSuggestionIgnoreList = <string[]>JSON.parse(this.storageService.get(LANGUAGEPACK_SUGGESTION_IGNORE_STORAGE_KEY, StorageScope.APPLICATION, '[]'));
 
 		if (!this.galleryService.isEnabled()) {
 			return;
@@ -182,7 +182,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 										this.storageService.store(
 											LANGUAGEPACK_SUGGESTION_IGNORE_STORAGE_KEY,
 											JSON.stringify(languagePackSuggestionIgnoreList),
-											StorageScope.GLOBAL,
+											StorageScope.APPLICATION,
 											StorageTarget.USER
 										);
 										logUserReaction('neverShowAgain');

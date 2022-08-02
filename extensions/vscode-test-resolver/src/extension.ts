@@ -25,7 +25,7 @@ let outputChannel: vscode.OutputChannel;
 export function activate(context: vscode.ExtensionContext) {
 
 	let connectionPaused = false;
-	let connectionPausedEvent = new vscode.EventEmitter<boolean>();
+	const connectionPausedEvent = new vscode.EventEmitter<boolean>();
 
 	function doResolve(_authority: string, progress: vscode.Progress<{ message?: string; increment?: number }>): Promise<vscode.ResolvedAuthority> {
 		if (connectionPaused) {
@@ -159,7 +159,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 					let isDisconnected = false;
 					const handleConnectionPause = () => {
-						let newIsDisconnected = connectionPaused;
+						const newIsDisconnected = connectionPaused;
 						if (isDisconnected !== newIsDisconnected) {
 							outputChannel.appendLine(`Connection state: ${newIsDisconnected ? 'open' : 'paused'}`);
 							isDisconnected = newIsDisconnected;

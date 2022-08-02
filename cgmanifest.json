@@ -6,7 +6,7 @@
 				"git": {
 					"name": "chromium",
 					"repositoryUrl": "https://chromium.googlesource.com/chromium/src",
-					"commitHash": "e2aa76f05f3a6ccadbf43e37f5dfc195cc090b6a"
+					"commitHash": "59f4a82f7cf9fd0397aa7bf0273bf5b62433c5da"
 				}
 			},
 			"licenseDetail": [
@@ -40,7 +40,7 @@
 				"SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."
 			],
 			"isOnlyProductionDependency": true,
-			"version": "98.0.4758.141"
+			"version": "100.0.4896.160"
 		},
 		{
 			"component": {
@@ -48,11 +48,11 @@
 				"git": {
 					"name": "nodejs",
 					"repositoryUrl": "https://github.com/nodejs/node",
-					"commitHash": "40ecd5601193c316e62e9216e8a4259130686208"
+					"commitHash": "acb71eab779fb56bf70e8a9e0cb2e82a089a87de"
 				}
 			},
 			"isOnlyProductionDependency": true,
-			"version": "16.13.0"
+			"version": "16.13.2"
 		},
 		{
 			"component": {
@@ -60,12 +60,12 @@
 				"git": {
 					"name": "electron",
 					"repositoryUrl": "https://github.com/electron/electron",
-					"commitHash": "66dd03293be5c6c7a06e1517bb80100030973be6"
+					"commitHash": "6165f6afc9af6f9ab4e32f4a7a8b0818f11e766a"
 				}
 			},
 			"isOnlyProductionDependency": true,
 			"license": "MIT",
-			"version": "17.4.7"
+			"version": "18.3.5"
 		},
 		{
 			"component": {
@@ -539,6 +539,40 @@
 			"isOnlyProductionDependency": true,
 			"license": "MIT",
 			"version": "0.10.0"
+		},
+		{
+			"name": "@vscode/win32-app-container-tokens",
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "vscode-win32-app-container-tokens",
+					"repositoryUrl": "https://github.com/microsoft/vscode-win32-app-container-tokens",
+					"commitHash": "5b871f95fd9cb8efa8ee9a80600510d5e5339137"
+				}
+			},
+			"licenseDetail":[
+				"MIT License",
+				"",
+				"Copyright (c) Microsoft Corporation.",
+				"",
+				"Permission is hereby granted, free of charge, to any person obtaining a copy",
+				"of this software and associated documentation files (the \"Software\"), to deal",
+				"in the Software without restriction, including without limitation the rights",
+				"to use, copy, modify, merge, publish, distribute, sublicense, and/or sell",
+				"copies of the Software, and to permit persons to whom the Software is",
+				"furnished to do so, subject to the following conditions:",
+				"",
+				"The above copyright notice and this permission notice shall be included in all",
+				"copies or substantial portions of the Software.",
+				"",
+				"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR",
+				"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,",
+				"FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE",
+				"AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER",
+				"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,",
+				"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE",
+				"SOFTWARE"
+			]
 		}
 	],
 	"version": 1

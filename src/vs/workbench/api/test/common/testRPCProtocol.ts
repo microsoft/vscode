@@ -86,7 +86,7 @@ export class TestRPCProtocol implements IExtHostContext, IExtHostRpcService {
 	}
 
 	private _createProxy<T>(proxyId: string): T {
-		let handler = {
+		const handler = {
 			get: (target: any, name: PropertyKey) => {
 				if (typeof name === 'string' && !target[name] && name.charCodeAt(0) === CharCode.DollarSign) {
 					target[name] = (...myArgs: any[]) => {
@@ -116,7 +116,7 @@ export class TestRPCProtocol implements IExtHostContext, IExtHostRpcService {
 			const wireArgs = simulateWireTransfer(args);
 			let p: Promise<any>;
 			try {
-				let result = (<Function>instance[path]).apply(instance, wireArgs);
+				const result = (<Function>instance[path]).apply(instance, wireArgs);
 				p = isThenable(result) ? result : Promise.resolve(result);
 			} catch (err) {
 				p = Promise.reject(err);

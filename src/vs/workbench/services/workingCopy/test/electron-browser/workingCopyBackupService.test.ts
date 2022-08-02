@@ -135,13 +135,13 @@ flakySuite('WorkingCopyBackupService', () => {
 
 	let service: NodeTestWorkingCopyBackupService;
 
-	let workspaceResource = URI.file(isWindows ? 'c:\\workspace' : '/workspace');
-	let fooFile = URI.file(isWindows ? 'c:\\Foo' : '/Foo');
-	let customFile = URI.parse('customScheme://some/path');
-	let customFileWithFragment = URI.parse('customScheme2://some/path#fragment');
-	let barFile = URI.file(isWindows ? 'c:\\Bar' : '/Bar');
-	let fooBarFile = URI.file(isWindows ? 'c:\\Foo Bar' : '/Foo Bar');
-	let untitledFile = URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
+	const workspaceResource = URI.file(isWindows ? 'c:\\workspace' : '/workspace');
+	const fooFile = URI.file(isWindows ? 'c:\\Foo' : '/Foo');
+	const customFile = URI.parse('customScheme://some/path');
+	const customFileWithFragment = URI.parse('customScheme2://some/path#fragment');
+	const barFile = URI.file(isWindows ? 'c:\\Bar' : '/Bar');
+	const fooBarFile = URI.file(isWindows ? 'c:\\Foo Bar' : '/Foo Bar');
+	const untitledFile = URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
 
 	setup(async () => {
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'workingcopybackupservice');
@@ -401,7 +401,7 @@ flakySuite('WorkingCopyBackupService', () => {
 		});
 
 		test('text file with whitespace in name and type (with meta)', async () => {
-			let fileWithSpace = URI.file(isWindows ? 'c:\\Foo \n Bar' : '/Foo \n Bar');
+			const fileWithSpace = URI.file(isWindows ? 'c:\\Foo \n Bar' : '/Foo \n Bar');
 			const identifier = toTypedWorkingCopyId(fileWithSpace, ' test id \n');
 			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
 			const meta = { etag: '678 \n k', orphaned: true };
@@ -414,7 +414,7 @@ flakySuite('WorkingCopyBackupService', () => {
 		});
 
 		test('text file with unicode character in name and type (with meta)', async () => {
-			let fileWithUnicode = URI.file(isWindows ? 'c:\\so𒀅meࠄ' : '/so𒀅meࠄ');
+			const fileWithUnicode = URI.file(isWindows ? 'c:\\so𒀅meࠄ' : '/so𒀅meࠄ');
 			const identifier = toTypedWorkingCopyId(fileWithUnicode, ' test so𒀅meࠄ id \n');
 			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
 			const meta = { etag: '678so𒀅meࠄ', orphaned: true };

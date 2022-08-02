@@ -51,7 +51,7 @@ import * as utils from '../utils';
 		utils.disposeAll(disposables);
 		disposables.length = 0;
 
-		for (let doc of vscode.workspace.notebookDocuments) {
+		for (const doc of vscode.workspace.notebookDocuments) {
 			assert.strictEqual(doc.isDirty, false, doc.uri.toString());
 		}
 	});

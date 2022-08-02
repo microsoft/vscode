@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, BrowserWindowConstructorOptions, Display, Event, nativeImage, NativeImage, Rectangle, screen, SegmentedControlSegment, systemPreferences, TouchBar, TouchBarSegmentedControl } from 'electron';
+import { app, BrowserWindow, BrowserWindowConstructorOptions, Display, Event, nativeImage, NativeImage, Point, Rectangle, screen, SegmentedControlSegment, systemPreferences, TouchBar, TouchBarSegmentedControl } from 'electron';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -18,7 +18,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ISerializableCommandAction } from 'vs/platform/action/common/action';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
@@ -29,7 +29,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
 import { resolveMarketplaceHeaders } from 'vs/platform/externalServices/common/marketplace';
-import { IGlobalStorageMainService, IStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
+import { IApplicationStorageMainService, IStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
@@ -40,6 +40,9 @@ import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electro
 import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState } from 'vs/platform/window/electron-main/window';
 import { Color } from 'vs/base/common/color';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
+import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { revive } from 'vs/base/common/marshalling';
+import product from 'vs/platform/product/common/product';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -88,6 +91,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private readonly _onDidSignalReady = this._register(new Emitter<void>());
 	readonly onDidSignalReady = this._onDidSignalReady.event;
 
+	private readonly _onDidTriggerSystemContextMenu = this._register(new Emitter<{ x: number; y: number }>());
+	readonly onDidTriggerSystemContextMenu = this._onDidTriggerSystemContextMenu.event;
+
 	private readonly _onDidClose = this._register(new Emitter<void>());
 	readonly onDidClose = this._onDidClose.event;
 
@@ -112,13 +118,12 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	get openedWorkspace(): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined { return this._config?.workspace; }
 
+	get profile(): IUserDataProfile | undefined { return this.config ? this.userDataProfilesService.getProfile(this.config.workspace ?? 'empty-window', revive(this.config.profiles.current)) : undefined; }
+
 	get remoteAuthority(): string | undefined { return this._config?.remoteAuthority; }
 
 	private _config: INativeWindowConfiguration | undefined;
 	get config(): INativeWindowConfiguration | undefined { return this._config; }
-
-	private hiddenTitleBarStyle: boolean | undefined;
-	get hasHiddenTitleBarStyle(): boolean { return !!this.hiddenTitleBarStyle; }
 
 	get isExtensionDevelopmentHost(): boolean { return !!(this._config?.extensionDevelopmentPath); }
 
@@ -134,6 +139,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private representedFilename: string | undefined;
 	private documentEdited: boolean | undefined;
+
+	private customTrafficLightPosition: boolean | undefined;
+	private defaultTrafficLightPosition: Point | undefined;
 
 	private readonly whenReadyCallbacks: { (window: ICodeWindow): void }[] = [];
 
@@ -151,8 +159,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@IPolicyService private readonly policyService: IPolicyService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IFileService private readonly fileService: IFileService,
-		@IGlobalStorageMainService private readonly globalStorageMainService: IGlobalStorageMainService,
+		@IApplicationStorageMainService private readonly applicationStorageMainService: IApplicationStorageMainService,
 		@IStorageMainService private readonly storageMainService: IStorageMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
@@ -182,6 +191,13 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 			const workbenchTransparency = this.configurationService.getValue('workbench.transparency');
 
+			let useSandbox = false;
+			if (typeof windowSettings?.experimental?.useSandbox === 'boolean') {
+				useSandbox = windowSettings.experimental.useSandbox;
+			} else {
+				useSandbox = typeof product.quality === 'string' && product.quality !== 'stable';
+			}
+
 			const options: BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } = {
 				width: this.windowState.width,
 				height: this.windowState.height,
@@ -200,12 +216,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
 					enableWebSQL: false,
 					spellcheck: false,
-					nativeWindowOpen: true,
 					zoomFactor: zoomLevelToZoomFactor(windowSettings?.zoomLevel),
 					// Enable experimental css highlight api https://chromestatus.com/feature/5436441440026624
 					// Refs https://github.com/microsoft/vscode/issues/140098
 					enableBlinkFeatures: 'HighlightAPI',
-					...this.environmentMainService.sandbox ?
+					...useSandbox ?
 
 						// Sandbox
 						{
@@ -250,19 +265,21 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			const useCustomTitleStyle = getTitleBarStyle(this.configurationService) === 'custom';
 			if (useCustomTitleStyle) {
 				options.titleBarStyle = 'hidden';
-				this.hiddenTitleBarStyle = true;
 				if (!isMacintosh) {
 					options.frame = false;
 				}
 
 				if (useWindowControlsOverlay(this.configurationService, this.environmentMainService)) {
-					// This logic will not perfectly guess the right colors to use on initialization,
-					// but prefer to keep things simple as it is temporary and not noticeable
+
+					// This logic will not perfectly guess the right colors
+					// to use on initialization, but prefer to keep things
+					// simple as it is temporary and not noticeable
+
 					const titleBarColor = this.themeMainService.getWindowSplash()?.colorInfo.titleBarBackground ?? this.themeMainService.getBackgroundColor();
 					const symbolColor = Color.fromHex(titleBarColor).isDarker() ? '#FFFFFF' : '#000000';
 
 					options.titleBarOverlay = {
-						height: 29, // The smallest size of the title bar on windows accounting for the border on windows 11
+						height: 29, // the smallest size of the title bar on windows accounting for the border on windows 11
 						color: titleBarColor,
 						symbolColor
 					};
@@ -276,30 +293,75 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 			this._id = this._win.id;
 
-			// Open devtools if instructed from command line args
-			if (this.environmentMainService.args['open-devtools'] === true) {
-				this._win.webContents.openDevTools();
+			if (isMacintosh && useCustomTitleStyle) {
+				this.updateTrafficLightPosition(); // adjust traffic light position depending on command center
 			}
 
 			if (isMacintosh && useCustomTitleStyle) {
 				this._win.setSheetOffset(22); // offset dialogs by the height of the custom title bar if we have any
 			}
 
+			// Windows Custom System Context Menu
+			// See https://github.com/electron/electron/issues/24893
+			//
+			// The purpose of this is to allow for the context menu in the Windows Title Bar
+			//
+			// Currently, all mouse events in the title bar are captured by the OS
+			// thus we need to capture them here with a window hook specific to Windows
+			// and then forward them to the correct window.
+			if (isWindows && useCustomTitleStyle) {
+				const WM_INITMENU = 0x0116; // https://docs.microsoft.com/en-us/windows/win32/menurc/wm-initmenu
+
+				// This sets up a listener for the window hook. This is a Windows-only API provided by electron.
+				this._win.hookWindowMessage(WM_INITMENU, () => {
+					const [x, y] = this._win.getPosition();
+					const cursorPos = screen.getCursorScreenPoint();
+					const cx = cursorPos.x - x;
+					const cy = cursorPos.y - y;
+
+					// In some cases, show the default system context menu
+					// 1) The mouse position is not within the title bar
+					// 2) The mouse position is within the title bar, but over the app icon
+					// We do not know the exact title bar height but we make an estimate based on window height
+					const shouldTriggerDefaultSystemContextMenu = () => {
+						// Use the custom context menu when over the title bar, but not over the app icon
+						// The app icon is estimated to be 30px wide
+						// The title bar is estimated to be the max of 35px and 15% of the window height
+						if (cx > 30 && cy >= 0 && cy <= Math.max(this._win.getBounds().height * 0.15, 35)) {
+							return false;
+						}
+
+						return true;
+					};
+
+					if (!shouldTriggerDefaultSystemContextMenu()) {
+						// This is necessary to make sure the native system context menu does not show up.
+						this._win.setEnabled(false);
+						this._win.setEnabled(true);
+
+						this._onDidTriggerSystemContextMenu.fire({ x: cx, y: cy });
+					}
+
+					return 0;
+				});
+			}
+
 			// TODO@electron (Electron 4 regression): when running on multiple displays where the target display
 			// to open the window has a larger resolution than the primary display, the window will not size
 			// correctly unless we set the bounds again (https://github.com/microsoft/vscode/issues/74872)
 			//
+			// Extended to cover Windows as well as Mac (https://github.com/microsoft/vscode/issues/146499)
+			//
 			// However, when running with native tabs with multiple windows we cannot use this workaround
 			// because there is a potential that the new window will be added as native tab instead of being
 			// a window on its own. In that case calling setBounds() would cause https://github.com/microsoft/vscode/issues/75830
-			if (isMacintosh && hasMultipleDisplays && (!useNativeTabs || BrowserWindow.getAllWindows().length === 1)) {
+			if ((isMacintosh || isWindows) && hasMultipleDisplays && (!useNativeTabs || BrowserWindow.getAllWindows().length === 1)) {
 				if ([this.windowState.width, this.windowState.height, this.windowState.x, this.windowState.y].every(value => typeof value === 'number')) {
-					const ensuredWindowState = this.windowState as Required<IWindowState>;
 					this._win.setBounds({
-						width: ensuredWindowState.width,
-						height: ensuredWindowState.height,
-						x: ensuredWindowState.x,
-						y: ensuredWindowState.y
+						width: this.windowState.width,
+						height: this.windowState.height,
+						x: this.windowState.x,
+						y: this.windowState.y
 					});
 				}
 			}
@@ -327,6 +389,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 		//#endregion
 
+		// Open devtools if instructed from command line args
+		if (this.environmentMainService.args['open-devtools'] === true) {
+			this._win.webContents.openDevTools();
+		}
+
 		// respect configured menu bar visibility
 		this.onConfigurationUpdated();
 
@@ -338,7 +405,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	setRepresentedFilename(filename: string): void {
-		if (isMacintosh) {
+		if (isMacintosh && !this.customTrafficLightPosition) { // TODO@electron https://github.com/electron/electron/issues/34822
 			this._win.setRepresentedFilename(filename);
 		} else {
 			this.representedFilename = filename;
@@ -346,7 +413,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	getRepresentedFilename(): string | undefined {
-		if (isMacintosh) {
+		if (isMacintosh && !this.customTrafficLightPosition) { // TODO@electron https://github.com/electron/electron/issues/34822
 			return this._win.getRepresentedFilename();
 		}
 
@@ -504,7 +571,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		});
 
 		// Handle configuration changes
-		this._register(this.configurationService.onDidChangeConfiguration(() => this.onConfigurationUpdated()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 
 		// Handle Workspace events
 		this._register(this.workspacesManagementMainService.onDidDeleteUntitledWorkspace(e => this.onDidDeleteUntitledWorkspace(e)));
@@ -521,7 +588,14 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private marketplaceHeadersPromise: Promise<object> | undefined;
 	private getMarketplaceHeaders(): Promise<object> {
 		if (!this.marketplaceHeadersPromise) {
-			this.marketplaceHeadersPromise = resolveMarketplaceHeaders(this.productService.version, this.productService, this.environmentMainService, this.configurationService, this.fileService, this.globalStorageMainService);
+			this.marketplaceHeadersPromise = resolveMarketplaceHeaders(
+				this.productService.version,
+				this.productService,
+				this.environmentMainService,
+				this.configurationService,
+				this.fileService,
+				this.applicationStorageMainService,
+				this.telemetryService);
 		}
 
 		return this.marketplaceHeadersPromise;
@@ -548,7 +622,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		type WindowErrorClassification = {
 			type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The type of window crash to understand the nature of the crash better.' };
 			reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The reason of the window crash to understand the nature of the crash better.' };
-			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; omment: 'The exit code of the window process to understand the nature of the crash better' };
+			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the window process to understand the nature of the crash better' };
 			owner: 'bpasero';
 			comment: 'Provides insight into reasons the vscode window crashes.';
 		};
@@ -707,7 +781,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 	}
 
-	private onConfigurationUpdated(): void {
+	private onConfigurationUpdated(e?: IConfigurationChangeEvent): void {
 
 		// Menubar
 		const newMenuBarVisibility = this.getMenuBarVisibility();
@@ -715,6 +789,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			this.currentMenuBarVisibility = newMenuBarVisibility;
 			this.setMenuBarVisibility(newMenuBarVisibility);
 		}
+
+		// Traffic Lights
+		this.updateTrafficLightPosition(e);
 
 		// Proxy
 		let newHttpProxy = (this.configurationService.getValue<string>('http.proxy') || '').trim()
@@ -784,10 +861,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this.readyState = ReadyState.NAVIGATING;
 
 		// Load URL
-		this._win.loadURL(FileAccess.asBrowserUri(this.environmentMainService.sandbox ?
-			'vs/code/electron-sandbox/workbench/workbench.html' :
-			'vs/code/electron-browser/workbench/workbench.html', require
-		).toString(true));
+		this._win.loadURL(FileAccess.asBrowserUri('vs/code/electron-sandbox/workbench/workbench.html', require).toString(true));
 
 		// Remember that we did load
 		const wasLoaded = this.wasLoaded;
@@ -867,6 +941,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Delete some properties we do not want during reload
 		delete configuration.filesToOpenOrCreate;
 		delete configuration.filesToDiff;
+		delete configuration.filesToMerge;
 		delete configuration.filesToWait;
 
 		// Some configuration things get inherited if the window is being reloaded and we are
@@ -882,6 +957,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		configuration.isInitialStartup = false; // since this is a reload
 		configuration.policiesData = this.policyService.serialize(); // set policies data again
+		configuration.editSessionId = this.environmentMainService.editSessionId; // set latest edit session id
+		configuration.profiles = {
+			all: this.userDataProfilesService.profiles,
+			current: this.profile || this.userDataProfilesService.defaultProfile,
+		};
 
 		// Load config
 		this.load(configuration, { isReload: true, disableExtensions: cli?.['disable-extensions'] });
@@ -1268,6 +1348,36 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				this._win.autoHideMenuBar = false;
 				break;
 		}
+	}
+
+	private updateTrafficLightPosition(e?: IConfigurationChangeEvent): void {
+		if (!isMacintosh) {
+			return; // only applies to macOS
+		}
+
+		const commandCenterSettingKey = 'window.commandCenter';
+		if (e && !e.affectsConfiguration(commandCenterSettingKey)) {
+			return;
+		}
+
+		const useCustomTitleStyle = getTitleBarStyle(this.configurationService) === 'custom';
+		if (!useCustomTitleStyle) {
+			return; // only applies with custom title bar
+		}
+
+		const useCustomTrafficLightPosition = this.configurationService.getValue<boolean>(commandCenterSettingKey);
+		if (useCustomTrafficLightPosition) {
+			if (!this.defaultTrafficLightPosition) {
+				this.defaultTrafficLightPosition = this._win.getTrafficLightPosition(); // remember default to restore later
+			}
+			this._win.setTrafficLightPosition({ x: 7, y: 10 });
+		} else {
+			if (this.defaultTrafficLightPosition) {
+				this._win.setTrafficLightPosition(this.defaultTrafficLightPosition);
+			}
+		}
+
+		this.customTrafficLightPosition = useCustomTrafficLightPosition;
 	}
 
 	handleTitleDoubleClick(): void {

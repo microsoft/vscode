@@ -43,6 +43,8 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 interface IWorkspaceFolderConfigurationResult {
 	workspaceFolder: IWorkspaceFolder;
@@ -83,7 +85,9 @@ export class TaskService extends AbstractTaskService {
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IWorkspaceTrustRequestService workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@ILogService logService: ILogService) {
+		@ILogService logService: ILogService,
+		@IThemeService themeService: IThemeService,
+		@IInstantiationService instantiationService: IInstantiationService) {
 		super(configurationService,
 			markerService,
 			outputService,
@@ -115,7 +119,9 @@ export class TaskService extends AbstractTaskService {
 			viewDescriptorService,
 			workspaceTrustRequestService,
 			workspaceTrustManagementService,
-			logService);
+			logService,
+			themeService,
+		);
 		this._register(lifecycleService.onBeforeShutdown(event => event.veto(this.beforeShutdown(), 'veto.tasks')));
 	}
 
@@ -134,7 +140,7 @@ export class TaskService extends AbstractTaskService {
 	}
 
 	protected _computeLegacyConfiguration(workspaceFolder: IWorkspaceFolder): Promise<IWorkspaceFolderConfigurationResult> {
-		let { config, hasParseErrors } = this._getConfiguration(workspaceFolder);
+		const { config, hasParseErrors } = this._getConfiguration(workspaceFolder);
 		if (hasParseErrors) {
 			return Promise.resolve({ workspaceFolder: workspaceFolder, hasErrors: true, config: undefined });
 		}
@@ -146,8 +152,8 @@ export class TaskService extends AbstractTaskService {
 	}
 
 	protected _versionAndEngineCompatible(filter?: ITaskFilter): boolean {
-		let range = filter && filter.version ? filter.version : undefined;
-		let engine = this.executionEngine;
+		const range = filter && filter.version ? filter.version : undefined;
+		const engine = this.executionEngine;
 
 		return (range === undefined) || ((semver.satisfies('0.1.0', range) && engine === ExecutionEngine.Process) || (semver.satisfies('2.0.0', range) && engine === ExecutionEngine.Terminal));
 	}
@@ -181,7 +187,7 @@ export class TaskService extends AbstractTaskService {
 				return this._taskSystem!.terminateAll().then((responses) => {
 					let success = true;
 					let code: number | undefined = undefined;
-					for (let response of responses) {
+					for (const response of responses) {
 						success = success && response.success;
 						// We only have a code in the old output runner which only has one task
 						// So we can use the first code.
