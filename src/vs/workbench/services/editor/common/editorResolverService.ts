@@ -19,6 +19,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorInputWithOptions, EditorInputWithOptionsAndGroup, IResourceDiffEditorInput, IResourceMergeEditorInput, IUntitledTextResourceEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { PreferredGroup } from 'vs/workbench/services/editor/common/editorService';
+import { AtLeastOne } from 'vs/base/common/types';
 
 export const IEditorResolverService = createDecorator<IEditorResolverService>('editorResolverService');
 
@@ -109,12 +110,14 @@ export type DiffEditorInputFactoryFunction = (diffEditorInput: IResourceDiffEdit
 
 export type MergeEditorInputFactoryFunction = (mergeEditorInput: IResourceMergeEditorInput, group: IEditorGroup) => EditorInputFactoryResult;
 
-export type EditorInputFactoryObject = {
-	createEditorInput: EditorInputFactoryFunction;
+type EditorInputFactories = {
+	createEditorInput?: EditorInputFactoryFunction;
 	createUntitledEditorInput?: UntitledEditorInputFactoryFunction;
 	createDiffEditorInput?: DiffEditorInputFactoryFunction;
 	createMergeEditorInput?: MergeEditorInputFactoryFunction;
 };
+
+export type EditorInputFactoryObject = AtLeastOne<EditorInputFactories>;
 
 export interface IEditorResolverService {
 	readonly _serviceBrand: undefined;
@@ -138,7 +141,8 @@ export interface IEditorResolverService {
 	readonly onDidChangeEditorRegistrations: Event<void>;
 
 	/**
-	 * Registers a specific editor.
+	 * Registers a specific editor. Editors with the same glob pattern and ID will be grouped together by the resolver.
+	 * This allows for registration of the factories in different locations
 	 * @param globPattern The glob pattern for this registration
 	 * @param editorInfo Information about the registration
 	 * @param options Specific options which apply to this registration
