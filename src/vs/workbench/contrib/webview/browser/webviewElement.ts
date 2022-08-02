@@ -102,7 +102,7 @@ namespace WebviewState {
 
 export interface WebviewInitInfo {
 	readonly id: string;
-	readonly providedId?: string;
+	readonly providedViewType?: string;
 	readonly origin?: string;
 
 	readonly options: WebviewOptions;
@@ -123,11 +123,10 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	 */
 	public readonly id: string;
 
-
 	/**
 	 * The provided identifier of this webview.
 	 */
-	public readonly providedId?: string;
+	public readonly providedViewType?: string;
 
 	/**
 	 * The origin this webview itself is loaded from. May not be unique
@@ -210,7 +209,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		super();
 
 		this.id = initInfo.id;
-		this.providedId = initInfo.providedId;
+		this.providedViewType = initInfo.providedViewType;
 		this.iframeId = generateUuid();
 		this.origin = initInfo.origin ?? this.iframeId;
 
@@ -343,7 +342,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 				getActions: () => {
 					const contextKeyService = this._contextKeyService!.createOverlay([
 						...Object.entries(data.context),
-						['webview', this.providedId],
+						['webview', this.providedViewType],
 					]);
 
 					const result: IAction[] = [];
@@ -352,7 +351,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 					menu.dispose();
 					return result;
 				},
-				getActionsContext: (): WebviewActionContext => ({ ...data.context, webview: this.providedId }),
+				getActionsContext: (): WebviewActionContext => ({ ...data.context, webview: this.providedViewType }),
 				getAnchor: () => ({
 					x: elementBox.x + data.clientX,
 					y: elementBox.y + data.clientY
