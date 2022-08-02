@@ -461,12 +461,12 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.element.style.setProperty('--zoom-factor', zoomFactor.toString());
 			this.rootContainer.classList.toggle('counter-zoom', this.useCounterZoom);
 
-			runAtThisOrScheduleAtNextAnimationFrame(() => this.adjustTitleMarginToCenter());
-
 			if (this.customMenubar) {
 				const menubarDimension = new Dimension(0, dimension.height);
 				this.customMenubar.layout(menubarDimension);
 			}
+
+			runAtThisOrScheduleAtNextAnimationFrame(() => this.adjustTitleMarginToCenter());
 		}
 	}
 

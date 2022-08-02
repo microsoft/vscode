@@ -42,9 +42,16 @@ class CreateFromCurrentProfileAction extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const notificationService = accessor.get(INotificationService);
 		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
+		const userDataProfilesService = accessor.get(IUserDataProfilesService);
 		const name = await quickInputService.input({
 			placeHolder: localize('name', "Profile name"),
 			title: localize('save profile as', "Create from Current Settings Profile..."),
+			validateInput: async (value: string) => {
+				if (userDataProfilesService.profiles.some(p => p.name === value)) {
+					return localize('profileExists', "Settings Profile with name {0} already exists.", value);
+				}
+				return undefined;
+			}
 		});
 		if (name) {
 			try {
@@ -77,9 +84,16 @@ class CreateEmptyProfileAction extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
 		const notificationService = accessor.get(INotificationService);
+		const userDataProfilesService = accessor.get(IUserDataProfilesService);
 		const name = await quickInputService.input({
 			placeHolder: localize('name', "Profile name"),
 			title: localize('create and enter empty profile', "Create an Empty Profile..."),
+			validateInput: async (value: string) => {
+				if (userDataProfilesService.profiles.some(p => p.name === value)) {
+					return localize('profileExists', "Settings Profile with name {0} already exists.", value);
+				}
+				return undefined;
+			}
 		});
 		if (name) {
 			try {
@@ -175,6 +189,12 @@ registerAction2(class RenameProfileAction extends Action2 {
 				const name = await quickInputService.input({
 					value: pick.profile.name,
 					title: localize('edit settings profile', "Rename Settings Profile..."),
+					validateInput: async (value: string) => {
+						if (pick.profile.name !== value && profiles.some(p => p.name === value)) {
+							return localize('profileExists', "Settings Profile with name {0} already exists.", value);
+						}
+						return undefined;
+					}
 				});
 				if (name && name !== pick.profile.name) {
 					try {
@@ -272,31 +292,6 @@ registerAction2(class SwitchProfileAction extends Action2 {
 				await userDataProfileManagementService.switchProfile(pick.profile);
 			}
 		}
-	}
-});
-
-registerAction2(class CleanupProfilesAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.profiles.actions.cleanupProfiles',
-			title: {
-				value: localize('cleanup profile', "Cleanup Settings Profiles"),
-				original: 'Cleanup Profiles'
-			},
-			category: CATEGORIES.Developer,
-			f1: true,
-			precondition: PROFILES_ENABLEMENT_CONTEXT,
-		});
-	}
-
-	async run(accessor: ServicesAccessor) {
-		const userDataProfilesService = accessor.get(IUserDataProfilesService);
-		const fileService = accessor.get(IFileService);
-		const uriIdentityService = accessor.get(IUriIdentityService);
-
-		const stat = await fileService.resolve(userDataProfilesService.profilesHome);
-		await Promise.all((stat.children || [])?.filter(child => child.isDirectory && userDataProfilesService.profiles.every(p => !uriIdentityService.extUri.isEqual(p.location, child.resource)))
-			.map(child => fileService.del(child.resource, { recursive: true })));
 	}
 });
 
@@ -448,4 +443,51 @@ registerAction2(class ImportProfileAction extends Action2 {
 		}
 	}
 
+});
+
+// Developer Actions
+
+registerAction2(class CleanupProfilesAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.profiles.actions.cleanupProfiles',
+			title: {
+				value: localize('cleanup profile', "Cleanup Settings Profiles"),
+				original: 'Cleanup Profiles'
+			},
+			category: CATEGORIES.Developer,
+			f1: true,
+			precondition: PROFILES_ENABLEMENT_CONTEXT,
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const userDataProfilesService = accessor.get(IUserDataProfilesService);
+		const fileService = accessor.get(IFileService);
+		const uriIdentityService = accessor.get(IUriIdentityService);
+
+		const stat = await fileService.resolve(userDataProfilesService.profilesHome);
+		await Promise.all((stat.children || [])?.filter(child => child.isDirectory && userDataProfilesService.profiles.every(p => !uriIdentityService.extUri.isEqual(p.location, child.resource)))
+			.map(child => fileService.del(child.resource, { recursive: true })));
+	}
+});
+
+registerAction2(class ResetWorkspacesAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.profiles.actions.resetWorkspaces',
+			title: {
+				value: localize('reset workspaces', "Reset Workspace Settings Profiles Associations"),
+				original: 'Reset Workspace Settings Profiles Associations'
+			},
+			category: CATEGORIES.Developer,
+			f1: true,
+			precondition: PROFILES_ENABLEMENT_CONTEXT,
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const userDataProfilesService = accessor.get(IUserDataProfilesService);
+		return userDataProfilesService.resetWorkspaces();
+	}
 });

@@ -25,7 +25,7 @@ import * as fileSchemes from './utils/fileSchemes';
 import { Logger } from './utils/logger';
 import { isWeb } from './utils/platform';
 import { TypeScriptPluginPathsProvider } from './utils/pluginPathsProvider';
-import { PluginManager } from './utils/plugins';
+import { PluginManager, TypeScriptServerPlugin } from './utils/plugins';
 import { TelemetryProperties, TelemetryReporter, VSCodeTelemetryReporter } from './utils/telemetry';
 import Tracer from './utils/tracer';
 import { inferredProjectCompilerOptions, ProjectType } from './utils/tsconfig';
@@ -584,6 +584,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			this.numberRestarts++;
 			let startService = true;
 
+			const pluginExtensionList = this.pluginManager.plugins.map(plugin => plugin.extension.id).join(', ');
 			const reportIssueItem: vscode.MessageItem = {
 				title: localize('serverDiedReportIssue', 'Report Issue'),
 			};
@@ -596,7 +597,9 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					startService = false;
 					this.hasServerFatallyCrashedTooManyTimes = true;
 					prompt = vscode.window.showErrorMessage(
-						localize('serverDiedAfterStart', 'The TypeScript language service died 5 times right after it got started. The service will not be restarted.'),
+						this.pluginManager.plugins.length
+							? localize('serverDiedImmediatelyWithPlugins', "The JS/TS language service immediately crashed 5 times. The service will not be restarted.\nThis may be caused by a plugin contributed by one of these extensions: {0}", pluginExtensionList)
+							: localize('serverDiedImmediately', "The JS/TS language service immediately crashed 5 times. The service will not be restarted."),
 						reportIssueItem);
 
 					/* __GDPR__
@@ -610,19 +613,28 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					this.logTelemetry('serviceExited');
 				} else if (diff < 60 * 1000 * 5 /* 5 Minutes */) {
 					this.lastStart = Date.now();
-					prompt = vscode.window.showWarningMessage(
-						localize('serverDied', 'The TypeScript language service died unexpectedly 5 times in the last 5 Minutes.'),
-						reportIssueItem);
+					if (!this._isPromptingAfterCrash) {
+						prompt = vscode.window.showWarningMessage(
+							this.pluginManager.plugins.length
+								? localize('serverDiedFiveTimesWithPlugins', "The JS/TS language service crashed 5 times in the last 5 Minutes.\nThis may be caused by a plugin contributed by one of these extensions: {0}", pluginExtensionList)
+								: localize('serverDiedFiveTimes', "The JS/TS language service crashed 5 times in the last 5 Minutes."),
+							reportIssueItem);
+					}
 				}
 			} else if (['vscode-insiders', 'code-oss'].includes(vscode.env.uriScheme)) {
 				// Prompt after a single restart
-				if (!this._isPromptingAfterCrash && previousState.type === ServerState.Type.Errored && previousState.error instanceof TypeScriptServerError) {
-					this.numberRestarts = 0;
-					this._isPromptingAfterCrash = true;
+				this.numberRestarts = 0;
+				if (!this._isPromptingAfterCrash) {
 					prompt = vscode.window.showWarningMessage(
-						localize('serverDiedOnce', 'The TypeScript language service died unexpectedly.'),
+						this.pluginManager.plugins.length
+							? localize('serverDiedOnceWithPlugins', "The JS/TS language service crashed.\nThis may be caused by a plugin contributed by one of these extensions: {0}", pluginExtensionList)
+							: localize('serverDiedOnce', "The JS/TS language service crashed."),
 						reportIssueItem);
 				}
+			}
+
+			if (prompt) {
+				this._isPromptingAfterCrash = true;
 			}
 
 			prompt?.then(item => {
@@ -644,7 +656,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 							});
 					} else {
 						const args = previousState.type === ServerState.Type.Errored && previousState.error instanceof TypeScriptServerError
-							? getReportIssueArgsForError(previousState.error, previousState.tsServerLogFile)
+							? getReportIssueArgsForError(previousState.error, previousState.tsServerLogFile, this.pluginManager.plugins)
 							: undefined;
 						vscode.commands.executeCommand('workbench.action.openIssueReporter', args);
 					}
@@ -1002,6 +1014,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 function getReportIssueArgsForError(
 	error: TypeScriptServerError,
 	logPath: string | undefined,
+	globalPlugins: readonly TypeScriptServerPlugin[],
 ): { extensionId: string; issueTitle: string; issueBody: string } | undefined {
 	if (!error.serverStack || !error.serverMessage) {
 		return undefined;
@@ -1020,6 +1033,10 @@ function getReportIssueArgsForError(
 3.`,
 	];
 
+	if (globalPlugins.length) {
+		sections.push(`**Global TS Server Plugins**\n\n` + globalPlugins.map(plugin => `- \`${plugin.name}\``).join('\n'));
+	}
+
 	if (logPath) {
 		sections.push(`**TS Server Log**
 
@@ -1033,7 +1050,7 @@ The log file may contain personal data, including full paths and source code fro
 
 		sections.push(`**TS Server Log**
 
-❗️Server logging disabled. To help us fix crashes like this, please enable logging by setting:
+❗️ Server logging disabled. To help us fix crashes like this, please enable logging by setting:
 
 \`\`\`json
 "typescript.tsserver.log": "verbose"
