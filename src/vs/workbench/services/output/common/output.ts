@@ -160,6 +160,7 @@ export interface IOutputChannelDescriptor {
 	log: boolean;
 	languageId?: string;
 	file?: URI;
+	extensionId?: string;
 }
 
 export interface IFileOutputChannelDescriptor extends IOutputChannelDescriptor {

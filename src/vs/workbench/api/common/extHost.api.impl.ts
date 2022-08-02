@@ -59,7 +59,7 @@ import { IExtHostDecorations } from 'vs/workbench/api/common/extHostDecorations'
 import { IExtHostTask } from 'vs/workbench/api/common/extHostTask';
 import { IExtHostDebugService } from 'vs/workbench/api/common/extHostDebugService';
 import { IExtHostSearch } from 'vs/workbench/api/common/extHostSearch';
-import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
+import { ILoggerService, ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
@@ -1349,7 +1349,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TabInputWebview: extHostTypes.WebviewEditorTabInput,
 			TabInputTerminal: extHostTypes.TerminalEditorTabInput,
 			TabInputInteractiveWindow: extHostTypes.InteractiveWindowInput,
-			TerminalExitReason: extHostTypes.TerminalExitReason
+			TerminalExitReason: extHostTypes.TerminalExitReason,
+			LogLevel: LogLevel,
 		};
 	};
 }

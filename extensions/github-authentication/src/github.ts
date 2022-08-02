@@ -10,7 +10,6 @@ import { GitHubEnterpriseServer, GitHubServer, IGitHubServer } from './githubSer
 import { arrayEquals } from './common/utils';
 import { ExperimentationTelemetry } from './experimentationService';
 import TelemetryReporter from '@vscode/extension-telemetry';
-import { Log } from './common/logger';
 
 interface SessionData {
 	id: string;
@@ -30,11 +29,10 @@ export enum AuthProviderType {
 
 export class GitHubAuthenticationProvider implements vscode.AuthenticationProvider, vscode.Disposable {
 	private _sessionChangeEmitter = new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
-	private _logger = new Log(this.type);
 	private _githubServer: IGitHubServer;
 	private _telemetryReporter: ExperimentationTelemetry;
 
-	private _keychain: Keychain = new Keychain(this.context, `${this.type}.auth`, this._logger);
+	private _keychain: Keychain = new Keychain(this.context, `${this.type}.auth`);
 	private _sessionsPromise: Promise<vscode.AuthenticationSession[]>;
 	private _accountsSeen = new Set<string>();
 	private _disposable: vscode.Disposable;
@@ -47,10 +45,10 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			this._githubServer = new GitHubServer(
 				// We only can use the Device Code flow when we have a full node environment because of CORS.
 				context.extension.extensionKind === vscode.ExtensionKind.Workspace || vscode.env.uiKind === vscode.UIKind.Desktop,
-				this._logger,
+				this.context,
 				this._telemetryReporter);
 		} else {
-			this._githubServer = new GitHubEnterpriseServer(this._logger, this._telemetryReporter);
+			this._githubServer = new GitHubEnterpriseServer(this.context, this._telemetryReporter);
 		}
 
 		// Contains the current state of the sessions we have available.
@@ -79,13 +77,13 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 	async getSessions(scopes?: string[]): Promise<vscode.AuthenticationSession[]> {
 		// For GitHub scope list, order doesn't matter so we immediately sort the scopes
 		const sortedScopes = scopes?.sort() || [];
-		this._logger.info(`Getting sessions for ${sortedScopes.length ? sortedScopes.join(',') : 'all scopes'}...`);
+		this.context.log(vscode.LogLevel.Info, `Getting sessions for ${sortedScopes.length ? sortedScopes.join(',') : 'all scopes'}...`);
 		const sessions = await this._sessionsPromise;
 		const finalSessions = sortedScopes.length
 			? sessions.filter(session => arrayEquals([...session.scopes].sort(), sortedScopes))
 			: sessions;
 
-		this._logger.info(`Got ${finalSessions.length} sessions for ${sortedScopes?.join(',') ?? 'all scopes'}...`);
+		this.context.log(vscode.LogLevel.Info, `Got ${finalSessions.length} sessions for ${sortedScopes?.join(',') ?? 'all scopes'}...`);
 		return finalSessions;
 	}
 
@@ -109,7 +107,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			const matchesExisting = previousSessions.some(s => s.id === session.id);
 			// Another window added a session to the keychain, add it to our state as well
 			if (!matchesExisting) {
-				this._logger.info('Adding session found in keychain');
+				this.context.log(vscode.LogLevel.Info, 'Adding session found in keychain');
 				added.push(session);
 			}
 		});
@@ -118,7 +116,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			const matchesExisting = storedSessions.some(s => s.id === session.id);
 			// Another window has logged out, remove from our state
 			if (!matchesExisting) {
-				this._logger.info('Removing session no longer found in keychain');
+				this.context.log(vscode.LogLevel.Info, 'Removing session no longer found in keychain');
 				removed.push(session);
 			}
 		});
@@ -131,12 +129,12 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 	private async readSessions(): Promise<vscode.AuthenticationSession[]> {
 		let sessionData: SessionData[];
 		try {
-			this._logger.info('Reading sessions from keychain...');
+			this.context.log(vscode.LogLevel.Info, 'Reading sessions from keychain...');
 			const storedSessions = await this._keychain.getToken();
 			if (!storedSessions) {
 				return [];
 			}
-			this._logger.info('Got stored sessions!');
+			this.context.log(vscode.LogLevel.Info, 'Got stored sessions!');
 
 			try {
 				sessionData = JSON.parse(storedSessions);
@@ -145,7 +143,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 				throw e;
 			}
 		} catch (e) {
-			this._logger.error(`Error reading token: ${e}`);
+			this.context.log(vscode.LogLevel.Error, `Error reading token: ${e}`);
 			return [];
 		}
 
@@ -161,7 +159,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			if (!session.account) {
 				try {
 					userInfo = await this._githubServer.getUserInfo(session.accessToken);
-					this._logger.info(`Verified session with the following scopes: ${scopesStr}`);
+					this.context.log(vscode.LogLevel.Info, `Verified session with the following scopes: ${scopesStr}`);
 				} catch (e) {
 					// Remove sessions that return unauthorized response
 					if (e.message === 'Unauthorized') {
@@ -170,7 +168,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 				}
 			}
 
-			this._logger.trace(`Read the following session from the keychain with the following scopes: ${scopesStr}`);
+			this.context.log(vscode.LogLevel.Trace, `Read the following session from the keychain with the following scopes: ${scopesStr}`);
 			scopesSeen.add(scopesStr);
 			return {
 				id: session.id,
@@ -192,7 +190,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			.map(p => (p as PromiseFulfilledResult<vscode.AuthenticationSession | undefined>).value)
 			.filter(<T>(p?: T): p is T => Boolean(p));
 
-		this._logger.info(`Got ${verifiedSessions.length} verified sessions.`);
+		this.context.log(vscode.LogLevel.Info, `Got ${verifiedSessions.length} verified sessions.`);
 		if (verifiedSessions.length !== sessionData.length) {
 			await this.storeSessions(verifiedSessions);
 		}
@@ -201,10 +199,10 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 	}
 
 	private async storeSessions(sessions: vscode.AuthenticationSession[]): Promise<void> {
-		this._logger.info(`Storing ${sessions.length} sessions...`);
+		this.context.log(vscode.LogLevel.Info, `Storing ${sessions.length} sessions...`);
 		this._sessionsPromise = Promise.resolve(sessions);
 		await this._keychain.setToken(JSON.stringify(sessions));
-		this._logger.info(`Stored ${sessions.length} sessions!`);
+		this.context.log(vscode.LogLevel.Info, `Stored ${sessions.length} sessions!`);
 	}
 
 	public async createSession(scopes: string[]): Promise<vscode.AuthenticationSession> {
@@ -241,7 +239,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 
 			this._sessionChangeEmitter.fire({ added: [session], removed: [], changed: [] });
 
-			this._logger.info('Login success!');
+			this.context.log(vscode.LogLevel.Info, 'Login success!');
 
 			return session;
 		} catch (e) {
@@ -260,7 +258,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			this._telemetryReporter?.sendTelemetryEvent('loginFailed');
 
 			vscode.window.showErrorMessage(`Sign in failed: ${e}`);
-			this._logger.error(e);
+			this.context.log(vscode.LogLevel.Error, e);
 			throw e;
 		}
 	}
@@ -282,7 +280,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			*/
 			this._telemetryReporter?.sendTelemetryEvent('logout');
 
-			this._logger.info(`Logging out of ${id}`);
+			this.context.log(vscode.LogLevel.Info, `Logging out of ${id}`);
 
 			const sessions = await this._sessionsPromise;
 			const sessionIndex = sessions.findIndex(session => session.id === id);
@@ -294,7 +292,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 
 				this._sessionChangeEmitter.fire({ added: [], removed: [session], changed: [] });
 			} else {
-				this._logger.error('Session not found');
+				this.context.log(vscode.LogLevel.Error, 'Session not found');
 			}
 		} catch (e) {
 			/* __GDPR__
@@ -303,7 +301,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			this._telemetryReporter?.sendTelemetryEvent('logoutFailed');
 
 			vscode.window.showErrorMessage(`Sign out failed: ${e}`);
-			this._logger.error(e);
+			this.context.log(vscode.LogLevel.Error, e);
 			throw e;
 		}
 	}

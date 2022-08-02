@@ -118,6 +118,10 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 		}
 	}
 
+	registerLogChannel(name: string, logFile: URI, extension: IExtensionDescription): void {
+		this.proxy.$register(name, true, logFile, undefined, extension.identifier.value);
+	}
+
 	createOutputChannel(name: string, languageId: string | undefined, extension: IExtensionDescription): vscode.OutputChannel {
 		name = name.trim();
 		if (!name) {

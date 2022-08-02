@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import Logger from './logger';
-import { Event, EventEmitter, ExtensionContext, SecretStorage, SecretStorageChangeEvent } from 'vscode';
+import { Event, EventEmitter, ExtensionContext, SecretStorage, SecretStorageChangeEvent, LogLevel } from 'vscode';
 
 export interface IDidChangeInOtherWindowEvent<T> {
 	added: string[];
@@ -30,7 +29,7 @@ export class BetterTokenStorage<T> {
 	 * @param keylistKey The key in the secret storage that will hold the list of keys associated with this instance of BetterTokenStorage
 	 * @param context the vscode Context used to register disposables and retreive the vscode.SecretStorage for this instance of VS Code
 	 */
-	constructor(private keylistKey: string, context: ExtensionContext) {
+	constructor(private keylistKey: string, private context: ExtensionContext) {
 		this._secretStorage = context.secrets;
 		context.subscriptions.push(context.secrets.onDidChange((e) => this.handleSecretChange(e)));
 		this.initialize();
@@ -60,16 +59,16 @@ export class BetterTokenStorage<T> {
 								const secret = this.parseSecret(p.value.value);
 								tokens.set(p.value.key, secret);
 							} else if (p.status === 'rejected') {
-								Logger.error(p.reason);
+								this.context.log(LogLevel.Error, p.reason);
 							} else {
-								Logger.error('Key was not found in SecretStorage.');
+								this.context.log(LogLevel.Error, 'Key was not found in SecretStorage.');
 							}
 						});
 						resolve(tokens);
 					}));
 				},
 				err => {
-					Logger.error(err);
+					this.context.log(LogLevel.Error, err);
 					resolve(new Map());
 				});
 		});
@@ -108,7 +107,7 @@ export class BetterTokenStorage<T> {
 			Promise.allSettled(promises).then(results => {
 				results.forEach(r => {
 					if (r.status === 'rejected') {
-						Logger.error(r.reason);
+						this.context.log(LogLevel.Error, r.reason);
 					}
 				});
 				resolve(tokens);
@@ -132,7 +131,7 @@ export class BetterTokenStorage<T> {
 			]).then(results => {
 				results.forEach(r => {
 					if (r.status === 'rejected') {
-						Logger.error(r.reason);
+						this.context.log(LogLevel.Error, r.reason);
 					}
 				});
 				resolve(tokens);
@@ -235,10 +234,10 @@ export class BetterTokenStorage<T> {
 					return tokens;
 				},
 				err => {
-					Logger.error(err);
+					this.context.log(LogLevel.Error, err);
 					resolve(tokens);
 				}).then(resolve, err => {
-					Logger.error(err);
+					this.context.log(LogLevel.Error, err);
 					resolve(tokens);
 				});
 		});
