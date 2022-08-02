@@ -88,28 +88,14 @@ export class StandardMouseEvent implements IMouseEvent {
 	}
 }
 
-export interface IDataTransfer {
-	dropEffect: string;
-	effectAllowed: string;
-	types: any[];
-	files: any[];
-
-	setData(type: string, data: string): void;
-	setDragImage(image: any, x: number, y: number): void;
-
-	getData(type: string): string;
-	clearData(types?: string[]): void;
-}
-
 export class DragMouseEvent extends StandardMouseEvent {
 
-	public readonly dataTransfer: IDataTransfer;
+	public readonly dataTransfer: DataTransfer;
 
 	constructor(e: MouseEvent) {
 		super(e);
 		this.dataTransfer = (<any>e).dataTransfer;
 	}
-
 }
 
 export interface IMouseWheelEvent extends MouseEvent {
