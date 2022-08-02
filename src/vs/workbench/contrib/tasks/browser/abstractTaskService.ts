@@ -192,6 +192,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	// private static autoDetectTelemetryName: string = 'taskServer.autoDetect';
 	private static readonly RecentlyUsedTasks_Key = 'workbench.tasks.recentlyUsedTasks';
 	private static readonly RecentlyUsedTasks_KeyV2 = 'workbench.tasks.recentlyUsedTasks2';
+	private static readonly PersistentTasks_Key = 'workbench.tasks.persistentTasks';
 	private static readonly IgnoreTask010DonotShowAgain_key = 'workbench.tasks.ignoreTask010Shown';
 
 	public _serviceBrand: undefined;
@@ -217,6 +218,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	protected _taskSystemListener?: IDisposable;
 	private _recentlyUsedTasksV1: LRUCache<string, string> | undefined;
 	private _recentlyUsedTasks: LRUCache<string, string> | undefined;
+
+	private _persistentTasks: LRUCache<string, string> | undefined;
 
 	protected _taskRunningState: IContextKey<boolean>;
 
@@ -346,11 +349,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _reconnectTasks(): Promise<void> {
-		const recentlyUsedTasks = await this.readRecentTasks();
-		if (!recentlyUsedTasks.length) {
+		const tasks = await this.getSavedTasks('persistent');
+		if (!tasks.length) {
 			return;
 		}
-		for (const task of recentlyUsedTasks) {
+		for (const task of tasks) {
 			if (ConfiguringTask.is(task)) {
 				const resolved = await this.tryResolveTask(task);
 				if (resolved) {
@@ -889,7 +892,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return this._recentlyUsedTasksV1;
 	}
 
-	private _getRecentlyUsedTasks(): LRUCache<string, string> {
+	private _getTasksFromStorage(type: 'persistent' | 'historical'): LRUCache<string, string> {
+		return type === 'persistent' ? this._getPersistentTasks() : this._getRecentTasks();
+	}
+
+	private _getRecentTasks(): LRUCache<string, string> {
 		if (this._recentlyUsedTasks) {
 			return this._recentlyUsedTasks;
 		}
@@ -912,6 +919,29 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return this._recentlyUsedTasks;
 	}
 
+	private _getPersistentTasks(): LRUCache<string, string> {
+		if (this._persistentTasks) {
+			return this._persistentTasks;
+		}
+		//TODO: should this # be configurable?
+		this._persistentTasks = new LRUCache<string, string>(10);
+
+		const storageValue = this._storageService.get(AbstractTaskService.PersistentTasks_Key, StorageScope.WORKSPACE);
+		if (storageValue) {
+			try {
+				const values: [string, string][] = JSON.parse(storageValue);
+				if (Array.isArray(values)) {
+					for (const value of values) {
+						this._persistentTasks.set(value[0], value[1]);
+					}
+				}
+			} catch (error) {
+				// Ignore. We use the empty result
+			}
+		}
+		return this._persistentTasks;
+	}
+
 	private _getFolderFromTaskKey(key: string): { folder: string | undefined; isWorkspaceFile: boolean | undefined } {
 		const keyValue: { folder: string | undefined; id: string | undefined } = JSON.parse(key);
 		return {
@@ -919,14 +949,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		};
 	}
 
-	public async readRecentTasks(): Promise<(Task | ConfiguringTask)[]> {
+	public async getSavedTasks(type: 'persistent' | 'historical'): Promise<(Task | ConfiguringTask)[]> {
 		const folderMap: IStringDictionary<IWorkspaceFolder> = Object.create(null);
 		this.workspaceFolders.forEach(folder => {
 			folderMap[folder.uri.toString()] = folder;
 		});
 		const folderToTasksMap: Map<string, any> = new Map();
 		const workspaceToTaskMap: Map<string, any> = new Map();
-		const recentlyUsedTasks = this._getRecentlyUsedTasks();
+		const storedTasks = this._getTasksFromStorage(type);
 		const tasks: (Task | ConfiguringTask)[] = [];
 
 		function addTaskToMap(map: Map<string, any>, folder: string | undefined, task: any) {
@@ -937,7 +967,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				map.get(folder).push(task);
 			}
 		}
-		for (const entry of recentlyUsedTasks.entries()) {
+		for (const entry of storedTasks.entries()) {
 			const key = entry[0];
 			const task = JSON.parse(entry[1]);
 			const folderInfo = this._getFolderFromTaskKey(key);
@@ -974,7 +1004,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		await readTasks(this, folderToTasksMap, false);
 		await readTasks(this, workspaceToTaskMap, true);
-		for (const key of recentlyUsedTasks.keys()) {
+		for (const key of storedTasks.keys()) {
 			if (readTasksMap.has(key)) {
 				tasks.push(readTasksMap.get(key)!);
 			}
@@ -983,8 +1013,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	public removeRecentlyUsedTask(taskRecentlyUsedKey: string) {
-		if (this._getRecentlyUsedTasks().has(taskRecentlyUsedKey)) {
-			this._getRecentlyUsedTasks().delete(taskRecentlyUsedKey);
+		if (this._getTasksFromStorage('historical').has(taskRecentlyUsedKey)) {
+			this._getTasksFromStorage('historical').delete(taskRecentlyUsedKey);
 			this._saveRecentlyUsedTasks();
 		}
 	}
@@ -1011,7 +1041,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					key = customized[configuration].getRecentlyUsedKey()!;
 				}
 			}
-			this._getRecentlyUsedTasks().set(key, JSON.stringify(customizations));
+			this._getTasksFromStorage('historical').set(key, JSON.stringify(customizations));
 			this._saveRecentlyUsedTasks();
 		}
 	}
@@ -1034,6 +1064,41 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			keyValues.push([key, this._recentlyUsedTasks.get(key, Touch.None)!]);
 		}
 		this._storageService.store(AbstractTaskService.RecentlyUsedTasks_KeyV2, JSON.stringify(keyValues), StorageScope.WORKSPACE, StorageTarget.USER);
+	}
+
+	private async _setPersistentTask(task: Task): Promise<void> {
+		if (!task.configurationProperties.isBackground || !this._tasksReconnected) {
+			return;
+		}
+		let key = task.getRecentlyUsedKey();
+		if (!InMemoryTask.is(task) && key) {
+			const customizations = this._createCustomizableTask(task);
+			if (ContributedTask.is(task) && customizations) {
+				const custom: CustomTask[] = [];
+				const customized: IStringDictionary<ConfiguringTask> = Object.create(null);
+				await this._computeTasksForSingleConfig(task._source.workspaceFolder ?? this.workspaceFolders[0], {
+					version: '2.0.0',
+					tasks: [customizations]
+				}, TaskRunSource.System, custom, customized, TaskConfig.TaskConfigSource.TasksJson, true);
+				for (const configuration in customized) {
+					key = customized[configuration].getRecentlyUsedKey()!;
+				}
+			}
+			this._getTasksFromStorage('persistent').set(key, JSON.stringify(customizations));
+			this._savePersistentTasks();
+		}
+	}
+
+	private _savePersistentTasks(): void {
+		if (!this._persistentTasks) {
+			return;
+		}
+		const keys = [...this._persistentTasks.keys()];
+		const keyValues: [string, string][] = [];
+		for (const key of keys) {
+			keyValues.push([key, this._persistentTasks.get(key, Touch.None)!]);
+		}
+		this._storageService.store(AbstractTaskService.PersistentTasks_Key, JSON.stringify(keyValues), StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
 	private _openDocumentation(): void {
@@ -1776,6 +1841,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _handleExecuteResult(executeResult: ITaskExecuteResult, runSource?: TaskRunSource): Promise<ITaskSummary> {
+		if (this._configurationService.getValue(TaskSettingId.Reconnection) === true) {
+			await this._setPersistentTask(executeResult.task);
+		}
 		if (runSource === TaskRunSource.User) {
 			await this._setRecentlyUsedTask(executeResult.task);
 		}
@@ -1804,6 +1872,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		}
 		this._setRecentlyUsedTask(executeResult.task);
+		this._setPersistentTask(executeResult.task);
 		return executeResult.promise;
 	}
 
@@ -2514,7 +2583,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			if (tasks.length === 1) {
 				entries.push(TaskQuickPickEntry(tasks[0]));
 			} else {
-				const recentlyUsedTasks = await this.readRecentTasks();
+				const recentlyUsedTasks = await this.getSavedTasks('historical');
 				const recent: Task[] = [];
 				const recentSet: Set<string> = new Set();
 				let configured: Task[] = [];
@@ -2647,7 +2716,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private _needsRecentTasksMigration(): boolean {
-		return (this.getRecentlyUsedTasksV1().size > 0) && (this._getRecentlyUsedTasks().size === 0);
+		return (this.getRecentlyUsedTasksV1().size > 0) && (this._getTasksFromStorage('historical').size === 0);
 	}
 
 	private async _migrateRecentTasks(tasks: Task[]) {
