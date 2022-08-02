@@ -42,6 +42,7 @@ import { Color } from 'vs/base/common/color';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { revive } from 'vs/base/common/marshalling';
+import product from 'vs/platform/product/common/product';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -189,6 +190,13 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 			const windowSettings = this.configurationService.getValue<IWindowSettings | undefined>('window');
 
+			let useSandbox = false;
+			if (typeof windowSettings?.experimental?.useSandbox === 'boolean') {
+				useSandbox = windowSettings.experimental.useSandbox;
+			} else {
+				useSandbox = typeof product.quality === 'string' && product.quality !== 'stable';
+			}
+
 			const options: BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } = {
 				width: this.windowState.width,
 				height: this.windowState.height,
@@ -209,7 +217,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					// Enable experimental css highlight api https://chromestatus.com/feature/5436441440026624
 					// Refs https://github.com/microsoft/vscode/issues/140098
 					enableBlinkFeatures: 'HighlightAPI',
-					...windowSettings?.experimental?.useSandbox ?
+					...useSandbox ?
 
 						// Sandbox
 						{
