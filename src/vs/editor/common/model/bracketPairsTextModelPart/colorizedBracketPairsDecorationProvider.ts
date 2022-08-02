@@ -50,10 +50,11 @@ export class ColorizedBracketPairsDecorationProvider extends Disposable implemen
 			return [];
 		}
 
-		const result = new Array<IModelDecoration>();
 		const bracketsInRange = this.textModel.bracketPairs.getBracketsInRange(range);
-		for (const bracket of bracketsInRange) {
-			result.push({
+		const result = new Array<IModelDecoration>(bracketsInRange.length);
+		for (let i = 0; i < bracketsInRange.length; i++) {
+			const bracket = bracketsInRange[i];
+			result[i] = {
 				id: `bracket${bracket.range.toString()}-${bracket.nestingLevel}`,
 				options: {
 					description: 'BracketPairColorization',
@@ -64,7 +65,7 @@ export class ColorizedBracketPairsDecorationProvider extends Disposable implemen
 				},
 				ownerId: 0,
 				range: bracket.range,
-			});
+			};
 		}
 		return result;
 	}
