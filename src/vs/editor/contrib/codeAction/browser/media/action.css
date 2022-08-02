@@ -86,10 +86,7 @@
 	user-select: none;
 	background-color: var(--vscode-menu-background) !important;
 	color: var(--vscode-disabledForeground) !important;
-	outline: 0px solid !important; /* we still need to handle the empty tree or no focus item case */
-	outline-width: 0px !important;
-	outline-style: none !important;
-	outline-offset: 0px !important;
+	outline: 0px solid !important;
 }
 
 .codeActionMenuWidget .monaco-list .separator {
