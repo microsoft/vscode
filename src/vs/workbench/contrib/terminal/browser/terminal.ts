@@ -257,11 +257,10 @@ interface ITerminalEditorInputObject {
 	readonly icon: TerminalIcon | undefined;
 	readonly color: string | undefined;
 	readonly hasChildProcesses?: boolean;
-	readonly task?: { label: string; id: string; lastTask: string; group?: string; waitOnExit?: WaitOnExitValue };
 	readonly type?: TerminalType;
 	readonly isFeatureTerminal?: boolean;
 	readonly hideFromUser?: boolean;
-	readonly reconnectionOwner?: string;
+	readonly reconnectionProperties?: IReconnectionProperties;
 }
 
 export interface ISerializedTerminalEditorInput extends ITerminalEditorInputObject {
