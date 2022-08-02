@@ -22,12 +22,15 @@ export class DelayedLogChannel {
 	}
 
 	private registerLogChannelPromise: Promise<void> | undefined;
-	log(level: LogLevel, message: string): void {
+
+	log(level: LogLevel | LogLevel.Critical, error: Error, ...args: any[]): void;
+	log(level: LogLevel, message: string, ...args: any[]): void;
+	log(level: LogLevel, message: string | Error, ...args: any[]): void {
 		if (!this.registerLogChannelPromise) {
 			// Register log channel only when logging is actually attempted
 			this.registerLogChannelPromise = registerLogChannel(this.id, this.name, this.file, this.fileService, this.logService);
 		}
-		log(this.logger, level, message);
+		log(this.logger, level, message as any, ...args);
 	}
 
 }
