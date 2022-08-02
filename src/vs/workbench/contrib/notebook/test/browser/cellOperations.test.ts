@@ -5,12 +5,13 @@
 
 import * as assert from 'assert';
 import { FoldingModel, updateFoldingStateAtIndex } from 'vs/workbench/contrib/notebook/browser/viewModel/foldingModel';
-import { changeCellToKind, computeCellLinesContents, copyCellRange, joinNotebookCells, moveCellRange, runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
+import { changeCellToKind, computeCellLinesContents, copyCellRange, insertCell, joinNotebookCells, moveCellRange, runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { CellEditType, CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 import { Range } from 'vs/editor/common/core/range';
 import { ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 
 suite('CellOperations', () => {
 	test('Move cells - single cell', async function () {
@@ -501,4 +502,25 @@ suite('CellOperations', () => {
 		);
 	});
 
+	test('Insert cell', async function () {
+		await withTestNotebook(
+			[
+				['# header a', 'markdown', CellKind.Markup, [], {}],
+				['var b = 1;', 'javascript', CellKind.Code, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3;', 'javascript', CellKind.Code, [], {}]
+			],
+			async (editor, viewModel, accessor) => {
+				const languageService = accessor.get(ILanguageService);
+
+				const insertedCellAbove = insertCell(languageService, editor, 4, CellKind.Code, 'above', 'var a = 0;');
+				assert.strictEqual(viewModel.length, 6);
+				assert.strictEqual(viewModel.cellAt(4), insertedCellAbove);
+
+				const insertedCellBelow = insertCell(languageService, editor, 1, CellKind.Code, 'below', 'var a = 0;');
+				assert.strictEqual(viewModel.length, 7);
+				assert.strictEqual(viewModel.cellAt(2), insertedCellBelow);
+			});
+	});
 });
