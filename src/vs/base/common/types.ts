@@ -6,13 +6,6 @@
 import { URI, UriComponents } from 'vs/base/common/uri';
 
 /**
- * @returns whether the provided parameter is a JavaScript Array or not.
- */
-export function isArray(array: any): array is any[] {
-	return Array.isArray(array);
-}
-
-/**
  * @returns whether the provided parameter is a JavaScript String or not.
  */
 export function isString(str: unknown): str is string {
