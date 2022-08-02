@@ -103,6 +103,13 @@ steps:
 
   - script: |
       set -e
+      node build/lib/builtInExtensions.js
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Download missing built-in extensions
+
+  - script: |
+      set -e
       node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
       mkdir -p .build/node_modules_cache
       tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
@@ -115,11 +122,6 @@ steps:
         set -e
         node build/azure-pipelines/mixin
       displayName: Mix in quality
-
-  - script: |
-      set -e
-      node build/lib/builtInExtensions.js
-    displayName: Download missing built-in extensions
 
   - script: |
       set -e
