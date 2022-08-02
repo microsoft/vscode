@@ -120,6 +120,11 @@ export class TestItemTreeElement implements IActionableTestTreeElement {
 	}
 
 	/**
+	 * Whether the node's test result is 'retired' -- from an outdated test run.
+	 */
+	public retired = false;
+
+	/**
 	 * @inheritdoc
 	 */
 	public state = TestResultState.Unset;

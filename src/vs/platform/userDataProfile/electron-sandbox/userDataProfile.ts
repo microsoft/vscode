@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
 import { UriDto } from 'vs/base/common/types';
@@ -29,6 +29,8 @@ export class UserDataProfilesNativeService extends Disposable implements IUserDa
 	private readonly _onDidChangeProfiles = this._register(new Emitter<DidChangeProfilesEvent>());
 	readonly onDidChangeProfiles = this._onDidChangeProfiles.event;
 
+	readonly onDidResetWorkspaces: Event<void>;
+
 	constructor(
 		profiles: UriDto<IUserDataProfile>[],
 		@IMainProcessService mainProcessService: IMainProcessService,
@@ -45,6 +47,7 @@ export class UserDataProfilesNativeService extends Disposable implements IUserDa
 			this._profiles = e.all.map(profile => reviveProfile(profile, this.profilesHome.scheme));
 			this._onDidChangeProfiles.fire({ added, removed, updated, all: this.profiles });
 		}));
+		this.onDidResetWorkspaces = this.channel.listen<void>('onDidResetWorkspaces');
 	}
 
 	async createProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags, workspaceIdentifier?: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile> {
@@ -65,6 +68,10 @@ export class UserDataProfilesNativeService extends Disposable implements IUserDa
 		return reviveProfile(result, this.profilesHome.scheme);
 	}
 
-	getProfile(workspaceIdentifier: WorkspaceIdentifier): IUserDataProfile { throw new Error('Not implemented'); }
+	resetWorkspaces(): Promise<void> {
+		return this.channel.call('resetWorkspaces');
+	}
+
+	getProfile(workspaceIdentifier: WorkspaceIdentifier, profileToUseIfNotSet: IUserDataProfile): IUserDataProfile { throw new Error('Not implemented'); }
 }
 

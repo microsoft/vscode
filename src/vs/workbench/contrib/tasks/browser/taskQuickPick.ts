@@ -171,7 +171,7 @@ export class TaskQuickPick extends Disposable {
 		if (this._topLevelEntries !== undefined) {
 			return { entries: this._topLevelEntries };
 		}
-		let recentTasks: (Task | ConfiguringTask)[] = (await this._taskService.readRecentTasks()).reverse();
+		let recentTasks: (Task | ConfiguringTask)[] = (await this._taskService.getSavedTasks('historical')).reverse();
 		const configuredTasks: (Task | ConfiguringTask)[] = this._handleFolderTaskResult(await this._taskService.getWorkspaceTasks());
 		const extensionTaskTypes = this._taskService.taskTypes();
 		this._topLevelEntries = [];

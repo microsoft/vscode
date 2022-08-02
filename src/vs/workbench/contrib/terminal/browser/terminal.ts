@@ -917,6 +917,11 @@ export interface IXtermTerminal {
 	 */
 	readonly shellIntegration: IShellIntegration;
 
+	/**
+	 * An array representing the buffer lines as strings
+	 */
+	readonly bufferLines: string[];
+
 	readonly onDidChangeSelection: Event<void>;
 
 	/**
