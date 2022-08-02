@@ -87,7 +87,6 @@ exports.referenceGeneratedDepsByArch = {
         'libgbm1 (>= 8.1~0)',
         'libgcc-s1 (>= 3.0)',
         'libgcc-s1 (>= 3.5)',
-        'libgcc1 (>= 1:3.5)',
         'libglib2.0-0 (>= 2.16.0)',
         'libglib2.0-0 (>= 2.39.4)',
         'libgtk-3-0 (>= 3.9.10)',
