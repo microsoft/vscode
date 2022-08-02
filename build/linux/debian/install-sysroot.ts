@@ -45,7 +45,8 @@ export async function getSysroot(arch: ArchString): Promise<string> {
 		throw new Error('Cannot retrieve sysroots.json. Stderr:\n' + result.stderr);
 	}
 	const sysrootInfo = require(sysrootDictLocation);
-	const sysrootDict: SysrootDictEntry = sysrootInfo[`bullseye_${arch}`];
+	const sysrootArch = arch === 'armhf' ? 'bullseye_arm' : `bullseye_${arch}`;
+	const sysrootDict: SysrootDictEntry = sysrootInfo[sysrootArch];
 	const tarballFilename = sysrootDict['Tarball'];
 	const tarballSha = sysrootDict['Sha1Sum'];
 	const sysroot = path.join(tmpdir(), sysrootDict['SysrootDir']);
