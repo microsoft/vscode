@@ -244,7 +244,8 @@ import product from 'vs/platform/product/common/product';
 				description: localize('experimentalUseSandbox', "Experimental: When enabled, the window will have sandbox mode enabled via Electron API."),
 				default: typeof product.quality === 'string' && product.quality !== 'stable', // disabled by default in stable for now
 				'scope': ConfigurationScope.APPLICATION,
-				ignoreSync: true
+				ignoreSync: true,
+				tags: ['experimental']
 			},
 		}
 	});
