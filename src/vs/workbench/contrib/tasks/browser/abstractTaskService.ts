@@ -1333,14 +1333,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private async _getTasksForGroup(group: TaskGroup): Promise<Task[]> {
 		const groups = await this._getGroupedTasks();
 		const result: Task[] = [];
-		for (const tasks of Object.entries(groups)) {
+		groups.forEach(tasks => {
 			for (const task of tasks) {
 				const configTaskGroup = TaskGroup.from(task.configurationProperties.group);
 				if (configTaskGroup?._id === group._id) {
 					result.push(task);
 				}
 			}
-		}
+		});
 		return result;
 	}
 
