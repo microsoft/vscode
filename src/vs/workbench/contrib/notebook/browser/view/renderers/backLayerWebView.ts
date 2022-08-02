@@ -1047,7 +1047,7 @@ var requirejs = (function() {
 				metadata: sameMetadata ? undefined : newContent.metadata
 			});
 		}
-
+		entry.metadata = newContent.metadata;
 		entry.content = newContent.content;
 		entry.offset = newContent.offset;
 		entry.visible = true;
