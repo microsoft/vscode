@@ -168,7 +168,6 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	private currSelectedItem: number | undefined;
 	private hasSeperator: boolean = false;
 	private block?: HTMLElement;
-	private currHoverItem: IListMouseEvent<ICodeActionMenuItem> | undefined;
 
 	public static readonly documentationID: string = '_documentation';
 
