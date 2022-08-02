@@ -24,7 +24,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ViewContainer, IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry, IViewsService } from 'vs/workbench/common/views';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickPickItem, IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { assertIsDefined } from 'vs/base/common/types';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -32,6 +32,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { EditorExtensions } from 'vs/workbench/common/editor';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 // Register Service
 registerSingleton(IOutputService, OutputService);
@@ -217,6 +218,25 @@ registerAction2(class extends Action2 {
 	}
 });
 
+class ShowLogAction extends Action2 {
+	static readonly ID = 'workbench.action.showLog';
+	constructor() {
+		super({
+			id: ShowLogAction.ID,
+			title: { value: nls.localize('showLog', "Show Log"), original: 'Show Log' },
+		});
+	}
+	async run(accessor: ServicesAccessor, id: string): Promise<void> {
+		const outputService = accessor.get(IOutputService);
+		const channelDescriptor = outputService.getChannelDescriptor(id);
+		if (!channelDescriptor?.log) {
+			throw new Error(`No log channel with id '${id}' found.`);
+		}
+		return outputService.showChannel(id);
+	}
+}
+registerAction2(ShowLogAction);
+
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -230,13 +250,31 @@ registerAction2(class extends Action2 {
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const outputService = accessor.get(IOutputService);
+		const commandService = accessor.get(ICommandService);
 		const quickInputService = accessor.get(IQuickInputService);
-		const entries: { id: string; label: string }[] = outputService.getChannelDescriptors().filter(c => c.file && c.log)
-			.map(({ id, label }) => ({ id, label }));
-
+		const extensionLogs = [], logs = [];
+		for (const channel of outputService.getChannelDescriptors()) {
+			if (channel.log) {
+				if (channel.extensionId) {
+					extensionLogs.push(channel);
+				} else {
+					logs.push(channel);
+				}
+			}
+		}
+		const entries: ({ id: string; label: string } | IQuickPickSeparator)[] = [];
+		for (const { id, label } of extensionLogs) {
+			entries.push({ id, label });
+		}
+		if (extensionLogs.length && logs.length) {
+			entries.push({ type: 'separator' });
+		}
+		for (const { id, label } of logs) {
+			entries.push({ id, label });
+		}
 		const entry = await quickInputService.pick(entries, { placeHolder: nls.localize('selectlog', "Select Log") });
-		if (entry) {
-			return outputService.showChannel(entry.id);
+		if (entry?.id) {
+			return commandService.executeCommand(ShowLogAction.ID, entry.id);
 		}
 	}
 });
