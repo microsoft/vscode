@@ -114,12 +114,9 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	}
 
 	async resolveEditor(editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<ResolvedEditor> {
-		// If there has been an update to the editors since last resolution
-		// Then we reflatten the map so that we may work with it
-		if (this._shouldReFlattenEditors) {
-			this._flattenedEditors = this._flattenEditorsMap();
-			this._shouldReFlattenEditors = false;
-		}
+		// Update the flattened editors
+		this._flattenedEditors = this._flattenEditorsMap();
+
 		// Special case: side by side editors requires us to
 		// independently resolve both sides and then build
 		// a side by side editor with the result
@@ -305,6 +302,11 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	 * and easier to work with
 	 */
 	private _flattenEditorsMap() {
+		// If we shouldn't be re-flattening (due to lack of update) then return early
+		if (!this._shouldReFlattenEditors) {
+			return this._flattenedEditors;
+		}
+		this._shouldReFlattenEditors = false;
 		const editors = new Map<string | glob.IRelativePattern, RegisteredEditors>();
 		for (const [glob, value] of this._editors) {
 			const registeredEditors: RegisteredEditors = [];
@@ -377,6 +379,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	}
 
 	public getEditors(resource?: URI): RegisteredEditorInfo[] {
+		this._flattenedEditors = this._flattenEditorsMap();
 
 		// By resource
 		if (URI.isUri(resource)) {
