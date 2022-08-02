@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor, ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -239,12 +239,13 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 
 const _ttPolicy = window.trustedTypes?.createPolicy('stickyScrollViewLayer', { createHTML: value => value });
 
-class StickyScrollCodeLine {
+class StickyScrollCodeLine extends Disposable {
 
 	public readonly effectiveLineHeight: number = 0;
 
 	constructor(private readonly _lineNumber: number, private readonly _depth: number, private readonly _editor: IActiveCodeEditor,
 		private readonly _zIndex: number, private readonly _relativePosition: number) {
+		super();
 		this.effectiveLineHeight = this._editor.getOption(EditorOption.lineHeight) + this._relativePosition;
 	}
 
@@ -315,11 +316,11 @@ class StickyScrollCodeLine {
 		innerLineNumberHTML.style.lineHeight = this._editor.getOption(EditorOption.lineHeight).toString() + 'px';
 		lineNumberHTMLNode.appendChild(innerLineNumberHTML);
 
-		root.onclick = e => {
+		this._register(dom.addDisposableListener(root, 'click', e => {
 			e.stopPropagation();
 			e.preventDefault();
 			this._editor.revealPosition({ lineNumber: this._lineNumber - this._depth + 1, column: 1 });
-		};
+		}));
 
 		root.onmouseover = e => {
 			innerLineNumberHTML.style.background = `var(--vscode-editorStickyScrollHover-background)`;
@@ -401,6 +402,7 @@ class StickyScrollWidget implements IOverlayWidget {
 	}
 
 	emptyRootNode() {
+		dispose(this.arrayOfCodeLines);
 		this.arrayOfCodeLines.length = 0;
 		dom.clearNode(this.rootDomNode);
 	}
