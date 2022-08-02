@@ -539,7 +539,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			));
 		}
 
-		return items;
+		return items.sort((item1, item2) => item1.label.localeCompare(item2.label));
 	}
 }
 

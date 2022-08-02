@@ -269,7 +269,7 @@ export class BrowserMain extends Disposable {
 		// User Data Profiles
 		const userDataProfilesService = new BrowserUserDataProfilesService(environmentService, fileService, uriIdentityService, logService);
 		serviceCollection.set(IUserDataProfilesService, userDataProfilesService);
-		const userDataProfileService = new UserDataProfileService(userDataProfilesService.getProfile(isWorkspaceIdentifier(payload) || isSingleFolderWorkspaceIdentifier(payload) ? payload : 'empty-window'), userDataProfilesService);
+		const userDataProfileService = new UserDataProfileService(userDataProfilesService.getProfile(isWorkspaceIdentifier(payload) || isSingleFolderWorkspaceIdentifier(payload) ? payload : 'empty-window', userDataProfilesService.defaultProfile), userDataProfilesService);
 		serviceCollection.set(IUserDataProfileService, userDataProfileService);
 
 		// Long running services (workspace, config, storage)
