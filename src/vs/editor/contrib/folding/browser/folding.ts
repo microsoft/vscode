@@ -245,17 +245,13 @@ export class FoldingController extends Disposable implements IEditorContribution
 					this.foldingRegionPromise.cancel();
 					this.foldingRegionPromise = null;
 				}
-				if (this.updateScheduler) {
-					this.updateScheduler.cancel();
-				}
+				this.updateScheduler?.cancel();
 				this.updateScheduler = null;
 				this.foldingModel = null;
 				this.foldingModelPromise = null;
 				this.hiddenRangeModel = null;
 				this.cursorChangedScheduler = null;
-				if (this.rangeProvider) {
-					this.rangeProvider.dispose();
-				}
+				this.rangeProvider?.dispose();
 				this.rangeProvider = null;
 			}
 		});
@@ -263,9 +259,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 	}
 
 	private onFoldingStrategyChanged() {
-		if (this.rangeProvider) {
-			this.rangeProvider.dispose();
-		}
+		this.rangeProvider?.dispose();
 		this.rangeProvider = null;
 		this.triggerFoldingModelChanged();
 	}

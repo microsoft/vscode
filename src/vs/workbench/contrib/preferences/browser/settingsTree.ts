@@ -1006,9 +1006,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	}
 
 	disposeElement(_element: ITreeNode<SettingsTreeElement>, _index: number, template: IDisposableTemplate, _height: number | undefined): void {
-		if ((template as ISettingItemTemplate).elementDisposables) {
-			(template as ISettingItemTemplate).elementDisposables.clear();
-		}
+		(template as ISettingItemTemplate).elementDisposables?.clear();
 	}
 }
 

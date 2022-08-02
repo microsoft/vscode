@@ -552,9 +552,7 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 	override focus(): void {
 		super.focus();
 
-		if (this.item) {
-			this.item.focus();
-		}
+		this.item?.focus();
 
 		this.applyStyle();
 	}

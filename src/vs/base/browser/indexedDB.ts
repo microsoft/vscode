@@ -105,9 +105,7 @@ export class IndexedDB {
 		if (this.pendingTransactions.length) {
 			this.pendingTransactions.splice(0, this.pendingTransactions.length).forEach(transaction => transaction.abort());
 		}
-		if (this.database) {
-			this.database.close();
-		}
+		this.database?.close();
 		this.database = null;
 	}
 

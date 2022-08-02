@@ -333,9 +333,7 @@ async function connectToRemoteExtensionHostAgentAndReadOneMessage<T>(options: IS
 			}
 			result.reject(error);
 		} else {
-			if (options.reconnectionProtocol) {
-				options.reconnectionProtocol.endAcceptReconnection();
-			}
+			options.reconnectionProtocol?.endAcceptReconnection();
 			options.logService.trace(`${logPrefix} 6/6. handshake finished, connection is up and running after ${logElapsed(startTime)}!`);
 			result.resolve({ protocol, firstMessage: msg });
 		}

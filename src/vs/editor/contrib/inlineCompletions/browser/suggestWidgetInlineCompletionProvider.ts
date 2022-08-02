@@ -182,16 +182,12 @@ export class SuggestWidgetInlineCompletionProvider extends Disposable {
 
 	public stopForceRenderingAbove(): void {
 		const suggestController = SuggestController.get(this.editor);
-		if (suggestController) {
-			suggestController.stopForceRenderingAbove();
-		}
+		suggestController?.stopForceRenderingAbove();
 	}
 
 	public forceRenderingAbove(): void {
 		const suggestController = SuggestController.get(this.editor);
-		if (suggestController) {
-			suggestController.forceRenderingAbove();
-		}
+		suggestController?.forceRenderingAbove();
 	}
 }
 
