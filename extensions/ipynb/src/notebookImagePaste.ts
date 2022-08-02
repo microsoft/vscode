@@ -37,27 +37,28 @@ class CopyPasteEditProvider implements vscode.DocumentPasteEditProvider {
 
 		// get filename data from paste
 		let pasteFilename = dataItem.asFile()?.name;
-		const filePrefix = pasteFilename?.split('.')[0];
-		const fileSuffix = pasteFilename?.split('.')[1];
-		if (!filePrefix || !fileSuffix) {
+		const separator = pasteFilename?.lastIndexOf('.');
+		const filename = pasteFilename?.slice(0, separator);
+		const filetype = pasteFilename?.slice(separator);
+		if (!filename || !filetype) {
 			return undefined;
 		}
 
 		// create updated metadata for cell (prep for WorkspaceEdit)
 		if (!initialize) {
 			let appendValue = 2;
-			let attachmentFilename: keyof typeof initialAttachments;
-			const sortedFilenames = sortFilenames(initialAttachments);
-			for (attachmentFilename of sortedFilenames) {
-				if (attachmentFilename === pasteFilename) {
+			while (true) {
+				if (pasteFilename && pasteFilename in initialAttachments) {
 					const objEntries = Object.entries(initialAttachments[pasteFilename]);
 					if (objEntries.length) { // check that mime:b64 are present
 						const [, attachmentb64] = objEntries[0];
 						if (attachmentb64 !== b64string) {	// append a "-#" here. same name, diff data. this matches jupyter behavior
-							pasteFilename = filePrefix.concat(`-${appendValue++}.`) + fileSuffix;
+							pasteFilename = filename.concat(`-${appendValue++}`) + filetype;
+							continue;
 						}
 					}
 				}
+				break;
 			}
 		}
 		if (!pasteFilename) {
@@ -72,20 +73,22 @@ class CopyPasteEditProvider implements vscode.DocumentPasteEditProvider {
 		}
 
 		// create WorkspaceEdit and apply to active notebook
-		let newCell;
+		let newCellMetadata;
 		if (updatedMetadata) {
-			newCell = vscode.NotebookEdit.updateCellMetadata(currentCell[0].index, updatedMetadata);
+			newCellMetadata = vscode.NotebookEdit.updateCellMetadata(currentCell[0].index, updatedMetadata);
 		}
 		const edit = new vscode.WorkspaceEdit();
-		if (activeNotebook?.uri && newCell) {
-			edit.set(activeNotebook.uri, [newCell]);
+		if (activeNotebook?.uri && newCellMetadata) {
+			edit.set(activeNotebook.uri, [newCellMetadata]);
 		}
-		vscode.workspace.applyEdit(edit);
+		vscode.workspace.applyEdit(edit); // TODO: also waiting on fix for reviveWorkspaceEditDto vs reviveWorkspaceEditDto2
 
-		// Build a snippet to paste
+		// create a snippet for paste
 		const snippet = new vscode.SnippetString();
 		snippet.appendText(`![${pasteFilename}](attachment:${pasteFilename})`);
+
 		return { insertText: snippet };
+		// return { insertText: snippet, additionalEdit: edit }; // TODO: unsupported edit error, blocked and waiting on fix mentioned on L#87
 	}
 }
 
@@ -133,13 +136,4 @@ function encodeBase64(buffer: Uint8Array, padded = true, urlSafe = false) {
 	}
 
 	return output;
-}
-
-function sortFilenames(initialAttachments: any) {
-	return Object.keys(initialAttachments).sort(function (a, b) {
-		function getRaw(s: string) {
-			return s.replace('-', '');
-		}
-		return getRaw(a).localeCompare(getRaw(b));
-	});
 }
