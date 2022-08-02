@@ -178,25 +178,6 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 		await saveAllFilesAndCloseAll();
 	});
 
-	test.skip('correct cell selection on undo/redo of cell creation', async function () {
-		const notebook = await openRandomNotebookDocument();
-		await vscode.window.showNotebookDocument(notebook);
-		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
-		await vscode.commands.executeCommand('undo');
-		const selectionUndo = [...vscode.window.activeNotebookEditor!.selections];
-		await vscode.commands.executeCommand('redo');
-		const selectionRedo = vscode.window.activeNotebookEditor!.selections;
-
-		// On undo, the selected cell must be the upper cell, ie the first one
-		assert.strictEqual(selectionUndo.length, 1);
-		assert.strictEqual(selectionUndo[0].start, 0);
-		assert.strictEqual(selectionUndo[0].end, 1);
-		// On redo, the selected cell must be the new cell, ie the second one
-		assert.strictEqual(selectionRedo.length, 1);
-		assert.strictEqual(selectionRedo[0].start, 1);
-		assert.strictEqual(selectionRedo[0].end, 2);
-	});
-
 	test.skip('editor editing event', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/152145
 		const notebook = await openRandomNotebookDocument();
 		const editor = await vscode.window.showNotebookDocument(notebook);
@@ -280,41 +261,6 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 		const cell = editor.notebook.cellAt(0);
 		assert.ok(editor.notebook.metadata.custom.extraNotebookMetadata, `Test metadata not found`);
 		assert.ok(cell.metadata.extraCellMetadata, `Test cell metdata not found`);
-	});
-
-	test('edit API batch edits undo/redo', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/155825
-		const notebook = await openRandomNotebookDocument();
-		const editor = await vscode.window.showNotebookDocument(notebook);
-
-		const version = editor.notebook.version;
-		const edit = new vscode.WorkspaceEdit();
-		const cellEdit = vscode.NotebookEdit.replaceCells(new vscode.NotebookRange(1, 1), [{ kind: vscode.NotebookCellKind.Code, languageId: 'javascript', value: 'test 2', outputs: [], metadata: undefined }]);
-		const metadataEdit = vscode.NotebookEdit.updateCellMetadata(0, { inputCollapsed: false });
-		edit.set(notebook.uri, [cellEdit, metadataEdit]);
-		const success = await vscode.workspace.applyEdit(edit);
-		assert.equal(success, true);
-
-		assert.strictEqual(editor.notebook.cellCount, 3);
-		assert.strictEqual(editor.notebook.cellAt(0)?.metadata.inputCollapsed, false);
-		assert.strictEqual(version + 1, editor.notebook.version);
-
-		await vscode.commands.executeCommand('undo');
-		assert.strictEqual(version + 2, editor.notebook.version);
-		assert.strictEqual(editor.notebook.cellAt(0)?.metadata.inputCollapsed, undefined);
-		assert.strictEqual(editor.notebook.cellCount, 2);
-	});
-
-	// #126371
-	test.skip('#98841, initialzation should not emit cell change events.', async function () {
-		let count = 0;
-
-		testDisposables.push(vscode.workspace.onDidChangeNotebookDocument(() => {
-			count++;
-		}));
-
-		const notebook = await openRandomNotebookDocument();
-		await vscode.window.showNotebookDocument(notebook);
-		assert.strictEqual(count, 0);
 	});
 
 	test('notebook open', async function () {

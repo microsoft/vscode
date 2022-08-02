@@ -28,10 +28,18 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 	) {
 		super();
 		this._register(userDataProfilesService.onDidChangeProfiles(e => this.onDidChangeProfiles(e)));
+		this._register(userDataProfilesService.onDidResetWorkspaces(() => this.onDidResetWorkspaces()));
 	}
 
 	private onDidChangeProfiles(e: DidChangeProfilesEvent): void {
 		if (e.removed.some(profile => profile.id === this.userDataProfileService.currentProfile.id)) {
+			this.enterProfile(this.userDataProfilesService.defaultProfile, false, localize('reload message when removed', "The current settings profile has been removed. Please reload to switch back to default settings profile"));
+			return;
+		}
+	}
+
+	private onDidResetWorkspaces(): void {
+		if (!this.userDataProfileService.currentProfile.isDefault) {
 			this.enterProfile(this.userDataProfilesService.defaultProfile, false, localize('reload message when removed', "The current settings profile has been removed. Please reload to switch back to default settings profile"));
 			return;
 		}
