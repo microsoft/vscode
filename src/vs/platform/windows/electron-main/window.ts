@@ -42,6 +42,7 @@ import { Color } from 'vs/base/common/color';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { revive } from 'vs/base/common/marshalling';
+import product from 'vs/platform/product/common/product';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -117,8 +118,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	get openedWorkspace(): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined { return this._config?.workspace; }
 
-	private _profile: IUserDataProfile | undefined;
-	get profile(): IUserDataProfile | undefined { if (!this._profile) { this._profile = revive(this._config?.profiles.current); } return this._profile; }
+	get profile(): IUserDataProfile | undefined { return this.config ? this.userDataProfilesService.getProfile(this.config.workspace ?? 'empty-window', revive(this.config.profiles.current)) : undefined; }
 
 	get remoteAuthority(): string | undefined { return this._config?.remoteAuthority; }
 
@@ -189,6 +189,13 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 			const windowSettings = this.configurationService.getValue<IWindowSettings | undefined>('window');
 
+			let useSandbox = false;
+			if (typeof windowSettings?.experimental?.useSandbox === 'boolean') {
+				useSandbox = windowSettings.experimental.useSandbox;
+			} else {
+				useSandbox = typeof product.quality === 'string' && product.quality !== 'stable';
+			}
+
 			const options: BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } = {
 				width: this.windowState.width,
 				height: this.windowState.height,
@@ -209,7 +216,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					// Enable experimental css highlight api https://chromestatus.com/feature/5436441440026624
 					// Refs https://github.com/microsoft/vscode/issues/140098
 					enableBlinkFeatures: 'HighlightAPI',
-					...windowSettings?.experimental?.useSandbox ?
+					...useSandbox ?
 
 						// Sandbox
 						{
@@ -339,17 +346,18 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			// to open the window has a larger resolution than the primary display, the window will not size
 			// correctly unless we set the bounds again (https://github.com/microsoft/vscode/issues/74872)
 			//
+			// Extended to cover Windows as well as Mac (https://github.com/microsoft/vscode/issues/146499)
+			//
 			// However, when running with native tabs with multiple windows we cannot use this workaround
 			// because there is a potential that the new window will be added as native tab instead of being
 			// a window on its own. In that case calling setBounds() would cause https://github.com/microsoft/vscode/issues/75830
-			if (isMacintosh && hasMultipleDisplays && (!useNativeTabs || BrowserWindow.getAllWindows().length === 1)) {
+			if ((isMacintosh || isWindows) && hasMultipleDisplays && (!useNativeTabs || BrowserWindow.getAllWindows().length === 1)) {
 				if ([this.windowState.width, this.windowState.height, this.windowState.x, this.windowState.y].every(value => typeof value === 'number')) {
-					const ensuredWindowState = this.windowState as Required<IWindowState>;
 					this._win.setBounds({
-						width: ensuredWindowState.width,
-						height: ensuredWindowState.height,
-						x: ensuredWindowState.x,
-						y: ensuredWindowState.y
+						width: this.windowState.width,
+						height: this.windowState.height,
+						x: this.windowState.x,
+						y: this.windowState.y
 					});
 				}
 			}
@@ -610,7 +618,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		type WindowErrorClassification = {
 			type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The type of window crash to understand the nature of the crash better.' };
 			reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The reason of the window crash to understand the nature of the crash better.' };
-			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; omment: 'The exit code of the window process to understand the nature of the crash better' };
+			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the window process to understand the nature of the crash better' };
 			owner: 'bpasero';
 			comment: 'Provides insight into reasons the vscode window crashes.';
 		};
@@ -948,7 +956,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		configuration.editSessionId = this.environmentMainService.editSessionId; // set latest edit session id
 		configuration.profiles = {
 			all: this.userDataProfilesService.profiles,
-			current: this.userDataProfilesService.getProfile(configuration.workspace ?? 'empty-window'),
+			current: this.profile || this.userDataProfilesService.defaultProfile,
 		};
 
 		// Load config
