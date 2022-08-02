@@ -118,8 +118,8 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 		}
 	}
 
-	registerLogChannel(name: string, logFile: URI, extension: IExtensionDescription): void {
-		this.proxy.$register(name, true, logFile, undefined, extension.identifier.value);
+	registerExtensionLogChannel(name: string, logFile: URI, extension: IExtensionDescription): void {
+		this.proxy.$registerExtensionLog(name, logFile, extension.identifier.value);
 	}
 
 	createOutputChannel(name: string, languageId: string | undefined, extension: IExtensionDescription): vscode.OutputChannel {
@@ -142,7 +142,7 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 		const outputDir = await this.createOutputDirectory();
 		const file = this.extHostFileSystemInfo.extUri.joinPath(outputDir, `${this.namePool++}-${name.replace(/[\\/:\*\?"<>\|]/g, '')}.log`);
 		const logger = this.loggerService.createLogger(file, { always: true, donotRotate: true, donotUseFormatters: true });
-		const id = await this.proxy.$register(name, false, file, languageId, extension.identifier.value);
+		const id = await this.proxy.$register(name, file, languageId, extension.identifier.value);
 		return new ExtHostOutputChannel(id, name, logger, this.proxy);
 	}
 

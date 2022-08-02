@@ -557,7 +557,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 						const logFile = URI.joinPath(that._initData.logsLocation, extensionDescription.identifier.value);
 						const name = extensionDescription.displayName || extensionDescription.identifier.value;
 						extensionLogger = that._loggerService.createLogger(logFile, { name });
-						that._extHostOutputService.registerLogChannel(name, logFile, extensionDescription);
+						that._extHostOutputService.registerExtensionLogChannel(name, logFile, extensionDescription);
 					}
 					log(extensionLogger, logLevel, message as any, ...args);
 				}
