@@ -27,6 +27,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProcess';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { Codicon } from 'vs/base/common/codicons';
+import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
 
 const enum DecorationSelector {
 	CommandDecoration = 'terminal-command-decoration',
@@ -56,6 +57,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	private _placeholderDecoration: IDecoration | undefined;
 	private _showGutterDecorations?: boolean;
 	private _showOverviewRulerDecorations?: boolean;
+	private _showGenericDecorations?: boolean;
 
 	private readonly _onDidRequestRunCommand = this._register(new Emitter<{ command: ITerminalCommand; copyAsHtml?: boolean }>());
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
@@ -90,7 +92,11 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 					dispose(this._commandDetectionListeners);
 					this._commandDetectionListeners = undefined;
 				}
-				this._updateDecorationVisibility();
+				this._updateDecorationVisibility('terminal');
+			} else if (e.affectsConfiguration(TaskSettingId.ShowDecorations)) {
+				if (this._configurationService.getValue(TaskSettingId.ShowDecorations) === false) {
+					this._disposeAllDecorations('generic');
+				}
 			}
 		}));
 		this._register(this._themeService.onDidColorThemeChange(() => this._refreshStyles(true)));
@@ -110,11 +116,12 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}));
 	}
 
-	private _updateDecorationVisibility(): void {
+	private _updateDecorationVisibility(configUpdateType?: 'generic' | 'terminal'): void {
 		const showDecorations = this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled);
 		this._showGutterDecorations = (showDecorations === 'both' || showDecorations === 'gutter');
 		this._showOverviewRulerDecorations = (showDecorations === 'both' || showDecorations === 'overviewRuler');
-		this._disposeAllDecorations();
+		this._showGenericDecorations = this._configurationService.getValue(TaskSettingId.ShowDecorations);
+		this._disposeAllDecorations(configUpdateType);
 		if (this._showGutterDecorations || this._showOverviewRulerDecorations) {
 			this._attachToCommandCapability();
 			this._updateGutterDecorationVisibility();
@@ -125,9 +132,15 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 	}
 
-	private _disposeAllDecorations(): void {
+	private _disposeAllDecorations(configUpdateType?: 'generic' | 'terminal'): void {
 		this._placeholderDecoration?.dispose();
-		for (const value of this._decorations.values()) {
+		let values;
+		if (configUpdateType) {
+			values = Array.from(this._decorations.values()).filter(d => { return configUpdateType === 'generic' ? d.genericMarkProperties : !d.genericMarkProperties; });
+		} else {
+			values = this._decorations.values();
+		}
+		for (const value of values) {
 			value.decoration.dispose();
 			dispose(value.disposables);
 		}
@@ -251,7 +264,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	}
 
 	registerCommandDecoration(command: ITerminalCommand, beforeCommandExecution?: boolean): IDecoration | undefined {
-		if (!this._terminal || (beforeCommandExecution && command.genericMarkProperties) || (!this._showGutterDecorations && !this._showOverviewRulerDecorations)) {
+		if (!this._terminal || (beforeCommandExecution && command.genericMarkProperties) || (!this._showGutterDecorations && !this._showOverviewRulerDecorations && !this._showGenericDecorations)) {
 			return undefined;
 		}
 		if (!command.marker) {
