@@ -19,6 +19,7 @@ import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
 import { Position } from 'vs/editor/common/core/position';
+import 'vs/css!./stickyScroll';
 import { Range } from 'vs/editor/common/core/range';
 
 class StickyScrollController extends Disposable implements IEditorContribution {
@@ -237,8 +238,13 @@ class StickyScrollCodeLine {
 
 	public readonly effectiveLineHeight: number = 0;
 
-	constructor(private readonly _lineNumber: number, private readonly _depth: number, private readonly _editor: IActiveCodeEditor,
-		private readonly _zIndex: number, private readonly _relativePosition: number) {
+	constructor(
+		private readonly _lineNumber: number,
+		private readonly _depth: number,
+		private readonly _editor: IActiveCodeEditor,
+		private readonly _zIndex: number,
+		private readonly _relativePosition: number
+	) {
 		this.effectiveLineHeight = this._editor.getOption(EditorOption.lineHeight) + this._relativePosition;
 	}
 
@@ -260,9 +266,13 @@ class StickyScrollCodeLine {
 			actualInlineDecorations = [];
 		}
 
-		const renderLineInput: RenderLineInput = new RenderLineInput(true, true, lineRenderingData.content, lineRenderingData.continuesWithWrappedLine,
-			lineRenderingData.isBasicASCII, lineRenderingData.containsRTL, 0, lineRenderingData.tokens, actualInlineDecorations, lineRenderingData.tabSize,
-			lineRenderingData.startVisibleColumn, 1, 1, 1, 100, 'none', true, true, null);
+		const renderLineInput: RenderLineInput =
+			new RenderLineInput(true, true, lineRenderingData.content,
+				lineRenderingData.continuesWithWrappedLine,
+				lineRenderingData.isBasicASCII, lineRenderingData.containsRTL, 0,
+				lineRenderingData.tokens, actualInlineDecorations,
+				lineRenderingData.tabSize, lineRenderingData.startVisibleColumn,
+				1, 1, 1, 100, 'none', true, true, null);
 
 		const sb = createStringBuilder(400);
 		renderViewLine(renderLineInput, sb);
@@ -274,52 +284,31 @@ class StickyScrollCodeLine {
 			newLine = sb.build();
 		}
 
+		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
+		const layoutInfo = this._editor.getLayoutInfo();
+
 		const lineHTMLNode = document.createElement('span');
-		lineHTMLNode.style.backgroundColor = `var(--vscode-editorStickyScroll-background)`;
-		lineHTMLNode.style.overflow = 'hidden';
-		lineHTMLNode.style.whiteSpace = 'nowrap';
-		lineHTMLNode.style.display = 'inline-block';
-		lineHTMLNode.style.lineHeight = this._editor.getOption(EditorOption.lineHeight).toString() + 'px';
+		lineHTMLNode.className = 'sticky-line';
+		lineHTMLNode.style.lineHeight = `${lineHeight}px`;
 		lineHTMLNode.innerHTML = newLine as string;
 
 		const lineNumberHTMLNode = document.createElement('span');
-		lineNumberHTMLNode.style.width = this._editor.getLayoutInfo().contentLeft.toString() + 'px';
-		lineNumberHTMLNode.style.backgroundColor = `var(--vscode-editorStickyScroll-background)`;
-		lineNumberHTMLNode.style.color = 'var(--vscode-editorLineNumber-foreground)';
-		lineNumberHTMLNode.style.display = 'inline-block';
-		lineNumberHTMLNode.style.lineHeight = this._editor.getOption(EditorOption.lineHeight).toString() + 'px';
+		lineNumberHTMLNode.style.width = `${layoutInfo.contentLeft}px`;
+		lineNumberHTMLNode.className = 'sticky-line';
+		lineNumberHTMLNode.style.lineHeight = `${lineHeight}px`;
 
 		const innerLineNumberHTML = document.createElement('span');
 		innerLineNumberHTML.innerText = this._lineNumber.toString();
-		innerLineNumberHTML.style.paddingLeft = this._editor.getLayoutInfo().lineNumbersLeft.toString() + 'px';
-		innerLineNumberHTML.style.width = this._editor.getLayoutInfo().lineNumbersWidth.toString() + 'px';
-		innerLineNumberHTML.style.backgroundColor = `var(--vscode-editorStickyScroll-background)`;
-		innerLineNumberHTML.style.textAlign = 'right';
-		innerLineNumberHTML.style.float = 'left';
-		innerLineNumberHTML.style.lineHeight = this._editor.getOption(EditorOption.lineHeight).toString() + 'px';
+		innerLineNumberHTML.className = 'sticky-line-number';
+		innerLineNumberHTML.style.paddingLeft = `${layoutInfo.lineNumbersLeft}px`;
+		innerLineNumberHTML.style.width = `${layoutInfo.lineNumbersWidth}px`;
+		innerLineNumberHTML.style.lineHeight = `${lineHeight}px`;
 		lineNumberHTMLNode.appendChild(innerLineNumberHTML);
 
 		root.onclick = e => {
 			e.stopPropagation();
 			e.preventDefault();
 			this._editor.revealPosition({ lineNumber: this._lineNumber - this._depth + 1, column: 1 });
-		};
-
-		root.onmouseover = e => {
-			innerLineNumberHTML.style.background = `var(--vscode-editorStickyScrollHover-background)`;
-			lineHTMLNode.style.backgroundColor = `var(--vscode-editorStickyScrollHover-background)`;
-			lineNumberHTMLNode.style.backgroundColor = `var(--vscode-editorStickyScrollHover-background)`;
-			root.style.backgroundColor = `var(--vscode-editorStickyScrollHover-background)`;
-			innerLineNumberHTML.style.cursor = `pointer`;
-			lineHTMLNode.style.cursor = `pointer`;
-			root.style.cursor = `pointer`;
-			lineNumberHTMLNode.style.cursor = `pointer`;
-		};
-		root.onmouseleave = e => {
-			innerLineNumberHTML.style.background = `var(--vscode-editorStickyScroll-background)`;
-			lineHTMLNode.style.backgroundColor = `var(--vscode-editorStickyScroll-background)`;
-			lineNumberHTMLNode.style.backgroundColor = `var(--vscode-editorStickyScroll-background)`;
-			root.style.backgroundColor = `var(--vscode-editorStickyScroll-background)`;
 		};
 
 		this._editor.applyFontInfo(lineHTMLNode);
@@ -329,18 +318,14 @@ class StickyScrollCodeLine {
 		root.appendChild(lineHTMLNode);
 
 		root.style.zIndex = this._zIndex.toString();
-		root.style.backgroundColor = `var(--vscode-editorStickyScroll-background)`;
-		root.style.overflow = 'hidden';
-		root.style.whiteSpace = 'nowrap';
-		root.style.width = '100%';
-		root.style.lineHeight = this._editor.getOption(EditorOption.lineHeight).toString() + 'px';
-		root.style.height = this._editor.getOption(EditorOption.lineHeight).toString() + 'px';
+		root.className = 'sticky-line-root';
+		root.style.lineHeight = `${lineHeight}px`;
+		root.style.height = `${lineHeight}px`;
 
 		// Special case for last line of sticky scroll
 		if (this._relativePosition) {
 			root.style.position = 'relative';
 			root.style.top = this._relativePosition + 'px';
-			root.style.width = '100%';
 		}
 		return root;
 	}
@@ -353,8 +338,7 @@ class StickyScrollWidget implements IOverlayWidget {
 
 	constructor(public readonly _editor: ICodeEditor) {
 		this.rootDomNode = document.createElement('div');
-		this.rootDomNode.style.width = '100%';
-		this.rootDomNode.style.boxShadow = `var(--vscode-scrollbar-shadow) 0 6px 6px -6px`;
+		this.rootDomNode.className = 'sticky-widget';
 	}
 
 	get codeLineCount() {
@@ -392,8 +376,6 @@ class StickyScrollWidget implements IOverlayWidget {
 	}
 
 	getDomNode(): HTMLElement {
-		this.rootDomNode.style.zIndex = '2';
-		this.rootDomNode.style.backgroundColor = `var(--vscode-editorStickyScroll-background)`;
 		return this.rootDomNode;
 	}
 
