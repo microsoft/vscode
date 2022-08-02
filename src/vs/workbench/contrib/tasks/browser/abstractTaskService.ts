@@ -1132,17 +1132,25 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return tryTestShortcut;
 		}
 
-		return this._getGroupedTasksAndExecute();
+		return this._getGroupedTasksAndExecute(true);
 	}
 
-	private async _getGroupedTasksAndExecute(): Promise<ITaskSummary> {
+	private async _getGroupedTasksAndExecute(test?: boolean): Promise<ITaskSummary> {
 		const tasks = await this._getGroupedTasks();
-		const runnable = this._createRunnableTask(tasks, TaskGroup.Build);
+		const runnable = this._createRunnableTask(tasks, test ? TaskGroup.Test : TaskGroup.Build);
 		if (!runnable || !runnable.task) {
-			if (this.schemaVersion === JsonSchemaVersion.V0_1_0) {
-				throw new TaskError(Severity.Info, nls.localize('TaskService.noBuildTask1', 'No build task defined. Mark a task with \'isBuildCommand\' in the tasks.json file.'), TaskErrors.NoBuildTask);
+			if (test) {
+				if (this.schemaVersion === JsonSchemaVersion.V0_1_0) {
+					throw new TaskError(Severity.Info, nls.localize('TaskService.noTestTask1', 'No test task defined. Mark a task with \'isTestCommand\' in the tasks.json file.'), TaskErrors.NoTestTask);
+				} else {
+					throw new TaskError(Severity.Info, nls.localize('TaskService.noTestTask2', 'No test task defined. Mark a task with as a \'test\' group in the tasks.json file.'), TaskErrors.NoTestTask);
+				}
 			} else {
-				throw new TaskError(Severity.Info, nls.localize('TaskService.noBuildTask2', 'No build task defined. Mark a task with as a \'build\' group in the tasks.json file.'), TaskErrors.NoBuildTask);
+				if (this.schemaVersion === JsonSchemaVersion.V0_1_0) {
+					throw new TaskError(Severity.Info, nls.localize('TaskService.noBuildTask1', 'No build task defined. Mark a task with \'isBuildCommand\' in the tasks.json file.'), TaskErrors.NoBuildTask);
+				} else {
+					throw new TaskError(Severity.Info, nls.localize('TaskService.noBuildTask2', 'No build task defined. Mark a task with as a \'build\' group in the tasks.json file.'), TaskErrors.NoBuildTask);
+				}
 			}
 		}
 		let executeTaskResult: ITaskSummary;
