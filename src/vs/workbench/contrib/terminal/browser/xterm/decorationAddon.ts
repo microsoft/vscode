@@ -131,9 +131,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	private _disposeAllDecorations(): void {
 		this._placeholderDecoration?.dispose();
 		for (const value of this._decorations.values()) {
-			if (value.decoration.options.overviewRulerOptions?.color) {
-				value.decoration.options.overviewRulerOptions.color = '';
-			}
 			value.decoration.dispose();
 			dispose(value.disposables);
 		}
@@ -196,9 +193,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	}
 
 	public clearDecorations(): void {
-		if (!!this._placeholderDecoration?.options.overviewRulerOptions?.color) {
-			this._placeholderDecoration.options.overviewRulerOptions.color = '';
-		}
 		this._placeholderDecoration?.marker.dispose();
 		this._clearPlaceholder();
 		this._disposeAllDecorations();
