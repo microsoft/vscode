@@ -1467,7 +1467,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			await cell?.updateContentAndRender(newContent, metadata);
 		}
 
-		public showMarkupCell(id: string, top: number, newContent: string | undefined, metadata: NotebookCellMetadata): void {
+		public showMarkupCell(id: string, top: number, newContent: string | undefined, metadata: NotebookCellMetadata | undefined): void {
 			const cell = this.getExpectedMarkupCell(id);
 			cell?.show(top, newContent, metadata);
 		}
@@ -1775,11 +1775,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 			});
 		}
 
-		public show(top: number, newContent: string | undefined, metadata: NotebookCellMetadata): void {
+		public show(top: number, newContent: string | undefined, metadata: NotebookCellMetadata | undefined): void {
 			this.element.style.visibility = 'visible';
 			this.element.style.top = `${top}px`;
-			if (typeof newContent === 'string') {
-				this.updateContentAndRender(newContent, metadata);
+			if (typeof newContent === 'string' || metadata) {
+				this.updateContentAndRender(newContent ?? this._content.value, metadata ?? this._content.metadata);
 			} else {
 				this.updateMarkupDimensions();
 			}
