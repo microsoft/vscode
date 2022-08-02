@@ -20,7 +20,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 
 export class ExtensionsDownloader extends Disposable {
 
-	private readonly extensionsDownloadDir: URI;
+	readonly extensionsDownloadDir: URI;
 	private readonly cache: number;
 	private readonly cleanUpPromise: Promise<void>;
 
