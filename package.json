@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.70.0",
-  "distro": "81cca34eb9bc1d2c0a7d0124ce64b62c994ca9b7",
+  "distro": "ed2b6a548e515c964cfc30c99203906e96a1b92a",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -97,7 +97,7 @@
   },
   "devDependencies": {
     "7zip": "0.0.6",
-    "@playwright/test": "1.21.0",
+    "@playwright/test": "1.24.2",
     "@types/cookie": "^0.3.3",
     "@types/copy-webpack-plugin": "^6.0.3",
     "@types/cssnano": "^4.0.0",
