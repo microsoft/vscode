@@ -99,6 +99,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		super();
 
 		if (this.environmentService.editSessionId !== undefined) {
+			performance.mark('code/willResumeEditSessionFromIdentifier');
 			type ResumeEvent = {};
 			type ResumeClassification = {
 				owner: 'joyceerhl'; comment: 'Reporting when an action is resumed from an edit session identifier.';
@@ -106,6 +107,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			this.telemetryService.publicLog2<ResumeEvent, ResumeClassification>('editSessions.continue.resume');
 
 			void this.resumeEditSession(this.environmentService.editSessionId).finally(() => this.environmentService.editSessionId = undefined);
+			performance.mark('code/didResumeEditSessionFromIdentifier');
 		}
 
 		this.configurationService.onDidChangeConfiguration((e) => {

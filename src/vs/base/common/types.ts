@@ -275,3 +275,9 @@ export type UriDto<T> = { [K in keyof T]: T[K] extends URI
 export function assertNever(value: never, message = 'Unreachable'): never {
 	throw new Error(message);
 }
+
+/**
+ * Given an object with all optional properties, requires at least one to be defined.
+ * i.e. AtLeastOne<MyObject>;
+ */
+export type AtLeastOne<T, U = { [K in keyof T]: Pick<T, K> }> = Partial<T> & U[keyof U];
