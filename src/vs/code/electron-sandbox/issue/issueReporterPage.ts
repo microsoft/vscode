@@ -11,15 +11,22 @@ const sendProcessInfoLabel = escape(localize('sendProcessInfo', "Include my curr
 const sendWorkspaceInfoLabel = escape(localize('sendWorkspaceInfo', "Include my workspace metadata"));
 const sendExtensionsLabel = escape(localize('sendExtensions', "Include my enabled extensions"));
 const sendExperimentsLabel = escape(localize('sendExperiments', "Include A/B experiment info"));
+const reviewGuidanceLabel = localize( // intentionally not escaped because of its embedded tags
+	{
+		key: 'reviewGuidanceLabel',
+		comment: [
+			'{Locked="<a href=\"https://github.com/microsoft/vscode/wiki/Submitting-Bugs-and-Suggestions\" target=\"_blank\">"}',
+			'{Locked="</a>"}'
+		]
+	},
+	'Before you report an issue here please <a href="https://github.com/microsoft/vscode/wiki/Submitting-Bugs-and-Suggestions" target="_blank">review the guidance we provide</a>.'
+);
 
 export default (): string => `
 <div id="issue-reporter">
 	<div id="english" class="input-group hidden">${escape(localize('completeInEnglish', "Please complete the form in English."))}</div>
 
-	<div id="review-guidance-help-text" class="input-group">
-		${escape(localize('reviewGuidanceLabelText', "Before you report an issue here please {0}."))
-		.replace('{0}', `<a href="https://github.com/microsoft/vscode/wiki/Submitting-Bugs-and-Suggestions" target="_blank">${escape(localize('reviewGuidanceLinkText', "review the guidance we provide"))}</a>`)}
-	</div>
+	<div id="review-guidance-help-text" class="input-group">${reviewGuidanceLabel}</div>
 
 	<div class="section">
 		<div class="input-group">
