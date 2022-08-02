@@ -346,12 +346,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			// a window on its own. In that case calling setBounds() would cause https://github.com/microsoft/vscode/issues/75830
 			if ((isMacintosh || isWindows) && hasMultipleDisplays && (!useNativeTabs || BrowserWindow.getAllWindows().length === 1)) {
 				if ([this.windowState.width, this.windowState.height, this.windowState.x, this.windowState.y].every(value => typeof value === 'number')) {
-					const ensuredWindowState = this.windowState as Required<IWindowState>;
 					this._win.setBounds({
-						width: ensuredWindowState.width,
-						height: ensuredWindowState.height,
-						x: ensuredWindowState.x,
-						y: ensuredWindowState.y
+						width: this.windowState.width,
+						height: this.windowState.height,
+						x: this.windowState.x,
+						y: this.windowState.y
 					});
 				}
 			}
