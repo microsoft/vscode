@@ -1035,7 +1035,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				break;
 
 			case 'showMarkupCell':
-				viewModel.showMarkupCell(event.data.id, event.data.top, event.data.content);
+				viewModel.showMarkupCell(event.data.id, event.data.top, event.data.content, event.data.metadata);
 				break;
 
 			case 'hideMarkupCells':
@@ -1448,7 +1448,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			let cell = this._markupCells.get(info.cellId);
 			if (cell) {
 				cell.element.style.visibility = info.visible ? 'visible' : 'hidden';
-				await cell.updateContentAndRender(info.content);
+				await cell.updateContentAndRender(info.content, info.metadata);
 			} else {
 				cell = await this.createMarkupCell(info, info.offset, info.visible);
 			}
@@ -1462,14 +1462,14 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 		}
 
-		public async updateMarkupContent(id: string, newContent: string): Promise<void> {
+		public async updateMarkupContent(id: string, newContent: string, metadata: NotebookCellMetadata): Promise<void> {
 			const cell = this.getExpectedMarkupCell(id);
-			await cell?.updateContentAndRender(newContent);
+			await cell?.updateContentAndRender(newContent, metadata);
 		}
 
-		public showMarkupCell(id: string, top: number, newContent: string | undefined): void {
+		public showMarkupCell(id: string, top: number, newContent: string | undefined, metadata: NotebookCellMetadata | undefined): void {
 			const cell = this.getExpectedMarkupCell(id);
-			cell?.show(top, newContent);
+			cell?.show(top, newContent, metadata);
 		}
 
 		public hideMarkupCell(id: string): void {
@@ -1633,11 +1633,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 		private readonly outputItem: rendererApi.OutputItem;
 
 		/// Internal field that holds text content
-		private _content: { readonly value: string; readonly version: number };
+		private _content: { readonly value: string; readonly version: number; readonly metadata: NotebookCellMetadata };
 
 		constructor(id: string, mime: string, content: string, top: number, metadata: NotebookCellMetadata) {
 			this.id = id;
-			this._content = { value: content, version: 0 };
+			this._content = { value: content, version: 0, metadata: metadata };
 
 			let resolveReady: () => void;
 			this.ready = new Promise<void>(r => resolveReady = r);
@@ -1646,7 +1646,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.outputItem = Object.freeze(<rendererApi.OutputItem>{
 				id,
 				mime,
-				metadata,
+
+				metadata: (): NotebookCellMetadata => {
+					return this._content.metadata;
+				},
 
 				text: (): string => {
 					return this._content.value;
@@ -1688,7 +1691,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			this.addEventListeners();
 
-			this.updateContentAndRender(this._content.value).then(() => {
+			this.updateContentAndRender(this._content.value, this._content.metadata).then(() => {
 				resizeObserver.observe(this.element, this.id, false, this.id);
 				resolveReady();
 			});
@@ -1738,8 +1741,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 			});
 		}
 
-		public async updateContentAndRender(newContent: string): Promise<void> {
-			this._content = { value: newContent, version: this._content.version + 1 };
+		public async updateContentAndRender(newContent: string, metadata: NotebookCellMetadata): Promise<void> {
+			this._content = { value: newContent, version: this._content.version + 1, metadata };
 
 			await renderers.render(this.outputItem, this.element);
 
@@ -1772,11 +1775,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 			});
 		}
 
-		public show(top: number, newContent: string | undefined): void {
+		public show(top: number, newContent: string | undefined, metadata: NotebookCellMetadata | undefined): void {
 			this.element.style.visibility = 'visible';
 			this.element.style.top = `${top}px`;
-			if (typeof newContent === 'string') {
-				this.updateContentAndRender(newContent);
+			if (typeof newContent === 'string' || metadata) {
+				this.updateContentAndRender(newContent ?? this._content.value, metadata ?? this._content.metadata);
 			} else {
 				this.updateMarkupDimensions();
 			}
@@ -1792,7 +1795,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		public rerender() {
-			this.updateContentAndRender(this._content.value);
+			this.updateContentAndRender(this._content.value, this._content.metadata);
 		}
 
 		public remove() {
