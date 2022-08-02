@@ -18,7 +18,7 @@ import { regExpLeadsToEndlessLoop, regExpFlags } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
 import { isFalsyOrEmpty, isNonEmptyArray, coalesce } from 'vs/base/common/arrays';
-import { isArray, isObject } from 'vs/base/common/types';
+import { isObject } from 'vs/base/common/types';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -1124,8 +1124,8 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 			return undefined;
 		}
 
-		const normalizedResult = isArray(result) ? result : result.items;
-		const commands = this._isAdditionsProposedApiEnabled ? isArray(result) ? [] : result.commands || [] : [];
+		const normalizedResult = Array.isArray(result) ? result : result.items;
+		const commands = this._isAdditionsProposedApiEnabled ? Array.isArray(result) ? [] : result.commands || [] : [];
 
 		let disposableStore: DisposableStore | undefined = undefined;
 		const pid = this._references.createReferenceId({
@@ -1230,8 +1230,8 @@ class InlineCompletionAdapterNew extends InlineCompletionAdapterBase {
 			return undefined;
 		}
 
-		const normalizedResult = isArray(result) ? result : result.items;
-		const commands = isArray(result) ? [] : result.commands || [];
+		const normalizedResult = Array.isArray(result) ? result : result.items;
+		const commands = Array.isArray(result) ? [] : result.commands || [];
 
 		let disposableStore: DisposableStore | undefined = undefined;
 		const pid = this._references.createReferenceId({

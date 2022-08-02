@@ -3625,7 +3625,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			} else if (suppressTaskName) {
 				configElement.command = task._source.config.element.command;
 			}
-			if (task.command.args && (!Types.isArray(task.command.args) || (task.command.args.length > 0))) {
+			if (task.command.args && (!Array.isArray(task.command.args) || (task.command.args.length > 0))) {
 				if (!globalConfig.windows?.args && !globalConfig.osx?.args && !globalConfig.linux?.args) {
 					configElement.args = task.command.args;
 				} else {

@@ -565,7 +565,7 @@ function foldingArgumentsConstraint(args: any) {
 		if (!types.isUndefined(foldingArgs.direction) && !types.isString(foldingArgs.direction)) {
 			return false;
 		}
-		if (!types.isUndefined(foldingArgs.selectionLines) && (!types.isArray(foldingArgs.selectionLines) || !foldingArgs.selectionLines.every(types.isNumber))) {
+		if (!types.isUndefined(foldingArgs.selectionLines) && (!Array.isArray(foldingArgs.selectionLines) || !foldingArgs.selectionLines.every(types.isNumber))) {
 			return false;
 		}
 	}

@@ -1565,7 +1565,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private _collectDefinitionVariables(variables: Set<string>, definition: any): void {
 		if (Types.isString(definition)) {
 			this._collectVariables(variables, definition);
-		} else if (Types.isArray(definition)) {
+		} else if (Array.isArray(definition)) {
 			definition.forEach((element: any) => this._collectDefinitionVariables(variables, element));
 		} else if (Types.isObject(definition)) {
 			for (const key in definition) {

@@ -6,7 +6,6 @@
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { mark } from 'vs/base/common/performance';
-import { isArray } from 'vs/base/common/types';
 
 class MissingStoresError extends Error {
 	constructor(readonly db: IDBDatabase) {
@@ -122,7 +121,7 @@ export class IndexedDB {
 		this.pendingTransactions.push(transaction);
 		return new Promise<T | T[]>((c, e) => {
 			transaction.oncomplete = () => {
-				if (isArray(request)) {
+				if (Array.isArray(request)) {
 					c(request.map(r => r.result));
 				} else {
 					c(request.result);

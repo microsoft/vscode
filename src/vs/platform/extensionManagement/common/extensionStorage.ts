@@ -12,7 +12,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { distinct } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtension } from 'vs/platform/extensions/common/extensions';
-import { isArray, isString } from 'vs/base/common/types';
+import { isString } from 'vs/base/common/types';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { IExtensionManagementService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 
@@ -197,7 +197,7 @@ export class ExtensionStorageService extends Disposable implements IExtensionSto
 		const value = this.storageService.get('extensionStorage.migrationList', StorageScope.APPLICATION, '[]');
 		try {
 			const migrationList = JSON.parse(value);
-			if (isArray(migrationList)) {
+			if (Array.isArray(migrationList)) {
 				return migrationList;
 			}
 		} catch (error) { /* ignore */ }
