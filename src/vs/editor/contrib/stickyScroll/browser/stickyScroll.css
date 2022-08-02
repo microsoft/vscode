@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.sticky-line {
+.monaco-editor .sticky-line {
 	color : var(--vscode-editorLineNumber-foreground);
 	overflow : hidden;
 	white-space : nowrap;
 	display : inline-block;
 }
 
-.sticky-line-number {
+.monaco-editor .sticky-line-number {
 	text-align : right;
 	float : left;
 }
 
-.sticky-line-root {
+.monaco-editor .sticky-line-root {
 	background-color : var(--vscode-editorStickyScroll-background);
 	overflow : hidden;
 	white-space : nowrap;
 	width : 100%;
 }
 
-.sticky-line-root:hover {
+.monaco-editor .sticky-line-root:hover {
 	background-color: var(--vscode-editorStickyScrollHover-background);
 	cursor : pointer;
 }
 
-.sticky-widget {
+.monaco-editor .sticky-widget {
 	width : 100%;
 	box-shadow : var(--vscode-scrollbar-shadow) 0 6px 6px -6px;
 	z-index : 2;
