@@ -386,7 +386,6 @@ export class SearchService extends Disposable implements ISearchService {
 				endToEndTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The total search time' };
 				scheme: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The uri scheme of the folder searched in' };
 				error?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The type of the error, if any' };
-				usePCRE2: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 			};
 			type TextSearchCompleteEvent = {
 				reason?: string;
@@ -394,7 +393,6 @@ export class SearchService extends Disposable implements ISearchService {
 				endToEndTime: number;
 				scheme: string;
 				error?: string;
-				usePCRE2: boolean;
 			};
 			this.telemetryService.publicLog2<TextSearchCompleteEvent, TextSearchCompleteClassification>('textSearchComplete', {
 				reason: query._reason,
@@ -402,7 +400,6 @@ export class SearchService extends Disposable implements ISearchService {
 				endToEndTime: endToEndTime,
 				scheme,
 				error: errorType,
-				usePCRE2: !!query.usePCRE2
 			});
 		}
 	}
