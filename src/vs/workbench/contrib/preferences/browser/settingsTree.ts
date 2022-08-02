@@ -26,7 +26,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { isIOS } from 'vs/base/common/platform';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { isArray, isDefined, isUndefinedOrNull } from 'vs/base/common/types';
+import { isDefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -348,7 +348,7 @@ function parseNumericObjectValues(dataElement: SettingsTreeSettingElement, v: Re
 }
 
 function getListDisplayValue(element: SettingsTreeSettingElement): IListDataItem[] {
-	if (!element.value || !isArray(element.value)) {
+	if (!element.value || !Array.isArray(element.value)) {
 		return [];
 	}
 
@@ -1006,9 +1006,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	}
 
 	disposeElement(_element: ITreeNode<SettingsTreeElement>, _index: number, template: IDisposableTemplate, _height: number | undefined): void {
-		if ((template as ISettingItemTemplate).elementDisposables) {
-			(template as ISettingItemTemplate).elementDisposables.clear();
-		}
+		(template as ISettingItemTemplate).elementDisposables?.clear();
 	}
 }
 
@@ -1192,9 +1190,9 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 	private computeNewList(template: ISettingListItemTemplate, e: ISettingListChangeEvent<IListDataItem>): string[] | undefined {
 		if (template.context) {
 			let newValue: string[] = [];
-			if (isArray(template.context.scopeValue)) {
+			if (Array.isArray(template.context.scopeValue)) {
 				newValue = [...template.context.scopeValue];
-			} else if (isArray(template.context.value)) {
+			} else if (Array.isArray(template.context.value)) {
 				newValue = [...template.context.value];
 			}
 
@@ -1229,7 +1227,7 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 
 			if (
 				template.context.defaultValue &&
-				isArray(template.context.defaultValue) &&
+				Array.isArray(template.context.defaultValue) &&
 				template.context.defaultValue.length === newValue.length &&
 				template.context.defaultValue.join() === newValue.join()
 			) {

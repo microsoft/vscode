@@ -608,9 +608,7 @@ export abstract class BaseCellViewModel extends Disposable {
 			this._undoRedoService.removeElements(this.uri);
 		}
 
-		if (this._textModelRef) {
-			this._textModelRef.dispose();
-		}
+		this._textModelRef?.dispose();
 	}
 
 	toJSON(): object {

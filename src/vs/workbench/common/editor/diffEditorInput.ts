@@ -171,9 +171,7 @@ export class DiffEditorInput extends SideBySideEditorInput implements IDiffEdito
 		// inputs that need to be loaded again and thus we always recreate the model and dispose
 		// the previous one - if any.
 		const resolvedModel = await this.createModel();
-		if (this.cachedModel) {
-			this.cachedModel.dispose();
-		}
+		this.cachedModel?.dispose();
 
 		this.cachedModel = resolvedModel;
 

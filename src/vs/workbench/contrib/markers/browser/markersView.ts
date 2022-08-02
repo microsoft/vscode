@@ -427,9 +427,7 @@ export class MarkersView extends ViewPane implements IMarkersView {
 			for (const element of elements) {
 				if (element instanceof Marker) {
 					const viewModel = this.markersViewModel.getViewModel(element);
-					if (viewModel) {
-						viewModel.showLightBulb();
-					}
+					viewModel?.showLightBulb();
 				}
 			}
 		}));

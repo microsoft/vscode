@@ -155,9 +155,7 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 	}
 
 	show(): void {
-		if (this.dropdownMenu) {
-			this.dropdownMenu.show();
-		}
+		this.dropdownMenu?.show();
 	}
 
 	protected override updateEnabled(): void {

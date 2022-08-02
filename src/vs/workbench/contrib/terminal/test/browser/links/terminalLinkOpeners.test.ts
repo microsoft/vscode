@@ -87,7 +87,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 			}
 		} as Partial<IEditorService>);
 		// /*editorServiceSpy = */instantiationService.spy(IEditorService, 'openEditor');
-		xterm = new Terminal();
+		xterm = new Terminal({ allowProposedApi: true });
 	});
 
 	suite('TerminalSearchLinkOpener', () => {

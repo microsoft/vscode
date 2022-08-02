@@ -42,7 +42,7 @@ import { defaultKeybindingsContents, DefaultKeybindingsEditorModel, DefaultRawSe
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { isArray, isObject } from 'vs/base/common/types';
+import { isObject } from 'vs/base/common/types';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
@@ -577,7 +577,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 		if (setting) {
 			if (edit) {
-				if (isObject(setting.value) || isArray(setting.value)) {
+				if (isObject(setting.value) || Array.isArray(setting.value)) {
 					position = { lineNumber: setting.valueRange.startLineNumber, column: setting.valueRange.startColumn + 1 };
 					codeEditor.setPosition(position);
 					await CoreEditingCommands.LineBreakInsert.runEditorCommand(null, codeEditor, null);

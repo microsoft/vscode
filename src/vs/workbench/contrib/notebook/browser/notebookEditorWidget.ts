@@ -2530,9 +2530,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	findStop() {
-		if (this._webview) {
-			this._webview.findStop();
-		}
+		this._webview?.findStop();
 	}
 
 	//#endregion

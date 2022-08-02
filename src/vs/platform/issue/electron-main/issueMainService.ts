@@ -176,15 +176,11 @@ export class IssueMainService implements ICommonIssueService {
 		});
 
 		validatedIpcMain.on('vscode:closeIssueReporter', event => {
-			if (this.issueReporterWindow) {
-				this.issueReporterWindow.close();
-			}
+			this.issueReporterWindow?.close();
 		});
 
 		validatedIpcMain.on('vscode:closeProcessExplorer', event => {
-			if (this.processExplorerWindow) {
-				this.processExplorerWindow.close();
-			}
+			this.processExplorerWindow?.close();
 		});
 
 		validatedIpcMain.on('vscode:windowsInfoRequest', async event => {
