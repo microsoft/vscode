@@ -165,8 +165,17 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 		// Resolved the editor ID as much as possible, now find a given editor (cast here is ok because we resolve down to a string above)
 		let { editor: selectedEditor, conflictingDefault } = this.getEditor(resource, untypedEditor.options?.override as (string | EditorResolution.EXCLUSIVE_ONLY | undefined));
-		if (!selectedEditor) {
+		// If no editor was found and this was a typed editor or an editor with an explicit override we could not resolve it
+		if (!selectedEditor && (untypedEditor.options?.override || isEditorInputWithOptions(editor))) {
 			return ResolvedStatus.NONE;
+		} else if (!selectedEditor) {
+			// Simple untyped editors that we could not resolve will be resolved to the default editor
+			const resolvedEditor = this.getEditor(resource, DEFAULT_EDITOR_ASSOCIATION.id);
+			selectedEditor = resolvedEditor?.editor;
+			conflictingDefault = resolvedEditor?.conflictingDefault;
+			if (!selectedEditor) {
+				return ResolvedStatus.NONE;
+			}
 		}
 
 		// In the special case of diff editors we do some more work to determine the correct editor for both sides
