@@ -316,11 +316,11 @@ class StickyScrollCodeLine extends Disposable {
 		innerLineNumberHTML.style.lineHeight = this._editor.getOption(EditorOption.lineHeight).toString() + 'px';
 		lineNumberHTMLNode.appendChild(innerLineNumberHTML);
 
-		dom.addDisposableListener(root, 'click', e => {
+		this._register(dom.addDisposableListener(root, 'click', e => {
 			e.stopPropagation();
 			e.preventDefault();
 			this._editor.revealPosition({ lineNumber: this._lineNumber - this._depth + 1, column: 1 });
-		});
+		}));
 
 		root.onmouseover = e => {
 			innerLineNumberHTML.style.background = `var(--vscode-editorStickyScrollHover-background)`;
