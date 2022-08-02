@@ -53,6 +53,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	// Data Stores
 	private _editors: Map<string | glob.IRelativePattern, Map<string, RegisteredEditors>> = new Map<string | glob.IRelativePattern, Map<string, RegisteredEditors>>();
 	private _flattenedEditors: Map<string | glob.IRelativePattern, RegisteredEditors> = new Map();
+	private _shouldReFlattenEditors: boolean = true;
 	private cache: Set<string> | undefined;
 
 	constructor(
@@ -113,6 +114,12 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	}
 
 	async resolveEditor(editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<ResolvedEditor> {
+		// If there has been an update to the editors since last resolution
+		// Then we reflatten the map so that we may work with it
+		if (this._shouldReFlattenEditors) {
+			this._flattenedEditors = this._flattenEditorsMap();
+			this._shouldReFlattenEditors = false;
+		}
 		// Special case: side by side editors requires us to
 		// independently resolve both sides and then build
 		// a side by side editor with the result
@@ -251,14 +258,14 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			editorFactoryObject
 		});
 		registeredEditor.set(editorInfo.id, editorsWithId);
-		this._flattenedEditors = this._flattenEditorsMap();
+		this._shouldReFlattenEditors = true;
 		this._onDidChangeEditorRegistrations.fire();
 		return toDisposable(() => {
 			remove();
 			if (editorsWithId && editorsWithId.length === 0) {
 				registeredEditor?.delete(editorInfo.id);
 			}
-			this._flattenedEditors = this._flattenEditorsMap();
+			this._shouldReFlattenEditors = true;
 			this._onDidChangeEditorRegistrations.fire();
 		});
 	}
@@ -294,7 +301,8 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	}
 
 	/**
-	 * Given the nested nature of the editors map, we should merge factories of the same glob and id to make it flat
+	 * Given the nested nature of the editors map, we merge factories of the same glob and id to make it flat
+	 * and easier to work with
 	 */
 	private _flattenEditorsMap() {
 		const editors = new Map<string | glob.IRelativePattern, RegisteredEditors>();
