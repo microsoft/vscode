@@ -63,15 +63,11 @@ export interface CodeActionShowOptions {
 	readonly fromLightbulb?: boolean;
 }
 export interface ICodeActionMenuItem {
-	title: string;
-	detail: string;
 	action: IAction;
-	decoratorRight?: string;
-	isSeparator?: boolean;
+	isSeparator: boolean;
 	isEnabled: boolean;
 	isDocumentation: boolean;
 	index: number;
-	disabledReason?: string;
 	disposables?: IDisposable[];
 }
 
@@ -116,18 +112,34 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 	}
 	renderElement(element: ICodeActionMenuItem, index: number, templateData: ICodeActionMenuTemplateData): void {
 		const data: ICodeActionMenuTemplateData = templateData;
-
-		const text = element.title;
-		// const detail = element.detail;
-
-		const isEnabled = element.isEnabled;
+		const text = element.action.label;
 		const isSeparator = element.isSeparator;
-		const isDocumentation = element.isDocumentation;
+
+		element.isEnabled = element.action.enabled;
+
+
+		if (element.action instanceof CodeActionAction) {
+
+			// Check documentation type
+			element.isDocumentation = element.action.action.kind === CodeActionMenu.documentationID;
+			if (!element.isDocumentation) {
+
+				// Check if action has disabled reason
+				if (element.action.action.disabled) {
+					data.root.title = element.action.action.disabled;
+				} else {
+					const updateLabel = () => {
+						const [accept, preview] = this.acceptKeybindings;
+						data.root.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Refactor, Shift+F2 to Preview"'] }, "{0} to Refactor, {1} to Preview", this.keybindingService.lookupKeybinding(accept)?.getLabel(), this.keybindingService.lookupKeybinding(preview)?.getLabel());
+					};
+					updateLabel();
+				}
+			}
+		}
 
 		data.text.textContent = text;
-		// data.detail.textContent = detail;
 
-		if (!isEnabled) {
+		if (!element.isEnabled) {
 			data.root.classList.add('option-disabled');
 			data.root.style.backgroundColor = 'transparent !important';
 		} else {
@@ -137,18 +149,6 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 		if (isSeparator) {
 			data.root.classList.add('separator');
 			data.root.style.height = '10px';
-		}
-
-		if (!isDocumentation) {
-			if (element.disabledReason) {
-				data.root.title = element.disabledReason;
-			} else {
-				const updateLabel = () => {
-					const [accept, preview] = this.acceptKeybindings;
-					data.root.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Refactor, Shift+F2 to Preview"'] }, "{0} to Refactor, {1} to Preview", this.keybindingService.lookupKeybinding(accept)?.getLabel(), this.keybindingService.lookupKeybinding(preview)?.getLabel());
-				};
-				updateLabel();
-			}
 		}
 
 	}
@@ -283,21 +283,15 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 
 		// Populating the list widget and tracking enabled options.
 		inputArray.forEach((item, index) => {
+
 			const currIsSeparator = item.class === 'separator';
-			let isDocumentation = false;
-			let disabledReason = '';
-			if (item instanceof CodeActionAction) {
-				isDocumentation = item.action.kind === CodeActionMenu.documentationID;
-				if (item.action.disabled) {
-					disabledReason = item.action.disabled;
-				}
-			}
 
 			if (currIsSeparator) {
 				// set to true forever because there is a separator
 				this.hasSeparator = true;
 			}
-			const menuItem = <ICodeActionMenuItem>{ title: item.label, detail: item.tooltip, action: inputArray[index], isEnabled: item.enabled, isSeparator: currIsSeparator, index, isDocumentation, disabledReason };
+
+			const menuItem = <ICodeActionMenuItem>{ action: inputArray[index], isEnabled: item.enabled, isSeparator: currIsSeparator, index };
 			if (item.enabled) {
 				this.viewItems.push(menuItem);
 			}
