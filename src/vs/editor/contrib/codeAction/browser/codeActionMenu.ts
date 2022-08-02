@@ -166,7 +166,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	private viewItems: ICodeActionMenuItem[] = [];
 	private focusedEnabledItem: number | undefined;
 	private currSelectedItem: number | undefined;
-	private hasSeperator: boolean = false;
+	private hasSeparator: boolean = false;
 	private block?: HTMLElement;
 
 	public static readonly documentationID: string = '_documentation';
@@ -224,7 +224,6 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	}
 
 	private _onListHover(e: IListMouseEvent<ICodeActionMenuItem>): void {
-		this.currHoverItem = e;
 		if (!e.element) {
 			this.currSelectedItem = undefined;
 			this.codeActionList.value?.setFocus([]);
@@ -295,8 +294,8 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 			}
 
 			if (currIsSeparator) {
-				// set to true forever
-				this.hasSeperator = true;
+				// set to true forever because there is a separator
+				this.hasSeparator = true;
 			}
 			const menuItem = <ICodeActionMenuItem>{ title: item.label, detail: item.tooltip, action: inputArray[index], isEnabled: item.enabled, isSeparator: currIsSeparator, index, isDocumentation, disabledReason };
 			if (item.enabled) {
@@ -307,7 +306,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 
 		this.codeActionList.value.splice(0, this.codeActionList.value.length, this.options);
 
-		const height = this.hasSeperator ? (inputArray.length - 1) * codeActionLineHeight + 10 : inputArray.length * codeActionLineHeight;
+		const height = this.hasSeparator ? (inputArray.length - 1) * codeActionLineHeight + 10 : inputArray.length * codeActionLineHeight;
 		renderMenu.style.height = String(height) + 'px';
 		this.codeActionList.value.layout(height);
 
@@ -418,7 +417,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		this.viewItems = [];
 		this.focusedEnabledItem = 0;
 		this.currSelectedItem = undefined;
-		this.hasSeperator = false;
+		this.hasSeparator = false;
 		this._contextViewService.hideContextView({ source: this });
 	}
 
