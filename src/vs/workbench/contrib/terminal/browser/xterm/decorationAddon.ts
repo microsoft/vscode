@@ -147,13 +147,17 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	}
 
 	private _updateGutterDecorationVisibility(): void {
-		const commandDecorationElements = document.querySelectorAll(DecorationSelector.CommandDecoration);
+		const commandDecorationElements = document.querySelectorAll(`.${DecorationSelector.CommandDecoration}:not(.${DecorationSelector.GenericMarkerIcon})`);
 		for (const commandDecorationElement of commandDecorationElements) {
 			this._updateCommandDecorationVisibility(commandDecorationElement);
 		}
 	}
 
 	private _updateCommandDecorationVisibility(commandDecorationElement: Element): void {
+		if (commandDecorationElement.classList.contains(DecorationSelector.GenericMarkerIcon)) {
+			// we always show gutter decorations for generic markers ATM
+			return;
+		}
 		if (this._showGutterDecorations) {
 			commandDecorationElement.classList.remove(DecorationSelector.Hide);
 		} else {
@@ -279,7 +283,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 		const decoration = this._terminal.registerDecoration({
 			marker: command.marker,
-			overviewRulerOptions: this._showOverviewRulerDecorations ? (beforeCommandExecution
+			overviewRulerOptions: this._showOverviewRulerDecorations || this._showGenericDecorations && command.genericMarkProperties ? (beforeCommandExecution
 				? { color, position: 'left' }
 				: { color, position: command.exitCode ? 'right' : 'left' }) : undefined
 		});
