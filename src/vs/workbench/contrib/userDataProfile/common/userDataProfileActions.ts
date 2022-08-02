@@ -42,9 +42,16 @@ class CreateFromCurrentProfileAction extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const notificationService = accessor.get(INotificationService);
 		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
+		const userDataProfilesService = accessor.get(IUserDataProfilesService);
 		const name = await quickInputService.input({
 			placeHolder: localize('name', "Profile name"),
 			title: localize('save profile as', "Create from Current Settings Profile..."),
+			validateInput: async (value: string) => {
+				if (userDataProfilesService.profiles.some(p => p.name === value)) {
+					return localize('profileExists', "Settings Profile with name {0} already exists.", value);
+				}
+				return undefined;
+			}
 		});
 		if (name) {
 			try {
@@ -77,9 +84,16 @@ class CreateEmptyProfileAction extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
 		const notificationService = accessor.get(INotificationService);
+		const userDataProfilesService = accessor.get(IUserDataProfilesService);
 		const name = await quickInputService.input({
 			placeHolder: localize('name', "Profile name"),
 			title: localize('create and enter empty profile', "Create an Empty Profile..."),
+			validateInput: async (value: string) => {
+				if (userDataProfilesService.profiles.some(p => p.name === value)) {
+					return localize('profileExists', "Settings Profile with name {0} already exists.", value);
+				}
+				return undefined;
+			}
 		});
 		if (name) {
 			try {
@@ -175,6 +189,12 @@ registerAction2(class RenameProfileAction extends Action2 {
 				const name = await quickInputService.input({
 					value: pick.profile.name,
 					title: localize('edit settings profile', "Rename Settings Profile..."),
+					validateInput: async (value: string) => {
+						if (pick.profile.name !== value && profiles.some(p => p.name === value)) {
+							return localize('profileExists', "Settings Profile with name {0} already exists.", value);
+						}
+						return undefined;
+					}
 				});
 				if (name && name !== pick.profile.name) {
 					try {
