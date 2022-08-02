@@ -150,7 +150,7 @@ const themeSettingsWindowConfiguration: IConfigurationNode = {
 	type: 'object',
 	properties: {
 		[ThemeSettings.DETECT_HC]: detectHCSchemeSettingSchema,
-		[ThemeSettings.DETECT_COLOR_SCHEME]: detectColorSchemeSettingSchema
+		[ThemeSettings.DETECT_COLOR_SCHEME]: detectColorSchemeSettingSchema,
 	}
 };
 configurationRegistry.registerConfiguration(themeSettingsWindowConfiguration);
