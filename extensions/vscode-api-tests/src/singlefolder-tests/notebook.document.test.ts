@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import * as utils from '../utils';
 
-suite.skip('Notebook Document', function () {
+suite('Notebook Document', function () {
 
 	const simpleContentProvider = new class implements vscode.NotebookSerializer {
 		deserializeNotebook(_data: Uint8Array): vscode.NotebookData | Thenable<vscode.NotebookData> {
