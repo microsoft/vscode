@@ -152,36 +152,34 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 			});
 		});
 
-		notebook.onDidChangeContent(
-			(events) => {
-				const lastFailedCell = this.getLastFailedCellForNotebook(notebook.uri);
-				events.rawEvents.forEach((e) => {
-					if (e.kind === NotebookCellsChangeType.ModelChange) {
-						e.changes.forEach(([start, deleteCount]) => {
-							if (deleteCount === 0) {
-								const addHandle = notebook.cells[start].handle;
-								if (addHandle === lastFailedCell) {
-									this._setLastFailedCellVisibility(notebook.uri, true);
-								}
+		notebook.onDidChangeContent((events) => {
+			const lastFailedCell = this.getLastFailedCellForNotebook(notebook.uri);
+			events.rawEvents.forEach((e) => {
+				if (e.kind === NotebookCellsChangeType.ModelChange) {
+					e.changes.forEach(([start, deleteCount]) => {
+						if (deleteCount === 0) {
+							const addHandle = notebook.cells[start].handle;
+							if (addHandle === lastFailedCell) {
+								this._setLastFailedCellVisibility(notebook.uri, true);
 							}
-						});
-					}
-				});
-			}
-		);
+						}
+					});
+				}
+			});
+		});
 
 		return exe;
+	}
+
+	private _setLastFailedCellVisibility(notebook: URI, visible: boolean) {
+		this._lastFailedCellsVisible.set(notebook, visible);
+		this._onDidChangeLastRunFailState.fire({ failed: visible, notebook });
 	}
 
 	private _setLastFailedCell(notebook: URI, cellHandle: number) {
 		this._lastFailedCells.set(notebook, cellHandle);
 		this._lastFailedCellsVisible.set(notebook, true);
 		this._onDidChangeLastRunFailState.fire({ failed: true, notebook });
-	}
-
-	private _setLastFailedCellVisibility(notebook: URI, visible: boolean) {
-		this._lastFailedCellsVisible.set(notebook, visible);
-		this._onDidChangeLastRunFailState.fire({ failed: visible, notebook });
 	}
 
 	private _clearLastFailedCell(notebook: URI) {
