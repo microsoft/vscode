@@ -761,13 +761,9 @@ export class ViewModel extends Disposable implements IViewModel {
 		const decorations = this.model.getOverviewRulerDecorations();
 		for (const decoration of decorations) {
 			const opts1 = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
-			if (opts1) {
-				opts1.invalidateCachedColor();
-			}
+			opts1?.invalidateCachedColor();
 			const opts2 = <ModelDecorationMinimapOptions>decoration.options.minimap;
-			if (opts2) {
-				opts2.invalidateCachedColor();
-			}
+			opts2?.invalidateCachedColor();
 		}
 	}
 

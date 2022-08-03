@@ -211,14 +211,10 @@ export class StandardWheelEvent {
 	}
 
 	public preventDefault(): void {
-		if (this.browserEvent) {
-			this.browserEvent.preventDefault();
-		}
+		this.browserEvent?.preventDefault();
 	}
 
 	public stopPropagation(): void {
-		if (this.browserEvent) {
-			this.browserEvent.stopPropagation();
-		}
+		this.browserEvent?.stopPropagation();
 	}
 }

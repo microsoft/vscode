@@ -185,9 +185,7 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 			});
 
 		this._register(toDisposable(() => {
-			if (this.onDidChangeWorkspaceFoldersUnbind) {
-				this.onDidChangeWorkspaceFoldersUnbind.dispose();
-			}
+			this.onDidChangeWorkspaceFoldersUnbind?.dispose();
 		}));
 	}
 

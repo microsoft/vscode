@@ -27,6 +27,8 @@ import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
+import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 class TestWebglAddon {
 	static shouldThrow = false;
@@ -111,6 +113,7 @@ suite('XtermTerminal', () => {
 		instantiationService.stub(IThemeService, themeService);
 		instantiationService.stub(IViewDescriptorService, viewDescriptorService);
 		instantiationService.stub(IContextMenuService, instantiationService.createInstance(ContextMenuService));
+		instantiationService.stub(ILifecycleService, new TestLifecycleService());
 
 		configHelper = instantiationService.createInstance(TerminalConfigHelper);
 		xterm = instantiationService.createInstance(TestXtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel, new TerminalCapabilityStore(), true);
