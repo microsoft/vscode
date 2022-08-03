@@ -315,6 +315,18 @@ suite('Notebook Document', function () {
 		assert.strictEqual(data.cellChanges[0].cell.index, 0);
 	});
 
+	test('workspace edit API (notebookMetadata)', async function () {
+		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
+		const document = await vscode.workspace.openNotebookDocument(uri);
+
+		const edit = new vscode.WorkspaceEdit();
+		const metdataEdit = vscode.NotebookEdit.updateNotebookMetadata({ ...document.metadata, custom: { ...(document.metadata.custom || {}), extraNotebookMetadata: true } });
+		edit.set(document.uri, [metdataEdit]);
+		const success = await vscode.workspace.applyEdit(edit);
+		assert.equal(success, true);
+		assert.ok(document.metadata.custom.extraNotebookMetadata, `Test metadata not found`);
+	});
+
 	test('document save API', async function () {
 		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 		const notebook = await vscode.workspace.openNotebookDocument(uri);
