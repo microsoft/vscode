@@ -11,7 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellEditType, CellUri, ICellEditOperation, NotebookCellExecutionState, NotebookCellInternalMetadata, NotebookTextModelWillAddRemoveEvent } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellUri, ICellEditOperation, NotebookCellExecutionState, NotebookCellInternalMetadata, NotebookCellsChangeType, NotebookTextModelWillAddRemoveEvent } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType, INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionStateChangedEvent, ICellExecutionStateUpdate, INotebookCellExecution, INotebookExecutionStateService, INotebookFailStateChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -23,6 +23,7 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 	private readonly _notebookListeners = new ResourceMap<NotebookExecutionListeners>();
 	private readonly _cellListeners = new ResourceMap<IDisposable>();
 	private readonly _lastFailedCells = new ResourceMap<number>();
+	private readonly _lastFailedCellsVisible = new ResourceMap<boolean>();
 
 	private readonly _onDidChangeCellExecution = this._register(new Emitter<ICellExecutionStateChangedEvent>());
 	onDidChangeCellExecution = this._onDidChangeCellExecution.event;
@@ -139,12 +140,48 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 			exe.onDidComplete(lastRunSuccess => this._onCellExecutionDidComplete(notebookUri, cellHandle, exe, lastRunSuccess)));
 		this._cellListeners.set(CellUri.generate(notebookUri, cellHandle), disposable);
 
+		notebook.onWillAddRemoveCells((e: NotebookTextModelWillAddRemoveEvent) => {
+			e.rawEvent.changes.forEach(([start, deleteCount]) => {
+				const lastFailedCell = this.getLastFailedCellForNotebook(notebook.uri);
+				if (deleteCount) {
+					const deletedHandles = notebook.cells.slice(start, start + deleteCount).map(c => c.handle);
+					if (lastFailedCell && deletedHandles.includes(lastFailedCell)) {
+						this._setLastFailedCellVisibility(notebook.uri, false);
+					}
+				}
+			});
+		});
+
+		notebook.onDidChangeContent(
+			(events) => {
+				events.rawEvents.forEach((e) => {
+					if (e.kind === NotebookCellsChangeType.ModelChange) {
+						e.changes.forEach(([start, deleteCount]) => {
+							const lastFailedCell = this.getLastFailedCellForNotebook(notebook.uri);
+							if (deleteCount === 0) {
+								const addHandle = notebook.cells[start].handle;
+								if (addHandle === lastFailedCell) {
+									this._setLastFailedCellVisibility(notebook.uri, true);
+								}
+							}
+						});
+					}
+				});
+			}
+		);
+
 		return exe;
 	}
 
 	private _setLastFailedCell(notebook: URI, cellHandle: number) {
 		this._lastFailedCells.set(notebook, cellHandle);
+		this._lastFailedCellsVisible.set(notebook, true);
 		this._onDidChangeLastRunFailState.fire({ failed: true, notebook });
+	}
+
+	private _setLastFailedCellVisibility(notebook: URI, visible: boolean) {
+		this._lastFailedCellsVisible.set(notebook, visible);
+		this._onDidChangeLastRunFailState.fire({ failed: visible, notebook });
 	}
 
 	private _clearLastFailedCell(notebook: URI) {
