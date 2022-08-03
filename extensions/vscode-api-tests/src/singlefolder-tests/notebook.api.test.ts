@@ -248,21 +248,6 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 		assert.strictEqual(vscode.window.activeTextEditor?.document.uri.path, notebook.uri.path);
 	});
 
-	// open text editor, pin, and then open a notebook
-	test('#96105 - dirty editors', async function () {
-		const resource = await createRandomNotebookFile();
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'default');
-		const edit = new vscode.WorkspaceEdit();
-		edit.insert(resource, new vscode.Position(0, 0), 'var abc = 0;');
-		await vscode.workspace.applyEdit(edit);
-
-		// now it's dirty, open the resource with notebook editor should open a new one
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
-		assert.notStrictEqual(vscode.window.activeNotebookEditor, undefined, 'notebook first');
-		// assert.notStrictEqual(vscode.window.activeTextEditor, undefined);
-
-	});
-
 	test('#102411 - untitled notebook creation failed', async function () {
 		await vscode.commands.executeCommand('workbench.action.files.newUntitledFile', { viewType: 'notebookCoreTest' });
 		assert.notStrictEqual(vscode.window.activeNotebookEditor, undefined, 'untitled notebook editor is not undefined');
