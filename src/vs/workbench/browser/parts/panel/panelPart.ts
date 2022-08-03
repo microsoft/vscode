@@ -374,7 +374,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		}
 		if (viewContainerModel.activeViewDescriptors.length) {
 			contextKey.set(true);
-			this.compositeBar.addComposite({ id: viewContainer.id, name: viewContainer.title, order: viewContainer.order, requestedIndex: viewContainer.requestedIndex });
+			this.compositeBar.addComposite({ id: viewContainer.id, name: typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.value, order: viewContainer.order, requestedIndex: viewContainer.requestedIndex });
 
 			if (this.layoutService.isRestored() && this.layoutService.isVisible(this.partId)) {
 				const activeComposite = this.getActiveComposite();
