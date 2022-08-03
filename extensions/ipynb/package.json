@@ -57,7 +57,7 @@
         "displayName": "Markdown it ipynb Cell Attachment renderer",
         "entrypoint": {
           "extends": "vscode.markdown-it-renderer",
-          "path": "./out/cellAttachmentRenderer.js"
+          "path": "./notebook-out/cellAttachmentRenderer.js"
         }
       }
     ],

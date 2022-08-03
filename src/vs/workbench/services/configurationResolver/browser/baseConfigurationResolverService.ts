@@ -261,7 +261,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 					variables.push(contributed);
 				}
 			}
-		} else if (Types.isArray(object)) {
+		} else if (Array.isArray(object)) {
 			for (const value of object) {
 				this.findVariables(value, variables);
 
@@ -315,7 +315,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 					if (!Types.isString(info.description)) {
 						missingAttribute('description');
 					}
-					if (Types.isArray(info.options)) {
+					if (Array.isArray(info.options)) {
 						for (const pickOption of info.options) {
 							if (!Types.isString(pickOption) && !Types.isString(pickOption.value)) {
 								missingAttribute('value');

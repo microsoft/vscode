@@ -125,11 +125,12 @@ export function assertNoRpcFromEntry(entry: [obj: any, name: string]) {
 }
 
 export async function asPromise<T>(event: vscode.Event<T>, timeout = vscode.env.uiKind === vscode.UIKind.Desktop ? 5000 : 15000): Promise<T> {
+	const error = new Error('asPromise TIMEOUT reached');
 	return new Promise<T>((resolve, reject) => {
 
 		const handle = setTimeout(() => {
 			sub.dispose();
-			reject(new Error('asPromise TIMEOUT reached'));
+			reject(error);
 		}, timeout);
 
 		const sub = event(e => {

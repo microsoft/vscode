@@ -505,9 +505,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 			// Infinite
 			else {
-				if (discreteProgressRunner) {
-					discreteProgressRunner.done();
-				}
+				discreteProgressRunner?.done();
 				progressIndicator.showWhile(promise, options.delay);
 			}
 

@@ -18,6 +18,7 @@
 	border-color: none;
 	background-color: var(--vscode-menu-background);
 	color: var(--vscode-menu-foreground);
+	box-shadow: rgb(0,0,0, 16%) 0px 2px 8px;
 }
 
 .codeActionMenuWidget .monaco-list:not(.element-focused):focus:before {
@@ -42,11 +43,6 @@
 	border: none !important;
 	border-width: 0px !important;
 }
-
-/* .codeActionMenuWidget .monaco-list:not(.element-focus) {
-	border: none !important;
-	border-width: 0px !important;
-} */
 
 .codeActionMenuWidget .monaco-list .monaco-scrollable-element .monaco-list-rows {
 	height: 100% !important;
@@ -78,15 +74,19 @@
 }
 
 .codeActionMenuWidget .monaco-list .option-disabled,
-.codeActionMenuWidget .monaco-list .option-disabled .focused {
-	pointer-events: none;
+.codeActionMenuWidget .monaco-list .option-disabled:before,
+.codeActionMenuWidget .monaco-list .option-disabled .focused,
+.codeActionMenuWidget .monaco-list .option-disabled .focused:before {
+	cursor: default !important;
 	-webkit-touch-callout: none;
 	-webkit-user-select: none;
 	-khtml-user-select: none;
 	-moz-user-select: none;
 	-ms-user-select: none;
 	user-select: none;
+	background-color: var(--vscode-menu-background) !important;
 	color: var(--vscode-disabledForeground) !important;
+	outline: 0px solid !important;
 }
 
 .codeActionMenuWidget .monaco-list .separator {

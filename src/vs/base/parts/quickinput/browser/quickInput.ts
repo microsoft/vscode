@@ -1610,9 +1610,7 @@ export class QuickInputController extends Disposable {
 		this.onShowEmitter.fire();
 		const oldController = this.controller;
 		this.controller = controller;
-		if (oldController) {
-			oldController.didHide();
-		}
+		oldController?.didHide();
 
 		this.setEnabled(true);
 		ui.leftActionBar.clear();

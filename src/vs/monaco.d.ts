@@ -2010,7 +2010,7 @@ declare namespace monaco.editor {
 		 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
 		 * @return An array with the decorations
 		 */
-		getDecorationsInRange(range: IRange, ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
+		getDecorationsInRange(range: IRange, ownerId?: number, filterOutValidation?: boolean, onlyMinimapDecorations?: boolean): IModelDecoration[];
 		/**
 		 * Gets all the decorations as an array.
 		 * @param ownerId If set, it will ignore decorations belonging to other owners.
@@ -2947,6 +2947,10 @@ declare namespace monaco.editor {
 		 */
 		scrollbar?: IEditorScrollbarOptions;
 		/**
+		 * Control the behavior of experimental options
+		 */
+		experimental?: IEditorExperimentalOptions;
+		/**
 		 * Control the behavior and rendering of the minimap.
 		 */
 		minimap?: IEditorMinimapOptions;
@@ -3435,11 +3439,11 @@ declare namespace monaco.editor {
 		*/
 		bracketPairColorization?: IBracketPairColorizationOptions;
 		/**
-		 * Enables dropping into the editor from an external source.
+		 * Controls dropping into the editor from an external source.
 		 *
-		 * This shows a preview of the drop location and triggers an `onDropIntoEditor` event.
+		 * When enabled, this shows a preview of the drop location and triggers an `onDropIntoEditor` event.
 		 */
-		enableDropIntoEditor?: boolean;
+		dropIntoEditor?: IDropIntoEditorOptions;
 	}
 
 	export interface IDiffEditorBaseOptions {
@@ -3802,6 +3806,24 @@ declare namespace monaco.editor {
 		 * Defaults to true.
 		 */
 		enabled?: boolean;
+	}
+
+	export interface IEditorExperimentalOptions {
+		/**
+		 * Configuration options for editor sticky scroll
+		 */
+		stickyScroll?: {
+			/**
+			 * Enable the sticky scroll
+			 */
+			enabled?: boolean;
+		};
+	}
+
+	export interface EditorExperimentalOptions {
+		stickyScroll: {
+			enabled: boolean;
+		};
 	}
 
 	/**
@@ -4316,6 +4338,17 @@ declare namespace monaco.editor {
 		readonly wrappingColumn: number;
 	}
 
+	/**
+	 * Configuration options for editor drop into behavior
+	 */
+	export interface IDropIntoEditorOptions {
+		/**
+		 * Enable the dropping into editor.
+		 * Defaults to true.
+		 */
+		enabled?: boolean;
+	}
+
 	export enum EditorOption {
 		acceptSuggestionOnCommitCharacter = 0,
 		acceptSuggestionOnEnter = 1,
@@ -4349,108 +4382,109 @@ declare namespace monaco.editor {
 		disableMonospaceOptimizations = 29,
 		domReadOnly = 30,
 		dragAndDrop = 31,
-		enableDropIntoEditor = 32,
+		dropIntoEditor = 32,
 		emptySelectionClipboard = 33,
-		extraEditorClassName = 34,
-		fastScrollSensitivity = 35,
-		find = 36,
-		fixedOverflowWidgets = 37,
-		folding = 38,
-		foldingStrategy = 39,
-		foldingHighlight = 40,
-		foldingImportsByDefault = 41,
-		foldingMaximumRegions = 42,
-		unfoldOnClickAfterEndOfLine = 43,
-		fontFamily = 44,
-		fontInfo = 45,
-		fontLigatures = 46,
-		fontSize = 47,
-		fontWeight = 48,
-		formatOnPaste = 49,
-		formatOnType = 50,
-		glyphMargin = 51,
-		gotoLocation = 52,
-		hideCursorInOverviewRuler = 53,
-		hover = 54,
-		inDiffEditor = 55,
-		inlineSuggest = 56,
-		letterSpacing = 57,
-		lightbulb = 58,
-		lineDecorationsWidth = 59,
-		lineHeight = 60,
-		lineNumbers = 61,
-		lineNumbersMinChars = 62,
-		linkedEditing = 63,
-		links = 64,
-		matchBrackets = 65,
-		minimap = 66,
-		mouseStyle = 67,
-		mouseWheelScrollSensitivity = 68,
-		mouseWheelZoom = 69,
-		multiCursorMergeOverlapping = 70,
-		multiCursorModifier = 71,
-		multiCursorPaste = 72,
-		occurrencesHighlight = 73,
-		overviewRulerBorder = 74,
-		overviewRulerLanes = 75,
-		padding = 76,
-		parameterHints = 77,
-		peekWidgetDefaultFocus = 78,
-		definitionLinkOpensInPeek = 79,
-		quickSuggestions = 80,
-		quickSuggestionsDelay = 81,
-		readOnly = 82,
-		renameOnType = 83,
-		renderControlCharacters = 84,
-		renderFinalNewline = 85,
-		renderLineHighlight = 86,
-		renderLineHighlightOnlyWhenFocus = 87,
-		renderValidationDecorations = 88,
-		renderWhitespace = 89,
-		revealHorizontalRightPadding = 90,
-		roundedSelection = 91,
-		rulers = 92,
-		scrollbar = 93,
-		scrollBeyondLastColumn = 94,
-		scrollBeyondLastLine = 95,
-		scrollPredominantAxis = 96,
-		selectionClipboard = 97,
-		selectionHighlight = 98,
-		selectOnLineNumbers = 99,
-		showFoldingControls = 100,
-		showUnused = 101,
-		snippetSuggestions = 102,
-		smartSelect = 103,
-		smoothScrolling = 104,
-		stickyTabStops = 105,
-		stopRenderingLineAfter = 106,
-		suggest = 107,
-		suggestFontSize = 108,
-		suggestLineHeight = 109,
-		suggestOnTriggerCharacters = 110,
-		suggestSelection = 111,
-		tabCompletion = 112,
-		tabIndex = 113,
-		unicodeHighlighting = 114,
-		unusualLineTerminators = 115,
-		useShadowDOM = 116,
-		useTabStops = 117,
-		wordSeparators = 118,
-		wordWrap = 119,
-		wordWrapBreakAfterCharacters = 120,
-		wordWrapBreakBeforeCharacters = 121,
-		wordWrapColumn = 122,
-		wordWrapOverride1 = 123,
-		wordWrapOverride2 = 124,
-		wrappingIndent = 125,
-		wrappingStrategy = 126,
-		showDeprecated = 127,
-		inlayHints = 128,
-		editorClassName = 129,
-		pixelRatio = 130,
-		tabFocusMode = 131,
-		layoutInfo = 132,
-		wrappingInfo = 133
+		experimental = 34,
+		extraEditorClassName = 35,
+		fastScrollSensitivity = 36,
+		find = 37,
+		fixedOverflowWidgets = 38,
+		folding = 39,
+		foldingStrategy = 40,
+		foldingHighlight = 41,
+		foldingImportsByDefault = 42,
+		foldingMaximumRegions = 43,
+		unfoldOnClickAfterEndOfLine = 44,
+		fontFamily = 45,
+		fontInfo = 46,
+		fontLigatures = 47,
+		fontSize = 48,
+		fontWeight = 49,
+		formatOnPaste = 50,
+		formatOnType = 51,
+		glyphMargin = 52,
+		gotoLocation = 53,
+		hideCursorInOverviewRuler = 54,
+		hover = 55,
+		inDiffEditor = 56,
+		inlineSuggest = 57,
+		letterSpacing = 58,
+		lightbulb = 59,
+		lineDecorationsWidth = 60,
+		lineHeight = 61,
+		lineNumbers = 62,
+		lineNumbersMinChars = 63,
+		linkedEditing = 64,
+		links = 65,
+		matchBrackets = 66,
+		minimap = 67,
+		mouseStyle = 68,
+		mouseWheelScrollSensitivity = 69,
+		mouseWheelZoom = 70,
+		multiCursorMergeOverlapping = 71,
+		multiCursorModifier = 72,
+		multiCursorPaste = 73,
+		occurrencesHighlight = 74,
+		overviewRulerBorder = 75,
+		overviewRulerLanes = 76,
+		padding = 77,
+		parameterHints = 78,
+		peekWidgetDefaultFocus = 79,
+		definitionLinkOpensInPeek = 80,
+		quickSuggestions = 81,
+		quickSuggestionsDelay = 82,
+		readOnly = 83,
+		renameOnType = 84,
+		renderControlCharacters = 85,
+		renderFinalNewline = 86,
+		renderLineHighlight = 87,
+		renderLineHighlightOnlyWhenFocus = 88,
+		renderValidationDecorations = 89,
+		renderWhitespace = 90,
+		revealHorizontalRightPadding = 91,
+		roundedSelection = 92,
+		rulers = 93,
+		scrollbar = 94,
+		scrollBeyondLastColumn = 95,
+		scrollBeyondLastLine = 96,
+		scrollPredominantAxis = 97,
+		selectionClipboard = 98,
+		selectionHighlight = 99,
+		selectOnLineNumbers = 100,
+		showFoldingControls = 101,
+		showUnused = 102,
+		snippetSuggestions = 103,
+		smartSelect = 104,
+		smoothScrolling = 105,
+		stickyTabStops = 106,
+		stopRenderingLineAfter = 107,
+		suggest = 108,
+		suggestFontSize = 109,
+		suggestLineHeight = 110,
+		suggestOnTriggerCharacters = 111,
+		suggestSelection = 112,
+		tabCompletion = 113,
+		tabIndex = 114,
+		unicodeHighlighting = 115,
+		unusualLineTerminators = 116,
+		useShadowDOM = 117,
+		useTabStops = 118,
+		wordSeparators = 119,
+		wordWrap = 120,
+		wordWrapBreakAfterCharacters = 121,
+		wordWrapBreakBeforeCharacters = 122,
+		wordWrapColumn = 123,
+		wordWrapOverride1 = 124,
+		wordWrapOverride2 = 125,
+		wrappingIndent = 126,
+		wrappingStrategy = 127,
+		showDeprecated = 128,
+		inlayHints = 129,
+		editorClassName = 130,
+		pixelRatio = 131,
+		tabFocusMode = 132,
+		layoutInfo = 133,
+		wrappingInfo = 134
 	}
 
 	export const EditorOptions: {
@@ -4488,7 +4522,8 @@ declare namespace monaco.editor {
 		domReadOnly: IEditorOption<EditorOption.domReadOnly, boolean>;
 		dragAndDrop: IEditorOption<EditorOption.dragAndDrop, boolean>;
 		emptySelectionClipboard: IEditorOption<EditorOption.emptySelectionClipboard, boolean>;
-		enableDropIntoEditor: IEditorOption<EditorOption.enableDropIntoEditor, boolean>;
+		dropIntoEditor: IEditorOption<EditorOption.dropIntoEditor, Readonly<Required<IDropIntoEditorOptions>>>;
+		experimental: IEditorOption<EditorOption.experimental, EditorExperimentalOptions>;
 		extraEditorClassName: IEditorOption<EditorOption.extraEditorClassName, string>;
 		fastScrollSensitivity: IEditorOption<EditorOption.fastScrollSensitivity, number>;
 		find: IEditorOption<EditorOption.find, Readonly<Required<IEditorFindOptions>>>;
@@ -5345,9 +5380,13 @@ declare namespace monaco.editor {
 		 */
 		getVisibleRanges(): Range[];
 		/**
-		 * Get the vertical position (top offset) for the line w.r.t. to the first line.
+		 * Get the vertical position (top offset) for the line's top w.r.t. to the first line.
 		 */
 		getTopForLineNumber(lineNumber: number): number;
+		/**
+		 * Get the vertical position (top offset) for the line's bottom w.r.t. to the first line.
+		 */
+		getBottomForLineNumber(lineNumber: number): number;
 		/**
 		 * Get the vertical position (top offset) for the position w.r.t. to the first line.
 		 */

@@ -7,12 +7,12 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
 import { localize } from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, IMenuService, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { asJson, asText, IRequestService } from 'vs/platform/request/common/request';
 import { IUserDataProfileTemplate, isUserDataProfileTemplate, IUserDataProfileManagementService, IUserDataProfileImportExportService, PROFILES_CATEGORY, PROFILE_EXTENSION, PROFILE_FILTER, ManageProfilesSubMenu, IUserDataProfileService, PROFILES_ENABLEMENT_CONTEXT, HAS_PROFILES_CONTEXT } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -21,6 +21,10 @@ import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { compare } from 'vs/base/common/strings';
+import { Codicon } from 'vs/base/common/codicons';
+import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IAction, Separator } from 'vs/base/common/actions';
 
 class CreateFromCurrentProfileAction extends Action2 {
 	static readonly ID = 'workbench.profiles.actions.createFromCurrentProfile';
@@ -42,9 +46,16 @@ class CreateFromCurrentProfileAction extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const notificationService = accessor.get(INotificationService);
 		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
+		const userDataProfilesService = accessor.get(IUserDataProfilesService);
 		const name = await quickInputService.input({
 			placeHolder: localize('name', "Profile name"),
 			title: localize('save profile as', "Create from Current Settings Profile..."),
+			validateInput: async (value: string) => {
+				if (userDataProfilesService.profiles.some(p => p.name === value)) {
+					return localize('profileExists', "Settings Profile with name {0} already exists.", value);
+				}
+				return undefined;
+			}
 		});
 		if (name) {
 			try {
@@ -77,9 +88,16 @@ class CreateEmptyProfileAction extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
 		const notificationService = accessor.get(INotificationService);
+		const userDataProfilesService = accessor.get(IUserDataProfilesService);
 		const name = await quickInputService.input({
 			placeHolder: localize('name', "Profile name"),
 			title: localize('create and enter empty profile', "Create an Empty Profile..."),
+			validateInput: async (value: string) => {
+				if (userDataProfilesService.profiles.some(p => p.name === value)) {
+					return localize('profileExists', "Settings Profile with name {0} already exists.", value);
+				}
+				return undefined;
+			}
 		});
 		if (name) {
 			try {
@@ -175,6 +193,12 @@ registerAction2(class RenameProfileAction extends Action2 {
 				const name = await quickInputService.input({
 					value: pick.profile.name,
 					title: localize('edit settings profile', "Rename Settings Profile..."),
+					validateInput: async (value: string) => {
+						if (pick.profile.name !== value && profiles.some(p => p.name === value)) {
+							return localize('profileExists', "Settings Profile with name {0} already exists.", value);
+						}
+						return undefined;
+					}
 				});
 				if (name && name !== pick.profile.name) {
 					try {
@@ -240,6 +264,51 @@ registerAction2(class DeleteProfileAction extends Action2 {
 	}
 });
 
+export class MangeSettingsProfileAction extends Action2 {
+	static readonly ID = 'workbench.profiles.actions.manage';
+	constructor() {
+		super({
+			id: MangeSettingsProfileAction.ID,
+			title: {
+				value: localize('mange', "Manage..."),
+				original: 'Manage...'
+			},
+			category: PROFILES_CATEGORY,
+			precondition: ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, HAS_PROFILES_CONTEXT),
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const quickInputService = accessor.get(IQuickInputService);
+		const menuService = accessor.get(IMenuService);
+		const contextKeyService = accessor.get(IContextKeyService);
+		const commandService = accessor.get(ICommandService);
+
+		const disposables = new DisposableStore();
+		const menu = disposables.add(menuService.createMenu(ManageProfilesSubMenu, contextKeyService));
+		const actions: IAction[] = [];
+		disposables.add(createAndFillInActionBarActions(menu, undefined, actions));
+		disposables.dispose();
+
+		if (actions.length) {
+			const picks: (IQuickPickItem | IQuickPickSeparator)[] = actions.map(action => {
+				if (action instanceof Separator) {
+					return { type: 'separator' };
+				}
+				return {
+					id: action.id,
+					label: `${action.label}${action.checked ? ` $(${Codicon.check.id})` : ''}`,
+				};
+			});
+			const pick = await quickInputService.pick(picks, { canPickMany: false });
+			if (pick?.id) {
+				await commandService.executeCommand(pick.id);
+			}
+		}
+	}
+}
+registerAction2(MangeSettingsProfileAction);
+
 registerAction2(class SwitchProfileAction extends Action2 {
 	constructor() {
 		super({
@@ -260,11 +329,10 @@ registerAction2(class SwitchProfileAction extends Action2 {
 		const userDataProfilesService = accessor.get(IUserDataProfilesService);
 		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
 
-		const profiles = userDataProfilesService.profiles;
+		const profiles = userDataProfilesService.profiles.slice(0).sort((a, b) => compare(a.name, b.name));
 		if (profiles.length) {
 			const picks: Array<IQuickPickItem & { profile: IUserDataProfile }> = profiles.map(profile => ({
-				label: profile.name!,
-				description: profile.name === userDataProfileService.currentProfile.name ? localize('current', "Current") : undefined,
+				label: `${profile.name}${profile.id === userDataProfileService.currentProfile.id ? ` $(${Codicon.check.id})` : ''}`,
 				profile
 			}));
 			const pick = await quickInputService.pick(picks, { placeHolder: localize('pick profile', "Select Settings Profile") });
@@ -272,31 +340,6 @@ registerAction2(class SwitchProfileAction extends Action2 {
 				await userDataProfileManagementService.switchProfile(pick.profile);
 			}
 		}
-	}
-});
-
-registerAction2(class CleanupProfilesAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.profiles.actions.cleanupProfiles',
-			title: {
-				value: localize('cleanup profile', "Cleanup Settings Profiles"),
-				original: 'Cleanup Profiles'
-			},
-			category: CATEGORIES.Developer,
-			f1: true,
-			precondition: PROFILES_ENABLEMENT_CONTEXT,
-		});
-	}
-
-	async run(accessor: ServicesAccessor) {
-		const userDataProfilesService = accessor.get(IUserDataProfilesService);
-		const fileService = accessor.get(IFileService);
-		const uriIdentityService = accessor.get(IUriIdentityService);
-
-		const stat = await fileService.resolve(userDataProfilesService.profilesHome);
-		await Promise.all((stat.children || [])?.filter(child => child.isDirectory && userDataProfilesService.profiles.every(p => !uriIdentityService.extUri.isEqual(p.location, child.resource)))
-			.map(child => fileService.del(child.resource, { recursive: true })));
 	}
 });
 
@@ -375,6 +418,7 @@ registerAction2(class ImportProfileAction extends Action2 {
 		const userDataProfileImportExportService = accessor.get(IUserDataProfileImportExportService);
 		const dialogService = accessor.get(IDialogService);
 		const contextKeyService = accessor.get(IContextKeyService);
+		const notificationService = accessor.get(INotificationService);
 
 		const isSettingProfilesEnabled = contextKeyService.contextMatchesRules(PROFILES_ENABLEMENT_CONTEXT);
 
@@ -401,14 +445,18 @@ registerAction2(class ImportProfileAction extends Action2 {
 		quickPick.matchOnLabel = false;
 		quickPick.matchOnDescription = false;
 		disposables.add(quickPick.onDidAccept(async () => {
-			quickPick.hide();
-			const profile = quickPick.selectedItems[0].description ? await this.getProfileFromURL(quickPick.value, requestService) : await this.getProfileFromFileSystem(fileDialogService, fileService);
-			if (profile) {
-				if (isSettingProfilesEnabled) {
-					await userDataProfileImportExportService.importProfile(profile);
-				} else {
-					await userDataProfileImportExportService.setProfile(profile);
+			try {
+				quickPick.hide();
+				const profile = quickPick.selectedItems[0].description ? await this.getProfileFromURL(quickPick.value, requestService) : await this.getProfileFromFileSystem(fileDialogService, fileService);
+				if (profile) {
+					if (isSettingProfilesEnabled) {
+						await userDataProfileImportExportService.importProfile(profile);
+					} else {
+						await userDataProfileImportExportService.setProfile(profile);
+					}
 				}
+			} catch (error) {
+				notificationService.error(error);
 			}
 		}));
 		disposables.add(quickPick.onDidHide(() => disposables.dispose()));
@@ -443,4 +491,51 @@ registerAction2(class ImportProfileAction extends Action2 {
 		}
 	}
 
+});
+
+// Developer Actions
+
+registerAction2(class CleanupProfilesAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.profiles.actions.cleanupProfiles',
+			title: {
+				value: localize('cleanup profile', "Cleanup Settings Profiles"),
+				original: 'Cleanup Profiles'
+			},
+			category: CATEGORIES.Developer,
+			f1: true,
+			precondition: PROFILES_ENABLEMENT_CONTEXT,
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const userDataProfilesService = accessor.get(IUserDataProfilesService);
+		const fileService = accessor.get(IFileService);
+		const uriIdentityService = accessor.get(IUriIdentityService);
+
+		const stat = await fileService.resolve(userDataProfilesService.profilesHome);
+		await Promise.all((stat.children || [])?.filter(child => child.isDirectory && userDataProfilesService.profiles.every(p => !uriIdentityService.extUri.isEqual(p.location, child.resource)))
+			.map(child => fileService.del(child.resource, { recursive: true })));
+	}
+});
+
+registerAction2(class ResetWorkspacesAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.profiles.actions.resetWorkspaces',
+			title: {
+				value: localize('reset workspaces', "Reset Workspace Settings Profiles Associations"),
+				original: 'Reset Workspace Settings Profiles Associations'
+			},
+			category: CATEGORIES.Developer,
+			f1: true,
+			precondition: PROFILES_ENABLEMENT_CONTEXT,
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const userDataProfilesService = accessor.get(IUserDataProfilesService);
+		return userDataProfilesService.resetWorkspaces();
+	}
 });

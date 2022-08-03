@@ -621,9 +621,7 @@ export class InputBox extends Widget {
 
 		this.message = null;
 
-		if (this.actionbar) {
-			this.actionbar.dispose();
-		}
+		this.actionbar?.dispose();
 
 		super.dispose();
 	}
