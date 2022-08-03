@@ -150,7 +150,7 @@ class RemoteAuthoritiesImpl {
 		}
 		const authority = uri.authority;
 		let host = this._hosts[authority];
-		if (host && host.indexOf(':') !== -1) {
+		if (host && host.indexOf(':') !== -1 && host.indexOf('[') === -1) {
 			host = `[${host}]`;
 		}
 		const port = this._ports[authority];
