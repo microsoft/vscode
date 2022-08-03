@@ -451,7 +451,8 @@ class ReplaceActionRunner {
 		@IReplaceService private readonly replaceService: IReplaceService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IViewsService private readonly viewsService: IViewsService
 	) { }
 
 	async performReplace(element: FolderMatch | FileMatch | Match): Promise<any> {
@@ -468,13 +469,15 @@ class ReplaceActionRunner {
 			}
 
 			if (elem instanceof FileMatch) {
-				elem.parent().replace(elem);
+				elem.parent().replace(elem, false);
 			} else if (elem instanceof Match) {
-				elem.parent().replace(elem);
+				elem.parent().replace(elem, false);
 			} else if (elem instanceof FolderMatch) {
-				await elem.replaceAll();
+				await elem.replaceAll(false);
 			}
 		}));
+
+		getSearchView(this.viewsService)?.searchResult.flushHeldChanges();
 
 		const currentBottomFocusElement = elementsToReplace[elementsToReplace.length - 1];
 
@@ -581,6 +584,7 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 		private element: RenderableMatch,
 		@IKeybindingService keyBindingService: IKeybindingService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IViewsService private readonly viewsService: IViewsService,
 	) {
 		super(Constants.RemoveActionId, appendKeyBindingLabel(RemoveAction.LABEL, keyBindingService.lookupKeybinding(Constants.RemoveActionId), keyBindingService), ThemeIcon.asClassName(searchRemoveIcon));
 	}
@@ -602,8 +606,10 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 		}
 
 		elementsToRemove.forEach((currentElement) =>
-			currentElement.parent().remove(<(FolderMatch | FileMatch)[] & Match & FileMatch[]>currentElement)
+			currentElement.parent().remove(<(FolderMatch | FileMatch)[] & Match & FileMatch[]>currentElement, false)
 		);
+
+		getSearchView(this.viewsService)?.searchResult.flushHeldChanges();
 
 		this.viewer.domFocus();
 		return Promise.resolve();
@@ -837,3 +843,22 @@ function getElementsToOperateOnInfo(viewer: WorkbenchObjectTree<RenderableMatch,
 
 	return { elements, mustReselect };
 }
+
+// function sortRenderableMatches(renderableMatches: RenderableMatch[]): { matches: Match[]; fileMatches: FileMatch[], folderMatches: (FolderMatch | FolderMatchWithResource)[] } {
+// 	const matches: Match[] = [];;
+// 	const fileMatches: FileMatch[] = [];
+// 	const folderMatches: (FolderMatch | FolderMatchWithResource)[] = [];
+
+// 	renderableMatches.forEach((match) => {
+
+// 		if (match instanceof Match) {
+// 			matches.push(match);
+// 		} else if (match instanceof FileMatch) {
+// 			fileMatches.push(match);
+// 		} else {
+// 			folderMatches.push(match);
+// 		}
+// 	});
+
+// 	return { matches, fileMatches, folderMatches };
+// }
