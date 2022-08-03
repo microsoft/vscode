@@ -158,11 +158,11 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				title: EDIT_SESSIONS_TITLE,
 				ctorDescriptor: new SyncDescriptor(
 					ViewPaneContainer,
-					[EDIT_SESSIONS_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]
+					[EDIT_SESSIONS_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]
 				),
 				icon: EDIT_SESSIONS_VIEW_ICON,
 				hideIfEmpty: true
-			}, ViewContainerLocation.Sidebar
+			}, ViewContainerLocation.Sidebar, { donotRegisterOpenCommand: true }
 		);
 		this._register(this.instantiationService.createInstance(EditSessionsDataViews, container));
 	}

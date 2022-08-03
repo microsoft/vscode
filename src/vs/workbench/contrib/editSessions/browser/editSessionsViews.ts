@@ -31,7 +31,7 @@ export class EditSessionsDataViews extends Disposable {
 
 	private registerViews(container: ViewContainer): void {
 		const viewId = EDIT_SESSIONS_DATA_VIEW_ID;
-		const name = localize('edit sessions data', 'All Sessions');
+		const name = EDIT_SESSIONS_TITLE;
 		const treeView = this.instantiationService.createInstance(TreeView, viewId, name);
 		treeView.showCollapseAllAction = true;
 		treeView.showRefreshAction = true;
