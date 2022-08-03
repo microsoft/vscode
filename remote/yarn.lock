@@ -832,10 +832,10 @@ xterm-addon-canvas@0.2.0-beta.15:
   resolved "https://registry.yarnpkg.com/xterm-addon-canvas/-/xterm-addon-canvas-0.2.0-beta.15.tgz#de863e46410b1de357b153abf1984227777760e4"
   integrity sha512-E1pNCDSVTINchwWLysZ9ZD/BPv1WLGV52xRHB00US1PHHELbhtvms+6dZ44WZEDXhtfpptRZ1VBx+QpvfJIuvw==
 
-xterm-addon-ligatures@0.6.0-beta.14:
-  version "0.6.0-beta.14"
-  resolved "https://registry.yarnpkg.com/xterm-addon-ligatures/-/xterm-addon-ligatures-0.6.0-beta.14.tgz#392b8df0e32dcfc87f43b79901ec1c2abc997ae7"
-  integrity sha512-WeObuNFfGULKhfvbFyCccjxBk+BX6YMvG54lu40kgW5ubwpt0BcnKTQAxHvt9mSeT0lG0A5GxcbimBeRWc484Q==
+xterm-addon-ligatures@0.6.0-beta.19:
+  version "0.6.0-beta.19"
+  resolved "https://registry.yarnpkg.com/xterm-addon-ligatures/-/xterm-addon-ligatures-0.6.0-beta.19.tgz#5e43eeaf84968e014769a5f2c6a3a3601dc4771c"
+  integrity sha512-A0BIjFF6g5aPI0HiI2JMhhMV3gaHbpZ+ua+UNagkID0GxZ/ezn0wVOAtNQl/KlqnFueoyZIxlbyXmWNAfJVPRg==
   dependencies:
     font-finder "^1.1.0"
     font-ligatures "^1.4.1"
@@ -865,10 +865,10 @@ xterm-headless@5.0.0-beta.5:
   resolved "https://registry.yarnpkg.com/xterm-headless/-/xterm-headless-5.0.0-beta.5.tgz#e29b6c5081f31f887122b7263ba996b0c46b3c22"
   integrity sha512-CMQ1+prBNF92oBMeZzc2rfTcmOaCGfwwSaoPYNTjyziZT6mZsEg7amajYkb0YAnqJ29MFm4kPGZbU78/dX4k2A==
 
-xterm@5.0.0-beta.32:
-  version "5.0.0-beta.32"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-5.0.0-beta.32.tgz#62bb9902429c0055fd2fd85c9eecfbf1756ed31c"
-  integrity sha512-OAM1GaBs/chK63Cr86XbVhfVCLLXLpNxxFrv3RK9xoyb9dwiY3gaMxK9jeGzTnrbGLWJb+k5nxaC0rx2YsHvUA==
+xterm@5.0.0-beta.33:
+  version "5.0.0-beta.33"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-5.0.0-beta.33.tgz#ee0795779fb5fe8079d3400684fc384ad861cc88"
+  integrity sha512-9bz+N6UHTxAZZ1zM/UuzGQvwxbEnlfVi3ZqIhoPWnscQVS0zoqf6plxU1rTj1ZMqMN7liXgHS9ZgBePyP3jGzg==
 
 yallist@^4.0.0:
   version "4.0.0"

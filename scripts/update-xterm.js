@@ -43,6 +43,12 @@ function getLatestModuleVersion(moduleName) {
 					'5.0.0-beta.4',
 				].includes(e));
 			}
+			if (moduleName === 'xterm-addon-ligatures') {
+				versions = versions.filter(e => ![
+					'5.0.0-beta.1',
+					'5.0.0-beta.2',
+				].includes(e));
+			}
 			resolve(versions[versions.length - 1]);
 		});
 	});
