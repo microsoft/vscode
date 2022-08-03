@@ -566,7 +566,7 @@ export class FolderMatch extends Disposable {
 				const fileMatch = this.instantiationService.createInstance(FileMatch, this._query.contentPattern, this._query.previewOptions, this._query.maxResults, this, rawFileMatch);
 				this.doAdd(fileMatch);
 				added.push(fileMatch);
-				const disposable = fileMatch.onChange(({ didRemove, supressRefreshSearchResult }) => this.onFileChange(fileMatch, supressRefreshSearchResult, didRemove));
+				const disposable = fileMatch.onChange(({ didRemove, supressRefreshSearchResult }) => this.onFileChange(fileMatch, didRemove, supressRefreshSearchResult));
 				fileMatch.onDispose(() => disposable.dispose());
 			}
 		});
@@ -618,7 +618,7 @@ export class FolderMatch extends Disposable {
 		return this.matches().reduce<number>((prev, match) => prev + match.count(), 0);
 	}
 
-	private onFileChange(fileMatch: FileMatch, supressRefreshSearchResult = false, removed = false): void {
+	private onFileChange(fileMatch: FileMatch, removed = false, supressRefreshSearchResult = false): void {
 		let added = false;
 		if (!this._fileMatches.has(fileMatch.resource)) {
 			this.doAdd(fileMatch);
