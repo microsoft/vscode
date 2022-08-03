@@ -20,7 +20,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
-import { isArray, withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
+import { withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/settingsEditor2';
 import { localize } from 'vs/nls';
@@ -133,7 +133,7 @@ export class SettingsEditor2 extends EditorPane {
 	];
 
 	private static shouldSettingUpdateFast(type: SettingValueType | SettingValueType[]): boolean {
-		if (isArray(type)) {
+		if (Array.isArray(type)) {
 			// nullable integer/number or complex
 			return false;
 		}
@@ -1208,9 +1208,7 @@ export class SettingsEditor2 extends EditorPane {
 			}
 		}
 
-		if (this.searchResultModel) {
-			this.searchResultModel.updateChildren();
-		}
+		this.searchResultModel?.updateChildren();
 
 		if (this.settingsTreeModel) {
 			this.settingsTreeModel.update(resolvedSettingsRoot);
@@ -1615,6 +1613,8 @@ export class SettingsEditor2 extends EditorPane {
 						'message': string;
 					};
 					type SettingsSearchErrorClassification = {
+						owner: 'rzhao271';
+						comment: 'Helps understand when settings search errors out';
 						'message': { 'classification': 'CallstackOrException'; 'purpose': 'FeatureInsight'; 'owner': 'rzhao271'; 'comment': 'The error message of the search error.' };
 					};
 

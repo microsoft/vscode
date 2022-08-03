@@ -196,9 +196,7 @@ const pendingResolveSaveConflictMessages: INotificationHandle[] = [];
 function clearPendingResolveSaveConflictMessages(): void {
 	while (pendingResolveSaveConflictMessages.length > 0) {
 		const item = pendingResolveSaveConflictMessages.pop();
-		if (item) {
-			item.close();
-		}
+		item?.close();
 	}
 }
 

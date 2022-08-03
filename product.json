@@ -46,7 +46,7 @@
 		},
 		{
 			"name": "ms-vscode.js-debug",
-			"version": "1.69.0",
+			"version": "1.70.0",
 			"repo": "https://github.com/microsoft/vscode-js-debug",
 			"metadata": {
 				"id": "25629058-ddac-4e17-abba-74678e126c5d",
@@ -61,7 +61,7 @@
 		},
 		{
 			"name": "ms-vscode.vscode-js-profile-table",
-			"version": "1.0.2",
+			"version": "1.0.3",
 			"repo": "https://github.com/microsoft/vscode-js-profile-visualizer",
 			"metadata": {
 				"id": "7e52b41b-71ad-457b-ab7e-0620f1fc4feb",

@@ -12,7 +12,7 @@ import { Mimes } from 'vs/base/common/mime';
 import { isWeb } from 'vs/base/common/platform';
 import { ConfigurationSyncStore } from 'vs/base/common/product';
 import { joinPath, relativePath } from 'vs/base/common/resources';
-import { isArray, isObject, isString } from 'vs/base/common/types';
+import { isObject, isString } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IHeaders, IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
@@ -72,7 +72,7 @@ export abstract class AbstractUserDataSyncStoreManagementService extends Disposa
 		if (value
 			&& isString(value.url)
 			&& isObject(value.authenticationProviders)
-			&& Object.keys(value.authenticationProviders).every(authenticationProviderId => isArray(value!.authenticationProviders![authenticationProviderId].scopes))
+			&& Object.keys(value.authenticationProviders).every(authenticationProviderId => Array.isArray(value!.authenticationProviders![authenticationProviderId].scopes))
 		) {
 			const syncStore = value as ConfigurationSyncStore;
 			const canSwitch = !!syncStore.canSwitch && !configuredStore?.url;

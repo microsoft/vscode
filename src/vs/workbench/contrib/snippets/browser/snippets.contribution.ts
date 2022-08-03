@@ -19,8 +19,10 @@ import { SnippetCodeActions } from 'vs/workbench/contrib/snippets/browser/snippe
 import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets';
 import { SnippetsService } from 'vs/workbench/contrib/snippets/browser/snippetsService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 
 import 'vs/workbench/contrib/snippets/browser/tabCompletion';
+import { editorConfigurationBaseNode } from 'vs/editor/common/config/editorConfigurationSchema';
 
 // service
 registerSingleton(ISnippetsService, SnippetsService, true);
@@ -35,6 +37,21 @@ registerAction2(ApplyFileSnippetAction);
 // workbench contribs
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(SnippetCodeActions, LifecyclePhase.Restored);
+
+// config
+Registry
+	.as<IConfigurationRegistry>(Extensions.Configuration)
+	.registerConfiguration({
+		...editorConfigurationBaseNode,
+		'properties': {
+			'editor.snippets.codeActions.enabled': {
+				'description': nls.localize('editor.snippets.codeActions.enabled', 'Controls if surround-with-snippets or file template snippets show as code actions.'),
+				'type': 'boolean',
+				'default': true
+			}
+		}
+	});
+
 
 // schema
 const languageScopeSchemaId = 'vscode://schemas/snippets';

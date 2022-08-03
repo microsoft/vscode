@@ -42,12 +42,14 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.TabsDefaultColor]: {
 			description: localize('terminal.integrated.tabs.defaultColor', "A theme color ID to associate with terminal icons by default."),
-			...terminalColorSchema
+			...terminalColorSchema,
+			scope: ConfigurationScope.RESOURCE
 		},
 		[TerminalSettingId.TabsDefaultIcon]: {
 			description: localize('terminal.integrated.tabs.defaultIcon', "A codicon ID to associate with terminal icons by default."),
 			...terminalIconSchema,
 			default: Codicon.terminal.id,
+			scope: ConfigurationScope.RESOURCE
 		},
 		[TerminalSettingId.TabsEnabled]: {
 			description: localize('terminal.integrated.tabs.enabled', 'Controls whether terminal tabs display as a list to the side of the terminal. When this is disabled a dropdown will display instead.'),
@@ -568,6 +570,11 @@ const terminalConfiguration: IConfigurationNode = {
 			markdownDescription: localize('terminal.integrated.shellIntegration.history', "Controls the number of recently used commands to keep in the terminal command history. Set to 0 to disable terminal command history."),
 			type: 'number',
 			default: 100
+		},
+		[TerminalSettingId.SmoothScrolling]: {
+			markdownDescription: localize('terminal.integrated.smoothScrolling', "Controls whether the terminal will scroll using an animation."),
+			type: 'boolean',
+			default: false
 		},
 	}
 };

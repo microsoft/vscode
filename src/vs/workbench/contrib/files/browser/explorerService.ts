@@ -121,9 +121,7 @@ export class ExplorerService implements IExplorerService {
 			}
 		}));
 		this.disposables.add(this.model.onDidChangeRoots(() => {
-			if (this.view) {
-				this.view.setTreeInput();
-			}
+			this.view?.setTreeInput();
 		}));
 
 		// Refresh explorer when window gets focus to compensate for missing file events #126817

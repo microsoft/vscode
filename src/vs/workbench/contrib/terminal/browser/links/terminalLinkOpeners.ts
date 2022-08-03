@@ -52,21 +52,21 @@ export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 	 *
 	 * @param link Url link which may contain line and column number.
 	 */
-	extractLineColumnInfo(link: string, uri?: URI): ILineColumnInfo {
+	extractLineColumnInfo(link: string, uri: URI): ILineColumnInfo {
 		const lineColumnInfo: ILineColumnInfo = {
 			lineNumber: 1,
 			columnNumber: 1
 		};
 
-		// If a URI was passed in the exact file is known, sanitize the link text such that the
-		// folders and file name do not contain whitespace. The actual path isn't important in
-		// extracting the line and column from the regex so this is safe
-		if (uri) {
-			const fileName = basename(uri.path);
-			const index = link.indexOf(fileName);
-			const endIndex = index + fileName.length;
-			link = link.slice(0, endIndex).replace(/\s/g, '_') + link.slice(endIndex);
-		}
+		// Calculate the file name end using the URI if possible, this will help with sanitizing the
+		// link for the match regex. The actual path isn't important in extracting the line and
+		// column from the regex so modifying the link text before the file name is safe.
+		const fileName = basename(uri.path);
+		const index = link.indexOf(fileName);
+		const fileNameEndIndex: number = index !== -1 ? index + fileName.length : link.length;
+
+		// Sanitize the link text such that the folders and file name do not contain whitespace.
+		link = link.slice(0, fileNameEndIndex).replace(/\s/g, '_') + link.slice(fileNameEndIndex);
 
 		// The local link regex only works for non file:// links, check these for a simple
 		// `:line:col` suffix
@@ -259,7 +259,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 				const { uri, isDirectory } = result;
 				const linkToOpen = {
 					// Use the absolute URI's path here so the optional line/col get detected
-					text: result.uri.fsPath + (text.match(/:\d+(:\d+)?$/)?.[0] || ''),
+					text: result.uri.path + (text.match(/:\d+(:\d+)?$/)?.[0] || ''),
 					uri,
 					bufferRange: link.bufferRange,
 					type: link.type

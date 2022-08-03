@@ -240,9 +240,7 @@ export class TerminalViewPane extends ViewPane {
 				return this._instantiationService.createInstance(SingleTerminalTabActionViewItem, action, actions);
 			}
 			case TerminalCommandId.CreateWithProfileButton: {
-				if (this._tabButtons) {
-					this._tabButtons.dispose();
-				}
+				this._tabButtons?.dispose();
 
 				const actions = getTerminalActionBarArgs(TerminalLocation.Panel, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._instantiationService, this._terminalService, this._contextKeyService, this._commandService, this._dropdownMenu);
 				this._tabButtons = new DropdownWithPrimaryActionViewItem(actions.primaryAction, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, {}, this._keybindingService, this._notificationService, this._contextKeyService, this._themeService);

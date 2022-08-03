@@ -1149,9 +1149,7 @@ export function removeTabIndexAndUpdateFocus(node: HTMLElement): void {
 	// in the hierarchy of the parent DOM nodes.
 	if (document.activeElement === node) {
 		const parentFocusable = findParentWithAttribute(node.parentElement, 'tabIndex');
-		if (parentFocusable) {
-			parentFocusable.focus();
-		}
+		parentFocusable?.focus();
 	}
 
 	node.removeAttribute('tabindex');
@@ -1869,9 +1867,11 @@ export function h(tag: string, ...args: [] | [attributes: { $: string } & Partia
 					typeof cssValue === 'number' ? cssValue + 'px' : '' + cssValue
 				);
 			}
-			continue;
+		} else if (key === 'tabIndex') {
+			el.tabIndex = value;
+		} else {
+			el.setAttribute(camelCaseToHyphenCase(key), value.toString());
 		}
-		el.setAttribute(camelCaseToHyphenCase(key), value.toString());
 	}
 
 	result['root'] = el;

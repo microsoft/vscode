@@ -59,7 +59,7 @@ class ProfileExtensionsCleaner extends Disposable {
 		this.onDidChangeProfiles({ added: this.userDataProfilesService.profiles, removed: [], all: this.userDataProfilesService.profiles });
 	}
 
-	private async onDidChangeProfiles({ added, removed, all }: DidChangeProfilesEvent): Promise<void> {
+	private async onDidChangeProfiles({ added, removed, all }: Omit<DidChangeProfilesEvent, 'updated'>): Promise<void> {
 		try {
 			await Promise.all(removed.map(profile => profile.extensionsResource ? this.removeExtensionsFromProfile(profile.extensionsResource) : Promise.resolve()));
 		} catch (error) {

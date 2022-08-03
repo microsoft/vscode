@@ -289,7 +289,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	backupPath?: string;
 
 	profiles: {
-		all: UriDto<IUserDataProfile>[];
+		all: readonly UriDto<IUserDataProfile>[];
 		current: UriDto<IUserDataProfile>;
 	};
 
