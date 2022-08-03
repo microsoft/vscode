@@ -27,6 +27,7 @@ import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
+import { CanvasAddon } from 'xterm-addon-canvas';
 
 class TestWebglAddon {
 	static shouldThrow = false;
@@ -45,10 +46,29 @@ class TestWebglAddon {
 	clearTextureAtlas() { }
 }
 
+class TestCanvasAddon {
+	static shouldThrow = false;
+	static isEnabled = false;
+	activate() {
+		TestCanvasAddon.isEnabled = !TestCanvasAddon.shouldThrow;
+		if (TestCanvasAddon.shouldThrow) {
+			throw new Error('Test canvas set to throw');
+		}
+	}
+	dispose() {
+		TestCanvasAddon.isEnabled = false;
+	}
+	clearTextureAtlas() { }
+}
+
 class TestXtermTerminal extends XtermTerminal {
 	webglAddonPromise: Promise<typeof WebglAddon> = Promise.resolve(TestWebglAddon);
+	canvasAddonPromise: Promise<typeof CanvasAddon> = Promise.resolve(TestCanvasAddon);
+	// Force synchronous to avoid async when activating the addon
+	protected override _getCanvasAddonConstructor() {
+		return this.canvasAddonPromise;
+	}
 	protected override _getWebglAddonConstructor() {
-		// Force synchronous to avoid async when activating the addon
 		return this.webglAddonPromise;
 	}
 }
@@ -259,22 +279,21 @@ suite('XtermTerminal', () => {
 			} else {
 				strictEqual(TestWebglAddon.isEnabled, true);
 			}
+			strictEqual(TestCanvasAddon.isEnabled, false);
 
 			// Turn off to reset state
-			// TODO: Fix renderer
-			// await configurationService.setUserConfiguration('terminal', { integrated: { ...defaultTerminalConfig, gpuAcceleration: 'off' } });
-			// configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
-			// await xterm.webglAddonPromise; // await addon activate
-			// strictEqual(xterm.raw.options.rendererType, 'dom');
-			// strictEqual(TestWebglAddon.isEnabled, false);
+			await configurationService.setUserConfiguration('terminal', { integrated: { ...defaultTerminalConfig, gpuAcceleration: 'off' } });
+			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
+			await xterm.canvasAddonPromise; // await addon activate
+			strictEqual(TestWebglAddon.isEnabled, false);
+			strictEqual(TestCanvasAddon.isEnabled, true);
 
 			// // Set to auto again but throw when activating the webgl addon
-			// TestWebglAddon.shouldThrow = true;
-			// await configurationService.setUserConfiguration('terminal', { integrated: { ...defaultTerminalConfig, gpuAcceleration: 'auto' } });
-			// configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
-			// await xterm.webglAddonPromise; // await addon activate
-			// strictEqual(xterm.raw.options.rendererType, 'canvas');
-			// strictEqual(TestWebglAddon.isEnabled, false);
+			TestWebglAddon.shouldThrow = true;
+			await configurationService.setUserConfiguration('terminal', { integrated: { ...defaultTerminalConfig, gpuAcceleration: 'auto' } });
+			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
+			strictEqual(TestWebglAddon.isEnabled, false);
+			strictEqual(TestCanvasAddon.isEnabled, false);
 		});
 	});
 });

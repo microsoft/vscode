@@ -220,7 +220,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			this._enableWebglRenderer();
 		} else if (this._shouldLoadCanvas()) {
 			this._enableCanvasRenderer();
-			// rendererType: this._getBuiltInXtermRenderer(config.gpuAcceleration, XtermTerminal._suggestedRendererType),
 		}
 		// Screen must be created at this point as xterm.open is called
 		return this._container.querySelector('.xterm-screen')!;
@@ -283,13 +282,12 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		// This is to fix an issue where dragging the windpow to the top of the screen to
 		// maximize on Windows/Linux would fire an event saying that the terminal was not
 		// visible.
-		// TODO: Fix renderer
-		// if (this.raw.getOption('rendererType') === 'canvas') {
-		// 	this._core._renderService?._onIntersectionChange({ intersectionRatio: 1 });
-		// 	// HACK: Force a refresh of the screen to ensure links are refresh corrected.
-		// 	// This can probably be removed when the above hack is fixed in Chromium.
-		// 	this.raw.refresh(0, this.raw.rows - 1);
-		// }
+		if (!!this._canvasAddon) {
+			this._core._renderService?._onIntersectionChange({ intersectionRatio: 1 });
+			// HACK: Force a refresh of the screen to ensure links are refresh corrected.
+			// This can probably be removed when the above hack is fixed in Chromium.
+			this.raw.refresh(0, this.raw.rows - 1);
+		}
 	}
 
 	async findNext(term: string, searchOptions: ISearchOptions): Promise<boolean> {
@@ -436,15 +434,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		}
 	}
 
-	// TODO: Fix renderer
-	// private _getBuiltInXtermRenderer(gpuAcceleration: string, suggestedRendererType?: string): RendererType {
-	// 	let rendererType: RendererType = 'canvas';
-	// 	if (gpuAcceleration === 'off' || (gpuAcceleration === 'auto' && suggestedRendererType === 'dom')) {
-	// 		rendererType = 'dom';
-	// 	}
-	// 	return rendererType;
-	// }
-
 	private async _enableWebglRenderer(): Promise<void> {
 		if (!this.raw.element || this._webglAddon) {
 			return;
@@ -458,8 +447,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			this._webglAddon.onContextLoss(() => {
 				this._logService.info(`Webgl lost context, disposing of webgl renderer`);
 				this._disposeOfWebglRenderer();
-				// TODO: Fix renderer
-				// this.raw.options.rendererType = 'dom';
 			});
 			// Uncomment to add the texture atlas to the DOM
 			// setTimeout(() => {
