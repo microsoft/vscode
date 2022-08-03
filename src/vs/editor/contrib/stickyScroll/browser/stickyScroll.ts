@@ -182,8 +182,7 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 				});
 				let previous: number[] = [];
 				for (const [index, arr] of this._ranges.entries()) {
-					const [start, end, _depth] = arr;
-					if (previous[0] === start && previous[1] === end) {
+					if (previous[0] === arr[0]) {
 						this._ranges.splice(index, 1);
 					} else {
 						previous = arr;
@@ -206,9 +205,8 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 		const scrollTop = this._editor.getScrollTop();
 
 		this.stickyScrollWidget.emptyRootNode();
-		const beginningLinesConsidered: Set<number> = new Set<number>();
 
-		for (const [index, arr] of this._ranges.entries()) {
+		for (const arr of this._ranges) {
 			const [start, end, depth] = arr;
 			if (end - start > 0) {
 				const topOfElementAtDepth = (depth - 1) * lineHeight;
@@ -218,18 +216,12 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 				const topOfEndLine = this._editor.getTopForLineNumber(end) - scrollTop;
 				const bottomOfEndLine = this._editor.getBottomForLineNumber(end) - scrollTop;
 
-				if (!beginningLinesConsidered.has(start)) {
-					if (topOfElementAtDepth >= topOfEndLine - 1 && topOfElementAtDepth < bottomOfEndLine - 2) {
-						beginningLinesConsidered.add(start);
-						this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(start, depth, this._editor, -1, bottomOfEndLine - bottomOfElementAtDepth));
-						break;
-					}
-					else if (bottomOfElementAtDepth > bottomOfBeginningLine && bottomOfElementAtDepth < bottomOfEndLine - 1) {
-						beginningLinesConsidered.add(start);
-						this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(start, depth, this._editor, 0, 0));
-					}
-				} else {
-					this._ranges.splice(index, 1);
+				if (topOfElementAtDepth >= topOfEndLine - 1 && topOfElementAtDepth < bottomOfEndLine - 2) {
+					this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(start, depth, this._editor, -1, bottomOfEndLine - bottomOfElementAtDepth));
+					break;
+				}
+				else if (bottomOfElementAtDepth > bottomOfBeginningLine && bottomOfElementAtDepth < bottomOfEndLine - 1) {
+					this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(start, depth, this._editor, 0, 0));
 				}
 			}
 		}
