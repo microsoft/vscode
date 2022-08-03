@@ -251,7 +251,6 @@ export interface ITerminalConfiguration {
 	minimumContrastRatio: number;
 	mouseWheelScrollSensitivity: number;
 	sendKeybindingsToShell: boolean;
-	fontLigatures: boolean;
 	fontSize: number;
 	letterSpacing: number;
 	lineHeight: number;
@@ -303,6 +302,9 @@ export interface ITerminalConfiguration {
 		decorationsEnabled: boolean;
 	};
 	smoothScrolling: boolean;
+	experimental: {
+		fontLigatures: boolean;
+	};
 }
 
 export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];

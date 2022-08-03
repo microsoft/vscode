@@ -238,7 +238,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			this._enableCanvasRenderer();
 		}
 		// Enable addons
-		if (this._configHelper.config.fontLigatures) {
+		if (this._configHelper.config.experimental.fontLigatures) {
 			this._enableLigatures();
 		}
 		// Screen must be created at this point as xterm.open is called
@@ -278,7 +278,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		}
 
 		// Ligatures addon
-		if (config.fontLigatures) {
+		if (config.experimental.fontLigatures) {
 			this._enableLigatures();
 		} else {
 			this._disableLigatures();
