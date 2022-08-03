@@ -863,6 +863,12 @@ export class CallbackIterable<T> {
 		return new CallbackIterable<TResult>(cb => this.iterate(item => cb(mapFn(item))));
 	}
 
+	some(predicate: (item: T) => boolean): boolean {
+		let result = false;
+		this.iterate(item => { result = predicate(item); return !result; });
+		return result;
+	}
+
 	findFirst(predicate: (item: T) => boolean): T | undefined {
 		let result: T | undefined;
 		this.iterate(item => {

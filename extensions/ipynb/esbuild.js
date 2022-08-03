@@ -19,7 +19,7 @@ if (outputRootIndex >= 0) {
 }
 
 const srcDir = path.join(__dirname, 'src');
-const outDir = path.join(outputRoot, 'out');
+const outDir = path.join(outputRoot, 'notebook-out');
 
 async function build() {
 	await esbuild.build({

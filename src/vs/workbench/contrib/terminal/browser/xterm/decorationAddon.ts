@@ -27,6 +27,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProcess';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { Codicon } from 'vs/base/common/codicons';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 const enum DecorationSelector {
 	CommandDecoration = 'terminal-command-decoration',
@@ -68,7 +69,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IOpenerService private readonly _openerService: IOpenerService,
-		@IQuickInputService private readonly _quickInputService: IQuickInputService
+		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@ILifecycleService lifecycleService: ILifecycleService
 	) {
 		super();
 		this._register(toDisposable(() => this._dispose()));
@@ -76,7 +78,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		this._register(this._contextMenuService.onDidHideContextMenu(() => this._contextMenuVisible = false));
 		this._hoverDelayer = this._register(new Delayer(this._configurationService.getValue('workbench.hover.delay')));
 
-		this._configurationService.onDidChangeConfiguration(e => {
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIcon) ||
 				e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIconSuccess) ||
 				e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIconError)) {
@@ -92,8 +94,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				}
 				this._updateDecorationVisibility();
 			}
-		});
-		this._themeService.onDidColorThemeChange(() => this._refreshStyles(true));
+		}));
+		this._register(this._themeService.onDidColorThemeChange(() => this._refreshStyles(true)));
 		this._updateDecorationVisibility();
 		this._register(this._capabilities.onDidAddCapability(c => {
 			if (c === TerminalCapability.CommandDetection) {
@@ -108,6 +110,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				}
 			}
 		}));
+		this._register(lifecycleService.onWillShutdown(() => this._disposeAllDecorations()));
 	}
 
 	private _updateDecorationVisibility(): void {
@@ -442,7 +445,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		const labelAbout = localize("terminal.learnShellIntegration", 'Learn About Shell Integration');
 		actions.push({
 			class: undefined, tooltip: labelAbout, dispose: () => { }, id: 'terminal.learnShellIntegration', label: labelAbout, enabled: true,
-			run: () => this._openerService.open('https://code.visualstudio.com/docs/editor/integrated-terminal#_shell-integration')
+			run: () => this._openerService.open('https://code.visualstudio.com/docs/terminal/shell-integration')
 		});
 		return actions;
 	}

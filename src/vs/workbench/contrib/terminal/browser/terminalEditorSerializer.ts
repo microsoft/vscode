@@ -43,7 +43,11 @@ export class TerminalInputSerializer implements IEditorSerializer {
 			icon: instance.icon,
 			color: instance.color,
 			resource: instance.resource.toString(),
-			hasChildProcesses: instance.hasChildProcesses
+			hasChildProcesses: instance.hasChildProcesses,
+			task: instance.shellLaunchConfig.task,
+			type: instance.shellLaunchConfig.type,
+			isFeatureTerminal: instance.shellLaunchConfig.isFeatureTerminal,
+			hideFromUser: instance.shellLaunchConfig.hideFromUser,
 		};
 	}
 }
