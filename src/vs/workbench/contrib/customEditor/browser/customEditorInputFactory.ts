@@ -111,7 +111,7 @@ export class CustomEditorInputSerializer extends WebviewEditorInputSerializer {
 function reviveWebview(webviewService: IWebviewService, data: { id: string; origin: string | undefined; viewType: string; state: any; webviewOptions: WebviewOptions; contentOptions: WebviewContentOptions; extension?: WebviewExtensionDescription }) {
 	const webview = webviewService.createWebviewOverlay({
 		id: data.id,
-		providedId: data.viewType,
+		providedViewType: data.viewType,
 		origin: data.origin,
 		options: {
 			purpose: WebviewContentPurpose.CustomEditor,
