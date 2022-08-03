@@ -288,6 +288,7 @@ export class MangeSettingsProfileAction extends Action2 {
 		const menu = disposables.add(menuService.createMenu(ManageProfilesSubMenu, contextKeyService));
 		const actions: IAction[] = [];
 		disposables.add(createAndFillInActionBarActions(menu, undefined, actions));
+		disposables.dispose();
 
 		if (actions.length) {
 			const picks: (IQuickPickItem | IQuickPickSeparator)[] = actions.map(action => {
