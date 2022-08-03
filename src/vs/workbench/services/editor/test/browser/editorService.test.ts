@@ -851,11 +851,12 @@ suite('EditorService', () => {
 				assert.ok(typedInput instanceof TestFileEditorInput);
 				assert.strictEqual(typedInput.resource.toString(), typedEditor.resource.toString());
 
-				assert.strictEqual(editorFactoryCalled, 1);
+				// It's a typed editor input so the resolver should not have been called
+				assert.strictEqual(editorFactoryCalled, 0);
 				assert.strictEqual(untitledEditorFactoryCalled, 0);
 				assert.strictEqual(diffEditorFactoryCalled, 0);
 
-				assert.strictEqual((lastEditorFactoryEditor as IResourceEditorInput).resource.toString(), typedEditor.resource.toString());
+				assert.ok(!lastEditorFactoryEditor);
 				assert.ok(!lastUntitledEditorFactoryEditor);
 				assert.ok(!lastDiffEditorFactoryEditor);
 
@@ -876,11 +877,11 @@ suite('EditorService', () => {
 				assert.ok(typedInput instanceof TestFileEditorInput);
 				assert.strictEqual(typedInput.resource.toString(), typedEditorReplacement.resource.toString());
 
-				assert.strictEqual(editorFactoryCalled, 2);
+				assert.strictEqual(editorFactoryCalled, 0);
 				assert.strictEqual(untitledEditorFactoryCalled, 0);
 				assert.strictEqual(diffEditorFactoryCalled, 0);
 
-				assert.strictEqual((lastEditorFactoryEditor as IResourceEditorInput).resource.toString(), typedInput.resource.toString());
+				assert.ok(!lastEditorFactoryEditor);
 				assert.ok(!lastUntitledEditorFactoryEditor);
 				assert.ok(!lastDiffEditorFactoryEditor);
 
@@ -941,7 +942,8 @@ suite('EditorService', () => {
 				const pane = await openEditor({ editor: typedEditor, options: { override: DEFAULT_EDITOR_ASSOCIATION.id } });
 
 				assert.strictEqual(pane?.group, rootGroup);
-				assert.ok(pane.input instanceof FileEditorInput);
+				// We shouldn't have resolved because it is a typed editor, even though we have an override specified
+				assert.ok(pane.input instanceof TestFileEditorInput);
 				assert.strictEqual(pane.input.resource.toString(), typedEditor.resource.toString());
 
 				assert.strictEqual(editorFactoryCalled, 0);
@@ -964,11 +966,11 @@ suite('EditorService', () => {
 				assert.ok(pane.input instanceof TestFileEditorInput);
 				assert.strictEqual(pane.input.resource.toString(), typedEditor.resource.toString());
 
-				assert.strictEqual(editorFactoryCalled, 1);
+				assert.strictEqual(editorFactoryCalled, 0);
 				assert.strictEqual(untitledEditorFactoryCalled, 0);
 				assert.strictEqual(diffEditorFactoryCalled, 0);
 
-				assert.strictEqual((lastEditorFactoryEditor as IResourceEditorInput).resource.toString(), typedEditor.resource.toString());
+				assert.ok(!lastEditorFactoryEditor);
 				assert.ok(!lastUntitledEditorFactoryEditor);
 				assert.ok(!lastDiffEditorFactoryEditor);
 
@@ -985,12 +987,11 @@ suite('EditorService', () => {
 				assert.strictEqual(pane.input.resource.toString(), typedEditor.resource.toString());
 				assert.strictEqual(pane.group.isSticky(pane.input), true);
 
-				assert.strictEqual(editorFactoryCalled, 1);
+				assert.strictEqual(editorFactoryCalled, 0);
 				assert.strictEqual(untitledEditorFactoryCalled, 0);
 				assert.strictEqual(diffEditorFactoryCalled, 0);
 
-				assert.strictEqual((lastEditorFactoryEditor as IResourceEditorInput).resource.toString(), typedEditor.resource.toString());
-				assert.strictEqual((lastEditorFactoryEditor as IResourceEditorInput).options?.preserveFocus, true);
+				assert.ok(!lastEditorFactoryEditor);
 				assert.ok(!lastUntitledEditorFactoryEditor);
 				assert.ok(!lastDiffEditorFactoryEditor);
 
@@ -1008,12 +1009,11 @@ suite('EditorService', () => {
 				assert.strictEqual(pane.input.resource.toString(), typedEditor.resource.toString());
 				assert.strictEqual(pane.group.isSticky(pane.input), true);
 
-				assert.strictEqual(editorFactoryCalled, 1);
+				assert.strictEqual(editorFactoryCalled, 0);
 				assert.strictEqual(untitledEditorFactoryCalled, 0);
 				assert.strictEqual(diffEditorFactoryCalled, 0);
 
-				assert.strictEqual((lastEditorFactoryEditor as IResourceEditorInput).resource.toString(), typedEditor.resource.toString());
-				assert.strictEqual((lastEditorFactoryEditor as IResourceEditorInput).options?.preserveFocus, true);
+				assert.ok(!lastEditorFactoryEditor);
 				assert.ok(!lastUntitledEditorFactoryEditor);
 				assert.ok(!lastDiffEditorFactoryEditor);
 
@@ -1031,11 +1031,11 @@ suite('EditorService', () => {
 				assert.ok(pane?.input instanceof TestFileEditorInput);
 				assert.strictEqual(pane?.input.resource.toString(), typedEditor.resource.toString());
 
-				assert.strictEqual(editorFactoryCalled, 1);
+				assert.strictEqual(editorFactoryCalled, 0);
 				assert.strictEqual(untitledEditorFactoryCalled, 0);
 				assert.strictEqual(diffEditorFactoryCalled, 0);
 
-				assert.strictEqual((lastEditorFactoryEditor as IResourceEditorInput).resource.toString(), typedEditor.resource.toString());
+				assert.ok(!lastEditorFactoryEditor);
 				assert.ok(!lastUntitledEditorFactoryEditor);
 				assert.ok(!lastDiffEditorFactoryEditor);
 
@@ -1342,7 +1342,8 @@ suite('EditorService', () => {
 				assert.strictEqual(pane?.group, rootGroup);
 				assert.strictEqual(pane?.group.count, 5);
 
-				assert.strictEqual(editorFactoryCalled, 3);
+				// Only the untyped editors should have had factories called (and 1 is disabled so 3 untyped - 1 disabled = 2)
+				assert.strictEqual(editorFactoryCalled, 2);
 				assert.strictEqual(untitledEditorFactoryCalled, 0);
 				assert.strictEqual(diffEditorFactoryCalled, 0);
 
@@ -2334,13 +2335,19 @@ suite('EditorService', () => {
 		);
 		assert.strictEqual(editorCount, 0);
 
-		const input1 = new TestFileEditorInput(URI.parse('file://test/path/resource1.txt'), TEST_EDITOR_INPUT_ID);
-		const input2 = new TestFileEditorInput(URI.parse('file://test/path/resource2.txt'), TEST_EDITOR_INPUT_ID);
-		const input3 = new TestFileEditorInput(URI.parse('file://test/path/resource3.md'), TEST_EDITOR_INPUT_ID);
-		const input4 = new TestFileEditorInput(URI.parse('file://test/path/resource4.md'), TEST_EDITOR_INPUT_ID);
+		const input1 = new TestFileEditorInput(URI.parse('file://test/path/resource1.txt'), TEST_EDITOR_INPUT_ID).toUntyped();
+		const input2 = new TestFileEditorInput(URI.parse('file://test/path/resource2.txt'), TEST_EDITOR_INPUT_ID).toUntyped();
+		const input3 = new TestFileEditorInput(URI.parse('file://test/path/resource3.md'), TEST_EDITOR_INPUT_ID).toUntyped();
+		const input4 = new TestFileEditorInput(URI.parse('file://test/path/resource4.md'), TEST_EDITOR_INPUT_ID).toUntyped();
 
-		// Open editor input 1 and it shouln't trigger override as the glob doesn't match
-		await service.openEditors([{ editor: input1 }, { editor: input2 }, { editor: input3 }, { editor: input4 }]);
+		assert.ok(input1);
+		assert.ok(input2);
+		assert.ok(input3);
+		assert.ok(input4);
+
+		// Open editor inputs
+		await service.openEditors([input1, input2, input3, input4]);
+		// Only two matched the factory glob
 		assert.strictEqual(editorCount, 2);
 
 		registrationDisposable.dispose();
@@ -2374,6 +2381,8 @@ suite('EditorService', () => {
 		assert.strictEqual(editorCount, 0);
 
 		const input1 = new TestFileEditorInput(URI.parse('file://test/path/resource2.md'), TEST_EDITOR_INPUT_ID);
+		const untypedInput1 = input1.toUntyped();
+		assert.ok(untypedInput1);
 
 		// Open editor input 1 and it shouldn't trigger because I've disabled the override logic
 		await service.openEditor(input1, { override: EditorResolution.DISABLED });
@@ -2381,7 +2390,7 @@ suite('EditorService', () => {
 
 		await service.replaceEditors([{
 			editor: input1,
-			replacement: input1,
+			replacement: untypedInput1,
 		}], part.activeGroup);
 		assert.strictEqual(editorCount, 1);
 
