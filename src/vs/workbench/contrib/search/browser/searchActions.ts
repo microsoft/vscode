@@ -65,30 +65,22 @@ function doAppendKeyBindingLabel(label: string, keyBinding: ResolvedKeybinding |
 
 export const toggleCaseSensitiveCommand = (accessor: ServicesAccessor) => {
 	const searchView = getSearchView(accessor.get(IViewsService));
-	if (searchView) {
-		searchView.toggleCaseSensitive();
-	}
+	searchView?.toggleCaseSensitive();
 };
 
 export const toggleWholeWordCommand = (accessor: ServicesAccessor) => {
 	const searchView = getSearchView(accessor.get(IViewsService));
-	if (searchView) {
-		searchView.toggleWholeWords();
-	}
+	searchView?.toggleWholeWords();
 };
 
 export const toggleRegexCommand = (accessor: ServicesAccessor) => {
 	const searchView = getSearchView(accessor.get(IViewsService));
-	if (searchView) {
-		searchView.toggleRegex();
-	}
+	searchView?.toggleRegex();
 };
 
 export const togglePreserveCaseCommand = (accessor: ServicesAccessor) => {
 	const searchView = getSearchView(accessor.get(IViewsService));
-	if (searchView) {
-		searchView.togglePreserveCase();
-	}
+	searchView?.togglePreserveCase();
 };
 
 export class FocusNextInputAction extends Action {
@@ -110,9 +102,7 @@ export class FocusNextInputAction extends Action {
 		}
 
 		const searchView = getSearchView(this.viewsService);
-		if (searchView) {
-			searchView.focusNextInputBox();
-		}
+		searchView?.focusNextInputBox();
 	}
 }
 
@@ -135,9 +125,7 @@ export class FocusPreviousInputAction extends Action {
 		}
 
 		const searchView = getSearchView(this.viewsService);
-		if (searchView) {
-			searchView.focusPreviousInputBox();
-		}
+		searchView?.focusPreviousInputBox();
 	}
 }
 
@@ -275,17 +263,13 @@ export function expandAll(accessor: ServicesAccessor) {
 export function clearSearchResults(accessor: ServicesAccessor) {
 	const viewsService = accessor.get(IViewsService);
 	const searchView = getSearchView(viewsService);
-	if (searchView) {
-		searchView.clearSearchResults();
-	}
+	searchView?.clearSearchResults();
 }
 
 export function cancelSearch(accessor: ServicesAccessor) {
 	const viewsService = accessor.get(IViewsService);
 	const searchView = getSearchView(viewsService);
-	if (searchView) {
-		searchView.cancelSearch();
-	}
+	searchView?.cancelSearch();
 }
 
 export function refreshSearch(accessor: ServicesAccessor) {
@@ -352,9 +336,7 @@ export class FocusNextSearchResultAction extends Action {
 		}
 
 		return openSearchView(this.viewsService).then(searchView => {
-			if (searchView) {
-				searchView.selectNextMatch();
-			}
+			searchView?.selectNextMatch();
 		});
 	}
 }
@@ -378,9 +360,7 @@ export class FocusPreviousSearchResultAction extends Action {
 		}
 
 		return openSearchView(this.viewsService).then(searchView => {
-			if (searchView) {
-				searchView.selectPreviousMatch();
-			}
+			searchView?.selectPreviousMatch();
 		});
 	}
 }
@@ -819,9 +799,7 @@ export const clearHistoryCommand: ICommandHandler = accessor => {
 export const focusSearchListCommand: ICommandHandler = accessor => {
 	const viewsService = accessor.get(IViewsService);
 	openSearchView(viewsService).then(searchView => {
-		if (searchView) {
-			searchView.moveFocusToResults();
-		}
+		searchView?.moveFocusToResults();
 	});
 };
 

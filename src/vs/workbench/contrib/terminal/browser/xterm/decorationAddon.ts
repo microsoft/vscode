@@ -27,6 +27,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProcess';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { Codicon } from 'vs/base/common/codicons';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 const enum DecorationSelector {
 	CommandDecoration = 'terminal-command-decoration',
@@ -68,7 +69,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IOpenerService private readonly _openerService: IOpenerService,
-		@IQuickInputService private readonly _quickInputService: IQuickInputService
+		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@ILifecycleService lifecycleService: ILifecycleService
 	) {
 		super();
 		this._register(toDisposable(() => this._dispose()));
@@ -108,6 +110,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				}
 			}
 		}));
+		this._register(lifecycleService.onWillShutdown(() => this._disposeAllDecorations()));
 	}
 
 	private _updateDecorationVisibility(): void {

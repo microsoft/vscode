@@ -5,7 +5,7 @@
 
 import * as arrays from 'vs/base/common/arrays';
 import { escapeRegExpCharacters, isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { isArray, withUndefinedAsNull, isUndefinedOrNull } from 'vs/base/common/types';
+import { withUndefinedAsNull, isUndefinedOrNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ConfigurationTarget, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
@@ -321,7 +321,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		} else if (this.setting.type === 'array' && this.setting.arrayItemType &&
 			['string', 'enum', 'number', 'integer'].includes(this.setting.arrayItemType)) {
 			this.valueType = SettingValueType.Array;
-		} else if (isArray(this.setting.type) && this.setting.type.includes(SettingValueType.Null) && this.setting.type.length === 2) {
+		} else if (Array.isArray(this.setting.type) && this.setting.type.includes(SettingValueType.Null) && this.setting.type.length === 2) {
 			if (this.setting.type.includes(SettingValueType.Integer)) {
 				this.valueType = SettingValueType.NullableInteger;
 			} else if (this.setting.type.includes(SettingValueType.Number)) {
@@ -805,7 +805,7 @@ function isObjectSetting({
 
 function settingTypeEnumRenderable(_type: string | string[]) {
 	const enumRenderableSettingTypes = ['string', 'boolean', 'null', 'integer', 'number'];
-	const type = isArray(_type) ? _type : [_type];
+	const type = Array.isArray(_type) ? _type : [_type];
 	return type.every(type => enumRenderableSettingTypes.includes(type));
 }
 

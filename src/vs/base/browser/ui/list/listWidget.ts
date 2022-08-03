@@ -1528,9 +1528,7 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 	}
 
 	triggerTypeNavigation(): void {
-		if (this.typeNavigationController) {
-			this.typeNavigationController.trigger();
-		}
+		this.typeNavigationController?.trigger();
 	}
 
 	setSelection(indexes: number[], browserEvent?: UIEvent): void {

@@ -18,7 +18,7 @@ import * as platform from 'vs/base/common/platform';
 import { basename, isEqual, joinPath } from 'vs/base/common/resources';
 import * as semver from 'vs/base/common/semver/semver';
 import Severity from 'vs/base/common/severity';
-import { isArray, isEmptyObject, isObject, isString } from 'vs/base/common/types';
+import { isEmptyObject, isObject, isString } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -821,7 +821,7 @@ class ExtensionsScanner extends Disposable {
 						k === 'commands' ? processEntry(value, k, true) : processEntry(value, k, command);
 					}
 				}
-			} else if (isArray(value)) {
+			} else if (Array.isArray(value)) {
 				for (let i = 0; i < value.length; i++) {
 					processEntry(value, i, command);
 				}

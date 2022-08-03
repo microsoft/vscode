@@ -21,6 +21,7 @@ import { IAuthenticationService } from 'vs/workbench/services/authentication/com
 import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
+import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 
 export class WorkbenchIssueService implements IWorkbenchIssueService {
 	declare readonly _serviceBrand: undefined;
@@ -101,6 +102,7 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 			restrictedMode: !this.workspaceTrustManagementService.isWorkspaceTrusted(),
 			isUnsupported,
 			githubAccessToken,
+			isSandboxed: process.sandboxed
 		}, dataOverrides);
 		return this.issueService.openReporter(issueReporterData);
 	}

@@ -20,9 +20,7 @@ suite('DecorationsService', function () {
 	let service: DecorationsService;
 
 	setup(function () {
-		if (service) {
-			service.dispose();
-		}
+		service?.dispose();
 		service = new DecorationsService(
 			new class extends mock<IUriIdentityService>() {
 				override extUri = resources.extUri;
