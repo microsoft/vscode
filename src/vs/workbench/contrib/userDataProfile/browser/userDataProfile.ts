@@ -20,6 +20,7 @@ import { IUserDataProfile, IUserDataProfilesService, PROFILES_ENABLEMENT_CONFIG 
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { MangeSettingsProfileAction } from 'vs/workbench/contrib/userDataProfile/browser/userDataProfileActions';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { CURRENT_PROFILE_CONTEXT, HAS_PROFILES_CONTEXT, IUserDataProfileManagementService, IUserDataProfileService, ManageProfilesSubMenu, PROFILES_CATEGORY, PROFILES_ENABLEMENT_CONTEXT, PROFILES_TTILE } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
@@ -143,7 +144,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		if (this.userDataProfilesService.profiles.length > 1) {
 			const statusBarEntry: IStatusbarEntry = {
 				name: PROFILES_CATEGORY,
-				command: 'workbench.profiles.actions.switchProfile',
+				command: MangeSettingsProfileAction.ID,
 				ariaLabel: localize('currentProfile', "Current Settings Profile is {0}", this.userDataProfileService.currentProfile.name),
 				text: `$(${userDataProfilesIcon.id}) ${this.userDataProfileService.currentProfile.name!}`,
 				tooltip: localize('profileTooltip', "{0}: {1}", PROFILES_CATEGORY, this.userDataProfileService.currentProfile.name),

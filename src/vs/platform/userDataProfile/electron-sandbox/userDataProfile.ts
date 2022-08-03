@@ -32,7 +32,7 @@ export class UserDataProfilesNativeService extends Disposable implements IUserDa
 	readonly onDidResetWorkspaces: Event<void>;
 
 	constructor(
-		profiles: UriDto<IUserDataProfile>[],
+		profiles: readonly UriDto<IUserDataProfile>[],
 		@IMainProcessService mainProcessService: IMainProcessService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 	) {

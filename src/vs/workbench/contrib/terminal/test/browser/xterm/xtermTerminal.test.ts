@@ -16,7 +16,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewDescriptor, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Emitter } from 'vs/base/common/event';
-import { TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR, TERMINAL_SELECTION_FOREGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
+import { TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR, TERMINAL_SELECTION_FOREGROUND_COLOR, TERMINAL_INACTIVE_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { WebglAddon } from 'xterm-addon-webgl';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
@@ -33,6 +33,7 @@ import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecy
 class TestWebglAddon {
 	static shouldThrow = false;
 	static isEnabled = false;
+	readonly onChangeTextureAtlas = new Emitter().event as IEvent<HTMLCanvasElement>;
 	readonly onContextLoss = new Emitter().event as IEvent<void>;
 	activate() {
 		TestWebglAddon.isEnabled = !TestWebglAddon.shouldThrow;
@@ -48,8 +49,8 @@ class TestWebglAddon {
 
 class TestXtermTerminal extends XtermTerminal {
 	webglAddonPromise: Promise<typeof WebglAddon> = Promise.resolve(TestWebglAddon);
+	// Force synchronous to avoid async when activating the addon
 	protected override _getWebglAddonConstructor() {
-		// Force synchronous to avoid async when activating the addon
 		return this.webglAddonPromise;
 	}
 }
@@ -123,8 +124,8 @@ suite('XtermTerminal', () => {
 	});
 
 	test('should use fallback dimensions of 80x30', () => {
-		strictEqual(xterm.raw.options.cols, 80);
-		strictEqual(xterm.raw.options.rows, 30);
+		strictEqual(xterm.raw.cols, 80);
+		strictEqual(xterm.raw.rows, 30);
 	});
 
 	suite('theme', () => {
@@ -149,6 +150,7 @@ suite('XtermTerminal', () => {
 				[TERMINAL_CURSOR_FOREGROUND_COLOR]: '#000300',
 				[TERMINAL_CURSOR_BACKGROUND_COLOR]: '#000400',
 				[TERMINAL_SELECTION_BACKGROUND_COLOR]: '#000500',
+				[TERMINAL_INACTIVE_SELECTION_BACKGROUND_COLOR]: '#000600',
 				[TERMINAL_SELECTION_FOREGROUND_COLOR]: undefined,
 				'terminal.ansiBlack': '#010000',
 				'terminal.ansiRed': '#020000',
@@ -173,7 +175,8 @@ suite('XtermTerminal', () => {
 				foreground: '#000200',
 				cursor: '#000300',
 				cursorAccent: '#000400',
-				selection: '#000500',
+				selectionBackground: '#000500',
+				selectionInactiveBackground: '#000600',
 				selectionForeground: undefined,
 				black: '#010000',
 				green: '#030000',
@@ -198,7 +201,8 @@ suite('XtermTerminal', () => {
 				[TERMINAL_CURSOR_FOREGROUND_COLOR]: '#00030f',
 				[TERMINAL_CURSOR_BACKGROUND_COLOR]: '#00040f',
 				[TERMINAL_SELECTION_BACKGROUND_COLOR]: '#00050f',
-				[TERMINAL_SELECTION_FOREGROUND_COLOR]: '#00060f',
+				[TERMINAL_INACTIVE_SELECTION_BACKGROUND_COLOR]: '#00060f',
+				[TERMINAL_SELECTION_FOREGROUND_COLOR]: '#00070f',
 				'terminal.ansiBlack': '#01000f',
 				'terminal.ansiRed': '#02000f',
 				'terminal.ansiGreen': '#03000f',
@@ -221,8 +225,9 @@ suite('XtermTerminal', () => {
 				foreground: '#00020f',
 				cursor: '#00030f',
 				cursorAccent: '#00040f',
-				selection: '#00050f',
-				selectionForeground: '#00060f',
+				selectionBackground: '#00050f',
+				selectionInactiveBackground: '#00060f',
+				selectionForeground: '#00070f',
 				black: '#01000f',
 				green: '#03000f',
 				red: '#02000f',
@@ -246,7 +251,6 @@ suite('XtermTerminal', () => {
 	suite('renderers', () => {
 		test('should re-evaluate gpu acceleration auto when the setting is changed', async () => {
 			// Check initial state
-			strictEqual(xterm.raw.options.rendererType, 'dom');
 			strictEqual(TestWebglAddon.isEnabled, false);
 
 			// Open xterm as otherwise the webgl addon won't activate
@@ -267,7 +271,6 @@ suite('XtermTerminal', () => {
 			await configurationService.setUserConfiguration('terminal', { integrated: { ...defaultTerminalConfig, gpuAcceleration: 'off' } });
 			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
 			await xterm.webglAddonPromise; // await addon activate
-			strictEqual(xterm.raw.options.rendererType, 'dom');
 			strictEqual(TestWebglAddon.isEnabled, false);
 
 			// Set to auto again but throw when activating the webgl addon
@@ -275,7 +278,6 @@ suite('XtermTerminal', () => {
 			await configurationService.setUserConfiguration('terminal', { integrated: { ...defaultTerminalConfig, gpuAcceleration: 'auto' } });
 			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
 			await xterm.webglAddonPromise; // await addon activate
-			strictEqual(xterm.raw.options.rendererType, 'canvas');
 			strictEqual(TestWebglAddon.isEnabled, false);
 		});
 	});

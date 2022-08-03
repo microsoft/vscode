@@ -236,7 +236,7 @@ export interface ILineMatcher {
 
 export function createLineMatcher(matcher: ProblemMatcher, fileService?: IFileService): ILineMatcher {
 	const pattern = matcher.pattern;
-	if (Types.isArray(pattern)) {
+	if (Array.isArray(pattern)) {
 		return new MultiLineMatcher(matcher, fileService);
 	} else {
 		return new SingleLineMatcher(matcher, fileService);
@@ -644,7 +644,7 @@ export namespace Config {
 
 	export namespace MultiLineProblemPattern {
 		export function is(value: any): value is MultiLineProblemPattern {
-			return value && Types.isArray(value);
+			return value && Array.isArray(value);
 		}
 	}
 
@@ -684,7 +684,7 @@ export namespace Config {
 	export namespace NamedMultiLineCheckedProblemPattern {
 		export function is(value: any): value is INamedMultiLineCheckedProblemPattern {
 			const candidate = value as INamedMultiLineCheckedProblemPattern;
-			return candidate && Types.isString(candidate.name) && Types.isArray(candidate.patterns) && MultiLineCheckedProblemPattern.is(candidate.patterns);
+			return candidate && Types.isString(candidate.name) && Array.isArray(candidate.patterns) && MultiLineCheckedProblemPattern.is(candidate.patterns);
 		}
 	}
 

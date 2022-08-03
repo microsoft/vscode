@@ -571,6 +571,11 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'number',
 			default: 100
 		},
+		[TerminalSettingId.SmoothScrolling]: {
+			markdownDescription: localize('terminal.integrated.smoothScrolling', "Controls whether the terminal will scroll using an animation."),
+			type: 'boolean',
+			default: false
+		},
 	}
 };
 

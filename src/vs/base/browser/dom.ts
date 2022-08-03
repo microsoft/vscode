@@ -1149,9 +1149,7 @@ export function removeTabIndexAndUpdateFocus(node: HTMLElement): void {
 	// in the hierarchy of the parent DOM nodes.
 	if (document.activeElement === node) {
 		const parentFocusable = findParentWithAttribute(node.parentElement, 'tabIndex');
-		if (parentFocusable) {
-			parentFocusable.focus();
-		}
+		parentFocusable?.focus();
 	}
 
 	node.removeAttribute('tabindex');

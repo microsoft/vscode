@@ -316,6 +316,7 @@ export interface IShowMarkupCellMessage {
 	readonly handle: number;
 	readonly content: string | undefined;
 	readonly top: number;
+	readonly metadata: NotebookCellMetadata | undefined;
 }
 
 export interface IUpdateSelectedMarkupCellsMessage {

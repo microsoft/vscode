@@ -12,6 +12,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ITextBuffer, ValidAnnotatedEditOperation } from 'vs/editor/common/model';
 
 suite('CellOperations', () => {
 	test('Move cells - single cell', async function () {
@@ -159,6 +160,30 @@ suite('CellOperations', () => {
 				assert.strictEqual(viewModel.cellAt(1)?.getText(), 'var b = 1;');
 				assert.strictEqual(viewModel.cellAt(2)?.getText(), '# header a');
 				assert.strictEqual(viewModel.cellAt(3)?.getText(), 'var b = 1;');
+			});
+	});
+
+	test('Copy/duplicate cells - should not share the same text buffer #102423', async function () {
+		await withTestNotebook(
+			[
+				['# header a', 'markdown', CellKind.Markup, [], {}],
+				['var b = 1;', 'javascript', CellKind.Code, [], {}]
+			],
+			async (editor, viewModel) => {
+				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 1, end: 2 }] });
+				await copyCellRange({ notebookEditor: editor, cell: viewModel.cellAt(1)! }, 'down');
+				assert.strictEqual(viewModel.length, 3);
+				const cell1 = viewModel.cellAt(1);
+				const cell2 = viewModel.cellAt(2);
+				assert.ok(cell1);
+				assert.ok(cell2);
+				assert.strictEqual(cell1.getText(), 'var b = 1;');
+				assert.strictEqual(viewModel.cellAt(2)?.getText(), 'var b = 1;');
+
+				(cell1.textBuffer as ITextBuffer).applyEdits([
+					new ValidAnnotatedEditOperation(null, new Range(1, 1, 1, 4), '', false, false, false)
+				], false, true);
+				assert.notStrictEqual(cell1.getText(), cell2.getText());
 			});
 	});
 

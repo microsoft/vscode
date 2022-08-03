@@ -245,17 +245,13 @@ export class FoldingController extends Disposable implements IEditorContribution
 					this.foldingRegionPromise.cancel();
 					this.foldingRegionPromise = null;
 				}
-				if (this.updateScheduler) {
-					this.updateScheduler.cancel();
-				}
+				this.updateScheduler?.cancel();
 				this.updateScheduler = null;
 				this.foldingModel = null;
 				this.foldingModelPromise = null;
 				this.hiddenRangeModel = null;
 				this.cursorChangedScheduler = null;
-				if (this.rangeProvider) {
-					this.rangeProvider.dispose();
-				}
+				this.rangeProvider?.dispose();
 				this.rangeProvider = null;
 			}
 		});
@@ -263,9 +259,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 	}
 
 	private onFoldingStrategyChanged() {
-		if (this.rangeProvider) {
-			this.rangeProvider.dispose();
-		}
+		this.rangeProvider?.dispose();
 		this.rangeProvider = null;
 		this.triggerFoldingModelChanged();
 	}
@@ -565,7 +559,7 @@ function foldingArgumentsConstraint(args: any) {
 		if (!types.isUndefined(foldingArgs.direction) && !types.isString(foldingArgs.direction)) {
 			return false;
 		}
-		if (!types.isUndefined(foldingArgs.selectionLines) && (!types.isArray(foldingArgs.selectionLines) || !foldingArgs.selectionLines.every(types.isNumber))) {
+		if (!types.isUndefined(foldingArgs.selectionLines) && (!Array.isArray(foldingArgs.selectionLines) || !foldingArgs.selectionLines.every(types.isNumber))) {
 			return false;
 		}
 	}

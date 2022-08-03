@@ -515,9 +515,8 @@ configurationRegistry.registerConfiguration({
 		},
 		[TaskSettingId.Reconnection]: {
 			type: 'boolean',
-			description: nls.localize('task.experimental.reconnection', "On window reload, reconnect to running watch/background tasks. Note that this is experimental, so you could encounter issues."),
-			default: false,
-			tags: ['experimental']
+			description: nls.localize('task.reconnection', "On window reload, reconnect to tasks that have problem matchers."),
+			default: true
 		},
 		[TaskSettingId.SaveBeforeRun]: {
 			markdownDescription: nls.localize(
