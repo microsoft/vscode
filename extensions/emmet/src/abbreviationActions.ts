@@ -303,7 +303,7 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 		return fallbackTab(languageId);
 	}
 	// When tabbed on a non empty selection, do not treat it as an emmet abbreviation, and fallback to tab instead
-	if (editor.selections.find(x => !x.isEmpty)) {
+	if (vscode.workspace.getConfiguration('emmet', { languageId })['triggerExpansionOnTab'] === true && editor.selections.find(x => !x.isEmpty)) {
 		return fallbackTab(languageId);
 	}
 
