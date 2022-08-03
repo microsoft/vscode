@@ -216,7 +216,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	private async doOpenWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void> {
-		const payload = this.preservePayload(false);
+		const payload = this.preservePayload(false /* not an empty window */);
 		const fileOpenables: IFileToOpen[] = [];
 		const foldersToAdd: IWorkspaceFolderCreationData[] = [];
 
@@ -425,8 +425,10 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	private async doOpenEmptyWindow(options?: IOpenEmptyWindowOptions): Promise<void> {
-		const payload = this.preservePayload(true);
-		return this.doOpen(undefined, { reuse: options?.forceReuseWindow, payload });
+		return this.doOpen(undefined, {
+			reuse: options?.forceReuseWindow,
+			payload: this.preservePayload(true /* empty window */)
+		});
 	}
 
 	private async doOpen(workspace: IWorkspace, options?: { reuse?: boolean; payload?: object }): Promise<void> {
