@@ -1249,7 +1249,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// If IShellLaunchConfig.waitOnExit was true and the process finished before the terminal
 		// panel was initialized.
-		if (xterm.raw.getOption('disableStdin')) {
+		if (xterm.raw.options.disableStdin) {
 			this._attachPressAnyKeyToCloseListener(xterm.raw);
 		}
 	}

@@ -284,15 +284,11 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 	}
 
 	override focus(): void {
-		if (this.filterInputBox) {
-			this.filterInputBox.focus();
-		}
+		this.filterInputBox?.focus();
 	}
 
 	override blur(): void {
-		if (this.filterInputBox) {
-			this.filterInputBox.blur();
-		}
+		this.filterInputBox?.blur();
 	}
 
 	override setFocusable(): void {

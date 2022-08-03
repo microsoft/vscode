@@ -112,7 +112,8 @@ export const enum TerminalSettingId {
 	ShellIntegrationDecorationIcon = 'terminal.integrated.shellIntegration.decorationIcon',
 	ShellIntegrationDecorationIconError = 'terminal.integrated.shellIntegration.decorationIconError',
 	ShellIntegrationDecorationIconSuccess = 'terminal.integrated.shellIntegration.decorationIconSuccess',
-	ShellIntegrationCommandHistory = 'terminal.integrated.shellIntegration.history'
+	ShellIntegrationCommandHistory = 'terminal.integrated.shellIntegration.history',
+	SmoothScrolling = 'terminal.integrated.smoothScrolling'
 }
 
 export const enum TerminalLogConstants {

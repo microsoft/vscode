@@ -1324,9 +1324,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	private _setStrategy(newStrategy: DiffEditorWidgetStyle): void {
-		if (this._strategy) {
-			this._strategy.dispose();
-		}
+		this._strategy?.dispose();
 
 		this._strategy = newStrategy;
 		newStrategy.applyColors(this._themeService.getColorTheme());

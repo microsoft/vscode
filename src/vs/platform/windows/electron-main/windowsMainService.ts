@@ -39,7 +39,7 @@ import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protoco
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { IAddFoldersRequest, INativeOpenFileRequest, INativeWindowConfiguration, IOpenEmptyWindowOptions, IPath, IPathsToWaitFor, isFileToOpen, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable, IWindowSettings } from 'vs/platform/window/common/window';
-import { CodeWindow } from 'vs/platform/windows/electron-main/window';
+import { CodeWindow } from 'vs/platform/windows/electron-main/windowImpl';
 import { IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { findWindowOnExtensionDevelopmentPath, findWindowOnFile, findWindowOnWorkspaceOrFolder } from 'vs/platform/windows/electron-main/windowsFinder';
 import { IWindowState, WindowsStateHandler } from 'vs/platform/windows/electron-main/windowsStateHandler';
@@ -1417,12 +1417,15 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			const currentWindowConfig = window.config;
 			if (!configuration.extensionDevelopmentPath && currentWindowConfig && !!currentWindowConfig.extensionDevelopmentPath) {
 				configuration.extensionDevelopmentPath = currentWindowConfig.extensionDevelopmentPath;
+				configuration.extensionDevelopmentKind = currentWindowConfig.extensionDevelopmentKind;
+				configuration['enable-proposed-api'] = currentWindowConfig['enable-proposed-api'];
 				configuration.verbose = currentWindowConfig.verbose;
+				configuration['inspect-extensions'] = currentWindowConfig['inspect-extensions'];
 				configuration['inspect-brk-extensions'] = currentWindowConfig['inspect-brk-extensions'];
 				configuration.debugId = currentWindowConfig.debugId;
 				configuration.extensionEnvironment = currentWindowConfig.extensionEnvironment;
-				configuration['inspect-extensions'] = currentWindowConfig['inspect-extensions'];
 				configuration['extensions-dir'] = currentWindowConfig['extensions-dir'];
+				configuration['disable-extensions'] = currentWindowConfig['disable-extensions'];
 			}
 		}
 

@@ -102,9 +102,7 @@ class SharedProcessWorkerMain {
 
 	private terminate(configuration: ISharedProcessWorkerConfiguration): void {
 		const processDisposable = this.processes.get(hash(configuration));
-		if (processDisposable) {
-			processDisposable.dispose();
-		}
+		processDisposable?.dispose();
 	}
 }
 

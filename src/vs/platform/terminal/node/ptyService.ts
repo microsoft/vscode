@@ -788,7 +788,12 @@ class XtermSerializer implements ITerminalSerializer {
 		private _rawReviveBuffer: string | undefined,
 		logService: ILogService
 	) {
-		this._xterm = new XtermTerminal({ cols, rows, scrollback });
+		this._xterm = new XtermTerminal({
+			cols,
+			rows,
+			scrollback,
+			allowProposedApi: true
+		});
 		if (reviveBufferWithRestoreMessage) {
 			this._xterm.writeln(reviveBufferWithRestoreMessage);
 		}
@@ -814,7 +819,7 @@ class XtermSerializer implements ITerminalSerializer {
 		const serialize = new (await this._getSerializeConstructor());
 		this._xterm.loadAddon(serialize);
 		const options: ISerializeOptions = {
-			scrollback: this._xterm.getOption('scrollback')
+			scrollback: this._xterm.options.scrollback
 		};
 		if (normalBufferOnly) {
 			options.excludeAltBuffer = true;

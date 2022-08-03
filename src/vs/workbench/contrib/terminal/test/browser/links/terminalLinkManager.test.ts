@@ -80,7 +80,7 @@ suite('TerminalLinkManager', () => {
 		instantiationService.stub(IThemeService, themeService);
 		instantiationService.stub(IViewDescriptorService, viewDescriptorService);
 
-		xterm = new Terminal({ cols: 80, rows: 30 });
+		xterm = new Terminal({ allowProposedApi: true, cols: 80, rows: 30 });
 		linkManager = instantiationService.createInstance(TestLinkManager, xterm, upcastPartial<ITerminalProcessManager>({
 			async getInitialCwd() {
 				return '';

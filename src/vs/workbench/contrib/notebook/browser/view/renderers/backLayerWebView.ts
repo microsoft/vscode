@@ -1025,31 +1025,33 @@ var requirejs = (function() {
 		});
 	}
 
-	async showMarkupPreview(initialization: IMarkupCellInitialization) {
+	async showMarkupPreview(newContent: IMarkupCellInitialization) {
 		if (this._disposed) {
 			return;
 		}
 
-		const entry = this.markupPreviewMapping.get(initialization.cellId);
+		const entry = this.markupPreviewMapping.get(newContent.cellId);
 		if (!entry) {
-			return this.createMarkupPreview(initialization);
+			return this.createMarkupPreview(newContent);
 		}
 
-		const sameContent = initialization.content === entry.content;
-		if (!sameContent || !entry.visible) {
+		const sameContent = newContent.content === entry.content;
+		const sameMetadata = newContent.metadata === entry.metadata;
+		if (!sameContent || !sameMetadata || !entry.visible) {
 			this._sendMessageToWebview({
 				type: 'showMarkupCell',
-				id: initialization.cellId,
-				handle: initialization.cellHandle,
+				id: newContent.cellId,
+				handle: newContent.cellHandle,
 				// If the content has not changed, we still want to make sure the
 				// preview is visible but don't need to send anything over
-				content: sameContent ? undefined : initialization.content,
-				top: initialization.offset
+				content: sameContent ? undefined : newContent.content,
+				top: newContent.offset,
+				metadata: sameMetadata ? undefined : newContent.metadata
 			});
 		}
-
-		entry.content = initialization.content;
-		entry.offset = initialization.offset;
+		entry.metadata = newContent.metadata;
+		entry.content = newContent.content;
+		entry.offset = newContent.offset;
 		entry.visible = true;
 	}
 
