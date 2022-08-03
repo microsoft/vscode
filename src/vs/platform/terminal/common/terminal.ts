@@ -176,7 +176,7 @@ export interface IPtyHostAttachTarget {
 
 export interface IReconnectionProperties {
 	ownerId: string;
-	args?: IReconnectionTaskArgs;
+	data?: unknown;
 }
 
 export interface IReconnectionTaskArgs { label: string; id: string; lastTask: string; group?: string }
