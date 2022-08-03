@@ -141,8 +141,8 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 		this._cellListeners.set(CellUri.generate(notebookUri, cellHandle), disposable);
 
 		notebook.onWillAddRemoveCells((e: NotebookTextModelWillAddRemoveEvent) => {
+			const lastFailedCell = this.getLastFailedCellForNotebook(notebook.uri);
 			e.rawEvent.changes.forEach(([start, deleteCount]) => {
-				const lastFailedCell = this.getLastFailedCellForNotebook(notebook.uri);
 				if (deleteCount) {
 					const deletedHandles = notebook.cells.slice(start, start + deleteCount).map(c => c.handle);
 					if (lastFailedCell && deletedHandles.includes(lastFailedCell)) {
@@ -154,10 +154,10 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 
 		notebook.onDidChangeContent(
 			(events) => {
+				const lastFailedCell = this.getLastFailedCellForNotebook(notebook.uri);
 				events.rawEvents.forEach((e) => {
 					if (e.kind === NotebookCellsChangeType.ModelChange) {
 						e.changes.forEach(([start, deleteCount]) => {
-							const lastFailedCell = this.getLastFailedCellForNotebook(notebook.uri);
 							if (deleteCount === 0) {
 								const addHandle = notebook.cells[start].handle;
 								if (addHandle === lastFailedCell) {
