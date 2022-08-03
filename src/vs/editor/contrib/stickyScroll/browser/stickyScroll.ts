@@ -11,7 +11,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { OutlineModel, OutlineElement } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
 import { CancellationToken, CancellationTokenSource, } from 'vs/base/common/cancellation';
 import * as dom from 'vs/base/browser/dom';
-import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorLayoutInfo, EditorOption, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { SymbolKind } from 'vs/editor/common/languages';
@@ -68,6 +68,10 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 			this._sessionStore.add(this._editor.onDidLayoutChange(() => this._onDidResize()));
 			this._sessionStore.add(this._editor.onDidChangeModelContent(() => this._updateSoon.schedule()));
 			this._sessionStore.add(this._languageFeaturesService.documentSymbolProvider.onDidChange(() => this._update(true)));
+			const lineNumberOption = this._editor.getOption(EditorOption.lineNumbers);
+			if (lineNumberOption.renderType === RenderLineNumbersType.Relative) {
+				this._sessionStore.add(this._editor.onDidChangeCursorPosition(() => this._update(false)));
+			}
 			this._update(true);
 		}
 	}
@@ -310,7 +314,12 @@ class StickyScrollCodeLine extends Disposable {
 		}
 
 		const innerLineNumberHTML = document.createElement('span');
-		innerLineNumberHTML.innerText = this._lineNumber.toString();
+		const lineNumberOption = this._editor.getOption(EditorOption.lineNumbers);
+		if (lineNumberOption.renderType === RenderLineNumbersType.On || lineNumberOption.renderType === RenderLineNumbersType.Interval && this._lineNumber % 10 === 0) {
+			innerLineNumberHTML.innerText = this._lineNumber.toString();
+		} else if (lineNumberOption.renderType === RenderLineNumbersType.Relative) {
+			innerLineNumberHTML.innerText = Math.abs(this._lineNumber - this._editor.getPosition().lineNumber).toString();
+		}
 		innerLineNumberHTML.className = 'sticky-line-number';
 		innerLineNumberHTML.style.lineHeight = `${lineHeight}px`;
 		innerLineNumberHTML.style.width = `${layoutInfo.lineNumbersWidth}px`;
