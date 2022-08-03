@@ -207,22 +207,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 				}
 
 				const zoomFactor = getZoomFactor();
-				const boundingRect = this.rootContainer.getBoundingClientRect();
-				const eventPosition = { x, y };
-				const relativeCoordinates = { x, y };
-				// When comparing the coordinates with the title bar, account for zoom level if not using counter zoom.
-				if (!this.useCounterZoom) {
-					relativeCoordinates.x /= zoomFactor;
-					relativeCoordinates.y /= zoomFactor;
-				}
-
-				// Don't trigger the menu if the click is not over the title bar
-				if (relativeCoordinates.x < boundingRect.left || relativeCoordinates.x > boundingRect.right ||
-					relativeCoordinates.y < boundingRect.top || relativeCoordinates.y > boundingRect.bottom) {
-					return;
-				}
-
-				this.onContextMenu(new MouseEvent('mouseup', { clientX: eventPosition.x / zoomFactor, clientY: eventPosition.y / zoomFactor }), MenuId.TitleBarContext);
+				this.onContextMenu(new MouseEvent('mouseup', { clientX: x / zoomFactor, clientY: y / zoomFactor }), MenuId.TitleBarContext);
 			}));
 		}
 

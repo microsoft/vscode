@@ -24,6 +24,10 @@ export class EditorWorkerServiceDiffComputer implements IDiffComputer {
 
 	async computeDiff(textModel1: ITextModel, textModel2: ITextModel): Promise<IDiffComputerResult> {
 		const diffs = await this.editorWorkerService.computeDiff(textModel1.uri, textModel2.uri, false, 1000);
+		if (textModel1.isDisposed() || textModel2.isDisposed()) {
+			// In the meantime, models could be disposed -> early return
+			return { diffs: null };
+		}
 		if (!diffs) {
 			return { diffs: null };
 		}

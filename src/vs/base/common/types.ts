@@ -6,13 +6,6 @@
 import { URI, UriComponents } from 'vs/base/common/uri';
 
 /**
- * @returns whether the provided parameter is a JavaScript Array or not.
- */
-export function isArray(array: any): array is any[] {
-	return Array.isArray(array);
-}
-
-/**
  * @returns whether the provided parameter is a JavaScript String or not.
  */
 export function isString(str: unknown): str is string {
@@ -275,3 +268,9 @@ export type UriDto<T> = { [K in keyof T]: T[K] extends URI
 export function assertNever(value: never, message = 'Unreachable'): never {
 	throw new Error(message);
 }
+
+/**
+ * Given an object with all optional properties, requires at least one to be defined.
+ * i.e. AtLeastOne<MyObject>;
+ */
+export type AtLeastOne<T, U = { [K in keyof T]: Pick<T, K> }> = Partial<T> & U[keyof U];

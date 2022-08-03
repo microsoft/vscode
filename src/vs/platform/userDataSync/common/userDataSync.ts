@@ -10,7 +10,7 @@ import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IExtUri, isEqualOrParent, joinPath } from 'vs/base/common/resources';
-import { isArray, isObject, isString } from 'vs/base/common/types';
+import { isObject, isString } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IHeaders } from 'vs/base/parts/request/common/request';
 import { localize } from 'vs/nls';
@@ -128,7 +128,7 @@ export function isAuthenticationProvider(thing: any): thing is IAuthenticationPr
 	return thing
 		&& isObject(thing)
 		&& isString(thing.id)
-		&& isArray(thing.scopes);
+		&& Array.isArray(thing.scopes);
 }
 
 export const enum SyncResource {

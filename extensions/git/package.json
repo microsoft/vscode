@@ -2522,7 +2522,7 @@
         },
         "git.mergeEditor": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "markdownDescription": "%config.mergeEditor%",
           "scope": "window"
         }

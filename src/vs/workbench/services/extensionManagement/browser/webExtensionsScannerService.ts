@@ -331,7 +331,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 				const missingExtensions = extensions.filter(({ id }) => !galleryExtensionsMap.has(id.toLowerCase()));
 				if (missingExtensions.length) {
-					this.logService.info('Skipping the additional builtin extensions because their compatible versions are not foud.', missingExtensions);
+					this.logService.info('Skipping the additional builtin extensions because their compatible versions are not found.', missingExtensions);
 				}
 
 				const webExtensions: IWebExtension[] = [];

@@ -1650,6 +1650,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			content: model.getText(),
 			offset: offset,
 			visible: false,
+			metadata: model.metadata,
 		});
 	}
 
@@ -2529,9 +2530,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	findStop() {
-		if (this._webview) {
-			this._webview.findStop();
-		}
+		this._webview?.findStop();
 	}
 
 	//#endregion
@@ -2587,6 +2586,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			content: cell.getText(),
 			offset: cellTop + top,
 			visible: true,
+			metadata: cell.metadata,
 		});
 	}
 

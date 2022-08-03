@@ -110,9 +110,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 
 					// cancel and dispose an existing update
 					const cancellationSource = this.pendingUpdates.get(model.id);
-					if (cancellationSource) {
-						cancellationSource.cancel();
-					}
+					cancellationSource?.cancel();
 
 					// create and keep update token
 					const myToken = new CancellationTokenSource();

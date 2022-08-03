@@ -846,9 +846,7 @@ class DiffReviewNext extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const diffEditor = findFocusedDiffEditor(accessor);
-		if (diffEditor) {
-			diffEditor.diffReviewNext();
-		}
+		diffEditor?.diffReviewNext();
 	}
 }
 
@@ -869,9 +867,7 @@ class DiffReviewPrev extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const diffEditor = findFocusedDiffEditor(accessor);
-		if (diffEditor) {
-			diffEditor.diffReviewPrev();
-		}
+		diffEditor?.diffReviewPrev();
 	}
 }
 
