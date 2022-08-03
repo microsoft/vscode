@@ -873,9 +873,7 @@ class WorkspaceTrustMemento {
 	set acceptsOutOfWorkspaceFiles(value: boolean) {
 		this._mementoObject[this._acceptsOutOfWorkspaceFilesKey] = value;
 
-		if (this._memento) {
-			this._memento.saveMemento();
-		}
+		this._memento?.saveMemento();
 	}
 
 	get isEmptyWorkspaceTrusted(): boolean | undefined {
@@ -885,9 +883,7 @@ class WorkspaceTrustMemento {
 	set isEmptyWorkspaceTrusted(value: boolean | undefined) {
 		this._mementoObject[this._isEmptyWorkspaceTrustedKey] = value;
 
-		if (this._memento) {
-			this._memento.saveMemento();
-		}
+		this._memento?.saveMemento();
 	}
 }
 

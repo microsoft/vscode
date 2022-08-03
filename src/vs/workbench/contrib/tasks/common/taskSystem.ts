@@ -38,6 +38,7 @@ export class TaskError {
 export namespace Triggers {
 	export const shortcut: string = 'shortcut';
 	export const command: string = 'command';
+	export const reconnect: string = 'reconnect';
 }
 
 export interface ITaskSummary {

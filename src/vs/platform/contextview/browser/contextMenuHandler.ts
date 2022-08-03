@@ -134,9 +134,7 @@ export class ContextMenuHandler {
 					this.block = null;
 				}
 
-				if (this.focusToReturn) {
-					this.focusToReturn.focus();
-				}
+				this.focusToReturn?.focus();
 			}
 		}, shadowRootElement, !!shadowRootElement);
 	}
@@ -147,9 +145,7 @@ export class ContextMenuHandler {
 		this.contextViewService.hideContextView(false);
 
 		// Restore focus here
-		if (this.focusToReturn) {
-			this.focusToReturn.focus();
-		}
+		this.focusToReturn?.focus();
 	}
 
 	private onDidActionRun(e: IRunEvent): void {

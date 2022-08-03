@@ -174,9 +174,7 @@ export class DebugService implements IDebugService {
 		}));
 		this.disposables.add(this.model.onDidChangeCallStack(() => {
 			const numberOfSessions = this.model.getSessions().filter(s => !s.parentSession).length;
-			if (this.activity) {
-				this.activity.dispose();
-			}
+			this.activity?.dispose();
 			if (numberOfSessions > 0) {
 				const viewContainer = this.viewDescriptorService.getViewContainerByViewId(CALLSTACK_VIEW_ID);
 				if (viewContainer) {

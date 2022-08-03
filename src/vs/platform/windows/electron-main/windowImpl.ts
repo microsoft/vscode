@@ -1408,9 +1408,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	close(): void {
-		if (this._win) {
-			this._win.close();
-		}
+		this._win?.close();
 	}
 
 	sendWhenReady(channel: string, token: CancellationToken, ...args: any[]): void {

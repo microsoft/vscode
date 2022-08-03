@@ -7,12 +7,12 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
 import { localize } from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, IMenuService, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { asJson, asText, IRequestService } from 'vs/platform/request/common/request';
 import { IUserDataProfileTemplate, isUserDataProfileTemplate, IUserDataProfileManagementService, IUserDataProfileImportExportService, PROFILES_CATEGORY, PROFILE_EXTENSION, PROFILE_FILTER, ManageProfilesSubMenu, IUserDataProfileService, PROFILES_ENABLEMENT_CONTEXT, HAS_PROFILES_CONTEXT } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -21,6 +21,10 @@ import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { compare } from 'vs/base/common/strings';
+import { Codicon } from 'vs/base/common/codicons';
+import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IAction, Separator } from 'vs/base/common/actions';
 
 class CreateFromCurrentProfileAction extends Action2 {
 	static readonly ID = 'workbench.profiles.actions.createFromCurrentProfile';
@@ -260,6 +264,51 @@ registerAction2(class DeleteProfileAction extends Action2 {
 	}
 });
 
+export class MangeSettingsProfileAction extends Action2 {
+	static readonly ID = 'workbench.profiles.actions.manage';
+	constructor() {
+		super({
+			id: MangeSettingsProfileAction.ID,
+			title: {
+				value: localize('mange', "Manage..."),
+				original: 'Manage...'
+			},
+			category: PROFILES_CATEGORY,
+			precondition: ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, HAS_PROFILES_CONTEXT),
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const quickInputService = accessor.get(IQuickInputService);
+		const menuService = accessor.get(IMenuService);
+		const contextKeyService = accessor.get(IContextKeyService);
+		const commandService = accessor.get(ICommandService);
+
+		const disposables = new DisposableStore();
+		const menu = disposables.add(menuService.createMenu(ManageProfilesSubMenu, contextKeyService));
+		const actions: IAction[] = [];
+		disposables.add(createAndFillInActionBarActions(menu, undefined, actions));
+		disposables.dispose();
+
+		if (actions.length) {
+			const picks: (IQuickPickItem | IQuickPickSeparator)[] = actions.map(action => {
+				if (action instanceof Separator) {
+					return { type: 'separator' };
+				}
+				return {
+					id: action.id,
+					label: `${action.label}${action.checked ? ` $(${Codicon.check.id})` : ''}`,
+				};
+			});
+			const pick = await quickInputService.pick(picks, { canPickMany: false });
+			if (pick?.id) {
+				await commandService.executeCommand(pick.id);
+			}
+		}
+	}
+}
+registerAction2(MangeSettingsProfileAction);
+
 registerAction2(class SwitchProfileAction extends Action2 {
 	constructor() {
 		super({
@@ -280,11 +329,10 @@ registerAction2(class SwitchProfileAction extends Action2 {
 		const userDataProfilesService = accessor.get(IUserDataProfilesService);
 		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
 
-		const profiles = userDataProfilesService.profiles;
+		const profiles = userDataProfilesService.profiles.slice(0).sort((a, b) => compare(a.name, b.name));
 		if (profiles.length) {
 			const picks: Array<IQuickPickItem & { profile: IUserDataProfile }> = profiles.map(profile => ({
-				label: profile.name!,
-				description: profile.name === userDataProfileService.currentProfile.name ? localize('current', "Current") : undefined,
+				label: `${profile.name}${profile.id === userDataProfileService.currentProfile.id ? ` $(${Codicon.check.id})` : ''}`,
 				profile
 			}));
 			const pick = await quickInputService.pick(picks, { placeHolder: localize('pick profile', "Select Settings Profile") });
