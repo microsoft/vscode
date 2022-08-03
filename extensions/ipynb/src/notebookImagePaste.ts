@@ -14,17 +14,8 @@ class CopyPasteEditProvider implements vscode.DocumentPasteEditProvider {
 		_token: vscode.CancellationToken
 	): Promise<vscode.DocumentPasteEdit | undefined> {
 
-		// get foundational notebook data
-		const activeNotebook = vscode.window.activeNotebookEditor?.notebook;
-		const activeSelection = vscode.window.activeNotebookEditor?.selection;
-		const currentCell = activeNotebook?.getCells(activeSelection);
-		if (!currentCell || currentCell?.length !== 1) {
-			return undefined;
-		}
-		const initialAttachments = currentCell[0].metadata?.custom?.attachments;
-		const initialize = !initialAttachments ? true : false;
-
 		// get b64 data from paste
+		// TODO: dataTransfer.get() limits to one image pasted
 		const dataItem = dataTransfer.get('image/png');
 		if (!dataItem) {
 			return undefined;
@@ -37,18 +28,40 @@ class CopyPasteEditProvider implements vscode.DocumentPasteEditProvider {
 
 		// get filename data from paste
 		let pasteFilename = dataItem.asFile()?.name;
-		const separator = pasteFilename?.lastIndexOf('.');
-		const filename = pasteFilename?.slice(0, separator);
-		const filetype = pasteFilename?.slice(separator);
+		if (!pasteFilename) {
+			return undefined;
+		}
+		const separatorIndex = pasteFilename?.lastIndexOf('.');
+		const filename = pasteFilename?.slice(0, separatorIndex);
+		const filetype = pasteFilename?.slice(separatorIndex);
 		if (!filename || !filetype) {
 			return undefined;
 		}
+
+		// get notebook cell data
+		let currentCell;
+		for (const notebook of vscode.workspace.notebookDocuments) {
+			if (notebook.uri.path === _document.uri.path) {
+				for (const cell of notebook.getCells()) {
+					if (cell.document === _document) {
+						currentCell = cell;
+						break;
+					}
+				}
+
+			}
+		}
+		if (!currentCell) {
+			return undefined;
+		}
+		const initialAttachments = currentCell.metadata?.custom?.attachments;
+		const initialize = !initialAttachments ? true : false;
 
 		// create updated metadata for cell (prep for WorkspaceEdit)
 		if (!initialize) {
 			let appendValue = 2;
 			while (true) {
-				if (pasteFilename && pasteFilename in initialAttachments) {
+				if (pasteFilename in initialAttachments) {
 					const objEntries = Object.entries(initialAttachments[pasteFilename]);
 					if (objEntries.length) { // check that mime:b64 are present
 						const [, attachmentb64] = objEntries[0];
@@ -66,34 +79,28 @@ class CopyPasteEditProvider implements vscode.DocumentPasteEditProvider {
 		}
 		const updatedMetadata = { 'custom': { 'attachments': { [pasteFilename]: { 'image/png': b64string } } } };
 		if (!initialize) {
-			let attachmentFilename: keyof typeof initialAttachments;
-			for (attachmentFilename in initialAttachments) {
-				updatedMetadata.custom.attachments[attachmentFilename] = initialAttachments[attachmentFilename];
+			for (const entry of Object.keys(initialAttachments)) {
+				updatedMetadata.custom.attachments[entry] = initialAttachments[entry];
 			}
 		}
 
 		// create WorkspaceEdit and apply to active notebook
-		let newCellMetadata;
-		if (updatedMetadata) {
-			newCellMetadata = vscode.NotebookEdit.updateCellMetadata(currentCell[0].index, updatedMetadata);
-		}
+		const newCellMetadata = vscode.NotebookEdit.updateCellMetadata(currentCell.index, updatedMetadata);
 		const edit = new vscode.WorkspaceEdit();
-		if (activeNotebook?.uri && newCellMetadata) {
-			edit.set(activeNotebook.uri, [newCellMetadata]);
+		if (newCellMetadata) {
+			edit.set(vscode.Uri.file(_document.uri.path), [newCellMetadata]);
 		}
-		vscode.workspace.applyEdit(edit); // TODO: also waiting on fix for reviveWorkspaceEditDto vs reviveWorkspaceEditDto2
 
 		// create a snippet for paste
 		const snippet = new vscode.SnippetString();
-		snippet.appendText(`![${pasteFilename}](attachment:${pasteFilename})`);
+		snippet.appendChoice([`![insert-alt-text-here](attachment:${pasteFilename})`, `![${pasteFilename}](attachment:${pasteFilename})`]);
 
-		return { insertText: snippet };
-		// return { insertText: snippet, additionalEdit: edit }; // TODO: unsupported edit error, blocked and waiting on fix mentioned on L#87
+		return { insertText: snippet, additionalEdit: edit };
 	}
 }
 
 export function imagePasteSetup(context: vscode.ExtensionContext) {
-	const selector: vscode.DocumentSelector = { notebookType: 'jupyter-notebook' }; // this is correct provider
+	const selector: vscode.DocumentSelector = { notebookType: 'jupyter-notebook', language: 'markdown' }; // this is correct provider
 	context.subscriptions.push(vscode.languages.registerDocumentPasteEditProvider(selector, new CopyPasteEditProvider(), {
 		pasteMimeTypes: ['image/png'],
 	}));
