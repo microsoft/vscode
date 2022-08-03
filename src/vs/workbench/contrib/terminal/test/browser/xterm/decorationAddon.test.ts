@@ -49,6 +49,7 @@ suite('DecorationAddon', () => {
 		});
 		instantiationService.stub(IThemeService, new TestThemeService());
 		xterm = new TestTerminal({
+			allowProposedApi: true,
 			cols: 80,
 			rows: 30
 		});
