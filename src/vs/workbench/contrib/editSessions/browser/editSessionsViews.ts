@@ -59,7 +59,7 @@ export class EditSessionsDataViews extends Disposable {
 				super({
 					id: 'workbench.editSessions.actions.resume',
 					title: localize('workbench.editSessions.actions.resume', "Resume Edit Session"),
-					icon: Codicon.repoPull,
+					icon: Codicon.desktopDownload,
 					menu: {
 						id: MenuId.ViewItemContext,
 						when: ContextKeyExpr.and(ContextKeyExpr.equals('view', viewId), ContextKeyExpr.regex('viewItem', /edit-session/i)),
@@ -136,8 +136,8 @@ class EditSessionDataViewDataProvider implements ITreeViewDataProvider {
 			return {
 				handle: resource.toString(),
 				collapsibleState: TreeItemCollapsibleState.Collapsed,
-				label: { label: session.ref },
-				description: fromNow(session.created, true),
+				label: { label: fromNow(session.created, true) },
+				description: session.ref,
 				themeIcon: Codicon.repo,
 				contextValue: `edit-session`
 			};
