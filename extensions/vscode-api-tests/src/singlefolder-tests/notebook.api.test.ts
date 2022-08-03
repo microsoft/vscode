@@ -164,17 +164,6 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 		await saveAllFilesAndCloseAll();
 	});
 
-	test('edit API batch edits', async function () {
-		const notebook = await openRandomNotebookDocument();
-
-		const edit = new vscode.WorkspaceEdit();
-		const metdataEdit = vscode.NotebookEdit.updateNotebookMetadata({ ...notebook.metadata, custom: { ...(notebook.metadata.custom || {}), extraNotebookMetadata: true } });
-		edit.set(notebook.uri, [metdataEdit]);
-		const success = await vscode.workspace.applyEdit(edit);
-		assert.equal(success, true);
-		assert.ok(notebook.metadata.custom.extraNotebookMetadata, `Test metadata not found`);
-	});
-
 	test('notebook open', async function () {
 		const notebook = await openRandomNotebookDocument();
 		const editor = await vscode.window.showNotebookDocument(notebook);
