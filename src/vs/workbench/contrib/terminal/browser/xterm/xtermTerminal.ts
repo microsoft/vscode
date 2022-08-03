@@ -42,6 +42,7 @@ import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProc
 // which suggests the fallback DOM-based renderer
 const SLOW_CANVAS_RENDER_THRESHOLD = 50;
 const NUMBER_OF_FRAMES_TO_MEASURE = 20;
+const SMOOTH_SCROLL_DURATION = 125;
 
 let CanvasAddon: typeof CanvasAddonType;
 let SearchAddon: typeof SearchAddonType;
@@ -144,7 +145,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			fastScrollSensitivity: config.fastScrollSensitivity,
 			scrollSensitivity: config.mouseWheelScrollSensitivity,
 			wordSeparator: config.wordSeparators,
-			overviewRulerWidth: 10
+			overviewRulerWidth: 10,
+			smoothScrollDuration: config.smoothScrolling ? SMOOTH_SCROLL_DURATION : 0
 		}));
 		this._core = (this.raw as any)._core as IXtermCore;
 
@@ -242,6 +244,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this.raw.options.rightClickSelectsWord = config.rightClickBehavior === 'selectWord';
 		this.raw.options.wordSeparator = config.wordSeparators;
 		this.raw.options.customGlyphs = config.customGlyphs;
+		this.raw.options.smoothScrollDuration = config.smoothScrolling ? SMOOTH_SCROLL_DURATION : 0;
 		if (this._shouldLoadWebgl()) {
 			this._enableWebglRenderer();
 		} else {
