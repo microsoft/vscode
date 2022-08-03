@@ -20,6 +20,8 @@ function uriGetComparisonKey(resource: URI): string {
 	return resource.toString();
 }
 
+// Completely unrelated file, very dangerous comment
+
 export class SingleModelEditStackData {
 
 	public static create(model: ITextModel, beforeCursorState: Selection[] | null): SingleModelEditStackData {

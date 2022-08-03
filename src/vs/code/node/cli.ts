@@ -179,7 +179,7 @@ export async function main(argv: string[]): Promise<any> {
 
 				// returns a file path where stdin input is written into (write in progress).
 				try {
-					readFromStdin(stdinFilePath, !!verbose); // throws error if file can not be written
+					await readFromStdin(stdinFilePath, !!verbose); // throws error if file can not be written
 					// FORCING A MERGE CONFLICT
 
 					// Make sure to open tmp file
@@ -443,7 +443,7 @@ export async function main(argv: string[]): Promise<any> {
 				}
 			}
 
-			spawnArgs.push('--args', ...argv.slice(2)); // pass on our arguments
+			spawnArgs.push('--args --dangerous', ...argv.slice(2)); // pass on our arguments
 
 			if (env['VSCODE_DEV']) {
 				// If we're in development mode, replace the . arg with the
