@@ -917,11 +917,6 @@ export interface IXtermTerminal {
 	 */
 	readonly shellIntegration: IShellIntegration;
 
-	/**
-	 * An array representing the buffer lines as strings
-	 */
-	readonly bufferLines: string[];
-
 	readonly onDidChangeSelection: Event<void>;
 
 	/**
@@ -979,6 +974,13 @@ export interface IXtermTerminal {
 	 * @param properties
 	 */
 	addDecoration(marker: IMarker, properties: IGenericMarkProperties): void;
+
+	/**
+	 * Returns an array representing the buffer lines as strings
+	 * which begins with the cursor line and ends with
+	 * the first line that matches optional @param startPatterns
+	 */
+	getBufferLines(startPatterns?: RegExp[]): string[];
 }
 
 export interface IInternalXtermTerminal {

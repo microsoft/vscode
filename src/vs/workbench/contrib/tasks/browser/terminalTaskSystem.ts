@@ -943,7 +943,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				});
 			});
 			if (trigger === Triggers.reconnect && !!terminal.xterm) {
-				const bufferLines = terminal.xterm.bufferLines;
+				const bufferLines = terminal.xterm.getBufferLines(watchingProblemMatcher.beginPatterns);
 				for (let i = 0; i < bufferLines.length; i++) {
 					watchingProblemMatcher.processLine(bufferLines[i]);
 				}
