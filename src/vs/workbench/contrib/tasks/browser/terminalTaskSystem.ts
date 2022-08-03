@@ -30,7 +30,7 @@ import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IShellLaunchConfig, TerminalLocation, TerminalSettingId, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
+import { IReconnectionTaskData, IShellLaunchConfig, TerminalLocation, TerminalSettingId, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
@@ -1271,7 +1271,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private async _reconnectToTerminal(task: Task): Promise<ITerminalInstance | undefined> {
 		for (let i = 0; i < this._reconnectTerminals.length; i++) {
 			const terminal = this._reconnectTerminals[i];
-			const taskForTerminal = terminal.shellLaunchConfig.attachPersistentProcess?.task;
+			const taskForTerminal = terminal.shellLaunchConfig.attachPersistentProcess?.reconnectionProperties?.data as IReconnectionTaskData;
 			if (taskForTerminal?.id && task.getRecentlyUsedKey() === taskForTerminal.lastTask) {
 				this._reconnectTerminals.splice(i, 1);
 				return terminal;
@@ -1318,7 +1318,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			return;
 		}
 		for (const terminal of terminals) {
-			const task = terminal.shellLaunchConfig.attachPersistentProcess?.task;
+			const task = terminal.shellLaunchConfig.attachPersistentProcess?.reconnectionProperties?.data as IReconnectionTaskData;
 			if (!task) {
 				continue;
 			}
@@ -1428,8 +1428,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 		this._terminalCreationQueue = this._terminalCreationQueue.then(() => this._doCreateTerminal(task, group, launchConfigs!));
 		const terminal: ITerminalInstance = (await this._terminalCreationQueue)!;
-		terminal.shellLaunchConfig.task = { lastTask: task.getRecentlyUsedKey()!, group, label: task._label, id: task._id };
-		terminal.shellLaunchConfig.reconnectionOwner = ReconnectionType;
+		terminal.shellLaunchConfig.reconnectionProperties = { ownerId: ReconnectionType, data: { lastTask: taskKey, group, label: task._label, id: task._id } };
 		const terminalKey = terminal.instanceId.toString();
 		const terminalData = { terminal: terminal, lastTask: taskKey, group };
 		terminal.onDisposed(() => this._deleteTaskAndTerminal(terminal, terminalData));
