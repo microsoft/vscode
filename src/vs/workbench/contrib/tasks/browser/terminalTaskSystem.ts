@@ -30,7 +30,7 @@ import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IShellLaunchConfig, TerminalLocation, TerminalSettingId, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
+import { IReconnectionTaskData, IShellLaunchConfig, TerminalLocation, TerminalSettingId, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
@@ -1271,7 +1271,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private async _reconnectToTerminal(task: Task): Promise<ITerminalInstance | undefined> {
 		for (let i = 0; i < this._reconnectTerminals.length; i++) {
 			const terminal = this._reconnectTerminals[i];
-			const taskForTerminal = terminal.shellLaunchConfig.attachPersistentProcess?.reconnectionProperties?.data;
+			const taskForTerminal = terminal.shellLaunchConfig.attachPersistentProcess?.reconnectionProperties?.data as IReconnectionTaskData;
 			if (taskForTerminal?.id && task.getRecentlyUsedKey() === taskForTerminal.lastTask) {
 				this._reconnectTerminals.splice(i, 1);
 				return terminal;
@@ -1318,7 +1318,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			return;
 		}
 		for (const terminal of terminals) {
-			const task = terminal.shellLaunchConfig.attachPersistentProcess?.reconnectionProperties?.data;
+			const task = terminal.shellLaunchConfig.attachPersistentProcess?.reconnectionProperties?.data as IReconnectionTaskData;
 			if (!task) {
 				continue;
 			}
