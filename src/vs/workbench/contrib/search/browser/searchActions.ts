@@ -469,11 +469,11 @@ class ReplaceActionRunner {
 			}
 
 			if (elem instanceof FileMatch) {
-				elem.parent().replace(elem, false);
+				elem.parent().replace(elem, true);
 			} else if (elem instanceof Match) {
-				elem.parent().replace(elem, false);
+				elem.parent().replace(elem, true);
 			} else if (elem instanceof FolderMatch) {
-				await elem.replaceAll(false);
+				await elem.replaceAll(true);
 			}
 		}));
 
@@ -606,7 +606,7 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 		}
 
 		elementsToRemove.forEach((currentElement) =>
-			currentElement.parent().remove(<(FolderMatch | FileMatch)[] & Match & FileMatch[]>currentElement, false)
+			currentElement.parent().remove(<(FolderMatch | FileMatch)[] & Match & FileMatch[]>currentElement, true)
 		);
 
 		getSearchView(this.viewsService)?.searchResult.flushHeldChanges();
