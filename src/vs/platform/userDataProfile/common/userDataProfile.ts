@@ -89,7 +89,7 @@ export interface IUserDataProfilesService {
 	readonly defaultProfile: IUserDataProfile;
 
 	readonly onDidChangeProfiles: Event<DidChangeProfilesEvent>;
-	readonly profiles: IUserDataProfile[];
+	readonly profiles: readonly IUserDataProfile[];
 
 	readonly onDidResetWorkspaces: Event<void>;
 
