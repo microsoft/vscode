@@ -69,7 +69,7 @@ export const PROFILES_ENABLEMENT_CONFIG = 'workbench.experimental.settingsProfil
 export type EmptyWindowWorkspaceIdentifier = 'empty-window';
 export type WorkspaceIdentifier = ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier | EmptyWindowWorkspaceIdentifier;
 
-export type DidChangeProfilesEvent = { readonly added: IUserDataProfile[]; readonly removed: IUserDataProfile[]; readonly updated: IUserDataProfile[]; readonly all: IUserDataProfile[] };
+export type DidChangeProfilesEvent = { readonly added: readonly IUserDataProfile[]; readonly removed: readonly IUserDataProfile[]; readonly updated: readonly IUserDataProfile[]; readonly all: readonly IUserDataProfile[] };
 
 export type WillCreateProfileEvent = {
 	profile: IUserDataProfile;
@@ -89,7 +89,7 @@ export interface IUserDataProfilesService {
 	readonly defaultProfile: IUserDataProfile;
 
 	readonly onDidChangeProfiles: Event<DidChangeProfilesEvent>;
-	readonly profiles: IUserDataProfile[];
+	readonly profiles: readonly IUserDataProfile[];
 
 	readonly onDidResetWorkspaces: Event<void>;
 

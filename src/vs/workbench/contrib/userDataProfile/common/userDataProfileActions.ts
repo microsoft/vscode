@@ -21,6 +21,8 @@ import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { compare } from 'vs/base/common/strings';
+import { Codicon } from 'vs/base/common/codicons';
 
 class CreateFromCurrentProfileAction extends Action2 {
 	static readonly ID = 'workbench.profiles.actions.createFromCurrentProfile';
@@ -260,10 +262,11 @@ registerAction2(class DeleteProfileAction extends Action2 {
 	}
 });
 
-registerAction2(class SwitchProfileAction extends Action2 {
+export class SwitchProfileAction extends Action2 {
+	static readonly ID = 'workbench.profiles.actions.switchProfile';
 	constructor() {
 		super({
-			id: 'workbench.profiles.actions.switchProfile',
+			id: SwitchProfileAction.ID,
 			title: {
 				value: localize('switch profile', "Switch..."),
 				original: 'Switch...'
@@ -280,11 +283,10 @@ registerAction2(class SwitchProfileAction extends Action2 {
 		const userDataProfilesService = accessor.get(IUserDataProfilesService);
 		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
 
-		const profiles = userDataProfilesService.profiles;
+		const profiles = userDataProfilesService.profiles.slice(0).sort((a, b) => compare(a.name, b.name));
 		if (profiles.length) {
 			const picks: Array<IQuickPickItem & { profile: IUserDataProfile }> = profiles.map(profile => ({
-				label: profile.name!,
-				description: profile.name === userDataProfileService.currentProfile.name ? localize('current', "Current") : undefined,
+				label: `${profile.name}${profile.id === userDataProfileService.currentProfile.id ? ` $(${Codicon.check.id})` : ''}`,
 				profile
 			}));
 			const pick = await quickInputService.pick(picks, { placeHolder: localize('pick profile', "Select Settings Profile") });
@@ -293,7 +295,8 @@ registerAction2(class SwitchProfileAction extends Action2 {
 			}
 		}
 	}
-});
+}
+registerAction2(SwitchProfileAction);
 
 registerAction2(class ExportProfileAction extends Action2 {
 	constructor() {
