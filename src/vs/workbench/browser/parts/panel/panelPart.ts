@@ -292,9 +292,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 
 	private async onDidDeregisterPanel(panelId: string): Promise<void> {
 		const disposable = this.panelDisposables.get(panelId);
-		if (disposable) {
-			disposable.dispose();
-		}
+		disposable?.dispose();
 		this.panelDisposables.delete(panelId);
 
 		const activeContainers = this.viewDescriptorService.getViewContainersByLocation(this.viewContainerLocation)

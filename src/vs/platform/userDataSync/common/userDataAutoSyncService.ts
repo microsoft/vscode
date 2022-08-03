@@ -408,9 +408,7 @@ class AutoSync extends Disposable {
 				this.logService.info('Auto sync: Cancelled sync that is in progress');
 				this.syncPromise = undefined;
 			}
-			if (this.syncTask) {
-				this.syncTask.stop();
-			}
+			this.syncTask?.stop();
 			this.logService.info('Auto Sync: Stopped');
 		}));
 		this.logService.info('Auto Sync: Started');

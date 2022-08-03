@@ -226,9 +226,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	private async onDidFocusSession(session: IDebugSession | undefined): Promise<void> {
 		if (session) {
 			sessionsToIgnore.delete(session);
-			if (this.completionItemProvider) {
-				this.completionItemProvider.dispose();
-			}
+			this.completionItemProvider?.dispose();
 			if (session.capabilities.supportsCompletionsRequest) {
 				this.completionItemProvider = this.languageFeaturesService.completionProvider.register({ scheme: DEBUG_SCHEME, pattern: '**/replinput', hasAccessToAllModels: true }, {
 					triggerCharacters: session.capabilities.completionTriggerCharacters || ['.'],
@@ -408,9 +406,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			}
 		}
 		if (session) {
-			if (this.replElementsChangeListener) {
-				this.replElementsChangeListener.dispose();
-			}
+			this.replElementsChangeListener?.dispose();
 			this.replElementsChangeListener = session.onDidChangeReplElements(() => {
 				this.refreshReplElements(session!.getReplElements().length === 0);
 			});
@@ -748,9 +744,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 	override dispose(): void {
 		this.replInput.dispose();
-		if (this.replElementsChangeListener) {
-			this.replElementsChangeListener.dispose();
-		}
+		this.replElementsChangeListener?.dispose();
 		this.refreshScheduler.dispose();
 		this.modelChangeListener.dispose();
 		super.dispose();

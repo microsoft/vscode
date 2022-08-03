@@ -595,9 +595,7 @@ export class CommentController implements IEditorContribution {
 		this._computeCommentingRangeScheduler = new Delayer<ICommentInfo[]>(200);
 		this.localToDispose.add({
 			dispose: () => {
-				if (this._computeCommentingRangeScheduler) {
-					this._computeCommentingRangeScheduler.cancel();
-				}
+				this._computeCommentingRangeScheduler?.cancel();
 				this._computeCommentingRangeScheduler = null;
 			}
 		});
@@ -974,9 +972,7 @@ export class NextCommentThreadAction extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const controller = CommentController.get(editor);
-		if (controller) {
-			controller.nextCommentThread();
-		}
+		controller?.nextCommentThread();
 	}
 }
 
@@ -997,9 +993,7 @@ export class PreviousCommentThreadAction extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const controller = CommentController.get(editor);
-		if (controller) {
-			controller.previousCommentThread();
-		}
+		controller?.previousCommentThread();
 	}
 }
 
