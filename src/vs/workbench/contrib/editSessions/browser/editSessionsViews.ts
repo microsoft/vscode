@@ -140,6 +140,34 @@ export class EditSessionsDataViews extends Disposable {
 				}
 			}
 		});
+
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.editSessions.actions.deleteAll',
+					title: localize('workbench.editSessions.actions.deleteAll', "Delete All Edit Sessions"),
+					icon: Codicon.trash,
+					menu: {
+						id: MenuId.ViewTitle,
+						when: ContextKeyExpr.and(ContextKeyExpr.equals('view', viewId), ContextKeyExpr.greater(EDIT_SESSIONS_COUNT_KEY, 0)),
+					}
+				});
+			}
+
+			async run(accessor: ServicesAccessor): Promise<void> {
+				const dialogService = accessor.get(IDialogService);
+				const editSessionWorkbenchService = accessor.get(IEditSessionsWorkbenchService);
+				const result = await dialogService.confirm({
+					message: localize('confirm delete all', 'Are you sure you want to permanently delete all edit sessions? You cannot undo this action.'),
+					type: 'warning',
+					title: EDIT_SESSIONS_TITLE
+				});
+				if (result.confirmed) {
+					await editSessionWorkbenchService.delete(null);
+					await treeView.refresh();
+				}
+			}
+		});
 	}
 }
 
