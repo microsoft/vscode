@@ -182,9 +182,7 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 
 			// there currently is a widget which we still own so
 			// we need to hide it before getting a new widget
-			if (this._widget.value) {
-				this._widget.value.onWillHide();
-			}
+			this._widget.value?.onWillHide();
 
 			this._widget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, group, input);
 

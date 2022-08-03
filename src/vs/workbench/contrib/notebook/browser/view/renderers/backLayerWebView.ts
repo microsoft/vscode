@@ -884,11 +884,13 @@ var requirejs = (function() {
 
 	private _createInset(webviewService: IWebviewService, content: string) {
 		const workspaceFolders = this.contextService.getWorkspace().folders.map(x => x.uri);
+		const notebookDir = dirname(this.documentUri);
 
 		this.localResourceRootsCache = [
 			...this.notebookService.getNotebookProviderResourceRoots(),
 			...this.notebookService.getRenderers().map(x => dirname(x.entrypoint)),
 			...workspaceFolders,
+			notebookDir,
 			...this.getBuiltinLocalResourceRoots(),
 		];
 		const webview = webviewService.createWebviewElement({
@@ -1047,7 +1049,7 @@ var requirejs = (function() {
 				metadata: sameMetadata ? undefined : newContent.metadata
 			});
 		}
-
+		entry.metadata = newContent.metadata;
 		entry.content = newContent.content;
 		entry.offset = newContent.offset;
 		entry.visible = true;

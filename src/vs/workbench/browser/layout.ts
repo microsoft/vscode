@@ -578,7 +578,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					input2: { resource: filesToMerge[1].resource },
 					base: { resource: filesToMerge[2].resource },
 					result: { resource: filesToMerge[3].resource },
-					options: { pinned: true, override: 'mergeEditor.Input' } // TODO@bpasero remove the override once the resolver is ready
+					options: { pinned: true }
 				}];
 			}
 
@@ -902,16 +902,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				break;
 			case Parts.PANEL_PART: {
 				const activePanel = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
-				if (activePanel) {
-					activePanel.focus();
-				}
+				activePanel?.focus();
 				break;
 			}
 			case Parts.SIDEBAR_PART: {
 				const activeViewlet = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
-				if (activeViewlet) {
-					activeViewlet.focus();
-				}
+				activeViewlet?.focus();
 				break;
 			}
 			case Parts.ACTIVITYBAR_PART:
@@ -922,9 +918,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			default: {
 				// Title Bar & Banner simply pass focus to container
 				const container = this.getContainer(part);
-				if (container) {
-					container.focus();
-				}
+				container?.focus();
 			}
 		}
 	}

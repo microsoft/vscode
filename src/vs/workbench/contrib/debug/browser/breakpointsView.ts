@@ -221,9 +221,7 @@ export class BreakpointsView extends ViewPane {
 
 	override focus(): void {
 		super.focus();
-		if (this.list) {
-			this.list.domFocus();
-		}
+		this.list?.domFocus();
 	}
 
 	renderInputBox(data: InputBoxData | undefined): void {

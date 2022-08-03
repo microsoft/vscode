@@ -89,6 +89,12 @@ steps:
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Restore node_modules cache
 
+  - task: Cache@2
+    inputs:
+      key: '"$(Agent.OS)" | product.json'
+      path: .build/builtInExtensions
+    displayName: Restore built-in extensions
+
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
@@ -118,6 +124,14 @@ steps:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      exec { node build/lib/builtInExtensions.js }
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Download missing built-in extensions
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
