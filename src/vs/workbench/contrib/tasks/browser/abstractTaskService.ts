@@ -351,6 +351,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private async _reconnectTasks(): Promise<void> {
 		const tasks = await this.getSavedTasks('persistent');
 		if (!tasks.length) {
+			this._tasksReconnected = true;
 			return;
 		}
 		for (const task of tasks) {
@@ -1065,7 +1066,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _setPersistentTask(task: Task): Promise<void> {
-		if (!task.configurationProperties.isBackground || !this._tasksReconnected) {
+		if (!task.configurationProperties.problemMatchers || !this._tasksReconnected) {
 			return;
 		}
 		let key = task.getRecentlyUsedKey();
