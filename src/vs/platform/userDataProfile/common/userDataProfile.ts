@@ -225,6 +225,10 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 	}
 
 	getProfile(workspaceIdentifier: WorkspaceIdentifier, profileToUseIfNotSet: IUserDataProfile): IUserDataProfile {
+		if (!this.enabled) {
+			return this.defaultProfile;
+		}
+
 		const workspace = this.getWorkspace(workspaceIdentifier);
 		let profile = URI.isUri(workspace) ? this.profilesObject.workspaces.get(workspace) : this.profilesObject.emptyWindow;
 		if (!profile) {
