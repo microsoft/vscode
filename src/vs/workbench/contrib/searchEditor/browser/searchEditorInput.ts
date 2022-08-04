@@ -72,6 +72,8 @@ export class SearchEditorInput extends EditorInput {
 
 	private dirty: boolean = false;
 
+	private lastOnDidChangeLabel: string | undefined;
+
 	private readonly _onDidChangeContent = this._register(new Emitter<void>());
 	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
@@ -157,12 +159,11 @@ export class SearchEditorInput extends EditorInput {
 	private registerConfigChangeListeners(model: SearchConfigurationModel) {
 		this.configChangeListenerDisposable?.dispose();
 		if (!this.isDisposed()) {
-			let oldName = this.getName();
 			this.configChangeListenerDisposable = model.onConfigDidUpdate(() => {
-				if (oldName !== this.getName()) {
+				if (this.lastOnDidChangeLabel !== this.getName()) {
 					this._onDidChangeLabel.fire();
+					this.lastOnDidChangeLabel = this.getName();
 				}
-				oldName = this.getName();
 				this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE).searchConfig = model.config;
 			});
 			this._register(this.configChangeListenerDisposable);
@@ -171,11 +172,11 @@ export class SearchEditorInput extends EditorInput {
 
 	async resolveModels() {
 		return this.model.resolve().then(data => {
-			const oldName = this.getName();
 			this._cachedResultsModel = data.resultsModel;
 			this._cachedConfigurationModel = data.configurationModel;
-			if (oldName !== this.getName()) {
+			if (this.lastOnDidChangeLabel !== this.getName()) {
 				this._onDidChangeLabel.fire();
+				this.lastOnDidChangeLabel = this.getName();
 			}
 			this.registerConfigChangeListeners(data.configurationModel);
 			return data;
