@@ -1,3 +1,5 @@
+https://github.com/microsoft/vscode-jupyter/issues/10170
+
 @sadasant I also see this, don't think I can test continue testing this, here's the console if that's helpful:
 
 @weinand turns out we haven't published the Variable Viewer! Our build failed on Friday. I'll provide an update soon.
