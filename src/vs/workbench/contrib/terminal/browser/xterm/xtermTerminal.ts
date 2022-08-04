@@ -58,19 +58,13 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	/** The raw xterm.js instance */
 	readonly raw: RawXtermTerminal;
 
-	getBufferLines(startPatterns: RegExp[]): string[] {
-		const bufferLines: string[] = [];
-		const startRegex = new RegExp(startPatterns.join('|'));
+	*getBufferReverseIterator(): IterableIterator<string> {
 		for (let i = this.raw.buffer.active.length; i >= 0; i--) {
 			const line = this.raw.buffer.active.getLine(i)?.translateToString().trim();
 			if (line) {
-				bufferLines.push(line);
-				if (startRegex.test(line)) {
-					return bufferLines;
-				}
+				yield line;
 			}
 		}
-		return bufferLines;
 	}
 	private _core: IXtermCore;
 	private static _suggestedRendererType: 'canvas' | 'dom' | undefined = undefined;

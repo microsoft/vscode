@@ -976,11 +976,9 @@ export interface IXtermTerminal {
 	addDecoration(marker: IMarker, properties: IGenericMarkProperties): void;
 
 	/**
-	 * Returns an array representing the buffer lines as strings
-	 * which begins with the cursor line and ends with
-	 * the first line that matches optional @param startPatterns
+	 * Returns a reverse iterator of buffer lines as strings
 	 */
-	getBufferLines(startPatterns?: RegExp[]): string[];
+	getBufferReverseIterator(): IterableIterator<string>;
 }
 
 export interface IInternalXtermTerminal {
