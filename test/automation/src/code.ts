@@ -135,6 +135,10 @@ export class Code {
 		await this.driver.dispatchKeybinding(keybinding);
 	}
 
+	async didFinishLoad(): Promise<void> {
+		return await this.driver.didFinishLoad();
+	}
+
 	async exit(): Promise<void> {
 		return measureAndLog(new Promise<void>((resolve, reject) => {
 			const pid = this.mainProcess.pid!;

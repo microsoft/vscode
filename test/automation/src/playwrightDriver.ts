@@ -77,6 +77,16 @@ export class PlaywrightDriver {
 		}
 	}
 
+	async didFinishLoad(): Promise<void> {
+		const p = new Promise<void>((f) => {
+			// https://playwright.dev/docs/api/class-electronapplication#electron-application-event-window
+			(this.application as playwright.ElectronApplication).on('window', () => {
+				f();
+			});
+		});
+		await p;
+	}
+
 	private async takeScreenshot(name: string): Promise<void> {
 		try {
 			const persistPath = join(this.options.logsPath, `playwright-screenshot-${PlaywrightDriver.screenShotCounter++}-${name.replace(/\s+/g, '-')}.png`);
