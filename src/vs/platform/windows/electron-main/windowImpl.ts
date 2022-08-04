@@ -295,7 +295,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			}
 
 			// Update the window controls immediately based on cached values
-			if ((isWindows || isMacintosh) && useCustomTitleStyle) {
+			if (useCustomTitleStyle && ((isWindows && useWindowControlsOverlay(this.configurationService, this.environmentMainService)) || isMacintosh)) {
 				const cachedWindowControlHeight = this.stateMainService.getItem<number>((CodeWindow.windowControlHeightStateStorageKey));
 				if (cachedWindowControlHeight) {
 					this.updateWindowControls({ height: cachedWindowControlHeight });
