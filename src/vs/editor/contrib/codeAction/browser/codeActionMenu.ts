@@ -30,6 +30,9 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
+import 'vs/editor/contrib/symbolIcons/browser/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
+import { Codicon } from 'vs/base/common/codicons';
 
 export const Context = {
 	Visible: new RawContextKey<boolean>('CodeActionMenuVisible', false, localize('CodeActionMenuVisible', "Whether the code action list widget is visible"))
@@ -85,6 +88,7 @@ export interface ICodeActionMenuTemplateData {
 	detail: HTMLElement;
 	decoratorRight: HTMLElement;
 	disposables: IDisposable[];
+	icon: HTMLElement;
 }
 
 const TEMPLATE_ID = 'codeActionWidget';
@@ -104,7 +108,11 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 		data.disposables = [];
 		data.root = container;
 		data.text = document.createElement('span');
+
+		data.icon = document.createElement('div');
+
 		// data.detail = document.createElement('');
+		container.append(data.icon);
 		container.append(data.text);
 		// container.append(data.detail);
 
@@ -137,6 +145,9 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 		}
 
 		data.text.textContent = text;
+
+		data.icon.className = Codicon.lightBulb.classNames;
+		// data.icon.classList.add(Codicon.lightBulb.classNames);
 
 		if (!element.isEnabled) {
 			data.root.classList.add('option-disabled');
