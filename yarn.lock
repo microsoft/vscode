@@ -11272,10 +11272,10 @@ xterm-addon-canvas@0.2.0-beta.17:
   resolved "https://registry.yarnpkg.com/xterm-addon-canvas/-/xterm-addon-canvas-0.2.0-beta.17.tgz#e84a86530b20bd3edcce16b4566f346cd186ab4d"
   integrity sha512-2ukPdCA92VTFYQRE56ylzvI3cfaQYDWd/Mc4jlEItI6sV/EA5RnUbbP+2sFIx0JlmHK6nVYXXNY2p6QRB7MRew==
 
-xterm-addon-ligatures@0.6.0-beta.22:
-  version "0.6.0-beta.22"
-  resolved "https://registry.yarnpkg.com/xterm-addon-ligatures/-/xterm-addon-ligatures-0.6.0-beta.22.tgz#d7c2d8ac6454b8401c2f297689cc168f8ca91716"
-  integrity sha512-dzTWusH9rmY+OJd9F/kUlPZmnA0EMkR/cQZIUSoPLdUHKTY94im6bx9ZMNwBvjXuzHa9HCknDmXLMczmR7y7Jg==
+xterm-addon-ligatures@0.6.0-beta.23:
+  version "0.6.0-beta.23"
+  resolved "https://registry.yarnpkg.com/xterm-addon-ligatures/-/xterm-addon-ligatures-0.6.0-beta.23.tgz#e71b9e2f165883dbff6e17c82e3f39f1e902f6db"
+  integrity sha512-Hom+MBfRE0PxuvZ2C5qdRhTAmBvCYem3AiIbRMraz/kQeBR9O3ZJl4DbEhuXNwrmU9d5A8eUllLJuqNvnlYSbw==
   dependencies:
     font-finder "^1.1.0"
     font-ligatures "^1.4.1"
