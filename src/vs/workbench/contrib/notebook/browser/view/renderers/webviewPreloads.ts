@@ -226,6 +226,14 @@ async function webviewPreloads(ctx: PreloadContext) {
 		activate(ctx: KernelPreloadContext): Promise<void> | void;
 	}
 
+	interface IObservedElement {
+		id: string;
+		output: boolean;
+		lastKnownPadding: number;
+		lastKnownHeight: number;
+		cellId: string;
+	}
+
 	function createKernelContext(): KernelPreloadContext {
 		return {
 			onDidReceiveKernelMessage: onDidReceiveKernelMessage.event,
@@ -300,7 +308,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		private readonly _observer: ResizeObserver;
 
-		private readonly _observedElements = new WeakMap<Element, { id: string; output: boolean; lastKnownHeight: number; cellId: string }>();
+		private readonly _observedElements = new WeakMap<Element, IObservedElement>();
 		private _outputResizeTimer: any;
 
 		constructor() {
@@ -317,25 +325,49 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 					this.postResizeMessage(observedElementInfo.cellId);
 
-					if (entry.target.id === observedElementInfo.id && entry.contentRect) {
-						if (observedElementInfo.output) {
-							if (entry.contentRect.height !== 0) {
+					if (entry.target.id !== observedElementInfo.id) {
+						continue;
+					}
+
+					if (!entry.contentRect) {
+						continue;
+					}
+
+					if (!observedElementInfo.output) {
+						// markup, update directly
+						this.updateHeight(observedElementInfo, entry.target.offsetHeight);
+						continue;
+					}
+
+					const newHeight = entry.contentRect.height;
+					const shouldUpdatePadding =
+						(newHeight !== 0 && observedElementInfo.lastKnownPadding === 0) ||
+						(newHeight === 0 && observedElementInfo.lastKnownPadding !== 0);
+
+					if (shouldUpdatePadding) {
+						// Do not update dimension in resize observer
+						window.requestAnimationFrame(() => {
+							if (newHeight !== 0) {
 								entry.target.style.padding = `${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodeLeftPadding}px`;
 							} else {
 								entry.target.style.padding = `0px`;
 							}
-						}
-
-						const offsetHeight = entry.target.offsetHeight;
-						if (observedElementInfo.lastKnownHeight !== offsetHeight) {
-							observedElementInfo.lastKnownHeight = offsetHeight;
-							dimensionUpdater.updateHeight(observedElementInfo.id, offsetHeight, {
-								isOutput: observedElementInfo.output
-							});
-						}
+							this.updateHeight(observedElementInfo, entry.target.offsetHeight);
+						});
+					} else {
+						this.updateHeight(observedElementInfo, entry.target.offsetHeight);
 					}
 				}
 			});
+		}
+
+		private updateHeight(observedElementInfo: IObservedElement, offsetHeight: number) {
+			if (observedElementInfo.lastKnownHeight !== offsetHeight) {
+				observedElementInfo.lastKnownHeight = offsetHeight;
+				dimensionUpdater.updateHeight(observedElementInfo.id, offsetHeight, {
+					isOutput: observedElementInfo.output
+				});
+			}
 		}
 
 		public observe(container: Element, id: string, output: boolean, cellId: string) {
@@ -343,7 +375,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				return;
 			}
 
-			this._observedElements.set(container, { id, output, lastKnownHeight: -1, cellId });
+			this._observedElements.set(container, { id, output, lastKnownPadding: ctx.style.outputNodePadding, lastKnownHeight: -1, cellId });
 			this._observer.observe(container);
 		}
 
@@ -1988,7 +2020,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.element.style.position = 'absolute';
 			this.element.style.top = `0px`;
 			this.element.style.left = left + 'px';
-			this.element.style.padding = '0px';
+			this.element.style.padding = `${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodeLeftPadding}`;
 
 			addMouseoverListeners(this.element, outputId);
 		}

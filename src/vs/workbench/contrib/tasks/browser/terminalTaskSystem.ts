@@ -950,8 +950,17 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				});
 			});
 			if (trigger === Triggers.reconnect && !!terminal.xterm) {
-				const bufferLines = terminal.xterm.bufferLines;
-				for (let i = 0; i < bufferLines.length; i++) {
+				const bufferLines = [];
+
+				const bufferReverseIterator = terminal.xterm.getBufferReverseIterator();
+				const startRegex = new RegExp(watchingProblemMatcher.beginPatterns.map(pattern => pattern.source).join('|'));
+				for (const nextLine of bufferReverseIterator) {
+					bufferLines.push(nextLine);
+					if (startRegex.test(nextLine)) {
+						break;
+					}
+				}
+				for (let i = bufferLines.length - 1; i >= 0; i--) {
 					watchingProblemMatcher.processLine(bufferLines[i]);
 				}
 				if (!delayer) {
