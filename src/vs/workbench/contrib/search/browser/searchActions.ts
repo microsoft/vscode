@@ -499,7 +499,7 @@ class ReplaceActionRunner {
 		} else {
 			const nextFocusElement = this.getElementToFocusAfterRemoved(this.viewer, currentBottomFocusElement);
 
-			if (nextFocusElement && !opInfo.elements.includes(nextFocusElement)) {
+			if (nextFocusElement) {
 				this.viewer.setFocus([nextFocusElement], getSelectionKeyboardEvent());
 				this.viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
 			}
@@ -591,19 +591,19 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 
 		const currentBottomFocusElement = elementsToRemove[elementsToRemove.length - 1];
 
+		elementsToRemove.forEach((currentElement) =>
+			currentElement.parent().remove(<(FolderMatch | FileMatch)[] & Match & FileMatch[]>currentElement)
+		);
+
 		const nextFocusElement = opInfo.mustReselect && (!currentBottomFocusElement || currentBottomFocusElement instanceof SearchResult || arrayContainsElementOrParent(currentBottomFocusElement, elementsToRemove)) ?
 			this.getElementToFocusAfterRemoved(this.viewer, <any>currentBottomFocusElement) :
 			null;
 
-		if (nextFocusElement && !opInfo.elements.includes(nextFocusElement)) {
+		if (nextFocusElement) {
 			this.viewer.reveal(nextFocusElement);
 			this.viewer.setFocus([nextFocusElement], getSelectionKeyboardEvent());
 			this.viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
 		}
-
-		elementsToRemove.forEach((currentElement) =>
-			currentElement.parent().remove(<(FolderMatch | FileMatch)[] & Match & FileMatch[]>currentElement)
-		);
 
 		this.viewer.domFocus();
 		return Promise.resolve();
