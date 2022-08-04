@@ -59,6 +59,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		// If another window changes the preferred session storage, reset our cached auth state in memory
 		this._register(this.storageService.onDidChangeValue(e => this.onDidChangeStorage(e)));
 
+		this.registerSignInAction();
 		this.registerResetAuthenticationAction();
 
 		this.signedInContext = EDIT_SESSIONS_SIGNED_IN.bindTo(this.contextKeyService);
@@ -109,7 +110,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		return (content !== undefined && content !== null && ref !== undefined) ? { ref: ref, editSession: JSON.parse(content) } : undefined;
 	}
 
-	async delete(ref: string) {
+	async delete(ref: string | null) {
 		await this.initialize();
 		if (!this.initialized) {
 			throw new Error(`Unable to delete edit session with ref ${ref}.`);
@@ -347,6 +348,27 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		if (this.#authenticationInfo?.sessionId && e.removed.find(session => session.id === this.#authenticationInfo?.sessionId)) {
 			this.clearAuthenticationPreference();
 		}
+	}
+
+	private registerSignInAction() {
+		const that = this;
+		this._register(registerAction2(class ResetEditSessionAuthenticationAction extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.editSessions.actions.signIn',
+					title: localize('sign in', 'Sign In'),
+					category: EDIT_SESSION_SYNC_CATEGORY,
+					precondition: ContextKeyExpr.equals(EDIT_SESSIONS_SIGNED_IN_KEY, false),
+					menu: [{
+						id: MenuId.CommandPalette,
+					}]
+				});
+			}
+
+			async run() {
+				await that.initialize();
+			}
+		}));
 	}
 
 	private registerResetAuthenticationAction() {

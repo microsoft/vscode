@@ -10,6 +10,7 @@ const fs_1 = require("fs");
 const os_1 = require("os");
 const path = require("path");
 const dep_lists_1 = require("./dep-lists");
+const manifests = require("../../../cgmanifest.json");
 // A flag that can easily be toggled.
 // Make sure to compile the build directory after toggling the value.
 // If false, we warn about new dependencies if they show up
@@ -76,7 +77,10 @@ function calculatePackageDeps(binaryPath, arch, sysroot) {
         console.error('Tried to stat ' + binaryPath + ' but failed.');
     }
     // Get the Chromium dpkg-shlibdeps file.
-    const dpkgShlibdepsUrl = 'https://raw.githubusercontent.com/chromium/chromium/100.0.4896.160/third_party/dpkg-shlibdeps/dpkg-shlibdeps.pl';
+    const chromiumManifest = manifests.registrations.filter(registration => {
+        return registration.component.type === 'git' && registration.component.git.name === 'chromium';
+    });
+    const dpkgShlibdepsUrl = `https://raw.githubusercontent.com/chromium/chromium/${chromiumManifest[0].version}/third_party/dpkg-shlibdeps/dpkg-shlibdeps.pl`;
     const dpkgShlibdepsScriptLocation = `${(0, os_1.tmpdir)()}/dpkg-shlibdeps.pl`;
     const result = (0, child_process_1.spawnSync)('curl', [dpkgShlibdepsUrl, '-o', dpkgShlibdepsScriptLocation]);
     if (result.status !== 0) {

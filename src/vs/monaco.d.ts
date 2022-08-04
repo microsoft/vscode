@@ -1497,6 +1497,10 @@ declare namespace monaco.editor {
 		 */
 		isWholeLine?: boolean;
 		/**
+		 * Always render the decoration (even when the range it encompasses is collapsed).
+		 */
+		showIfCollapsed?: boolean;
+		/**
 		 * Specifies the stack order of a decoration.
 		 * A decoration with greater stack order is always in front of a decoration with
 		 * a lower stack order when the decorations are on the same line.

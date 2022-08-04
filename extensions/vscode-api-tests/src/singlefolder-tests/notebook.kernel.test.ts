@@ -174,19 +174,7 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 		await saveAllFilesAndCloseAll();
 	});
 
-	// TODO@rebornix this is wrong, `await vscode.commands.executeCommand('notebook.execute');` doesn't wait until the workspace edit is applied
-	test.skip('cell execute command takes arguments', async () => {
-		const notebook = await openRandomNotebookDocument();
-		await vscode.window.showNotebookDocument(notebook);
-		assert.strictEqual(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
-		const editor = vscode.window.activeNotebookEditor!;
-		const cell = editor.notebook.cellAt(0);
-
-		await vscode.commands.executeCommand('notebook.execute');
-		assert.strictEqual(cell.outputs.length, 0, 'should not execute'); // not runnable, didn't work
-	});
-
-	test('cell execute command takes arguments 2', async () => {
+	test('cell execute command takes arguments', async () => {
 		const notebook = await openRandomNotebookDocument();
 		await vscode.window.showNotebookDocument(notebook);
 		assert.strictEqual(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
@@ -217,11 +205,10 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 	});
 
 	// #126371
-	test.skip('cell execute command takes arguments ICellRange[]', async () => {
+	test('cell execute command takes arguments', async () => {
 		const notebook = await openRandomNotebookDocument();
 		await vscode.window.showNotebookDocument(notebook);
 
-		vscode.commands.executeCommand('notebook.cell.execute', { ranges: [{ start: 0, end: 1 }, { start: 1, end: 2 }] });
 		let firstCellExecuted = false;
 		let secondCellExecuted = false;
 		let resolve: () => void;
@@ -241,6 +228,8 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 				resolve();
 			}
 		});
+
+		vscode.commands.executeCommand('notebook.cell.execute', { document: notebook.uri, ranges: [{ start: 0, end: 1 }, { start: 1, end: 2 }] });
 
 		await p;
 		listener.dispose();
@@ -306,12 +295,11 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 		});
 	});
 
-	test.skip('onDidChangeCellExecutionState is fired', async () => { // TODO@rebornix https://github.com/microsoft/vscode/issues/139350
+	test('onDidChangeCellExecutionState is fired', async () => {
 		const notebook = await openRandomNotebookDocument();
 		const editor = await vscode.window.showNotebookDocument(notebook);
 		const cell = editor.notebook.cellAt(0);
 
-		vscode.commands.executeCommand('notebook.cell.execute');
 		let eventCount = 0;
 		let resolve: () => void;
 		const p = new Promise<void>(r => resolve = r);
@@ -329,6 +317,8 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 
 			eventCount++;
 		});
+
+		vscode.commands.executeCommand('notebook.cell.execute', { document: notebook.uri, ranges: [{ start: 0, end: 1 }] });
 
 		await p;
 		listener.dispose();
