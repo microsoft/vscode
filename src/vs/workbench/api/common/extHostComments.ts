@@ -172,9 +172,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		$deleteCommentThread(commentControllerHandle: number, commentThreadHandle: number) {
 			const commentController = this._commentControllers.get(commentControllerHandle);
 
-			if (commentController) {
-				commentController.$deleteCommentThread(commentThreadHandle);
-			}
+			commentController?.$deleteCommentThread(commentThreadHandle);
 		}
 
 		$provideCommentingRanges(commentControllerHandle: number, uriComponents: UriComponents, token: CancellationToken): Promise<IRange[] | undefined> {
@@ -622,9 +620,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		$deleteCommentThread(threadHandle: number): void {
 			const thread = this._threads.get(threadHandle);
 
-			if (thread) {
-				thread.dispose();
-			}
+			thread?.dispose();
 
 			this._threads.delete(threadHandle);
 		}

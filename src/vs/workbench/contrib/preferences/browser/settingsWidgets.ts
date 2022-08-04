@@ -624,9 +624,7 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 		this.listDisposables.add(DOM.addDisposableListener(rowElement, DOM.EventType.DRAG_END, (ev) => {
 			counter = 0;
 			rowElement.classList.remove('drag-hover');
-			if (ev.dataTransfer) {
-				ev.dataTransfer.clearData();
-			}
+			ev.dataTransfer?.clearData();
 			if (this.dragDetails) {
 				this.dragDetails = undefined;
 			}

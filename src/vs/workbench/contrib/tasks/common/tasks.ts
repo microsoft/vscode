@@ -544,6 +544,16 @@ export interface IConfigurationProperties {
 	 * The problem watchers to use for this task
 	 */
 	problemMatchers?: Array<string | ProblemMatcher>;
+
+	/**
+	 * The icon for this task in the terminal tabs list
+	 */
+	icon?: { id?: string; color?: string };
+
+	/**
+	 * Do not show this task in the run task quickpick
+	 */
+	hide?: boolean;
 }
 
 export enum RunOnOptions {
@@ -681,6 +691,12 @@ export abstract class CommonTask {
 	}
 }
 
+/**
+ * For tasks of type shell or process, this is created upon parse
+ * of the tasks.json or workspace file.
+ * For ContributedTasks of all other types, this is the result of
+ * resolving a ConfiguringTask.
+ */
 export class CustomTask extends CommonTask {
 
 	override type!: '$customized'; // CUSTOMIZED_TASK_TYPE
@@ -812,6 +828,11 @@ export class CustomTask extends CommonTask {
 	}
 }
 
+/**
+ * After a contributed task has been parsed, but before
+ * the task has been resolved via the extension, its properties
+ * are stored in this
+ */
 export class ConfiguringTask extends CommonTask {
 
 	/**
@@ -871,6 +892,9 @@ export class ConfiguringTask extends CommonTask {
 	}
 }
 
+/**
+ * A task from an extension created via resolveTask or provideTask
+ */
 export class ContributedTask extends CommonTask {
 
 	/**
@@ -890,6 +914,16 @@ export class ContributedTask extends CommonTask {
 	 */
 	command: ICommandConfiguration;
 
+	/**
+	 * The icon for the task
+	 */
+	icon: { id?: string; color?: string } | undefined;
+
+	/**
+	 * Don't show the task in the run task quickpick
+	 */
+	hide?: boolean;
+
 	public constructor(id: string, source: IExtensionTaskSource, label: string, type: string | undefined, defines: KeyedTaskIdentifier,
 		command: ICommandConfiguration, hasDefinedMatchers: boolean, runOptions: IRunOptions,
 		configurationProperties: IConfigurationProperties) {
@@ -897,6 +931,8 @@ export class ContributedTask extends CommonTask {
 		this.defines = defines;
 		this.hasDefinedMatchers = hasDefinedMatchers;
 		this.command = command;
+		this.icon = configurationProperties.icon;
+		this.hide = configurationProperties.hide;
 	}
 
 	public override clone(): ContributedTask {
@@ -1095,7 +1131,8 @@ export const enum TaskRunSource {
 	System,
 	User,
 	FolderOpen,
-	ConfigurationChange
+	ConfigurationChange,
+	Reconnect
 }
 
 export namespace TaskEvent {
@@ -1152,6 +1189,31 @@ export namespace KeyedTaskIdentifier {
 		Object.assign(result, value);
 		return result;
 	}
+}
+
+export const enum TaskSettingId {
+	AutoDetect = 'task.autoDetect',
+	SaveBeforeRun = 'task.saveBeforeRun',
+	ShowDecorations = 'task.showDecorations',
+	ProblemMatchersNeverPrompt = 'task.problemMatchers.neverPrompt',
+	SlowProviderWarning = 'task.slowProviderWarning',
+	QuickOpenHistory = 'task.quickOpen.history',
+	QuickOpenDetail = 'task.quickOpen.detail',
+	QuickOpenSkip = 'task.quickOpen.skip',
+	QuickOpenShowAll = 'task.quickOpen.showAll',
+	AllowAutomaticTasks = 'task.allowAutomaticTasks',
+	Reconnection = 'task.experimental.reconnection'
+}
+
+export const enum TasksSchemaProperties {
+	Tasks = 'tasks',
+	SuppressTaskName = 'tasks.suppressTaskName',
+	Windows = 'tasks.windows',
+	Osx = 'tasks.osx',
+	Linux = 'tasks.linux',
+	ShowOutput = 'tasks.showOutput',
+	IsShellCommand = 'tasks.isShellCommand',
+	ServiceTestSetting = 'tasks.service.testSetting',
 }
 
 export namespace TaskDefinition {

@@ -27,6 +27,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { Change, getLastSyncResourceUri, IRemoteUserData, IResourcePreview as IBaseResourcePreview, ISyncData, ISyncResourceHandle, ISyncResourcePreview as IBaseSyncResourcePreview, IUserData, IUserDataInitializer, IUserDataManifest, IUserDataSyncBackupStoreService, IUserDataSyncConfiguration, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, IUserDataSyncUtilService, MergeState, PREVIEW_DIR_NAME, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_CONFIGURATION_SCOPE, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 type IncompatibleSyncSourceClassification = {
 	owner: 'sandy081';
@@ -819,6 +820,7 @@ export abstract class AbstractInitializer implements IUserDataInitializer {
 
 	constructor(
 		readonly resource: SyncResource,
+		@IUserDataProfilesService protected readonly userDataProfilesService: IUserDataProfilesService,
 		@IEnvironmentService protected readonly environmentService: IEnvironmentService,
 		@ILogService protected readonly logService: ILogService,
 		@IFileService protected readonly fileService: IFileService,

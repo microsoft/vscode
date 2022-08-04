@@ -24,6 +24,7 @@ import { ProcessTimeRunOnceScheduler } from 'vs/base/common/async';
 import { boolean } from 'vs/editor/common/config/editorOptions';
 import { createURITransformer } from 'vs/workbench/api/node/uriTransformer';
 import { MessagePortMain } from 'electron';
+import { ExtHostConnectionType, readExtHostConnection } from 'vs/workbench/services/extensions/common/extensionHostEnv';
 
 import 'vs/workbench/api/common/extHost.common.services';
 import 'vs/workbench/api/node/extHost.node.services';
@@ -90,6 +91,12 @@ function patchProcess(allowExit: boolean) {
 		const err = new Error('An extension called process.crash() and this was prevented.');
 		console.warn(err.stack);
 	};
+
+	// Set ELECTRON_RUN_AS_NODE environment variable for extensions that use
+	// child_process.spawn with process.execPath and expect to run as node process
+	// on the desktop.
+	// Refs https://github.com/microsoft/vscode/issues/151012#issuecomment-1156593228
+	process.env['ELECTRON_RUN_AS_NODE'] = '1';
 }
 
 interface IRendererConnection {
@@ -104,7 +111,9 @@ let onTerminate = function (reason: string) {
 };
 
 function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
-	if (process.env.VSCODE_WILL_SEND_MESSAGE_PORT) {
+	const extHostConnection = readExtHostConnection(process.env);
+
+	if (extHostConnection.type === ExtHostConnectionType.MessagePort) {
 
 		return new Promise<IMessagePassingProtocol>((resolve, reject) => {
 
@@ -133,7 +142,7 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 
 		});
 
-	} else if (process.env.VSCODE_EXTHOST_WILL_SEND_SOCKET) {
+	} else if (extHostConnection.type === ExtHostConnectionType.Socket) {
 
 		return new Promise<PersistentProtocol>((resolve, reject) => {
 
@@ -202,7 +211,7 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 
 	} else {
 
-		const pipeName = process.env.VSCODE_IPC_HOOK_EXTHOST!;
+		const pipeName = extHostConnection.pipeName;
 
 		return new Promise<PersistentProtocol>((resolve, reject) => {
 
@@ -277,37 +286,39 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 				}
 			}
 
-			// Kill oneself if one's parent dies. Much drama.
-			let epermErrors = 0;
-			setInterval(function () {
-				try {
-					process.kill(initData.parentPid, 0); // throws an exception if the main process doesn't exist anymore.
-					epermErrors = 0;
-				} catch (e) {
-					if (e && e.code === 'EPERM') {
-						// Even if the parent process is still alive,
-						// some antivirus software can lead to an EPERM error to be thrown here.
-						// Let's terminate only if we get 3 consecutive EPERM errors.
-						epermErrors++;
-						if (epermErrors >= 3) {
-							onTerminate(`parent process ${initData.parentPid} does not exist anymore (3 x EPERM): ${e.message} (code: ${e.code}) (errno: ${e.errno})`);
+			if (initData.parentPid) {
+				// Kill oneself if one's parent dies. Much drama.
+				let epermErrors = 0;
+				setInterval(function () {
+					try {
+						process.kill(initData.parentPid, 0); // throws an exception if the main process doesn't exist anymore.
+						epermErrors = 0;
+					} catch (e) {
+						if (e && e.code === 'EPERM') {
+							// Even if the parent process is still alive,
+							// some antivirus software can lead to an EPERM error to be thrown here.
+							// Let's terminate only if we get 3 consecutive EPERM errors.
+							epermErrors++;
+							if (epermErrors >= 3) {
+								onTerminate(`parent process ${initData.parentPid} does not exist anymore (3 x EPERM): ${e.message} (code: ${e.code}) (errno: ${e.errno})`);
+							}
+						} else {
+							onTerminate(`parent process ${initData.parentPid} does not exist anymore: ${e.message} (code: ${e.code}) (errno: ${e.errno})`);
 						}
-					} else {
-						onTerminate(`parent process ${initData.parentPid} does not exist anymore: ${e.message} (code: ${e.code}) (errno: ${e.errno})`);
 					}
-				}
-			}, 1000);
+				}, 1000);
 
-			// In certain cases, the event loop can become busy and never yield
-			// e.g. while-true or process.nextTick endless loops
-			// So also use the native node module to do it from a separate thread
-			let watchdog: typeof nativeWatchdog;
-			try {
-				watchdog = require.__$__nodeRequire('native-watchdog');
-				watchdog.start(initData.parentPid);
-			} catch (err) {
-				// no problem...
-				onUnexpectedError(err);
+				// In certain cases, the event loop can become busy and never yield
+				// e.g. while-true or process.nextTick endless loops
+				// So also use the native node module to do it from a separate thread
+				let watchdog: typeof nativeWatchdog;
+				try {
+					watchdog = require.__$__nodeRequire('native-watchdog');
+					watchdog.start(initData.parentPid);
+				} catch (err) {
+					// no problem...
+					onUnexpectedError(err);
+				}
 			}
 
 			// Tell the outside that we are initialized

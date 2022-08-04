@@ -14,13 +14,18 @@ import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { HydratedTestResult, LiveOutputController, LiveTestResult, makeEmptyCounts, resultItemParents, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { TestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { InMemoryResultStorage, ITestResultStorage } from 'vs/workbench/contrib/testing/common/testResultStorage';
+import { InMemoryResultStorage, ITestResultStorage, TestResultStorage } from 'vs/workbench/contrib/testing/common/testResultStorage';
 import { getInitializedMainTestCollection, testStubs, TestTestCollection } from 'vs/workbench/contrib/testing/test/common/testStubs';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
+import { FileService } from 'vs/platform/files/common/fileService';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 
 export const emptyOutputController = () => new LiveOutputController(
 	new Lazy(() => [newWriteableBufferStream(), Promise.resolve()]),
 	() => Promise.resolve(bufferToStream(VSBuffer.alloc(0))),
+	() => Promise.resolve(VSBuffer.alloc(0)),
 );
 
 suite('Workbench - Test Results Service', () => {
@@ -235,8 +240,10 @@ suite('Workbench - Test Results Service', () => {
 			const [rehydrated, actual] = results.getStateById(tests.root.id)!;
 			const expected: any = { ...r.getStateById(tests.root.id)! };
 			expected.item.uri = actual.item.uri;
-			expected.item.children = actual.item.children;
-			assert.deepStrictEqual(actual, { ...expected, children: [new TestId(['ctrlId', 'id-a']).toString()] });
+			expected.item.children = undefined;
+			expected.retired = true;
+			delete expected.children;
+			assert.deepStrictEqual(actual, { ...expected });
 			assert.deepStrictEqual(rehydrated.counts, r.counts);
 			assert.strictEqual(typeof rehydrated.completedAt, 'number');
 		});
@@ -275,7 +282,7 @@ suite('Workbench - Test Results Service', () => {
 		const makeHydrated = async (completedAt = 42, state = TestResultState.Passed) => new HydratedTestResult({
 			completedAt,
 			id: 'some-id',
-			tasks: [{ id: 't', messages: [], name: undefined }],
+			tasks: [{ id: 't', name: undefined }],
 			name: 'hello world',
 			request: defaultOpts([]),
 			items: [{
@@ -283,9 +290,8 @@ suite('Workbench - Test Results Service', () => {
 				tasks: [{ state, duration: 0, messages: [] }],
 				computedState: state,
 				ownComputedState: state,
-				children: [],
 			}]
-		}, () => Promise.resolve(bufferToStream(VSBuffer.alloc(0))));
+		}, () => Promise.resolve(bufferToStream(VSBuffer.alloc(0))), () => Promise.resolve(VSBuffer.alloc(0)));
 
 		test('pushes hydrated results', async () => {
 			results.push(r);
@@ -321,5 +327,57 @@ suite('Workbench - Test Results Service', () => {
 		assert.deepStrictEqual([...resultItemParents(r, r.getStateById(tests.root.id)!)], [
 			r.getStateById(tests.root.id),
 		]);
+	});
+
+	suite('output controller', () => {
+
+		const disposables = new DisposableStore();
+		const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
+		let storage: TestResultStorage;
+
+		setup(() => {
+			const logService = new NullLogService();
+			const fileService = disposables.add(new FileService(logService));
+			const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
+			disposables.add(fileService.registerProvider(ROOT.scheme, fileSystemProvider));
+
+			storage = new TestResultStorage(
+				new TestStorageService(),
+				new NullLogService(),
+				{ getWorkspace: () => ({ id: 'test' }) } as any,
+				fileService,
+				{ workspaceStorageHome: ROOT } as any
+			);
+		});
+
+		teardown(() => disposables.clear());
+
+		test('reads live output ranges', async () => {
+			const ctrl = storage.getOutputController('a');
+
+			ctrl.append(VSBuffer.fromString('12345'));
+			ctrl.append(VSBuffer.fromString('67890'));
+			ctrl.append(VSBuffer.fromString('12345'));
+			ctrl.append(VSBuffer.fromString('67890'));
+
+			assert.deepStrictEqual(await ctrl.getRange(0, 5), VSBuffer.fromString('12345'));
+			assert.deepStrictEqual(await ctrl.getRange(5, 5), VSBuffer.fromString('67890'));
+			assert.deepStrictEqual(await ctrl.getRange(7, 6), VSBuffer.fromString('890123'));
+			assert.deepStrictEqual(await ctrl.getRange(15, 5), VSBuffer.fromString('67890'));
+			assert.deepStrictEqual(await ctrl.getRange(15, 10), VSBuffer.fromString('67890'));
+		});
+
+		test('reads stored output ranges', async () => {
+			const ctrl = storage.getOutputController('a');
+
+			ctrl.append(VSBuffer.fromString('12345'));
+			ctrl.append(VSBuffer.fromString('67890'));
+			ctrl.append(VSBuffer.fromString('12345'));
+			ctrl.append(VSBuffer.fromString('67890'));
+			await ctrl.close();
+
+			// sanity:
+			assert.deepStrictEqual(await ctrl.getRange(0, 5), VSBuffer.fromString('12345'));
+		});
 	});
 });

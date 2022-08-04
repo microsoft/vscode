@@ -159,16 +159,6 @@
 	align-items: center;
 }
 
-.extension-editor > .header > .details > .subtitle .sponsor,
-.extension-editor>.header>.details>.subtitle .sponsor .codicon {
-	color: var(--vscode-extensionSponsorButton-background);
-}
-
-.extension-editor > .header > .details > .subtitle .sponsor:hover,
-.extension-editor>.header>.details>.subtitle .sponsor:hover .codicon {
-	color: var(--vscode-extensionSponsorButton-hoverBackground);
-}
-
 .extension-editor > .header > .details > .subtitle .sponsor .codicon {
 	padding-right: 3px;
 }

@@ -221,9 +221,7 @@ export class BreakpointsView extends ViewPane {
 
 	override focus(): void {
 		super.focus();
-		if (this.list) {
-			this.list.domFocus();
-		}
+		this.list?.domFocus();
 	}
 
 	renderInputBox(data: InputBoxData | undefined): void {
@@ -242,9 +240,7 @@ export class BreakpointsView extends ViewPane {
 		}
 
 		super.layoutBody(height, width);
-		if (this.list) {
-			this.list.layout(height, width);
-		}
+		this.list?.layout(height, width);
 		try {
 			this.ignoreLayout = true;
 			this.updateSize();

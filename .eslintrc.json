@@ -220,15 +220,11 @@
 						// - electron-main
 						"when": "hasNode",
 						"allow": [
-							"@microsoft/applicationinsights-web",
 							"@parcel/watcher",
 							"@vscode/sqlite3",
 							"@vscode/vscode-languagedetection",
 							"@vscode/ripgrep",
 							"@vscode/iconv-lite-umd",
-							"applicationinsights",
-							"@microsoft/1ds-core-js",
-							"@microsoft/1ds-post-js",
 							"assert",
 							"child_process",
 							"console",
@@ -263,6 +259,7 @@
 							"windows-process-tree",
 							"worker_threads",
 							"xterm",
+							"xterm-addon-canvas",
 							"xterm-addon-search",
 							"xterm-addon-serialize",
 							"xterm-addon-unicode11",
@@ -277,6 +274,7 @@
 						// imports that are allowed in all /test/ files
 						"when": "test",
 						"allow": [
+							"vs/css.build",
 							"assert",
 							"sinon",
 							"sinon-test"
@@ -331,7 +329,9 @@
 							"vs/base/~",
 							"vs/base/parts/*/~",
 							"vs/platform/*/~",
-							"tas-client-umd" // node module allowed even in /common/
+							"tas-client-umd", // node module allowed even in /common/
+							"@microsoft/1ds-core-js",// node module allowed even in /common/
+							"@microsoft/1ds-post-js" // node module allowed even in /common/
 						]
 					},
 					{
@@ -445,8 +445,7 @@
 							}, // TODO@layers
 							"tas-client-umd", // node module allowed even in /common/
 							"vscode-textmate", // node module allowed even in /common/
-							"@vscode/vscode-languagedetection", // node module allowed even in /common/
-							"@microsoft/applicationinsights-web" // node module allowed even in /common/
+							"@vscode/vscode-languagedetection" // node module allowed even in /common/
 						]
 					},
 					{
@@ -537,7 +536,7 @@
 						]
 					},
 					{
-						"target": "src/vs/workbench/{workbench.sandbox.main.ts,workbench.desktop.sandbox.main.ts}",
+						"target": "src/vs/workbench/workbench.desktop.main.ts",
 						"layer": "electron-sandbox",
 						"restrictions": [
 							"vs/base/*/~",
@@ -550,26 +549,7 @@
 							"vs/workbench/api/~",
 							"vs/workbench/services/*/~",
 							"vs/workbench/contrib/*/~",
-							"vs/workbench/workbench.common.main",
-							"vs/workbench/workbench.sandbox.main"
-						]
-					},
-					{
-						"target": "src/vs/workbench/workbench.desktop.main.ts",
-						"layer": "electron-browser",
-						"restrictions": [
-							"vs/base/*/~",
-							"vs/base/parts/*/~",
-							"vs/platform/*/~",
-							"vs/editor/~",
-							"vs/editor/contrib/*/~",
-							"vs/editor/editor.all",
-							"vs/workbench/~",
-							"vs/workbench/api/~",
-							"vs/workbench/services/*/~",
-							"vs/workbench/contrib/*/~",
-							"vs/workbench/workbench.common.main",
-							"vs/workbench/workbench.sandbox.main"
+							"vs/workbench/workbench.common.main"
 						]
 					},
 					{
@@ -577,7 +557,7 @@
 						"restrictions": []
 					},
 					{
-						"target": "src/vs/{css.d.ts,monaco.d.ts,nls.d.ts,nls.mock.ts}",
+						"target": "src/vs/{loader.d.ts,css.ts,css.build.ts,monaco.d.ts,nls.ts,nls.build.ts,nls.mock.ts}",
 						"restrictions": []
 					},
 					{

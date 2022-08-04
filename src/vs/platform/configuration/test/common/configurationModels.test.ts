@@ -497,7 +497,7 @@ suite('Configuration', () => {
 	test('Test update value', () => {
 		const parser = new ConfigurationModelParser('test');
 		parser.parse(JSON.stringify({ 'a': 1 }));
-		const testObject: Configuration = new Configuration(parser.configurationModel, new ConfigurationModel(), new ConfigurationModel());
+		const testObject: Configuration = new Configuration(parser.configurationModel, new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
 
 		testObject.updateValue('a', 2);
 
@@ -507,7 +507,7 @@ suite('Configuration', () => {
 	test('Test update value after inspect', () => {
 		const parser = new ConfigurationModelParser('test');
 		parser.parse(JSON.stringify({ 'a': 1 }));
-		const testObject: Configuration = new Configuration(parser.configurationModel, new ConfigurationModel(), new ConfigurationModel());
+		const testObject: Configuration = new Configuration(parser.configurationModel, new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
 
 		testObject.inspect('a', {}, undefined);
 		testObject.updateValue('a', 2);
@@ -516,7 +516,7 @@ suite('Configuration', () => {
 	});
 
 	test('Test compare and update default configuration', () => {
-		const testObject = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
+		const testObject = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
 		testObject.updateDefaultConfiguration(toConfigurationModel({
 			'editor.lineNumbers': 'on',
 		}));
@@ -532,8 +532,25 @@ suite('Configuration', () => {
 
 	});
 
+	test('Test compare and update application configuration', () => {
+		const testObject = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
+		testObject.updateApplicationConfiguration(toConfigurationModel({
+			'update.mode': 'on',
+		}));
+
+		const actual = testObject.compareAndUpdateApplicationConfiguration(toConfigurationModel({
+			'update.mode': 'none',
+			'[typescript]': {
+				'editor.wordWrap': 'off'
+			}
+		}));
+
+		assert.deepStrictEqual(actual, { keys: ['[typescript]', 'update.mode',], overrides: [['typescript', ['editor.wordWrap']]] });
+
+	});
+
 	test('Test compare and update user configuration', () => {
-		const testObject = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
+		const testObject = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
 		testObject.updateLocalUserConfiguration(toConfigurationModel({
 			'editor.lineNumbers': 'off',
 			'editor.fontSize': 12,
@@ -556,7 +573,7 @@ suite('Configuration', () => {
 	});
 
 	test('Test compare and update workspace configuration', () => {
-		const testObject = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
+		const testObject = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
 		testObject.updateWorkspaceConfiguration(toConfigurationModel({
 			'editor.lineNumbers': 'off',
 			'editor.fontSize': 12,
@@ -579,7 +596,7 @@ suite('Configuration', () => {
 	});
 
 	test('Test compare and update workspace folder configuration', () => {
-		const testObject = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
+		const testObject = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
 		testObject.updateFolderConfiguration(URI.file('file1'), toConfigurationModel({
 			'editor.lineNumbers': 'off',
 			'editor.fontSize': 12,
@@ -602,7 +619,7 @@ suite('Configuration', () => {
 	});
 
 	test('Test compare and delete workspace folder configuration', () => {
-		const testObject = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
+		const testObject = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
 		testObject.updateFolderConfiguration(URI.file('file1'), toConfigurationModel({
 			'editor.lineNumbers': 'off',
 			'editor.fontSize': 12,
@@ -628,7 +645,7 @@ suite('Configuration', () => {
 suite('ConfigurationChangeEvent', () => {
 
 	test('changeEvent affecting keys with new configuration', () => {
-		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
+		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
 		const change = configuration.compareAndUpdateLocalUserConfiguration(toConfigurationModel({
 			'window.zoomLevel': 1,
 			'workbench.editor.enablePreview': false,
@@ -654,7 +671,7 @@ suite('ConfigurationChangeEvent', () => {
 	});
 
 	test('changeEvent affecting keys when configuration changed', () => {
-		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
+		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
 		configuration.updateLocalUserConfiguration(toConfigurationModel({
 			'window.zoomLevel': 2,
 			'workbench.editor.enablePreview': true,
@@ -683,7 +700,7 @@ suite('ConfigurationChangeEvent', () => {
 	});
 
 	test('changeEvent affecting overrides with new configuration', () => {
-		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
+		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
 		const change = configuration.compareAndUpdateLocalUserConfiguration(toConfigurationModel({
 			'files.autoSave': 'off',
 			'[markdown]': {
@@ -725,7 +742,7 @@ suite('ConfigurationChangeEvent', () => {
 	});
 
 	test('changeEvent affecting overrides when configuration changed', () => {
-		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
+		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
 		configuration.updateLocalUserConfiguration(toConfigurationModel({
 			'workbench.editor.enablePreview': true,
 			'[markdown]': {
@@ -792,7 +809,7 @@ suite('ConfigurationChangeEvent', () => {
 	});
 
 	test('changeEvent affecting workspace folders', () => {
-		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
+		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
 		configuration.updateWorkspaceConfiguration(toConfigurationModel({ 'window.title': 'custom' }));
 		configuration.updateFolderConfiguration(URI.file('folder1'), toConfigurationModel({ 'window.zoomLevel': 2, 'window.restoreFullscreen': true }));
 		configuration.updateFolderConfiguration(URI.file('folder2'), toConfigurationModel({ 'workbench.editor.enablePreview': true, 'window.restoreWindows': true }));
@@ -882,7 +899,7 @@ suite('ConfigurationChangeEvent', () => {
 	});
 
 	test('changeEvent - all', () => {
-		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
+		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
 		configuration.updateFolderConfiguration(URI.file('file1'), toConfigurationModel({ 'window.zoomLevel': 2, 'window.restoreFullscreen': true }));
 		const data = configuration.toData();
 		const change = mergeChanges(
@@ -977,7 +994,7 @@ suite('ConfigurationChangeEvent', () => {
 	});
 
 	test('changeEvent affecting tasks and launches', () => {
-		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
+		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
 		const change = configuration.compareAndUpdateLocalUserConfiguration(toConfigurationModel({
 			'launch': {
 				'configuraiton': {}
@@ -1000,7 +1017,7 @@ suite('ConfigurationChangeEvent', () => {
 suite('AllKeysConfigurationChangeEvent', () => {
 
 	test('changeEvent', () => {
-		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
+		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
 		configuration.updateDefaultConfiguration(toConfigurationModel({
 			'editor.lineNumbers': 'off',
 			'[markdown]': {

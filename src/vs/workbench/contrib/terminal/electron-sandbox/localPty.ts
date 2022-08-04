@@ -25,7 +25,8 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 		hasChildProcesses: true,
 		resolvedShellLaunchConfig: {},
 		overrideDimensions: undefined,
-		failedShellIntegrationActivation: false
+		failedShellIntegrationActivation: false,
+		usedShellIntegrationInjection: undefined
 	};
 	private readonly _onProcessData = this._register(new Emitter<IProcessDataEvent | string>());
 	readonly onProcessData = this._onProcessData.event;

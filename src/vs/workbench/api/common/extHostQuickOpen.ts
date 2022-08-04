@@ -218,16 +218,12 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 
 		$onDidChangeValue(sessionId: number, value: string): void {
 			const session = this._sessions.get(sessionId);
-			if (session) {
-				session._fireDidChangeValue(value);
-			}
+			session?._fireDidChangeValue(value);
 		}
 
 		$onDidAccept(sessionId: number): void {
 			const session = this._sessions.get(sessionId);
-			if (session) {
-				session._fireDidAccept();
-			}
+			session?._fireDidAccept();
 		}
 
 		$onDidChangeActive(sessionId: number, handles: number[]): void {
@@ -246,9 +242,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 
 		$onDidTriggerButton(sessionId: number, handle: number): void {
 			const session = this._sessions.get(sessionId);
-			if (session) {
-				session._fireDidTriggerButton(handle);
-			}
+			session?._fireDidTriggerButton(handle);
 		}
 
 		$onDidTriggerItemButton(sessionId: number, itemHandle: number, buttonHandle: number): void {
@@ -260,9 +254,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 
 		$onDidHide(sessionId: number): void {
 			const session = this._sessions.get(sessionId);
-			if (session) {
-				session._fireDidHide();
-			}
+			session?._fireDidHide();
 		}
 	}
 

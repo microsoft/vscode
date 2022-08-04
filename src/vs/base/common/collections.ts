@@ -9,45 +9,11 @@
  */
 export type IStringDictionary<V> = Record<string, V>;
 
-
 /**
  * An interface for a JavaScript object that
  * acts a dictionary. The keys are numbers.
  */
 export type INumberDictionary<V> = Record<number, V>;
-
-const hasOwnProperty = Object.prototype.hasOwnProperty;
-
-/**
- * Returns an array which contains all values that reside
- * in the given dictionary.
- */
-export function values<T>(from: IStringDictionary<T> | INumberDictionary<T>): T[] {
-	const result: T[] = [];
-	for (const key in from) {
-		if (hasOwnProperty.call(from, key)) {
-			result.push((from as any)[key]);
-		}
-	}
-	return result;
-}
-
-/**
- * Iterates over each entry in the provided dictionary. The iterator allows
- * to remove elements and will stop when the callback returns {{false}}.
- */
-export function forEach<T>(from: IStringDictionary<T> | INumberDictionary<T>, callback: (entry: { key: any; value: T }, remove: () => void) => any): void {
-	for (const key in from) {
-		if (hasOwnProperty.call(from, key)) {
-			const result = callback({ key: key, value: (from as any)[key] }, function () {
-				delete (from as any)[key];
-			});
-			if (result === false) {
-				return;
-			}
-		}
-	}
-}
 
 /**
  * Groups the collection into a dictionary based on the provided
@@ -62,16 +28,6 @@ export function groupBy<K extends string | number | symbol, V>(data: V[], groupF
 			target = result[key] = [];
 		}
 		target.push(element);
-	}
-	return result;
-}
-
-export function fromMap<T>(original: Map<string, T>): IStringDictionary<T> {
-	const result: IStringDictionary<T> = Object.create(null);
-	if (original) {
-		original.forEach((value, key) => {
-			result[key] = value;
-		});
 	}
 	return result;
 }

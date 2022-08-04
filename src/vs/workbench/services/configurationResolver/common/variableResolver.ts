@@ -138,7 +138,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 	private async recursiveResolve(environment: Environment, folderUri: uri | undefined, value: any, commandValueMapping?: IStringDictionary<string>, resolvedVariables?: Map<string, string>): Promise<any> {
 		if (types.isString(value)) {
 			return this.resolveString(environment, folderUri, value, commandValueMapping, resolvedVariables);
-		} else if (types.isArray(value)) {
+		} else if (Array.isArray(value)) {
 			return Promise.all(value.map(s => this.recursiveResolve(environment, folderUri, s, commandValueMapping, resolvedVariables)));
 		} else if (types.isObject(value)) {
 			const result: IStringDictionary<string | IStringDictionary<string> | string[]> = Object.create(null);
@@ -165,9 +165,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 
 			let resolvedValue = await this.evaluateSingleVariable(environment, match, variable, folderUri, commandValueMapping);
 
-			if (resolvedVariables) {
-				resolvedVariables.set(variable, resolvedValue);
-			}
+			resolvedVariables?.set(variable, resolvedValue);
 
 			if ((resolvedValue !== match) && types.isString(resolvedValue) && resolvedValue.match(AbstractVariableResolverService.VARIABLE_REGEXP)) {
 				resolvedValue = await this.resolveString(environment, folderUri, resolvedValue, commandValueMapping, resolvedVariables);

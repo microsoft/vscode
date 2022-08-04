@@ -25,6 +25,7 @@ import * as jsoncParser from 'jsonc-parser';
 import webpack = require('webpack');
 import { getProductionDependencies } from './dependencies';
 import _ = require('underscore');
+import { getExtensionStream } from './builtInExtensions';
 const util = require('./util');
 const root = path.dirname(path.dirname(__dirname));
 const commit = util.getVersion(root);
@@ -286,7 +287,6 @@ const excludedExtensions = [
 	'ms-vscode.node-debug',
 	'ms-vscode.node-debug2',
 	'vscode-notebook-tests',
-	'vscode-custom-editor-tests',
 ];
 
 const marketplaceWebExtensionsExclude = new Set([
@@ -382,7 +382,7 @@ export function packageLocalExtensionsStream(forWeb: boolean): Stream {
 	);
 }
 
-export function packageMarketplaceExtensionsStream(forWeb: boolean, galleryServiceUrl?: string): Stream {
+export function packageMarketplaceExtensionsStream(forWeb: boolean): Stream {
 	const marketplaceExtensionsDescriptions = [
 		...builtInExtensions.filter(({ name }) => (forWeb ? !marketplaceWebExtensionsExclude.has(name) : true)),
 		...(forWeb ? webBuiltInExtensions : [])
@@ -391,9 +391,8 @@ export function packageMarketplaceExtensionsStream(forWeb: boolean, galleryServi
 		es.merge(
 			...marketplaceExtensionsDescriptions
 				.map(extension => {
-					const input = (galleryServiceUrl ? fromMarketplace(galleryServiceUrl, extension) : fromGithub(extension))
-						.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
-					return updateExtensionPackageJSON(input, (data: any) => {
+					const src = getExtensionStream(extension).pipe(rename(p => p.dirname = `extensions/${p.dirname}`));
+					return updateExtensionPackageJSON(src, (data: any) => {
 						delete data.scripts;
 						delete data.dependencies;
 						delete data.devDependencies;
@@ -487,6 +486,7 @@ const esbuildMediaScripts = [
 	'markdown-language-features/esbuild-preview.js',
 	'markdown-math/esbuild.js',
 	'notebook-renderers/esbuild.js',
+	'ipynb/esbuild.js',
 	'simple-browser/esbuild-preview.js',
 ];
 

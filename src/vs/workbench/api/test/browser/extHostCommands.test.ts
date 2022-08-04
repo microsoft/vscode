@@ -60,7 +60,7 @@ suite('ExtHostCommands', function () {
 		assert.strictEqual(unregisterCounter, 1);
 	});
 
-	test('execute triggers activate', async function () {
+	test('execute with retry', async function () {
 
 		let count = 0;
 
@@ -68,13 +68,16 @@ suite('ExtHostCommands', function () {
 			override $registerCommand(id: string): void {
 				//
 			}
-
-			override async $activateByCommandEvent(id: string): Promise<void> {
-				count += 1;
-			}
-
-			override async $executeCommand<T>(id: string, args: any[]): Promise<T | undefined> {
-				return undefined;
+			override async $executeCommand<T>(id: string, args: any[], retry: boolean): Promise<T | undefined> {
+				count++;
+				assert.strictEqual(retry, count === 1);
+				if (count === 1) {
+					assert.strictEqual(retry, true);
+					throw new Error('$executeCommand:retry');
+				} else {
+					assert.strictEqual(retry, false);
+					return <any>17;
+				}
 			}
 		};
 
@@ -83,7 +86,32 @@ suite('ExtHostCommands', function () {
 			new NullLogService()
 		);
 
-		await commands.executeCommand('fooo', [this, true]);
-		assert.strictEqual(count, 1);
+		const result = await commands.executeCommand('fooo', [this, true]);
+		assert.strictEqual(result, 17);
+		assert.strictEqual(count, 2);
+	});
+
+	test('onCommand:abc activates extensions when executed from command palette, but not when executed programmatically with vscode.commands.executeCommand #150293', async function () {
+
+		const activationEvents: string[] = [];
+
+		const shape = new class extends mock<MainThreadCommandsShape>() {
+			override $registerCommand(id: string): void {
+				//
+			}
+			override $fireCommandActivationEvent(id: string): void {
+				activationEvents.push(id);
+			}
+		};
+		const commands = new ExtHostCommands(
+			SingleProxyRPCProtocol(shape),
+			new NullLogService()
+		);
+
+		commands.registerCommand(true, 'extCmd', (args: any): any => args);
+
+		const result = await commands.executeCommand('extCmd', this);
+		assert.strictEqual(result, this);
+		assert.deepStrictEqual(activationEvents, ['extCmd']);
 	});
 });

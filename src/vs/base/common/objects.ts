@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isArray, isTypedArray, isObject, isUndefinedOrNull } from 'vs/base/common/types';
+import { isTypedArray, isObject, isUndefinedOrNull } from 'vs/base/common/types';
 
 export function deepClone<T>(obj: T): T {
 	if (!obj || typeof obj !== 'object') {
@@ -61,7 +61,7 @@ function _cloneAndChange(obj: any, changer: (orig: any) => any, seen: Set<any>):
 		return changed;
 	}
 
-	if (isArray(obj)) {
+	if (Array.isArray(obj)) {
 		const r1: any[] = [];
 		for (const e of obj) {
 			r1.push(_cloneAndChange(e, changer, seen));
@@ -184,11 +184,6 @@ export function safeStringify(obj: any): string {
 		}
 		return value;
 	});
-}
-
-export function getOrDefault<T, R>(obj: T, fn: (obj: T) => R | undefined, defaultValue: R): R {
-	const result = fn(obj);
-	return typeof result === 'undefined' ? defaultValue : result;
 }
 
 type obj = { [key: string]: any };

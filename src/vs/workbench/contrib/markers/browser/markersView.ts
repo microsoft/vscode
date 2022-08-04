@@ -40,7 +40,6 @@ import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/marke
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { MementoObject, Memento } from 'vs/workbench/common/memento';
 import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { editorLightBulbForeground, editorLightBulbAutoFixForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
@@ -227,9 +226,7 @@ export class MarkersView extends ViewPane implements IMarkersView {
 		const wasSmallLayout = this.smallLayout;
 		this.smallLayout = width < 600 && height > 100;
 		if (this.smallLayout !== wasSmallLayout) {
-			if (this.filterActionBar) {
-				this.filterActionBar.getContainer().classList.toggle('hide', !this.smallLayout);
-			}
+			this.filterActionBar?.getContainer().classList.toggle('hide', !this.smallLayout);
 		}
 		const contentHeight = this.smallLayout ? height - 44 : height;
 		if (this.messageBoxContainer) {
@@ -430,9 +427,7 @@ export class MarkersView extends ViewPane implements IMarkersView {
 			for (const element of elements) {
 				if (element instanceof Marker) {
 					const viewModel = this.markersViewModel.getViewModel(element);
-					if (viewModel) {
-						viewModel.showLightBulb();
-					}
+					viewModel?.showLightBulb();
 				}
 			}
 		}));
@@ -449,6 +444,12 @@ export class MarkersView extends ViewPane implements IMarkersView {
 			this.filter.options,
 			{
 				accessibilityProvider: this.widgetAccessibilityProvider,
+				dnd: this.instantiationService.createInstance(ResourceListDnDHandler, (element) => {
+					if (element instanceof MarkerTableItem) {
+						return withSelection(element.resource, element.range);
+					}
+					return null;
+				}),
 				horizontalScrolling: false,
 				identityProvider: this.widgetIdentityProvider,
 				multipleSelectionSupport: true,
@@ -918,14 +919,13 @@ class MarkersTree extends WorkbenchObjectTree<MarkerElement, FilterData> impleme
 		delegate: IListVirtualDelegate<MarkerElement>,
 		renderers: ITreeRenderer<MarkerElement, FilterData, any>[],
 		options: IWorkbenchObjectTreeOptions<MarkerElement, FilterData>,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IAccessibilityService accessibilityService: IAccessibilityService
 	) {
-		super(user, container, delegate, renderers, options, contextKeyService, listService, themeService, configurationService, keybindingService, accessibilityService);
+		super(user, container, delegate, renderers, options, instantiationService, contextKeyService, listService, themeService, configurationService);
 		this.visibilityContextKey = MarkersContextKeys.MarkersTreeVisibilityContextKey.bindTo(contextKeyService);
 	}
 
@@ -1007,6 +1007,8 @@ class MarkersTree extends WorkbenchObjectTree<MarkerElement, FilterData> impleme
 				} else {
 					this.setFocus([this.findMarkerNode(selection[0])]);
 				}
+
+				this.reveal(this.findMarkerNode(selection[0]));
 			} else if (this.getSelection().length === 0) {
 				const firstVisibleElement = this.firstVisibleElement;
 				const marker = firstVisibleElement ?
@@ -1015,8 +1017,9 @@ class MarkersTree extends WorkbenchObjectTree<MarkerElement, FilterData> impleme
 					: undefined;
 
 				if (marker) {
-					this.setFocus([marker]);
 					this.setSelection([marker]);
+					this.setFocus([marker]);
+					this.reveal(marker);
 				}
 			}
 		}

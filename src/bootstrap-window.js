@@ -136,6 +136,7 @@
 			'vscode-textmate': `${baseNodeModulesPath}/vscode-textmate/release/main.js`,
 			'vscode-oniguruma': `${baseNodeModulesPath}/vscode-oniguruma/release/main.js`,
 			'xterm': `${baseNodeModulesPath}/xterm/lib/xterm.js`,
+			'xterm-addon-canvas': `${baseNodeModulesPath}/xterm-addon-canvas/lib/xterm-addon-canvas.js`,
 			'xterm-addon-search': `${baseNodeModulesPath}/xterm-addon-search/lib/xterm-addon-search.js`,
 			'xterm-addon-unicode11': `${baseNodeModulesPath}/xterm-addon-unicode11/lib/xterm-addon-unicode11.js`,
 			'xterm-addon-webgl': `${baseNodeModulesPath}/xterm-addon-webgl/lib/xterm-addon-webgl.js`,
@@ -150,7 +151,7 @@
 		// which has a fallback to using node.js `require`
 		// (node.js enabled renderers only)
 		if (!safeProcess.sandboxed) {
-			loaderConfig.amdModulesPattern = /(^vs\/)|(^vscode-textmate$)|(^vscode-oniguruma$)|(^xterm$)|(^xterm-addon-search$)|(^xterm-addon-unicode11$)|(^xterm-addon-webgl$)|(^@vscode\/iconv-lite-umd$)|(^jschardet$)|(^@vscode\/vscode-languagedetection$)|(^vscode-regexp-languagedetection$)|(^tas-client-umd$)/;
+			loaderConfig.amdModulesPattern = /(^vs\/)|(^vscode-textmate$)|(^vscode-oniguruma$)|(^xterm$)|(^xterm-addon-canvas$)|(^xterm-addon-search$)|(^xterm-addon-unicode11$)|(^xterm-addon-webgl$)|(^@vscode\/iconv-lite-umd$)|(^jschardet$)|(^@vscode\/vscode-languagedetection$)|(^vscode-regexp-languagedetection$)|(^tas-client-umd$)/;
 		}
 
 		// Signal before require.config()

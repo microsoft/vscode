@@ -223,6 +223,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		const folderUri = folder ? uri.revive(folder) : undefined;
 		const launch = this.debugService.getConfigurationManager().getLaunch(folderUri);
 		const parentSession = this.getSession(options.parentSessionID);
+		const saveBeforeStart = typeof options.suppressSaveBeforeStart === 'boolean' ? !options.suppressSaveBeforeStart : undefined;
 		const debugOptions: IDebugSessionOptions = {
 			noDebug: options.noDebug,
 			parentSession,
@@ -230,11 +231,11 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			repl: options.repl,
 			compact: options.compact,
 			debugUI: options.debugUI,
-			compoundRoot: parentSession?.compoundRoot
+			compoundRoot: parentSession?.compoundRoot,
+			saveBeforeStart: saveBeforeStart
 		};
 		try {
-			const saveBeforeStart = typeof options.suppressSaveBeforeStart === 'boolean' ? !options.suppressSaveBeforeStart : undefined;
-			return this.debugService.startDebugging(launch, nameOrConfig, debugOptions, saveBeforeStart);
+			return this.debugService.startDebugging(launch, nameOrConfig, debugOptions);
 		} catch (err) {
 			throw new ErrorNoTelemetry(err && err.message ? err.message : 'cannot start debugging');
 		}
@@ -242,9 +243,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 	public $setDebugSessionName(sessionId: DebugSessionUUID, name: string): void {
 		const session = this.debugService.getModel().getSession(sessionId);
-		if (session) {
-			session.setName(name);
-		}
+		session?.setName(name);
 	}
 
 	public $customDebugAdapterRequest(sessionId: DebugSessionUUID, request: string, args: any): Promise<any> {
@@ -284,9 +283,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	public $appendDebugConsole(value: string): void {
 		// Use warning as severity to get the orange color for messages coming from the debug extension
 		const session = this.debugService.getViewModel().focusedSession;
-		if (session) {
-			session.appendToRepl(value, severity.Warning);
-		}
+		session?.appendToRepl(value, severity.Warning);
 	}
 
 	public $acceptDAMessage(handle: number, message: DebugProtocol.ProtocolMessage) {

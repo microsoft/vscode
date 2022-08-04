@@ -138,6 +138,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			case '$setTerminalLayoutInfo': return this._ptyService.setTerminalLayoutInfo(<ISetTerminalLayoutInfoArgs>args);
 			case '$serializeTerminalState': return this._ptyService.serializeTerminalState.apply(this._ptyService, args);
 			case '$reviveTerminalProcesses': return this._ptyService.reviveTerminalProcesses.apply(this._ptyService, args);
+			case '$getRevivedPtyNewId': return this._ptyService.getRevivedPtyNewId.apply(this._ptyService, args);
 			case '$setUnicodeVersion': return this._ptyService.setUnicodeVersion.apply(this._ptyService, args);
 			case '$reduceConnectionGraceTime': return this._reduceConnectionGraceTime();
 			case '$updateIcon': return this._ptyService.updateIcon.apply(this._ptyService, args);
@@ -188,7 +189,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		};
 
 
-		const baseEnv = await buildUserEnvironment(args.resolverEnv, !!args.shellLaunchConfig.useShellEnvironment, platform.language, false, this._environmentService, this._logService);
+		const baseEnv = await buildUserEnvironment(args.resolverEnv, !!args.shellLaunchConfig.useShellEnvironment, platform.language, this._environmentService, this._logService);
 		this._logService.trace('baseEnv', baseEnv);
 
 		const reviveWorkspaceFolder = (workspaceData: IWorkspaceFolderData): IWorkspaceFolder => {
