@@ -24,7 +24,6 @@ class CopyPasteEditProvider implements vscode.DocumentPasteEditProvider {
 		if (!fileDataAsUint8) {
 			return undefined;
 		}
-		const b64string = encodeBase64(fileDataAsUint8);
 
 		// get filename data from paste
 		let pasteFilename = dataItem.asFile()?.name;
@@ -39,72 +38,62 @@ class CopyPasteEditProvider implements vscode.DocumentPasteEditProvider {
 		}
 
 		// get notebook cell data
+		let notebookUri;
 		let currentCell;
 		for (const notebook of vscode.workspace.notebookDocuments) {
 			if (notebook.uri.path === _document.uri.path) {
 				for (const cell of notebook.getCells()) {
 					if (cell.document === _document) {
 						currentCell = cell;
+						notebookUri = notebook.uri;
 						break;
 					}
 				}
-
 			}
 		}
-		if (!currentCell) {
+		if (!currentCell || !notebookUri) {
 			return undefined;
 		}
-		const initialAttachments = currentCell.metadata?.custom?.attachments;
-		const initialize = !initialAttachments ? true : false;
 
 		// create updated metadata for cell (prep for WorkspaceEdit)
-		if (!initialize) {
-			let appendValue = 2;
-			while (true) {
-				if (pasteFilename in initialAttachments) {
-					const objEntries = Object.entries(initialAttachments[pasteFilename]);
-					if (objEntries.length) { // check that mime:b64 are present
-						const [, attachmentb64] = objEntries[0];
-						if (attachmentb64 !== b64string) {	// append a "-#" here. same name, diff data. this matches jupyter behavior
-							pasteFilename = filename.concat(`-${appendValue++}`) + filetype;
-							continue;
-						}
+		const b64string = encodeBase64(fileDataAsUint8);
+		const startingAttachments = currentCell.metadata?.custom?.attachments;
+		if (!startingAttachments) {
+			currentCell.metadata.custom['attachments'] = { [pasteFilename]: { 'image/png': b64string } };
+		} else {
+			for (let appendValue = 2; pasteFilename in startingAttachments; appendValue++) {
+				const objEntries = Object.entries(startingAttachments[pasteFilename]);
+				if (objEntries.length) { // check that mime:b64 are present
+					const [, attachmentb64] = objEntries[0];
+					if (attachmentb64 !== b64string) {	// append a "-#" here. same name, diff data. this matches jupyter behavior
+						pasteFilename = filename.concat(`-${appendValue}`) + filetype;
 					}
 				}
-				break;
 			}
-		}
-		if (!pasteFilename) {
-			return undefined;
-		}
-		const updatedMetadata = { 'custom': { 'attachments': { [pasteFilename]: { 'image/png': b64string } } } };
-		if (!initialize) {
-			for (const entry of Object.keys(initialAttachments)) {
-				updatedMetadata.custom.attachments[entry] = initialAttachments[entry];
-			}
+			currentCell.metadata.custom.attachments[pasteFilename] = { 'image/png': b64string };
 		}
 
-		// create WorkspaceEdit and apply to active notebook
-		const newCellMetadata = vscode.NotebookEdit.updateCellMetadata(currentCell.index, updatedMetadata);
-		const edit = new vscode.WorkspaceEdit();
-		if (newCellMetadata) {
-			edit.set(vscode.Uri.file(_document.uri.path), [newCellMetadata]);
+		const metadataNotebookEdit = vscode.NotebookEdit.updateCellMetadata(currentCell.index, currentCell.metadata);
+		const workspaceEdit = new vscode.WorkspaceEdit();
+		if (metadataNotebookEdit) {
+			workspaceEdit.set(notebookUri, [metadataNotebookEdit]);
 		}
 
 		// create a snippet for paste
-		const snippet = new vscode.SnippetString();
-		snippet.appendChoice([`![insert-alt-text-here](attachment:${pasteFilename})`, `![${pasteFilename}](attachment:${pasteFilename})`]);
+		const pasteSnippet = new vscode.SnippetString();
+		pasteSnippet.appendText('![');
+		pasteSnippet.appendPlaceholder(`${pasteFilename}`);
+		pasteSnippet.appendText(`](attachment:${pasteFilename})`);
 
-		return { insertText: snippet, additionalEdit: edit };
+		return { insertText: pasteSnippet, additionalEdit: workspaceEdit };
 	}
 }
 
-export function imagePasteSetup(context: vscode.ExtensionContext) {
+export function imagePasteSetup() {
 	const selector: vscode.DocumentSelector = { notebookType: 'jupyter-notebook', language: 'markdown' }; // this is correct provider
-	context.subscriptions.push(vscode.languages.registerDocumentPasteEditProvider(selector, new CopyPasteEditProvider(), {
+	return vscode.languages.registerDocumentPasteEditProvider(selector, new CopyPasteEditProvider(), {
 		pasteMimeTypes: ['image/png'],
-	}));
-
+	});
 }
 
 function encodeBase64(buffer: Uint8Array, padded = true, urlSafe = false) {
