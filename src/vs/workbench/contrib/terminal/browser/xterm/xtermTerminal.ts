@@ -57,19 +57,14 @@ let WebglAddon: typeof WebglAddonType;
 export class XtermTerminal extends DisposableStore implements IXtermTerminal, IInternalXtermTerminal {
 	/** The raw xterm.js instance */
 	readonly raw: RawXtermTerminal;
-	private _bufferLines: string[] = [];
 
-	get bufferLines(): string[] {
-		if (this.raw.buffer.active.length === this._bufferLines.length) {
-			return this._bufferLines;
-		}
-		for (let i = this._bufferLines.length; i < this.raw.buffer.active.length; i++) {
-			const line = this.raw.buffer.active.getLine(i)?.translateToString();
+	*getBufferReverseIterator(): IterableIterator<string> {
+		for (let i = this.raw.buffer.active.length; i >= 0; i--) {
+			const line = this.raw.buffer.active.getLine(i)?.translateToString().trim();
 			if (line) {
-				this._bufferLines.push(line);
+				yield line;
 			}
 		}
-		return this._bufferLines;
 	}
 	private _core: IXtermCore;
 	private static _suggestedRendererType: 'canvas' | 'dom' | undefined = undefined;
