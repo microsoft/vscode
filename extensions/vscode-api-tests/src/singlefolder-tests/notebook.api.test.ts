@@ -129,7 +129,7 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 	}
 };
 
-(vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('Notebook API tests', function () {
+(vscode.env.uiKind === vscode.UIKind.Web ? suite : suite)('Notebook API tests', function () {
 
 	const testDisposables: vscode.Disposable[] = [];
 	const suiteDisposables: vscode.Disposable[] = [];
@@ -273,7 +273,7 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 	});
 });
 
-(vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('statusbar', () => {
+(vscode.env.uiKind === vscode.UIKind.Web ? suite : suite)('statusbar', () => {
 	const emitter = new vscode.EventEmitter<vscode.NotebookCell>();
 	const onDidCallProvide = emitter.event;
 	const suiteDisposables: vscode.Disposable[] = [];
