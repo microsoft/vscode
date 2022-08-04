@@ -913,13 +913,6 @@ var requirejs = (function() {
 	}
 
 	private initializeWebViewState() {
-		const renderers = new Set<INotebookRendererInfo>();
-		for (const inset of this.insetMapping.values()) {
-			if (inset.renderer) {
-				renderers.add(inset.renderer);
-			}
-		}
-
 		this._preloadsCache.clear();
 		if (this._currentKernel) {
 			this._updatePreloadsFromKernel(this._currentKernel);
@@ -929,9 +922,6 @@ var requirejs = (function() {
 			this._sendMessageToWebview({ ...inset.cachedCreation, initiallyHidden: this.hiddenInsetMapping.has(output) });
 		}
 
-		const mdCells = [...this.markupPreviewMapping.values()];
-		this.markupPreviewMapping.clear();
-		this.initializeMarkup(mdCells);
 		this._updateStyles();
 		this._updateOptions();
 	}
