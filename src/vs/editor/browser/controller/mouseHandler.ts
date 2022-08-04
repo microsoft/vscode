@@ -6,7 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { StandardWheelEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { TimeoutTimer } from 'vs/base/common/async';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { HitTestContext, MouseTarget, MouseTargetFactory, PointerHandlerLastRenderData } from 'vs/editor/browser/controller/mouseTarget';
 import { IMouseTarget, IMouseTargetViewZoneData, MouseTargetType } from 'vs/editor/browser/editorBrowser';
@@ -20,22 +20,6 @@ import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-
-/**
- * Merges mouse events when mouse move events are throttled
- */
-export function createMouseMoveEventMerger(mouseTargetFactory: MouseTargetFactory | null) {
-	return function (lastEvent: EditorMouseEvent | null, currentEvent: EditorMouseEvent): EditorMouseEvent {
-		let targetIsWidget = false;
-		if (mouseTargetFactory) {
-			targetIsWidget = mouseTargetFactory.mouseTargetIsWidget(currentEvent);
-		}
-		if (!targetIsWidget) {
-			currentEvent.preventDefault();
-		}
-		return currentEvent;
-	};
-}
 
 export interface IPointerHandlerHelper {
 	viewDomNode: HTMLElement;
@@ -64,8 +48,6 @@ export interface IPointerHandlerHelper {
 
 export class MouseHandler extends ViewEventHandler {
 
-	static readonly MOUSE_MOVE_MINIMUM_TIME = 100; // ms
-
 	protected _context: ViewContext;
 	protected viewController: ViewController;
 	protected viewHelper: IPointerHandlerHelper;
@@ -73,6 +55,7 @@ export class MouseHandler extends ViewEventHandler {
 	protected readonly _mouseDownOperation: MouseDownOperation;
 	private lastMouseLeaveTime: number;
 	private _height: number;
+	private _mouseLeaveMonitor: IDisposable | null = null;
 
 	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
 		super();
@@ -97,9 +80,25 @@ export class MouseHandler extends ViewEventHandler {
 
 		this._register(mouseEvents.onContextMenu(this.viewHelper.viewDomNode, (e) => this._onContextMenu(e, true)));
 
-		this._register(mouseEvents.onMouseMoveThrottled(this.viewHelper.viewDomNode,
-			(e) => this._onMouseMove(e),
-			createMouseMoveEventMerger(this.mouseTargetFactory), MouseHandler.MOUSE_MOVE_MINIMUM_TIME));
+		this._register(mouseEvents.onMouseMove(this.viewHelper.viewDomNode, (e) => {
+			this._onMouseMove(e);
+
+			// See https://github.com/microsoft/vscode/issues/138789
+			// When moving the mouse really quickly, the browser sometimes forgets to
+			// send us a `mouseleave` or `mouseout` event. We therefore install here
+			// a global `mousemove` listener to manually recover if the mouse goes outside
+			// the editor. As soon as the mouse leaves outside of the editor, we
+			// remove this listener
+
+			if (!this._mouseLeaveMonitor) {
+				this._mouseLeaveMonitor = dom.addDisposableListener(document, 'mousemove', (e) => {
+					if (!this.viewHelper.viewDomNode.contains(e.target as Node | null)) {
+						// went outside the editor!
+						this._onMouseLeave(new EditorMouseEvent(e, false, this.viewHelper.viewDomNode));
+					}
+				});
+			}
+		}));
 
 		this._register(mouseEvents.onMouseUp(this.viewHelper.viewDomNode, (e) => this._onMouseUp(e)));
 
@@ -109,11 +108,9 @@ export class MouseHandler extends ViewEventHandler {
 		// because their `e.detail` is always 0.
 		// We will therefore save the pointer id for the mouse and then reuse it in the `mousedown` event
 		// for `element.setPointerCapture`.
-		let mousePointerId: number = 0;
-		this._register(mouseEvents.onPointerDown(this.viewHelper.viewDomNode, (e, pointerType, pointerId) => {
-			if (pointerType === 'mouse') {
-				mousePointerId = pointerId;
-			}
+		let capturePointerId: number = 0;
+		this._register(mouseEvents.onPointerDown(this.viewHelper.viewDomNode, (e, pointerId) => {
+			capturePointerId = pointerId;
 		}));
 		// The `pointerup` listener registered by `GlobalEditorPointerMoveMonitor` does not get invoked 100% of the times.
 		// I speculate that this is because the `pointerup` listener is only registered during the `mousedown` event, and perhaps
@@ -123,7 +120,7 @@ export class MouseHandler extends ViewEventHandler {
 		this._register(dom.addDisposableListener(this.viewHelper.viewDomNode, dom.EventType.POINTER_UP, (e: PointerEvent) => {
 			this._mouseDownOperation.onPointerUp();
 		}));
-		this._register(mouseEvents.onMouseDown(this.viewHelper.viewDomNode, (e) => this._onMouseDown(e, mousePointerId)));
+		this._register(mouseEvents.onMouseDown(this.viewHelper.viewDomNode, (e) => this._onMouseDown(e, capturePointerId)));
 
 		const onMouseWheel = (browserEvent: IMouseWheelEvent) => {
 			this.viewController.emitMouseWheel(browserEvent);
@@ -154,6 +151,10 @@ export class MouseHandler extends ViewEventHandler {
 
 	public override dispose(): void {
 		this._context.removeEventHandler(this);
+		if (this._mouseLeaveMonitor) {
+			this._mouseLeaveMonitor.dispose();
+			this._mouseLeaveMonitor = null;
+		}
 		super.dispose();
 	}
 
@@ -220,6 +221,11 @@ export class MouseHandler extends ViewEventHandler {
 	}
 
 	public _onMouseMove(e: EditorMouseEvent): void {
+		const targetIsWidget = this.mouseTargetFactory.mouseTargetIsWidget(e);
+		if (!targetIsWidget) {
+			e.preventDefault();
+		}
+
 		if (this._mouseDownOperation.isActive()) {
 			// In selection/drag operation
 			return;
@@ -237,6 +243,10 @@ export class MouseHandler extends ViewEventHandler {
 	}
 
 	public _onMouseLeave(e: EditorMouseEvent): void {
+		if (this._mouseLeaveMonitor) {
+			this._mouseLeaveMonitor.dispose();
+			this._mouseLeaveMonitor = null;
+		}
 		this.lastMouseLeaveTime = (new Date()).getTime();
 		this.viewController.emitMouseLeave({
 			event: e,
@@ -404,7 +414,6 @@ class MouseDownOperation extends Disposable {
 				this._viewHelper.viewLinesDomNode,
 				pointerId,
 				e.buttons,
-				createMouseMoveEventMerger(null),
 				(e) => this._onMouseDownThenMove(e),
 				(browserEvent?: MouseEvent | KeyboardEvent) => {
 					const position = this._findMousePosition(this._lastMouseEvent!, false);
@@ -435,7 +444,6 @@ class MouseDownOperation extends Disposable {
 				this._viewHelper.viewLinesDomNode,
 				pointerId,
 				e.buttons,
-				createMouseMoveEventMerger(null),
 				(e) => this._onMouseDownThenMove(e),
 				() => this._stop()
 			);

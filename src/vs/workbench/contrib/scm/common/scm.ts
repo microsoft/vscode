@@ -99,7 +99,9 @@ export interface ISCMInputChangeEvent {
 
 export interface ISCMActionButtonDescriptor {
 	command: Command;
+	secondaryCommands?: Command[][];
 	description?: string;
+	enabled: boolean;
 }
 
 export interface ISCMActionButton {
@@ -120,6 +122,9 @@ export interface ISCMInput {
 
 	validateInput: IInputValidator;
 	readonly onDidChangeValidateInput: Event<void>;
+
+	enabled: boolean;
+	readonly onDidChangeEnablement: Event<boolean>;
 
 	visible: boolean;
 	readonly onDidChangeVisibility: Event<boolean>;

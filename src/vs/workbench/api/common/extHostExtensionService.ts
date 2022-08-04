@@ -62,14 +62,14 @@ export interface IHostUtils {
 }
 
 type TelemetryActivationEventFragment = {
-	id: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
-	name: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
-	extensionVersion: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
-	publisherDisplayName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-	activationEvents: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-	isBuiltin: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-	reasonId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
+	id: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The identifier of an extension' };
+	name: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The name of the extension' };
+	extensionVersion: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The version of the extension' };
+	publisherDisplayName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The publisher of the extension' };
+	activationEvents: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'All activation events of the extension' };
+	isBuiltin: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'If the extension is builtin or git installed' };
+	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The activation event' };
+	reasonId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The identifier of the activation event' };
 };
 
 export abstract class AbstractExtHostExtensionService extends Disposable implements ExtHostExtensionServiceShape {
@@ -424,7 +424,9 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	private _logExtensionActivationTimes(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason, outcome: string, activationTimes?: ExtensionActivationTimes) {
 		const event = getTelemetryActivationEvent(extensionDescription, reason);
 		type ExtensionActivationTimesClassification = {
-			outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			owner: 'jrieken';
+			comment: 'Timestamps for extension activation';
+			outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Did extension activation succeed or fail' };
 		} & TelemetryActivationEventFragment & ExtensionActivationTimesFragment;
 
 		type ExtensionActivationTimesEvent = {
@@ -447,7 +449,10 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 	private _doActivateExtension(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): Promise<ActivatedExtension> {
 		const event = getTelemetryActivationEvent(extensionDescription, reason);
-		type ActivatePluginClassification = {} & TelemetryActivationEventFragment;
+		type ActivatePluginClassification = {
+			owner: 'jrieken';
+			comment: 'Data about how/why an extension was activated';
+		} & TelemetryActivationEventFragment;
 		this._mainThreadTelemetryProxy.$publicLog2<TelemetryActivationEvent, ActivatePluginClassification>('activatePlugin', event);
 		const entryPoint = this._getEntryPoint(extensionDescription);
 		if (!entryPoint) {
@@ -709,10 +714,6 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		});
 	}
 
-	public async $extensionTestsExit(code: number): Promise<void> {
-		this.terminate(`test runner requested exit with code ${code}`, code);
-	}
-
 	private _startExtensionHost(): Promise<void> {
 		if (this._started) {
 			throw new Error(`Extension host is already started!`);
@@ -907,8 +908,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	}
 
 	public async $test_down(size: number): Promise<VSBuffer> {
-		let buff = VSBuffer.alloc(size);
-		let value = Math.random() % 256;
+		const buff = VSBuffer.alloc(size);
+		const value = Math.random() % 256;
 		for (let i = 0; i < size; i++) {
 			buff.writeUInt8(value, i);
 		}

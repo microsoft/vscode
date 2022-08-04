@@ -125,7 +125,7 @@ suite('Extension query', () => {
 	});
 
 	test('equals', () => {
-		let query1 = new Query('hello', '', '');
+		const query1 = new Query('hello', '', '');
 		let query2 = new Query('hello', '', '');
 		assert(query1.equals(query2));
 

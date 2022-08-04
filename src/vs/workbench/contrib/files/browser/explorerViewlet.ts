@@ -67,8 +67,8 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 	private registerViews(): void {
 		const viewDescriptors = viewsRegistry.getViews(VIEW_CONTAINER);
 
-		let viewDescriptorsToRegister: IViewDescriptor[] = [];
-		let viewDescriptorsToDeregister: IViewDescriptor[] = [];
+		const viewDescriptorsToRegister: IViewDescriptor[] = [];
+		const viewDescriptorsToDeregister: IViewDescriptor[] = [];
 
 		const openEditorsViewDescriptor = this.createOpenEditorsViewDescriptor();
 		if (!viewDescriptors.some(v => v.id === openEditorsViewDescriptor.id)) {
@@ -224,9 +224,7 @@ export class ExplorerViewPaneContainer extends ViewPaneContainer {
 					}
 
 					const openEditorsView = this.getOpenEditorsView();
-					if (openEditorsView) {
-						openEditorsView.setStructuralRefreshDelay(0);
-					}
+					openEditorsView?.setStructuralRefreshDelay(0);
 				}
 			});
 		}
@@ -274,7 +272,7 @@ export const VIEW_CONTAINER: ViewContainer = viewContainerRegistry.registerViewC
 	order: 0,
 	openCommandActionDescriptor: {
 		id: VIEWLET_ID,
-		title: localize('explore', "Explorer"),
+		title: { value: localize('explore', "Explorer"), original: 'Explorer' },
 		mnemonicTitle: localize({ key: 'miViewExplorer', comment: ['&& denotes a mnemonic'] }, "&&Explorer"),
 		keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyE },
 		order: 0

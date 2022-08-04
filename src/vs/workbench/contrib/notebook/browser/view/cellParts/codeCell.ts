@@ -257,7 +257,7 @@ export class CodeCell extends Disposable {
 		}));
 
 		this._register(this.templateData.editor.onDidChangeCursorSelection((e) => {
-			if (e.source === 'restoreState') {
+			if (e.source === 'restoreState' || e.oldModelVersionId === 0) {
 				// do not reveal the cell into view if this selection change was caused by restoring editors...
 				return;
 			}
@@ -331,6 +331,7 @@ export class CodeCell extends Disposable {
 		}
 
 		this.templateData.container.classList.toggle('cell-editor-focus', this.viewCell.focusMode === CellFocusMode.Editor);
+		this.templateData.container.classList.toggle('cell-output-focus', this.viewCell.focusMode === CellFocusMode.Output);
 	}
 
 	private updateForCollapseState(): boolean {

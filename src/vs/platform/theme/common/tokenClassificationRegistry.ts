@@ -361,7 +361,7 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 		}
 
 		const num = this.currentTypeNumber++;
-		let tokenStyleContribution: TokenTypeOrModifierContribution = { num, id, superType, description, deprecationMessage };
+		const tokenStyleContribution: TokenTypeOrModifierContribution = { num, id, superType, description, deprecationMessage };
 		this.tokenTypeById[id] = tokenStyleContribution;
 
 		const stylingSchemeEntry = getStylingSchemeEntry(description, deprecationMessage);
@@ -376,7 +376,7 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 
 		const num = this.currentModifierBit;
 		this.currentModifierBit = this.currentModifierBit * 2;
-		let tokenStyleContribution: TokenTypeOrModifierContribution = { num, id, description, deprecationMessage };
+		const tokenStyleContribution: TokenTypeOrModifierContribution = { num, id, description, deprecationMessage };
 		this.tokenModifierById[id] = tokenStyleContribution;
 
 		this.tokenStylingSchema.properties[`*.${id}`] = getStylingSchemeEntry(description, deprecationMessage);
@@ -472,9 +472,9 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 
 
 	public toString() {
-		let sorter = (a: string, b: string) => {
-			let cat1 = a.indexOf('.') === -1 ? 0 : 1;
-			let cat2 = b.indexOf('.') === -1 ? 0 : 1;
+		const sorter = (a: string, b: string) => {
+			const cat1 = a.indexOf('.') === -1 ? 0 : 1;
+			const cat2 = b.indexOf('.') === -1 ? 0 : 1;
 			if (cat1 !== cat2) {
 				return cat1 - cat2;
 			}
@@ -513,7 +513,7 @@ export function parseClassifierString(s: string, defaultLanguage: string | undef
 }
 
 
-let tokenClassificationRegistry = createDefaultTokenClassificationRegistry();
+const tokenClassificationRegistry = createDefaultTokenClassificationRegistry();
 platform.Registry.add(Extensions.TokenClassificationContribution, tokenClassificationRegistry);
 
 
@@ -619,7 +619,7 @@ function getStylingSchemeEntry(description?: string, deprecationMessage?: string
 
 export const tokenStylingSchemaId = 'vscode://schemas/token-styling';
 
-let schemaRegistry = platform.Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
+const schemaRegistry = platform.Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 schemaRegistry.registerSchema(tokenStylingSchemaId, tokenClassificationRegistry.getTokenStylingSchema());
 
 const delayer = new RunOnceScheduler(() => schemaRegistry.notifySchemaChanged(tokenStylingSchemaId), 200);

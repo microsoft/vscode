@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SemanticTokensLegend, TokenMetadata, FontStyle, MetadataConsts, SemanticTokens } from 'vs/editor/common/languages';
+import { SemanticTokensLegend, SemanticTokens } from 'vs/editor/common/languages';
+import { FontStyle, MetadataConsts, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
@@ -16,8 +17,9 @@ export const enum SemanticTokensProviderStylingConstants {
 export class SemanticTokensProviderStyling {
 
 	private readonly _hashTable: HashTable;
-	private _hasWarnedOverlappingTokens: boolean;
-	private _hasWarnedInvalidLengthTokens: boolean;
+	private _hasWarnedOverlappingTokens = false;
+	private _hasWarnedInvalidLengthTokens = false;
+	private _hasWarnedInvalidEditStart = false;
 
 	constructor(
 		private readonly _legend: SemanticTokensLegend,
@@ -26,8 +28,6 @@ export class SemanticTokensProviderStyling {
 		@ILogService private readonly _logService: ILogService
 	) {
 		this._hashTable = new HashTable();
-		this._hasWarnedOverlappingTokens = false;
-		this._hasWarnedInvalidLengthTokens = false;
 	}
 
 	public getMetadata(tokenTypeIndex: number, tokenModifierSet: number, languageId: string): number {
@@ -113,6 +113,13 @@ export class SemanticTokensProviderStyling {
 		if (!this._hasWarnedInvalidLengthTokens) {
 			this._hasWarnedInvalidLengthTokens = true;
 			console.warn(`Semantic token with invalid length detected at lineNumber ${lineNumber}, column ${startColumn}`);
+		}
+	}
+
+	public warnInvalidEditStart(previousResultId: string | undefined, resultId: string | undefined, editIndex: number, editStart: number, maxExpectedStart: number): void {
+		if (!this._hasWarnedInvalidEditStart) {
+			this._hasWarnedInvalidEditStart = true;
+			console.warn(`Invalid semantic tokens edit detected (previousResultId: ${previousResultId}, resultId: ${resultId}) at edit #${editIndex}: The provided start offset ${editStart} is outside the previous data (length ${maxExpectedStart}).`);
 		}
 	}
 

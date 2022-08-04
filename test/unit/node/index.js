@@ -152,7 +152,7 @@ function main() {
 			glob(TEST_GLOB, { cwd: src }, function (err, files) {
 				/** @type {string[]} */
 				const modules = [];
-				for (let file of files) {
+				for (const file of files) {
 					if (!excludeGlobs.some(excludeGlob => minimatch(file, excludeGlob))) {
 						modules.push(file.replace(/\.js$/, ''));
 					}
@@ -180,7 +180,7 @@ function main() {
 		}
 
 		// report failing test for every unexpected error during any of the tests
-		let unexpectedErrors = [];
+		const unexpectedErrors = [];
 		mocha.suite('Errors', function () {
 			test('should not have unexpected errors in tests', function () {
 				if (unexpectedErrors.length) {

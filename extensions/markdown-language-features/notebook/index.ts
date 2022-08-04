@@ -8,8 +8,109 @@ import MarkdownIt from 'markdown-it';
 import type * as MarkdownItToken from 'markdown-it/lib/token';
 import type { ActivationFunction } from 'vscode-notebook-renderer';
 
+const allowedHtmlTags = Object.freeze([
+	'a',
+	'b',
+	'blockquote',
+	'br',
+	'button',
+	'caption',
+	'center',
+	'code',
+	'col',
+	'colgroup',
+	'details',
+	'div',
+	'em',
+	'font',
+	'h1',
+	'h2',
+	'h3',
+	'h4',
+	'h5',
+	'h6',
+	'hr',
+	'i',
+	'img',
+	'input',
+	'kbd',
+	'label',
+	'li',
+	'ol',
+	'p',
+	'pre',
+	'select',
+	'small',
+	'span',
+	'strong',
+	'sub',
+	'summary',
+	'sup',
+	'table',
+	'tbody',
+	'td',
+	'textarea',
+	'tfoot',
+	'th',
+	'thead',
+	'tr',
+	'tt',
+	'u',
+	'ul',
+	'video',
+]);
+
+const allowedSvgTags = Object.freeze([
+	'svg',
+	'a',
+	'altglyph',
+	'altglyphdef',
+	'altglyphitem',
+	'animatecolor',
+	'animatemotion',
+	'animatetransform',
+	'circle',
+	'clippath',
+	'defs',
+	'desc',
+	'ellipse',
+	'filter',
+	'font',
+	'g',
+	'glyph',
+	'glyphref',
+	'hkern',
+	'image',
+	'line',
+	'lineargradient',
+	'marker',
+	'mask',
+	'metadata',
+	'mpath',
+	'path',
+	'pattern',
+	'polygon',
+	'polyline',
+	'radialgradient',
+	'rect',
+	'stop',
+	'style',
+	'switch',
+	'symbol',
+	'text',
+	'textpath',
+	'title',
+	'tref',
+	'tspan',
+	'view',
+	'vkern',
+]);
+
 const sanitizerOptions: DOMPurify.Config = {
-	ALLOWED_TAGS: ['a', 'button', 'blockquote', 'code', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'img', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'strong', 'textarea', 'ul', 'ol'],
+	ALLOWED_TAGS: [
+		...allowedHtmlTags,
+		...allowedSvgTags,
+	],
 };
 
 export const activate: ActivationFunction<void> = (ctx) => {
@@ -207,7 +308,9 @@ export const activate: ActivationFunction<void> = (ctx) => {
 				previewNode.classList.remove('emptyMarkdownCell');
 				const markdownText = outputInfo.mime.startsWith('text/x-') ? `\`\`\`${outputInfo.mime.substr(7)}\n${text}\n\`\`\``
 					: (outputInfo.mime.startsWith('application/') ? `\`\`\`${outputInfo.mime.substr(12)}\n${text}\n\`\`\`` : text);
-				const unsanitizedRenderedMarkdown = markdownIt.render(markdownText);
+				const unsanitizedRenderedMarkdown = markdownIt.render(markdownText, {
+					outputItem: outputInfo,
+				});
 				previewNode.innerHTML = (ctx.workspace.isTrusted
 					? unsanitizedRenderedMarkdown
 					: DOMPurify.sanitize(unsanitizedRenderedMarkdown, sanitizerOptions)) as string;

@@ -494,7 +494,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		const backup = await this.workingCopyBackupService.resolve<IStoredFileWorkingCopyBackupMetaData>(this);
 
 		// Abort if someone else managed to resolve the working copy by now
-		let isNew = !this.isResolved();
+		const isNew = !this.isResolved();
 		if (!isNew) {
 			this.trace('resolveFromBackup() - exit - withoutresolving because previously new file working copy got created meanwhile');
 

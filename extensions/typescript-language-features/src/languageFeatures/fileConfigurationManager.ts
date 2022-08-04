@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as path from 'path';
 import * as vscode from 'vscode';
 import type * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
@@ -174,6 +175,7 @@ export default class FileConfigurationManager extends Disposable {
 			document);
 
 		const preferences: Proto.UserPreferences = {
+			...config.get('unstable'),
 			quotePreference: this.getQuoteStylePreference(preferencesConfig),
 			importModuleSpecifierPreference: getImportModuleSpecifierPreference(preferencesConfig),
 			importModuleSpecifierEnding: getImportModuleSpecifierEndingPreference(preferencesConfig),
@@ -188,6 +190,7 @@ export default class FileConfigurationManager extends Disposable {
 			includeCompletionsWithSnippetText: config.get<boolean>('suggest.includeCompletionsWithSnippetText', true),
 			includeCompletionsWithClassMemberSnippets: config.get<boolean>('suggest.classMemberSnippets.enabled', true),
 			includeCompletionsWithObjectLiteralMethodSnippets: config.get<boolean>('suggest.objectLiteralMethodSnippets.enabled', true),
+			autoImportFileExcludePatterns: this.getAutoImportFileExcludePatternsPreference(preferencesConfig, vscode.workspace.getWorkspaceFolder(document.uri)?.uri),
 			useLabelDetailsInCompletionEntries: true,
 			allowIncompleteCompletions: true,
 			displayPartsForJSDoc: true,
@@ -204,12 +207,25 @@ export default class FileConfigurationManager extends Disposable {
 			default: return this.client.apiVersion.gte(API.v333) ? 'auto' : undefined;
 		}
 	}
+
+	private getAutoImportFileExcludePatternsPreference(config: vscode.WorkspaceConfiguration, workspaceFolder: vscode.Uri | undefined): string[] | undefined {
+		return workspaceFolder && config.get<string[]>('autoImportFileExcludePatterns')?.map(p => {
+			// Normalization rules: https://github.com/microsoft/TypeScript/pull/49578
+			const slashNormalized = p.replace(/\\/g, '/');
+			const isRelative = /^\.\.?($|\/)/.test(slashNormalized);
+			return path.isAbsolute(p) ? p :
+				p.startsWith('*') ? '/' + slashNormalized :
+					isRelative ? vscode.Uri.joinPath(workspaceFolder, p).fsPath :
+						'/**/' + slashNormalized;
+		});
+	}
 }
 
 export class InlayHintSettingNames {
 	static readonly parameterNamesSuppressWhenArgumentMatchesName = 'inlayHints.parameterNames.suppressWhenArgumentMatchesName';
 	static readonly parameterNamesEnabled = 'inlayHints.parameterTypes.enabled';
 	static readonly variableTypesEnabled = 'inlayHints.variableTypes.enabled';
+	static readonly variableTypesSuppressWhenTypeMatchesName = 'inlayHints.variableTypes.suppressWhenTypeMatchesName';
 	static readonly propertyDeclarationTypesEnabled = 'inlayHints.propertyDeclarationTypes.enabled';
 	static readonly functionLikeReturnTypesEnabled = 'inlayHints.functionLikeReturnTypes.enabled';
 	static readonly enumMemberValuesEnabled = 'inlayHints.enumMemberValues.enabled';
@@ -221,6 +237,7 @@ export function getInlayHintsPreferences(config: vscode.WorkspaceConfiguration) 
 		includeInlayParameterNameHintsWhenArgumentMatchesName: !config.get<boolean>(InlayHintSettingNames.parameterNamesSuppressWhenArgumentMatchesName, true),
 		includeInlayFunctionParameterTypeHints: config.get<boolean>(InlayHintSettingNames.parameterNamesEnabled, false),
 		includeInlayVariableTypeHints: config.get<boolean>(InlayHintSettingNames.variableTypesEnabled, false),
+		includeInlayVariableTypeHintsWhenTypeMatchesName: !config.get<boolean>(InlayHintSettingNames.variableTypesSuppressWhenTypeMatchesName, true),
 		includeInlayPropertyDeclarationTypeHints: config.get<boolean>(InlayHintSettingNames.propertyDeclarationTypesEnabled, false),
 		includeInlayFunctionLikeReturnTypeHints: config.get<boolean>(InlayHintSettingNames.functionLikeReturnTypesEnabled, false),
 		includeInlayEnumMemberValueHints: config.get<boolean>(InlayHintSettingNames.enumMemberValuesEnabled, false),

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/ionide/ionide-fsgrammar/commit/8825a76681cdc14801b5d9490372ff67ec6b9711",
+	"version": "https://github.com/ionide/ionide-fsgrammar/commit/e177bd7f9d3402f70d2f1fb42c74057ed1ccf6fa",
 	"name": "fsharp",
 	"scopeName": "source.fsharp",
 	"patterns": [
@@ -960,6 +960,26 @@
 				},
 				{
 					"name": "binding.fsharp",
+					"begin": "\\b(use|use\\!|and|and!)\\s*(\\[[^-=]*\\]|[_[:alpha:]]([_[:alpha:]0-9\\._]+)*|``[_[:alpha:]]([_[:alpha:]0-9\\._`\\s]+|(?<=,)\\s)*)?",
+					"end": "\\s*(=)",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.fsharp"
+						}
+					},
+					"endCaptures": {
+						"1": {
+							"name": "keyword.fsharp"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#common_binding_definition"
+						}
+					]
+				},
+				{
+					"name": "binding.fsharp",
 					"begin": "(?<=with|and)\\s*\\b((get|set)\\s*(?=\\())(\\[[^-=]*\\]|[_[:alpha:]]([_[:alpha:]0-9\\._]+)*|``[_[:alpha:]]([_[:alpha:]0-9\\._`\\s]+|(?<=,)\\s)*)?",
 					"end": "\\s*(=|\\n+=|(?<=\\=))",
 					"beginCaptures": {
@@ -1275,11 +1295,11 @@
 						},
 						{
 							"name": "constant.character.string.escape.fsharp",
-							"match": "\\\\([\\\\''ntbr]|x[a-fA-F0-9]{2}|u[a-fA-F0-9]{4}|u[a-fA-F0-9]{8})"
+							"match": "\\\\(['\"\\\\abfnrtv]|([01][0-9][0-9]|2[0-4][0-9]|25[0-5])|(x[0-9a-fA-F]{2})|(u[0-9a-fA-F]{4})|(U00(0[0-9a-fA-F]|10)[0-9a-fA-F]{4}))"
 						},
 						{
-							"name": "invalid.illeagal.character.string.fsharp",
-							"match": "\\\\(?![\\\\''ntbr]|x[a-fA-F0-9]{2}|u[a-fA-F0-9]{4}|u[a-fA-F0-9]{8})."
+							"name": "invalid.illegal.character.string.fsharp",
+							"match": "\\\\(([0-9]{1,3})|(x[^\\s]{0,2})|(u[^\\s]{0,4})|(U[^\\s]{0,8})|[^\\s])"
 						},
 						{
 							"include": "#string_formatter"

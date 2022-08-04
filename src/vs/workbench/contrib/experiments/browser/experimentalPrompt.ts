@@ -58,9 +58,7 @@ export class ExperimentalPrompts extends Disposable implements IWorkbenchContrib
 						this.paneCompositeService.openPaneComposite(EXTENSIONS_VIEWLET_ID, ViewContainerLocation.Sidebar, true)
 							.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 							.then(viewlet => {
-								if (viewlet) {
-									viewlet.search('curated:' + command.curatedExtensionsKey);
-								}
+								viewlet?.search('curated:' + command.curatedExtensionsKey);
 							});
 					} else if (command.codeCommand) {
 						this.commandService.executeCommand(command.codeCommand.id, ...command.codeCommand.arguments);

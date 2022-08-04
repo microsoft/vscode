@@ -305,6 +305,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 		"WorkspaceTags" : {
 			"workbench.filesToOpenOrCreate" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workbench.filesToDiff" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workbench.filesToMerge" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			"workspace.roots" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.empty" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -572,9 +573,10 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 
 		tags['workspace.id'] = await this.getTelemetryWorkspaceId(workspace, state);
 
-		const { filesToOpenOrCreate, filesToDiff } = this.environmentService;
+		const { filesToOpenOrCreate, filesToDiff, filesToMerge } = this.environmentService;
 		tags['workbench.filesToOpenOrCreate'] = filesToOpenOrCreate && filesToOpenOrCreate.length || 0;
 		tags['workbench.filesToDiff'] = filesToDiff && filesToDiff.length || 0;
+		tags['workbench.filesToMerge'] = filesToMerge && filesToMerge.length || 0;
 
 		const isEmpty = state === WorkbenchState.EMPTY;
 		tags['workspace.roots'] = isEmpty ? 0 : workspace.folders.length;
@@ -687,7 +689,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 
 			const requirementsTxtPromises = getFilePromises('requirements.txt', this.fileService, this.textFileService, content => {
 				const dependencies: string[] = splitLines(content.value);
-				for (let dependency of dependencies) {
+				for (const dependency of dependencies) {
 					// Dependencies in requirements.txt can have 3 formats: `foo==3.1, foo>=3.1, foo`
 					const format1 = dependency.split('==');
 					const format2 = dependency.split('>=');
@@ -702,7 +704,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 				// We're only interested in the '[packages]' section of the Pipfile
 				dependencies = dependencies.slice(dependencies.indexOf('[packages]') + 1);
 
-				for (let dependency of dependencies) {
+				for (const dependency of dependencies) {
 					if (dependency.trim().indexOf('[') > -1) {
 						break;
 					}
@@ -719,9 +721,9 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			const packageJsonPromises = getFilePromises('package.json', this.fileService, this.textFileService, content => {
 				try {
 					const packageJsonContents = JSON.parse(content.value);
-					let dependencies = Object.keys(packageJsonContents['dependencies'] || {}).concat(Object.keys(packageJsonContents['devDependencies'] || {}));
+					const dependencies = Object.keys(packageJsonContents['dependencies'] || {}).concat(Object.keys(packageJsonContents['devDependencies'] || {}));
 
-					for (let dependency of dependencies) {
+					for (const dependency of dependencies) {
 						if (dependency.startsWith('react-native')) {
 							tags['workspace.reactNative'] = true;
 						} else if ('tns-core-modules' === dependency || '@nativescript/core' === dependency) {
@@ -813,11 +815,13 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 	}
 
 	private findFolder(): URI | undefined {
-		const { filesToOpenOrCreate, filesToDiff } = this.environmentService;
+		const { filesToOpenOrCreate, filesToDiff, filesToMerge } = this.environmentService;
 		if (filesToOpenOrCreate && filesToOpenOrCreate.length) {
 			return this.parentURI(filesToOpenOrCreate[0].fileUri);
 		} else if (filesToDiff && filesToDiff.length) {
 			return this.parentURI(filesToDiff[0].fileUri);
+		} else if (filesToMerge && filesToMerge.length === 4) {
+			return this.parentURI(filesToMerge[3].fileUri) /* [3] is the resulting merge file */;
 		}
 		return undefined;
 	}

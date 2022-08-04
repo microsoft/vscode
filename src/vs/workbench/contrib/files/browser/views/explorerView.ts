@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import * as perf from 'vs/base/common/performance';
 import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { memoize } from 'vs/base/common/decorators';
-import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext, VIEW_ID, VIEWLET_ID, ExplorerResourceNotReadonlyContext } from 'vs/workbench/contrib/files/common/files';
+import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext, VIEW_ID, VIEWLET_ID, ExplorerResourceNotReadonlyContext, ViewHasSomeCollapsibleRootItemContext } from 'vs/workbench/contrib/files/common/files';
 import { FileCopiedContext, NEW_FILE_COMMAND_ID, NEW_FOLDER_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileActions';
 import * as DOM from 'vs/base/browser/dom';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -77,17 +77,28 @@ function hasExpandedRootChild(tree: WorkbenchCompressibleAsyncDataTree<ExplorerI
 			}
 		}
 	}
+	return false;
+}
 
+/**
+ * Whether or not any of the nodes in the tree are expanded
+ */
+function hasExpandedNode(tree: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>, treeInput: ExplorerItem[]): boolean {
+	for (const folder of treeInput) {
+		if (tree.hasNode(folder) && !tree.isCollapsed(folder)) {
+			return true;
+		}
+	}
 	return false;
 }
 
 const identityProvider = {
 	getId: (stat: ExplorerItem) => {
 		if (stat instanceof NewExplorerItem) {
-			return `new:${stat.resource}`;
+			return `new:${stat.getId()}`;
 		}
 
-		return stat.resource;
+		return stat.getId();
 	}
 };
 
@@ -161,6 +172,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	private compressedFocusFirstContext: IContextKey<boolean>;
 	private compressedFocusLastContext: IContextKey<boolean>;
 
+	private viewHasSomeCollapsibleRootItem: IContextKey<boolean>;
+
 	private horizontalScrolling: boolean | undefined;
 
 	private dragHandler!: DelayedDragHandler;
@@ -207,6 +220,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this.compressedFocusContext = ExplorerCompressedFocusContext.bindTo(contextKeyService);
 		this.compressedFocusFirstContext = ExplorerCompressedFirstFocusContext.bindTo(contextKeyService);
 		this.compressedFocusLastContext = ExplorerCompressedLastFocusContext.bindTo(contextKeyService);
+		this.viewHasSomeCollapsibleRootItem = ViewHasSomeCollapsibleRootItemContext.bindTo(contextKeyService);
 
 		this.explorerService.registerView(this);
 	}
@@ -296,6 +310,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			if (visible) {
 				// Always refresh explorer when it becomes visible to compensate for missing file events #126817
 				await this.setTreeInput();
+				// Update the collapse / expand  button state
+				this.updateAnyCollapsedContext();
 				// Find resource to focus from active editor input if set
 				this.selectActiveFile(true);
 			}
@@ -479,7 +495,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 
 		this._register(this.tree.onDidScroll(async e => {
-			let editable = this.explorerService.getEditable();
+			const editable = this.explorerService.getEditable();
 			if (e.scrollTopChanged && editable && this.tree.getRelativeTop(editable.stat) === null) {
 				await editable.data.onFinish('', false);
 			}
@@ -489,11 +505,13 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			const element = e.node.element?.element;
 			if (element) {
 				const navigationController = this.renderer.getCompressedNavigationController(element instanceof Array ? element[0] : element);
-				if (navigationController) {
-					navigationController.updateCollapsed(e.node.collapsed);
-				}
+				navigationController?.updateCollapsed(e.node.collapsed);
 			}
+			// Update showing expand / collapse button
+			this.updateAnyCollapsedContext();
 		}));
+
+		this.updateAnyCollapsedContext();
 
 		this._register(this.tree.onMouseDblClick(e => {
 			if (e.element === null) {
@@ -538,7 +556,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 	private async onContextMenu(e: ITreeContextMenuEvent<ExplorerItem>): Promise<void> {
 		const disposables = new DisposableStore();
-		let stat = e.element;
+		const stat = e.element;
 		let anchor = e.anchor;
 
 		// Compressed folders
@@ -731,7 +749,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 				return this.selectResource(resource, reveal, retry + 1);
 			}
 
-			for (let child of item.children.values()) {
+			for (const child of item.children.values()) {
 				if (this.uriIdentityService.extUri.isEqualOrParent(resource, child.resource)) {
 					item = child;
 					break;
@@ -765,12 +783,18 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	itemsCopied(stats: ExplorerItem[], cut: boolean, previousCut: ExplorerItem[] | undefined): void {
 		this.fileCopiedContextKey.set(stats.length > 0);
 		this.resourceCutContextKey.set(cut && stats.length > 0);
-		if (previousCut) {
-			previousCut.forEach(item => this.tree.rerender(item));
-		}
+		previousCut?.forEach(item => this.tree.rerender(item));
 		if (cut) {
 			stats.forEach(s => this.tree.rerender(s));
 		}
+	}
+
+	expandAll(): void {
+		if (this.explorerService.isEditable(undefined)) {
+			this.tree.domFocus();
+		}
+
+		this.tree.expandAll();
 	}
 
 	collapseAll(): void {
@@ -841,6 +865,16 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this.compressedFocusLastContext.set(controller.index === controller.count - 1);
 	}
 
+	private updateAnyCollapsedContext(): void {
+		const treeInput = this.tree.getInput();
+		if (treeInput === undefined) {
+			return;
+		}
+		const treeInputArray = Array.isArray(treeInput) ? treeInput : Array.from(treeInput.children.values());
+		// Has collapsible root when anything is expanded
+		this.viewHasSomeCollapsibleRootItem.set(hasExpandedNode(this.tree, treeInputArray));
+	}
+
 	styleListDropBackground(styles: IExplorerViewStyles): void {
 		const content: string[] = [];
 
@@ -855,9 +889,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	}
 
 	override dispose(): void {
-		if (this.dragHandler) {
-			this.dragHandler.dispose();
-		}
+		this.dragHandler?.dispose();
 		super.dispose();
 	}
 }

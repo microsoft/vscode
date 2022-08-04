@@ -30,6 +30,13 @@ export interface ILabelService {
 
 	registerFormatter(formatter: ResourceLabelFormatter): IDisposable;
 	onDidChangeFormatters: Event<IFormatterChangeEvent>;
+
+	/**
+	 * Registers a formatter that's cached for the machine beyond the lifecycle
+	 * of the current window. Disposing the formatter _will not_ remove it from
+	 * the cache.
+	 */
+	registerCachedFormatter(formatter: ResourceLabelFormatter): IDisposable;
 }
 
 export interface IFormatterChangeEvent {

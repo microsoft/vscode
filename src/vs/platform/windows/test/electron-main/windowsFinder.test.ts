@@ -34,6 +34,7 @@ suite('WindowsFinder', () => {
 	function createTestCodeWindow(options: { lastFocusTime: number; openedFolderUri?: URI; openedWorkspace?: IWorkspaceIdentifier }): ICodeWindow {
 		return new class implements ICodeWindow {
 			onWillLoad: Event<ILoadEvent> = Event.None;
+			onDidTriggerSystemContextMenu: Event<{ x: number; y: number }> = Event.None;
 			onDidSignalReady: Event<void> = Event.None;
 			onDidClose: Event<void> = Event.None;
 			onDidDestroy: Event<void> = Event.None;
@@ -49,7 +50,6 @@ suite('WindowsFinder', () => {
 			lastFocusTime = options.lastFocusTime;
 			isFullScreen = false;
 			isReady = true;
-			hasHiddenTitleBarStyle = false;
 
 			ready(): Promise<ICodeWindow> { throw new Error('Method not implemented.'); }
 			setReady(): void { throw new Error('Method not implemented.'); }
@@ -70,6 +70,7 @@ suite('WindowsFinder', () => {
 			handleTitleDoubleClick(): void { throw new Error('Method not implemented.'); }
 			updateTouchBar(items: UriDto<ICommandAction>[][]): void { throw new Error('Method not implemented.'); }
 			serializeWindowState(): IWindowState { throw new Error('Method not implemented'); }
+			updateWindowControls(options: { height?: number | undefined; backgroundColor?: string | undefined; foregroundColor?: string | undefined }): void { throw new Error('Method not implemented.'); }
 			dispose(): void { }
 		};
 	}

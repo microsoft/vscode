@@ -39,6 +39,17 @@ export interface IWorkbench {
 		executeCommand(command: string, ...args: any[]): Promise<unknown>;
 	};
 
+	logger: {
+
+		/**
+		 * Logging for embedder.
+		 *
+		 * @param level The log level of the message to be printed.
+		 * @param message Message to be printed.
+		 */
+		log(level: LogLevel, message: string): void;
+	};
+
 	env: {
 
 		/**
@@ -73,6 +84,7 @@ export interface IWorkbench {
 	};
 
 	window: {
+
 		/**
 		 * Show progress in the editor. Progress is shown while running the given callback
 		 * and while the promise it returned isn't resolved nor rejected.
@@ -84,6 +96,18 @@ export interface IWorkbench {
 			options: IProgressOptions | IProgressDialogOptions | IProgressNotificationOptions | IProgressWindowOptions | IProgressCompositeOptions,
 			task: (progress: IProgress<IProgressStep>) => Promise<R>
 		): Promise<R>;
+	};
+
+	workspace: {
+		/**
+		 * Forwards a port. If the current embedder implements a tunnelFactory then that will be used to make the tunnel.
+		 * By default, openTunnel only support localhost; however, a tunnelFactory can be used to support other ips.
+		 *
+		 * @throws When run in an environment without a remote.
+		 *
+		 * @param tunnelOptions The `localPort` is a suggestion only. If that port is not available another will be chosen.
+		 */
+		openTunnel(tunnelOptions: ITunnelOptions): Thenable<ITunnel>;
 	};
 
 	/**
@@ -146,6 +170,11 @@ export interface IWorkbenchConstructionOptions {
 	 * Endpoints to be used for proxying authentication code exchange calls in the browser.
 	 */
 	readonly codeExchangeProxyEndpoints?: { [providerId: string]: string };
+
+	/**
+	 * The identifier of an edit session associated with the current workspace.
+	 */
+	readonly editSessionId?: string;
 
 	/**
 	 * [TEMPORARY]: This will be removed soon.
@@ -224,7 +253,7 @@ export interface IWorkbenchConstructionOptions {
 	readonly commands?: readonly ICommand[];
 
 	/**
-	 * Optional default layout to apply on first time the workspace is opened (uness `force` is specified).
+	 * Optional default layout to apply on first time the workspace is opened (unless `force` is specified).
 	 */
 	readonly defaultLayout?: IDefaultLayout;
 

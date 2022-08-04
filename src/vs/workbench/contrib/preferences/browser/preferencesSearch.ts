@@ -554,7 +554,7 @@ export class SettingMatches {
 		// Trim excess ending characters off the query.
 		singleWordQuery = singleWordQuery.toLowerCase().replace(/[\s-\._]+$/, '');
 		lineToSearch = lineToSearch.toLowerCase();
-		const singleWordRegex = new RegExp(`\\b${singleWordQuery}\\b`);
+		const singleWordRegex = new RegExp(`\\b${strings.escapeRegExpCharacters(singleWordQuery)}\\b`);
 		if (singleWordRegex.test(lineToSearch)) {
 			this.matchType |= SettingMatchType.WholeWordMatch;
 		}

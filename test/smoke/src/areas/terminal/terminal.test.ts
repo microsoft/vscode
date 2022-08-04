@@ -22,20 +22,12 @@ export function setup(logger: Logger) {
 		// Shared before/after handling
 		installAllHandlers(logger);
 
+		let app: Application;
 		let terminal: Terminal;
 		before(async function () {
 			// Fetch terminal automation API
-			const app = this.app as Application;
+			app = this.app as Application;
 			terminal = app.workbench.terminal;
-
-			// Always show tabs to make getting terminal groups easier
-			await app.workbench.settingsEditor.addUserSetting('terminal.integrated.tabs.hideCondition', '"never"');
-			// Use the DOM renderer for smoke tests so they can be inspected in the playwright trace
-			// viewer
-			await app.workbench.settingsEditor.addUserSetting('terminal.integrated.gpuAcceleration', '"off"');
-
-			// Close the settings editor
-			await app.workbench.quickaccess.runCommand('workbench.action.closeAllEditors');
 		});
 
 		afterEach(async () => {

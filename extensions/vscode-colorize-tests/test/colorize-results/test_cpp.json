@@ -709,7 +709,7 @@
 	},
 	{
 		"c": "*",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.body.function.definition.cpp keyword.operator.cpp",
+		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.body.function.definition.cpp keyword.operator.arithmetic.cpp",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1345,7 +1345,7 @@
 	},
 	{
 		"c": "a",
-		"t": "source.cpp meta.preprocessor.macro.cpp variable.parameter.preprocessor.cpp",
+		"t": "source.cpp meta.preprocessor.macro.cpp meta.function.preprocessor.parameters.cpp variable.parameter.preprocessor.cpp",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1357,7 +1357,7 @@
 	},
 	{
 		"c": ",",
-		"t": "source.cpp meta.preprocessor.macro.cpp punctuation.separator.parameters.cpp",
+		"t": "source.cpp meta.preprocessor.macro.cpp meta.function.preprocessor.parameters.cpp punctuation.separator.parameters.cpp",
 		"r": {
 			"dark_plus": "meta.preprocessor: #569CD6",
 			"light_plus": "meta.preprocessor: #0000FF",
@@ -1369,7 +1369,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.preprocessor.macro.cpp",
+		"t": "source.cpp meta.preprocessor.macro.cpp meta.function.preprocessor.parameters.cpp",
 		"r": {
 			"dark_plus": "meta.preprocessor: #569CD6",
 			"light_plus": "meta.preprocessor: #0000FF",
@@ -1381,7 +1381,7 @@
 	},
 	{
 		"c": "b",
-		"t": "source.cpp meta.preprocessor.macro.cpp variable.parameter.preprocessor.cpp",
+		"t": "source.cpp meta.preprocessor.macro.cpp meta.function.preprocessor.parameters.cpp variable.parameter.preprocessor.cpp",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",

@@ -10,7 +10,7 @@ import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { ResourceMarkers, Marker, RelatedInformation, MarkerElement } from 'vs/workbench/contrib/markers/browser/markersModel';
+import { ResourceMarkers, Marker, RelatedInformation, MarkerElement, MarkerTableItem } from 'vs/workbench/contrib/markers/browser/markersModel';
 import Messages from 'vs/workbench/contrib/markers/browser/messages';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
@@ -34,10 +34,10 @@ import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/com
 import { IModelService } from 'vs/editor/common/services/model';
 import { Range } from 'vs/editor/common/core/range';
 import { getCodeActions, CodeActionSet } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/browser/types';
+import { CodeActionKind, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/browser/types';
 import { ITextModel } from 'vs/editor/common/model';
 import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { applyCodeAction } from 'vs/editor/contrib/codeAction/browser/codeActionCommands';
+import { applyCodeAction, ApplyCodeActionReason } from 'vs/editor/contrib/codeAction/browser/codeActionCommands';
 import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
 import { CodeActionTriggerType } from 'vs/editor/common/languages';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -48,6 +48,8 @@ import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Link } from 'vs/platform/opener/browser/link';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { MarkersContextKeys, MarkersViewMode } from 'vs/workbench/contrib/markers/common/markers';
 
 interface IResourceMarkersTemplateData {
 	resourceLabel: IResourceLabel;
@@ -65,7 +67,7 @@ interface IRelatedInformationTemplateData {
 	description: HighlightedLabel;
 }
 
-export class MarkersTreeAccessibilityProvider implements IListAccessibilityProvider<MarkerElement> {
+export class MarkersWidgetAccessibilityProvider implements IListAccessibilityProvider<MarkerElement | MarkerTableItem> {
 
 	constructor(@ILabelService private readonly labelService: ILabelService) { }
 
@@ -73,12 +75,12 @@ export class MarkersTreeAccessibilityProvider implements IListAccessibilityProvi
 		return localize('problemsView', "Problems View");
 	}
 
-	public getAriaLabel(element: MarkerElement): string | null {
+	public getAriaLabel(element: MarkerElement | MarkerTableItem): string | null {
 		if (element instanceof ResourceMarkers) {
 			const path = this.labelService.getUriLabel(element.resource, { relative: true }) || element.resource.fsPath;
 			return Messages.MARKERS_TREE_ARIA_LABEL_RESOURCE(element.markers.length, element.name, paths.dirname(path));
 		}
-		if (element instanceof Marker) {
+		if (element instanceof Marker || element instanceof MarkerTableItem) {
 			return Messages.MARKERS_TREE_ARIA_LABEL_MARKER(element);
 		}
 		if (element instanceof RelatedInformation) {
@@ -265,9 +267,7 @@ class ToggleMultilineActionViewItem extends ActionViewItem {
 	}
 
 	private updateExpandedAttribute(): void {
-		if (this.element) {
-			this.element.setAttribute('aria-expanded', `${this._action.class === ThemeIcon.asClassName(expandedIcon)}`);
-		}
+		this.element?.setAttribute('aria-expanded', `${this._action.class === ThemeIcon.asClassName(expandedIcon)}`);
 	}
 
 }
@@ -456,7 +456,7 @@ export class Filter implements ITreeFilter<MarkerElement, FilterData> {
 	}
 
 	private filterResourceMarkers(resourceMarkers: ResourceMarkers): TreeFilterResult<FilterData> {
-		if (resourceMarkers.resource.scheme === network.Schemas.walkThrough || resourceMarkers.resource.scheme === network.Schemas.walkThroughSnippet) {
+		if (resourceMarkers.resource.scheme === network.Schemas.walkThrough || resourceMarkers.resource.scheme === network.Schemas.walkThroughSnippet || resourceMarkers.resource.scheme === network.Schemas.vscodeSourceControl) {
 			return false;
 		}
 
@@ -627,7 +627,7 @@ export class MarkerViewModel extends Disposable {
 					if (!this.codeActionsPromise) {
 						this.codeActionsPromise = createCancelablePromise(cancellationToken => {
 							return getCodeActions(this.languageFeaturesService.codeActionProvider, model, new Range(this.marker.range.startLineNumber, this.marker.range.startColumn, this.marker.range.endLineNumber, this.marker.range.endColumn), {
-								type: CodeActionTriggerType.Invoke, filter: { include: CodeActionKind.QuickFix }
+								type: CodeActionTriggerType.Invoke, triggerAction: CodeActionTriggerSource.ProblemsView, filter: { include: CodeActionKind.QuickFix }
 							}, Progress.None, cancellationToken).then(actions => {
 								return this._register(actions);
 							});
@@ -647,7 +647,7 @@ export class MarkerViewModel extends Disposable {
 			true,
 			() => {
 				return this.openFileAtMarker(this.marker)
-					.then(() => this.instantiationService.invokeFunction(applyCodeAction, item));
+					.then(() => this.instantiationService.invokeFunction(applyCodeAction, item, ApplyCodeActionReason.FromProblemsView));
 			}));
 	}
 
@@ -693,6 +693,9 @@ export class MarkersViewModel extends Disposable {
 	private readonly _onDidChange: Emitter<Marker | undefined> = this._register(new Emitter<Marker | undefined>());
 	readonly onDidChange: Event<Marker | undefined> = this._onDidChange.event;
 
+	private readonly _onDidChangeViewMode: Emitter<MarkersViewMode> = this._register(new Emitter<MarkersViewMode>());
+	readonly onDidChangeViewMode: Event<MarkersViewMode> = this._onDidChangeViewMode.event;
+
 	private readonly markersViewStates: Map<string, { viewModel: MarkerViewModel; disposables: IDisposable[] }> = new Map<string, { viewModel: MarkerViewModel; disposables: IDisposable[] }>();
 	private readonly markersPerResource: Map<string, Marker[]> = new Map<string, Marker[]>();
 
@@ -700,13 +703,20 @@ export class MarkersViewModel extends Disposable {
 
 	private hoveredMarker: Marker | null = null;
 	private hoverDelayer: Delayer<void> = new Delayer<void>(300);
+	private viewModeContextKey: IContextKey<MarkersViewMode>;
 
 	constructor(
 		multiline: boolean = true,
-		@IInstantiationService private instantiationService: IInstantiationService
+		viewMode: MarkersViewMode = MarkersViewMode.Tree,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 		this._multiline = multiline;
+		this._viewMode = viewMode;
+
+		this.viewModeContextKey = MarkersContextKeys.MarkersViewModeContextKey.bindTo(this.contextKeyService);
+		this.viewModeContextKey.set(viewMode);
 	}
 
 	add(marker: Marker): void {
@@ -787,6 +797,21 @@ export class MarkersViewModel extends Disposable {
 		if (changed) {
 			this._onDidChange.fire(undefined);
 		}
+	}
+
+	private _viewMode: MarkersViewMode = MarkersViewMode.Tree;
+	get viewMode(): MarkersViewMode {
+		return this._viewMode;
+	}
+
+	set viewMode(value: MarkersViewMode) {
+		if (this._viewMode === value) {
+			return;
+		}
+
+		this._viewMode = value;
+		this._onDidChangeViewMode.fire(value);
+		this.viewModeContextKey.set(value);
 	}
 
 	override dispose(): void {

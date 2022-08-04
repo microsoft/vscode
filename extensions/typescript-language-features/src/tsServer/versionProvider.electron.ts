@@ -28,7 +28,7 @@ export class DiskTypeScriptVersionProvider implements ITypeScriptVersionProvider
 	public get globalVersion(): TypeScriptVersion | undefined {
 		if (this.configuration?.globalTsdk) {
 			const globals = this.loadVersionsFromSetting(TypeScriptVersionSource.UserSetting, this.configuration.globalTsdk);
-			if (globals && globals.length) {
+			if (globals?.length) {
 				return globals[0];
 			}
 		}
@@ -37,7 +37,7 @@ export class DiskTypeScriptVersionProvider implements ITypeScriptVersionProvider
 
 	public get localVersion(): TypeScriptVersion | undefined {
 		const tsdkVersions = this.localTsdkVersions;
-		if (tsdkVersions && tsdkVersions.length) {
+		if (tsdkVersions?.length) {
 			return tsdkVersions[0];
 		}
 

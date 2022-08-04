@@ -13,6 +13,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { AbstractFileSynchroniser, AbstractInitializer, IAcceptResult, IFileResourcePreview, IMergeResult } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { Change, IRemoteUserData, ISyncResourceHandle, IUserDataSyncBackupStoreService, IUserDataSyncConfiguration, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
 
@@ -38,6 +39,7 @@ export class TasksSynchroniser extends AbstractFileSynchroniser implements IUser
 
 	protected readonly version: number = 1;
 	private readonly previewResource: URI = this.extUri.joinPath(this.syncPreviewFolder, 'tasks.json');
+	private readonly baseResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'base' });
 	private readonly localResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' });
 	private readonly remoteResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' });
 	private readonly acceptedResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' });
@@ -53,8 +55,9 @@ export class TasksSynchroniser extends AbstractFileSynchroniser implements IUser
 		@IStorageService storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 	) {
-		super(uriIdentityService.extUri.joinPath(uriIdentityService.extUri.dirname(environmentService.settingsResource), 'tasks.json'), SyncResource.Tasks, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService, uriIdentityService);
+		super(userDataProfilesService.defaultProfile.tasksResource, SyncResource.Tasks, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService, uriIdentityService);
 	}
 
 	protected async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, isRemoteDataFromCurrentMachine: boolean, userDataSyncConfiguration: IUserDataSyncConfiguration): Promise<ITasksResourcePreview[]> {
@@ -101,10 +104,15 @@ export class TasksSynchroniser extends AbstractFileSynchroniser implements IUser
 			hasConflicts
 		};
 
+		const localContent = fileContent ? fileContent.value.toString() : null;
 		return [{
 			fileContent,
+
+			baseResource: this.baseResource,
+			baseContent: lastSyncContent !== null ? lastSyncContent : localContent,
+
 			localResource: this.localResource,
-			localContent: fileContent ? fileContent.value.toString() : null,
+			localContent,
 			localChange: previewResult.localChange,
 
 			remoteResource: this.remoteResource,
@@ -176,7 +184,7 @@ export class TasksSynchroniser extends AbstractFileSynchroniser implements IUser
 
 	protected async applyResult(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, resourcePreviews: [ITasksResourcePreview, IAcceptResult][], force: boolean): Promise<void> {
 		const { fileContent } = resourcePreviews[0][0];
-		let { content, localChange, remoteChange } = resourcePreviews[0][1];
+		const { content, localChange, remoteChange } = resourcePreviews[0][1];
 
 		if (localChange === Change.None && remoteChange === Change.None) {
 			this.logService.info(`${this.syncResourceLogLabel}: No changes found during synchronizing tasks.`);
@@ -221,7 +229,11 @@ export class TasksSynchroniser extends AbstractFileSynchroniser implements IUser
 	}
 
 	override async resolveContent(uri: URI): Promise<string | null> {
-		if (this.extUri.isEqual(this.remoteResource, uri) || this.extUri.isEqual(this.localResource, uri) || this.extUri.isEqual(this.acceptedResource, uri)) {
+		if (this.extUri.isEqual(this.remoteResource, uri)
+			|| this.extUri.isEqual(this.baseResource, uri)
+			|| this.extUri.isEqual(this.localResource, uri)
+			|| this.extUri.isEqual(this.acceptedResource, uri)
+		) {
 			return this.resolvePreviewContent(uri);
 		}
 		let content = await super.resolveContent(uri);
@@ -249,15 +261,16 @@ export class TasksSynchroniser extends AbstractFileSynchroniser implements IUser
 
 export class TasksInitializer extends AbstractInitializer {
 
-	private tasksResource = this.uriIdentityService.extUri.joinPath(this.uriIdentityService.extUri.dirname(this.environmentService.settingsResource), 'tasks.json');
+	private tasksResource = this.userDataProfilesService.defaultProfile.tasksResource;
 
 	constructor(
 		@IFileService fileService: IFileService,
+		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(SyncResource.Tasks, environmentService, logService, fileService, uriIdentityService);
+		super(SyncResource.Tasks, userDataProfilesService, environmentService, logService, fileService, uriIdentityService);
 	}
 
 	async doInitialize(remoteUserData: IRemoteUserData): Promise<void> {

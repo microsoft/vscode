@@ -27,7 +27,6 @@ import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtua
 
 export class WindowTitle extends Disposable {
 
-	private static readonly NLS_UNSUPPORTED = localize('patchedWindowTitle', "[Unsupported]");
 	private static readonly NLS_USER_IS_ADMIN = isWindows ? localize('userIsAdmin', "[Administrator]") : localize('userIsSudo', "[Superuser]");
 	private static readonly NLS_EXTENSION_HOST = localize('devExtensionWindowTitlePrefix', "[Extension Development Host]");
 	private static readonly TITLE_DIRTY = '\u25cf ';
@@ -56,6 +55,10 @@ export class WindowTitle extends Disposable {
 
 	get value() {
 		return this.title ?? '';
+	}
+
+	get workspaceName() {
+		return this.labelService.getWorkspaceLabel(this.contextService.getWorkspace());
 	}
 
 	private registerListeners(): void {
@@ -104,28 +107,36 @@ export class WindowTitle extends Disposable {
 	}
 
 	private getWindowTitle(): string {
-		let title = this.doGetWindowTitle();
+		let title = this.doGetWindowTitle() || this.productService.nameLong;
+		const { prefix, suffix } = this.getTitleDecorations();
+		if (prefix) {
+			title = `${prefix} ${title}`;
+		}
+		if (suffix) {
+			title = `${title} ${suffix}`;
+		}
+		// Replace non-space whitespace
+		title = title.replace(/[^\S ]/g, ' ');
+		return title;
+	}
+
+	getTitleDecorations() {
+		let prefix: string | undefined;
+		let suffix: string | undefined;
 
 		if (this.properties.prefix) {
-			title = `${this.properties.prefix} ${title || this.productService.nameLong}`;
+			prefix = this.properties.prefix;
+		}
+		if (this.environmentService.isExtensionDevelopment) {
+			prefix = !prefix
+				? WindowTitle.NLS_EXTENSION_HOST
+				: `${WindowTitle.NLS_EXTENSION_HOST} - ${prefix}`;
 		}
 
 		if (this.properties.isAdmin) {
-			title = `${title || this.productService.nameLong} ${WindowTitle.NLS_USER_IS_ADMIN}`;
+			suffix = WindowTitle.NLS_USER_IS_ADMIN;
 		}
-
-		if (!this.properties.isPure) {
-			title = `${title || this.productService.nameLong} ${WindowTitle.NLS_UNSUPPORTED}`;
-		}
-
-		if (this.environmentService.isExtensionDevelopment) {
-			title = `${WindowTitle.NLS_EXTENSION_HOST} - ${title || this.productService.nameLong}`;
-		}
-
-		// Replace non-space whitespace
-		title = title.replace(/[^\S ]/g, ' ');
-
-		return title;
+		return { prefix, suffix };
 	}
 
 	updateProperties(properties: ITitleProperties): void {

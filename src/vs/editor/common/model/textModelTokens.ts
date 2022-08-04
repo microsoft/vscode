@@ -8,7 +8,8 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
-import { EncodedTokenizationResult, ILanguageIdCodec, IState, ITokenizationSupport, StandardTokenType, TokenizationRegistry } from 'vs/editor/common/languages';
+import { EncodedTokenizationResult, ILanguageIdCodec, IState, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/languages';
+import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { nullTokenizeEncoded } from 'vs/editor/common/languages/nullTokenize';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -471,12 +472,12 @@ export class TextModelTokenization extends Disposable {
 			}
 
 			if (newNonWhitespaceIndex < nonWhitespaceColumn) {
+				fakeLines.push(this._textModel.getLineContent(i));
+				nonWhitespaceColumn = newNonWhitespaceIndex;
 				initialState = this._tokenizationStateStore.getBeginState(i - 1);
 				if (initialState) {
 					break;
 				}
-				fakeLines.push(this._textModel.getLineContent(i));
-				nonWhitespaceColumn = newNonWhitespaceIndex;
 			}
 		}
 

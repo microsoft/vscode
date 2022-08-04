@@ -371,13 +371,13 @@ export class TernarySearchTree<K, V> {
 		if (keys) {
 			const arr = keys.slice(0);
 			shuffle(arr);
-			for (let k of arr) {
+			for (const k of arr) {
 				this.set(k, (<V>values));
 			}
 		} else {
 			const arr = (<[K, V][]>values).slice(0);
 			shuffle(arr);
-			for (let entry of arr) {
+			for (const entry of arr) {
 				this.set(entry[0], entry[1]);
 			}
 		}
@@ -715,22 +715,28 @@ export class TernarySearchTree<K, V> {
 		yield* this._entries(this._root);
 	}
 
-	private *_entries(node: TernarySearchTreeNode<K, V> | undefined): IterableIterator<[K, V]> {
+	private _entries(node: TernarySearchTreeNode<K, V> | undefined): IterableIterator<[K, V]> {
+		const result: [K, V][] = [];
+		this._dfsEntries(node, result);
+		return result[Symbol.iterator]();
+	}
+
+	private _dfsEntries(node: TernarySearchTreeNode<K, V> | undefined, bucket: [K, V][]) {
 		// DFS
 		if (!node) {
 			return;
 		}
 		if (node.left) {
-			yield* this._entries(node.left);
+			this._dfsEntries(node.left, bucket);
 		}
 		if (node.value) {
-			yield [node.key!, node.value];
+			bucket.push([node.key!, node.value]);
 		}
 		if (node.mid) {
-			yield* this._entries(node.mid);
+			this._dfsEntries(node.mid, bucket);
 		}
 		if (node.right) {
-			yield* this._entries(node.right);
+			this._dfsEntries(node.right, bucket);
 		}
 	}
 
@@ -819,31 +825,31 @@ export class ResourceMap<T> implements Map<URI, T> {
 		if (typeof thisArg !== 'undefined') {
 			clb = clb.bind(thisArg);
 		}
-		for (let [_, entry] of this.map) {
+		for (const [_, entry] of this.map) {
 			clb(entry.value, entry.uri, <any>this);
 		}
 	}
 
 	*values(): IterableIterator<T> {
-		for (let entry of this.map.values()) {
+		for (const entry of this.map.values()) {
 			yield entry.value;
 		}
 	}
 
 	*keys(): IterableIterator<URI> {
-		for (let entry of this.map.values()) {
+		for (const entry of this.map.values()) {
 			yield entry.uri;
 		}
 	}
 
 	*entries(): IterableIterator<[URI, T]> {
-		for (let entry of this.map.values()) {
+		for (const entry of this.map.values()) {
 			yield [entry.uri, entry.value];
 		}
 	}
 
 	*[Symbol.iterator](): IterableIterator<[URI, T]> {
-		for (let [, entry] of this.map) {
+		for (const [, entry] of this.map) {
 			yield [entry.uri, entry.value];
 		}
 	}
@@ -1347,49 +1353,5 @@ export class LRUCache<K, V> extends LinkedMap<K, V> {
 		if (this.size > this._limit) {
 			this.trimOld(Math.round(this._limit * this._ratio));
 		}
-	}
-}
-
-/**
- * Wraps the map in type that only implements readonly properties. Useful
- * in the extension host to prevent the consumer from making any mutations.
- */
-export class ReadonlyMapView<K, V> implements ReadonlyMap<K, V>{
-	readonly #source: ReadonlyMap<K, V>;
-
-	public get size() {
-		return this.#source.size;
-	}
-
-	constructor(source: ReadonlyMap<K, V>) {
-		this.#source = source;
-	}
-
-	forEach(callbackfn: (value: V, key: K, map: ReadonlyMap<K, V>) => void, thisArg?: any): void {
-		this.#source.forEach(callbackfn, thisArg);
-	}
-
-	get(key: K): V | undefined {
-		return this.#source.get(key);
-	}
-
-	has(key: K): boolean {
-		return this.#source.has(key);
-	}
-
-	entries(): IterableIterator<[K, V]> {
-		return this.#source.entries();
-	}
-
-	keys(): IterableIterator<K> {
-		return this.#source.keys();
-	}
-
-	values(): IterableIterator<V> {
-		return this.#source.values();
-	}
-
-	[Symbol.iterator](): IterableIterator<[K, V]> {
-		return this.#source.entries();
 	}
 }

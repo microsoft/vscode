@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { isEditorInput, isResourceDiffEditorInput, isResourceEditorInput, isResourceSideBySideEditorInput, isUntitledResourceEditorInput } from 'vs/workbench/common/editor';
+import { isEditorInput, isResourceDiffEditorInput, isResourceEditorInput, isResourceMergeEditorInput, isResourceSideBySideEditorInput, isUntitledResourceEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { TestEditorInput } from 'vs/workbench/test/browser/workbenchTestServices';
 
@@ -20,8 +20,8 @@ suite('EditorInput', () => {
 
 	test('basics', () => {
 		let counter = 0;
-		let input = new MyEditorInput();
-		let otherInput = new MyEditorInput();
+		const input = new MyEditorInput();
+		const otherInput = new MyEditorInput();
 
 		assert.ok(isEditorInput(input));
 		assert.ok(!isEditorInput(undefined));
@@ -31,6 +31,7 @@ suite('EditorInput', () => {
 		assert.ok(!isResourceEditorInput(input));
 		assert.ok(!isUntitledResourceEditorInput(input));
 		assert.ok(!isResourceDiffEditorInput(input));
+		assert.ok(!isResourceMergeEditorInput(input));
 		assert.ok(!isResourceSideBySideEditorInput(input));
 
 		assert(input.matches(input));

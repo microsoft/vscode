@@ -300,9 +300,7 @@ export class FileSearchManager {
 
 	clearCache(cacheKey: string): void {
 		const sessionTokenSource = this.getSessionTokenSource(cacheKey);
-		if (sessionTokenSource) {
-			sessionTokenSource.cancel();
-		}
+		sessionTokenSource?.cancel();
 	}
 
 	private getSessionTokenSource(cacheKey: string | undefined): CancellationTokenSource | undefined {

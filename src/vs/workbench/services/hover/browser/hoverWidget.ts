@@ -230,7 +230,19 @@ export class HoverWidget extends Widget {
 		this._hover.containerDomNode.classList.remove('right-aligned');
 		this._hover.contentsDomNode.style.maxHeight = '';
 
-		const targetBounds = this._target.targetElements.map(e => e.getBoundingClientRect());
+		const getZoomAccountedBoundingClientRect = (e: HTMLElement) => {
+			const zoom = dom.getDomNodeZoomLevel(e);
+
+			const boundingRect = e.getBoundingClientRect();
+			return {
+				top: boundingRect.top * zoom,
+				bottom: boundingRect.bottom * zoom,
+				right: boundingRect.right * zoom,
+				left: boundingRect.left * zoom,
+			};
+		};
+
+		const targetBounds = this._target.targetElements.map(e => getZoomAccountedBoundingClientRect(e));
 		const top = Math.min(...targetBounds.map(e => e.top));
 		const right = Math.max(...targetBounds.map(e => e.right));
 		const bottom = Math.max(...targetBounds.map(e => e.bottom));
@@ -495,7 +507,7 @@ export class HoverWidget extends Widget {
 }
 
 class CompositeMouseTracker extends Widget {
-	private _isMouseIn: boolean = false;
+	private _isMouseIn: boolean = true;
 	private _mouseTimeout: number | undefined;
 
 	private readonly _onMouseOut = this._register(new Emitter<void>());
@@ -508,7 +520,7 @@ class CompositeMouseTracker extends Widget {
 	) {
 		super();
 		this._elements.forEach(n => this.onmouseover(n, () => this._onTargetMouseOver()));
-		this._elements.forEach(n => this.onnonbubblingmouseout(n, () => this._onTargetMouseOut()));
+		this._elements.forEach(n => this.onmouseleave(n, () => this._onTargetMouseLeave()));
 	}
 
 	private _onTargetMouseOver(): void {
@@ -516,7 +528,7 @@ class CompositeMouseTracker extends Widget {
 		this._clearEvaluateMouseStateTimeout();
 	}
 
-	private _onTargetMouseOut(): void {
+	private _onTargetMouseLeave(): void {
 		this._isMouseIn = false;
 		this._evaluateMouseState();
 	}

@@ -45,7 +45,8 @@ const nonBuiltInLanguages = { // { fileNames, extensions  }
 const inheritIconFromLanguage = {
 	"jsonc": 'json',
 	"postcss": 'css',
-	"django-html": 'html'
+	"django-html": 'html',
+	"blade": 'php'
 }
 
 const FROM_DISK = true; // set to true to take content from a repo checked out next to the vscode repo

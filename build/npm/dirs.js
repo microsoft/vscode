@@ -7,7 +7,6 @@
 exports.dirs = [
 	'',
 	'build',
-	'build/lib/watch',
 	'extensions',
 	'extensions/configuration-editing',
 	'extensions/css-language-features',
@@ -29,6 +28,7 @@ exports.dirs = [
 	'extensions/jake',
 	'extensions/json-language-features',
 	'extensions/json-language-features/server',
+	'extensions/markdown-language-features/server',
 	'extensions/markdown-language-features',
 	'extensions/markdown-math',
 	'extensions/merge-conflict',
@@ -42,7 +42,6 @@ exports.dirs = [
 	'extensions/typescript-language-features',
 	'extensions/vscode-api-tests',
 	'extensions/vscode-colorize-tests',
-	'extensions/vscode-custom-editor-tests',
 	'extensions/vscode-notebook-tests',
 	'extensions/vscode-test-resolver',
 	'remote',

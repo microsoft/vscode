@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Uri, workspace } from 'vscode';
-import { RequestType, CommonLanguageClient } from 'vscode-languageclient';
+import { RequestType, BaseLanguageClient } from 'vscode-languageclient';
 import { Runtime } from './cssClient';
 
 export namespace FsContentRequest {
@@ -18,7 +18,7 @@ export namespace FsReadDirRequest {
 	export const type: RequestType<string, [string, FileType][], any> = new RequestType('fs/readDir');
 }
 
-export function serveFileSystemRequests(client: CommonLanguageClient, runtime: Runtime) {
+export function serveFileSystemRequests(client: BaseLanguageClient, runtime: Runtime) {
 	client.onRequest(FsContentRequest.type, (param: { uri: string; encoding?: string }) => {
 		const uri = Uri.parse(param.uri);
 		if (uri.scheme === 'file' && runtime.fs) {

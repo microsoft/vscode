@@ -17,7 +17,7 @@ import { FindMatch, IModelDecorationOptions, IModelDeltaDecoration, TrackedRange
 import { MultiModelEditStackElement, SingleModelEditStackElement } from 'vs/editor/common/model/editStack';
 import { IntervalNode, IntervalTree } from 'vs/editor/common/model/intervalTree';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { WorkspaceTextEdit } from 'vs/editor/common/languages';
+import { IWorkspaceTextEdit } from 'vs/editor/common/languages';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { FoldingRegions } from 'vs/editor/contrib/folding/browser/foldingRanges';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -924,14 +924,15 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			return;
 		}
 
-		const textEdits: WorkspaceTextEdit[] = [];
+		const textEdits: IWorkspaceTextEdit[] = [];
 		this._lastNotebookEditResource.push(matches[0].cell.uri);
 
 		matches.forEach(match => {
 			match.matches.forEach((singleMatch, index) => {
 				if ((singleMatch as OutputFindMatch).index === undefined) {
 					textEdits.push({
-						edit: { range: (singleMatch as FindMatch).range, text: texts[index] },
+						versionId: undefined,
+						textEdit: { range: (singleMatch as FindMatch).range, text: texts[index] },
 						resource: match.cell.uri
 					});
 				}

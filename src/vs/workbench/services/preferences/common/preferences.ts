@@ -87,7 +87,7 @@ export interface ISetting {
 	enumItemLabels?: string[];
 	allKeysAreBoolean?: boolean;
 	editPresentation?: EditPresentationTypes;
-	defaultValueSource?: string | IExtensionInfo;
+	nonLanguageSpecificDefaultValueSource?: string | IExtensionInfo;
 	isLanguageTagSetting?: boolean;
 	categoryOrder?: number;
 	categoryLabel?: string;
@@ -233,6 +233,7 @@ export interface IPreferencesService {
 
 	openRawDefaultSettings(): Promise<IEditorPane | undefined>;
 	openSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
+	openApplicationSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
 	openUserSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
 	openRemoteSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
 	openWorkspaceSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;

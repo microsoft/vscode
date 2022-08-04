@@ -166,6 +166,7 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffE
 		@IMenuService protected readonly menuService: IMenuService,
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@INotificationService protected readonly notificationService: INotificationService,
+		@IThemeService protected readonly themeService: IThemeService,
 	) { }
 
 	get templateId() {
@@ -186,7 +187,7 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffE
 		const toolbar = new ToolBar(cellToolbarContainer, this.contextMenuService, {
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction) {
-					const item = new CodiconActionViewItem(action, this.keybindingService, this.notificationService, this.contextKeyService);
+					const item = new CodiconActionViewItem(action, undefined, this.keybindingService, this.notificationService, this.contextKeyService, this.themeService, this.contextMenuService);
 					return item;
 				}
 
@@ -309,8 +310,8 @@ export class NotebookTextDiffList extends WorkbenchList<DiffElementViewModelBase
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService) {
-		super(listUser, container, delegate, renderers, options, contextKeyService, listService, themeService, configurationService, keybindingService);
+		@IInstantiationService instantiationService: IInstantiationService) {
+		super(listUser, container, delegate, renderers, options, contextKeyService, listService, themeService, configurationService, instantiationService);
 	}
 
 	protected override createMouseController(options: IListOptions<DiffElementViewModelBase>): MouseController<DiffElementViewModelBase> {
@@ -442,22 +443,6 @@ export class NotebookTextDiffList extends WorkbenchList<DiffElementViewModelBase
 				.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows.drop-target,
 				.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-row.drop-target { background-color: ${styles.listDropBackground} !important; color: inherit !important; }
 			`);
-		}
-
-		if (styles.listFilterWidgetBackground) {
-			content.push(`.monaco-list-type-filter { background-color: ${styles.listFilterWidgetBackground} }`);
-		}
-
-		if (styles.listFilterWidgetOutline) {
-			content.push(`.monaco-list-type-filter { border: 1px solid ${styles.listFilterWidgetOutline}; }`);
-		}
-
-		if (styles.listFilterWidgetNoMatchesOutline) {
-			content.push(`.monaco-list-type-filter.no-matches { border: 1px solid ${styles.listFilterWidgetNoMatchesOutline}; }`);
-		}
-
-		if (styles.listMatchesShadow) {
-			content.push(`.monaco-list-type-filter { box-shadow: 1px 1px 1px ${styles.listMatchesShadow}; }`);
 		}
 
 		const newStyles = content.join('\n');

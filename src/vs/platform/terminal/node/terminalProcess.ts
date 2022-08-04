@@ -97,7 +97,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		shellType: undefined,
 		hasChildProcesses: true,
 		resolvedShellLaunchConfig: {},
-		overrideDimensions: undefined
+		overrideDimensions: undefined,
+		failedShellIntegrationActivation: false,
+		usedShellIntegrationInjection: undefined
 	};
 	private static _lastKillOrStart = 0;
 	private _exitCode: number | undefined;
@@ -201,6 +203,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		if (this._options.shellIntegration.enabled) {
 			injection = getShellIntegrationInjection(this.shellLaunchConfig, this._options.shellIntegration, this._logService);
 			if (injection) {
+				this._onDidChangeProperty.fire({ type: ProcessPropertyType.UsedShellIntegrationInjection, value: true });
 				if (injection.envMixin) {
 					for (const [key, value] of Object.entries(injection.envMixin)) {
 						this._ptyOptions.env ||= {};
@@ -213,6 +216,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 						await fs.copyFile(f.source, f.dest);
 					}
 				}
+			} else {
+				this._onDidChangeProperty.fire({ type: ProcessPropertyType.FailedShellIntegrationActivation, value: true });
 			}
 		}
 
@@ -264,7 +269,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		} catch (err) {
 			if (err?.code === 'ENOENT') {
 				// The executable isn't an absolute path, try find it on the PATH or CWD
-				let cwd = slc.cwd instanceof URI ? slc.cwd.path : slc.cwd!;
+				const cwd = slc.cwd instanceof URI ? slc.cwd.path : slc.cwd!;
 				const envPaths: string[] | undefined = (slc.env && slc.env.PATH) ? slc.env.PATH.split(path.delimiter) : undefined;
 				const executable = await findExecutable(slc.executable!, cwd, envPaths, this._executableEnv);
 				if (!executable) {

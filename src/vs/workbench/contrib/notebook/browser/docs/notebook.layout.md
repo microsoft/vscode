@@ -8,7 +8,6 @@ The notebook editor is a virtualized list view rendered in two contexts (mainfra
 - [Optimizations](#optimizations)
 	- [Avoid flickering on resize of cells above current viewport](#avoid-flickering-on-resize-of-cells-above-current-viewport)
 	- [Executing code cell followed by markdown cells](#executing-code-cell-followed-by-markdown-cells)
-		- [What's the catch](#whats-the-catch)
 	- [Re-executing code cell followed by markdown cells](#re-executing-code-cell-followed-by-markdown-cells)
 	- [Scrolling](#scrolling)
 
@@ -172,6 +171,6 @@ If the new output is rendered within 200ms, users won't see the UI movement.
 
 ## Scrolling
 
-Code cell outputs and markdown cells are rendered in the webview, which are async in nature. In order to have the cell outputs and markdown previews rendered when users scroll to them, we send rendering requests of cells in the next viewport when it's idle. Thus scrolling downwards is smoother.
+Code cell outputs and markdown cells are rendered in the webview, which are async in nature. In order to have the cell outputs and markdown previews rendered when users scroll to them, we send rendering requests of cells in the next and previous viewport when it's idle. Thus scrolling is smoother.
 
-However, we **don't** warmup the previous viewport as the cell height change of previous viewport might trigger the flickering of markdown cells in current viewport. Before we optimize this, do not do any warmup of cells before current viewport.
+We also warm up all rendered markdown in the document, from top to bottom, when the browser is idle. We don't warm up outputs like this, since they can be more expensive to render than markdown. But outputs do get rendered when the user starts a search in outputs.
