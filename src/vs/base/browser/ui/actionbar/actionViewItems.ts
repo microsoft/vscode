@@ -95,10 +95,6 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		this._actionRunner = actionRunner;
 	}
 
-	getAction(): IAction {
-		return this._action;
-	}
-
 	isEnabled(): boolean {
 		return this._action.enabled;
 	}
@@ -214,7 +210,7 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 	}
 
 	protected getTooltip(): string | undefined {
-		return this.getAction().tooltip;
+		return this.action.tooltip;
 	}
 
 	protected updateTooltip(): void {
@@ -333,18 +329,18 @@ export class ActionViewItem extends BaseActionViewItem {
 
 	override updateLabel(): void {
 		if (this.options.label && this.label) {
-			this.label.textContent = this.getAction().label;
+			this.label.textContent = this.action.label;
 		}
 	}
 
 	override getTooltip() {
 		let title: string | null = null;
 
-		if (this.getAction().tooltip) {
-			title = this.getAction().tooltip;
+		if (this.action.tooltip) {
+			title = this.action.tooltip;
 
-		} else if (!this.options.label && this.getAction().label && this.options.icon) {
-			title = this.getAction().label;
+		} else if (!this.options.label && this.action.label && this.options.icon) {
+			title = this.action.label;
 
 			if (this.options.keybinding) {
 				title = nls.localize({ key: 'titleLabel', comment: ['action title', 'action keybinding'] }, "{0} ({1})", title, this.options.keybinding);
@@ -359,7 +355,7 @@ export class ActionViewItem extends BaseActionViewItem {
 		}
 
 		if (this.options.icon) {
-			this.cssClass = this.getAction().class;
+			this.cssClass = this.action.class;
 
 			if (this.label) {
 				this.label.classList.add('codicon');
@@ -375,7 +371,7 @@ export class ActionViewItem extends BaseActionViewItem {
 	}
 
 	override updateEnabled(): void {
-		if (this.getAction().enabled) {
+		if (this.action.enabled) {
 			if (this.label) {
 				this.label.removeAttribute('aria-disabled');
 				this.label.classList.remove('disabled');
@@ -394,7 +390,7 @@ export class ActionViewItem extends BaseActionViewItem {
 
 	override updateChecked(): void {
 		if (this.label) {
-			if (this.getAction().checked) {
+			if (this.action.checked) {
 				this.label.classList.add('checked');
 			} else {
 				this.label.classList.remove('checked');
