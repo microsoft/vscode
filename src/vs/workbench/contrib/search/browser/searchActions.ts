@@ -499,7 +499,7 @@ class ReplaceActionRunner {
 		} else {
 			const nextFocusElement = this.getElementToFocusAfterRemoved(this.viewer, currentBottomFocusElement);
 
-			if (nextFocusElement) {
+			if (nextFocusElement && !opInfo.elements.includes(nextFocusElement)) {
 				this.viewer.setFocus([nextFocusElement], getSelectionKeyboardEvent());
 				this.viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
 			}
@@ -595,7 +595,7 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 			this.getElementToFocusAfterRemoved(this.viewer, <any>currentBottomFocusElement) :
 			null;
 
-		if (nextFocusElement) {
+		if (nextFocusElement && !opInfo.elements.includes(nextFocusElement)) {
 			this.viewer.reveal(nextFocusElement);
 			this.viewer.setFocus([nextFocusElement], getSelectionKeyboardEvent());
 			this.viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
