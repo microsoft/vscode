@@ -1082,7 +1082,7 @@ registerThemingParticipant((theme, collector) => {
 					outline-width: 1px;
 					outline-style: solid;
 					border-bottom: none;
-					outline-offset: -2px;
+					outline-offset: -1px;
 				}
 
 				.monaco-workbench .part.basepanel > .title > .panel-switcher-container > .monaco-action-bar .action-item:not(.checked):hover .action-label {
