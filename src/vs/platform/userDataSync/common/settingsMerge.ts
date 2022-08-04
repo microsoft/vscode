@@ -57,6 +57,16 @@ function getIgnoredSettingsFromContent(settingsContent: string): string[] {
 	return parsed ? parsed['settingsSync.ignoredSettings'] || parsed['sync.ignoredSettings'] || [] : [];
 }
 
+export function removeComments(content: string, formattingOptions: FormattingOptions): string {
+	const source = parse(content) || {};
+	let result = '{}';
+	for (const key of Object.keys(source)) {
+		const edits = setProperty(result, [key], source[key], formattingOptions);
+		result = applyEdits(result, edits);
+	}
+	return result;
+}
+
 export function updateIgnoredSettings(targetContent: string, sourceContent: string, ignoredSettings: string[], formattingOptions: FormattingOptions): string {
 	if (ignoredSettings.length) {
 		const sourceTree = parseSettings(sourceContent);

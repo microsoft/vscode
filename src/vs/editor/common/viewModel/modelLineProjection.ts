@@ -455,7 +455,7 @@ class HiddenModelLineProjection implements IModelLineProjection {
 	}
 }
 
-let _spaces: string[] = [''];
+const _spaces: string[] = [''];
 function spaces(count: number): string {
 	if (count >= _spaces.length) {
 		for (let i = 1; i <= count; i++) {

@@ -6,13 +6,6 @@
 import { URI, UriComponents } from 'vs/base/common/uri';
 
 /**
- * @returns whether the provided parameter is a JavaScript Array or not.
- */
-export function isArray(array: any): array is any[] {
-	return Array.isArray(array);
-}
-
-/**
  * @returns whether the provided parameter is a JavaScript String or not.
  */
 export function isString(str: unknown): str is string {
@@ -47,18 +40,9 @@ export function isObject(obj: unknown): obj is Object {
  * @returns whether the provided parameter is of type `Buffer` or Uint8Array dervived type
  */
 export function isTypedArray(obj: unknown): obj is Object {
+	const TypedArray = Object.getPrototypeOf(Uint8Array);
 	return typeof obj === 'object'
-		&& (obj instanceof Uint8Array ||
-			obj instanceof Uint16Array ||
-			obj instanceof Uint32Array ||
-			obj instanceof Float32Array ||
-			obj instanceof Float64Array ||
-			obj instanceof Int8Array ||
-			obj instanceof Int16Array ||
-			obj instanceof Int32Array ||
-			obj instanceof BigInt64Array ||
-			obj instanceof BigUint64Array ||
-			obj instanceof Uint8ClampedArray);
+		&& obj instanceof TypedArray;
 }
 
 /**
@@ -154,7 +138,7 @@ export function isEmptyObject(obj: unknown): obj is object {
 		return false;
 	}
 
-	for (let key in obj) {
+	for (const key in obj) {
 		if (hasOwnProperty.call(obj, key)) {
 			return false;
 		}
@@ -238,7 +222,7 @@ export function createProxyObject<T extends object>(methodNames: string[], invok
 		};
 	};
 
-	let result = {} as T;
+	const result = {} as T;
 	for (const methodName of methodNames) {
 		(<any>result)[methodName] = createProxyMethod(methodName);
 	}
@@ -284,3 +268,9 @@ export type UriDto<T> = { [K in keyof T]: T[K] extends URI
 export function assertNever(value: never, message = 'Unreachable'): never {
 	throw new Error(message);
 }
+
+/**
+ * Given an object with all optional properties, requires at least one to be defined.
+ * i.e. AtLeastOne<MyObject>;
+ */
+export type AtLeastOne<T, U = { [K in keyof T]: Pick<T, K> }> = Partial<T> & U[keyof U];

@@ -6,7 +6,6 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { isArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -184,7 +183,7 @@ export class UserDataSyncChannelClient extends Disposable implements IUserDataSy
 		const that = this;
 		const manualSyncTaskChannelClient = new ManualSyncTaskChannelClient(id, manifest, status, {
 			async call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T> {
-				return that.channel.call<T>(`manualSync/${command}`, [id, ...(isArray(arg) ? arg : [arg])], cancellationToken);
+				return that.channel.call<T>(`manualSync/${command}`, [id, ...(Array.isArray(arg) ? arg : [arg])], cancellationToken);
 			},
 			listen<T>(event: string, arg?: any): Event<T> {
 				return Event.map(
@@ -259,6 +258,7 @@ export class UserDataSyncChannelClient extends Disposable implements IUserDataSy
 			conflicts.map(r =>
 			({
 				...r,
+				baseResource: URI.revive(r.baseResource),
 				localResource: URI.revive(r.localResource),
 				remoteResource: URI.revive(r.remoteResource),
 				previewResource: URI.revive(r.previewResource),
@@ -369,6 +369,7 @@ class ManualSyncTaskChannelClient extends Disposable implements IManualSyncTask 
 				isLastSyncFromCurrentMachine: preview.isLastSyncFromCurrentMachine,
 				resourcePreviews: preview.resourcePreviews.map(r => ({
 					...r,
+					baseResource: URI.revive(r.baseResource),
 					localResource: URI.revive(r.localResource),
 					remoteResource: URI.revive(r.remoteResource),
 					previewResource: URI.revive(r.previewResource),

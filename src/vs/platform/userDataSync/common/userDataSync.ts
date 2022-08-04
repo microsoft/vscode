@@ -10,7 +10,7 @@ import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IExtUri, isEqualOrParent, joinPath } from 'vs/base/common/resources';
-import { isArray, isObject, isString } from 'vs/base/common/types';
+import { isObject, isString } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IHeaders } from 'vs/base/parts/request/common/request';
 import { localize } from 'vs/nls';
@@ -128,7 +128,7 @@ export function isAuthenticationProvider(thing: any): thing is IAuthenticationPr
 	return thing
 		&& isObject(thing)
 		&& isString(thing.id)
-		&& isArray(thing.scopes);
+		&& Array.isArray(thing.scopes);
 }
 
 export const enum SyncResource {
@@ -156,7 +156,7 @@ export interface IResourceRefHandle {
 	created: number;
 }
 
-export type ServerResource = SyncResource | 'machines';
+export type ServerResource = SyncResource | 'machines' | 'editSessions';
 export type UserDataSyncStoreType = 'insiders' | 'stable';
 
 export const IUserDataSyncStoreManagementService = createDecorator<IUserDataSyncStoreManagementService>('IUserDataSyncStoreManagementService');
@@ -181,10 +181,10 @@ export interface IUserDataSyncStoreClient {
 	read(resource: ServerResource, oldValue: IUserData | null, headers?: IHeaders): Promise<IUserData>;
 	write(resource: ServerResource, content: string, ref: string | null, headers?: IHeaders): Promise<string>;
 	clear(): Promise<void>;
-	delete(resource: ServerResource): Promise<void>;
+	delete(resource: ServerResource, ref: string | null): Promise<void>;
 
 	getAllRefs(resource: ServerResource): Promise<IResourceRefHandle[]>;
-	resolveContent(resource: ServerResource, ref: string): Promise<string | null>;
+	resolveContent(resource: ServerResource, ref: string, headers?: IHeaders): Promise<string | null>;
 }
 
 export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreService>('IUserDataSyncStoreService');
@@ -359,6 +359,7 @@ export const enum MergeState {
 }
 
 export interface IResourcePreview {
+	readonly baseResource: URI;
 	readonly remoteResource: URI;
 	readonly localResource: URI;
 	readonly previewResource: URI;

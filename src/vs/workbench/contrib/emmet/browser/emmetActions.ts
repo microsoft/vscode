@@ -8,6 +8,7 @@ import { grammarsExtPoint, ITMSyntaxExtensionPoint } from 'vs/workbench/services
 import { IExtensionService, ExtensionPointContribution } from 'vs/workbench/services/extensions/common/extensions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface ModeScopeMap {
 	[key: string]: string;
@@ -70,13 +71,18 @@ export abstract class EmmetEditorAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		const extensionService = accessor.get(IExtensionService);
 		const commandService = accessor.get(ICommandService);
+		const configurationService = accessor.get(IConfigurationService);
+		const extensionService = accessor.get(IExtensionService);
 
 		return this._withGrammarContributions(extensionService).then((grammarContributions) => {
 
 			if (this.id === 'editor.emmet.action.expandAbbreviation' && grammarContributions) {
-				return commandService.executeCommand<void>('emmet.expandAbbreviation', EmmetEditorAction.getLanguage(editor, grammarContributions));
+				const languageInfo = EmmetEditorAction.getLanguage(editor, grammarContributions);
+				const languageId = languageInfo?.language;
+				if (configurationService.getValue('emmet.triggerExpansionOnTab', { overrideIdentifier: languageId }) === true) {
+					return commandService.executeCommand<void>('emmet.expandAbbreviation', languageInfo);
+				}
 			}
 
 			return undefined;
@@ -101,12 +107,12 @@ export abstract class EmmetEditorAction extends EditorAction {
 			return null;
 		}
 
-		let checkParentMode = (): string => {
-			let languageGrammar = grammars.getGrammar(syntax);
+		const checkParentMode = (): string => {
+			const languageGrammar = grammars.getGrammar(syntax);
 			if (!languageGrammar) {
 				return syntax;
 			}
-			let languages = languageGrammar.split('.');
+			const languages = languageGrammar.split('.');
 			if (languages.length < 2) {
 				return syntax;
 			}

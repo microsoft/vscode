@@ -71,7 +71,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		});
 		this._textEditorsListenersMap = Object.create(null);
 		this._toDispose.dispose();
-		for (let decorationType in this._registeredDecorationTypes) {
+		for (const decorationType in this._registeredDecorationTypes) {
 			this._codeEditorService.removeDecorationType(decorationType);
 		}
 		this._registeredDecorationTypes = Object.create(null);
@@ -104,7 +104,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 	private _getTextEditorPositionData(): ITextEditorPositionData {
 		const result: ITextEditorPositionData = Object.create(null);
-		for (let editorPane of this._editorService.visibleEditorPanes) {
+		for (const editorPane of this._editorService.visibleEditorPanes) {
 			const id = this._editorLocator.findTextEditorIdFor(editorPane);
 			if (id) {
 				result[id] = editorGroupToColumn(this._editorGroupService, editorPane.group);
@@ -156,7 +156,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		const mainThreadEditor = this._editorLocator.getEditor(id);
 		if (mainThreadEditor) {
 			const editorPanes = this._editorService.visibleEditorPanes;
-			for (let editorPane of editorPanes) {
+			for (const editorPane of editorPanes) {
 				if (mainThreadEditor.matches(editorPane)) {
 					await editorPane.group.closeEditor(editorPane.input);
 					return;

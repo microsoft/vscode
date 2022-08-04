@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import * as utils from '../utils';
 
-suite.skip('Notebook Document', function () {
+suite('Notebook Document', function () {
 
 	const simpleContentProvider = new class implements vscode.NotebookSerializer {
 		deserializeNotebook(_data: Uint8Array): vscode.NotebookData | Thenable<vscode.NotebookData> {
@@ -124,11 +124,10 @@ suite.skip('Notebook Document', function () {
 
 		const p = utils.asPromise(vscode.workspace.onDidOpenNotebookDocument).then(notebook => {
 			for (let i = 0; i < notebook.cellCount; i++) {
-				let cell = notebook.cellAt(i);
+				const cell = notebook.cellAt(i);
 
 				const doc = vscode.workspace.textDocuments.find(doc => doc.uri.toString() === cell.document.uri.toString());
 				assert.ok(doc);
-				assert.strictEqual(doc.notebook === notebook, true);
 				assert.strictEqual(doc === cell.document, true);
 				assert.strictEqual(doc?.languageId, cell.document.languageId);
 				assert.strictEqual(doc?.isDirty, false);
@@ -314,6 +313,18 @@ suite.skip('Notebook Document', function () {
 		assert.strictEqual(data.contentChanges.length, 0);
 		assert.strictEqual(data.cellChanges.length, 1);
 		assert.strictEqual(data.cellChanges[0].cell.index, 0);
+	});
+
+	test('workspace edit API (notebookMetadata)', async function () {
+		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
+		const document = await vscode.workspace.openNotebookDocument(uri);
+
+		const edit = new vscode.WorkspaceEdit();
+		const metdataEdit = vscode.NotebookEdit.updateNotebookMetadata({ ...document.metadata, custom: { ...(document.metadata.custom || {}), extraNotebookMetadata: true } });
+		edit.set(document.uri, [metdataEdit]);
+		const success = await vscode.workspace.applyEdit(edit);
+		assert.equal(success, true);
+		assert.ok(document.metadata.custom.extraNotebookMetadata, `Test metadata not found`);
 	});
 
 	test('document save API', async function () {

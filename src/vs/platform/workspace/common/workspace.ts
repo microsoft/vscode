@@ -6,7 +6,6 @@
 import { localize } from 'vs/nls';
 import { Event } from 'vs/base/common/event';
 import { extname } from 'vs/base/common/path';
-import { IWorkspaceFolderProvider } from 'vs/base/common/labels';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { extname as resourceExtname, basenameOrAuthority, joinPath, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -16,7 +15,7 @@ import { Schemas } from 'vs/base/common/network';
 
 export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
 
-export interface IWorkspaceContextService extends IWorkspaceFolderProvider {
+export interface IWorkspaceContextService {
 
 	readonly _serviceBrand: undefined;
 
@@ -346,11 +345,7 @@ export class Workspace implements IWorkspace {
 			return null;
 		}
 
-		return this._foldersMap.findSubstr(resource.with({
-			scheme: resource.scheme,
-			authority: resource.authority,
-			path: resource.path
-		})) || null;
+		return this._foldersMap.findSubstr(resource) || null;
 	}
 
 	private updateFoldersMap(): void {

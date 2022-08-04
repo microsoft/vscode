@@ -36,9 +36,10 @@ export class CredentialsNativeMainService extends BaseCredentialsMainService {
 			return this._keytarCache;
 		}
 
-		this._keytarCache = await import('keytar');
+		const keytarCache = await import('keytar');
 		// Try using keytar to see if it throws or not.
-		await this._keytarCache.findCredentials('test-keytar-loads');
+		await keytarCache.findCredentials('test-keytar-loads');
+		this._keytarCache = keytarCache;
 		return this._keytarCache;
 	}
 

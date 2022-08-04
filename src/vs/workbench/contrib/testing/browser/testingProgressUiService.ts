@@ -129,6 +129,7 @@ export class TestingProgressUiService extends Disposable implements ITestingProg
 		if (!this.windowProg.value) {
 			this.windowProg.value = this.instantiaionService.createInstance(UnmanagedProgress, {
 				location: ProgressLocation.Window,
+				type: 'loading'
 			});
 			this.testViewProg.value = this.instantiaionService.createInstance(UnmanagedProgress, {
 				location: Testing.ViewletId,

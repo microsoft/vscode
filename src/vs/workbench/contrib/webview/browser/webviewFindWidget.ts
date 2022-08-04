@@ -6,6 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { SimpleFindWidget } from 'vs/workbench/contrib/codeEditor/browser/find/simpleFindWidget';
 import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/webview/browser/webview';
 
@@ -29,9 +30,10 @@ export class WebviewFindWidget extends SimpleFindWidget {
 	constructor(
 		private readonly _delegate: WebviewFindDelegate,
 		@IContextViewService contextViewService: IContextViewService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super(contextViewService, contextKeyService, undefined, { showOptionButtons: false, checkImeCompletionState: _delegate.checkImeCompletionState });
+		super(undefined, { showOptionButtons: false, checkImeCompletionState: _delegate.checkImeCompletionState }, contextViewService, contextKeyService, keybindingService);
 		this._findWidgetFocused = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED.bindTo(contextKeyService);
 
 		this._register(_delegate.hasFindResult(hasResult => {

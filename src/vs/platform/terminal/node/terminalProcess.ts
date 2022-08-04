@@ -97,7 +97,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		shellType: undefined,
 		hasChildProcesses: true,
 		resolvedShellLaunchConfig: {},
-		overrideDimensions: undefined
+		overrideDimensions: undefined,
+		failedShellIntegrationActivation: false,
+		usedShellIntegrationInjection: undefined
 	};
 	private static _lastKillOrStart = 0;
 	private _exitCode: number | undefined;
@@ -201,6 +203,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		if (this._options.shellIntegration.enabled) {
 			injection = getShellIntegrationInjection(this.shellLaunchConfig, this._options.shellIntegration, this._logService);
 			if (injection) {
+				this._onDidChangeProperty.fire({ type: ProcessPropertyType.UsedShellIntegrationInjection, value: true });
 				if (injection.envMixin) {
 					for (const [key, value] of Object.entries(injection.envMixin)) {
 						this._ptyOptions.env ||= {};
@@ -213,6 +216,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 						await fs.copyFile(f.source, f.dest);
 					}
 				}
+			} else {
+				this._onDidChangeProperty.fire({ type: ProcessPropertyType.FailedShellIntegrationActivation, value: true });
 			}
 		}
 
@@ -220,7 +225,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		if (this.shellLaunchConfig.env?.['_ZDOTDIR'] === '1') {
 			const zdotdir = path.join(tmpdir(), 'vscode-zsh');
 			await fs.mkdir(zdotdir, { recursive: true });
-			const source = path.join(path.dirname(FileAccess.asFileUri('', require).fsPath), 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration.zsh');
+			const source = path.join(path.dirname(FileAccess.asFileUri('', require).fsPath), 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration-rc.zsh');
 			await fs.copyFile(source, path.join(zdotdir, '.zshrc'));
 			this._ptyOptions.env = this._ptyOptions.env || {};
 			this._ptyOptions.env['ZDOTDIR'] = zdotdir;
@@ -264,7 +269,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		} catch (err) {
 			if (err?.code === 'ENOENT') {
 				// The executable isn't an absolute path, try find it on the PATH or CWD
-				let cwd = slc.cwd instanceof URI ? slc.cwd.path : slc.cwd!;
+				const cwd = slc.cwd instanceof URI ? slc.cwd.path : slc.cwd!;
 				const envPaths: string[] | undefined = (slc.env && slc.env.PATH) ? slc.env.PATH.split(path.delimiter) : undefined;
 				const executable = await findExecutable(slc.executable!, cwd, envPaths, this._executableEnv);
 				if (!executable) {
@@ -303,6 +308,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			}
 
 			// Refire the data event
+			this._logService.trace('IPty#onData', data);
 			this._onProcessData.fire(data);
 			if (this._closeTimeout) {
 				this._queueProcessExit();
@@ -492,6 +498,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	private _doWrite(): void {
 		const object = this._writeQueue.shift()!;
+		this._logService.trace('IPty#write', object.data);
 		if (object.isBinary) {
 			this._ptyProcess!.write(Buffer.from(object.data, 'binary') as any);
 		} else {

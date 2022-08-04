@@ -164,6 +164,10 @@ export class DebugSession implements IDebugSession {
 		return !!this._options.compact;
 	}
 
+	get saveBeforeStart(): boolean {
+		return this._options.saveBeforeStart ?? !this._options?.parentSession;
+	}
+
 	get compoundRoot(): DebugCompoundRoot | undefined {
 		return this._options.compoundRoot;
 	}
@@ -292,7 +296,8 @@ export class DebugSession implements IDebugSession {
 				locale: platform.locale,
 				supportsProgressReporting: true, // #92253
 				supportsInvalidatedEvent: true, // #106745
-				supportsMemoryReferences: true //#129684
+				supportsMemoryReferences: true, //#129684
+				supportsArgsCanBeInterpretedByShell: true // #149910
 			});
 
 			this.initialized = true;
@@ -925,9 +930,7 @@ export class DebugSession implements IDebugSession {
 					} catch (e) {
 						// Disconnect the debug session on configuration done error #10596
 						this.notificationService.error(e);
-						if (this.raw) {
-							this.raw.disconnect({});
-						}
+						this.raw?.disconnect({});
 					}
 				}
 
@@ -957,7 +960,7 @@ export class DebugSession implements IDebugSession {
 			if (thread) {
 				// Call fetch call stack twice, the first only return the top stack frame.
 				// Second retrieves the rest of the call stack. For performance reasons #25605
-				const promises = this.model.fetchCallStack(<Thread>thread);
+				const promises = this.model.refreshTopOfCallstack(<Thread>thread);
 				const focus = async () => {
 					if (focusedThreadDoesNotExist || (!event.body.preserveFocusHint && thread.getCallStack().length)) {
 						const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
@@ -1030,9 +1033,7 @@ export class DebugSession implements IDebugSession {
 				this.stoppedDetails = this.stoppedDetails.filter(sd => sd.threadId !== threadId);
 				const tokens = this.cancellationMap.get(threadId);
 				this.cancellationMap.delete(threadId);
-				if (tokens) {
-					tokens.forEach(t => t.cancel());
-				}
+				tokens?.forEach(t => t.cancel());
 			} else {
 				this.stoppedDetails = [];
 				this.cancelAllRequests();

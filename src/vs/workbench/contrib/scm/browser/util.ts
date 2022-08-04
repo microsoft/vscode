@@ -37,7 +37,7 @@ export function isSCMResource(element: any): element is ISCMResource {
 	return !!(element as ISCMResource).sourceUri && isSCMResourceGroup((element as ISCMResource).resourceGroup);
 }
 
-const compareActions = (a: IAction, b: IAction) => a.id === b.id;
+const compareActions = (a: IAction, b: IAction) => a.id === b.id && a.enabled === b.enabled;
 
 export function connectPrimaryMenu(menu: IMenu, callback: (primary: IAction[], secondary: IAction[]) => void, primaryGroup?: string): IDisposable {
 	let cachedDisposable: IDisposable = Disposable.None;
@@ -107,7 +107,7 @@ class StatusBarActionViewItem extends ActionViewItem {
 
 	override updateLabel(): void {
 		if (this.options.label && this.label) {
-			reset(this.label, ...renderLabelWithIcons(this.getAction().label));
+			reset(this.label, ...renderLabelWithIcons(this.action.label));
 		}
 	}
 }

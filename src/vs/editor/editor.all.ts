@@ -15,10 +15,12 @@ import 'vs/editor/contrib/clipboard/browser/clipboard';
 import 'vs/editor/contrib/codeAction/browser/codeActionContributions';
 import 'vs/editor/contrib/codelens/browser/codelensController';
 import 'vs/editor/contrib/colorPicker/browser/colorContributions';
+import 'vs/editor/contrib/copyPaste/browser/copyPasteContribution';
 import 'vs/editor/contrib/comment/browser/comment';
 import 'vs/editor/contrib/contextmenu/browser/contextmenu';
 import 'vs/editor/contrib/cursorUndo/browser/cursorUndo';
 import 'vs/editor/contrib/dnd/browser/dnd';
+import 'vs/editor/contrib/dropIntoEditor/browser/dropIntoEditorContribution';
 import 'vs/editor/contrib/find/browser/findController';
 import 'vs/editor/contrib/folding/browser/folding';
 import 'vs/editor/contrib/fontZoom/browser/fontZoom';
@@ -39,6 +41,7 @@ import 'vs/editor/contrib/links/browser/links';
 import 'vs/editor/contrib/multicursor/browser/multicursor';
 import 'vs/editor/contrib/parameterHints/browser/parameterHints';
 import 'vs/editor/contrib/rename/browser/rename';
+import 'vs/editor/contrib/stickyScroll/browser/stickyScroll';
 import 'vs/editor/contrib/smartSelect/browser/smartSelect';
 import 'vs/editor/contrib/snippet/browser/snippetController2';
 import 'vs/editor/contrib/suggest/browser/suggestController';
@@ -51,6 +54,7 @@ import 'vs/editor/contrib/viewportSemanticTokens/browser/viewportSemanticTokens'
 import 'vs/editor/contrib/wordHighlighter/browser/wordHighlighter';
 import 'vs/editor/contrib/wordOperations/browser/wordOperations';
 import 'vs/editor/contrib/wordPartOperations/browser/wordPartOperations';
+import 'vs/editor/contrib/readOnlyMessage/browser/contribution';
 
 // Load up these strings even in VSCode, even if they are not used
 // in order to get them translated

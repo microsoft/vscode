@@ -14,7 +14,7 @@ import { Color } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, EmitterOptions, Event, EventDeliveryQueue } from 'vs/base/common/event';
 import { hash } from 'vs/base/common/hash';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { EditorConfiguration, IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
@@ -267,7 +267,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	private _bannerDomNode: HTMLElement | null = null;
 
-	private _dropIntoEditorDecorationIds: string[] = [];
+	private _dropIntoEditorDecorations: EditorDecorationsCollection = this.createDecorationsCollection();
 
 	constructor(
 		domElement: HTMLElement,
@@ -368,35 +368,47 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			this._actions[internalAction.id] = internalAction;
 		});
 
-		if (_options.enableDropIntoEditor) {
-			this._register(new dom.DragAndDropObserver(this._domElement, {
-				onDragEnter: () => undefined,
-				onDragOver: e => {
-					const target = this.getTargetAtClientPoint(e.clientX, e.clientY);
-					if (target?.position) {
-						this.showDropIndicatorAt(target.position);
-					}
-				},
-				onDrop: async e => {
-					this.removeDropIndicator();
+		const isDropIntoEnabled = () => {
+			return !this._configuration.options.get(EditorOption.readOnly)
+				&& this._configuration.options.get(EditorOption.dropIntoEditor).enabled;
+		};
 
-					if (!e.dataTransfer) {
-						return;
-					}
+		this._register(new dom.DragAndDropObserver(this._domElement, {
+			onDragEnter: () => undefined,
+			onDragOver: e => {
+				if (!isDropIntoEnabled()) {
+					return;
+				}
 
-					const target = this.getTargetAtClientPoint(e.clientX, e.clientY);
-					if (target?.position) {
-						this._onDropIntoEditor.fire({ position: target.position, event: e });
-					}
-				},
-				onDragLeave: () => {
-					this.removeDropIndicator();
-				},
-				onDragEnd: () => {
-					this.removeDropIndicator();
-				},
-			}));
-		}
+				const target = this.getTargetAtClientPoint(e.clientX, e.clientY);
+				if (target?.position) {
+					this.showDropIndicatorAt(target.position);
+				}
+			},
+			onDrop: async e => {
+				if (!isDropIntoEnabled()) {
+					return;
+				}
+
+				this.removeDropIndicator();
+
+				if (!e.dataTransfer) {
+					return;
+				}
+
+				const target = this.getTargetAtClientPoint(e.clientX, e.clientY);
+				if (target?.position) {
+					this._onDropIntoEditor.fire({ position: target.position, event: e });
+				}
+			},
+			onDragLeave: () => {
+				this.removeDropIndicator();
+			},
+			onDragEnd: () => {
+				this.removeDropIndicator();
+			},
+		}));
+
 
 		this._codeEditorService.addCodeEditor(this);
 	}
@@ -526,9 +538,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private _removeDecorationTypes(): void {
 		this._decorationTypeKeysToIds = {};
 		if (this._decorationTypeSubtypes) {
-			for (let decorationType in this._decorationTypeSubtypes) {
+			for (const decorationType in this._decorationTypeSubtypes) {
 				const subTypes = this._decorationTypeSubtypes[decorationType];
-				for (let subType in subTypes) {
+				for (const subType in subTypes) {
 					this._removeDecorationType(decorationType + '-' + subType);
 				}
 			}
@@ -557,33 +569,47 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.viewModel.viewLayout.getWhitespaces();
 	}
 
-	private static _getVerticalOffsetForPosition(modelData: ModelData, modelLineNumber: number, modelColumn: number): number {
+	private static _getVerticalOffsetAfterPosition(modelData: ModelData, modelLineNumber: number, modelColumn: number, includeViewZones: boolean): number {
 		const modelPosition = modelData.model.validatePosition({
 			lineNumber: modelLineNumber,
 			column: modelColumn
 		});
 		const viewPosition = modelData.viewModel.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
-		return modelData.viewModel.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
+		return modelData.viewModel.viewLayout.getVerticalOffsetAfterLineNumber(viewPosition.lineNumber, includeViewZones);
 	}
 
-	public getTopForLineNumber(lineNumber: number): number {
+	public getTopForLineNumber(lineNumber: number, includeViewZones: boolean = false): number {
 		if (!this._modelData) {
 			return -1;
 		}
-		return CodeEditorWidget._getVerticalOffsetForPosition(this._modelData, lineNumber, 1);
+		return CodeEditorWidget._getVerticalOffsetForPosition(this._modelData, lineNumber, 1, includeViewZones);
 	}
 
 	public getTopForPosition(lineNumber: number, column: number): number {
 		if (!this._modelData) {
 			return -1;
 		}
-		return CodeEditorWidget._getVerticalOffsetForPosition(this._modelData, lineNumber, column);
+		return CodeEditorWidget._getVerticalOffsetForPosition(this._modelData, lineNumber, column, false);
+	}
+
+	private static _getVerticalOffsetForPosition(modelData: ModelData, modelLineNumber: number, modelColumn: number, includeViewZones: boolean = false): number {
+		const modelPosition = modelData.model.validatePosition({
+			lineNumber: modelLineNumber,
+			column: modelColumn
+		});
+		const viewPosition = modelData.viewModel.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
+		return modelData.viewModel.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber, includeViewZones);
+	}
+
+	public getBottomForLineNumber(lineNumber: number, includeViewZones: boolean = false): number {
+		if (!this._modelData) {
+			return -1;
+		}
+		return CodeEditorWidget._getVerticalOffsetAfterPosition(this._modelData, lineNumber, 1, includeViewZones);
 	}
 
 	public setHiddenAreas(ranges: IRange[]): void {
-		if (this._modelData) {
-			this._modelData.viewModel.setHiddenAreas(ranges.map(r => Range.lift(r)));
-		}
+		this._modelData?.viewModel.setHiddenAreas(ranges.map(r => Range.lift(r)));
 	}
 
 	public getVisibleColumnFromPosition(rawPosition: IPosition): number {
@@ -1156,9 +1182,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData || text.length === 0) {
 			return;
 		}
-		const startPosition = this._modelData.viewModel.getSelection().getStartPosition();
-		this._modelData.viewModel.paste(text, pasteOnNewLine, multicursorText, source);
-		const endPosition = this._modelData.viewModel.getSelection().getStartPosition();
+		const viewModel = this._modelData.viewModel;
+		const startPosition = viewModel.getSelection().getStartPosition();
+		viewModel.paste(text, pasteOnNewLine, multicursorText, source);
+		const endPosition = viewModel.getSelection().getStartPosition();
 		if (source === 'keyboard') {
 			this._onDidPaste.fire({
 				range: new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column),
@@ -1255,6 +1282,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._modelData.viewModel.executeCommands(commands, source);
 	}
 
+	public createDecorationsCollection(decorations?: IModelDeltaDecoration[]): EditorDecorationsCollection {
+		return new EditorDecorationsCollection(this, decorations);
+	}
+
 	public changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any {
 		if (!this._modelData) {
 			// callback will not be called
@@ -1277,6 +1308,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.model.getDecorationsInRange(range, this._id, filterValidationDecorations(this._configuration.options));
 	}
 
+	/**
+	 * @deprecated
+	 */
 	public deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[] {
 		if (!this._modelData) {
 			return [];
@@ -1289,7 +1323,17 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.model.deltaDecorations(oldDecorations, newDecorations, this._id);
 	}
 
-	public setDecorations(description: string, decorationTypeKey: string, decorationOptions: editorCommon.IDecorationOptions[]): void {
+	public removeDecorations(decorationIds: string[]): void {
+		if (!this._modelData || decorationIds.length === 0) {
+			return;
+		}
+
+		this._modelData.model.changeDecorations((changeAccessor) => {
+			changeAccessor.deltaDecorations(decorationIds, []);
+		});
+	}
+
+	public setDecorationsByType(description: string, decorationTypeKey: string, decorationOptions: editorCommon.IDecorationOptions[]): void {
 
 		const newDecorationsSubTypes: { [key: string]: boolean } = {};
 		const oldDecorationsSubTypes = this._decorationTypeSubtypes[decorationTypeKey] || {};
@@ -1297,7 +1341,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		const newModelDecorations: IModelDeltaDecoration[] = [];
 
-		for (let decorationOption of decorationOptions) {
+		for (const decorationOption of decorationOptions) {
 			let typeKey = decorationTypeKey;
 			if (decorationOption.renderOptions) {
 				// identify custom reder options by a hash code over all keys and values
@@ -1320,7 +1364,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 
 		// remove decoration sub types that are no longer used, deregister decoration type if necessary
-		for (let subType in oldDecorationsSubTypes) {
+		for (const subType in oldDecorationsSubTypes) {
 			if (!newDecorationsSubTypes[subType]) {
 				this._removeDecorationType(decorationTypeKey + '-' + subType);
 			}
@@ -1331,11 +1375,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._decorationTypeKeysToIds[decorationTypeKey] = this.deltaDecorations(oldDecorationsIds, newModelDecorations);
 	}
 
-	public setDecorationsFast(decorationTypeKey: string, ranges: IRange[]): void {
+	public setDecorationsByTypeFast(decorationTypeKey: string, ranges: IRange[]): void {
 
 		// remove decoration sub types that are no longer used, deregister decoration type if necessary
 		const oldDecorationsSubTypes = this._decorationTypeSubtypes[decorationTypeKey] || {};
-		for (let subType in oldDecorationsSubTypes) {
+		for (const subType in oldDecorationsSubTypes) {
 			this._removeDecorationType(decorationTypeKey + '-' + subType);
 		}
 		this._decorationTypeSubtypes[decorationTypeKey] = {};
@@ -1351,7 +1395,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._decorationTypeKeysToIds[decorationTypeKey] = this.deltaDecorations(oldDecorationsIds, newModelDecorations);
 	}
 
-	public removeDecorations(decorationTypeKey: string): void {
+	public removeDecorationsByType(decorationTypeKey: string): void {
 		// remove decorations for type and sub type
 		const oldDecorationsIds = this._decorationTypeKeysToIds[decorationTypeKey];
 		if (oldDecorationsIds) {
@@ -1775,9 +1819,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	protected _postDetachModelCleanup(detachedModel: ITextModel | null): void {
-		if (detachedModel) {
-			detachedModel.removeAllDecorationsWithOwnerId(this._id);
-		}
+		detachedModel?.removeAllDecorationsWithOwnerId(this._id);
 	}
 
 	private _detachModel(): ITextModel | null {
@@ -1822,17 +1864,17 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	private showDropIndicatorAt(position: Position): void {
-		let newDecorations: IModelDeltaDecoration[] = [{
+		const newDecorations: IModelDeltaDecoration[] = [{
 			range: new Range(position.lineNumber, position.column, position.lineNumber, position.column),
 			options: CodeEditorWidget.dropIntoEditorDecorationOptions
 		}];
 
-		this._dropIntoEditorDecorationIds = this.deltaDecorations(this._dropIntoEditorDecorationIds, newDecorations);
+		this._dropIntoEditorDecorations.set(newDecorations);
 		this.revealPosition(position, editorCommon.ScrollType.Immediate);
 	}
 
 	private removeDropIndicator(): void {
-		this._dropIntoEditorDecorationIds = this.deltaDecorations(this._dropIntoEditorDecorationIds, []);
+		this._dropIntoEditorDecorations.clear();
 	}
 }
 
@@ -2125,8 +2167,82 @@ class CodeEditorWidgetFocusTracker extends Disposable {
 	}
 
 	public refreshState(): void {
-		if (this._domFocusTracker.refreshState) {
-			this._domFocusTracker.refreshState();
+		this._domFocusTracker.refreshState?.();
+	}
+}
+
+class EditorDecorationsCollection implements editorCommon.IEditorDecorationsCollection {
+
+	private _decorationIds: string[] = [];
+	private _isChangingDecorations: boolean = false;
+
+	public get length(): number {
+		return this._decorationIds.length;
+	}
+
+	constructor(
+		private readonly _editor: editorBrowser.ICodeEditor,
+		decorations: IModelDeltaDecoration[] | undefined
+	) {
+		if (Array.isArray(decorations) && decorations.length > 0) {
+			this.set(decorations);
+		}
+	}
+
+	public onDidChange(listener: (e: IModelDecorationsChangedEvent) => any, thisArgs?: any, disposables?: IDisposable[] | DisposableStore): IDisposable {
+		return this._editor.onDidChangeModelDecorations((e) => {
+			if (this._isChangingDecorations) {
+				return;
+			}
+			listener.call(thisArgs, e);
+		}, disposables);
+	}
+
+	public getRange(index: number): Range | null {
+		if (!this._editor.hasModel()) {
+			return null;
+		}
+		if (index >= this._decorationIds.length) {
+			return null;
+		}
+		return this._editor.getModel().getDecorationRange(this._decorationIds[index]);
+	}
+
+	public getRanges(): Range[] {
+		if (!this._editor.hasModel()) {
+			return [];
+		}
+		const model = this._editor.getModel();
+		const result: Range[] = [];
+		for (const decorationId of this._decorationIds) {
+			const range = model.getDecorationRange(decorationId);
+			if (range) {
+				result.push(range);
+			}
+		}
+		return result;
+	}
+
+	public has(decoration: IModelDecoration): boolean {
+		return this._decorationIds.includes(decoration.id);
+	}
+
+	public clear(): void {
+		if (this._decorationIds.length === 0) {
+			// nothing to do
+			return;
+		}
+		this.set([]);
+	}
+
+	public set(newDecorations: IModelDeltaDecoration[]): void {
+		try {
+			this._isChangingDecorations = true;
+			this._editor.changeDecorations((accessor) => {
+				this._decorationIds = accessor.deltaDecorations(this._decorationIds, newDecorations);
+			});
+		} finally {
+			this._isChangingDecorations = false;
 		}
 	}
 }

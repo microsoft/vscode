@@ -62,9 +62,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 	 * If there is no model for the given resource, this method does nothing.
 	 */
 	static refreshDebugContent(resource: uri): void {
-		if (DebugContentProvider.INSTANCE) {
-			DebugContentProvider.INSTANCE.createOrUpdateContentModel(resource, false);
-		}
+		DebugContentProvider.INSTANCE?.createOrUpdateContentModel(resource, false);
 	}
 
 	/**
@@ -112,9 +110,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 
 					// cancel and dispose an existing update
 					const cancellationSource = this.pendingUpdates.get(model.id);
-					if (cancellationSource) {
-						cancellationSource.cancel();
-					}
+					cancellationSource?.cancel();
 
 					// create and keep update token
 					const myToken = new CancellationTokenSource();

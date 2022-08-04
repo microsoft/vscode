@@ -292,6 +292,13 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	matchOnLabel: boolean;
 
+	/**
+	 * The mode to filter label with. Fuzzy will use fuzzy searching and
+	 * contiguous will make filter entries that do not contain the exact string
+	 * (including whitespace). This defaults to `'fuzzy'`.
+	 */
+	matchOnLabelMode: 'fuzzy' | 'contiguous';
+
 	sortByLabel: boolean;
 
 	autoFocusOnList: boolean;

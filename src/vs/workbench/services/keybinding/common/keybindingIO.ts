@@ -22,11 +22,11 @@ export class KeybindingIO {
 		if (!item.resolvedKeybinding) {
 			return;
 		}
-		let quotedSerializedKeybinding = JSON.stringify(item.resolvedKeybinding.getUserSettingsLabel());
+		const quotedSerializedKeybinding = JSON.stringify(item.resolvedKeybinding.getUserSettingsLabel());
 		out.write(`{ "key": ${rightPaddedString(quotedSerializedKeybinding + ',', 25)} "command": `);
 
-		let quotedSerializedWhen = item.when ? JSON.stringify(item.when.serialize()) : '';
-		let quotedSerializeCommand = JSON.stringify(item.command);
+		const quotedSerializedWhen = item.when ? JSON.stringify(item.when.serialize()) : '';
+		const quotedSerializeCommand = JSON.stringify(item.command);
 		if (quotedSerializedWhen.length > 0) {
 			out.write(`${quotedSerializeCommand},`);
 			out.writeLine();

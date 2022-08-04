@@ -117,7 +117,7 @@ export namespace IRichLocation {
 
 export const enum TestMessageType {
 	Error,
-	Info
+	Output
 }
 
 export interface ITestErrorMessage {
@@ -156,8 +156,9 @@ export namespace ITestErrorMessage {
 
 export interface ITestOutputMessage {
 	message: string;
-	type: TestMessageType.Info;
+	type: TestMessageType.Output;
 	offset: number;
+	length: number;
 	location: IRichLocation | undefined;
 }
 
@@ -165,21 +166,24 @@ export namespace ITestOutputMessage {
 	export interface Serialized {
 		message: string;
 		offset: number;
-		type: TestMessageType.Info;
+		length: number;
+		type: TestMessageType.Output;
 		location: IRichLocation.Serialize | undefined;
 	}
 
 	export const serialize = (message: ITestOutputMessage): Serialized => ({
 		message: message.message,
-		type: TestMessageType.Info,
+		type: TestMessageType.Output,
 		offset: message.offset,
+		length: message.length,
 		location: message.location && IRichLocation.serialize(message.location),
 	});
 
 	export const deserialize = (message: Serialized): ITestOutputMessage => ({
 		message: message.message,
-		type: TestMessageType.Info,
+		type: TestMessageType.Output,
 		offset: message.offset,
+		length: message.length,
 		location: message.location && IRichLocation.deserialize(message.location),
 	});
 }
@@ -208,6 +212,12 @@ export namespace ITestTaskState {
 		duration: number | undefined;
 		messages: ITestMessage.Serialized[];
 	}
+
+	export const serializeWithoutMessages = (state: ITestTaskState): Serialized => ({
+		state: state.state,
+		duration: state.duration,
+		messages: [],
+	});
 
 	export const serialize = (state: ITestTaskState): Serialized => ({
 		state: state.state,
@@ -420,23 +430,33 @@ export interface TestResultItem extends InternalTestItem {
 	computedState: TestResultState;
 	/** Max duration of the item's tasks (if run directly) */
 	ownDuration?: number;
+	/** Whether this test item is outdated */
+	retired?: boolean;
 }
 
 export namespace TestResultItem {
 	/** Serialized version of the TestResultItem */
 	export interface Serialized extends InternalTestItem.Serialized {
-		children: string[];
 		tasks: ITestTaskState.Serialized[];
 		ownComputedState: TestResultState;
 		computedState: TestResultState;
+		retired?: boolean;
 	}
 
-	export const serialize = (original: TestResultItem, children: string[]): Serialized => ({
+	export const serializeWithoutMessages = (original: TestResultItem): Serialized => ({
 		...InternalTestItem.serialize(original),
-		children,
+		ownComputedState: original.ownComputedState,
+		computedState: original.computedState,
+		tasks: original.tasks.map(ITestTaskState.serializeWithoutMessages),
+		retired: original.retired,
+	});
+
+	export const serialize = (original: TestResultItem): Serialized => ({
+		...InternalTestItem.serialize(original),
 		ownComputedState: original.ownComputedState,
 		computedState: original.computedState,
 		tasks: original.tasks.map(ITestTaskState.serialize),
+		retired: original.retired,
 	});
 }
 
@@ -448,7 +468,7 @@ export interface ISerializedTestResults {
 	/** Subset of test result items */
 	items: TestResultItem.Serialized[];
 	/** Tasks involved in the run. */
-	tasks: { id: string; name: string | undefined; messages: ITestOutputMessage.Serialized[] }[];
+	tasks: { id: string; name: string | undefined }[];
 	/** Human-readable name of the test run. */
 	name: string;
 	/** Test trigger informaton */

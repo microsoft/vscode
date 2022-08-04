@@ -15,7 +15,7 @@ export enum TsServerLogLevel {
 
 export namespace TsServerLogLevel {
 	export function fromString(value: string): TsServerLogLevel {
-		switch (value && value.toLowerCase()) {
+		switch (value?.toLowerCase()) {
 			case 'normal':
 				return TsServerLogLevel.Normal;
 			case 'terse':
@@ -91,7 +91,7 @@ export class ImplicitProjectConfiguration {
 	}
 
 	private static readImplicitStrictNullChecks(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('js/ts.implicitProjectConfig.strictNullChecks', false);
+		return configuration.get<boolean>('js/ts.implicitProjectConfig.strictNullChecks', true);
 	}
 
 	private static readImplicitStrictFunctionTypes(configuration: vscode.WorkspaceConfiguration): boolean {

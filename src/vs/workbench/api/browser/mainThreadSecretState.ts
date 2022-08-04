@@ -65,7 +65,8 @@ export class MainThreadSecretState extends Disposable implements MainThreadSecre
 				if (value.extensionId === extensionId) {
 					return value.content;
 				}
-			} catch (_) {
+			} catch (e) {
+				this.logService.error(e);
 				throw new Error('Cannot get password');
 			}
 		}

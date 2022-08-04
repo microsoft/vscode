@@ -68,7 +68,7 @@ export class CommentsPanel extends ViewPane {
 
 		container.classList.add('comments-panel');
 
-		let domContainer = dom.append(container, dom.$('.comments-panel-container'));
+		const domContainer = dom.append(container, dom.$('.comments-panel-container'));
 		this.treeContainer = dom.append(domContainer, dom.$('.tree-container'));
 		this.treeContainer.classList.add('file-icon-themable-tree', 'show-file-icons');
 		this.commentsModel = new CommentsModel();
@@ -156,10 +156,6 @@ export class CommentsPanel extends ViewPane {
 		this.tree.layout(height, width);
 	}
 
-	public getTitle(): string {
-		return COMMENTS_VIEW_TITLE;
-	}
-
 	private createMessageBox(parent: HTMLElement): void {
 		this.messageBoxContainer = dom.append(parent, dom.$('.message-box-container'));
 		this.messageBoxContainer.setAttribute('tabIndex', '0');
@@ -215,12 +211,16 @@ export class CommentsPanel extends ViewPane {
 			return false;
 		}
 
+		if (!this.commentService.isCommentingEnabled) {
+			this.commentService.enableCommenting(true);
+		}
+
 		const range = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].range : element.range;
 
 		const activeEditor = this.editorService.activeTextEditorControl;
 		// If the active editor is a diff editor where one of the sides has the comment,
 		// then we try to reveal the comment in the diff editor.
-		let currentActiveResources: IEditor[] = isDiffEditor(activeEditor) ? [activeEditor.getOriginalEditor(), activeEditor.getModifiedEditor()]
+		const currentActiveResources: IEditor[] = isDiffEditor(activeEditor) ? [activeEditor.getOriginalEditor(), activeEditor.getModifiedEditor()]
 			: (activeEditor ? [activeEditor] : []);
 
 		for (const editor of currentActiveResources) {
@@ -230,7 +230,7 @@ export class CommentsPanel extends ViewPane {
 				const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment.uniqueIdInThread : element.comment.uniqueIdInThread;
 				if (threadToReveal && isCodeEditor(editor)) {
 					const controller = CommentController.get(editor);
-					controller?.revealCommentThread(threadToReveal, commentToReveal, false);
+					controller?.revealCommentThread(threadToReveal, commentToReveal, true);
 				}
 
 				return true;

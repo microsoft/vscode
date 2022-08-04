@@ -80,12 +80,12 @@ class FormatOnType implements IEditorContribution {
 		}
 
 		// register typing listeners that will trigger the format
-		let triggerChars = new CharacterSet();
-		for (let ch of support.autoFormatTriggerCharacters) {
+		const triggerChars = new CharacterSet();
+		for (const ch of support.autoFormatTriggerCharacters) {
 			triggerChars.add(ch.charCodeAt(0));
 		}
 		this._sessionDisposables.add(this._editor.onDidType((text: string) => {
-			let lastCharCode = text.charCodeAt(text.length - 1);
+			const lastCharCode = text.charCodeAt(text.length - 1);
 			if (triggerChars.has(lastCharCode)) {
 				this._trigger(String.fromCharCode(lastCharCode));
 			}

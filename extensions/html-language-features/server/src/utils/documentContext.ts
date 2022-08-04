@@ -10,7 +10,7 @@ import { resolvePath } from '../requests';
 
 export function getDocumentContext(documentUri: string, workspaceFolders: WorkspaceFolder[]): DocumentContext {
 	function getRootFolder(): string | undefined {
-		for (let folder of workspaceFolders) {
+		for (const folder of workspaceFolders) {
 			let folderURI = folder.uri;
 			if (!endsWith(folderURI, '/')) {
 				folderURI = folderURI + '/';
@@ -24,8 +24,12 @@ export function getDocumentContext(documentUri: string, workspaceFolders: Worksp
 
 	return {
 		resolveReference: (ref: string, base = documentUri) => {
+			if (ref.match(/^\w[\w\d+.-]*:/)) {
+				// starts with a schema
+				return ref;
+			}
 			if (ref[0] === '/') { // resolve absolute path against the current workspace folder
-				let folderUri = getRootFolder();
+				const folderUri = getRootFolder();
 				if (folderUri) {
 					return folderUri + ref.substr(1);
 				}

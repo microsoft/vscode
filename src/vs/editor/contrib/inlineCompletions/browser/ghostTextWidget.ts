@@ -211,12 +211,14 @@ class DisposableDecorations {
 	}
 
 	public setDecorations(decorations: IModelDeltaDecoration[]): void {
-		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, decorations);
+		// Using change decorations ensures that we update the id's before some event handler is called.
+		this.editor.changeDecorations(accessor => {
+			this.decorationIds = accessor.deltaDecorations(this.decorationIds, decorations);
+		});
 	}
 
-	public clear() {
-		this.editor.deltaDecorations(this.decorationIds, []);
-		this.decorationIds = [];
+	public clear(): void {
+		this.setDecorations([]);
 	}
 
 	public dispose(): void {
@@ -237,7 +239,6 @@ interface InsertedInlineText {
 
 class DecorationsWidget implements IDisposable {
 	private decorationIds: string[] = [];
-	private disposableStore: DisposableStore = new DisposableStore();
 
 	constructor(
 		private readonly editor: ICodeEditor
@@ -246,17 +247,16 @@ class DecorationsWidget implements IDisposable {
 
 	public dispose(): void {
 		this.clear();
-		this.disposableStore.dispose();
 	}
 
 	public clear(): void {
-		this.editor.deltaDecorations(this.decorationIds, []);
-		this.disposableStore.clear();
+		// Using change decorations ensures that we update the id's before some event handler is called.
+		this.editor.changeDecorations(accessor => {
+			this.decorationIds = accessor.deltaDecorations(this.decorationIds, []);
+		});
 	}
 
 	public setParts(lineNumber: number, parts: InsertedInlineText[], hiddenText?: HiddenText): void {
-		this.disposableStore.clear();
-
 		const textModel = this.editor.getModel();
 		if (!textModel) {
 			return;
@@ -273,16 +273,19 @@ class DecorationsWidget implements IDisposable {
 			});
 		}
 
-		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, parts.map<IModelDeltaDecoration>(p => {
-			return ({
-				range: Range.fromPositions(new Position(lineNumber, p.column)),
-				options: {
-					description: 'ghost-text',
-					after: { content: p.text, inlineClassName: p.preview ? 'ghost-text-decoration-preview' : 'ghost-text-decoration', cursorStops: InjectedTextCursorStops.Left },
-					showIfCollapsed: true,
-				}
-			});
-		}).concat(hiddenTextDecorations));
+		// Using change decorations ensures that we update the id's before some event handler is called.
+		this.editor.changeDecorations(accessor => {
+			this.decorationIds = accessor.deltaDecorations(this.decorationIds, parts.map<IModelDeltaDecoration>(p => {
+				return ({
+					range: Range.fromPositions(new Position(lineNumber, p.column)),
+					options: {
+						description: 'ghost-text',
+						after: { content: p.text, inlineClassName: p.preview ? 'ghost-text-decoration-preview' : 'ghost-text-decoration', cursorStops: InjectedTextCursorStops.Left },
+						showIfCollapsed: true,
+					}
+				});
+			}).concat(hiddenTextDecorations));
+		});
 	}
 }
 

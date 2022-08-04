@@ -14,7 +14,7 @@ import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platf
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
+import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { ITelemetryData, ITelemetryInfo, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SECTION_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 import { getTelemetryLevel, ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 
@@ -56,7 +56,7 @@ export class TelemetryService implements ITelemetryService {
 		// static cleanup pattern for: `file:///DANGEROUS/PATH/resources/app/Useful/Information`
 		this._cleanupPatterns = [/file:\/\/\/.*?\/resources\/app\//gi];
 
-		for (let piiPath of this._piiPaths) {
+		for (const piiPath of this._piiPaths) {
 			this._cleanupPatterns.push(new RegExp(escapeRegExpCharacters(piiPath), 'gi'));
 		}
 
@@ -90,10 +90,10 @@ export class TelemetryService implements ITelemetryService {
 		const values = await this._commonProperties;
 
 		// well known properties
-		let sessionId = values['sessionID'];
-		let machineId = values['common.machineId'];
-		let firstSessionDate = values['common.firstSessionDate'];
-		let msftInternal = values['common.msftInternal'];
+		const sessionId = values['sessionID'];
+		const machineId = values['common.machineId'];
+		const firstSessionDate = values['common.firstSessionDate'];
+		const msftInternal = values['common.msftInternal'];
 
 		return { sessionId, machineId, firstSessionDate, msftInternal };
 	}
@@ -137,7 +137,7 @@ export class TelemetryService implements ITelemetryService {
 		return this._log(eventName, TelemetryLevel.USAGE, data, anonymizeFilePaths);
 	}
 
-	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>, anonymizeFilePaths?: boolean): Promise<any> {
+	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>, anonymizeFilePaths?: boolean): Promise<any> {
 		return this.publicLog(eventName, data as ITelemetryData, anonymizeFilePaths);
 	}
 
@@ -150,7 +150,7 @@ export class TelemetryService implements ITelemetryService {
 		return this._log(errorEventName, TelemetryLevel.ERROR, data, true);
 	}
 
-	publicLogError2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>): Promise<any> {
+	publicLogError2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): Promise<any> {
 		return this.publicLogError(eventName, data as ITelemetryData);
 	}
 
@@ -158,7 +158,7 @@ export class TelemetryService implements ITelemetryService {
 		let updatedStack = stack;
 
 		const cleanUpIndexes: [number, number][] = [];
-		for (let regexp of this._cleanupPatterns) {
+		for (const regexp of this._cleanupPatterns) {
 			while (true) {
 				const result = regexp.exec(stack);
 				if (!result) {
@@ -199,17 +199,18 @@ export class TelemetryService implements ITelemetryService {
 
 		const value = property.toLowerCase();
 
-		const emailRegex = /@[a-zA-Z0-9-.]+/; // Regex which matches @*.site
-		const secretRegex = /(key|token|sig|signature|password|passwd|pwd|android:value)[^a-zA-Z0-9]/;
-		const tokenRegex = /xox[pbaors]\-[a-zA-Z0-9]+\-[a-zA-Z0-9\-]+?/; // last +? is lazy as a microoptimization since we don't care about the full value
+		const userDataRegexes = [
+			{ label: 'Google API Key', regex: /AIza[A-Za-z0-9_\\\-]{35}/ },
+			{ label: 'Slack Token', regex: /xox[pbar]\-[A-Za-z0-9]/ },
+			{ label: 'Generic Secret', regex: /(key|token|sig|secret|signature|password|passwd|pwd|android:value)[^a-zA-Z0-9]/ },
+			{ label: 'Email', regex: /@[a-zA-Z0-9-.]+/ } // Regex which matches @*.site
+		];
 
 		// Check for common user data in the telemetry events
-		if (secretRegex.test(value)) {
-			return '<REDACTED: secret>';
-		} else if (emailRegex.test(value)) {
-			return '<REDACTED: email>';
-		} else if (tokenRegex.test(value)) {
-			return '<REDACTED: token>';
+		for (const secretRegex of userDataRegexes) {
+			if (secretRegex.regex.test(value)) {
+				return `<REDACTED: ${secretRegex.label}>`;
+			}
 		}
 
 		return property;
@@ -225,7 +226,7 @@ export class TelemetryService implements ITelemetryService {
 		}
 
 		// sanitize with configured cleanup patterns
-		for (let regexp of this._cleanupPatterns) {
+		for (const regexp of this._cleanupPatterns) {
 			updatedProperty = updatedProperty.replace(regexp, '');
 		}
 

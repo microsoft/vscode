@@ -29,8 +29,10 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 
 	public get renderedHtml(): string | undefined { return this._renderedHtml; }
 	public set renderedHtml(value: string | undefined) {
-		this._renderedHtml = value;
-		this._onDidChangeState.fire({ contentChanged: true });
+		if (this._renderedHtml !== value) {
+			this._renderedHtml = value;
+			this._onDidChangeState.fire({ contentChanged: true });
+		}
 	}
 
 	get layoutInfo() {

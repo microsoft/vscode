@@ -34,7 +34,9 @@ const menubarIcon = registerIcon('menuBar', Codicon.layoutMenubar, localize('men
 const activityBarLeftIcon = registerIcon('activity-bar-left', Codicon.layoutActivitybarLeft, localize('activityBarLeft', "Represents the activity bar in the left position"));
 const activityBarRightIcon = registerIcon('activity-bar-right', Codicon.layoutActivitybarRight, localize('activityBarRight', "Represents the activity bar in the right position"));
 const panelLeftIcon = registerIcon('panel-left', Codicon.layoutSidebarLeft, localize('panelLeft', "Represents a side bar in the left position"));
+const panelLeftOffIcon = registerIcon('panel-left-off', Codicon.layoutSidebarLeftOff, localize('panelLeftOff', "Represents a side bar in the left position toggled off"));
 const panelRightIcon = registerIcon('panel-right', Codicon.layoutSidebarRight, localize('panelRight', "Represents side bar in the right position"));
+const panelRightOffIcon = registerIcon('panel-right-off', Codicon.layoutSidebarRightOff, localize('panelRightOff', "Represents side bar in the right position toggled off"));
 const panelIcon = registerIcon('panel-bottom', Codicon.layoutPanel, localize('panelBottom', "Represents the bottom panel"));
 const statusBarIcon = registerIcon('statusBar', Codicon.layoutStatusbar, localize('statusBarIcon', "Represents the status bar"));
 
@@ -79,7 +81,7 @@ export class ToggleActivityBarVisibilityAction extends Action2 {
 			id: ToggleActivityBarVisibilityAction.ID,
 			title: {
 				value: localize('toggleActivityBar', "Toggle Activity Bar Visibility"),
-				mnemonicTitle: localize({ key: 'miShowActivityBar', comment: ['&& denotes a mnemonic'] }, "Show &&Activity Bar"),
+				mnemonicTitle: localize({ key: 'miActivityBar', comment: ['&& denotes a mnemonic'] }, "&&Activity Bar"),
 				original: 'Toggle Activity Bar Visibility'
 			},
 			category: CATEGORIES.View,
@@ -404,7 +406,7 @@ MenuRegistry.appendMenuItems([
 			group: '2_workbench_layout',
 			command: {
 				id: ToggleSidebarVisibilityAction.ID,
-				title: localize({ key: 'miShowSidebar', comment: ['&& denotes a mnemonic'] }, "Show &&Primary Side Bar"),
+				title: localize({ key: 'miShowSidebar', comment: ['&& denotes a mnemonic'] }, "&&Primary Side Bar"),
 				toggled: SideBarVisibleContext
 			},
 			order: 1
@@ -415,7 +417,7 @@ MenuRegistry.appendMenuItems([
 			group: '0_workbench_layout',
 			command: {
 				id: ToggleSidebarVisibilityAction.ID,
-				title: localize('miShowSidebarNoMnnemonic', "Show Primary Side Bar"),
+				title: localize('miSidebarNoMnnemonic', "Primary Side Bar"),
 				toggled: SideBarVisibleContext
 			},
 			order: 0
@@ -427,8 +429,8 @@ MenuRegistry.appendMenuItems([
 			command: {
 				id: ToggleSidebarVisibilityAction.ID,
 				title: localize('toggleSideBar', "Toggle Primary Side Bar"),
-				icon: panelLeftIcon,
-				toggled: SideBarVisibleContext
+				icon: panelLeftOffIcon,
+				toggled: { condition: SideBarVisibleContext, icon: panelLeftIcon }
 			},
 			when: ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'), ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')), ContextKeyExpr.equals('config.workbench.sideBar.location', 'left')),
 			order: 0
@@ -440,8 +442,8 @@ MenuRegistry.appendMenuItems([
 			command: {
 				id: ToggleSidebarVisibilityAction.ID,
 				title: localize('toggleSideBar', "Toggle Primary Side Bar"),
-				icon: panelRightIcon,
-				toggled: SideBarVisibleContext
+				icon: panelRightOffIcon,
+				toggled: { condition: SideBarVisibleContext, icon: panelRightIcon }
 			},
 			when: ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'), ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')), ContextKeyExpr.equals('config.workbench.sideBar.location', 'right')),
 			order: 2
@@ -462,7 +464,7 @@ export class ToggleStatusbarVisibilityAction extends Action2 {
 			id: ToggleStatusbarVisibilityAction.ID,
 			title: {
 				value: localize('toggleStatusbar', "Toggle Status Bar Visibility"),
-				mnemonicTitle: localize({ key: 'miShowStatusbar', comment: ['&& denotes a mnemonic'] }, "Show S&&tatus Bar"),
+				mnemonicTitle: localize({ key: 'miStatusbar', comment: ['&& denotes a mnemonic'] }, "S&&tatus Bar"),
 				original: 'Toggle Status Bar Visibility'
 			},
 			category: CATEGORIES.View,
@@ -571,7 +573,7 @@ if (isWindows || isLinux || isWeb) {
 				id: 'workbench.action.toggleMenuBar',
 				title: {
 					value: localize('toggleMenuBar', "Toggle Menu Bar"),
-					mnemonicTitle: localize({ key: 'miShowMenuBar', comment: ['&& denotes a mnemonic'] }, "Show Menu &&Bar"),
+					mnemonicTitle: localize({ key: 'miMenuBar', comment: ['&& denotes a mnemonic'] }, "Menu &&Bar"),
 					original: 'Toggle Menu Bar'
 				},
 				category: CATEGORIES.View,
@@ -588,6 +590,16 @@ if (isWindows || isLinux || isWeb) {
 		run(accessor: ServicesAccessor): void {
 			return accessor.get(IWorkbenchLayoutService).toggleMenuBar();
 		}
+	});
+
+	// Add separately to title bar context menu so we can use a different title
+	MenuRegistry.appendMenuItem(MenuId.TitleBarContext, {
+		command: {
+			id: 'workbench.action.toggleMenuBar',
+			title: localize('miMenuBarNoMnemonic', "Menu Bar"),
+			toggled: ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'compact'))
+		},
+		order: 0
 	});
 }
 
@@ -965,7 +977,7 @@ registerAction2(class extends Action2 {
 
 abstract class BaseResizeViewAction extends Action2 {
 
-	protected static readonly RESIZE_INCREMENT = 6.5; // This is a media-size percentage
+	protected static readonly RESIZE_INCREMENT = 60; // This is a css pixel size
 
 	protected resizePart(widthChange: number, heightChange: number, layoutService: IWorkbenchLayoutService, partToResize?: Parts): void {
 
@@ -1180,7 +1192,7 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.customizeLayout',
-			title: localize('customizeLayout', "Customize Layout..."),
+			title: { original: 'Customize Layout...', value: localize('customizeLayout', "Customize Layout...") },
 			f1: true,
 			icon: configureLayoutIcon,
 			menu: [

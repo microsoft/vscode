@@ -15,8 +15,8 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel } from 'vs/editor/common/model';
 import { CodeActionTriggerType, CodeActionProvider } from 'vs/editor/common/languages';
 import { getCodeActions } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { applyCodeAction } from 'vs/editor/contrib/codeAction/browser/codeActionCommands';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/browser/types';
+import { applyCodeAction, ApplyCodeActionReason } from 'vs/editor/contrib/codeAction/browser/codeActionCommands';
+import { CodeActionKind, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/browser/types';
 import { formatDocumentRangesWithSelectedProvider, formatDocumentWithSelectedProvider, FormattingMode } from 'vs/editor/contrib/format/browser/format';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { localize } from 'vs/nls';
@@ -204,9 +204,7 @@ export class TrimFinalNewLinesParticipant implements ITextFileSaveParticipant {
 
 		model.pushEditOperations(prevSelection, [EditOperation.delete(deletionRange)], _edits => prevSelection);
 
-		if (editor) {
-			editor.setSelections(prevSelection);
-		}
+		editor?.setSelections(prevSelection);
 	}
 }
 
@@ -364,7 +362,7 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 			try {
 				for (const action of actionsToRun.validActions) {
 					progress.report({ message: localize('codeAction.apply', "Applying code action '{0}'.", action.action.title) });
-					await this.instantiationService.invokeFunction(applyCodeAction, action);
+					await this.instantiationService.invokeFunction(applyCodeAction, action, ApplyCodeActionReason.OnSave);
 				}
 			} catch {
 				// Failure to apply a code action should not block other on save actions
@@ -377,6 +375,7 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 	private getActionsToRun(model: ITextModel, codeActionKind: CodeActionKind, excludes: readonly CodeActionKind[], progress: IProgress<CodeActionProvider>, token: CancellationToken) {
 		return getCodeActions(this.languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), {
 			type: CodeActionTriggerType.Auto,
+			triggerAction: CodeActionTriggerSource.OnSave,
 			filter: { include: codeActionKind, excludes: excludes, includeSourceActions: true },
 		}, progress, token);
 	}

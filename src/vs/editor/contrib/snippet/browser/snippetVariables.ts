@@ -62,7 +62,7 @@ export class CompositeSnippetVariableResolver implements VariableResolver {
 
 	resolve(variable: Variable): string | undefined {
 		for (const delegate of this._delegates) {
-			let value = delegate.resolve(variable);
+			const value = delegate.resolve(variable);
 			if (value !== undefined) {
 				return value;
 			}
@@ -339,7 +339,7 @@ export class WorkspaceBasedVariableResolver implements VariableResolver {
 			return normalizeDriveLetter(workspaceIdentifier.uri.fsPath);
 		}
 
-		let filename = path.basename(workspaceIdentifier.configPath.path);
+		const filename = path.basename(workspaceIdentifier.configPath.path);
 		let folderpath = workspaceIdentifier.configPath.fsPath;
 		if (folderpath.endsWith(filename)) {
 			folderpath = folderpath.substr(0, folderpath.length - filename.length - 1);

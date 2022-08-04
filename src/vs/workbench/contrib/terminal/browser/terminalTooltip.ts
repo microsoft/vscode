@@ -7,20 +7,7 @@ import { localize } from 'vs/nls';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 
-function getCapabilityName(capability: TerminalCapability): string | undefined {
-	switch (capability) {
-		case TerminalCapability.CwdDetection:
-		case TerminalCapability.NaiveCwdDetection:
-			return localize('capability.cwdDetection', "Current working directory detection");
-		case TerminalCapability.CommandDetection:
-			return localize('capability.commandDetection', "Command detection");
-		case TerminalCapability.PartialCommandDetection:
-			return localize('capability.partialCommandDetection', "Command detection (partial)");
-	}
-}
-
-export function getShellIntegrationTooltip(instance: ITerminalInstance, markdown?: boolean): string {
-	let shellIntegrationString = '';
+export function getShellIntegrationTooltip(instance: ITerminalInstance, markdown: boolean): string {
 	const shellIntegrationCapabilities: TerminalCapability[] = [];
 	if (instance.capabilities.has(TerminalCapability.CommandDetection)) {
 		shellIntegrationCapabilities.push(TerminalCapability.CommandDetection);
@@ -28,10 +15,14 @@ export function getShellIntegrationTooltip(instance: ITerminalInstance, markdown
 	if (instance.capabilities.has(TerminalCapability.CwdDetection)) {
 		shellIntegrationCapabilities.push(TerminalCapability.CwdDetection);
 	}
+	let shellIntegrationString = '';
 	if (shellIntegrationCapabilities.length > 0) {
-		shellIntegrationString += `${markdown ? '\n\n---\n\n' : '\n\n'} ${localize('shellIntegration.enabled', "Shell integration is enabled")}`;
-		for (const capability of shellIntegrationCapabilities) {
-			shellIntegrationString += `\n- ${getCapabilityName(capability)}`;
+		shellIntegrationString += `${markdown ? '\n\n---\n\n' : '\n\n'} ${localize('shellIntegration.enabled', "Shell integration activated")}`;
+	} else {
+		if (instance.shellLaunchConfig.ignoreShellIntegration) {
+			shellIntegrationString += `${markdown ? '\n\n---\n\n' : '\n\n'} ${localize('launchFailed.exitCodeOnlyShellIntegration', "The terminal process failed to launch. Disabling shell integration with terminal.integrated.shellIntegration.enabled might help.")}`;
+		} else {
+			shellIntegrationString += `${markdown ? '\n\n---\n\n' : '\n\n'} ${localize('shellIntegration.activationFailed', "Shell integration failed to activate")}`;
 		}
 	}
 	return shellIntegrationString;

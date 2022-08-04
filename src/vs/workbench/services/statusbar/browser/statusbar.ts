@@ -182,9 +182,10 @@ export interface IStatusbarEntry {
 	readonly showBeak?: boolean;
 
 	/**
-	 * Will enable a spinning icon in front of the text to indicate progress.
+	 * Will enable a spinning icon in front of the text to indicate progress. When `true` is
+	 * specified, `syncing` will be used.
 	 */
-	readonly showProgress?: boolean;
+	readonly showProgress?: boolean | 'syncing' | 'loading';
 }
 
 export interface IStatusbarEntryAccessor extends IDisposable {

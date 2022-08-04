@@ -9,7 +9,6 @@
 	"include": [
 		"src/**/*",
 		"../../src/vscode-dts/vscode.d.ts",
-		"../../src/vscode-dts/vscode.proposed.notebookEditor.d.ts",
 		"../../src/vscode-dts/vscode.proposed.notebookEditorEdit.d.ts",
 	]
 }

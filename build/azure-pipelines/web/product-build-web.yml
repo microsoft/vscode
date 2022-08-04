@@ -58,6 +58,12 @@ steps:
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Restore node_modules cache
 
+  - task: Cache@2
+    inputs:
+      key: '"$(Agent.OS)" | product.json'
+      path: .build/builtInExtensions
+    displayName: Restore built-in extensions
+
   - script: |
       set -e
       tar -xzf .build/node_modules_cache/cache.tgz
@@ -88,6 +94,13 @@ steps:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+  - script: |
+      set -e
+      node build/lib/builtInExtensions.js
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Download missing built-in extensions
 
   - script: |
       set -e
@@ -163,6 +176,7 @@ steps:
 
       cd $ROOT && tar --owner=0 --group=0 -czf $WEB_TARBALL_PATH $WEB_BUILD_NAME
     displayName: Prepare for publish
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - publish: $(Agent.BuildDirectory)/vscode-web.tar.gz
     artifact: vscode_web_linux_standalone_archive-unsigned

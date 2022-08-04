@@ -223,7 +223,7 @@ export abstract class MenubarControl extends Disposable {
 	}
 
 	protected calculateActionLabel(action: { id: string; label: string }): string {
-		let label = action.label;
+		const label = action.label;
 		switch (action.id) {
 			default:
 				break;
@@ -349,7 +349,7 @@ export abstract class MenubarControl extends Disposable {
 			return;
 		}
 
-		const hasBeenNotified = this.storageService.getBoolean('menubar/accessibleMenubarNotified', StorageScope.GLOBAL, false);
+		const hasBeenNotified = this.storageService.getBoolean('menubar/accessibleMenubarNotified', StorageScope.APPLICATION, false);
 		const usingCustomMenubar = getTitleBarStyle(this.configurationService) === 'custom';
 
 		if (hasBeenNotified || usingCustomMenubar || !this.accessibilityService.isScreenReaderOptimized()) {
@@ -366,7 +366,7 @@ export abstract class MenubarControl extends Disposable {
 			}
 		]);
 
-		this.storageService.store('menubar/accessibleMenubarNotified', true, StorageScope.GLOBAL, StorageTarget.USER);
+		this.storageService.store('menubar/accessibleMenubarNotified', true, StorageScope.APPLICATION, StorageTarget.USER);
 	}
 }
 
@@ -433,8 +433,8 @@ export class CustomMenubarControl extends MenubarControl {
 			const activityBarInactiveFgColor = theme.getColor(ACTIVITY_BAR_INACTIVE_FOREGROUND);
 			if (activityBarInactiveFgColor) {
 				collector.addRule(`
-				.monaco-workbench .menubar.compact > .menubar-menu-button,
-				.monaco-workbench .menubar.compact .toolbar-toggle-more {
+				.monaco-workbench .activitybar .menubar.compact > .menubar-menu-button,
+				.monaco-workbench .activitybar .menubar.compact .toolbar-toggle-more {
 					color: ${activityBarInactiveFgColor};
 				}
 				`);
@@ -443,12 +443,12 @@ export class CustomMenubarControl extends MenubarControl {
 			const activityBarFgColor = theme.getColor(ACTIVITY_BAR_FOREGROUND);
 			if (activityBarFgColor) {
 				collector.addRule(`
-				.monaco-workbench .menubar.compact > .menubar-menu-button.open,
-				.monaco-workbench .menubar.compact > .menubar-menu-button:focus,
-				.monaco-workbench .menubar.compact:not(:focus-within) > .menubar-menu-button:hover,
-				.monaco-workbench .menubar.compact  > .menubar-menu-button.open .toolbar-toggle-more,
-				.monaco-workbench .menubar.compact > .menubar-menu-button:focus .toolbar-toggle-more,
-				.monaco-workbench .menubar.compact:not(:focus-within) > .menubar-menu-button:hover .toolbar-toggle-more {
+				.monaco-workbench .activitybar .menubar.compact > .menubar-menu-button.open,
+				.monaco-workbench .activitybar .menubar.compact > .menubar-menu-button:focus,
+				.monaco-workbench .activitybar .menubar.compact:not(:focus-within) > .menubar-menu-button:hover,
+				.monaco-workbench .activitybar .menubar.compact  > .menubar-menu-button.open .toolbar-toggle-more,
+				.monaco-workbench .activitybar .menubar.compact > .menubar-menu-button:focus .toolbar-toggle-more,
+				.monaco-workbench .activitybar .menubar.compact:not(:focus-within) > .menubar-menu-button:hover .toolbar-toggle-more {
 					color: ${activityBarFgColor};
 				}
 			`);
@@ -481,9 +481,9 @@ export class CustomMenubarControl extends MenubarControl {
 			const menubarSelectedBgColor = theme.getColor(MENUBAR_SELECTION_BACKGROUND);
 			if (menubarSelectedBgColor) {
 				collector.addRule(`
-					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button.open,
-					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button:focus,
-					.monaco-workbench .menubar:not(:focus-within):not(.compact) > .menubar-menu-button:hover {
+					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button.open .menubar-menu-title,
+					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button:focus .menubar-menu-title,
+					.monaco-workbench .menubar:not(:focus-within):not(.compact) > .menubar-menu-button:hover .menubar-menu-title {
 						background-color: ${menubarSelectedBgColor};
 					}
 				`);
@@ -492,19 +492,20 @@ export class CustomMenubarControl extends MenubarControl {
 			const menubarSelectedBorderColor = theme.getColor(MENUBAR_SELECTION_BORDER);
 			if (menubarSelectedBorderColor) {
 				collector.addRule(`
-					.monaco-workbench .menubar > .menubar-menu-button:hover {
+					.monaco-workbench .menubar > .menubar-menu-button:hover .menubar-menu-title  {
 						outline: dashed 1px;
 					}
 
-					.monaco-workbench .menubar > .menubar-menu-button.open,
-					.monaco-workbench .menubar > .menubar-menu-button:focus {
+					.monaco-workbench .menubar > .menubar-menu-button.open .menubar-menu-title,
+					.monaco-workbench .menubar > .menubar-menu-button:focus .menubar-menu-title {
 						outline: solid 1px;
 					}
 
-					.monaco-workbench .menubar > .menubar-menu-button.open,
-					.monaco-workbench .menubar > .menubar-menu-button:focus,
-					.monaco-workbench .menubar > .menubar-menu-button:hover {
+					.monaco-workbench .menubar > .menubar-menu-button.open .menubar-menu-title,
+					.monaco-workbench .menubar > .menubar-menu-button:focus .menubar-menu-title,
+					.monaco-workbench .menubar > .menubar-menu-button:hover .menubar-menu-title {
 						outline-color: ${menubarSelectedBorderColor};
+						outline-offset: -1px;
 					}
 				`);
 			}
@@ -534,9 +535,7 @@ export class CustomMenubarControl extends MenubarControl {
 				}
 
 				async run(): Promise<void> {
-					if (that.menubar) {
-						that.menubar.toggleFocus();
-					}
+					that.menubar?.toggleFocus();
 				}
 			}));
 		}
@@ -581,7 +580,7 @@ export class CustomMenubarControl extends MenubarControl {
 	}
 
 	private get currentDisableMenuBarAltFocus(): boolean {
-		let settingValue = this.configurationService.getValue<boolean>('window.customMenuBarAltFocus');
+		const settingValue = this.configurationService.getValue<boolean>('window.customMenuBarAltFocus');
 
 		let disableMenuBarAltBehavior = false;
 		if (typeof settingValue === 'boolean') {
@@ -628,6 +627,7 @@ export class CustomMenubarControl extends MenubarControl {
 			return undefined;
 		}
 
+		// Menu bar lives in activity bar and should flow based on its location
 		const currentSidebarLocation = this.configurationService.getValue<string>('workbench.sideBar.location');
 		return currentSidebarLocation === 'right' ? Direction.Left : Direction.Right;
 	}
@@ -680,6 +680,11 @@ export class CustomMenubarControl extends MenubarControl {
 			}));
 
 			this.reinstallDisposables.add(attachMenuStyler(this.menubar, this.themeService));
+
+			// Fire visibility change for the first install if menu is shown
+			if (this.menubar.isVisible) {
+				this.onDidVisibilityChange(true);
+			}
 		} else {
 			this.menubar?.update(this.getMenuBarOptions());
 		}
@@ -687,12 +692,12 @@ export class CustomMenubarControl extends MenubarControl {
 		// Update the menu actions
 		const updateActions = (menu: IMenu, target: IAction[], topLevelTitle: string) => {
 			target.splice(0);
-			let groups = menu.getActions();
+			const groups = menu.getActions();
 
-			for (let group of groups) {
+			for (const group of groups) {
 				const [, actions] = group;
 
-				for (let action of actions) {
+				for (const action of actions) {
 					this.insertActionsBefore(action, target);
 
 					// use mnemonicTitle whenever possible
@@ -751,9 +756,7 @@ export class CustomMenubarControl extends MenubarControl {
 					if (!this.focusInsideMenubar) {
 						const actions: IAction[] = [];
 						updateActions(menu, actions, title);
-						if (this.menubar) {
-							this.menubar.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
-						}
+						this.menubar?.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
 					}
 				}));
 
@@ -763,9 +766,7 @@ export class CustomMenubarControl extends MenubarControl {
 						if (!this.focusInsideMenubar) {
 							const actions: IAction[] = [];
 							updateActions(menu, actions, title);
-							if (this.menubar) {
-								this.menubar.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
-							}
+							this.menubar?.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
 						}
 					}));
 				}
@@ -846,9 +847,7 @@ export class CustomMenubarControl extends MenubarControl {
 				this.container.classList.remove('inactive');
 			} else {
 				this.container.classList.add('inactive');
-				if (this.menubar) {
-					this.menubar.blur();
-				}
+				this.menubar?.blur();
 			}
 		}
 	}
@@ -921,16 +920,10 @@ export class CustomMenubarControl extends MenubarControl {
 	}
 
 	layout(dimension: Dimension) {
-		if (this.container) {
-			this.container.style.height = `${dimension.height}px`;
-		}
-
 		this.menubar?.update(this.getMenuBarOptions());
 	}
 
 	toggleFocus() {
-		if (this.menubar) {
-			this.menubar.toggleFocus();
-		}
+		this.menubar?.toggleFocus();
 	}
 }

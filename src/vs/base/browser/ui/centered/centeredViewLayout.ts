@@ -159,9 +159,7 @@ export class CenteredViewLayout implements IDisposable {
 				this.container.removeChild(this.splitView.el);
 			}
 			this.splitViewDisposables.clear();
-			if (this.splitView) {
-				this.splitView.dispose();
-			}
+			this.splitView?.dispose();
 			this.splitView = undefined;
 			this.emptyViews = undefined;
 			this.container.appendChild(this.view.element);

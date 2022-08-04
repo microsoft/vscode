@@ -29,24 +29,24 @@ import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService 
 import { ITextResourceConfigurationService, ITextResourcePropertiesService, ITextResourceConfigurationChangeEvent } from 'vs/editor/common/services/textResourceConfiguration';
 import { CommandsRegistry, ICommandEvent, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationModel, IConfigurationValue, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { Configuration, ConfigurationModel, DefaultConfigurationModel, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
+import { Configuration, ConfigurationModel, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
 import { IContextKeyService, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IInputResult, IShowResult } from 'vs/platform/dialogs/common/dialogs';
 import { createDecorator, IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
-import { IKeybindingEvent, IKeybindingService, IKeyboardEvent, KeybindingSource, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingService, IKeyboardEvent, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingItem, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { ILabelService, ResourceLabelFormatter, IFormatterChangeEvent } from 'vs/platform/label/common/label';
-import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification, IStatusMessageOptions, NotificationsFilter } from 'vs/platform/notification/common/notification';
-import { IProgressRunner, IEditorProgressService } from 'vs/platform/progress/common/progress';
+import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification, IStatusMessageOptions } from 'vs/platform/notification/common/notification';
+import { IProgressRunner, IEditorProgressService, IProgressService, IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
 import { ITelemetryInfo, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { StandaloneServicesNLS } from 'vs/editor/common/standaloneStrings';
-import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
+import { ClassifiedEvent, StrictPropertyCheck, OmitMetadata, IGDPRProperty } from 'vs/platform/telemetry/common/gdprTypings';
 import { basename } from 'vs/base/common/resources';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ConsoleLogger, ILogService, LogService } from 'vs/platform/log/common/log';
@@ -88,6 +88,7 @@ import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/com
 import { staticObservableValue } from 'vs/base/common/observableValue';
 
 import 'vs/editor/common/services/languageFeaturesService';
+import { DefaultConfigurationModel } from 'vs/platform/configuration/common/configurations';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -187,6 +188,17 @@ class StandaloneEditorProgressService implements IEditorProgressService {
 	}
 }
 
+class StandaloneProgressService implements IProgressService {
+
+	declare readonly _serviceBrand: undefined;
+
+	withProgress<R>(_options: IProgressOptions | IProgressDialogOptions | IProgressNotificationOptions | IProgressWindowOptions | IProgressCompositeOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: ((choice?: number | undefined) => void) | undefined): Promise<R> {
+		return task({
+			report: () => { },
+		});
+	}
+}
+
 class StandaloneDialogService implements IDialogService {
 
 	public _serviceBrand: undefined;
@@ -231,7 +243,11 @@ export class StandaloneNotificationService implements INotificationService {
 
 	readonly onDidRemoveNotification: Event<INotification> = Event.None;
 
+	readonly onDidChangeDoNotDisturbMode: Event<void> = Event.None;
+
 	public _serviceBrand: undefined;
+
+	public doNotDisturbMode: boolean = false;
 
 	private static readonly NO_OP: INotificationHandle = new NoOpNotification();
 
@@ -270,8 +286,6 @@ export class StandaloneNotificationService implements INotificationService {
 	public status(message: string | Error, options?: IStatusMessageOptions): IDisposable {
 		return Disposable.None;
 	}
-
-	public setFilter(filter: NotificationsFilter): void { }
 }
 
 export class StandaloneCommandService implements ICommandService {
@@ -409,7 +423,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 					const kb = this._dynamicKeybindings[i];
 					if (kb.command === commandId) {
 						this._dynamicKeybindings.splice(i, 1);
-						this.updateResolver({ source: KeybindingSource.Default });
+						this.updateResolver();
 						return;
 					}
 				}
@@ -418,14 +432,14 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 
 		toDispose.add(CommandsRegistry.registerCommand(commandId, handler));
 
-		this.updateResolver({ source: KeybindingSource.Default });
+		this.updateResolver();
 
 		return toDispose;
 	}
 
-	private updateResolver(event: IKeybindingEvent): void {
+	private updateResolver(): void {
 		this._cachedResolver = null;
-		this._onDidUpdateKeybindings.fire(event);
+		this._onDidUpdateKeybindings.fire();
 	}
 
 	protected _getResolver(): KeybindingResolver {
@@ -521,7 +535,7 @@ export class StandaloneConfigurationService implements IConfigurationService {
 	private readonly _configuration: Configuration;
 
 	constructor() {
-		this._configuration = new Configuration(new DefaultConfigurationModel(), new ConfigurationModel());
+		this._configuration = new Configuration(new DefaultConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
 	}
 
 	getValue<T>(): T;
@@ -582,6 +596,8 @@ export class StandaloneConfigurationService implements IConfigurationService {
 		};
 		return {
 			defaults: emptyModel,
+			policy: emptyModel,
+			application: emptyModel,
 			user: emptyModel,
 			workspace: emptyModel,
 			folders: []
@@ -654,7 +670,7 @@ class StandaloneTelemetryService implements ITelemetryService {
 		return Promise.resolve(undefined);
 	}
 
-	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
 		return this.publicLog(eventName, data as any);
 	}
 
@@ -662,7 +678,7 @@ class StandaloneTelemetryService implements ITelemetryService {
 		return Promise.resolve(undefined);
 	}
 
-	publicLogError2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+	publicLogError2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
 		return this.publicLogError(eventName, data as any);
 	}
 
@@ -769,7 +785,7 @@ class StandaloneBulkEditService implements IBulkEditService {
 
 		const textEdits = new Map<ITextModel, ISingleEditOperation[]>();
 
-		for (let edit of edits) {
+		for (const edit of edits) {
 			if (!(edit instanceof ResourceTextEdit)) {
 				throw new Error('bad edit - only text edits are supported');
 			}
@@ -832,6 +848,10 @@ class StandaloneUriLabelService implements ILabelService {
 
 	public registerFormatter(formatter: ResourceLabelFormatter): IDisposable {
 		throw new Error('Not implemented');
+	}
+
+	public registerCachedFormatter(formatter: ResourceLabelFormatter): IDisposable {
+		return this.registerFormatter(formatter);
 	}
 
 	public getHostLabel(): string {
@@ -953,6 +973,7 @@ registerSingleton(ILogService, StandaloneLogService);
 registerSingleton(IModelService, ModelService);
 registerSingleton(IMarkerDecorationsService, MarkerDecorationsService);
 registerSingleton(IContextKeyService, ContextKeyService);
+registerSingleton(IProgressService, StandaloneProgressService);
 registerSingleton(IEditorProgressService, StandaloneEditorProgressService);
 registerSingleton(IStorageService, InMemoryStorageService);
 registerSingleton(IEditorWorkerService, EditorWorkerService);
