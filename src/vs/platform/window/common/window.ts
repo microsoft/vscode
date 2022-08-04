@@ -6,8 +6,7 @@
 import { IStringDictionary } from 'vs/base/common/collections';
 import { PerformanceMark } from 'vs/base/common/performance';
 import { isLinux, isMacintosh, isNative, isWeb, isWindows } from 'vs/base/common/platform';
-import { UriDto } from 'vs/base/common/types';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents, UriDto } from 'vs/base/common/uri';
 import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
