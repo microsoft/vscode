@@ -946,7 +946,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				const bufferLines = [];
 
 				const bufferReverseIterator = terminal.xterm.getBufferReverseIterator();
-				const startRegex = new RegExp(watchingProblemMatcher.beginPatterns.join('|'));
+				const startRegex = new RegExp(watchingProblemMatcher.beginPatterns.map(pattern => pattern.source).join('|'));
 				for (const nextLine of bufferReverseIterator) {
 					bufferLines.push(nextLine);
 					if (startRegex.test(nextLine)) {
