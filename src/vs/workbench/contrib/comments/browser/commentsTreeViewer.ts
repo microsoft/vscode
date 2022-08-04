@@ -27,7 +27,8 @@ import { CommentThreadState } from 'vs/editor/common/languages';
 import { Color } from 'vs/base/common/color';
 
 export const COMMENTS_VIEW_ID = 'workbench.panel.comments';
-export const COMMENTS_VIEW_TITLE = 'Comments';
+export const COMMENTS_VIEW_STORAGE_ID = 'Comments';
+export const COMMENTS_VIEW_TITLE = nls.localize('comments.view.title', "Comments");
 
 export class CommentsAsyncDataSource implements IAsyncDataSource<any, any> {
 	hasChildren(element: any): boolean {
