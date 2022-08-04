@@ -127,7 +127,7 @@ const VIEW_CONTAINER = Registry.as<IViewContainersRegistry>(ViewContainerExtensi
 	storageId: TERMINAL_VIEW_ID,
 	hideIfEmpty: true,
 	order: 3,
-}, ViewContainerLocation.Panel, { donotRegisterOpenCommand: true, isDefault: true });
+}, ViewContainerLocation.Panel, { doNotRegisterOpenCommand: true, isDefault: true });
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: TERMINAL_VIEW_ID,
 	name: nls.localize('terminal', "Terminal"),

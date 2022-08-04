@@ -52,7 +52,7 @@ const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensio
 	alwaysUseContainerInfo: true,
 	order: 2,
 	hideIfEmpty: true,
-}, ViewContainerLocation.Sidebar, { donotRegisterOpenCommand: true });
+}, ViewContainerLocation.Sidebar, { doNotRegisterOpenCommand: true });
 
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 

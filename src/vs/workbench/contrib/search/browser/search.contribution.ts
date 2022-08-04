@@ -643,7 +643,7 @@ const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewCo
 	hideIfEmpty: true,
 	icon: searchViewIcon,
 	order: 1,
-}, ViewContainerLocation.Sidebar, { donotRegisterOpenCommand: true });
+}, ViewContainerLocation.Sidebar, { doNotRegisterOpenCommand: true });
 
 const viewDescriptor: IViewDescriptor = {
 	id: VIEW_ID,

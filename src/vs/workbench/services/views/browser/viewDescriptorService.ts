@@ -489,7 +489,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			icon: location === ViewContainerLocation.Sidebar ? defaultViewIcon : undefined,
 			storageId: getViewContainerStorageId(id),
 			hideIfEmpty: true
-		}, location, { donotRegisterOpenCommand: true });
+		}, location, { doNotRegisterOpenCommand: true });
 
 		const cachedInfo = this.cachedViewContainerInfo.get(container.id);
 		if (cachedInfo !== location) {
