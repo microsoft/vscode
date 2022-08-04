@@ -42,7 +42,7 @@ import { Color } from 'vs/base/common/color';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { revive } from 'vs/base/common/marshalling';
-import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import product from 'vs/platform/product/common/product';
 
 export interface IWindowCreationOptions {
@@ -83,6 +83,8 @@ const enum ReadyState {
 }
 
 export class CodeWindow extends Disposable implements ICodeWindow {
+
+	private static readonly windowControlHeightStateStorageKey = 'windowControlHeight';
 
 	//#region Events
 
@@ -170,7 +172,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IProductService private readonly productService: IProductService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
-		@IWindowsMainService private readonly windowsMainService: IWindowsMainService
+		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
+		@IStateMainService private readonly stateMainService: IStateMainService
 	) {
 		super();
 
@@ -293,7 +296,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 			// Update the window controls immediately based on cached values
 			if ((isWindows || isMacintosh) && useCustomTitleStyle) {
-				const cachedWindowControlHeight = this.applicationStorageMainService.getNumber('cachedWindowControlHeight', StorageScope.APPLICATION, undefined);
+				const cachedWindowControlHeight = this.stateMainService.getItem<number>((CodeWindow.windowControlHeightStateStorageKey));
 				if (cachedWindowControlHeight) {
 					this.updateWindowControls({ height: cachedWindowControlHeight });
 				}
@@ -1062,19 +1065,24 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): void {
+
+		// Cache the height for speeds lookups on startup
 		if (options.height) {
-			this.applicationStorageMainService.store('cachedWindowControlHeight', options.height, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			this.stateMainService.setItem((CodeWindow.windowControlHeightStateStorageKey), options.height);
 		}
 
+		// Windows: window control overlay (WCO)
 		if (isWindows) {
 			this._win.setTitleBarOverlay({
 				color: options.backgroundColor?.trim() === '' ? undefined : options.backgroundColor,
 				symbolColor: options.foregroundColor?.trim() === '' ? undefined : options.foregroundColor,
 				height: options.height ? options.height - 1 : undefined // account for window border
 			});
-		} else if (isMacintosh && options.height !== undefined) {
-			// 15px is the height of the traffic lights
-			this._win.setTrafficLightPosition({ x: 7, y: (options.height - 15) / 2 });
+		}
+
+		// macOS: traffic lights
+		else if (isMacintosh && options.height !== undefined) {
+			this._win.setTrafficLightPosition({ x: 7, y: (options.height - 15) / 2 }); // 15px is the height of the traffic lights
 		}
 	}
 
