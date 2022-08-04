@@ -87,23 +87,23 @@ export class TextEditorService extends Disposable implements ITextEditorService 
 	createTextEditor(input: IUntypedFileEditorInput): IFileEditorInput;
 	createTextEditor(input: IUntypedEditorInput | IUntypedFileEditorInput): EditorInput | IFileEditorInput {
 
-		// Merge Editor is Unsupported from here
+		// Merge Editor Not Supported (we fallback to showing the result only)
 		if (isResourceMergeEditorInput(input)) {
-			throw new Error('Unsupported input');
+			return this.createTextEditor(input.result);
 		}
 
 		// Diff Editor Support
 		if (isResourceDiffEditorInput(input)) {
-			const original = this.createTextEditor({ ...input.original });
-			const modified = this.createTextEditor({ ...input.modified });
+			const original = this.createTextEditor(input.original);
+			const modified = this.createTextEditor(input.modified);
 
 			return this.instantiationService.createInstance(DiffEditorInput, input.label, input.description, original, modified, undefined);
 		}
 
 		// Side by Side Editor Support
 		if (isResourceSideBySideEditorInput(input)) {
-			const primary = this.createTextEditor({ ...input.primary });
-			const secondary = this.createTextEditor({ ...input.secondary });
+			const primary = this.createTextEditor(input.primary);
+			const secondary = this.createTextEditor(input.secondary);
 
 			return this.instantiationService.createInstance(SideBySideEditorInput, input.label, input.description, secondary, primary);
 		}

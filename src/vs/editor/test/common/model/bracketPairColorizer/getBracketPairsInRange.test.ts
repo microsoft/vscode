@@ -36,7 +36,8 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 			assert.deepStrictEqual(
 				model.bracketPairs
 					.getBracketPairsInRange(doc.range(1, 2))
-					.map(bracketPairToJSON),
+					.map(bracketPairToJSON)
+					.toArray(),
 				[
 					{
 						level: 0,
@@ -68,7 +69,8 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 			assert.deepStrictEqual(
 				model.bracketPairs
 					.getBracketPairsInRange(doc.range(1, 2))
-					.map(bracketPairToJSON),
+					.map(bracketPairToJSON)
+					.toArray(),
 				[
 					{
 						level: 0,
@@ -94,7 +96,8 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 			assert.deepStrictEqual(
 				model.bracketPairs
 					.getBracketPairsInRange(doc.range(1, 2))
-					.map(bracketPairToJSON),
+					.map(bracketPairToJSON)
+					.toArray(),
 				[]
 			);
 		});
@@ -107,7 +110,8 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 			assert.deepStrictEqual(
 				model.bracketPairs
 					.getBracketPairsInRange(doc.range(1, 2))
-					.map(bracketPairToJSON),
+					.map(bracketPairToJSON)
+					.toArray(),
 				[
 					{
 						level: 0,

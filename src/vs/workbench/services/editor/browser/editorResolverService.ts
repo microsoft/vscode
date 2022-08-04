@@ -83,37 +83,16 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		});
 	}
 
-	private resolveUntypedInputAndGroup(editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): [IUntypedEditorInput, IEditorGroup, EditorActivation | undefined] | undefined {
-		let untypedEditor: IUntypedEditorInput | undefined = undefined;
+	private resolveUntypedInputAndGroup(editor: IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): [IUntypedEditorInput, IEditorGroup, EditorActivation | undefined] | undefined {
+		const untypedEditor = editor;
 
-		// Typed: convert to untyped to be able to resolve the editor as the service only uses untyped
-		if (isEditorInputWithOptions(editor)) {
-			untypedEditor = editor.editor.toUntyped();
-
-			if (untypedEditor) {
-				// Preserve original options: specifically it is
-				// possible that a `override` was defined from
-				// the outside and we do not want to lose it.
-				untypedEditor.options = { ...untypedEditor.options, ...editor.options };
-			}
-		}
-
-		// Untyped: take as is
-		else {
-			untypedEditor = editor;
-		}
-
-		// Typed editors that cannot convert to untyped will be returned as undefined
-		if (!untypedEditor) {
-			return undefined;
-		}
 		// Use the untyped editor to find a group
 		const [group, activation] = this.instantiationService.invokeFunction(findGroup, untypedEditor, preferredGroup);
 
 		return [untypedEditor, group, activation];
 	}
 
-	async resolveEditor(editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<ResolvedEditor> {
+	async resolveEditor(editor: IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<ResolvedEditor> {
 		// Update the flattened editors
 		this._flattenedEditors = this._flattenEditorsMap();
 

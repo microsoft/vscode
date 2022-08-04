@@ -95,7 +95,6 @@ export class CellDragAndDropController extends Disposable {
 				return;
 			}
 			event.browserEvent.preventDefault();
-			event.browserEvent.stopImmediatePropagation();
 			this.onCellDragover(event);
 		}, true);
 		addCellDragListener(DOM.EventType.DROP, event => {
