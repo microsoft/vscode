@@ -944,7 +944,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			});
 			if (trigger === Triggers.reconnect && !!terminal.xterm) {
 				const bufferLines = terminal.xterm.getBufferLines(watchingProblemMatcher.beginPatterns);
-				for (let i = 0; i < bufferLines.length; i++) {
+				for (let i = bufferLines.length - 1; i >= 0; i--) {
 					watchingProblemMatcher.processLine(bufferLines[i]);
 				}
 				if (!delayer) {

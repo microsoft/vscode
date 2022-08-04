@@ -60,11 +60,12 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 
 	getBufferLines(startPatterns: RegExp[]): string[] {
 		const bufferLines: string[] = [];
+		const startRegex = new RegExp(startPatterns.join('|'));
 		for (let i = this.raw.buffer.active.length; i >= 0; i--) {
 			const line = this.raw.buffer.active.getLine(i)?.translateToString().trim();
 			if (line) {
 				bufferLines.push(line);
-				if (line.match(startPatterns.join('|'))) {
+				if (startRegex.test(line)) {
 					return bufferLines;
 				}
 			}
