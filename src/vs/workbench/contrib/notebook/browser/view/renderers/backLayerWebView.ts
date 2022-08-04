@@ -1311,19 +1311,6 @@ var requirejs = (function() {
 		});
 	}
 
-	clearInsets() {
-		if (this._disposed) {
-			return;
-		}
-
-		this._sendMessageToWebview({
-			type: 'clear'
-		});
-
-		this.insetMapping = new Map();
-		this.reversedInsetMapping = new Map();
-	}
-
 	focusWebview() {
 		if (this._disposed) {
 			return;
@@ -1472,10 +1459,6 @@ var requirejs = (function() {
 		}
 
 		this.webview?.postMessage(message);
-	}
-
-	clearPreloadsCache() {
-		this._preloadsCache.clear();
 	}
 
 	override dispose() {

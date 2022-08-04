@@ -19,9 +19,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 
 export function clearNode(node: HTMLElement): void {
-	while (node.firstChild) {
-		node.firstChild.remove();
-	}
+	node.replaceChildren();
 }
 
 /**
@@ -1153,10 +1151,6 @@ export function removeTabIndexAndUpdateFocus(node: HTMLElement): void {
 	}
 
 	node.removeAttribute('tabindex');
-}
-
-export function getElementsByTagName(tag: string): HTMLElement[] {
-	return Array.prototype.slice.call(document.getElementsByTagName(tag), 0);
 }
 
 export function finalHandler<T extends Event>(fn: (event: T) => any): (event: T) => any {
