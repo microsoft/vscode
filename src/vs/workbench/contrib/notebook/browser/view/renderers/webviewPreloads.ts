@@ -1636,6 +1636,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		private _content: { readonly value: string; readonly version: number; readonly metadata: NotebookCellMetadata };
 
 		constructor(id: string, mime: string, content: string, top: number, metadata: NotebookCellMetadata) {
+			const self = this;
 			this.id = id;
 			this._content = { value: content, version: 0, metadata: metadata };
 
@@ -1647,8 +1648,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 				id,
 				mime,
 
-				metadata: (): NotebookCellMetadata => {
-					return this._content.metadata;
+				get metadata(): NotebookCellMetadata {
+					return self._content.metadata;
 				},
 
 				text: (): string => {
