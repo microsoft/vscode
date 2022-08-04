@@ -180,8 +180,6 @@ export interface IReconnectionProperties {
 	data?: unknown;
 }
 
-export interface IReconnectionTaskData { label: string; id: string; lastTask: string; group?: string }
-
 export type TerminalType = 'Task' | 'Local' | undefined;
 
 export enum TitleEventSource {

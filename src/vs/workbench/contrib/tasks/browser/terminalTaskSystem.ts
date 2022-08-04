@@ -30,7 +30,7 @@ import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IReconnectionTaskData, IShellLaunchConfig, TerminalLocation, TerminalSettingId, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, TerminalLocation, TerminalSettingId, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
@@ -61,6 +61,13 @@ interface IActiveTerminalData {
 	task: Task;
 	promise: Promise<ITaskSummary>;
 	state?: TaskEventKind;
+}
+
+interface IReconnectionTaskData {
+	label: string;
+	id: string;
+	lastTask: string;
+	group?: string;
 }
 
 const ReconnectionType = 'Task';
