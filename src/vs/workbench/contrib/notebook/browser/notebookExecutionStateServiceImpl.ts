@@ -157,10 +157,7 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 
 	private _clearLastFailedCell(notebookURI: URI) {
 		this._lastFailedCells.delete(notebookURI);
-		const notebook = this._notebookService.getNotebookTextModel(notebookURI);
-		if (notebook) {
-			this._removeFailedCellListeners(notebook);
-		}
+		this._removeFailedCellListeners(notebookURI);
 		this._onDidChangeLastRunFailState.fire({ failed: false, notebook: notebookURI });
 	}
 
@@ -199,10 +196,10 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 		this._lastFailedCellDisposableListeners.set(notebook.uri, lastFailedCellDisposableListener);
 	}
 
-	private _removeFailedCellListeners(notebook: NotebookTextModel) {
-		const disposable = this._lastFailedCellDisposableListeners.get(notebook.uri);
+	private _removeFailedCellListeners(notebookURI: URI) {
+		const disposable = this._lastFailedCellDisposableListeners.get(notebookURI);
 		if (disposable) {
-			this._lastFailedCellDisposableListeners.delete(notebook.uri);
+			this._lastFailedCellDisposableListeners.delete(notebookURI);
 			disposable.dispose();
 		}
 	}
