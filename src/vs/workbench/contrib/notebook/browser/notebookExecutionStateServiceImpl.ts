@@ -23,7 +23,7 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 	private readonly _notebookListeners = new ResourceMap<NotebookExecutionListeners>();
 	private readonly _cellListeners = new ResourceMap<IDisposable>();
 	private readonly _lastFailedCells = new ResourceMap<number>();
-	private readonly _lastFailedCellsVisible = new ResourceMap<boolean>();
+	private readonly _lastFailedCellDisposableListeners = new ResourceMap<IDisposable>();
 
 	private readonly _onDidChangeCellExecution = this._register(new Emitter<ICellExecutionStateChangedEvent>());
 	onDidChangeCellExecution = this._onDidChangeCellExecution.event;
@@ -140,51 +140,71 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 			exe.onDidComplete(lastRunSuccess => this._onCellExecutionDidComplete(notebookUri, cellHandle, exe, lastRunSuccess)));
 		this._cellListeners.set(CellUri.generate(notebookUri, cellHandle), disposable);
 
-		notebook.onWillAddRemoveCells((e: NotebookTextModelWillAddRemoveEvent) => {
-			const lastFailedCell = this.getLastFailedCellForNotebook(notebook.uri);
-			e.rawEvent.changes.forEach(([start, deleteCount]) => {
-				if (deleteCount) {
-					const deletedHandles = notebook.cells.slice(start, start + deleteCount).map(c => c.handle);
-					if (lastFailedCell && deletedHandles.includes(lastFailedCell)) {
-						this._setLastFailedCellVisibility(notebook.uri, false);
-					}
-				}
-			});
-		});
-
-		notebook.onDidChangeContent((events) => {
-			const lastFailedCell = this.getLastFailedCellForNotebook(notebook.uri);
-			events.rawEvents.forEach((e) => {
-				if (e.kind === NotebookCellsChangeType.ModelChange) {
-					e.changes.forEach(([start, deleteCount]) => {
-						if (deleteCount === 0) {
-							const addHandle = notebook.cells[start].handle;
-							if (addHandle === lastFailedCell) {
-								this._setLastFailedCellVisibility(notebook.uri, true);
-							}
-						}
-					});
-				}
-			});
-		});
-
 		return exe;
 	}
 
-	private _setLastFailedCellVisibility(notebook: URI, visible: boolean) {
-		this._lastFailedCellsVisible.set(notebook, visible);
-		this._onDidChangeLastRunFailState.fire({ failed: visible, notebook });
+	private _setLastFailedCell(notebookURI: URI, cellHandle: number) {
+		this._lastFailedCells.set(notebookURI, cellHandle);
+
+		if (this._lastFailedCellDisposableListeners.get(notebookURI) === undefined) {
+			const notebook = this._notebookService.getNotebookTextModel(notebookURI);
+			if (notebook) {
+				this._setFailedCellListeners(notebook);
+			}
+		}
+		this._onDidChangeLastRunFailState.fire({ failed: true, notebook: notebookURI });
 	}
 
-	private _setLastFailedCell(notebook: URI, cellHandle: number) {
-		this._lastFailedCells.set(notebook, cellHandle);
-		this._lastFailedCellsVisible.set(notebook, true);
-		this._onDidChangeLastRunFailState.fire({ failed: true, notebook });
+	private _clearLastFailedCell(notebookURI: URI) {
+		this._lastFailedCells.delete(notebookURI);
+		const notebook = this._notebookService.getNotebookTextModel(notebookURI);
+		if (notebook) {
+			this._removeFailedCellListeners(notebook);
+		}
+		this._onDidChangeLastRunFailState.fire({ failed: false, notebook: notebookURI });
 	}
 
-	private _clearLastFailedCell(notebook: URI) {
-		this._lastFailedCells.delete(notebook);
-		this._onDidChangeLastRunFailState.fire({ failed: false, notebook: notebook });
+	private _setFailedCellListeners(notebook: NotebookTextModel) {
+		const lastFailedCellDisposableListener = combinedDisposable(
+			notebook.onWillAddRemoveCells((e: NotebookTextModelWillAddRemoveEvent) => {
+				const lastFailedCell = this.getLastFailedCellForNotebook(notebook.uri);
+				e.rawEvent.changes.some(([start, deleteCount]) => {
+					if (deleteCount) {
+						const lastFailedCellPos = notebook.cells.findIndex(c => c.handle === lastFailedCell);
+						if (lastFailedCellPos >= start && lastFailedCellPos < start + deleteCount) {
+							this._onDidChangeLastRunFailState.fire({ failed: false, notebook: notebook.uri });
+							return true;
+						}
+					}
+					return false;
+				});
+			}),
+			notebook.onDidChangeContent((events) => {
+				const lastFailedCell = this.getLastFailedCellForNotebook(notebook.uri);
+				events.rawEvents.forEach((e) => {
+					if (e.kind === NotebookCellsChangeType.ModelChange) {
+						e.changes.some(([start, deleteCount]) => {
+							if (deleteCount === 0) {
+								const addHandle = notebook.cells[start].handle;
+								if (addHandle === lastFailedCell) {
+									this._onDidChangeLastRunFailState.fire({ failed: true, notebook: notebook.uri });
+									return true;
+								}
+							}
+							return false;
+						});
+					}
+				});
+			}));
+		this._lastFailedCellDisposableListeners.set(notebook.uri, lastFailedCellDisposableListener);
+	}
+
+	private _removeFailedCellListeners(notebook: NotebookTextModel) {
+		const disposable = this._lastFailedCellDisposableListeners.get(notebook.uri);
+		if (disposable) {
+			this._lastFailedCellDisposableListeners.delete(notebook.uri);
+			disposable.dispose();
+		}
 	}
 
 	override dispose(): void {
