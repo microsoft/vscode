@@ -11,6 +11,7 @@ import { tmpdir } from 'os';
 import path = require('path');
 import { additionalDeps, bundledDeps, referenceGeneratedDepsByArch } from './dep-lists';
 import { ArchString } from './types';
+import * as manifests from '../../../cgmanifest.json';
 
 // A flag that can easily be toggled.
 // Make sure to compile the build directory after toggling the value.
@@ -86,7 +87,10 @@ function calculatePackageDeps(binaryPath: string, arch: ArchString, sysroot: str
 	}
 
 	// Get the Chromium dpkg-shlibdeps file.
-	const dpkgShlibdepsUrl = 'https://raw.githubusercontent.com/chromium/chromium/100.0.4896.160/third_party/dpkg-shlibdeps/dpkg-shlibdeps.pl';
+	const chromiumManifest = manifests.registrations.filter(registration => {
+		return registration.component.type === 'git' && registration.component.git!.name === 'chromium';
+	});
+	const dpkgShlibdepsUrl = `https://raw.githubusercontent.com/chromium/chromium/${chromiumManifest[0].version}/third_party/dpkg-shlibdeps/dpkg-shlibdeps.pl`;
 	const dpkgShlibdepsScriptLocation = `${tmpdir()}/dpkg-shlibdeps.pl`;
 	const result = spawnSync('curl', [dpkgShlibdepsUrl, '-o', dpkgShlibdepsScriptLocation]);
 	if (result.status !== 0) {

@@ -369,7 +369,7 @@ export class AzureActiveDirectoryService {
 				existingPromise = this.handleCodeResponse(scopeData);
 			} else {
 				inputBox = vscode.window.createInputBox();
-				existingPromise = Promise.race([this.handleCodeInputBox(inputBox, codeVerifier, scopeData), this.handleCodeResponse(scopeData)]);
+				existingPromise = this.handleCodeInputBox(inputBox, codeVerifier, scopeData);
 			}
 			this._codeExchangePromises.set(scopeData.scopeStr, existingPromise);
 		}

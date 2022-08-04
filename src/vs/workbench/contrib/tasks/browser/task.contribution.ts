@@ -510,7 +510,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[TaskSettingId.ShowDecorations]: {
 			type: 'boolean',
-			description: nls.localize('task.showDecorations', "Shows decorations at points of interest in the terminal buffer such as the first problem found via a watch task. Note that this will only take effect for future tasks."),
+			markdownDescription: nls.localize('task.showDecorations', "Shows decorations at points of interest in the terminal buffer such as the first problem found via a watch task. Note that this will only take effect for future tasks. {0} will take precedence over this setting", '`#terminal.integrated.shellIntegration.decorationsEnabled#`'),
 			default: true
 		},
 		[TaskSettingId.Reconnection]: {

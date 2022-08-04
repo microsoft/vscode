@@ -2571,6 +2571,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			return;
 		}
 
+		if (this.viewModel.getCellIndex(cell) === -1) {
+			return;
+		}
+
 		if (this.cellIsHidden(cell)) {
 			return;
 		}
