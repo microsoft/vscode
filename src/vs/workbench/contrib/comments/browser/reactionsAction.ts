@@ -37,7 +37,7 @@ export class ReactionActionViewItem extends ActionViewItem {
 			return;
 		}
 
-		const action = this.getAction() as ReactionAction;
+		const action = this.action as ReactionAction;
 		if (action.class) {
 			this.label.classList.add(action.class);
 		}
