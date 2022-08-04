@@ -263,7 +263,7 @@ class HoverAdapter {
 		if (!value.range) {
 			value.range = new Range(pos, pos);
 		}
-		return typeConvert.Hover.from(value);
+		return typeConvert.Hover.from(value, this._uriTransformer);
 	}
 }
 
@@ -2009,7 +2009,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	// --- extra info
 
 	registerHoverProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.HoverProvider, extensionId?: ExtensionIdentifier): vscode.Disposable {
-		const handle = this._addNewAdapter(new HoverAdapter(this._documents, provider), extension);
+		const handle = this._addNewAdapter(new HoverAdapter(this._documents, provider, this._uriTransformer), extension);
 		this._proxy.$registerHoverProvider(handle, this._transformDocumentSelector(selector));
 		return this._createDisposable(handle);
 	}

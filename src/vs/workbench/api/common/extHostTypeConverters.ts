@@ -306,8 +306,8 @@ export function isDecorationOptionsArr(something: vscode.Range[] | vscode.Decora
 
 export namespace MarkdownString {
 
-	export function fromMany(markup: (vscode.MarkdownString | vscode.MarkedString)[]): htmlContent.IMarkdownString[] {
-		return markup.map(MarkdownString.from);
+	export function fromMany(markup: (vscode.MarkdownString | vscode.MarkedString)[], uriTransformer?: IURITransformer): htmlContent.IMarkdownString[] {
+		return markup.map((content) => MarkdownString.from(content, uriTransformer));
 	}
 
 	interface Codeblock {
@@ -321,7 +321,7 @@ export namespace MarkdownString {
 			&& typeof (<Codeblock>thing).value === 'string';
 	}
 
-	export function from(markup: vscode.MarkdownString | vscode.MarkedString): htmlContent.IMarkdownString {
+	export function from(markup: vscode.MarkdownString | vscode.MarkedString, uriTransformer?: IURITransformer): htmlContent.IMarkdownString {
 		let res: htmlContent.IMarkdownString;
 		if (isCodeblock(markup)) {
 			const { language, value } = markup;
@@ -340,9 +340,10 @@ export namespace MarkdownString {
 
 		const collectUri = (href: string): string => {
 			try {
-				let uri = URI.parse(href, true);
+				let uri = uriTransformer ? uriTransformer.transformOutgoingURI(URI.parse(href, true)) : URI.parse(href, true);
 				uri = uri.with({ query: _uriMassage(uri.query, resUris) });
 				resUris[href] = uri;
+				console.log('uri', uri);
 			} catch (e) {
 				// ignore
 			}
@@ -389,11 +390,11 @@ export namespace MarkdownString {
 		return JSON.stringify(data);
 	}
 
-	export function to(value: htmlContent.IMarkdownString): vscode.MarkdownString {
+	export function to(value: htmlContent.IMarkdownString, uriTransformer?: IURITransformer): vscode.MarkdownString {
 		const result = new types.MarkdownString(value.value, value.supportThemeIcons);
 		result.isTrusted = value.isTrusted;
 		result.supportHtml = value.supportHtml;
-		result.baseUri = value.baseUri ? URI.from(value.baseUri) : undefined;
+		result.baseUri = value.baseUri ? uriTransformer ? URI.from(uriTransformer.transformIncoming(URI.from(value.baseUri))) : URI.from(value.baseUri) : undefined;
 		return result;
 	}
 
@@ -891,15 +892,15 @@ export namespace DefinitionLink {
 }
 
 export namespace Hover {
-	export function from(hover: vscode.Hover): languages.Hover {
+	export function from(hover: vscode.Hover, uriTransformer?: IURITransformer): languages.Hover {
 		return <languages.Hover>{
 			range: Range.from(hover.range),
-			contents: MarkdownString.fromMany(hover.contents)
+			contents: MarkdownString.fromMany(hover.contents, uriTransformer)
 		};
 	}
 
-	export function to(info: languages.Hover): types.Hover {
-		return new types.Hover(info.contents.map(MarkdownString.to), Range.to(info.range));
+	export function to(info: languages.Hover, uriTransformer?: IURITransformer): types.Hover {
+		return new types.Hover(info.contents.map((content) => MarkdownString.to(content, uriTransformer)), Range.to(info.range));
 	}
 }
 
