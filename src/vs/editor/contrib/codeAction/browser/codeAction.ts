@@ -72,15 +72,11 @@ class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 
 	private static codeActionsComparator({ action: a }: CodeActionItem, { action: b }: CodeActionItem): number {
 		if (isNonEmptyArray(a.diagnostics)) {
-			if (isNonEmptyArray(b.diagnostics)) {
-				return ManagedCodeActionSet.codeActionsPreferredComparator(a, b) || a.diagnostics[0].message.localeCompare(b.diagnostics[0].message);
-			} else {
-				return -1;
-			}
+			return -1;
 		} else if (isNonEmptyArray(b.diagnostics)) {
 			return 1;
 		} else {
-			return ManagedCodeActionSet.codeActionsPreferredComparator(a, b);	// both have no diagnostics
+			return ManagedCodeActionSet.codeActionsPreferredComparator(a, b); // both have no diagnostics
 		}
 	}
 
