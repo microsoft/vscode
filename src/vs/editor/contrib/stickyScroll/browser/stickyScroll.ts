@@ -130,6 +130,7 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 		} else {
 			this._addOutlineRanges(outlineElement, depth);
 		}
+		console.log('ranges : ', this._ranges);
 	}
 
 	private _addOutlineRanges(outlineElement: OutlineElement, depth: number) {
@@ -141,7 +142,12 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 			if (kind === SymbolKind.Class || kind === SymbolKind.Constructor || kind === SymbolKind.Function || kind === SymbolKind.Interface || kind === SymbolKind.Method || kind === SymbolKind.Module) {
 				currentStartLine = outlineElement?.symbol.range.startLineNumber as number;
 				currentEndLine = outlineElement?.symbol.range.endLineNumber as number;
-				this._ranges.push([currentStartLine, currentEndLine, depth]);
+				// this._ranges.push([currentStartLine, currentEndLine, depth]);
+				if (currentEndLine > currentStartLine) {
+					this._ranges.push([currentStartLine, currentEndLine - 1, depth]);
+				} else {
+					this._ranges.push([currentStartLine, currentEndLine, depth]);
+				}
 				depth--;
 			}
 			if (outlineElement.parent instanceof OutlineElement) {
