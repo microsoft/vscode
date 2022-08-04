@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .codeActionMenuWidget {
-	padding: 8px 0px 8px 0px;
+	padding: 3px 0px 3px 0px;
 	overflow: auto;
 	font-size: 13px;
 	border-radius: 5px;
@@ -57,7 +57,7 @@
 	display: flex;
 	-mox-box-sizing: border-box;
 	box-sizing: border-box;
-	padding: 0px 26px 0px 26px;
+	padding: 0px 26px 0px 10px;
 	background-repeat: no-repeat;
 	background-position: 2px 2px;
 	white-space: nowrap;
@@ -108,3 +108,13 @@
 	cursor: pointer;
 	touch-action: none;
 }
+
+.codeActionMenuWidget .monaco-list-row .icon-container {
+	margin-top: 3px;
+	margin-right: 10px;
+	width: 13px;
+	height: 13px;
+	flex-shrink: 0;
+	color: var(--vscode-editorLightBulb-foreground);
+}
+

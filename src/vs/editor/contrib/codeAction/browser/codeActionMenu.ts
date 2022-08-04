@@ -92,7 +92,7 @@ export interface ICodeActionMenuTemplateData {
 }
 
 const TEMPLATE_ID = 'codeActionWidget';
-const codeActionLineHeight = 26;
+const codeActionLineHeight = 24;
 
 class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeActionMenuTemplateData> {
 
@@ -109,10 +109,14 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 		data.root = container;
 		data.text = document.createElement('span');
 
+		const iconContainer = document.createElement('div');
+		iconContainer.className = 'icon-container';
+
 		data.icon = document.createElement('div');
 
 		// data.detail = document.createElement('');
-		container.append(data.icon);
+		iconContainer.append(data.icon);
+		container.append(iconContainer);
 		container.append(data.text);
 		// container.append(data.detail);
 
@@ -131,6 +135,26 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 			element.isDocumentation = element.action.action.kind === CodeActionMenu.documentationID;
 			if (!element.isDocumentation) {
 
+				if (element.action.action.kind?.startsWith(`refactor.extract`)) {
+					data.icon.className = Codicon.lightBulb.classNames;
+					data.icon.style.color = `var(--vscode-editorLightBulb-foreground)`;
+				} else if (element.action.action.kind?.startsWith(`refactor.rewrite`)) {
+					data.icon.className = Codicon.lightbulbAutofix.classNames;
+					data.icon.style.color = `var(--vscode-editorLightBulbAutoFix-foreground)`;
+					// data.icon.style.color = `var(--vscode-editorLightBulb-foreground)`;
+				} else if (element.action.action.kind === `refactor`) {
+					data.icon.className = Codicon.symbolSnippet.classNames;
+					data.icon.style.color = `var(--vscode-symbolIcon-functionForeground)`;
+				} else if (element.action.action.kind === `_documentation`) {
+					data.icon.className = Codicon.book.classNames;
+					// data.icon.style.color = ``;
+				} else if (element.action.action.kind === `quickfix`) {
+					data.icon.className = Codicon.wrench.classNames;
+				} else {
+					data.icon.className = Codicon.lightBulb.classNames;
+					data.icon.style.color = `var(--vscode-editorLightBulb-foreground)`;
+				}
+
 				// Check if action has disabled reason
 				if (element.action.action.disabled) {
 					data.root.title = element.action.action.disabled;
@@ -141,12 +165,14 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 					};
 					updateLabel();
 				}
+			} else {
+				data.icon.className = Codicon.book.classNames;
 			}
 		}
 
 		data.text.textContent = text;
 
-		data.icon.className = Codicon.lightBulb.classNames;
+
 		// data.icon.classList.add(Codicon.lightBulb.classNames);
 
 		if (!element.isEnabled) {
@@ -336,8 +362,8 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		// resize observer - can be used in the future since list widget supports dynamic height but not width
 		const maxWidth = Math.max(...arr);
 
-		// 40 is the additional padding for the list widget (20 left, 20 right)
-		renderMenu.style.width = maxWidth + 52 + 'px';
+		// 52 is the additional padding for the list widget (26 left, 26 right)
+		renderMenu.style.width = maxWidth + 52 + 5 + 'px';
 		this.codeActionList.value?.layout(height, maxWidth);
 
 		// List selection
