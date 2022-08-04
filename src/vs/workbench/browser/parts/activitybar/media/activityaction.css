@@ -17,7 +17,6 @@
 	height: 48px;
 	margin-right: 0;
 	box-sizing: border-box;
-
 }
 
 .monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-label:not(.codicon) {
