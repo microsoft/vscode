@@ -1155,10 +1155,6 @@ export function removeTabIndexAndUpdateFocus(node: HTMLElement): void {
 	node.removeAttribute('tabindex');
 }
 
-export function getElementsByTagName(tag: string): HTMLElement[] {
-	return Array.prototype.slice.call(document.getElementsByTagName(tag), 0);
-}
-
 export function finalHandler<T extends Event>(fn: (event: T) => any): (event: T) => any {
 	return e => {
 		e.preventDefault();
