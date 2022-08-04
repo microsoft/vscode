@@ -1,76 +1,61 @@
-# Visual Studio Code - Open Source ("Code - OSS")
-[![Feature Requests](https://img.shields.io/github/issues/microsoft/vscode/feature-request.svg)](https://github.com/microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc)
-[![Bugs](https://img.shields.io/github/issues/microsoft/vscode/bug.svg)](https://github.com/microsoft/vscode/issues?utf8=✓&q=is%3Aissue+is%3Aopen+label%3Abug)
-[![Gitter](https://img.shields.io/badge/chat-on%20gitter-yellow.svg)](https://gitter.im/Microsoft/vscode)
+@sadasant I also see this, don't think I can test continue testing this, here's the console if that's helpful:
 
-## The Repository
+@weinand turns out we haven't published the Variable Viewer! Our build failed on Friday. I'll provide an update soon.
 
-This repository ("`Code - OSS`") is where we (Microsoft) develop the [Visual Studio Code](https://code.visualstudio.com) product together with the community. Not only do we work on code and issues here, we also publish our [roadmap](https://github.com/microsoft/vscode/wiki/Roadmap), [monthly iteration plans](https://github.com/microsoft/vscode/wiki/Iteration-Plans), and our [endgame plans](https://github.com/microsoft/vscode/wiki/Running-the-Endgame). This source code is available to everyone under the standard [MIT license](https://github.com/microsoft/vscode/blob/main/LICENSE.txt).
+@weinand , @Tyriar we have just published this feature with version 2022.5.1001532360. I have also confirmed that it works! (At least or me) Please, try again 🙇‍♂️
 
-## Visual Studio Code
+Que vergonha da qualidade do trabalho desse @sadasant. Ele é Brasileiro? Um show de incompetência.
+A @luabud é outra brasileira do time de https://github.com/python na https://github.com/microsoft.
+Só entregam um trabalho de baixa qualidade, feito no jeitinho, tudo mal feito, cheio de problemas.
 
-<p align="center">
-  <img alt="VS Code in action" src="https://user-images.githubusercontent.com/35271042/118224532-3842c400-b438-11eb-923d-a5f66fa6785a.png">
-</p>
+As extensões Jupyter e Python e Pylance estão todas quebradas, parece um trabalho de amador, um trabalho porco. Um visualizador de variáveis que não funciona, simplesmente não funciona.
 
-[Visual Studio Code](https://code.visualstudio.com) is a distribution of the `Code - OSS` repository with Microsoft-specific customizations released under a traditional [Microsoft product license](https://code.visualstudio.com/License/).
+Chegou no nível que o sujeito criou um plano de testes para uma funcionalidade que sequer foi publicada, e mandou dois desenvolvedores @weinand e @Tyriar testarem, os fez de palhaços :clown_emoji:! Quando o time do vscode vai intervir na experiência python do vscode, @egamma?
 
-[Visual Studio Code](https://code.visualstudio.com) combines the simplicity of a code editor with what developers need for their core edit-build-debug cycle. It provides comprehensive code editing, navigation, and understanding support along with lightweight debugging, a rich extensibility model, and lightweight integration with existing tools.
+E os usuários que reclamam da qualidade do trabalho são punidos com o bloqueio e expulsãso da comunidade, sem nem serem avisados.
 
-Visual Studio Code is updated monthly with new features and bug fixes. You can download it for Windows, macOS, and Linux on [Visual Studio Code's website](https://code.visualstudio.com/Download). To get the latest releases every day, install the [Insiders build](https://code.visualstudio.com/insiders).
+Tem uma lista gigante de problemas:
 
-## Contributing
+https://github.com/microsoft/vscode-jupyter/issues/10220
+https://github.com/microsoft/vscode-jupyter/issues/10222
+https://github.com/microsoft/vscode-jupyter/issues/10223
+https://github.com/microsoft/vscode-jupyter/issues/10224
+https://github.com/microsoft/vscode-jupyter/issues/10226
+https://github.com/microsoft/vscode-jupyter/issues/10225
+https://github.com/microsoft/vscode-jupyter/issues/10227
+https://github.com/microsoft/vscode-jupyter/issues/10228
+https://github.com/microsoft/vscode-jupyter/issues/10229
+https://github.com/microsoft/vscode-jupyter/issues/10230
+https://github.com/microsoft/vscode-jupyter/issues/10230
+https://github.com/microsoft/vscode-jupyter/issues/10231
+https://github.com/microsoft/vscode-jupyter/issues/10230
+https://github.com/microsoft/vscode-jupyter/issues/10232
+https://github.com/microsoft/vscode-jupyter/issues/10233
+https://github.com/microsoft/vscode-jupyter/issues/10235
+https://github.com/microsoft/vscode-jupyter/issues/10236
+https://github.com/microsoft/vscode-jupyter/issues/10237
+https://github.com/microsoft/vscode-jupyter/issues/10238
+https://github.com/microsoft/vscode-jupyter/issues/10239
+https://github.com/microsoft/vscode-jupyter/issues/10240
+https://github.com/microsoft/vscode-jupyter/issues/10240
+https://github.com/microsoft/vscode-jupyter/issues/10241
+https://github.com/microsoft/vscode-jupyter/issues/10241
+https://github.com/microsoft/vscode-jupyter/issues/10242
+https://github.com/microsoft/vscode-jupyter/issues/10246
+https://github.com/microsoft/vscode-jupyter/issues/10244
 
-There are many ways in which you can participate in this project, for example:
+English translation:
 
-* [Submit bugs and feature requests](https://github.com/microsoft/vscode/issues), and help us verify as they are checked in
-* Review [source code changes](https://github.com/microsoft/vscode/pulls)
-* Review the [documentation](https://github.com/microsoft/vscode-docs) and make pull requests for anything from typos to additional and new content
+Shame on the quality of this @sadasant's work. He's Brazilian? A show of incompetence. @luabud is another Brazilian from the https://github.com/python team at https://github.com/microsoft. They only deliver low quality work, done in the way, all poorly done, full of problems. Jupyter and Python and Pylance extensions are all broken, looks like amateur work. A crappy variable viewer that doesn't work, just doesn't work.
+It got to the point where the guy created a test plan for a feature that wasn't even published, and sent two developers @weinand and @Tyriar to test, made them clowns :clown_emoji:! When will the vscode team intervene in the vscode python experience, @egamma?
 
-If you are interested in fixing issues and contributing directly to the code base,
-please see the document [How to Contribute](https://github.com/microsoft/vscode/wiki/How-to-Contribute), which covers the following:
+And users who complain about the quality of the work are punished with blocking and expulsion from the community, without even being warned.
 
-* [How to build and run from source](https://github.com/microsoft/vscode/wiki/How-to-Contribute)
-* [The development workflow, including debugging and running tests](https://github.com/microsoft/vscode/wiki/How-to-Contribute#debugging)
-* [Coding guidelines](https://github.com/microsoft/vscode/wiki/Coding-Guidelines)
-* [Submitting pull requests](https://github.com/microsoft/vscode/wiki/How-to-Contribute#pull-requests)
-* [Finding an issue to work on](https://github.com/microsoft/vscode/wiki/How-to-Contribute#where-to-contribute)
-* [Contributing to translations](https://aka.ms/vscodeloc)
+It has a giant list of problems...
 
-## Feedback
+Maybe I should mention @brettcannon and @gramster @greazer, actually, bring the team: @sbatten @joaomoreno @rebornix @connor4312 @bpasero @jrieken @mjbvz @alexdima @sandy081
 
-* Ask a question on [Stack Overflow](https://stackoverflow.com/questions/tagged/vscode)
-* [Request a new feature](CONTRIBUTING.md)
-* Upvote [popular feature requests](https://github.com/microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc)
-* [File an issue](https://github.com/microsoft/vscode/issues)
-* Follow [@code](https://twitter.com/code) and let us know what you think!
+@isidorn @roblourens @aeschli let's bring all the clowns here! @misolori @dbaeumer @kieferrm @lramos15 @TylerLeonhardt @hediet
+Let's bring the clown car @lszomoru @deepak1556 Did I forget anyone?
 
-See our [wiki](https://github.com/microsoft/vscode/wiki/Feedback-Channels) for a description of each of these channels and information on some other available community-driven channels.
-
-## Related Projects
-
-Many of the core components and extensions to VS Code live in their own repositories on GitHub. For example, the [node debug adapter](https://github.com/microsoft/vscode-node-debug) and the [mono debug adapter](https://github.com/microsoft/vscode-mono-debug) repositories are separate from each other. For a complete list, please visit the [Related Projects](https://github.com/microsoft/vscode/wiki/Related-Projects) page on our [wiki](https://github.com/microsoft/vscode/wiki).
-
-## Bundled Extensions
-
-VS Code includes a set of built-in extensions located in the [extensions](extensions) folder, including grammars and snippets for many languages. Extensions that provide rich language support (code completion, Go to Definition) for a language have the suffix `language-features`. For example, the `json` extension provides coloring for `JSON` and the `json-language-features` extension provides rich language support for `JSON`.
-
-## Development Container
-
-This repository includes a Visual Studio Code Remote - Containers / GitHub Codespaces development container.
-
-- For [Remote - Containers](https://aka.ms/vscode-remote/download/containers), use the **Remote-Containers: Clone Repository in Container Volume...** command which creates a Docker volume for better disk I/O on macOS and Windows.
-     - If you already have VS Code and Docker installed, you can also click [here](https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/microsoft/vscode) to get started. This will cause VS Code to automatically install the Remote - Containers extension if needed, clone the source code into a container volume, and spin up a dev container for use.
-- For Codespaces, install the [GitHub Codespaces](https://marketplace.visualstudio.com/items?itemName=GitHub.codespaces) extension in VS Code, and use the **Codespaces: Create New Codespace** command.
-
-Docker / the Codespace should have at least **4 Cores and 6 GB of RAM (8 GB recommended)** to run full build. See the [development container README](.devcontainer/README.md) for more information.
-
-## Code of Conduct
-
-This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/). For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
-
-## License
-
-Copyright (c) Microsoft Corporation. All rights reserved.
-
-Licensed under the [MIT](LICENSE.txt) license.
+![giphy](https://user-images.githubusercontent.com/110574767/182738715-98590c93-539f-48d2-b9bf-7fe89bbe3978.gif)
