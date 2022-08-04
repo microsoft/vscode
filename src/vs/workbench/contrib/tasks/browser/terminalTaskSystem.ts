@@ -63,6 +63,13 @@ interface IActiveTerminalData {
 	state?: TaskEventKind;
 }
 
+interface IReconnectionTaskData {
+	label: string;
+	id: string;
+	lastTask: string;
+	group?: string;
+}
+
 const ReconnectionType = 'Task';
 
 class InstanceManager {
@@ -943,8 +950,17 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				});
 			});
 			if (trigger === Triggers.reconnect && !!terminal.xterm) {
-				const bufferLines = terminal.xterm.bufferLines;
-				for (let i = 0; i < bufferLines.length; i++) {
+				const bufferLines = [];
+
+				const bufferReverseIterator = terminal.xterm.getBufferReverseIterator();
+				const startRegex = new RegExp(watchingProblemMatcher.beginPatterns.map(pattern => pattern.source).join('|'));
+				for (const nextLine of bufferReverseIterator) {
+					bufferLines.push(nextLine);
+					if (startRegex.test(nextLine)) {
+						break;
+					}
+				}
+				for (let i = bufferLines.length - 1; i >= 0; i--) {
 					watchingProblemMatcher.processLine(bufferLines[i]);
 				}
 				if (!delayer) {
@@ -1271,7 +1287,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private async _reconnectToTerminal(task: Task): Promise<ITerminalInstance | undefined> {
 		for (let i = 0; i < this._reconnectTerminals.length; i++) {
 			const terminal = this._reconnectTerminals[i];
-			const taskForTerminal = terminal.shellLaunchConfig.attachPersistentProcess?.task;
+			const taskForTerminal = terminal.shellLaunchConfig.attachPersistentProcess?.reconnectionProperties?.data as IReconnectionTaskData;
 			if (taskForTerminal?.id && task.getRecentlyUsedKey() === taskForTerminal.lastTask) {
 				this._reconnectTerminals.splice(i, 1);
 				return terminal;
@@ -1318,7 +1334,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			return;
 		}
 		for (const terminal of terminals) {
-			const task = terminal.shellLaunchConfig.attachPersistentProcess?.task;
+			const task = terminal.shellLaunchConfig.attachPersistentProcess?.reconnectionProperties?.data as IReconnectionTaskData;
 			if (!task) {
 				continue;
 			}
@@ -1428,8 +1444,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 		this._terminalCreationQueue = this._terminalCreationQueue.then(() => this._doCreateTerminal(task, group, launchConfigs!));
 		const terminal: ITerminalInstance = (await this._terminalCreationQueue)!;
-		terminal.shellLaunchConfig.task = { lastTask: task.getRecentlyUsedKey()!, group, label: task._label, id: task._id };
-		terminal.shellLaunchConfig.reconnectionOwner = ReconnectionType;
+		terminal.shellLaunchConfig.reconnectionProperties = { ownerId: ReconnectionType, data: { lastTask: taskKey, group, label: task._label, id: task._id } };
 		const terminalKey = terminal.instanceId.toString();
 		const terminalData = { terminal: terminal, lastTask: taskKey, group };
 		terminal.onDisposed(() => this._deleteTaskAndTerminal(terminal, terminalData));

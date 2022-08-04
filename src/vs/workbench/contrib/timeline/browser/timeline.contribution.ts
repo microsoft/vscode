@@ -12,7 +12,6 @@ import { VIEW_CONTAINER } from 'vs/workbench/contrib/files/browser/explorerViewl
 import { ITimelineService, TimelinePaneId } from 'vs/workbench/contrib/timeline/common/timeline';
 import { TimelineHasProviderContext, TimelineService } from 'vs/workbench/contrib/timeline/common/timelineService';
 import { TimelinePane } from './timelinePane';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ISubmenuItem, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -39,35 +38,6 @@ export class TimelinePaneDescriptor implements IViewDescriptor {
 
 	focusCommand = { id: 'timeline.focus' };
 }
-
-// Configuration
-const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-configurationRegistry.registerConfiguration({
-	id: 'timeline',
-	order: 1001,
-	title: localize('timelineConfigurationTitle', "Timeline"),
-	type: 'object',
-	properties: {
-		'timeline.excludeSources': {
-			type: [
-				'array',
-				'null'
-			],
-			default: null,
-			description: localize('timeline.excludeSources', "An array of Timeline sources that should be excluded from the Timeline view."),
-		},
-		'timeline.pageSize': {
-			type: ['number', 'null'],
-			default: null,
-			markdownDescription: localize('timeline.pageSize', "The number of items to show in the Timeline view by default and when loading more items. Setting to `null` (the default) will automatically choose a page size based on the visible area of the Timeline view."),
-		},
-		'timeline.pageOnScroll': {
-			type: 'boolean',
-			default: false,
-			description: localize('timeline.pageOnScroll', "Experimental. Controls whether the Timeline view will load the next page of items when you scroll to the end of the list."),
-		},
-	}
-});
 
 Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([new TimelinePaneDescriptor()], VIEW_CONTAINER);
 

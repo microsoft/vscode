@@ -11,7 +11,7 @@ const os_1 = require("os");
 const fs = require("fs");
 const https = require("https");
 const path = require("path");
-const sysroots_1 = require("./sysroots");
+const util = require("../../lib/util");
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:build/linux/sysroot_scripts/install-sysroot.py.
 const URL_PREFIX = 'https://msftelectron.blob.core.windows.net';
 const URL_PATH = 'sysroots/toolchain';
@@ -30,7 +30,15 @@ function getSha(filename) {
     return hash.digest('hex');
 }
 async function getSysroot(arch) {
-    const sysrootDict = sysroots_1.sysrootInfo[arch];
+    const sysrootJSONUrl = `https://raw.githubusercontent.com/electron/electron/v${util.getElectronVersion()}/script/sysroots.json`;
+    const sysrootDictLocation = `${(0, os_1.tmpdir)()}/sysroots.json`;
+    const result = (0, child_process_1.spawnSync)('curl', [sysrootJSONUrl, '-o', sysrootDictLocation]);
+    if (result.status !== 0) {
+        throw new Error('Cannot retrieve sysroots.json. Stderr:\n' + result.stderr);
+    }
+    const sysrootInfo = require(sysrootDictLocation);
+    const sysrootArch = arch === 'armhf' ? 'bullseye_arm' : `bullseye_${arch}`;
+    const sysrootDict = sysrootInfo[sysrootArch];
     const tarballFilename = sysrootDict['Tarball'];
     const tarballSha = sysrootDict['Sha1Sum'];
     const sysroot = path.join((0, os_1.tmpdir)(), sysrootDict['SysrootDir']);
