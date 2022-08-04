@@ -260,6 +260,7 @@
 							"worker_threads",
 							"xterm",
 							"xterm-addon-canvas",
+							"xterm-addon-ligatures",
 							"xterm-addon-search",
 							"xterm-addon-serialize",
 							"xterm-addon-unicode11",
