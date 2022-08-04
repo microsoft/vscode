@@ -916,11 +916,6 @@ export interface IXtermTerminal {
 	 */
 	readonly shellIntegration: IShellIntegration;
 
-	/**
-	 * An array representing the buffer lines as strings
-	 */
-	readonly bufferLines: string[];
-
 	readonly onDidChangeSelection: Event<void>;
 
 	/**
@@ -978,6 +973,11 @@ export interface IXtermTerminal {
 	 * @param properties
 	 */
 	addDecoration(marker: IMarker, properties: IGenericMarkProperties): void;
+
+	/**
+	 * Returns a reverse iterator of buffer lines as strings
+	 */
+	getBufferReverseIterator(): IterableIterator<string>;
 }
 
 export interface IInternalXtermTerminal {
