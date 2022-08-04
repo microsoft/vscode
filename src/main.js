@@ -218,6 +218,7 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		}
 	});
 
+	// TODO: Remove this when we update to Electron 20 as font access is enabled by default in Chromium 104
 	// Enable Font Access API (eg. for terminal ligatures)
 	app.commandLine.appendSwitch('enable-features', 'FontAccess');
 
