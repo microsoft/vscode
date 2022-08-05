@@ -388,6 +388,14 @@ export class ActionViewItem extends BaseActionViewItem {
 		}
 	}
 
+	override updateTooltip(): void {
+		super.updateTooltip();
+		if (this.label) {
+			const title = this.getTooltip() ?? '';
+			this.label.setAttribute('aria-label', title);
+		}
+	}
+
 	override updateChecked(): void {
 		if (this.label) {
 			if (this.action.checked) {
