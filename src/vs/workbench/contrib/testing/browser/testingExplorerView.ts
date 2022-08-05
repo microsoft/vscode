@@ -337,7 +337,7 @@ export class TestingExplorerView extends ViewPane {
 			icon: group === TestRunProfileBitset.Run
 				? icons.testingRunAllIcon
 				: icons.testingDebugAllIcon,
-		}, undefined, undefined);
+		}, undefined, undefined, undefined);
 
 		const dropdownAction = new Action('selectRunConfig', 'Select Configuration...', 'codicon-chevron-down', true);
 
@@ -485,13 +485,13 @@ export class TestingExplorerViewModel extends Disposable {
 				instantiationService.createInstance(ErrorRenderer),
 			],
 			{
-				simpleKeyboardNavigation: true,
 				identityProvider: instantiationService.createInstance(IdentityProvider),
 				hideTwistiesOfChildlessElements: false,
 				sorter: instantiationService.createInstance(TreeSorter, this),
 				keyboardNavigationLabelProvider: instantiationService.createInstance(TreeKeyboardNavigationLabelProvider),
 				accessibilityProvider: instantiationService.createInstance(ListAccessibilityProvider),
 				filter: this.filter,
+				findWidgetEnabled: false
 			}) as WorkbenchObjectTree<TestExplorerTreeElement, FuzzyScore>;
 
 		this._register(this.tree.onDidChangeCollapseState(evt => {
@@ -1015,6 +1015,13 @@ const getLabelForTestTreeElement = (element: TestItemTreeElement) => {
 				comment: ['{0} is the original label in testing.treeElementLabel, {1} is a duration'],
 			}, '{0}, in {1}', label, formatDuration(element.duration));
 		}
+
+		if (element.retired) {
+			label = localize({
+				key: 'testing.treeElementLabelOutdated',
+				comment: ['{0} is the original label in testing.treeElementLabel'],
+			}, '{0}, outdated result', label);
+		}
 	}
 
 	return label;
@@ -1201,6 +1208,9 @@ class TestItemRenderer extends ActionableItemTemplateData<TestItemTreeElement> {
 				: node.element.state);
 
 		data.icon.className = 'computed-state ' + (icon ? ThemeIcon.asClassName(icon) : '');
+		if (node.element.retired) {
+			data.icon.className += ' retired';
+		}
 
 		data.label.title = getLabelForTestTreeElement(node.element);
 		dom.reset(data.label, ...renderLabelWithIcons(node.element.label));

@@ -98,7 +98,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		hasChildProcesses: true,
 		resolvedShellLaunchConfig: {},
 		overrideDimensions: undefined,
-		failedShellIntegrationActivation: false
+		failedShellIntegrationActivation: false,
+		usedShellIntegrationInjection: undefined
 	};
 	private static _lastKillOrStart = 0;
 	private _exitCode: number | undefined;
@@ -202,6 +203,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		if (this._options.shellIntegration.enabled) {
 			injection = getShellIntegrationInjection(this.shellLaunchConfig, this._options.shellIntegration, this._logService);
 			if (injection) {
+				this._onDidChangeProperty.fire({ type: ProcessPropertyType.UsedShellIntegrationInjection, value: true });
 				if (injection.envMixin) {
 					for (const [key, value] of Object.entries(injection.envMixin)) {
 						this._ptyOptions.env ||= {};
@@ -401,7 +403,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 		this._currentTitle = ptyProcess.process;
 		this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: this._currentTitle });
-		this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: posixShellTypeMap.get(this.currentTitle) });
+		// If fig is installed it may change the title of the process
+		const sanitizedTitle = this.currentTitle.replace(/ \(figterm\)$/g, '');
+		this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: posixShellTypeMap.get(sanitizedTitle) });
 	}
 
 	shutdown(immediate: boolean): void {

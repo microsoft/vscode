@@ -171,7 +171,7 @@ export class VariablesView extends ViewPane {
 			}
 		}));
 		this._register(this.debugService.getViewModel().onDidEvaluateLazyExpression(async e => {
-			if (e instanceof Variable) {
+			if (e instanceof Variable && this.tree.hasNode(e)) {
 				await this.tree.updateChildren(e, false, true);
 				await this.tree.expand(e);
 			}

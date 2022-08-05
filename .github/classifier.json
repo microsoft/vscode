@@ -145,7 +145,7 @@
 		"snippets": {"assign": ["jrieken"]},
 		"splitview": {"assign": ["joaomoreno"]},
 		"suggest": {"assign": ["jrieken"]},
-		"tasks": {"assign": ["alexr00"], "accuracy": 0.85},
+		"tasks": {"assign": ["meganrogge"], "accuracy": 0.85},
 		"telemetry": {"assign": []},
 		"themes": {"assign": ["aeschli"]},
 		"timeline": {"assign": ["lramos15"]},

@@ -164,16 +164,17 @@ export class Code {
 						});
 					}
 
-					if (retries === 40) {
-						done = true;
-						reject(new Error('Smoke test exit call did not terminate process after 20s, giving up'));
-					}
-
 					try {
 						process.kill(pid, 0); // throws an exception if the process doesn't exist anymore.
 						await new Promise(resolve => setTimeout(resolve, 500));
 					} catch (error) {
 						done = true;
+						resolve();
+					}
+
+					if (retries === 60) {
+						done = true;
+						this.logger.log('Smoke test exit call did not terminate process after 30s, giving up');
 						resolve();
 					}
 				}

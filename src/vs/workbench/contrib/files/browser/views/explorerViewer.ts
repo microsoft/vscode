@@ -760,11 +760,9 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 
 	filter(stat: ExplorerItem, parentVisibility: TreeVisibility): boolean {
 		// Add newly visited .gitignore files to the ignore tree
-		if (stat.name === '.gitignore') {
+		if (stat.name === '.gitignore' && this.ignoreTreesPerRoot.has(stat.root.resource.toString())) {
 			this.processIgnoreFile(stat.root.resource.toString(), stat.resource, false);
-			// Never hide .gitignore files if explorer.excludeGitIgnore setting is enabled
-			// We can tell it's enabled if there is an ignore tree for the workspace root
-			return !!this.ignoreTreesPerRoot.get(stat.root.resource.toString());
+			return true;
 		}
 
 		return this.isVisible(stat, parentVisibility);
@@ -1178,20 +1176,22 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 	private async handleExplorerDrop(data: ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
 		const elementsData = FileDragAndDrop.getStatsFromDragAndDropData(data);
-		const distinctItems = new Set(elementsData);
+		const distinctItems = new Map(elementsData.map(element => [element, this.isCollapsed(element)]));
 
-		for (const item of distinctItems) {
-			if (this.isCollapsed(item)) {
+		for (const [item, collapsed] of distinctItems) {
+			if (collapsed) {
 				const nestedChildren = item.nestedChildren;
 				if (nestedChildren) {
 					for (const child of nestedChildren) {
-						distinctItems.add(child);
+						// if parent is collapsed, then the nested children is considered collapsed to operate as a group
+						// and skip collapsed state check since they're not in the tree
+						distinctItems.set(child, true);
 					}
 				}
 			}
 		}
 
-		const items = distinctParents([...distinctItems], s => s.resource);
+		const items = distinctParents([...distinctItems.keys()], s => s.resource);
 		const isCopy = (originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh);
 
 		// Handle confirm setting

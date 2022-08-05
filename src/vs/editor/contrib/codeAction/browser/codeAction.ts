@@ -16,7 +16,7 @@ import * as languages from 'vs/editor/common/languages';
 import { IModelService } from 'vs/editor/common/services/model';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IProgress, Progress } from 'vs/platform/progress/common/progress';
-import { CodeActionFilter, CodeActionKind, CodeActionTrigger, filtersAction, mayIncludeActionsOfKind } from './types';
+import { CodeActionFilter, CodeActionKind, CodeActionTrigger, CodeActionTriggerSource, filtersAction, mayIncludeActionsOfKind } from './types';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
@@ -60,23 +60,23 @@ export interface CodeActionSet extends IDisposable {
 
 class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 
-	private static codeActionsComparator({ action: a }: CodeActionItem, { action: b }: CodeActionItem): number {
+	private static codeActionsPreferredComparator(a: languages.CodeAction, b: languages.CodeAction): number {
 		if (a.isPreferred && !b.isPreferred) {
 			return -1;
 		} else if (!a.isPreferred && b.isPreferred) {
 			return 1;
+		} else {
+			return 0;
 		}
+	}
 
+	private static codeActionsComparator({ action: a }: CodeActionItem, { action: b }: CodeActionItem): number {
 		if (isNonEmptyArray(a.diagnostics)) {
-			if (isNonEmptyArray(b.diagnostics)) {
-				return a.diagnostics[0].message.localeCompare(b.diagnostics[0].message);
-			} else {
-				return -1;
-			}
+			return -1;
 		} else if (isNonEmptyArray(b.diagnostics)) {
 			return 1;
 		} else {
-			return 0;	// both have no diagnostics
+			return ManagedCodeActionSet.codeActionsPreferredComparator(a, b); // both have no diagnostics
 		}
 	}
 
@@ -224,7 +224,6 @@ function getDocumentation(
 			}
 		}
 	}
-
 	return undefined;
 }
 
@@ -254,7 +253,7 @@ CommandsRegistry.registerCommand('_executeCodeActionProvider', async function (a
 		codeActionProvider,
 		model,
 		validatedRangeOrSelection,
-		{ type: languages.CodeActionTriggerType.Invoke, filter: { includeSourceActions: true, include } },
+		{ type: languages.CodeActionTriggerType.Invoke, triggerAction: CodeActionTriggerSource.Default, filter: { includeSourceActions: true, include } },
 		Progress.None,
 		CancellationToken.None);
 

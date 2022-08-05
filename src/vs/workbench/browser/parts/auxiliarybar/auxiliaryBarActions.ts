@@ -63,9 +63,7 @@ class FocusAuxiliaryBarAction extends Action {
 
 		// Focus into active composite
 		const composite = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar);
-		if (composite) {
-			composite.focus();
-		}
+		composite?.focus();
 	}
 }
 
@@ -76,7 +74,7 @@ MenuRegistry.appendMenuItems([
 			group: '0_workbench_layout',
 			command: {
 				id: ToggleAuxiliaryBarAction.ID,
-				title: localize('miShowAuxiliaryBarNoMnemonic', "Show Secondary Side Bar"),
+				title: localize('miAuxiliaryBarNoMnemonic', "Secondary Side Bar"),
 				toggled: AuxiliaryBarVisibleContext
 			},
 			order: 2
@@ -116,7 +114,7 @@ MenuRegistry.appendMenuItems([
 			group: '2_workbench_layout',
 			command: {
 				id: ToggleAuxiliaryBarAction.ID,
-				title: localize({ key: 'miShowAuxiliaryBar', comment: ['&& denotes a mnemonic'] }, "Show Secondary Si&&de Bar"),
+				title: localize({ key: 'miAuxiliaryBar', comment: ['&& denotes a mnemonic'] }, "Secondary Si&&de Bar"),
 				toggled: AuxiliaryBarVisibleContext
 			},
 			order: 2

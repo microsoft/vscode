@@ -24,6 +24,9 @@ export class CodeEditorService extends AbstractCodeEditorService {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(themeService);
+
+		this.registerCodeEditorOpenHandler(this.doOpenCodeEditor.bind(this));
+		this.registerCodeEditorOpenHandler(this.doOpenCodeEditorFromDiff.bind(this));
 	}
 
 	getActiveCodeEditor(): ICodeEditor | null {
@@ -44,7 +47,7 @@ export class CodeEditorService extends AbstractCodeEditorService {
 		return null;
 	}
 
-	async openCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
+	private async doOpenCodeEditorFromDiff(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
 
 		// Special case: If the active editor is a diff editor and the request to open originates and
 		// targets the modified side of it, we just apply the request there to prevent opening the modified
@@ -66,10 +69,10 @@ export class CodeEditorService extends AbstractCodeEditorService {
 			return targetEditor;
 		}
 
-		// Open using our normal editor service
-		return this.doOpenCodeEditor(input, source, sideBySide);
+		return null;
 	}
 
+	// Open using our normal editor service
 	private async doOpenCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
 
 		// Special case: we want to detect the request to open an editor that

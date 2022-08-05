@@ -174,7 +174,10 @@ registerAction2(class StartReadHints extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'inlayHints.startReadingLineWithHint',
-			title: localize('read.title', 'Read Line With Inline Hints'),
+			title: {
+				value: localize('read.title', 'Read Line With Inline Hints'),
+				original: 'Read Line With Inline Hints'
+			},
 			precondition: EditorContextKeys.hasInlayHintsProvider,
 			f1: true
 		});
@@ -182,9 +185,7 @@ registerAction2(class StartReadHints extends EditorAction2 {
 
 	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
 		const ctrl = InlayHintsAccessibility.get(editor);
-		if (ctrl) {
-			ctrl.startInlayHintsReading();
-		}
+		ctrl?.startInlayHintsReading();
 	}
 });
 
@@ -193,7 +194,10 @@ registerAction2(class StopReadHints extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'inlayHints.stopReadingLineWithHint',
-			title: localize('stop.title', 'Stop Inlay Hints Reading'),
+			title: {
+				value: localize('stop.title', 'Stop Inlay Hints Reading'),
+				original: 'Stop Inlay Hints Reading'
+			},
 			precondition: InlayHintsAccessibility.IsReading,
 			f1: true,
 			keybinding: {
@@ -205,9 +209,7 @@ registerAction2(class StopReadHints extends EditorAction2 {
 
 	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
 		const ctrl = InlayHintsAccessibility.get(editor);
-		if (ctrl) {
-			ctrl.stopInlayHintsReading();
-		}
+		ctrl?.stopInlayHintsReading();
 	}
 });
 
