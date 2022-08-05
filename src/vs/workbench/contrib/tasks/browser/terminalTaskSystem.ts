@@ -269,11 +269,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		this._outputService.showChannel(this._outputChannelId, true);
 	}
 
-
-	public reconnect(task: Task, resolver: ITaskResolver, trigger: string = Triggers.reconnect): ITaskExecuteResult {
-		return this.run(task, resolver, Triggers.reconnect);
-	}
-
 	public run(task: Task, resolver: ITaskResolver, trigger: string = Triggers.command): ITaskExecuteResult {
 		task = task.clone(); // A small amount of task state is stored in the task (instance) and tasks passed in to run may have that set already.
 		const recentTaskKey = task.getRecentlyUsedKey() ?? '';

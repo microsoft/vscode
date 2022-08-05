@@ -55,8 +55,7 @@ import {
 	KeyedTaskIdentifier as KeyedTaskIdentifier, TaskDefinition, RuntimeType,
 	USER_TASKS_GROUP_KEY,
 	TaskSettingId,
-	TasksSchemaProperties,
-	TaskEventKind
+	TasksSchemaProperties
 } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ITaskService, ITaskProvider, IProblemMatcherRunOptions, ICustomizationProperties, ITaskFilter, IWorkspaceFolderTaskResult, CustomExecutionSupportedContext, ShellExecutionSupportedContext, ProcessExecutionSupportedContext, TaskCommandsRegistered } from 'vs/workbench/contrib/tasks/common/taskService';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/common/taskTemplates';
@@ -359,11 +358,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!this._taskSystem) {
 			await this._getTaskSystem();
 		}
-		this._register(this._taskSystem!.onDidStateChange(e => {
-			if (e && e.kind === TaskEventKind.ExecuteReconnectedResult && this._taskSystem && e.executeResult) {
-				this._handleExecuteResult(e.executeResult, TaskRunSource.Reconnect);
-			}
-		}));
 		if (!tasks.length) {
 			this._tasksReconnected = true;
 			return;
@@ -1835,7 +1829,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				? await this.getTask(taskFolder, taskIdentifier) : task) ?? task;
 		}
 		await ProblemMatcherRegistry.onReady();
-		const executeResult = runSource === TaskRunSource.Reconnect ? this._getTaskSystem().reconnect(taskToRun, resolver) : this._getTaskSystem().run(taskToRun, resolver);
+		const executeResult = this._getTaskSystem().run(taskToRun, resolver);
 		if (executeResult) {
 			return this._handleExecuteResult(executeResult, runSource);
 		}
