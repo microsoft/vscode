@@ -6,7 +6,7 @@
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { OutlineModel, OutlineElement } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
+import { OutlineModel, OutlineElement, OutlineGroup } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
 import { CancellationToken, CancellationTokenSource, } from 'vs/base/common/cancellation';
 import { EditorOption, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { SymbolKind } from 'vs/editor/common/languages';
@@ -14,7 +14,6 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
 import { Range } from 'vs/editor/common/core/range';
 import { Emitter } from 'vs/base/common/event';
-import { binarySearch } from 'vs/base/common/arrays';
 import { StickyScrollWidget } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollWidget';
 
 export class StickyLineCandidate {
@@ -22,24 +21,24 @@ export class StickyLineCandidate {
 		public readonly startLineNumber: number,
 		public readonly endLineNumber: number,
 		public readonly nestingDepth: number,
-		public parentIndex: number,
 	) { }
 }
 
 export class StickyLineCandidateProvider extends Disposable {
-	private readonly _onStickyScrollChange = this._register(new Emitter<void>());
-	public readonly onStickyScrollChange = this._onStickyScrollChange.event;
+	private readonly onStickyScrollChangeEmitter = this._register(new Emitter<void>());
+	public readonly onStickyScrollChange = this.onStickyScrollChangeEmitter.event;
 
 	static readonly ID = 'store.contrib.stickyScrollController';
-	private readonly _editor: ICodeEditor;
-	private readonly _stickyScrollWidget: StickyScrollWidget;
-	private readonly _languageFeaturesService: ILanguageFeaturesService;
-	private readonly _updateSoon: RunOnceScheduler;
-	private _cts: CancellationTokenSource | undefined;
+	private readonly editor: ICodeEditor;
+	private readonly stickyScrollWidget: StickyScrollWidget;
+	private readonly languageFeaturesService: ILanguageFeaturesService;
+	private readonly updateSoon: RunOnceScheduler;
 
-	private readonly _sessionStore: DisposableStore = new DisposableStore();
-	private _ranges: StickyLineCandidate[] = [];
-	private _rangesVersionId: number = 0;
+	private cts: CancellationTokenSource | undefined;
+	private outlineModel: OutlineModel | undefined;
+	private readonly sessionStore: DisposableStore = new DisposableStore();
+	private modelVersionId: number = 0;
+	private startLinesConsidered: Set<number> = new Set();
 
 	constructor(
 		editor: ICodeEditor,
@@ -47,11 +46,11 @@ export class StickyLineCandidateProvider extends Disposable {
 		@ILanguageFeaturesService _languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
-		this._editor = editor;
-		this._stickyScrollWidget = stickyScrollWidget;
-		this._languageFeaturesService = _languageFeaturesService;
-		this._updateSoon = this._register(new RunOnceScheduler(() => this._update(true), 50));
-		this._register(this._editor.onDidChangeConfiguration(e => {
+		this.editor = editor;
+		this.stickyScrollWidget = stickyScrollWidget;
+		this.languageFeaturesService = _languageFeaturesService;
+		this.updateSoon = this._register(new RunOnceScheduler(() => this.update(true), 50));
+		this._register(this.editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.experimental)) {
 				this.onConfigurationChange();
 			}
@@ -60,31 +59,31 @@ export class StickyLineCandidateProvider extends Disposable {
 	}
 
 	private onConfigurationChange() {
-		const options = this._editor.getOption(EditorOption.experimental);
+		const options = this.editor.getOption(EditorOption.experimental);
 		if (options.stickyScroll.enabled === false) {
-			this._sessionStore.clear();
+			this.sessionStore.clear();
 			return;
 		} else {
-			this._sessionStore.add(this._editor.onDidChangeModel(() => this._update(true)));
-			this._sessionStore.add(this._editor.onDidScrollChange(() => this._update(false)));
-			this._sessionStore.add(this._editor.onDidChangeHiddenAreas(() => this._update(true)));
-			this._sessionStore.add(this._editor.onDidChangeModelTokens((e) => this._onTokensChange(e)));
-			this._sessionStore.add(this._editor.onDidChangeModelContent(() => this._updateSoon.schedule()));
-			this._sessionStore.add(this._languageFeaturesService.documentSymbolProvider.onDidChange(() => this._update(true)));
-			const lineNumberOption = this._editor.getOption(EditorOption.lineNumbers);
+			this.sessionStore.add(this.editor.onDidChangeModel(() => this.update(true)));
+			this.sessionStore.add(this.editor.onDidScrollChange(() => this.update(false)));
+			this.sessionStore.add(this.editor.onDidChangeHiddenAreas(() => this.update(true)));
+			this.sessionStore.add(this.editor.onDidChangeModelTokens((e) => this.onTokensChange(e)));
+			this.sessionStore.add(this.editor.onDidChangeModelContent(() => this.updateSoon.schedule()));
+			this.sessionStore.add(this.languageFeaturesService.documentSymbolProvider.onDidChange(() => this.update(true)));
+			const lineNumberOption = this.editor.getOption(EditorOption.lineNumbers);
 			if (lineNumberOption.renderType === RenderLineNumbersType.Relative) {
-				this._sessionStore.add(this._editor.onDidChangeCursorPosition(() => this._update(false)));
+				this.sessionStore.add(this.editor.onDidChangeCursorPosition(() => this.update(false)));
 			}
-			this._update(true);
+			this.update(true);
 		}
 	}
 
-	public getRangesVersionId() {
-		return this._rangesVersionId;
+	public getVersionId() {
+		return this.modelVersionId;
 	}
 
-	private _needsUpdate(event: IModelTokensChangedEvent) {
-		const stickyLineNumbers = this._stickyScrollWidget.getCurrentLines();
+	private needsUpdate(event: IModelTokensChangedEvent) {
+		const stickyLineNumbers = this.stickyScrollWidget.getCurrentLines();
 		for (const stickyLineNumber of stickyLineNumbers) {
 			for (const range of event.ranges) {
 				if (stickyLineNumber >= range.fromLineNumber && stickyLineNumber <= range.toLineNumber) {
@@ -95,181 +94,81 @@ export class StickyLineCandidateProvider extends Disposable {
 		return false;
 	}
 
-	private _onTokensChange(event: IModelTokensChangedEvent) {
-		if (this._needsUpdate(event)) {
-			this._update(false);
+	private onTokensChange(event: IModelTokensChangedEvent) {
+		if (this.needsUpdate(event)) {
+			this.update(false);
 		}
 	}
 
-	private async _update(updateOutline: boolean = false): Promise<void> {
+	private async update(updateOutline: boolean = false): Promise<void> {
 		if (updateOutline) {
-			this._cts?.dispose(true);
-			this._cts = new CancellationTokenSource();
-			await this._updateOutlineModel(this._cts.token);
+			this.cts?.dispose(true);
+			this.cts = new CancellationTokenSource();
+			await this.updateOutlineModel(this.cts.token);
 		}
-		const hiddenRanges: Range[] | undefined = this._editor._getViewModel()?.getHiddenAreas();
-		if (hiddenRanges) {
-			for (const hiddenRange of hiddenRanges) {
-				this._ranges = this._ranges.filter(range => { return !(range.startLineNumber >= hiddenRange.startLineNumber && range.endLineNumber <= hiddenRange.endLineNumber + 1); });
-			}
-		}
-		this._onStickyScrollChange.fire();
+		this.onStickyScrollChangeEmitter.fire();
 	}
 
-	private _findLineRanges(outlineElement: OutlineElement, depth: number) {
-		if (outlineElement?.children.size) {
-			let didRecursion: boolean = false;
-			for (const outline of outlineElement?.children.values()) {
-				const kind: SymbolKind = outline.symbol.kind;
-				if (kind === SymbolKind.Class || kind === SymbolKind.Constructor || kind === SymbolKind.Function || kind === SymbolKind.Interface || kind === SymbolKind.Method || kind === SymbolKind.Module) {
-					didRecursion = true;
-					this._findLineRanges(outline, depth + 1);
-				}
-			}
-			if (!didRecursion) {
-				this._addOutlineRanges(outlineElement, depth);
-			}
-		} else {
-			this._addOutlineRanges(outlineElement, depth);
-		}
-	}
-
-	private _addOutlineRanges(outlineElement: OutlineElement, depth: number) {
-		let currentStartLine: number | undefined = 0;
-		let currentEndLine: number | undefined = 0;
-
-		while (outlineElement) {
-			const kind: SymbolKind = outlineElement.symbol.kind;
-			if (kind === SymbolKind.Class || kind === SymbolKind.Constructor || kind === SymbolKind.Function || kind === SymbolKind.Interface || kind === SymbolKind.Method || kind === SymbolKind.Module) {
-				currentStartLine = outlineElement?.symbol.range.startLineNumber as number;
-				currentEndLine = outlineElement?.symbol.range.endLineNumber as number;
-				if (currentEndLine > currentStartLine) {
-					this._ranges.push(new StickyLineCandidate(currentStartLine, currentEndLine - 1, depth, 0));
-				} else {
-					this._ranges.push(new StickyLineCandidate(currentStartLine, currentEndLine, depth, 0));
-				}
-				depth--;
-			}
-			if (outlineElement.parent instanceof OutlineElement) {
-				outlineElement = outlineElement.parent;
-			} else {
-				break;
-			}
-		}
-	}
-
-	private async _updateOutlineModel(token: CancellationToken) {
-		if (this._editor.hasModel()) {
-			const model = this._editor.getModel();
+	private async updateOutlineModel(token: CancellationToken) {
+		if (this.editor.hasModel()) {
+			const model = this.editor.getModel();
 			const modelVersionId = model.getVersionId();
-			const outlineModel = await OutlineModel.create(this._languageFeaturesService.documentSymbolProvider, model, token);
+			this.outlineModel = await OutlineModel.create(this.languageFeaturesService.documentSymbolProvider, model, token);
 			if (token.isCancellationRequested) {
 				return;
 			}
-			this._ranges = [];
-			this._rangesVersionId = modelVersionId;
-			for (const outline of outlineModel.children.values()) {
-				if (outline instanceof OutlineElement) {
-					const kind: SymbolKind = outline.symbol.kind;
-					if (kind === SymbolKind.Class || kind === SymbolKind.Constructor || kind === SymbolKind.Function || kind === SymbolKind.Interface || kind === SymbolKind.Method || kind === SymbolKind.Module) {
-						this._findLineRanges(outline, 1);
-					} else {
-						this._findLineRanges(outline, 0);
-					}
-				}
-			}
+			this.outlineModel = this.sortOutline(this.outlineModel) as OutlineModel;
+			this.modelVersionId = modelVersionId;
+		}
+	}
 
-			this._ranges.sort(function (a, b) {
-				if (a.startLineNumber !== b.startLineNumber) {
-					return a.startLineNumber - b.startLineNumber;
-				} else if (a.endLineNumber !== b.endLineNumber) {
-					return b.endLineNumber - a.endLineNumber;
-				} else {
-					return a.nestingDepth - b.nestingDepth;
-				}
-			});
+	private sortOutline(model: OutlineModel | OutlineElement | OutlineGroup): OutlineModel | OutlineElement | OutlineGroup {
 
-			const startLinesConsidered: Set<number> = new Set();
-			this._ranges = this._ranges.filter(range => {
-				if (!startLinesConsidered.has(range.startLineNumber)) {
-					startLinesConsidered.add(range.startLineNumber);
-					return true;
-				} else {
-					return false;
-				}
-			});
+		const outlineElementChildren = new Map([...model.children].filter(child => child[1] instanceof OutlineElement));
+		const outlineGroupChildren = new Map([...model.children].filter(child => child[1] instanceof OutlineGroup));
 
-			const stackOfParents = [0];
-			for (const [index, range] of this._ranges.entries()) {
-				let currentParentIndex = stackOfParents[stackOfParents.length - 1];
-				let currentParent = this._ranges[currentParentIndex];
-				if (index === currentParentIndex) {
-					this._ranges[index].parentIndex = index;
-				} else if (range.startLineNumber >= currentParent.startLineNumber && range.endLineNumber <= currentParent.endLineNumber) {
-					this._ranges[index].parentIndex = currentParentIndex;
-					stackOfParents.push(index);
-				} else {
-					while (stackOfParents.length !== 0) {
-						stackOfParents.pop();
-						if (stackOfParents.length > 0) {
-							currentParentIndex = stackOfParents[stackOfParents.length - 1];
-							currentParent = this._ranges[currentParentIndex];
-							if (range.startLineNumber >= currentParent.startLineNumber && range.endLineNumber <= currentParent.endLineNumber) {
-								this._ranges[index].parentIndex = currentParentIndex;
-								break;
-							}
-						}
-					}
-					if (stackOfParents.length === 0) {
-						this._ranges[index].parentIndex = index;
-					}
-					stackOfParents.push(index);
+		const sortedChildren = new Map([...outlineElementChildren].sort((child1, child2) => (child1[1] as OutlineElement).symbol.range.startLineNumber - (child2[1] as OutlineElement).symbol.range.startLineNumber));
+		const updatedChildrenMap = new Map([...sortedChildren, ...outlineGroupChildren]);
+		const updatedOutline = model;
+		updatedOutline.children = updatedChildrenMap;
+
+		for (const [key, child] of model.children) {
+			const updatedChild = this.sortOutline(child) as OutlineElement | OutlineGroup;
+			updatedOutline.children.set(key, updatedChild);
+		}
+		return updatedOutline;
+	}
+
+	public getCandidateStickyLinesIntersectingFromOutline(range: Range, outlineModel: OutlineModel | OutlineElement | OutlineGroup, stickyLineCandidates: StickyLineCandidate[], depth: number): void {
+		for (const child of outlineModel.children) {
+			if (child[1] instanceof OutlineElement) {
+				const childStartLine = child[1].symbol.range.startLineNumber;
+				const childEndLine = child[1].symbol.range.endLineNumber;
+				if (range.startLineNumber <= childEndLine + 1 && childStartLine - 1 <= range.endLineNumber && !this.startLinesConsidered.has(childStartLine)) {
+					depth++;
+					this.startLinesConsidered.add(childStartLine);
+					stickyLineCandidates.push(new StickyLineCandidate(childStartLine, childEndLine - 1, depth));
+					this.getCandidateStickyLinesIntersectingFromOutline(range, child[1], stickyLineCandidates, depth);
+					depth--;
 				}
+			} else if (child[1] instanceof OutlineGroup) {
+				this.getCandidateStickyLinesIntersectingFromOutline(range, child[1], stickyLineCandidates, depth);
 			}
 		}
 	}
 
-	private _containsLine(set: Set<StickyLineCandidate>, line: StickyLineCandidate) {
-		for (const element of set) {
-			if (JSON.stringify(element) === JSON.stringify(line)) {
-				return true;
-			}
-		}
-		return false;
-	}
+	public getCandidateStickyLinesIntersecting(range: Range): StickyLineCandidate[] {
 
-	public getPotentialStickyRanges(line: number) {
-		const index = binarySearch(this._ranges.map(function (range) {
-			return range.startLineNumber;
-		}), line, (a, b) => { return a - b; });
-		let finalIndex;
-		if (index < 0) {
-			finalIndex = -(index + 1);
-		} else {
-			finalIndex = index;
-		}
-		const nRanges = this._ranges.length;
-		const rangesConsidered: Set<StickyLineCandidate> = new Set();
-		const sortedRanges = [];
-		for (let i = Math.max(0, finalIndex - 1); i <= Math.min(nRanges - 1, finalIndex + 1); i++) {
-			let rangeIndex = i;
-			while (true) {
-				const range = this._ranges[rangeIndex];
-				if (!this._containsLine(rangesConsidered, range)) {
-					sortedRanges.push(range);
-					rangesConsidered.add(range);
-					if (rangeIndex === range.parentIndex) {
-						break;
-					}
-					rangeIndex = range.parentIndex;
-				} else {
-					break;
-				}
+		this.startLinesConsidered.clear();
+		let stickyLineCandidates: StickyLineCandidate[] = [];
+		this.getCandidateStickyLinesIntersectingFromOutline(range, this.outlineModel as OutlineModel, stickyLineCandidates, 0);
+
+		const hiddenRanges: Range[] | undefined = this.editor._getViewModel()?.getHiddenAreas();
+		if (hiddenRanges) {
+			for (const hiddenRange of hiddenRanges) {
+				stickyLineCandidates = stickyLineCandidates.filter(stickyLine => !(stickyLine.startLineNumber >= hiddenRange.startLineNumber && stickyLine.endLineNumber <= hiddenRange.endLineNumber + 1));
 			}
 		}
-		sortedRanges.sort(function (a, b) {
-			return a.startLineNumber - b.startLineNumber;
-		});
-		return sortedRanges;
+		return stickyLineCandidates;
 	}
 }

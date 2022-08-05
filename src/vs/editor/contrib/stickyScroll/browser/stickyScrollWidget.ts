@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import * as dom from 'vs/base/browser/dom';
 import { EditorLayoutInfo, EditorOption, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
@@ -25,7 +25,8 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 	private readonly layoutInfo: EditorLayoutInfo;
 	private readonly rootDomNode: HTMLElement = document.createElement('div');
-	private readonly lineHeight: number;
+	private readonly disposableStore = this._register(new DisposableStore());
+	private lineHeight: number;
 	private lineNumbers: number[];
 	private lastLineRelativePosition: number;
 
@@ -36,25 +37,37 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this.rootDomNode.className = 'sticky-widget';
 		this.rootDomNode.style.width = `${this.layoutInfo.width - this.layoutInfo.minimap.minimapCanvasOuterWidth - this.layoutInfo.verticalScrollbarWidth}px`;
 
-		this.lineHeight = this._editor.getOption(EditorOption.lineHeight);
 		this.lineNumbers = [];
 		this.lastLineRelativePosition = 0;
+
+		this.lineHeight = this._editor.getOption(EditorOption.lineHeight);
+		this._register(this._editor.onDidChangeConfiguration(e => {
+			if (e.hasChanged(EditorOption.lineHeight)) {
+				this.lineHeight = this._editor.getOption(EditorOption.lineHeight);
+			}
+		}));
+
 	}
 
-	get codeLineCount(): number {
+	public get codeLineCount(): number {
 		return this.lineNumbers.length;
 	}
 
-	getCurrentLines(): readonly number[] {
+	public getCurrentLines(): readonly number[] {
 		return this.lineNumbers;
 	}
 
-	setState(state: StickyScrollWidgetState): void {
+	public setState(state: StickyScrollWidgetState): void {
+		this.disposableStore.clear();
+		this.lineNumbers.length = 0;
+		dom.clearNode(this.rootDomNode);
+
 		this.lastLineRelativePosition = state.lastLineRelativePosition;
 		this.lineNumbers = state.lineNumbers;
+		this.renderRootNode();
 	}
 
-	renderRootNode(): void {
+	private renderRootNode(): void {
 
 		if (!this._editor._getViewModel()) {
 			return;
@@ -145,7 +158,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 				child.style.top = this.lastLineRelativePosition + 'px';
 			}
 
-			this._register(dom.addDisposableListener(child, 'click', e => {
+			this.disposableStore.add(dom.addDisposableListener(child, 'click', e => {
 				e.stopPropagation();
 				e.preventDefault();
 				this._editor.revealPosition({ lineNumber: line - index, column: 1 });
@@ -163,21 +176,15 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}
 	}
 
-	emptyRootNode(): void {
-		this.dispose();
-		this.lineNumbers.length = 0;
-		dom.clearNode(this.rootDomNode);
-	}
-
-	getId(): string {
+	public getId(): string {
 		return 'editor.contrib.stickyScrollWidget';
 	}
 
-	getDomNode(): HTMLElement {
+	public getDomNode(): HTMLElement {
 		return this.rootDomNode;
 	}
 
-	getPosition(): IOverlayWidgetPosition | null {
+	public getPosition(): IOverlayWidgetPosition | null {
 		return {
 			preference: null
 		};

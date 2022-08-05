@@ -15,21 +15,21 @@ import { StickyLineCandidateProvider } from './stickyScrollProvider';
 class StickyScrollController extends Disposable implements IEditorContribution {
 
 	static readonly ID = 'store.contrib.stickyScrollController';
-	private readonly _editor: ICodeEditor;
+	private readonly editor: ICodeEditor;
 	private readonly stickyScrollWidget: StickyScrollWidget;
-	private readonly _stickyLineCandidateProvider: StickyLineCandidateProvider;
-	private readonly _sessionStore: DisposableStore = new DisposableStore();
+	private readonly stickyLineCandidateProvider: StickyLineCandidateProvider;
+	private readonly sessionStore: DisposableStore = new DisposableStore();
 
 	constructor(
 		editor: ICodeEditor,
 		@ILanguageFeaturesService _languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
-		this._editor = editor;
-		this.stickyScrollWidget = new StickyScrollWidget(this._editor);
-		this._stickyLineCandidateProvider = new StickyLineCandidateProvider(this._editor, this.stickyScrollWidget, _languageFeaturesService);
+		this.editor = editor;
+		this.stickyScrollWidget = new StickyScrollWidget(this.editor);
+		this.stickyLineCandidateProvider = new StickyLineCandidateProvider(this.editor, this.stickyScrollWidget, _languageFeaturesService);
 
-		this._register(this._editor.onDidChangeConfiguration(e => {
+		this._register(this.editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.experimental)) {
 				this.onConfigurationChange();
 			}
@@ -38,46 +38,43 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 	}
 
 	private onConfigurationChange() {
-		const options = this._editor.getOption(EditorOption.experimental);
+		const options = this.editor.getOption(EditorOption.experimental);
 		if (options.stickyScroll.enabled === false) {
-			this.stickyScrollWidget.emptyRootNode();
-			this._editor.removeOverlayWidget(this.stickyScrollWidget);
-			this._sessionStore.clear();
+			this.editor.removeOverlayWidget(this.stickyScrollWidget);
+			this.sessionStore.clear();
 			return;
 		} else {
-			this._editor.addOverlayWidget(this.stickyScrollWidget);
-			this._sessionStore.add(this._editor.onDidLayoutChange(() => this._onDidResize()));
-			this._sessionStore.add(this._stickyLineCandidateProvider.onStickyScrollChange(() => this._renderStickyScroll()));
+			this.editor.addOverlayWidget(this.stickyScrollWidget);
+			this.sessionStore.add(this.editor.onDidLayoutChange(() => this.onDidResize()));
+			this.sessionStore.add(this.stickyLineCandidateProvider.onStickyScrollChange(() => this.renderStickyScroll()));
 		}
 	}
 
-	private _onDidResize() {
-		const width = this._editor.getLayoutInfo().width - this._editor.getLayoutInfo().minimap.minimapCanvasOuterWidth - this._editor.getLayoutInfo().verticalScrollbarWidth;
+	private onDidResize() {
+		const width = this.editor.getLayoutInfo().width - this.editor.getLayoutInfo().minimap.minimapCanvasOuterWidth - this.editor.getLayoutInfo().verticalScrollbarWidth;
 		this.stickyScrollWidget.getDomNode().style.width = `${width}px`;
 	}
 
-	private _renderStickyScroll() {
-
-		if (!(this._editor.hasModel())) {
+	private renderStickyScroll() {
+		if (!(this.editor.hasModel())) {
 			return;
 		}
-		const model = this._editor.getModel();
-		if (this._stickyLineCandidateProvider.getRangesVersionId() !== model.getVersionId()) {
+		const model = this.editor.getModel();
+		if (this.stickyLineCandidateProvider.getVersionId() !== model.getVersionId()) {
 			// Old _ranges not updated yet
 			return;
 		}
-		this.stickyScrollWidget.emptyRootNode();
-		this.stickyScrollWidget.setState(this._getScrollWidgetState());
-		this.stickyScrollWidget.renderRootNode();
+		this.stickyScrollWidget.setState(this.getScrollWidgetState());
 	}
 
-	private _getScrollWidgetState(): StickyScrollWidgetState {
-		const lineHeight: number = this._editor.getOption(EditorOption.lineHeight);
-		const scrollTop: number = this._editor.getScrollTop();
+	private getScrollWidgetState(): StickyScrollWidgetState {
+		const lineHeight: number = this.editor.getOption(EditorOption.lineHeight);
+		const scrollTop: number = this.editor.getScrollTop();
 		let lastLineRelativePosition: number = 0;
 		const lineNumbers: number[] = [];
-		const ranges = this._stickyLineCandidateProvider.getPotentialStickyRanges(this._editor.getVisibleRanges()[0].startLineNumber + this.stickyScrollWidget.codeLineCount - 1);
-		for (const range of ranges) {
+		// TODO later consider the case of folding ranges
+		const candidateRanges = this.stickyLineCandidateProvider.getCandidateStickyLinesIntersecting(this.editor.getVisibleRanges()[0]);
+		for (const range of candidateRanges) {
 			const start = range.startLineNumber;
 			const end = range.endLineNumber;
 			const depth = range.nestingDepth;
@@ -85,9 +82,9 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 				const topOfElementAtDepth = (depth - 1) * lineHeight;
 				const bottomOfElementAtDepth = depth * lineHeight;
 
-				const bottomOfBeginningLine = this._editor.getBottomForLineNumber(start) - scrollTop;
-				const topOfEndLine = this._editor.getTopForLineNumber(end) - scrollTop;
-				const bottomOfEndLine = this._editor.getBottomForLineNumber(end) - scrollTop;
+				const bottomOfBeginningLine = this.editor.getBottomForLineNumber(start) - scrollTop;
+				const topOfEndLine = this.editor.getTopForLineNumber(end) - scrollTop;
+				const bottomOfEndLine = this.editor.getBottomForLineNumber(end) - scrollTop;
 
 				if (topOfElementAtDepth >= topOfEndLine - 1 && topOfElementAtDepth < bottomOfEndLine - 2) {
 					lineNumbers.push(start);
@@ -104,7 +101,7 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 
 	override dispose(): void {
 		super.dispose();
-		this._sessionStore.dispose();
+		this.sessionStore.dispose();
 	}
 }
 
