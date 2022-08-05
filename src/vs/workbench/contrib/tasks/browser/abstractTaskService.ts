@@ -298,12 +298,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._taskRunningState = TASK_RUNNING_STATE.bindTo(_contextKeyService);
 		this._onDidStateChange = this._register(new Emitter());
 		this._registerCommands().then(() => TaskCommandsRegistered.bindTo(this._contextKeyService).set(true));
-		this._register(this.onDidStateChange(e => {
-			console.log(e);
-			if (e && e.kind === TaskEventKind.ExecuteReconnectedResult && this._taskSystem && e.executeResult) {
-				this._handleExecuteResult(e.executeResult, TaskRunSource.Reconnect);
-			}
-		}));
 		this._configurationResolverService.contributeVariable('defaultBuildTask', async (): Promise<string | undefined> => {
 			let tasks = await this._getTasksForGroup(TaskGroup.Build);
 			if (tasks.length > 0) {
@@ -355,6 +349,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	private async _reconnectTasks(): Promise<void> {
 		const tasks = await this.getSavedTasks('persistent');
+		this._register(this.onDidStateChange(e => {
+			console.log(e);
+			if (e && e.kind === TaskEventKind.ExecuteReconnectedResult && this._taskSystem && e.executeResult) {
+				this._handleExecuteResult(e.executeResult, TaskRunSource.Reconnect);
+			}
+		}));
 		if (!tasks.length) {
 			this._tasksReconnected = true;
 			return;
