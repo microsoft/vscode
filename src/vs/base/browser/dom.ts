@@ -101,22 +101,6 @@ export function addDisposableGenericMouseUpListener(node: EventTarget, handler: 
 	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_UP : EventType.MOUSE_UP, handler, useCapture);
 }
 
-export function createEventEmitter<K extends keyof HTMLElementEventMap>(target: HTMLElement, type: K, options?: boolean | AddEventListenerOptions): event.Emitter<HTMLElementEventMap[K]> {
-	let domListener: IDisposable | undefined = undefined;
-	const handler = (e: HTMLElementEventMap[K]) => result.fire(e);
-	const onFirstListenerAdd = () => {
-		if (!domListener) {
-			domListener = addDisposableListener(target, type, handler, options);
-		}
-	};
-	const onLastListenerRemove = () => {
-		domListener?.dispose();
-		domListener = undefined;
-	};
-	const result = new event.Emitter<HTMLElementEventMap[K]>({ onFirstListenerAdd, onLastListenerRemove });
-	return result;
-}
-
 interface IRequestAnimationFrame {
 	(callback: (time: number) => void): number;
 }
