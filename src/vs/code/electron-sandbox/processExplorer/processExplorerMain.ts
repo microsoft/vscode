@@ -257,6 +257,7 @@ class ProcessExplorer {
 				await this.createProcessTree(processRoots);
 			} else {
 				this.tree.setInput({ processes: { processRoots } });
+				this.tree.layout(window.innerHeight, window.innerWidth);
 			}
 
 			this.requestProcessList(0);
@@ -341,6 +342,13 @@ class ProcessExplorer {
 			if (isProcessItem(e.element)) {
 				this.showContextMenu(e.element, true);
 			}
+		});
+
+		container.style.height = `${window.innerHeight}px`;
+
+		window.addEventListener('resize', () => {
+			container.style.height = `${window.innerHeight}px`;
+			this.tree?.layout(window.innerHeight, window.innerWidth);
 		});
 	}
 
