@@ -29,7 +29,7 @@ import { MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browse
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 
-export class StatefulMarkdownCell extends Disposable {
+export class MarkupCell extends Disposable {
 
 	private editor: CodeEditorWidget | null = null;
 

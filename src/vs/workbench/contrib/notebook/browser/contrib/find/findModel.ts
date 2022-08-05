@@ -225,7 +225,7 @@ export class FindModel extends Disposable {
 			return;
 		}
 
-		// the cell is a markdown cell in editing mode or a code cell, both should have monaco editor rendered
+		// the cell is a markup cell in editing mode or a code cell, both should have monaco editor rendered
 
 		if (!this._currentMatchDecorations) {
 			// no current highlight decoration
