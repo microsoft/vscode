@@ -21,14 +21,15 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 
 	static readonly ID = 'store.contrib.stickyScrollController';
 	private readonly _editor: ICodeEditor;
-	private readonly stickyScrollWidget: StickyScrollWidget;
 	private readonly _languageFeaturesService: ILanguageFeaturesService;
-	private readonly _sessionStore: DisposableStore = new DisposableStore();
+	private readonly stickyScrollWidget: StickyScrollWidget;
+	private readonly _updateSoon: RunOnceScheduler;
+	private _cts: CancellationTokenSource | undefined;
 
+	private readonly _sessionStore: DisposableStore = new DisposableStore();
 	private _ranges: [number, number, number][] = [];
 	private _rangesVersionId: number = 0;
-	private _cts: CancellationTokenSource | undefined;
-	private readonly _updateSoon: RunOnceScheduler;
+	// private readonly _stickyLineCandidateProvider: StickyLineCandidateProvider = new StickyLineCandidateProvider();
 
 	constructor(
 		editor: ICodeEditor,
@@ -38,12 +39,13 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 		this._editor = editor;
 		this._languageFeaturesService = _languageFeaturesService;
 		this.stickyScrollWidget = new StickyScrollWidget(this._editor);
+		this._updateSoon = this._register(new RunOnceScheduler(() => this._update(true), 50));
+
 		this._register(this._editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.experimental)) {
 				this.onConfigurationChange();
 			}
 		}));
-		this._updateSoon = this._register(new RunOnceScheduler(() => this._update(true), 50));
 		this.onConfigurationChange();
 	}
 
@@ -67,7 +69,6 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 			if (lineNumberOption.renderType === RenderLineNumbersType.Relative) {
 				this._sessionStore.add(this._editor.onDidChangeCursorPosition(() => this._update(false)));
 			}
-
 			this._update(true);
 		}
 	}
@@ -181,10 +182,10 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 					}
 				});
 
-				const startLinesConsidered: Set<number[]> = new Set();
+				const startLinesConsidered: Set<number> = new Set();
 				this._ranges = this._ranges.filter(arr => {
-					if (!this._containsArray(startLinesConsidered, arr)) {
-						startLinesConsidered.add(arr);
+					if (!startLinesConsidered.has(arr[0])) {
+						startLinesConsidered.add(arr[0]);
 						return true;
 					} else {
 						return false;
@@ -192,15 +193,6 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 				});
 			}
 		}
-	}
-
-	private _containsArray(set: Set<number[]>, array: number[]) {
-		for (const arr of set) {
-			if (arr.toString() === array.toString()) {
-				return true;
-			}
-		}
-		return false;
 	}
 
 	private _getScrollWidgetState(): StickyScrollWidgetState {
