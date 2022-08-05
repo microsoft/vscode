@@ -531,8 +531,8 @@ export function position(element: HTMLElement, top: number, right?: number, bott
 export function getDomNodePagePosition(domNode: HTMLElement): IDomNodePagePosition {
 	const bb = domNode.getBoundingClientRect();
 	return {
-		left: bb.left + StandardWindow.scrollX,
-		top: bb.top + StandardWindow.scrollY,
+		left: bb.left + window.scrollX,
+		top: bb.top + window.scrollY,
 		width: bb.width,
 		height: bb.height
 	};
@@ -556,30 +556,6 @@ export function getDomNodeZoomLevel(domNode: HTMLElement): number {
 	return zoom;
 }
 
-export interface IStandardWindow {
-	readonly scrollX: number;
-	readonly scrollY: number;
-}
-
-export const StandardWindow: IStandardWindow = new class implements IStandardWindow {
-	get scrollX(): number {
-		if (typeof window.scrollX === 'number') {
-			// modern browsers
-			return window.scrollX;
-		} else {
-			return document.body.scrollLeft + document.documentElement!.scrollLeft;
-		}
-	}
-
-	get scrollY(): number {
-		if (typeof window.scrollY === 'number') {
-			// modern browsers
-			return window.scrollY;
-		} else {
-			return document.body.scrollTop + document.documentElement!.scrollTop;
-		}
-	}
-};
 
 // Adapted from WinJS
 // Gets the width of the element, including margins.
