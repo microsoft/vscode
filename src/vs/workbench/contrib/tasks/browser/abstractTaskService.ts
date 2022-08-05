@@ -87,6 +87,7 @@ import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 
 import { VirtualWorkspaceContext } from 'vs/workbench/common/contextkeys';
 import { Schemas } from 'vs/base/common/network';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
@@ -264,7 +265,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@ILogService private readonly _logService: ILogService,
-		@IThemeService private readonly _themeService: IThemeService
+		@IThemeService private readonly _themeService: IThemeService,
+		@ILifecycleService lifecycleService: ILifecycleService
 	) {
 		super();
 
@@ -283,6 +285,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 			this._updateSetup(folderSetup);
 			return this._updateWorkspaceTasks(TaskRunSource.FolderOpen);
+		}));
+		this._register(lifecycleService.onWillShutdown(e => {
+			if (e.reason !== ShutdownReason.RELOAD) {
+				this._removePersistedTasks();
+			}
 		}));
 		this._register(this._configurationService.onDidChangeConfiguration(() => {
 			if (!this._taskSystem && !this._workspaceTasksPromise) {
@@ -1024,6 +1031,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
+	private _removePersistedTasks() {
+		this._savePersistentTasks(true);
+	}
+
 	private _setTaskLRUCacheLimit() {
 		const quickOpenHistoryLimit = this._configurationService.getValue<number>(QUICKOPEN_HISTORY_LIMIT_CONFIG);
 		if (this._recentlyUsedTasks) {
@@ -1094,7 +1105,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
-	private _savePersistentTasks(): void {
+	private _savePersistentTasks(clear?: boolean): void {
 		if (!this._persistentTasks) {
 			return;
 		}
@@ -1103,7 +1114,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		for (const key of keys) {
 			keyValues.push([key, this._persistentTasks.get(key, Touch.None)!]);
 		}
-		this._storageService.store(AbstractTaskService.PersistentTasks_Key, JSON.stringify(keyValues), StorageScope.WORKSPACE, StorageTarget.USER);
+		if (clear) {
+			this._persistentTasks.clear();
+		}
+		this._storageService.store(AbstractTaskService.PersistentTasks_Key, clear ? undefined : JSON.stringify(keyValues), StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
 	private _openDocumentation(): void {
