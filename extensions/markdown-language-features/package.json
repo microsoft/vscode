@@ -509,6 +509,34 @@
           "tags": [
             "experimental"
           ]
+        },
+        "markdown.experimental.updateLinksOnFileMove.enabled": {
+          "type": "string",
+          "enum": [
+            "prompt",
+            "always",
+            "never"
+          ],
+          "markdownEnumDescriptions": [
+            "%configuration.markdown.experimental.updateLinksOnFileMove.enabled.prompt%",
+            "%configuration.markdown.experimental.updateLinksOnFileMove.enabled.always%",
+            "%configuration.markdown.experimental.updateLinksOnFileMove.enabled.never%"
+          ],
+          "default": "never",
+          "markdownDescription": "%configuration.markdown.experimental.updateLinksOnFileMove.enabled%",
+          "scope": "resource",
+          "tags": [
+            "experimental"
+          ]
+        },
+        "markdown.experimental.updateLinksOnFileMove.externalFileGlobs": {
+          "type": "string",
+          "default": "**/*.{jpg,jpe,jpeg,png,bmp,gif,ico,webp,avif}",
+          "description": "%configuration.markdown.experimental.updateLinksOnFileMove.fileGlobs%",
+          "scope": "resource",
+          "tags": [
+            "experimental"
+          ]
         }
       }
     },
