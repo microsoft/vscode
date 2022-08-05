@@ -9,7 +9,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { mixin } from 'vs/base/common/objects';
 import { ITelemetryAppender, validateTelemetryData } from 'vs/platform/telemetry/common/telemetryUtils';
 
-const endpointUrl = 'https://mobile.events.data.microsoft.com/OneCollector/1.0';
+export const telemetryEndpointUrl = 'https://mobile.events.data.microsoft.com/OneCollector/1.0';
 
 async function getClient(instrumentationKey: string, addInternalFlag?: boolean, xhrOverride?: IXHROverride): Promise<AppInsightsCore> {
 	const oneDs = await import('@microsoft/1ds-core-js');
@@ -19,7 +19,7 @@ async function getClient(instrumentationKey: string, addInternalFlag?: boolean, 
 	// Configure the app insights core to send to collector++ and disable logging of debug info
 	const coreConfig: IExtendedConfiguration = {
 		instrumentationKey,
-		endpointUrl,
+		endpointUrl: telemetryEndpointUrl,
 		loggingLevelTelemetry: 0,
 		loggingLevelConsole: 0,
 		disableCookiesUsage: true,
@@ -59,7 +59,7 @@ export abstract class AbstractOneDataSystemAppender implements ITelemetryAppende
 
 	protected _aiCoreOrKey: AppInsightsCore | string | undefined;
 	private _asyncAiCore: Promise<AppInsightsCore> | null;
-	protected readonly endPointUrl = endpointUrl;
+	protected readonly endPointUrl = telemetryEndpointUrl;
 
 	constructor(
 		private readonly _isInternalTelemetry: boolean,
