@@ -213,8 +213,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private _reconnectTerminals: ITerminalInstance[] = [];
 	private _reconnectTasks: { task: Task; resolver: ITaskResolver }[] = [];
 
-	private readonly _onDidExecuteReconnectedTask: Emitter<ITaskExecuteResult> = new Emitter();
-
 	get taskShellIntegrationStartSequence(): string {
 		return this._configurationService.getValue(TaskSettingId.ShowDecorations) ? VSCodeSequence(VSCodeOscPt.PromptStart) + VSCodeSequence(VSCodeOscPt.Property, `${VSCodeOscProperty.Task}=True`) + VSCodeSequence(VSCodeOscPt.CommandStart) : '';
 	}
@@ -260,10 +258,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	public get onDidStateChange(): Event<ITaskEvent> {
 		return this._onDidStateChange.event;
-	}
-
-	public get onDidExecuteReconnectedTask(): Event<ITaskExecuteResult> {
-		return this._onDidExecuteReconnectedTask.event;
 	}
 
 	private _log(value: string): void {
