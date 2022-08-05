@@ -187,30 +187,29 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 	}
 
 	private _getFailedCellListener(notebook: NotebookTextModel): IDisposable {
-		return this._register(
-			notebook.onWillAddRemoveCells((e: NotebookTextModelWillAddRemoveEvent) => {
-				const lastFailedCell = this._lastFailedCells.get(notebook.uri)?.cellHandle;
-				if (lastFailedCell !== undefined) {
-					const lastFailedCellPos = notebook.cells.findIndex(c => c.handle === lastFailedCell);
-					e.rawEvent.changes.forEach(([start, deleteCount, addedCells]) => {
-						if (deleteCount) {
-							if (lastFailedCellPos >= start && lastFailedCellPos < start + deleteCount) {
-								this._setLastFailedCellVisibility(notebook.uri, false);
-							}
+		return notebook.onWillAddRemoveCells((e: NotebookTextModelWillAddRemoveEvent) => {
+			const lastFailedCell = this._lastFailedCells.get(notebook.uri)?.cellHandle;
+			if (lastFailedCell !== undefined) {
+				const lastFailedCellPos = notebook.cells.findIndex(c => c.handle === lastFailedCell);
+				e.rawEvent.changes.forEach(([start, deleteCount, addedCells]) => {
+					if (deleteCount) {
+						if (lastFailedCellPos >= start && lastFailedCellPos < start + deleteCount) {
+							this._setLastFailedCellVisibility(notebook.uri, false);
 						}
+					}
 
-						if (addedCells.length > 0) {
-							addedCells.some(cell => {
-								if (cell.handle === lastFailedCell) {
-									this._setLastFailedCellVisibility(notebook.uri, true);
-									return true;
-								}
-								return false;
-							});
-						}
-					});
-				}
-			}));
+					if (addedCells.length > 0) {
+						addedCells.some(cell => {
+							if (cell.handle === lastFailedCell) {
+								this._setLastFailedCellVisibility(notebook.uri, true);
+								return true;
+							}
+							return false;
+						});
+					}
+				});
+			}
+		});
 	}
 
 	override dispose(): void {
@@ -223,6 +222,7 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 
 		this._cellListeners.forEach(disposable => disposable.dispose());
 		this._notebookListeners.forEach(disposable => disposable.dispose());
+		this._lastFailedCells.forEach(elem => elem.disposable.dispose());
 	}
 }
 
