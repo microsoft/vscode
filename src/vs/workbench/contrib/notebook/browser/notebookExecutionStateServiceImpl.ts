@@ -198,15 +198,10 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 						}
 					}
 
-					if (addedCells.length > 0) {
-						addedCells.some(cell => {
-							if (cell.handle === lastFailedCell) {
-								this._setLastFailedCellVisibility(notebook.uri, true);
-								return true;
-							}
-							return false;
-						});
+					if (addedCells.some(cell => cell.handle === lastFailedCell)) {
+						this._setLastFailedCellVisibility(notebook.uri, true);
 					}
+
 				});
 			}
 		});
