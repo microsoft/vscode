@@ -176,7 +176,6 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 	}
 
 	private _clearLastFailedCell(notebookURI: URI): void {
-
 		const lastFailedCellInfo = this._lastFailedCells.get(notebookURI);
 
 		if (lastFailedCellInfo) {
