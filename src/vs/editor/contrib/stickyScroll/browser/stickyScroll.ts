@@ -203,23 +203,12 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 		return false;
 	}
 
-	private _renderStickyScroll() {
-
-		if (!(this._editor.hasModel())) {
-			return;
-		}
-		const model = this._editor.getModel();
-		if (this._rangesVersionId !== model.getVersionId()) {
-			// Old _ranges not updated yet
-			return;
-		}
-
+	private _getScrollWidgetState(): StickyScrollWidgetState {
+		// const stickyHeaders = this.candidateProvider.getStickyHeadersIntersectingViewPort(editor.viewPortRange());
 		const lineHeight: number = this._editor.getOption(EditorOption.lineHeight);
 		const scrollTop: number = this._editor.getScrollTop();
 		let lastLineRelativePosition: number = 0;
 		const lineNumbers: number[] = [];
-
-		this.stickyScrollWidget.emptyRootNode();
 		for (const arr of this._ranges) {
 			const [start, end, depth] = arr;
 			if (end - start > 0) {
@@ -240,8 +229,21 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 				}
 			}
 		}
+		return new StickyScrollWidgetState(lineNumbers, lastLineRelativePosition);
+	}
 
-		this.stickyScrollWidget.setState(new StickyScrollWidgetState(lineNumbers, lastLineRelativePosition));
+	private _renderStickyScroll() {
+
+		if (!(this._editor.hasModel())) {
+			return;
+		}
+		const model = this._editor.getModel();
+		if (this._rangesVersionId !== model.getVersionId()) {
+			// Old _ranges not updated yet
+			return;
+		}
+		this.stickyScrollWidget.emptyRootNode();
+		this.stickyScrollWidget.setState(this._getScrollWidgetState());
 		this.stickyScrollWidget.renderRootNode();
 	}
 
