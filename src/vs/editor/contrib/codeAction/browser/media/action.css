@@ -7,14 +7,14 @@
 	padding: 3px 0px 3px 0px;
 	overflow: auto;
 	font-size: 13px;
-	border-radius: 5px;
+	border-radius: 2px;
 	min-width: 160px;
 	z-index: 40;
 	display: block;
 	/* flex-direction: column;
 	flex: 0 1 auto; */
 	width: 100%;
-	border-width: 0px;
+	border: 1px solid var(--vscode-menu-separatorBackground);
 	border-color: none;
 	background-color: var(--vscode-menu-background);
 	color: var(--vscode-menu-foreground);

@@ -34,6 +34,19 @@ import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles
 import 'vs/editor/contrib/symbolIcons/browser/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
 import { Codicon } from 'vs/base/common/codicons';
 
+
+export enum CodeActionGroupID {
+	OnSave = 'onSave',
+	FromProblemsView = 'fromProblemsView',
+	FromCodeActions = 'fromCodeActions'
+}
+
+export enum CodeActionGroupLabel {
+	OnSave = 'onSave',
+	FromProblemsView = 'fromProblemsView',
+	FromCodeActions = 'fromCodeActions'
+}
+
 export const Context = {
 	Visible: new RawContextKey<boolean>('CodeActionMenuVisible', false, localize('CodeActionMenuVisible', "Whether the code action list widget is visible"))
 };
@@ -70,6 +83,8 @@ export interface ICodeActionMenuItem {
 	isSeparator: boolean;
 	isEnabled: boolean;
 	isDocumentation: boolean;
+	isHeader: boolean;
+	headerTitle: string;
 	index: number;
 	disposables?: IDisposable[];
 }
@@ -124,56 +139,68 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 	}
 	renderElement(element: ICodeActionMenuItem, index: number, templateData: ICodeActionMenuTemplateData): void {
 		const data: ICodeActionMenuTemplateData = templateData;
-		const text = element.action.label;
+
+
 		const isSeparator = element.isSeparator;
 
-		element.isEnabled = element.action.enabled;
+		if (isSeparator) {
+			data.root.classList.add('separator');
+			data.root.style.height = '10px';
+		} else if (element.isHeader) {
+			const text = element.headerTitle;
+			data.text.textContent = text;
+			element.isEnabled = false;
+		} else {
+			const text = element.action.label;
+			data.text.textContent = text;
+			element.isEnabled = element.action.enabled;
 
-		if (element.action instanceof CodeActionAction) {
+			if (element.action instanceof CodeActionAction) {
 
-			// Check documentation type
-			element.isDocumentation = element.action.action.kind === CodeActionMenu.documentationID;
-			if (!element.isDocumentation) {
+				// Check documentation type
+				element.isDocumentation = element.action.action.kind === CodeActionMenu.documentationID;
+				if (!element.isDocumentation) {
 
-				if (element.action.action.kind?.startsWith(`refactor.extract`)) {
-					data.icon.className = Codicon.lightBulb.classNames;
-					data.icon.style.color = `var(--vscode-editorLightBulb-foreground)`;
-				} else if (element.action.action.kind?.startsWith(`refactor.rewrite`)) {
-					data.icon.className = Codicon.lightbulbAutofix.classNames;
-					data.icon.style.color = `var(--vscode-editorLightBulbAutoFix-foreground)`;
-					// data.icon.style.color = `var(--vscode-editorLightBulb-foreground)`;
-				} else if (element.action.action.kind === `refactor`) {
-					data.icon.className = Codicon.symbolSnippet.classNames;
-					data.icon.style.color = `var(--vscode-symbolIcon-functionForeground)`;
-				} else if (element.action.action.kind === `_documentation`) {
+					if (element.action.action.kind?.startsWith(`refactor.extract`)) {
+						data.icon.className = Codicon.lightBulb.classNames;
+						data.icon.style.color = `var(--vscode-editorLightBulb-foreground)`;
+					} else if (element.action.action.kind?.startsWith(`refactor.rewrite`)) {
+						data.icon.className = Codicon.lightbulbAutofix.classNames;
+						data.icon.style.color = `var(--vscode-editorLightBulbAutoFix-foreground)`;
+						// data.icon.style.color = `var(--vscode-editorLightBulb-foreground)`;
+					} else if (element.action.action.kind === `refactor`) {
+						data.icon.className = Codicon.symbolSnippet.classNames;
+						data.icon.style.color = `var(--vscode-symbolIcon-functionForeground)`;
+					} else if (element.action.action.kind === `_documentation`) {
+						data.icon.className = Codicon.book.classNames;
+						// data.icon.style.color = ``;
+					} else if (element.action.action.kind === `quickfix`) {
+						data.icon.className = Codicon.wrench.classNames;
+					} else {
+						data.icon.className = Codicon.lightBulb.classNames;
+						data.icon.style.color = `var(--vscode-editorLightBulb-foreground)`;
+					}
+
+					// Check if action has disabled reason
+					if (element.action.action.disabled) {
+						data.root.title = element.action.action.disabled;
+					} else {
+						const updateLabel = () => {
+							const [accept, preview] = this.acceptKeybindings;
+							data.root.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Refactor, Shift+F2 to Preview"'] }, "{0} to Refactor, {1} to Preview", this.keybindingService.lookupKeybinding(accept)?.getLabel(), this.keybindingService.lookupKeybinding(preview)?.getLabel());
+						};
+						updateLabel();
+					}
+				} else {
 					data.icon.className = Codicon.book.classNames;
-					// data.icon.style.color = ``;
-				} else if (element.action.action.kind === `quickfix`) {
-					data.icon.className = Codicon.wrench.classNames;
-				} else {
-					data.icon.className = Codicon.lightBulb.classNames;
-					data.icon.style.color = `var(--vscode-editorLightBulb-foreground)`;
 				}
-
-				// Check if action has disabled reason
-				if (element.action.action.disabled) {
-					data.root.title = element.action.action.disabled;
-				} else {
-					const updateLabel = () => {
-						const [accept, preview] = this.acceptKeybindings;
-						data.root.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Refactor, Shift+F2 to Preview"'] }, "{0} to Refactor, {1} to Preview", this.keybindingService.lookupKeybinding(accept)?.getLabel(), this.keybindingService.lookupKeybinding(preview)?.getLabel());
-					};
-					updateLabel();
-				}
-			} else {
-				data.icon.className = Codicon.book.classNames;
 			}
+
+
+			// data.icon.classList.add(Codicon.lightBulb.classNames);
+
+
 		}
-
-		data.text.textContent = text;
-
-
-		// data.icon.classList.add(Codicon.lightBulb.classNames);
 
 		if (!element.isEnabled) {
 			data.root.classList.add('option-disabled');
@@ -181,12 +208,6 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 		} else {
 			data.root.classList.remove('option-disabled');
 		}
-
-		if (isSeparator) {
-			data.root.classList.add('separator');
-			data.root.style.height = '10px';
-		}
-
 	}
 	disposeTemplate(templateData: ICodeActionMenuTemplateData): void {
 		templateData.disposables = dispose(templateData.disposables);
@@ -326,26 +347,130 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		renderDisposables.add(this.codeActionList.value.onDidChangeSelection(e => this._onListSelection(e)));
 		renderDisposables.add(this._editor.onDidLayoutChange(e => this.hideCodeActionWidget()));
 
-		// Populating the list widget and tracking enabled options.
+
+
+		const menuEntries: IAction[][] = [[], [], [], [], [], []];
+		let groupID = 0;
 		inputArray.forEach((item, index) => {
+			if (item instanceof CodeActionAction) {
+				if (item.action.kind === `quickfix`) {
+					groupID = 0;
+				} else if (item.action.kind?.startsWith(`refactor.extract`)) {
+					groupID = 1;
+				} else if (item.action.kind?.startsWith(`refactor.rewrite`)) {
+					groupID = 2;
+				} else if (item.action.kind === `refactor`) {
+					groupID = 3;
+				} else if (item.id === `vs.actions.separator`) {
+					groupID = 4;
+				} else {
+					groupID = 5;
 
-			const currIsSeparator = item.class === 'separator';
+				}
 
-			if (currIsSeparator) {
-				// set to true forever because there is a separator
-				this.hasSeparator = true;
+			} else if (item.id === `vs.actions.separator`) {
+				groupID = 4;
 			}
 
-			const menuItem = <ICodeActionMenuItem>{ action: inputArray[index], isEnabled: item.enabled, isSeparator: currIsSeparator, index };
-			if (item.enabled) {
-				this.viewItems.push(menuItem);
+			menuEntries[groupID].push(item);
+		});
+
+		console.log(menuEntries);
+
+		const tempEntries: (IAction | string)[] = [];
+		menuEntries.forEach(entry => {
+			if (entry.length > 0 && entry[0] instanceof CodeActionAction && entry[0].action.kind === `quickfix`) {
+				tempEntries.push(`quickfix`);
+				tempEntries.push(...entry);
 			}
-			this.options.push(menuItem);
+			else if (entry.length > 0 && entry[0] instanceof CodeActionAction && entry[0].action.kind?.startsWith(`refactor.extract`)) {
+				tempEntries.push(`extract`);
+				tempEntries.push(...entry);
+			}
+			else if (entry.length > 0 && entry[0] instanceof CodeActionAction && entry[0].action.kind?.startsWith(`refactor.rewrite`)) {
+				tempEntries.push(`convert`);
+				tempEntries.push(...entry);
+			}
+			else if (entry.length > 0 && entry[0] instanceof CodeActionAction && entry[0].action.kind === `refactor`) {
+				tempEntries.push(`surround`);
+				tempEntries.push(...entry);
+			}
+			else if (entry.length > 0 && entry[0].id === `vs.actions.separator`) {
+				tempEntries.push(...entry);
+			}
+			else if (entry.length > 0 && entry[0] instanceof CodeActionAction && entry[0].action.kind === `_documentation`) {
+				tempEntries.push(...entry);
+			}
+
+		});
+
+
+		// const unPackVals = (item: IAction, index: number) => {
+		// 	const currIsSeparator = item.class === 'separator';
+
+		// 	if (currIsSeparator) {
+		// 		// set to true forever because there is a separator
+		// 		this.hasSeparator = true;
+		// 	}
+
+		// 	const menuItem = <ICodeActionMenuItem>{ action: item, isEnabled: item.enabled, isSeparator: currIsSeparator, index };
+		// 	if (item.enabled) {
+		// 		this.viewItems.push(menuItem);
+		// 	}
+
+		// 	return menuItem;
+		// };
+
+		// menuEntries.forEach((entry, index) => {
+		// 	if (entry && entry[0] instanceof CodeActionAction && entry[0].action.kind === `quickfix`) {
+		// 		this.options.push();
+		// 		this.options.push(...entry.map(item => unPackVals(item, index)));
+		// 	}
+		// 	else if (entry && entry[0] instanceof CodeActionAction && entry[0].action.kind?.startsWith(`refactor.extract`)) {
+		// 		this.options.push();
+		// 		this.options.push(...entry.map(item => unPackVals(item, index)));
+		// 	}
+		// 	else if (entry && entry[0] instanceof CodeActionAction && entry[0].action.kind?.startsWith(`refactor.rewrite`)) {
+		// 		this.options.push();
+		// 		this.options.push(...entry.map(item => unPackVals(item, index)));
+		// 	}
+		// 	else if (entry && entry[0] instanceof CodeActionAction && entry[0].action.kind === `refactor`) {
+		// 		this.options.push();
+		// 		this.options.push(...entry.map(item => unPackVals(item, index)));
+		// 	}
+
+		// });
+
+
+
+
+		// Populating the list widget and tracking enabled options.
+		tempEntries.forEach((item, index) => {
+			if (typeof item === `string`) {
+				const menuItem = <ICodeActionMenuItem>{ isEnabled: false, isSeparator: false, index, isHeader: true, headerTitle: item };
+				this.options.push(menuItem);
+			} else {
+				const currIsSeparator = item.class === 'separator';
+
+				if (currIsSeparator) {
+					// set to true forever because there is a separator
+					this.hasSeparator = true;
+				}
+
+				const menuItem = <ICodeActionMenuItem>{ action: item, isEnabled: item.enabled, isSeparator: currIsSeparator, index };
+				if (item.enabled) {
+					this.viewItems.push(menuItem);
+				}
+				this.options.push(menuItem);
+
+			}
+
+
 		});
 
 		this.codeActionList.value.splice(0, this.codeActionList.value.length, this.options);
 
-		const height = this.hasSeparator ? (inputArray.length - 1) * codeActionLineHeight + 10 : inputArray.length * codeActionLineHeight;
+		const height = this.hasSeparator ? (tempEntries.length - 1) * codeActionLineHeight + 10 : tempEntries.length * codeActionLineHeight;
 		renderMenu.style.height = String(height) + 'px';
 		this.codeActionList.value.layout(height);
 
@@ -488,7 +613,9 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		if (!model) {
 			return;
 		}
-		const actionsToShow = options.includeDisabledActions ? codeActions.allActions : codeActions.validActions;
+		// const actionsToShow = options.includeDisabledActions ? codeActions.allActions : codeActions.validActions;
+		const actionsToShow = codeActions.validActions;
+
 		if (!actionsToShow.length) {
 			this._visible = false;
 			return;
