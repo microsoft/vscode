@@ -47,7 +47,7 @@ export interface INotebookFailStateChangedEvent {
 
 export interface IFailedCellInfo {
 	cellHandle: number;
-	disposable?: IDisposable;
+	disposable: IDisposable;
 	visible: boolean;
 }
 
