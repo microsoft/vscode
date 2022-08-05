@@ -56,7 +56,6 @@ export class Kernel {
 	}
 
 	protected async _execute(cells: vscode.NotebookCell[]): Promise<void> {
-		console.log(`Executing ${cells.length} cells`);
 		for (const cell of cells) {
 			await this._runCell(cell);
 		}
