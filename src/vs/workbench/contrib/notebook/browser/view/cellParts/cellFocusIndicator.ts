@@ -11,6 +11,7 @@ import { CellTitleToolbarPart } from 'vs/workbench/contrib/notebook/browser/view
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookLayoutConfiguration } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 
 export class CellFocusIndicator extends CellPart {
 	public codeFocusIndicator: FastDomNode<HTMLElement>;
@@ -81,7 +82,7 @@ export class CellFocusIndicator extends CellPart {
 			this.bottom.domNode.style.transform = `translateY(${indicatorPostion.bottomIndicatorTop}px)`;
 			this.left.setHeight(indicatorPostion.verticalIndicatorHeight);
 			this.right.setHeight(indicatorPostion.verticalIndicatorHeight);
-			this.codeFocusIndicator.setHeight(indicatorPostion.verticalIndicatorHeight);
+			this.codeFocusIndicator.setHeight(indicatorPostion.verticalIndicatorHeight - this.getIndicatorTopMargin() * 2);
 		} else {
 			// code cell
 			const cell = element as CodeCellViewModel;
@@ -99,13 +100,17 @@ export class CellFocusIndicator extends CellPart {
 	}
 
 	private updateFocusIndicatorsForTitleMenu(): void {
+		this.left.domNode.style.transform = `translateY(${this.getIndicatorTopMargin()}px)`;
+		this.right.domNode.style.transform = `translateY(${this.getIndicatorTopMargin()}px)`;
+	}
+
+	private getIndicatorTopMargin() {
 		const layoutInfo = this.notebookEditor.notebookOptions.getLayoutConfiguration();
+
 		if (this.titleToolbar.hasActions) {
-			this.left.domNode.style.transform = `translateY(${layoutInfo.editorToolbarHeight + layoutInfo.cellTopMargin}px)`;
-			this.right.domNode.style.transform = `translateY(${layoutInfo.editorToolbarHeight + layoutInfo.cellTopMargin}px)`;
+			return layoutInfo.editorToolbarHeight + layoutInfo.cellTopMargin;
 		} else {
-			this.left.domNode.style.transform = `translateY(${layoutInfo.cellTopMargin}px)`;
-			this.right.domNode.style.transform = `translateY(${layoutInfo.cellTopMargin}px)`;
+			return layoutInfo.cellTopMargin;
 		}
 	}
 }
