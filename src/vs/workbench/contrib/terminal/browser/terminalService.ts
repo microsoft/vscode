@@ -1049,12 +1049,12 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private _addToReconnected(instance: ITerminalInstance): void {
-		if (instance.reconnectionOwner) {
-			const reconnectedTerminals = this._reconnectedTerminals.get(instance.reconnectionOwner);
+		if (instance.reconnectionProperties) {
+			const reconnectedTerminals = this._reconnectedTerminals.get(instance.reconnectionProperties.ownerId);
 			if (reconnectedTerminals) {
 				reconnectedTerminals.push(instance);
 			} else {
-				this._reconnectedTerminals.set(instance.reconnectionOwner, [instance]);
+				this._reconnectedTerminals.set(instance.reconnectionProperties.ownerId, [instance]);
 			}
 		}
 	}

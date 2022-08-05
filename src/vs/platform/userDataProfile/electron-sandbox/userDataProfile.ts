@@ -6,8 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
-import { UriDto } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriDto } from 'vs/base/common/uri';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
@@ -32,7 +31,7 @@ export class UserDataProfilesNativeService extends Disposable implements IUserDa
 	readonly onDidResetWorkspaces: Event<void>;
 
 	constructor(
-		profiles: UriDto<IUserDataProfile>[],
+		profiles: readonly UriDto<IUserDataProfile>[],
 		@IMainProcessService mainProcessService: IMainProcessService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 	) {

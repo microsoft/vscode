@@ -6,8 +6,8 @@
 import { transformErrorForSerialization } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { getAllMethodNames } from 'vs/base/common/objects';
 import { globals, isWeb } from 'vs/base/common/platform';
-import * as types from 'vs/base/common/types';
 import * as strings from 'vs/base/common/strings';
 
 const INITIALIZE = '$initialize';
@@ -332,7 +332,7 @@ export class SimpleWorkerClient<W extends object, H extends object> extends Disp
 			loaderConfiguration = globals.requirejs.s.contexts._.config;
 		}
 
-		const hostMethods = types.getAllMethodNames(host);
+		const hostMethods = getAllMethodNames(host);
 
 		// Send initialize message
 		this._onModuleLoaded = this._protocol.sendMessage(INITIALIZE, [
@@ -507,7 +507,7 @@ export class SimpleWorkerServer<H extends object> {
 		if (this._requestHandlerFactory) {
 			// static request handler
 			this._requestHandler = this._requestHandlerFactory(hostProxy);
-			return Promise.resolve(types.getAllMethodNames(this._requestHandler));
+			return Promise.resolve(getAllMethodNames(this._requestHandler));
 		}
 
 		if (loaderConfig) {
@@ -548,7 +548,7 @@ export class SimpleWorkerServer<H extends object> {
 					return;
 				}
 
-				resolve(types.getAllMethodNames(this._requestHandler));
+				resolve(getAllMethodNames(this._requestHandler));
 			}, reject);
 		});
 	}

@@ -109,10 +109,8 @@ export const enum TerminalSettingId {
 	ShellIntegrationEnabled = 'terminal.integrated.shellIntegration.enabled',
 	ShellIntegrationShowWelcome = 'terminal.integrated.shellIntegration.showWelcome',
 	ShellIntegrationDecorationsEnabled = 'terminal.integrated.shellIntegration.decorationsEnabled',
-	ShellIntegrationDecorationIcon = 'terminal.integrated.shellIntegration.decorationIcon',
-	ShellIntegrationDecorationIconError = 'terminal.integrated.shellIntegration.decorationIconError',
-	ShellIntegrationDecorationIconSuccess = 'terminal.integrated.shellIntegration.decorationIconSuccess',
-	ShellIntegrationCommandHistory = 'terminal.integrated.shellIntegration.history'
+	ShellIntegrationCommandHistory = 'terminal.integrated.shellIntegration.history',
+	SmoothScrolling = 'terminal.integrated.smoothScrolling'
 }
 
 export const enum TerminalLogConstants {
@@ -167,12 +165,16 @@ export interface IPtyHostAttachTarget {
 	icon: TerminalIcon | undefined;
 	fixedDimensions: IFixedTerminalDimensions | undefined;
 	environmentVariableCollections: ISerializableEnvironmentVariableCollections | undefined;
-	reconnectionOwner?: string;
-	task?: { label: string; id: string; lastTask: string; group?: string };
+	reconnectionProperties?: IReconnectionProperties;
 	waitOnExit?: WaitOnExitValue;
 	hideFromUser?: boolean;
 	isFeatureTerminal?: boolean;
 	type?: TerminalType;
+}
+
+export interface IReconnectionProperties {
+	ownerId: string;
+	data?: unknown;
 }
 
 export type TerminalType = 'Task' | 'Local' | undefined;
@@ -447,9 +449,9 @@ export interface IShellLaunchConfig {
 	ignoreConfigurationCwd?: boolean;
 
 	/**
-	 * The owner of this terminal for reconnection.
+	 * The reconnection properties for this terminal
 	 */
-	reconnectionOwner?: string;
+	reconnectionProperties?: IReconnectionProperties;
 
 	/** Whether to wait for a key press before closing the terminal. */
 	waitOnExit?: WaitOnExitValue;
@@ -476,7 +478,7 @@ export interface IShellLaunchConfig {
 	 * This is a terminal that attaches to an already running terminal.
 	 */
 	attachPersistentProcess?: {
-		id: number; findRevivedId?: boolean; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string; hasChildProcesses?: boolean; fixedDimensions?: IFixedTerminalDimensions; environmentVariableCollections?: ISerializableEnvironmentVariableCollections; reconnectionOwner?: string; task?: { label: string; id: string; lastTask: string; group?: string }; type?: TerminalType; waitOnExit?: WaitOnExitValue; hideFromUser?: boolean; isFeatureTerminal?: boolean;
+		id: number; findRevivedId?: boolean; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string; hasChildProcesses?: boolean; fixedDimensions?: IFixedTerminalDimensions; environmentVariableCollections?: ISerializableEnvironmentVariableCollections; reconnectionProperties?: IReconnectionProperties; type?: TerminalType; waitOnExit?: WaitOnExitValue; hideFromUser?: boolean; isFeatureTerminal?: boolean;
 	};
 
 	/**
@@ -548,11 +550,6 @@ export interface IShellLaunchConfig {
 	 * Create a terminal without shell integration even when it's enabled
 	 */
 	ignoreShellIntegration?: boolean;
-
-	/**
-	 * The task associated with this terminal
-	 */
-	task?: { label: string; id: string; lastTask: string; group?: string };
 }
 
 export type WaitOnExitValue = boolean | string | ((exitCode: number) => string);

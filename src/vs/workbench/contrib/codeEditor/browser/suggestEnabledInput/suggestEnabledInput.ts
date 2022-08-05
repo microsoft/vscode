@@ -429,32 +429,29 @@ export class ContextScopedSuggestEnabledInputWithHistory extends SuggestEnabledI
 
 // Override styles in selections.ts
 registerThemingParticipant((theme, collector) => {
-	let selectionColor = theme.getColor(selectionBackground);
-	if (selectionColor) {
-		selectionColor = selectionColor.transparent(0.4);
+	const selectionBackgroundColor = theme.getColor(selectionBackground);
+
+	if (selectionBackgroundColor) {
+		// Override inactive selection bg
+		const inputBackgroundColor = theme.getColor(inputBackground);
+		if (inputBackgroundColor) {
+			collector.addRule(`.suggest-input-container .monaco-editor .selected-text { background-color: ${inputBackgroundColor.transparent(0.4)}; }`);
+		}
+
+		// Override selected fg
+		const inputForegroundColor = theme.getColor(inputForeground);
+		if (inputForegroundColor) {
+			collector.addRule(`.suggest-input-container .monaco-editor .view-line span.inline-selected-text { color: ${inputForegroundColor}; }`);
+		}
+
+		const backgroundColor = theme.getColor(inputBackground);
+		if (backgroundColor) {
+			collector.addRule(`.suggest-input-container .monaco-editor-background { background-color: ${backgroundColor}; } `);
+		}
+		collector.addRule(`.suggest-input-container .monaco-editor .focused .selected-text { background-color: ${selectionBackgroundColor}; }`);
 	} else {
-		selectionColor = theme.getColor(editorSelectionBackground);
-	}
-
-	if (selectionColor) {
-		collector.addRule(`.suggest-input-container .monaco-editor .focused .selected-text { background-color: ${selectionColor}; }`);
-	}
-
-	// Override inactive selection bg
-	const inputBackgroundColor = theme.getColor(inputBackground);
-	if (inputBackgroundColor) {
-		collector.addRule(`.suggest-input-container .monaco-editor .selected-text { background-color: ${inputBackgroundColor.transparent(0.4)}; }`);
-	}
-
-	// Override selected fg
-	const inputForegroundColor = theme.getColor(inputForeground);
-	if (inputForegroundColor) {
-		collector.addRule(`.suggest-input-container .monaco-editor .view-line span.inline-selected-text { color: ${inputForegroundColor}; }`);
-	}
-
-	const backgroundColor = theme.getColor(inputBackground);
-	if (backgroundColor) {
-		collector.addRule(`.suggest-input-container .monaco-editor-background { background-color: ${backgroundColor}; } `);
+		// Use editor selection color if theme has not set a selection background color
+		collector.addRule(`.suggest-input-container .monaco-editor .focused .selected-text { background-color: ${theme.getColor(editorSelectionBackground)}; }`);
 	}
 });
 

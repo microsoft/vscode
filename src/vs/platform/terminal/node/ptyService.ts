@@ -410,8 +410,7 @@ export class PtyService extends Disposable implements IPtyService {
 			color: persistentProcess.color,
 			fixedDimensions: persistentProcess.fixedDimensions,
 			environmentVariableCollections: persistentProcess.processLaunchOptions.options.environmentVariableCollections,
-			reconnectionOwner: persistentProcess.shellLaunchConfig.reconnectionOwner,
-			task: persistentProcess.shellLaunchConfig.task,
+			reconnectionProperties: persistentProcess.shellLaunchConfig.reconnectionProperties,
 			waitOnExit: persistentProcess.shellLaunchConfig.waitOnExit,
 			hideFromUser: persistentProcess.shellLaunchConfig.hideFromUser,
 			isFeatureTerminal: persistentProcess.shellLaunchConfig.isFeatureTerminal,
@@ -789,7 +788,12 @@ class XtermSerializer implements ITerminalSerializer {
 		private _rawReviveBuffer: string | undefined,
 		logService: ILogService
 	) {
-		this._xterm = new XtermTerminal({ cols, rows, scrollback });
+		this._xterm = new XtermTerminal({
+			cols,
+			rows,
+			scrollback,
+			allowProposedApi: true
+		});
 		if (reviveBufferWithRestoreMessage) {
 			this._xterm.writeln(reviveBufferWithRestoreMessage);
 		}
@@ -815,7 +819,7 @@ class XtermSerializer implements ITerminalSerializer {
 		const serialize = new (await this._getSerializeConstructor());
 		this._xterm.loadAddon(serialize);
 		const options: ISerializeOptions = {
-			scrollback: this._xterm.getOption('scrollback')
+			scrollback: this._xterm.options.scrollback
 		};
 		if (normalBufferOnly) {
 			options.excludeAltBuffer = true;

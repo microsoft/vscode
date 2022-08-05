@@ -46,7 +46,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			const id = generateUuid();
 			const webview = accessor.get(IWebviewService).createWebviewOverlay({
 				id,
-				providedId: viewType,
+				providedViewType: viewType,
 				options: { customClasses: options?.customClasses },
 				contentOptions: {},
 				extension: undefined,

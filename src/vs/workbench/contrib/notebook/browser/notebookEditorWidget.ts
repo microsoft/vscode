@@ -2530,9 +2530,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	findStop() {
-		if (this._webview) {
-			this._webview.findStop();
-		}
+		this._webview?.findStop();
 	}
 
 	//#endregion
@@ -2570,6 +2568,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		if (!this.viewModel) {
+			return;
+		}
+
+		if (this.viewModel.getCellIndex(cell) === -1) {
 			return;
 		}
 

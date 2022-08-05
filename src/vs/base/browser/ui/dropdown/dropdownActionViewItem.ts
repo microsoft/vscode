@@ -133,10 +133,10 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 	override getTooltip(): string | undefined {
 		let title: string | null = null;
 
-		if (this.getAction().tooltip) {
-			title = this.getAction().tooltip;
-		} else if (this.getAction().label) {
-			title = this.getAction().label;
+		if (this.action.tooltip) {
+			title = this.action.tooltip;
+		} else if (this.action.label) {
+			title = this.action.label;
 		}
 
 		return title ?? undefined;
@@ -155,13 +155,11 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 	}
 
 	show(): void {
-		if (this.dropdownMenu) {
-			this.dropdownMenu.show();
-		}
+		this.dropdownMenu?.show();
 	}
 
 	protected override updateEnabled(): void {
-		const disabled = !this.getAction().enabled;
+		const disabled = !this.action.enabled;
 		this.actionItem?.classList.toggle('disabled', disabled);
 		this.element?.classList.toggle('disabled', disabled);
 	}
