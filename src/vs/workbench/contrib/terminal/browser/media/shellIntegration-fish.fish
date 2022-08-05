@@ -3,12 +3,10 @@
 # ----------------------------------------------------------------------------
 # Manual installation:
 #
-#   (1) Add the following to the end of `$__fish_config_dir/config.fish`,
-#       adjusting the value of VSCODE accordingly:
+#   (1) Add the following to the end of `$__fish_config_dir/config.fish`:
 #
 #         string match -q "$TERM_PROGRAM" "vscode"
-#         and set -l VSCODE "/Applications/Visual Studio Code.app/Contents/Resources/app/out"
-#         and . "$VSCODE/vs/workbench/contrib/terminal/browser/media/shellIntegration-fish.fish"
+#         and . (code --locate-shell-integration-path fish)
 #
 #   (2) Restart fish.
 # ----------------------------------------------------------------------------
