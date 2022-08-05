@@ -440,7 +440,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	}
 
 	async createWebview(): Promise<void> {
-		const baseUrl = this.asWebviewUri(dirname(this.documentUri), undefined);
+		const baseUrl = this.asWebviewUri(this.getNotebookBaseUri(), undefined);
 
 		// Python notebooks assume that requirejs is a global.
 		// For all other notebooks, they need to provide their own loader.
@@ -502,6 +502,22 @@ var requirejs = (function() {
 		}
 
 		await this._initialized;
+	}
+
+	private getNotebookBaseUri() {
+		if (this.documentUri.scheme === Schemas.untitled || this.documentUri.scheme === Schemas.vscodeInteractive) {
+			const folder = this.workspaceContextService.getWorkspaceFolder(this.documentUri);
+			if (folder) {
+				return folder.uri;
+			}
+
+			const folders = this.workspaceContextService.getWorkspace().folders;
+			if (folders.length) {
+				return folders[0].uri;
+			}
+		}
+
+		return dirname(this.documentUri);
 	}
 
 	private getBuiltinLocalResourceRoots(): URI[] {
@@ -884,7 +900,7 @@ var requirejs = (function() {
 
 	private _createInset(webviewService: IWebviewService, content: string) {
 		const workspaceFolders = this.contextService.getWorkspace().folders.map(x => x.uri);
-		const notebookDir = dirname(this.documentUri);
+		const notebookDir = this.getNotebookBaseUri();
 
 		this.localResourceRootsCache = [
 			...this.notebookService.getNotebookProviderResourceRoots(),
