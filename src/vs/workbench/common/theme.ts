@@ -330,6 +330,13 @@ export const PANEL_BORDER = registerColor('panel.border', {
 	hcLight: contrastBorder
 }, localize('panelBorder', "Panel border color to separate the panel from the editor. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
+export const PANEL_TITLE_BORDER = registerColor('panelTitle.border', {
+	dark: null,
+	light: null,
+	hcDark: PANEL_BORDER,
+	hcLight: PANEL_BORDER
+}, localize('panelTitleBorder', "Panel title border color on the bottom, separating the title from the views. Panels are shown below the editor area and contain views like output and integrated terminal."));
+
 export const PANEL_ACTIVE_TITLE_FOREGROUND = registerColor('panelTitle.activeForeground', {
 	dark: '#E7E7E7',
 	light: '#424242',
@@ -686,6 +693,13 @@ export const SIDE_BAR_TITLE_FOREGROUND = registerColor('sideBarTitle.foreground'
 	hcDark: SIDE_BAR_FOREGROUND,
 	hcLight: SIDE_BAR_FOREGROUND
 }, localize('sideBarTitleForeground', "Side bar title foreground color. The side bar is the container for views like explorer and search."));
+
+export const SIDE_BAR_TITLE_BORDER = registerColor('sideBarTitle.border', {
+	dark: null,
+	light: null,
+	hcDark: SIDE_BAR_BORDER,
+	hcLight: SIDE_BAR_BORDER
+}, localize('sideBarTitleBorder', "Side bar title border color on the bottom, separating the title from the views. The side bar is the container for views like explorer and search."));
 
 export const SIDE_BAR_DRAG_AND_DROP_BACKGROUND = registerColor('sideBar.dropBackground', {
 	dark: EDITOR_DRAG_AND_DROP_BACKGROUND,

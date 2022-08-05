@@ -20,7 +20,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { PanelActivityAction, TogglePanelAction, PlaceHolderPanelActivityAction, PlaceHolderToggleCompositePinnedAction, PositionPanelActionConfigs, SetPanelPositionAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_INPUT_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, PANEL_DRAG_AND_DROP_BORDER } from 'vs/workbench/common/theme';
+import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_INPUT_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, PANEL_DRAG_AND_DROP_BORDER } from 'vs/workbench/common/theme';
 import { activeContrastBorder, focusBorder, contrastBorder, editorBackground, badgeBackground, badgeForeground } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from 'vs/workbench/browser/parts/compositeBar';
 import { IActivityHoverOptions, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
@@ -164,6 +164,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 			'panel',
 			'panel',
 			undefined,
+			PANEL_TITLE_BORDER,
 			partId,
 			panelOptions
 		);
@@ -572,6 +573,10 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		const title = this.getTitleArea();
 		if (title) {
 			title.style.borderTopColor = this.getColor(contrastBorder) || '';
+			if (PANEL_TITLE_BORDER) {
+				const border = this.getColor(PANEL_TITLE_BORDER);
+				title.style.borderBottom = border ? `1px solid ${border}` : '';
+			}
 		}
 	}
 
