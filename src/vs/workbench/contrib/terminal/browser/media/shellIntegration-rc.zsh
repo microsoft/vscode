@@ -125,3 +125,7 @@ __vsc_preexec() {
 }
 add-zsh-hook precmd __vsc_precmd
 add-zsh-hook preexec __vsc_preexec
+
+if [[ $options[login] = off ]]; then
+	ZDOTDIR=$USER_ZDOTDIR
+fi
