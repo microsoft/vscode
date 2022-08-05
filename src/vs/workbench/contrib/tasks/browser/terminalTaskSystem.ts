@@ -253,8 +253,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		this._taskSystemInfoResolver = taskSystemInfoResolver;
 		this._register(this._terminalStatusManager = new TaskTerminalStatus(taskService));
 		// connection state changes before this is created sometimes
-		this._reviveTerminals();
-		this._register(this._terminalService.onDidChangeConnectionState(() => this._reviveTerminals()));
+		this._reconnectToTerminals();
+		this._register(this._terminalService.onDidChangeConnectionState(() => this._reconnectToTerminals()));
 	}
 
 	public get onDidStateChange(): Event<ITaskEvent> {
@@ -1317,7 +1317,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		return createdTerminal;
 	}
 
-	private _reviveTerminals(): void {
+	private _reconnectToTerminals(): void {
 		if (this._hasReconnected) {
 			return;
 		}
