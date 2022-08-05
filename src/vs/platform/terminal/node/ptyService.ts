@@ -582,12 +582,12 @@ export class PersistentTerminalProcess extends Disposable {
 
 	async attach(): Promise<void> {
 		this._logService.trace('persistentTerminalProcess#attach', this._persistentProcessId);
+		// Something wrong happened if the disconnect runner is not canceled, this likely means
+		// multiple windows attempted to attach.
+		if (!await this._isOrphaned()) {
+			throw new Error(`Cannot attach to persistent process "${this._persistentProcessId}", it is already adopted`);
+		}
 		if (!this._disconnectRunner1.isScheduled() && !this._disconnectRunner2.isScheduled()) {
-			// Something wrong happened if the disconnect runner is not canceled, this likely means
-			// multiple windows attempted to attach.
-			if (!await this._isOrphaned()) {
-				throw new Error(`Cannot attach to persistent process "${this._persistentProcessId}", it is already adopted`);
-			}
 			this._logService.warn(`Persistent process "${this._persistentProcessId}": Process had no disconnect runners but was an orphan`);
 		}
 		this._disconnectRunner1.cancel();
