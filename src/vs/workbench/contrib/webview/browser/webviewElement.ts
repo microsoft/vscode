@@ -116,6 +116,8 @@ interface WebviewActionContext {
 	[key: string]: unknown;
 }
 
+const webviewIdContext = 'webviewId';
+
 export class WebviewElement extends Disposable implements IWebview, WebviewFindDelegate {
 
 	/**
@@ -342,7 +344,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 				getActions: () => {
 					const contextKeyService = this._contextKeyService!.createOverlay([
 						...Object.entries(data.context),
-						['webview', this.providedViewType],
+						[webviewIdContext, this.providedViewType],
 					]);
 
 					const result: IAction[] = [];
