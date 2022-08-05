@@ -11,11 +11,12 @@ import { ILoggerService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { OneDataSystemWebAppender } from 'vs/platform/telemetry/browser/1dsAppender';
+import { telemetryEndpointUrl } from 'vs/platform/telemetry/common/1dsAppender';
 import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { ITelemetryData, ITelemetryInfo, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryLogAppender } from 'vs/platform/telemetry/common/telemetryLogAppender';
 import { ITelemetryServiceConfig, TelemetryService as BaseTelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { isInternalTelemetry, ITelemetryAppender, NullTelemetryService, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import { getTelemetryLevel, isInternalTelemetry, ITelemetryAppender, NullTelemetryService, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { resolveWorkbenchCommonProperties } from 'vs/workbench/services/telemetry/browser/workbenchCommonProperties';
@@ -49,8 +50,15 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 				commonProperties: resolveWorkbenchCommonProperties(storageService, productService.commit, productService.version, isInternal, environmentService.remoteAuthority, productService.embedderIdentifier, productService.removeTelemetryMachineId, environmentService.options && environmentService.options.resolveCommonTelemetryProperties),
 				sendErrorTelemetry: this.sendErrorTelemetry,
 			};
-
 			this.impl = this._register(new BaseTelemetryService(config, configurationService, productService));
+
+			if (getTelemetryLevel(configurationService) !== TelemetryLevel.NONE) {
+				// If we cannot fetch the endpoint it means it is down and we should not send any telemetry.
+				// This is most likely due to ad blockers
+				fetch(telemetryEndpointUrl, { method: 'POST' }).catch(err => {
+					this.impl = NullTelemetryService;
+				});
+			}
 		} else {
 			this.impl = NullTelemetryService;
 		}

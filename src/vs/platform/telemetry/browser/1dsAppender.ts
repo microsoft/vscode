@@ -15,11 +15,5 @@ export class OneDataSystemWebAppender extends AbstractOneDataSystemAppender {
 		iKeyOrClientFactory: string | (() => AppInsightsCore), // allow factory function for testing
 	) {
 		super(isInternalTelemetry, eventPrefix, defaultData, iKeyOrClientFactory);
-
-		// If we cannot fetch the endpoint it means it is down and we should not send any telemetry.
-		// This is most likely due to ad blockers
-		fetch(this.endPointUrl, { method: 'POST' }).catch(err => {
-			this._aiCoreOrKey = undefined;
-		});
 	}
 }
