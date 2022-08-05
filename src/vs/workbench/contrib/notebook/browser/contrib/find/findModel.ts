@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
-import { INotebookEditor, CellFindMatch, CellEditState, CellFindMatchWithIndex, OutputFindMatch, ICellModelDecorations, ICellModelDeltaDecorations, INotebookDeltaDecoration } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, CellFindMatch, CellEditState, CellFindMatchWithIndex, OutputFindMatch, ICellModelDecorations, ICellModelDeltaDecorations, INotebookDeltaDecoration, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { FindDecorations } from 'vs/editor/contrib/find/browser/findDecorations';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
@@ -86,6 +86,34 @@ export class FindModel extends Disposable {
 			match,
 			isModelMatch: nextIndex.remainder < this._findMatches[nextIndex.index].modelMatchCount
 		};
+	}
+
+	refreshCurrentMatch(focus: { cell: ICellViewModel; range: Range }) {
+		const findMatchIndex = this.findMatches.findIndex(match => match.cell === focus.cell);
+
+		if (findMatchIndex === -1) {
+			return;
+		}
+
+		const findMatch = this.findMatches[findMatchIndex];
+		const index = findMatch.matches.slice(0, findMatch.modelMatchCount).findIndex(match => (match as FindMatch).range.intersectRanges(focus.range) !== null);
+
+		if (index === undefined) {
+			return;
+		}
+
+		const matchesBefore = findMatchIndex === 0 ? 0 : (this._findMatchesStarts?.getPrefixSum(findMatchIndex - 1) ?? 0);
+		this._currentMatch = matchesBefore + index;
+
+		this.highlightCurrentFindMatchDecoration(findMatchIndex, index).then(offset => {
+			this.revealCellRange(findMatchIndex, index, offset);
+
+			this._state.changeMatchInfo(
+				this._currentMatch,
+				this._findMatches.reduce((p, c) => p + c.matches.length, 0),
+				undefined
+			);
+		});
 	}
 
 	find(option: { previous: boolean } | { index: number }) {
