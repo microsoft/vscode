@@ -24,9 +24,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			markdownDeprecationMessage: nls.localize('comments.openPanel.deprecated', "This setting is deprecated in favor of `comments.openView`.")
 		},
 		'comments.openView': {
-			enum: ['never', 'file'],
-			enumDescriptions: [nls.localize('comments.openView.never', "The comments view will never be opened."), nls.localize('comments.openView.file', "The comments view will open when a file with comments is active.")],
-			default: 'file',
+			enum: ['never', 'file', 'firstFile'],
+			enumDescriptions: [nls.localize('comments.openView.never', "The comments view will never be opened."), nls.localize('comments.openView.file', "The comments view will open when a file with comments is active."), nls.localize('comments.openView.firstFile', "If the comments view has not been opened yet during this session it will open the first time during a session that a file with comments is active.")],
+			default: 'firstFile',
 			description: nls.localize('comments.openView', "Controls when the comments view should open."),
 			restricted: false
 		},

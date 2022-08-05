@@ -32,9 +32,7 @@ export class BufferLogService extends AbstractLogger implements ILogService {
 		super();
 		this.setLevel(logLevel);
 		this._register(this.onDidChangeLogLevel(level => {
-			if (this._logger) {
-				this._logger.setLevel(level);
-			}
+			this._logger?.setLevel(level);
 		}));
 	}
 
@@ -83,14 +81,10 @@ export class BufferLogService extends AbstractLogger implements ILogService {
 	}
 
 	override dispose(): void {
-		if (this._logger) {
-			this._logger.dispose();
-		}
+		this._logger?.dispose();
 	}
 
 	flush(): void {
-		if (this._logger) {
-			this._logger.flush();
-		}
+		this._logger?.flush();
 	}
 }

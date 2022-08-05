@@ -99,7 +99,7 @@ const testModules = (async function () {
 
 	return promise.then(files => {
 		const modules = [];
-		for (let file of files) {
+		for (const file of files) {
 			if (!minimatch(file, excludeGlob)) {
 				modules.push(file.replace(/\.js$/, ''));
 
@@ -147,15 +147,18 @@ async function runTestsInBrowser(testModules, browserType) {
 	withReporter(browserType, new EchoRunner(emitter, browserType.toUpperCase()));
 
 	// collection failures for console printing
-	const fails = [];
+	const failingModuleIds = [];
+	const failingTests = [];
 	emitter.on('fail', (test, err) => {
+		failingTests.push({ title: test.fullTitle, message: err.message });
+
 		if (err.stack) {
 			const regex = /(vs\/.*\.test)\.js/;
-			for (let line of String(err.stack).split('\n')) {
+			for (const line of String(err.stack).split('\n')) {
 				const match = regex.exec(line);
 				if (match) {
-					fails.push(match[1]);
-					break;
+					failingModuleIds.push(match[1]);
+					return;
 				}
 			}
 		}
@@ -172,8 +175,14 @@ async function runTestsInBrowser(testModules, browserType) {
 	}
 	await browser.close();
 
-	if (fails.length > 0) {
-		return `to DEBUG, open ${browserType.toUpperCase()} and navigate to ${target.href}?${fails.map(module => `m=${module}`).join('&')}`;
+	if (failingTests.length > 0) {
+		let res =  `The followings tests are failing:\n - ${failingTests.map(({ title, message }) => `${title} (reason: ${message})`).join('\n - ')}`;
+
+		if (failingModuleIds.length > 0) {
+			res += `\n\nTo DEBUG, open ${browserType.toUpperCase()} and navigate to ${target.href}?${failingModuleIds.map(module => `m=${module}`).join('&')}`;
+		}
+
+		return `${res}\n`;
 	}
 }
 
@@ -255,7 +264,7 @@ testModules.then(async modules => {
 	}
 
 	// aftermath
-	for (let msg of messages) {
+	for (const msg of messages) {
 		if (msg) {
 			didFail = true;
 			console.log(msg);

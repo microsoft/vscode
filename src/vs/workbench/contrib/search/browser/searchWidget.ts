@@ -366,7 +366,12 @@ export class SearchWidget extends Widget {
 			this.contextLinesInput = new InputBox(searchInputContainer, this.contextViewService, { type: 'number' });
 			this.contextLinesInput.element.classList.add('context-lines-input');
 			this.contextLinesInput.value = '' + (this.configurationService.getValue<ISearchConfigurationProperties>('search').searchEditor.defaultNumberOfContextLines ?? 1);
-			this._register(this.contextLinesInput.onDidChange(() => this.onContextLinesChanged()));
+			this._register(this.contextLinesInput.onDidChange((value: string) => {
+				if (value !== '0') {
+					this.showContextToggle.checked = true;
+				}
+				this.onContextLinesChanged();
+			}));
 			this._register(attachInputBoxStyler(this.contextLinesInput, this.themeService));
 			dom.append(searchInputContainer, this.showContextToggle.domNode);
 		}

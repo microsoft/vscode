@@ -43,7 +43,8 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`
 			.monaco-workbench .part.banner,
 			.monaco-workbench .part.banner .action-container .codicon,
-			.monaco-workbench .part.banner .message-actions-container .monaco-link
+			.monaco-workbench .part.banner .message-actions-container .monaco-link,
+			.monaco-workbench .part.banner .message-container a
 			{ color: ${foregroundColor}; }
 		`);
 	}
@@ -240,9 +241,8 @@ export class BannerPart extends Part implements IBannerService {
 		messageContainer.appendChild(this.getBannerMessage(item.message));
 
 		// Message Actions
+		this.messageActionsContainer = append(this.element, $('div.message-actions-container'));
 		if (item.actions) {
-			this.messageActionsContainer = append(this.element, $('div.message-actions-container'));
-
 			for (const action of item.actions) {
 				this._register(this.instantiationService.createInstance(Link, this.messageActionsContainer, { ...action, tabIndex: -1 }, {}));
 			}

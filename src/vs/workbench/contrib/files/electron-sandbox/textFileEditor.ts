@@ -62,24 +62,22 @@ export class NativeTextFileEditor extends TextFileEditor {
 		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT) {
 			const memoryLimit = Math.max(MIN_MAX_MEMORY_SIZE_MB, +this.textResourceConfigurationService.getValue<number>(undefined, 'files.maxMemoryForLargeFilesMB') || FALLBACK_MAX_MEMORY_SIZE_MB);
 
-			throw createErrorWithActions(localize('fileTooLargeForHeapError', "To open a file of this size, you need to restart and allow {0} to use more memory", this.productService.nameShort), {
-				actions: [
-					toAction({
-						id: 'workbench.window.action.relaunchWithIncreasedMemoryLimit', label: localize('relaunchWithIncreasedMemoryLimit', "Restart with {0} MB", memoryLimit), run: () => {
-							return this.nativeHostService.relaunch({
-								addArgs: [
-									`--max-memory=${memoryLimit}`
-								]
-							});
-						}
-					}),
-					toAction({
-						id: 'workbench.window.action.configureMemoryLimit', label: localize('configureMemoryLimit', 'Configure Memory Limit'), run: () => {
-							return this.preferencesService.openUserSettings({ query: 'files.maxMemoryForLargeFilesMB' });
-						}
-					}),
-				]
-			});
+			throw createErrorWithActions(localize('fileTooLargeForHeapError', "To open a file of this size, you need to restart and allow {0} to use more memory", this.productService.nameShort), [
+				toAction({
+					id: 'workbench.window.action.relaunchWithIncreasedMemoryLimit', label: localize('relaunchWithIncreasedMemoryLimit', "Restart with {0} MB", memoryLimit), run: () => {
+						return this.nativeHostService.relaunch({
+							addArgs: [
+								`--max-memory=${memoryLimit}`
+							]
+						});
+					}
+				}),
+				toAction({
+					id: 'workbench.window.action.configureMemoryLimit', label: localize('configureMemoryLimit', 'Configure Memory Limit'), run: () => {
+						return this.preferencesService.openUserSettings({ query: 'files.maxMemoryForLargeFilesMB' });
+					}
+				}),
+			]);
 		}
 
 		// Fallback to handling in super type

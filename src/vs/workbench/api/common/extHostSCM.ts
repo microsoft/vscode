@@ -249,6 +249,23 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 		this.#proxy.$setValidationProviderIsEnabled(this._sourceControlHandle, !!fn);
 	}
 
+	private _enabled: boolean = true;
+
+	get enabled(): boolean {
+		return this._enabled;
+	}
+
+	set enabled(enabled: boolean) {
+		enabled = !!enabled;
+
+		if (this._enabled === enabled) {
+			return;
+		}
+
+		this._enabled = enabled;
+		this.#proxy.$setInputBoxEnablement(this._sourceControlHandle, enabled);
+	}
+
 	private _visible: boolean = true;
 
 	get visible(): boolean {
@@ -520,7 +537,11 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		const internal = actionButton !== undefined ?
 			{
 				command: this._commands.converter.toInternal(actionButton.command, this._actionButtonDisposables.value),
-				description: actionButton.description
+				secondaryCommands: actionButton.secondaryCommands?.map(commandGroup => {
+					return commandGroup.map(command => this._commands.converter.toInternal(command, this._actionButtonDisposables.value!));
+				}),
+				description: actionButton.description,
+				enabled: actionButton.enabled
 			} : undefined;
 		this.#proxy.$updateSourceControl(this.handle, { actionButton: internal ?? null });
 	}
@@ -722,7 +743,11 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		this.logService.trace('ExtHostSCM#createSourceControl', extension.identifier.value, id, label, rootUri);
 
 		type TEvent = { extensionId: string };
-		type TMeta = { extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' } };
+		type TMeta = {
+			owner: 'joaomoreno';
+			extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the extension contributing to the Source Control API.' };
+			comment: 'This is used to know what extensions contribute to the Source Control API.';
+		};
 		this._telemetry.$publicLog2<TEvent, TMeta>('api/scm/createSourceControl', {
 			extensionId: extension.identifier.value,
 		});

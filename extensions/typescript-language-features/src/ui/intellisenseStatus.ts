@@ -155,8 +155,19 @@ export class IntellisenseStatus extends Disposable {
 				break;
 			}
 			case IntellisenseState.Type.Resolved: {
+				const noConfigFileText = this._state.projectType === ProjectType.TypeScript
+					? localize('resolved.detail.noTsConfig', "No tsconfig")
+					: localize('resolved.detail.noJsConfig', "No jsconfig");
+
 				const rootPath = this._client.getWorkspaceRootForResource(this._state.resource);
 				if (!rootPath) {
+					if (this._statusItem) {
+						this._statusItem.text = noConfigFileText;
+						this._statusItem.detail = !vscode.workspace.workspaceFolders
+							? localize('resolved.detail.noOpenedFolders', 'No opened folders')
+							: localize('resolved.detail.notInOpenedFolder', 'File is not part opened folders');
+						this._statusItem.busy = false;
+					}
 					return;
 				}
 
@@ -166,10 +177,8 @@ export class IntellisenseStatus extends Disposable {
 
 				statusItem.severity = vscode.LanguageStatusSeverity.Information;
 				if (isImplicitProjectConfigFile(this._state.configFile)) {
-					statusItem.text = this._state.projectType === ProjectType.TypeScript
-						? localize('resolved.detail.noTsConfig', "No tsconfig")
-						: localize('resolved.detail.noJsConfig', "No jsconfig");
-
+					statusItem.text = noConfigFileText;
+					statusItem.detail = undefined;
 					statusItem.command = {
 						command: this.createConfigCommandId,
 						title: this._state.projectType === ProjectType.TypeScript
@@ -179,6 +188,7 @@ export class IntellisenseStatus extends Disposable {
 					};
 				} else {
 					statusItem.text = vscode.workspace.asRelativePath(this._state.configFile);
+					statusItem.detail = undefined;
 					statusItem.command = {
 						command: this.openOpenConfigCommandId,
 						title: localize('resolved.command.title.open', "Open config file"),

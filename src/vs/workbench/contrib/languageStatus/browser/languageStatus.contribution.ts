@@ -6,7 +6,7 @@
 import 'vs/css!./media/languageStatus';
 import * as dom from 'vs/base/browser/dom';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { localize } from 'vs/nls';
@@ -28,6 +28,8 @@ import { Codicon } from 'vs/base/common/codicons';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { equals } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 class LanguageStatusViewModel {
 
@@ -46,12 +48,12 @@ class StoredCounter {
 	constructor(@IStorageService private readonly _storageService: IStorageService, private readonly _key: string) { }
 
 	get value() {
-		return this._storageService.getNumber(this._key, StorageScope.GLOBAL, 0);
+		return this._storageService.getNumber(this._key, StorageScope.PROFILE, 0);
 	}
 
 	increment(): number {
 		const n = this.value + 1;
-		this._storageService.store(this._key, n, StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this._storageService.store(this._key, n, StorageScope.PROFILE, StorageTarget.MACHINE);
 		return n;
 	}
 }
@@ -115,7 +117,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 	}
 
 	private _restoreState(): void {
-		const raw = this._storageService.get(EditorStatusContribution._keyDedicatedItems, StorageScope.GLOBAL, '[]');
+		const raw = this._storageService.get(EditorStatusContribution._keyDedicatedItems, StorageScope.PROFILE, '[]');
 		try {
 			const ids = <string[]>JSON.parse(raw);
 			this._dedicated = new Set(ids);
@@ -126,10 +128,10 @@ class EditorStatusContribution implements IWorkbenchContribution {
 
 	private _storeState(): void {
 		if (this._dedicated.size === 0) {
-			this._storageService.remove(EditorStatusContribution._keyDedicatedItems, StorageScope.GLOBAL);
+			this._storageService.remove(EditorStatusContribution._keyDedicatedItems, StorageScope.PROFILE);
 		} else {
 			const raw = JSON.stringify(Array.from(this._dedicated.keys()));
-			this._storageService.store(EditorStatusContribution._keyDedicatedItems, raw, StorageScope.GLOBAL, StorageTarget.USER);
+			this._storageService.store(EditorStatusContribution._keyDedicatedItems, raw, StorageScope.PROFILE, StorageTarget.USER);
 		}
 	}
 
@@ -142,7 +144,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		const all = this._languageStatusService.getLanguageStatus(editor.getModel());
 		const combined: ILanguageStatus[] = [];
 		const dedicated: ILanguageStatus[] = [];
-		for (let item of all) {
+		for (const item of all) {
 			if (this._dedicated.has(item.id)) {
 				dedicated.push(item);
 			}
@@ -202,16 +204,21 @@ class EditorStatusContribution implements IWorkbenchContribution {
 			// animate the status bar icon whenever language status changes, repeat animation
 			// when severity is warning or error, don't show animation when showing progress/busy
 			const userHasInteractedWithStatus = this._interactionCounter.value >= 3;
-			const node = document.querySelector('.monaco-workbench .statusbar DIV#status\\.languageStatus span.codicon');
-			if (node instanceof HTMLElement) {
+			const node = document.querySelector('.monaco-workbench .statusbar DIV#status\\.languageStatus A>SPAN.codicon');
+			const container = document.querySelector('.monaco-workbench .statusbar DIV#status\\.languageStatus');
+			if (node instanceof HTMLElement && container) {
 				const _wiggle = 'wiggle';
-				const _repeat = 'repeat';
+				const _flash = 'flash';
 				if (!isOneBusy) {
+					// wiggle icon when severe or "new"
 					node.classList.toggle(_wiggle, showSeverity || !userHasInteractedWithStatus);
-					node.classList.toggle(_repeat, showSeverity);
-					this._renderDisposables.add(dom.addDisposableListener(node, 'animationend', _e => node.classList.remove(_wiggle, _repeat)));
+					this._renderDisposables.add(dom.addDisposableListener(node, 'animationend', _e => node.classList.remove(_wiggle)));
+					// flash background when severe
+					container.classList.toggle(_flash, showSeverity);
+					this._renderDisposables.add(dom.addDisposableListener(container, 'animationend', _e => container.classList.remove(_flash)));
 				} else {
-					node.classList.remove(_wiggle, _repeat);
+					node.classList.remove(_wiggle);
+					container.classList.remove(_flash);
 				}
 			}
 
@@ -226,7 +233,8 @@ class EditorStatusContribution implements IWorkbenchContribution {
 							observer.disconnect();
 						}
 					});
-					observer.observe(document.body, { childList: true, subtree: true });
+					observer.observe(hoverTarget, { childList: true, subtree: true });
+					this._renderDisposables.add(toDisposable(() => observer.disconnect()));
 				}
 			}
 		}
@@ -336,7 +344,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 	}
 
 	private _renderTextPlus(target: HTMLElement, text: string, store: DisposableStore): void {
-		for (let node of parseLinkedText(text).nodes) {
+		for (const node of parseLinkedText(text).nodes) {
 			if (typeof node === 'string') {
 				const parts = renderLabelWithIcons(node);
 				dom.append(target, ...parts);
@@ -384,3 +392,25 @@ class EditorStatusContribution implements IWorkbenchContribution {
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(EditorStatusContribution, LifecyclePhase.Restored);
+
+registerAction2(class extends Action2 {
+
+	constructor() {
+		super({
+			id: 'editor.inlayHints.Reset',
+			title: {
+				value: localize('reset', 'Reset Language Status Interaction Counter'),
+				original: 'Reset Language Status Interaction Counter'
+			},
+			category: {
+				value: localize('cat', 'View'),
+				original: 'View'
+			},
+			f1: true
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IStorageService).remove('languageStatus.interactCount', StorageScope.PROFILE);
+	}
+});

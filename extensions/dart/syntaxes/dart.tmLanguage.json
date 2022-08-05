@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dart-lang/dart-syntax-highlight/commit/a93646fe6e552d1984c24fd31b1c07dcb3ce7c21",
+	"version": "https://github.com/dart-lang/dart-syntax-highlight/commit/9d4857e114b7000d94232d83187ad142961c678a",
 	"name": "Dart",
 	"scopeName": "source.dart",
 	"patterns": [
@@ -252,7 +252,7 @@
 		"function-identifier": {
 			"patterns": [
 				{
-					"match": "([_$]*[a-z][a-zA-Z0-9_$]*)(<(?:[a-zA-Z0-9_$<>?]|,\\s*|\\s+extends\\s+)+>)?(\\(|\\s+=>)",
+					"match": "([_$]*[a-z][a-zA-Z0-9_$]*)(<(?:[a-zA-Z0-9_$<>?]|,\\s*|\\s+extends\\s+)+>)?[!?]?(\\(|\\s+=>)",
 					"captures": {
 						"1": {
 							"name": "entity.name.function.dart"

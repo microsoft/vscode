@@ -103,6 +103,9 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 	get logExtensionHostCommunication(): boolean { return !!this.args.logExtensionHostCommunication; }
 
 	@memoize
+	get enableSmokeTestDriver(): boolean { return !!this.args['enable-smoke-test-driver']; }
+
+	@memoize
 	get extensionEnabledProposedApi(): string[] | undefined {
 		if (Array.isArray(this.args['enable-proposed-api'])) {
 			return this.args['enable-proposed-api'];
@@ -123,6 +126,9 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 
 	@memoize
 	get filesToDiff(): IPath[] | undefined { return this.configuration.filesToDiff; }
+
+	@memoize
+	get filesToMerge(): IPath[] | undefined { return this.configuration.filesToMerge; }
 
 	@memoize
 	get filesToWait(): IPathsToWaitFor | undefined { return this.configuration.filesToWait; }

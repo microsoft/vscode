@@ -29,13 +29,15 @@ import { AbstractVariableResolverService } from 'vs/workbench/services/configura
 import { buildUserEnvironment } from 'vs/server/node/extensionHostConnection';
 import { IServerEnvironmentService } from 'vs/server/node/serverEnvironmentService';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 class CustomVariableResolver extends AbstractVariableResolverService {
 	constructor(
 		env: platform.IProcessEnvironment,
 		workspaceFolders: IWorkspaceFolder[],
 		activeFileResource: URI | undefined,
-		resolvedVariables: { [name: string]: string }
+		resolvedVariables: { [name: string]: string },
+		extensionService: IExtensionManagementService,
 	) {
 		super({
 			getFolderUri: (folderName: string): URI | undefined => {
@@ -68,7 +70,12 @@ class CustomVariableResolver extends AbstractVariableResolverService {
 			},
 			getLineNumber: (): string | undefined => {
 				return resolvedVariables['lineNumber'];
-			}
+			},
+			getExtension: async id => {
+				const installed = await extensionService.getInstalled();
+				const found = installed.find(e => e.identifier.id === id);
+				return found && { extensionLocation: found.location };
+			},
 		}, undefined, Promise.resolve(os.homedir()), Promise.resolve(env));
 	}
 }
@@ -89,7 +96,8 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		private readonly _environmentService: IServerEnvironmentService,
 		private readonly _logService: ILogService,
 		private readonly _ptyService: IPtyService,
-		private readonly _productService: IProductService
+		private readonly _productService: IProductService,
+		private readonly _extensionManagementService: IExtensionManagementService,
 	) {
 		super();
 	}
@@ -130,6 +138,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			case '$setTerminalLayoutInfo': return this._ptyService.setTerminalLayoutInfo(<ISetTerminalLayoutInfoArgs>args);
 			case '$serializeTerminalState': return this._ptyService.serializeTerminalState.apply(this._ptyService, args);
 			case '$reviveTerminalProcesses': return this._ptyService.reviveTerminalProcesses.apply(this._ptyService, args);
+			case '$getRevivedPtyNewId': return this._ptyService.getRevivedPtyNewId.apply(this._ptyService, args);
 			case '$setUnicodeVersion': return this._ptyService.setUnicodeVersion.apply(this._ptyService, args);
 			case '$reduceConnectionGraceTime': return this._reduceConnectionGraceTime();
 			case '$updateIcon': return this._ptyService.updateIcon.apply(this._ptyService, args);
@@ -180,7 +189,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		};
 
 
-		const baseEnv = await buildUserEnvironment(args.resolverEnv, !!args.shellLaunchConfig.useShellEnvironment, platform.language, false, this._environmentService, this._logService);
+		const baseEnv = await buildUserEnvironment(args.resolverEnv, !!args.shellLaunchConfig.useShellEnvironment, platform.language, this._environmentService, this._logService);
 		this._logService.trace('baseEnv', baseEnv);
 
 		const reviveWorkspaceFolder = (workspaceData: IWorkspaceFolderData): IWorkspaceFolder => {
@@ -196,16 +205,16 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		const workspaceFolders = args.workspaceFolders.map(reviveWorkspaceFolder);
 		const activeWorkspaceFolder = args.activeWorkspaceFolder ? reviveWorkspaceFolder(args.activeWorkspaceFolder) : undefined;
 		const activeFileResource = args.activeFileResource ? URI.revive(uriTransformer.transformIncoming(args.activeFileResource)) : undefined;
-		const customVariableResolver = new CustomVariableResolver(baseEnv, workspaceFolders, activeFileResource, args.resolvedVariables);
+		const customVariableResolver = new CustomVariableResolver(baseEnv, workspaceFolders, activeFileResource, args.resolvedVariables, this._extensionManagementService);
 		const variableResolver = terminalEnvironment.createVariableResolver(activeWorkspaceFolder, process.env, customVariableResolver);
 
 		// Get the initial cwd
-		const initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, os.homedir(), variableResolver, activeWorkspaceFolder?.uri, args.configuration['terminal.integrated.cwd'], this._logService);
+		const initialCwd = await terminalEnvironment.getCwd(shellLaunchConfig, os.homedir(), variableResolver, activeWorkspaceFolder?.uri, args.configuration['terminal.integrated.cwd'], this._logService);
 		shellLaunchConfig.cwd = initialCwd;
 
 		const envPlatformKey = platform.isWindows ? 'terminal.integrated.env.windows' : (platform.isMacintosh ? 'terminal.integrated.env.osx' : 'terminal.integrated.env.linux');
 		const envFromConfig = args.configuration[envPlatformKey];
-		const env = terminalEnvironment.createTerminalEnvironment(
+		const env = await terminalEnvironment.createTerminalEnvironment(
 			shellLaunchConfig,
 			envFromConfig,
 			variableResolver,
@@ -222,7 +231,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			}
 			const envVariableCollections = new Map<string, IEnvironmentVariableCollection>(entries);
 			const mergedCollection = new MergedEnvironmentVariableCollection(envVariableCollections);
-			mergedCollection.applyToProcessEnvironment(env);
+			await mergedCollection.applyToProcessEnvironment(env, variableResolver);
 		}
 
 		// Fork the process and listen for messages

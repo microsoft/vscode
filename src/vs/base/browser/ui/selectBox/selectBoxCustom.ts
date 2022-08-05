@@ -126,6 +126,10 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			this.selectElement.setAttribute('aria-label', this.selectBoxOptions.ariaLabel);
 		}
 
+		if (typeof this.selectBoxOptions.ariaDescription === 'string') {
+			this.selectElement.setAttribute('aria-description', this.selectBoxOptions.ariaDescription);
+		}
+
 		this._onDidSelect = new Emitter<ISelectData>();
 		this._register(this._onDidSelect);
 
@@ -164,8 +168,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		this.selectionDetailsPane = dom.append(this.selectDropDownContainer, $('.select-box-details-pane'));
 
 		// Create span flex box item/div we can measure and control
-		let widthControlOuterDiv = dom.append(this.selectDropDownContainer, $('.select-box-dropdown-container-width-control'));
-		let widthControlInnerDiv = dom.append(widthControlOuterDiv, $('.width-control-div'));
+		const widthControlOuterDiv = dom.append(this.selectDropDownContainer, $('.select-box-dropdown-container-width-control'));
+		const widthControlInnerDiv = dom.append(widthControlOuterDiv, $('.width-control-div'));
 		this.widthControlElement = document.createElement('span');
 		this.widthControlElement.className = 'option-text-width-control';
 		dom.append(widthControlInnerDiv, this.widthControlElement);
@@ -286,9 +290,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 		// Mirror options in drop-down
 		// Populate select list for non-native select mode
-		if (this.selectList) {
-			this.selectList.splice(0, this.selectList.length, this.options);
-		}
+		this.selectList?.splice(0, this.selectList.length, this.options);
 	}
 
 	public select(index: number): void {
@@ -434,7 +436,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	}
 
 	private createOption(value: string, index: number, disabled?: boolean): HTMLOptionElement {
-		let option = document.createElement('option');
+		const option = document.createElement('option');
 		option.value = value;
 		option.text = value;
 		option.disabled = !!disabled;

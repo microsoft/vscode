@@ -168,6 +168,16 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		return undefined;
 	}
 
+	async attachToRevivedProcess(id: number): Promise<ITerminalChildProcess | undefined> {
+		try {
+			const newId = await this._localPtyService.getRevivedPtyNewId(id) ?? id;
+			return await this.attachToProcess(newId);
+		} catch (e) {
+			this._logService.trace(`Couldn't attach to process ${e.message}`);
+		}
+		return undefined;
+	}
+
 	async listProcesses(): Promise<IProcessDetails[]> {
 		return this._localPtyService.listProcesses();
 	}
@@ -250,9 +260,9 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		const platformKey = isWindows ? 'windows' : (isMacintosh ? 'osx' : 'linux');
 		const envFromConfigValue = this._configurationService.getValue<ITerminalEnvironment | undefined>(`terminal.integrated.env.${platformKey}`);
 		const baseEnv = await (shellLaunchConfig.useShellEnvironment ? this.getShellEnvironment() : this.getEnvironment());
-		const env = terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, envFromConfigValue, variableResolver, this._productService.version, this._configurationService.getValue(TerminalSettingId.DetectLocale), baseEnv);
+		const env = await terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, envFromConfigValue, variableResolver, this._productService.version, this._configurationService.getValue(TerminalSettingId.DetectLocale), baseEnv);
 		if (!shellLaunchConfig.strictEnv && !shellLaunchConfig.hideFromUser) {
-			this._environmentVariableService.mergedCollection.applyToProcessEnvironment(env, variableResolver);
+			await this._environmentVariableService.mergedCollection.applyToProcessEnvironment(env, variableResolver);
 		}
 		return env;
 	}

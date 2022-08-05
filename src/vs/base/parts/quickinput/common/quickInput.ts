@@ -105,6 +105,13 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	quickNavigate?: IQuickNavigateConfiguration;
 
 	/**
+	 * Hides the input box from the picker UI. This is typically used
+	 * in combination with quick-navigation where no search UI should
+	 * be presented.
+	 */
+	hideInput?: boolean;
+
+	/**
 	 * a context key to set when this picker is active
 	 */
 	contextKey?: string;
@@ -284,6 +291,13 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	matchOnDetail: boolean;
 
 	matchOnLabel: boolean;
+
+	/**
+	 * The mode to filter label with. Fuzzy will use fuzzy searching and
+	 * contiguous will make filter entries that do not contain the exact string
+	 * (including whitespace). This defaults to `'fuzzy'`.
+	 */
+	matchOnLabelMode: 'fuzzy' | 'contiguous';
 
 	sortByLabel: boolean;
 

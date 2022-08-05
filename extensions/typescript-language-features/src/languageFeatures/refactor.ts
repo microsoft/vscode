@@ -36,6 +36,7 @@ class DidApplyRefactoringCommand implements Command {
 	public async execute(args: DidApplyRefactoringCommand_Args): Promise<void> {
 		/* __GDPR__
 			"refactor.execute" : {
+				"owner": "mjbvz",
 				"action" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 				"${include}": [
 					"${TypeScriptCommonProperties}"

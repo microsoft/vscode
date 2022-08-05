@@ -189,8 +189,10 @@ sw.addEventListener('fetch', (event) => {
 	}
 
 	// If we're making a request against the remote authority, we want to go
-	// back through VS Code itself so that we are authenticated properly
-	if (requestUrl.host === remoteAuthority) {
+	// through VS Code itself so that we are authenticated properly.  If the
+	// service worker is hosted on the same origin we will have cookies and
+	// authentication will not be an issue.
+	if (requestUrl.origin !== sw.origin && requestUrl.host === remoteAuthority) {
 		switch (event.request.method) {
 			case 'GET':
 			case 'HEAD':

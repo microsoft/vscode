@@ -7,32 +7,34 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/106744
 
-	// todo@API add NotebookEdit-type which handles all these cases?
-	// export class NotebookEdit {
-	// 	range: NotebookRange;
-	// 	newCells: NotebookCellData[];
-	// 	newMetadata?: NotebookDocumentMetadata;
-	// 	constructor(range: NotebookRange, newCells: NotebookCellData)
-	// }
-
-	// export class NotebookCellEdit {
-	// 	newMetadata?: NotebookCellMetadata;
-	// }
-
-	// export interface WorkspaceEdit {
-	// 	set(uri: Uri, edits: TextEdit[] | NotebookEdit[]): void
-	// }
-
 	export interface WorkspaceEdit {
-		// todo@API add NotebookEdit-type which handles all these cases?
 		replaceNotebookMetadata(uri: Uri, value: { [key: string]: any }): void;
+
+		/**
+		 * @deprecated Please migrate to the new `notebookWorkspaceEdit` proposed API.
+		 */
 		replaceNotebookCells(uri: Uri, range: NotebookRange, cells: NotebookCellData[], metadata?: WorkspaceEditEntryMetadata): void;
+
+		/**
+		 * @deprecated Please migrate to the new `notebookWorkspaceEdit` proposed API.
+		 */
 		replaceNotebookCellMetadata(uri: Uri, index: number, cellMetadata: { [key: string]: any }, metadata?: WorkspaceEditEntryMetadata): void;
 	}
 
 	export interface NotebookEditorEdit {
+		/**
+		 * @deprecated Please migrate to the new `notebookWorkspaceEdit` proposed API.
+		 */
 		replaceMetadata(value: { [key: string]: any }): void;
+
+		/**
+		 * @deprecated Please migrate to the new `notebookWorkspaceEdit` proposed API.
+		 */
 		replaceCells(start: number, end: number, cells: NotebookCellData[]): void;
+
+		/**
+		 * @deprecated Please migrate to the new `notebookWorkspaceEdit` proposed API.
+		 */
 		replaceCellMetadata(index: number, metadata: { [key: string]: any }): void;
 	}
 
@@ -44,10 +46,11 @@ declare module 'vscode' {
 		 * be used to make edits. Note that the edit-builder is only valid while the
 		 * callback executes.
 		 *
+		 * @deprecated Please migrate to the new `notebookWorkspaceEdit` proposed API.
+		 *
 		 * @param callback A function which can create edits using an {@link NotebookEditorEdit edit-builder}.
 		 * @return A promise that resolves with a value indicating if the edits could be applied.
 		 */
-		// @jrieken REMOVE maybe
 		edit(callback: (editBuilder: NotebookEditorEdit) => void): Thenable<boolean>;
 	}
 }

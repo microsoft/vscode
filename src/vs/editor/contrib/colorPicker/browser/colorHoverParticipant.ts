@@ -70,7 +70,7 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 			return [];
 		}
 		for (const d of lineDecorations) {
-			if (!colorDetector.isColorDecorationId(d.id)) {
+			if (!colorDetector.isColorDecoration(d)) {
 				continue;
 			}
 

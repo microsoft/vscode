@@ -52,6 +52,7 @@ const CORE_TYPES = [
 	'BigInt64Array',
 	'btoa',
 	'atob',
+	'AbortController',
 	'AbortSignal',
 	'MessageChannel',
 	'MessagePort',
@@ -69,12 +70,18 @@ const NATIVE_TYPES = [
 	'ICommonNativeHostService'
 ];
 
-const RULES = [
+const RULES: IRule[] = [
 
 	// Tests: skip
 	{
 		target: '**/vs/**/test/**',
 		skip: true // -> skip all test files
+	},
+
+	// TODO@bpasero remove me once electron utility process has landed
+	{
+		target: '**/vs/workbench/services/extensions/electron-sandbox/nativeLocalProcessExtensionHost.ts',
+		skip: true
 	},
 
 	// Common: vs/base/common/platform.ts
@@ -209,6 +216,9 @@ const RULES = [
 			// --> types from electron.d.ts that duplicate from lib.dom.d.ts
 			'Event',
 			'Request'
+		],
+		disallowedTypes: [
+			'ipcMain' // not allowed, use validatedIpcMain instead
 		],
 		disallowedDefinitions: [
 			'lib.dom.d.ts'	// no DOM

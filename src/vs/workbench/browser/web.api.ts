@@ -14,6 +14,10 @@ import type { IWorkspaceProvider } from 'vs/workbench/services/host/browser/brow
 import type { IProductConfiguration } from 'vs/base/common/product';
 import type { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
 import type { TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
+import type { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
+import { IObservableValue } from 'vs/base/common/observableValue';
+import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 
 /**
  * The `IWorkbench` interface is the API facade for web embedders
@@ -35,13 +39,24 @@ export interface IWorkbench {
 		executeCommand(command: string, ...args: any[]): Promise<unknown>;
 	};
 
+	logger: {
+
+		/**
+		 * Logging for embedder.
+		 *
+		 * @param level The log level of the message to be printed.
+		 * @param message Message to be printed.
+		 */
+		log(level: LogLevel, message: string): void;
+	};
+
 	env: {
 
 		/**
 		 * @returns the scheme to use for opening the associated desktop
 		 * experience via protocol handler.
 		 */
-		readonly uriScheme: string;
+		getUriScheme(): Promise<string>;
 
 		/**
 		 * Retrieve performance marks that have been collected during startup. This function
@@ -61,6 +76,38 @@ export interface IWorkbench {
 		 * workbench.
 		 */
 		openUri(target: URI): Promise<boolean>;
+
+		/**
+		 * Current workbench telemetry level.
+		 */
+		readonly telemetryLevel: IObservableValue<TelemetryLevel>;
+	};
+
+	window: {
+
+		/**
+		 * Show progress in the editor. Progress is shown while running the given callback
+		 * and while the promise it returned isn't resolved nor rejected.
+		 *
+		 * @param task A callback returning a promise.
+		 * @return A promise that resolves to the returned value of the given task result.
+		 */
+		withProgress<R>(
+			options: IProgressOptions | IProgressDialogOptions | IProgressNotificationOptions | IProgressWindowOptions | IProgressCompositeOptions,
+			task: (progress: IProgress<IProgressStep>) => Promise<R>
+		): Promise<R>;
+	};
+
+	workspace: {
+		/**
+		 * Forwards a port. If the current embedder implements a tunnelFactory then that will be used to make the tunnel.
+		 * By default, openTunnel only support localhost; however, a tunnelFactory can be used to support other ips.
+		 *
+		 * @throws When run in an environment without a remote.
+		 *
+		 * @param tunnelOptions The `localPort` is a suggestion only. If that port is not available another will be chosen.
+		 */
+		openTunnel(tunnelOptions: ITunnelOptions): Thenable<ITunnel>;
 	};
 
 	/**
@@ -123,6 +170,11 @@ export interface IWorkbenchConstructionOptions {
 	 * Endpoints to be used for proxying authentication code exchange calls in the browser.
 	 */
 	readonly codeExchangeProxyEndpoints?: { [providerId: string]: string };
+
+	/**
+	 * The identifier of an edit session associated with the current workspace.
+	 */
+	readonly editSessionId?: string;
 
 	/**
 	 * [TEMPORARY]: This will be removed soon.
@@ -201,7 +253,7 @@ export interface IWorkbenchConstructionOptions {
 	readonly commands?: readonly ICommand[];
 
 	/**
-	 * Optional default layout to apply on first time the workspace is opened (uness `force` is specified).
+	 * Optional default layout to apply on first time the workspace is opened (unless `force` is specified).
 	 */
 	readonly defaultLayout?: IDefaultLayout;
 
@@ -538,32 +590,42 @@ export interface IDefaultView {
 	readonly id: string;
 }
 
+/**
+ * @deprecated use `IDefaultEditor.options` instead
+ */
 export interface IPosition {
 	readonly line: number;
 	readonly column: number;
 }
 
+/**
+ * @deprecated use `IDefaultEditor.options` instead
+ */
 export interface IRange {
-
-	/**
-	 * The start position. It is before or equal to end position.
-	 */
 	readonly start: IPosition;
-
-	/**
-	 * The end position. It is after or equal to start position.
-	 */
 	readonly end: IPosition;
 }
 
 export interface IDefaultEditor {
+
 	readonly uri: UriComponents;
-	readonly selection?: IRange;
+	readonly options?: IEditorOptions;
+
 	readonly openOnlyIfExists?: boolean;
+
+	/**
+	 * @deprecated use `options` instead
+	 */
+	readonly selection?: IRange;
+
+	/**
+	 * @deprecated use `options.override` instead
+	 */
 	readonly openWith?: string;
 }
 
 export interface IDefaultLayout {
+
 	readonly views?: IDefaultView[];
 	readonly editors?: IDefaultEditor[];
 
@@ -627,4 +689,3 @@ export interface IDevelopmentOptions {
 	 */
 	readonly enableSmokeTestDriver?: boolean;
 }
-

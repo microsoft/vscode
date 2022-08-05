@@ -67,6 +67,13 @@
 		}
 	],
 	"git.ignoreLimitWarning": true,
+	"git.branchProtection": [
+		"main",
+		"release/*"
+	],
+	"git.branchProtectionPrompt": "alwaysCommitToNewBranch",
+	"git.branchRandomName.enable": true,
+	"git.mergeEditor": true,
 	"remote.extensionKind": {
 		"msjsdiag.debugger-for-chrome": "workspace"
 	},
@@ -95,9 +102,11 @@
 		"git",
 		"sash"
 	],
-	"explorer.experimental.fileNesting.patterns": {
-		"*.js": "$(capture).*.js",
-		"bootstrap.js": "bootstrap-*.js"
+	"editor.quickSuggestions": {
+		"other": "inline",
+		"comments": "inline",
+		"strings": "inline"
 	},
-	"explorer.experimental.fileNesting.enabled": true
+	"githubPullRequests.assignCreated": "${user}",
+	"githubPullRequests.defaultMergeMethod": "squash"
 }

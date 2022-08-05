@@ -39,10 +39,12 @@ export interface IWorkbenchEnvironmentService extends IEnvironmentService {
 	// --- Development
 	readonly debugRenderer: boolean;
 	readonly logExtensionHostCommunication?: boolean;
+	readonly enableSmokeTestDriver?: boolean;
 
 	// --- Editors to open
 	readonly filesToOpenOrCreate?: IPath[] | undefined;
 	readonly filesToDiff?: IPath[] | undefined;
+	readonly filesToMerge?: IPath[] | undefined;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE. AS SUCH:

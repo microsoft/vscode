@@ -88,6 +88,7 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 			this.element.setAttribute('aria-haspopup', 'true');
 			this.element.setAttribute('aria-expanded', 'false');
 			this.element.title = this._action.label || '';
+			this.element.ariaLabel = this._action.label || '';
 
 			return null;
 		};
@@ -125,7 +126,20 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 			};
 		}
 
+		this.updateTooltip();
 		this.updateEnabled();
+	}
+
+	override getTooltip(): string | undefined {
+		let title: string | null = null;
+
+		if (this.action.tooltip) {
+			title = this.action.tooltip;
+		} else if (this.action.label) {
+			title = this.action.label;
+		}
+
+		return title ?? undefined;
 	}
 
 	override setActionContext(newContext: unknown): void {
@@ -141,13 +155,11 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 	}
 
 	show(): void {
-		if (this.dropdownMenu) {
-			this.dropdownMenu.show();
-		}
+		this.dropdownMenu?.show();
 	}
 
 	protected override updateEnabled(): void {
-		const disabled = !this.getAction().enabled;
+		const disabled = !this.action.enabled;
 		this.actionItem?.classList.toggle('disabled', disabled);
 		this.element?.classList.toggle('disabled', disabled);
 	}

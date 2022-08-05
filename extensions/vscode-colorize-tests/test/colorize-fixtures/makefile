@@ -77,6 +77,10 @@ var!=echo val
 var:=val \
 notvar=butval
 var:=$(val:.c=.o)
+var:=blah#comment
+var?=blah\#not_a_comment
+var:=blah\\#comment
+var!=blah\\\#not_a_comment
 
 var-$(nested-var)=val
 

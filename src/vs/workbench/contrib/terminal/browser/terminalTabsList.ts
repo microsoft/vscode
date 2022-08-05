@@ -40,7 +40,7 @@ import { once } from 'vs/base/common/functional';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { CodeDataTransfers, containsDragType } from 'vs/workbench/browser/dnd';
+import { CodeDataTransfers, containsDragType } from 'vs/platform/dnd/browser/dnd';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
@@ -71,7 +71,6 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -103,7 +102,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			listService,
 			themeService,
 			_configurationService,
-			keybindingService,
+			instantiationService,
 		);
 
 		const instanceDisposables: IDisposable[] = [
@@ -309,7 +308,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		}
 
 		const shellIntegrationString = getShellIntegrationTooltip(instance, true);
-		const iconId = getIconId(instance);
+		const iconId = this._instantiationService.invokeFunction(getIconId, instance);
 		const hasActionbar = !this.shouldHideActionBar();
 		let label: string = '';
 		if (!hasText) {
@@ -459,12 +458,14 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 	disposeElement(instance: ITerminalInstance, index: number, templateData: ITerminalTabEntryTemplate): void {
 		templateData.elementDisposables?.dispose();
 		templateData.elementDisposables = undefined;
+		templateData.actionBar.clear();
 	}
 
 	disposeTemplate(templateData: ITerminalTabEntryTemplate): void {
 		templateData.elementDisposables?.dispose();
 		templateData.elementDisposables = undefined;
 		templateData.label.dispose();
+		templateData.actionBar.clear();
 	}
 
 	fillActionBar(instance: ITerminalInstance, template: ITerminalTabEntryTemplate): void {
@@ -625,7 +626,7 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		this._autoFocusInstance = undefined;
 
 		let sourceInstances: ITerminalInstance[] | undefined;
-		let promises: Promise<IProcessDetails | undefined>[] = [];
+		const promises: Promise<IProcessDetails | undefined>[] = [];
 		const resources = getTerminalResourcesFromDragEvent(originalEvent);
 		if (resources) {
 			for (const uri of resources) {

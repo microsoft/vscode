@@ -10,7 +10,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { getNotebookEditorFromEditorPane, IActiveNotebookEditor, ICellViewModel, cellRangeToViewCells } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SOURCE_COUNT } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { ICellRange, isICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorCommandsContext } from 'vs/workbench/common/editor';
@@ -42,7 +42,8 @@ export const enum CellToolbarOrder {
 export const enum CellOverflowToolbarGroups {
 	Copy = '1_copy',
 	Insert = '2_insert',
-	Edit = '3_edit'
+	Edit = '3_edit',
+	Share = '4_share'
 }
 
 export interface INotebookActionContext {
@@ -276,7 +277,7 @@ export abstract class NotebookCellAction<T = INotebookCellActionContext> extends
 	abstract override runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void>;
 }
 
-export const executeNotebookCondition = ContextKeyExpr.greater(NOTEBOOK_KERNEL_COUNT.key, 0);
+export const executeNotebookCondition = ContextKeyExpr.or(ContextKeyExpr.greater(NOTEBOOK_KERNEL_COUNT.key, 0), ContextKeyExpr.greater(NOTEBOOK_KERNEL_SOURCE_COUNT.key, 0));
 
 interface IMultiCellArgs {
 	ranges: ICellRange[];
@@ -426,4 +427,10 @@ MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 	title: localize('notebookMenu.cellTitle', "Notebook Cell"),
 	group: CellOverflowToolbarGroups.Insert,
 	when: NOTEBOOK_EDITOR_FOCUSED
+});
+
+MenuRegistry.appendMenuItem(MenuId.NotebookCellTitle, {
+	title: localize('miShare', "Share"),
+	submenu: MenuId.EditorContextShare,
+	group: CellOverflowToolbarGroups.Share
 });

@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as Types from 'vs/base/common/types';
 import { Schemas } from 'vs/base/common/network';
 import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
-import { IStringDictionary, forEach, fromMap } from 'vs/base/common/collections';
+import { IStringDictionary } from 'vs/base/common/collections';
 import { IConfigurationService, IConfigurationOverrides, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceFolder, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -19,6 +19,7 @@ import { ConfiguredInput } from 'vs/workbench/services/configurationResolver/com
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export abstract class BaseConfigurationResolverService extends AbstractVariableResolverService {
 
@@ -36,7 +37,8 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		private readonly workspaceContextService: IWorkspaceContextService,
 		private readonly quickInputService: IQuickInputService,
 		private readonly labelService: ILabelService,
-		private readonly pathService: IPathService
+		private readonly pathService: IPathService,
+		extensionService: IExtensionService,
 	) {
 		super({
 			getFolderUri: (folderName: string): uri | undefined => {
@@ -109,7 +111,10 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 					}
 				}
 				return undefined;
-			}
+			},
+			getExtension: id => {
+				return extensionService.getExtension(id);
+			},
 		}, labelService, pathService.userHome().then(home => home.path), envVariablesPromise);
 	}
 
@@ -123,7 +128,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 			if (!mapping) {
 				return null;
 			} else if (mapping.size > 0) {
-				return this.resolveAnyAsync(folder, config, fromMap(mapping));
+				return this.resolveAnyAsync(folder, config, Object.fromEntries(mapping));
 			} else {
 				return config;
 			}
@@ -152,9 +157,9 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		if (!newMapping) {
 			return false;
 		}
-		forEach(newMapping, (entry) => {
-			fullMapping.set(entry.key, entry.value);
-		});
+		for (const [key, value] of Object.entries(newMapping)) {
+			fullMapping.set(key, value);
+		}
 		return true;
 	}
 
@@ -176,7 +181,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		let inputs: ConfiguredInput[] = [];
 		if (this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY && section) {
 			const overrides: IConfigurationOverrides = folder ? { resource: folder.uri } : {};
-			let result = this.configurationService.inspect(section, overrides);
+			const result = this.configurationService.inspect(section, overrides);
 			if (result && (result.userValue || result.workspaceValue || result.workspaceFolderValue)) {
 				switch (target) {
 					case ConfigurationTarget.USER: inputs = (<any>result.userValue)?.inputs; break;
@@ -251,20 +256,21 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 					}
 				}
 			}
-			this._contributedVariables.forEach((value, contributed: string) => {
+			for (const contributed of this._contributedVariables.keys()) {
 				if ((variables.indexOf(contributed) < 0) && (object.indexOf('${' + contributed + '}') >= 0)) {
 					variables.push(contributed);
 				}
-			});
-		} else if (Types.isArray(object)) {
-			object.forEach(value => {
+			}
+		} else if (Array.isArray(object)) {
+			for (const value of object) {
 				this.findVariables(value, variables);
-			});
+
+			}
 		} else if (object) {
-			Object.keys(object).forEach(key => {
-				const value = object[key];
+			for (const value of Object.values(object)) {
 				this.findVariables(value, variables);
-			});
+
+			}
 		}
 	}
 
@@ -309,12 +315,12 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 					if (!Types.isString(info.description)) {
 						missingAttribute('description');
 					}
-					if (Types.isArray(info.options)) {
-						info.options.forEach(pickOption => {
+					if (Array.isArray(info.options)) {
+						for (const pickOption of info.options) {
 							if (!Types.isString(pickOption) && !Types.isString(pickOption.value)) {
 								missingAttribute('value');
 							}
-						});
+						}
 					} else {
 						missingAttribute('options');
 					}
@@ -322,7 +328,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 						value: string;
 					}
 					const picks = new Array<PickStringItem>();
-					info.options.forEach(pickOption => {
+					for (const pickOption of info.options) {
 						const value = Types.isString(pickOption) ? pickOption : pickOption.value;
 						const label = Types.isString(pickOption) ? undefined : pickOption.label;
 
@@ -338,7 +344,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 						} else {
 							picks.push(item);
 						}
-					});
+					}
 					const pickOptions: IPickOptions<PickStringItem> = { placeHolder: info.description, matchOnDetail: true, ignoreFocusLost: true };
 					return this.quickInputService.pick(picks, pickOptions, undefined).then(resolvedInput => {
 						if (resolvedInput) {

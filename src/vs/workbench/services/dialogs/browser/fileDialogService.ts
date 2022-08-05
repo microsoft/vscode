@@ -16,7 +16,7 @@ import { basename } from 'vs/base/common/resources';
 import { triggerDownload, triggerUpload } from 'vs/base/browser/dom';
 import Severity from 'vs/base/common/severity';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { extractFileListData } from 'vs/workbench/browser/dnd';
+import { extractFileListData } from 'vs/platform/dnd/browser/dnd';
 import { Iterable } from 'vs/base/common/iterator';
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
 
@@ -223,29 +223,28 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		// Otherwise inform the user about options
 
 		const buttons = context === 'open' ?
-			[localize('openRemote', "Open Remote..."), localize('openFiles', "Open Files..."), localize('learnMore', "Learn More")] :
+			[localize('openRemote', "Open Remote..."), localize('learnMore', "Learn More"), localize('openFiles', "Open Files...")] :
 			[localize('openRemote', "Open Remote..."), localize('learnMore', "Learn More")];
 
 		const res = await this.dialogService.show(
 			Severity.Warning,
-			localize('unsupportedBrowserMessage', "Local File System Access is Unsupported"),
+			localize('unsupportedBrowserMessage', "Opening Local Folders is Unsupported"),
 			buttons,
 			{
-				detail: localize('unsupportedBrowserDetail', "Your current browser doesn't support local file system access.\nYou can either open single files or open a remote repository."),
+				detail: localize('unsupportedBrowserDetail', "Your browser doesn't support opening local folders.\nYou can either open single files or open a remote repository."),
 				cancelId: -1 // no "Cancel" button offered
 			}
 		);
 
 		switch (res.choice) {
-
-			// Open Remote...
 			case 0:
 				this.commandService.executeCommand('workbench.action.remote.showMenu');
 				break;
-
-			// Open Files... (context === 'open')
 			case 1:
-				if (context === 'open') {
+				this.openerService.open('https://aka.ms/VSCodeWebLocalFileSystemAccess');
+				break;
+			case 2:
+				{
 					const files = await triggerUpload();
 					if (files) {
 						const filesData = (await this.instantiationService.invokeFunction(accessor => extractFileListData(accessor, files))).filter(fileData => !fileData.isDirectory);
@@ -259,14 +258,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 							}));
 						}
 					}
-					break;
-				} else {
-					// Fallthrough for "Learn More"
 				}
-
-			// Learn More
-			case 2:
-				this.openerService.open('https://aka.ms/VSCodeWebLocalFileSystemAccess');
 				break;
 		}
 

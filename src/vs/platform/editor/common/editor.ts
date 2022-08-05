@@ -265,6 +265,15 @@ export interface IEditorOptions {
 	 * Will not show an error in case opening the editor fails and thus allows to show a custom error
 	 * message as needed. By default, an error will be presented as notification if opening was not possible.
 	 */
+
+	/**
+	 * In case of an error opening the editor, will not present this error to the user (e.g. by showing
+	 * a generic placeholder in the editor area). So it is up to the caller to provide error information
+	 * in that case.
+	 *
+	 * By default, an error when opening an editor will result in a placeholder editor that shows the error.
+	 * In certain cases a modal dialog may be presented to ask the user for further action.
+	 */
 	ignoreError?: boolean;
 
 	/**

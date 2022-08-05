@@ -55,7 +55,8 @@ suite('ExtHostWebview', () => {
 			title: 'title',
 			state: {},
 			panelOptions: {},
-			webviewOptions: {}
+			webviewOptions: {},
+			active: true,
 		}, 0 as EditorGroupColumn);
 		assert.strictEqual(lastInvokedDeserializer, serializerA);
 
@@ -71,7 +72,8 @@ suite('ExtHostWebview', () => {
 			title: 'title',
 			state: {},
 			panelOptions: {},
-			webviewOptions: {}
+			webviewOptions: {},
+			active: true,
 		}, 0 as EditorGroupColumn);
 		assert.strictEqual(lastInvokedDeserializer, serializerB);
 	});
