@@ -213,9 +213,9 @@ export class PtyService extends Disposable implements IPtyService {
 	async attachToProcess(id: number): Promise<void> {
 		try {
 			await this._throwIfNoPty(id).attach();
-			this._logService.trace(`Persistent process reconnection "${id}"`);
+			this._logService.info(`Persistent process reconnection "${id}"`);
 		} catch (e) {
-			this._logService.trace(`Persistent process reconnection "${id}" failed`, e.message);
+			this._logService.warn(`Persistent process reconnection "${id}" failed`, e.message);
 			throw e;
 		}
 	}
@@ -341,7 +341,7 @@ export class PtyService extends Disposable implements IPtyService {
 		try {
 			return this._revivedPtyIdMap.get(id)?.newId;
 		} catch (e) {
-			this._logService.trace(`Couldn't find terminal ID ${id}`, e.message);
+			this._logService.warn(`Couldn't find terminal ID ${id}`, e.message);
 		}
 		return undefined;
 	}
@@ -384,7 +384,7 @@ export class PtyService extends Disposable implements IPtyService {
 				relativeSize: t.relativeSize
 			};
 		} catch (e) {
-			this._logService.trace(`Couldn't get layout info, a terminal was probably disconnected`, e.message);
+			this._logService.warn(`Couldn't get layout info, a terminal was probably disconnected`, e.message);
 			// this will be filtered out and not reconnected
 			return {
 				terminal: null,
