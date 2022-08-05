@@ -390,13 +390,9 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 	/**
 	 * Returns element to focus after removing the given element
 	 */
-	getElementToFocusAfterRemoved(viewer: WorkbenchObjectTree<RenderableMatch>, lastElementToBeRemoved: RenderableMatch, firstElementToBeRemoved?: RenderableMatch): RenderableMatch {
-		if (!firstElementToBeRemoved) {
-			firstElementToBeRemoved = lastElementToBeRemoved;
-		}
-
-		const elementToFocus = this.getNextElementAfterRemoved(viewer, lastElementToBeRemoved);
-		return elementToFocus || this.getPreviousElementAfterRemoved(viewer, firstElementToBeRemoved);
+	getElementToFocusAfterRemoved(viewer: WorkbenchObjectTree<RenderableMatch>, elementToRemove: RenderableMatch): RenderableMatch {
+		const elementToFocus = this.getNextElementAfterRemoved(viewer, elementToRemove);
+		return elementToFocus || this.getPreviousElementAfterRemoved(viewer, elementToRemove);
 	}
 
 	getNextElementAfterRemoved(viewer: WorkbenchObjectTree<RenderableMatch>, element: RenderableMatch): RenderableMatch {
@@ -449,7 +445,7 @@ class ReplaceActionRunner {
 	constructor(
 		private viewer: WorkbenchObjectTree<RenderableMatch>,
 		private viewlet: SearchView | undefined,
-		private getElementToFocusAfterRemoved: (viewer: WorkbenchObjectTree<RenderableMatch>, lastElementToBeRemoved: RenderableMatch, firstElementToBeRemoved: RenderableMatch) => RenderableMatch,
+		private getElementToFocusAfterRemoved: (viewer: WorkbenchObjectTree<RenderableMatch>, lastElementToBeRemoved: RenderableMatch) => RenderableMatch,
 		private getPreviousElementAfterRemoved: (viewer: WorkbenchObjectTree<RenderableMatch>, element: RenderableMatch) => RenderableMatch,
 		// Services
 		@IReplaceService private readonly replaceService: IReplaceService,
@@ -462,22 +458,6 @@ class ReplaceActionRunner {
 		// since multiple elements can be selected, we need to check the type of the FolderMatch/FileMatch/Match before we perform the replace.
 		const opInfo = getElementsToOperateOnInfo(this.viewer, element, this.configurationService.getValue<ISearchConfigurationProperties>('search'));
 		const elementsToReplace = opInfo.elements;
-
-		if (elementsToReplace.length === 0) {
-			return;
-		}
-
-		const currentBottomFocusElement = elementsToReplace[elementsToReplace.length - 1];
-		const currentTopFocusElement = elementsToReplace[0];
-
-		if (!(currentBottomFocusElement instanceof Match)) {
-			const nextFocusElement = this.getElementToFocusAfterRemoved(this.viewer, currentBottomFocusElement, currentTopFocusElement);
-
-			if (nextFocusElement) {
-				this.viewer.setFocus([nextFocusElement], getSelectionKeyboardEvent());
-				this.viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
-			}
-		}
 
 		await Promise.all(elementsToReplace.map(async (elem) => {
 			const parent = elem.parent();
@@ -496,6 +476,7 @@ class ReplaceActionRunner {
 			}
 		}));
 
+		const currentBottomFocusElement = elementsToReplace[elementsToReplace.length - 1];
 
 		if (currentBottomFocusElement instanceof Match) {
 			const elementToFocus = this.getElementToFocusAfterReplace(currentBottomFocusElement);
@@ -516,6 +497,13 @@ class ReplaceActionRunner {
 			}
 			return;
 		} else {
+			const nextFocusElement = this.getElementToFocusAfterRemoved(this.viewer, currentBottomFocusElement);
+
+			if (nextFocusElement) {
+				this.viewer.setFocus([nextFocusElement], getSelectionKeyboardEvent());
+				this.viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
+			}
+
 			this.viewer.domFocus();
 
 			if (element instanceof FileMatch) {
@@ -597,24 +585,26 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 		super(Constants.RemoveActionId, appendKeyBindingLabel(RemoveAction.LABEL, keyBindingService.lookupKeybinding(Constants.RemoveActionId), keyBindingService), ThemeIcon.asClassName(searchRemoveIcon));
 	}
 
-	override run(): Promise<any> {
+	override async run(): Promise<any> {
 		const opInfo = getElementsToOperateOnInfo(this.viewer, this.element, this.configurationService.getValue<ISearchConfigurationProperties>('search'));
 		const elementsToRemove = opInfo.elements;
 
 		if (elementsToRemove.length === 0) {
-			return Promise.resolve();
+			return;
 		}
 
-		const currentBottomFocusElement = elementsToRemove[elementsToRemove.length - 1];
-		const currentTopFocusElement = elementsToRemove[0];
-		const nextFocusElement = opInfo.mustReselect && (!currentBottomFocusElement || currentBottomFocusElement instanceof SearchResult || arrayContainsElementOrParent(currentBottomFocusElement, elementsToRemove)) ?
-			this.getElementToFocusAfterRemoved(this.viewer, currentBottomFocusElement, currentTopFocusElement) :
-			null;
-
-		if (nextFocusElement) {
-			this.viewer.reveal(nextFocusElement);
-			this.viewer.setFocus([nextFocusElement], getSelectionKeyboardEvent());
-			this.viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
+		if (opInfo.mustReselect) {
+			for (const currentElement of elementsToRemove) {
+				const nextFocusElement = !currentElement || currentElement instanceof SearchResult || arrayContainsElementOrParent(currentElement, elementsToRemove) ?
+					this.getElementToFocusAfterRemoved(this.viewer, currentElement) :
+					null;
+				if (nextFocusElement && !elementsToRemove.includes(nextFocusElement)) {
+					this.viewer.reveal(nextFocusElement);
+					this.viewer.setFocus([nextFocusElement], getSelectionKeyboardEvent());
+					this.viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
+					break;
+				}
+			}
 		}
 
 		elementsToRemove.forEach((currentElement) =>
@@ -622,7 +612,7 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 		);
 
 		this.viewer.domFocus();
-		return Promise.resolve();
+		return;
 	}
 }
 
