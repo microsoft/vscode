@@ -276,7 +276,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		if (!this._hasReconnected && this._reconnectTerminals && this._reconnectTerminals.length > 0) {
 			this._reviveTerminals();
 		}
-		console.log('starting reconnection', this._reconnectTerminals);
 		for (const { task, resolver } of this._reconnectTasks) {
 			const executeResult = this.run(task, resolver, Triggers.reconnect);
 			this._fireTaskEvent(TaskEvent.create(TaskEventKind.ExecuteReconnectedResult, undefined, undefined, undefined, executeResult));
@@ -1290,7 +1289,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	}
 
 	private async _reconnectToTerminal(task: Task): Promise<ITerminalInstance | undefined> {
-		console.log('reconnected terminals', this._reconnectTerminals);
 		for (let i = 0; i < this._reconnectTerminals.length; i++) {
 			const terminal = this._reconnectTerminals[i];
 			const taskForTerminal = terminal.shellLaunchConfig.attachPersistentProcess?.reconnectionProperties?.data as IReconnectionTaskData;
@@ -1305,13 +1303,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private async _doCreateTerminal(task: Task, group: string | undefined, launchConfigs: IShellLaunchConfig): Promise<ITerminalInstance> {
 		const reconnectedTerminal = await this._reconnectToTerminal(task);
 		if (reconnectedTerminal) {
-			console.log('reconnected terminal', task, reconnectedTerminal);
 			if ('command' in task && task.command.presentation) {
 				reconnectedTerminal.waitOnExit = getWaitOnExitValue(task.command.presentation, task.configurationProperties);
 			}
 			return reconnectedTerminal;
-		} else {
-			console.log('new terminal', task);
 		}
 		if (group) {
 			// Try to find an existing terminal to split.

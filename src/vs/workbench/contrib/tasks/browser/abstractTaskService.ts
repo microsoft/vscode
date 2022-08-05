@@ -350,7 +350,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private async _reconnectTasks(): Promise<void> {
 		const tasks = await this.getSavedTasks('persistent');
 		this._register(this.onDidStateChange(e => {
-			console.log(e);
 			if (e && e.kind === TaskEventKind.ExecuteReconnectedResult && this._taskSystem && e.executeResult) {
 				this._handleExecuteResult(e.executeResult, TaskRunSource.Reconnect);
 			}
