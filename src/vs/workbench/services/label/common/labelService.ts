@@ -145,7 +145,7 @@ export class LabelService extends Disposable implements ILabelService {
 
 		const memento = this.storedFormattersMemento = new Memento('cachedResourceLabelFormatters', storageService);
 		this.storedFormatters = memento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
-		this.formatters = this.storedFormatters?.formatters || [];
+		this.formatters = this.storedFormatters?.formatters?.slice() || [];
 
 		// Remote environment is potentially long running
 		this.resolveRemoteEnvironment();
