@@ -843,22 +843,3 @@ function getElementsToOperateOnInfo(viewer: WorkbenchObjectTree<RenderableMatch,
 
 	return { elements, mustReselect };
 }
-
-// function sortRenderableMatches(renderableMatches: RenderableMatch[]): { matches: Match[]; fileMatches: FileMatch[], folderMatches: (FolderMatch | FolderMatchWithResource)[] } {
-// 	const matches: Match[] = [];;
-// 	const fileMatches: FileMatch[] = [];
-// 	const folderMatches: (FolderMatch | FolderMatchWithResource)[] = [];
-
-// 	renderableMatches.forEach((match) => {
-
-// 		if (match instanceof Match) {
-// 			matches.push(match);
-// 		} else if (match instanceof FileMatch) {
-// 			fileMatches.push(match);
-// 		} else {
-// 			folderMatches.push(match);
-// 		}
-// 	});
-
-// 	return { matches, fileMatches, folderMatches };
-// }

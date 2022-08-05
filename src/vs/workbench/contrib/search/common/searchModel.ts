@@ -293,7 +293,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		this.updateMatches(matches, true);
 	}
 
-	private updatesMatchesForLineAfterReplace(lineNumber: number, modelChange: boolean, supressRefreshSearchResult: boolean = false): void {
+	private updatesMatchesForLineAfterReplace(lineNumber: number, modelChange: boolean, supressRefreshSearchResult: boolean): void {
 		if (!this._model) {
 			return;
 		}
@@ -805,6 +805,18 @@ export class SearchResult extends Disposable {
 			if (e.removed) {
 				this._isDirty = !this.isEmpty();
 			}
+
+			if (e.supressRefreshSearchResult) {
+				if (e.added) {
+					this._dirtyAddedElemQ = true;
+					this._addedElemQ = this._addedElemQ.concat(e.elements);
+				} else if (e.removed) {
+					this._dirtyRemovedElemQ = true;
+					this._removedElemQ = this._removedElemQ.concat(e.elements);
+				}
+			} else {
+				this._onRefreshSearchResult.fire(e);
+			}
 		}));
 	}
 
@@ -856,24 +868,9 @@ export class SearchResult extends Disposable {
 
 	private _createBaseFolderMatch(folderMatchClass: typeof FolderMatch | typeof FolderMatchWithResource, resource: URI | null, id: string, index: number, query: ITextQuery): FolderMatch {
 		const folderMatch = this.instantiationService.createInstance(folderMatchClass, resource, id, index, query, this, this._searchModel);
-		const disposable = folderMatch.onChange((event) => this.handleOnChange(event));
+		const disposable = folderMatch.onChange((event) => this._onChange.fire(event));
 		folderMatch.onDispose(() => disposable.dispose());
 		return folderMatch;
-	}
-
-	private handleOnChange(event: IChangeEvent) {
-		this._onChange.fire(event);
-		if (event.supressRefreshSearchResult) {
-			if (event.added) {
-				this._dirtyAddedElemQ = true;
-				this._addedElemQ = this._addedElemQ.concat(event.elements);
-			} else if (event.removed) {
-				this._dirtyRemovedElemQ = true;
-				this._removedElemQ = this._removedElemQ.concat(event.elements);
-			}
-		} else {
-			this._onRefreshSearchResult.fire(event);
-		}
 	}
 
 	get searchModel(): SearchModel {
