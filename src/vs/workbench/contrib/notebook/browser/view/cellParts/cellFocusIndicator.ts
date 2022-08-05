@@ -11,7 +11,6 @@ import { CellTitleToolbarPart } from 'vs/workbench/contrib/notebook/browser/view
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookLayoutConfiguration } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 
 export class CellFocusIndicator extends CellPart {
 	public codeFocusIndicator: FastDomNode<HTMLElement>;
