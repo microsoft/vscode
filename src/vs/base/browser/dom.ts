@@ -836,11 +836,12 @@ export interface EventLike {
 }
 
 export const EventHelper = {
-	stop: function (e: EventLike, cancelBubble?: boolean) {
+	stop: <T extends EventLike>(e: T, cancelBubble?: boolean): T => {
 		e.preventDefault();
 		if (cancelBubble) {
 			e.stopPropagation();
 		}
+		return e;
 	}
 };
 
