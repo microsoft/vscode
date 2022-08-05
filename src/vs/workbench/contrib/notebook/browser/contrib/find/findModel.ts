@@ -189,20 +189,28 @@ export class FindModel extends Disposable {
 			return;
 		}
 
+		const findFirstMatchAfterCellIndex = (cellIndex: number) => {
+			const matchAfterSelection = findFirstInSorted(findMatches.map(match => match.index), index => index >= cellIndex);
+			this._updateCurrentMatch(findMatches, this._matchesCountBeforeIndex(findMatches, matchAfterSelection));
+		};
+
 		if (this._currentMatch === -1) {
 			// no active current match
-			this.set(findMatches, false);
-			return;
+			if (this._notebookEditor.getLength() === 0) {
+				this.set(findMatches, false);
+				return;
+			} else {
+				const focus = this._notebookEditor.getFocus().start;
+				findFirstMatchAfterCellIndex(focus);
+				this.set(findMatches, false);
+				return;
+			}
 		}
 
 		const oldCurrIndex = this._findMatchesStarts!.getIndexOf(this._currentMatch);
 		const oldCurrCell = this._findMatches[oldCurrIndex.index].cell;
 		const oldCurrMatchCellIndex = this._notebookEditor.getCellIndex(oldCurrCell);
 
-		const findFirstMatchAfterCellIndex = (cellIndex: number) => {
-			const matchAfterSelection = findFirstInSorted(findMatches.map(match => match.index), index => index >= cellIndex);
-			this._updateCurrentMatch(findMatches, this._matchesCountBeforeIndex(findMatches, matchAfterSelection));
-		};
 
 		if (oldCurrMatchCellIndex < 0) {
 			// the cell containing the active match is deleted
