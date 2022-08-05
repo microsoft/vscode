@@ -361,16 +361,8 @@ class SizeUtils {
 	}
 
 	private static getDimension(element: HTMLElement, cssPropertyName: string, jsPropertyName: string): number {
-		const computedStyle: CSSStyleDeclaration = getComputedStyle(element);
-		let value = '0';
-		if (computedStyle) {
-			if (computedStyle.getPropertyValue) {
-				value = computedStyle.getPropertyValue(cssPropertyName);
-			} else {
-				// IE8
-				value = (<any>computedStyle).getAttribute(jsPropertyName);
-			}
-		}
+		const computedStyle = getComputedStyle(element);
+		const value = computedStyle ? computedStyle.getPropertyValue(cssPropertyName) : '0';
 		return SizeUtils.convertToPixels(element, value);
 	}
 
@@ -891,20 +883,9 @@ export interface EventLike {
 
 export const EventHelper = {
 	stop: function (e: EventLike, cancelBubble?: boolean) {
-		if (e.preventDefault) {
-			e.preventDefault();
-		} else {
-			// IE8
-			(<any>e).returnValue = false;
-		}
-
+		e.preventDefault();
 		if (cancelBubble) {
-			if (e.stopPropagation) {
-				e.stopPropagation();
-			} else {
-				// IE8
-				(<any>e).cancelBubble = true;
-			}
+			e.stopPropagation();
 		}
 	}
 };
