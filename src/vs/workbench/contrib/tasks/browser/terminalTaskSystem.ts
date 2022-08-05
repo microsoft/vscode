@@ -211,6 +211,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private _hasReconnected: boolean = false;
 	private readonly _onDidStateChange: Emitter<ITaskEvent>;
 	private _reconnectTerminals: ITerminalInstance[] = [];
+	private _reconnectTasks: { task: Task; resolver: ITaskResolver }[] = [];
+
+	private readonly _onDidExecuteReconnectedTask: Emitter<ITaskExecuteResult> = new Emitter();
 
 	get taskShellIntegrationStartSequence(): string {
 		return this._configurationService.getValue(TaskSettingId.ShowDecorations) ? VSCodeSequence(VSCodeOscPt.PromptStart) + VSCodeSequence(VSCodeOscPt.Property, `${VSCodeOscProperty.Task}=True`) + VSCodeSequence(VSCodeOscPt.CommandStart) : '';
@@ -252,10 +255,15 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		this._onDidStateChange = new Emitter();
 		this._taskSystemInfoResolver = taskSystemInfoResolver;
 		this._register(this._terminalStatusManager = new TaskTerminalStatus(taskService));
+		this._register(this._terminalService.onDidChangeConnectionState(() => this._startReconnection()));
 	}
 
 	public get onDidStateChange(): Event<ITaskEvent> {
 		return this._onDidStateChange.event;
+	}
+
+	public get onDidExecuteReconnectedTask(): Event<ITaskExecuteResult> {
+		return this._onDidExecuteReconnectedTask.event;
 	}
 
 	private _log(value: string): void {
@@ -266,7 +274,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		this._outputService.showChannel(this._outputChannelId, true);
 	}
 
-	public reconnect(task: Task, resolver: ITaskResolver, trigger: string = Triggers.reconnect): ITaskExecuteResult | undefined {
+	private async _startReconnection(): Promise<void> {
 		this._reconnectTerminals = this._terminalService.getReconnectedTerminals(ReconnectionType) || [];
 		if (this._reconnectTerminals?.length === 0) {
 			return;
@@ -274,7 +282,17 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		if (!this._hasReconnected && this._reconnectTerminals && this._reconnectTerminals.length > 0) {
 			this._reviveTerminals();
 		}
-		return this.run(task, resolver, trigger);
+		console.log('starting reconnection', this._reconnectTerminals);
+		for (const { task, resolver } of this._reconnectTasks) {
+			const executeResult = this.run(task, resolver, Triggers.reconnect);
+			this._fireTaskEvent(TaskEvent.create(TaskEventKind.ExecuteReconnectedResult, undefined, undefined, undefined, executeResult));
+		}
+	}
+
+	public reconnect(task: Task, resolver: ITaskResolver, trigger: string = Triggers.reconnect): undefined {
+		// store the requests until the terminals have been reconnected to
+		this._reconnectTasks.push({ task, resolver });
+		return undefined;
 	}
 
 	public run(task: Task, resolver: ITaskResolver, trigger: string = Triggers.command): ITaskExecuteResult {
@@ -1278,6 +1296,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	}
 
 	private async _reconnectToTerminal(task: Task): Promise<ITerminalInstance | undefined> {
+		console.log('reconnected terminals', this._reconnectTerminals);
 		for (let i = 0; i < this._reconnectTerminals.length; i++) {
 			const terminal = this._reconnectTerminals[i];
 			const taskForTerminal = terminal.shellLaunchConfig.attachPersistentProcess?.reconnectionProperties?.data as IReconnectionTaskData;
@@ -1292,10 +1311,13 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private async _doCreateTerminal(task: Task, group: string | undefined, launchConfigs: IShellLaunchConfig): Promise<ITerminalInstance> {
 		const reconnectedTerminal = await this._reconnectToTerminal(task);
 		if (reconnectedTerminal) {
+			console.log('reconnected terminal', task, reconnectedTerminal);
 			if ('command' in task && task.command.presentation) {
 				reconnectedTerminal.waitOnExit = getWaitOnExitValue(task.command.presentation, task.configurationProperties);
 			}
 			return reconnectedTerminal;
+		} else {
+			console.log('new terminal', task);
 		}
 		if (group) {
 			// Try to find an existing terminal to split.

@@ -55,7 +55,8 @@ import {
 	KeyedTaskIdentifier as KeyedTaskIdentifier, TaskDefinition, RuntimeType,
 	USER_TASKS_GROUP_KEY,
 	TaskSettingId,
-	TasksSchemaProperties
+	TasksSchemaProperties,
+	TaskEventKind
 } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ITaskService, ITaskProvider, IProblemMatcherRunOptions, ICustomizationProperties, ITaskFilter, IWorkspaceFolderTaskResult, CustomExecutionSupportedContext, ShellExecutionSupportedContext, ProcessExecutionSupportedContext, TaskCommandsRegistered } from 'vs/workbench/contrib/tasks/common/taskService';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/common/taskTemplates';
@@ -297,6 +298,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._taskRunningState = TASK_RUNNING_STATE.bindTo(_contextKeyService);
 		this._onDidStateChange = this._register(new Emitter());
 		this._registerCommands().then(() => TaskCommandsRegistered.bindTo(this._contextKeyService).set(true));
+		this._register(this.onDidStateChange(e => {
+			console.log(e);
+			if (e && e.kind === TaskEventKind.ExecuteReconnectedResult && this._taskSystem && e.executeResult) {
+				this._handleExecuteResult(e.executeResult, TaskRunSource.Reconnect);
+			}
+		}));
 		this._configurationResolverService.contributeVariable('defaultBuildTask', async (): Promise<string | undefined> => {
 			let tasks = await this._getTasksForGroup(TaskGroup.Build);
 			if (tasks.length > 0) {
@@ -1820,7 +1827,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _handleExecuteResult(executeResult: ITaskExecuteResult, runSource?: TaskRunSource): Promise<ITaskSummary> {
-		if (this._configurationService.getValue(TaskSettingId.Reconnection) === true) {
+		if (this._configurationService.getValue(TaskSettingId.Reconnection) === true && runSource !== TaskRunSource.Reconnect) {
 			await this._setPersistentTask(executeResult.task);
 		}
 		if (runSource === TaskRunSource.User) {

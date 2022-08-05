@@ -16,6 +16,7 @@ import { RawContextKey, ContextKeyExpression } from 'vs/platform/contextkey/comm
 import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { ITaskExecuteResult } from 'vs/workbench/contrib/tasks/common/taskSystem';
 
 
 export const USER_TASKS_GROUP_KEY = 'settings';
@@ -1105,7 +1106,8 @@ export const enum TaskEventKind {
 	Changed = 'changed',
 	Terminated = 'terminated',
 	ProcessEnded = 'processEnded',
-	End = 'end'
+	End = 'end',
+	ExecuteReconnectedResult = 'ExecuteReconnectedResult'
 }
 
 
@@ -1125,6 +1127,7 @@ export interface ITaskEvent {
 	terminalId?: number;
 	__task?: Task;
 	resolvedVariables?: Map<string, string>;
+	executeResult?: ITaskExecuteResult;
 }
 
 export const enum TaskRunSource {
@@ -1140,7 +1143,8 @@ export namespace TaskEvent {
 	export function create(kind: TaskEventKind.Start, task: Task, terminalId?: number, resolvedVariables?: Map<string, string>): ITaskEvent;
 	export function create(kind: TaskEventKind.AcquiredInput | TaskEventKind.DependsOnStarted | TaskEventKind.Start | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.Terminated | TaskEventKind.End, task: Task): ITaskEvent;
 	export function create(kind: TaskEventKind.Changed): ITaskEvent;
-	export function create(kind: TaskEventKind, task?: Task, processIdOrExitCodeOrTerminalId?: number, resolvedVariables?: Map<string, string>): ITaskEvent {
+	export function create(kind: TaskEventKind.ExecuteReconnectedResult, task?: Task, processIdOrExitCodeOrTerminalId?: number, resolvedVariables?: Map<string, string>, executeResult?: ITaskExecuteResult): ITaskEvent;
+	export function create(kind: TaskEventKind, task?: Task, processIdOrExitCodeOrTerminalId?: number, resolvedVariables?: Map<string, string>, executeResult?: ITaskExecuteResult): ITaskEvent {
 		if (task) {
 			const result: ITaskEvent = {
 				kind: kind,
@@ -1152,6 +1156,7 @@ export namespace TaskEvent {
 				exitCode: undefined as number | undefined,
 				terminalId: undefined as number | undefined,
 				__task: task,
+				executeResult
 			};
 			if (kind === TaskEventKind.Start) {
 				result.terminalId = processIdOrExitCodeOrTerminalId;
