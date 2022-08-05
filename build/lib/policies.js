@@ -438,8 +438,8 @@ async function getNLS(resourceUrlTemplate, languageId, version) {
     }
     catch (err) {
         if (/\[404\]/.test(err.message)) {
-            console.warn(`Language pack ${languageId}@${version} is missing. Downloading previous version...`);
             const thePreviousVersion = previousVersion(version);
+            console.warn(`Language pack ${languageId}@${version} is missing. Downloading previous version ${thePreviousVersion}...`);
             try {
                 return await getSpecificNLS(resourceUrlTemplate, languageId, thePreviousVersion);
             }
