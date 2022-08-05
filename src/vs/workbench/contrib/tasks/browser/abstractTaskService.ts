@@ -342,10 +342,16 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			processContext.set(process && !isVirtual);
 		}
 		this._onDidRegisterSupportedExecutions.fire();
+		if (this._configurationService.getValue(TaskSettingId.Reconnection) === true && this._jsonTasksSupported && !this._tasksReconnected) {
+			this._reconnectTasks();
+		}
 	}
 
 	private async _reconnectTasks(): Promise<void> {
 		const tasks = await this.getSavedTasks('persistent');
+		if (!this._taskSystem) {
+			await this._getTaskSystem();
+		}
 		this._register(this._taskSystem!.onDidStateChange(e => {
 			if (e && e.kind === TaskEventKind.ExecuteReconnectedResult && this._taskSystem && e.executeResult) {
 				this._handleExecuteResult(e.executeResult, TaskRunSource.Reconnect);
@@ -646,9 +652,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 		if (this.hasTaskSystemInfo) {
 			this._onDidChangeTaskSystemInfo.fire();
-		}
-		if (this._taskSystem && this._configurationService.getValue(TaskSettingId.Reconnection) === true && this._jsonTasksSupported && !this._tasksReconnected) {
-			this._reconnectTasks();
 		}
 	}
 

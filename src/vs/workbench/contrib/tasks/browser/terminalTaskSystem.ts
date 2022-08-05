@@ -253,6 +253,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		this._onDidStateChange = new Emitter();
 		this._taskSystemInfoResolver = taskSystemInfoResolver;
 		this._register(this._terminalStatusManager = new TaskTerminalStatus(taskService));
+		this._startReconnection();
 		this._register(this._terminalService.onDidChangeConnectionState(() => this._startReconnection()));
 	}
 
@@ -269,6 +270,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	}
 
 	private async _startReconnection(): Promise<void> {
+		if (this._hasReconnected) {
+			return;
+		}
+		console.log('starting reconnection', this._terminalService.getReconnectedTerminals(ReconnectionType));
 		this._reconnectTerminals = this._terminalService.getReconnectedTerminals(ReconnectionType) || [];
 		if (this._reconnectTerminals?.length === 0) {
 			return;
@@ -276,16 +281,14 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		if (!this._hasReconnected && this._reconnectTerminals && this._reconnectTerminals.length > 0) {
 			this._reviveTerminals();
 		}
-		for (const { task, resolver } of this._reconnectTasks) {
-			const executeResult = this.run(task, resolver, Triggers.reconnect);
-			this._fireTaskEvent(TaskEvent.create(TaskEventKind.ExecuteReconnectedResult, undefined, undefined, undefined, executeResult));
-		}
 	}
 
-	public reconnect(task: Task, resolver: ITaskResolver, trigger: string = Triggers.reconnect): undefined {
+	public reconnect(task: Task, resolver: ITaskResolver, trigger: string = Triggers.reconnect): ITaskExecuteResult {
 		// store the requests until the terminals have been reconnected to
 		this._reconnectTasks.push({ task, resolver });
-		return undefined;
+		const executeResult = this.run(task, resolver, Triggers.reconnect);
+		this._fireTaskEvent(TaskEvent.create(TaskEventKind.ExecuteReconnectedResult, undefined, undefined, undefined, executeResult));
+		return executeResult;
 	}
 
 	public run(task: Task, resolver: ITaskResolver, trigger: string = Triggers.command): ITaskExecuteResult {
