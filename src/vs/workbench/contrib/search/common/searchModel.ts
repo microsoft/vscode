@@ -618,7 +618,7 @@ export class FolderMatch extends Disposable {
 		return this.matches().reduce<number>((prev, match) => prev + match.count(), 0);
 	}
 
-	private onFileChange(fileMatch: FileMatch, removed = false, supressRefreshSearchResult = false): void {
+	private onFileChange(fileMatch: FileMatch, removed = false, supressRefreshSearchResult: boolean = false): void {
 		let added = false;
 		if (!this._fileMatches.has(fileMatch.resource)) {
 			this.doAdd(fileMatch);
@@ -641,7 +641,7 @@ export class FolderMatch extends Disposable {
 		}
 	}
 
-	private doRemove(fileMatches: FileMatch | FileMatch[], dispose: boolean = true, trigger: boolean = true, supressRefreshSearchResult = false,): void {
+	private doRemove(fileMatches: FileMatch | FileMatch[], dispose: boolean = true, trigger: boolean = true, supressRefreshSearchResult: boolean = false): void {
 		if (!Array.isArray(fileMatches)) {
 			fileMatches = [fileMatches];
 		}
