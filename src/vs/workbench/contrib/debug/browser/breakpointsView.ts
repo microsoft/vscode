@@ -287,7 +287,7 @@ export class BreakpointsView extends ViewPane {
 		const dbg = currentType ? this.debugService.getAdapterManager().getDebugger(currentType) : undefined;
 		const message = dbg?.uiMessages && dbg.uiMessages[DebuggerUiMessage.UnverifiedBreakpoints];
 		const debuggerHasUnverifiedBps = message && this.debugService.getModel().getBreakpoints().filter(bp => {
-			if (bp.verified) {
+			if (bp.verified || !bp.enabled) {
 				return false;
 			}
 
