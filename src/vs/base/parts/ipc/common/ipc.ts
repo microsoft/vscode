@@ -86,7 +86,7 @@ function responseTypeToStr(type: ResponseType): string {
 
 type IRawInitializeResponse = { type: ResponseType.Initialize };
 type IRawPromiseSuccessResponse = { type: ResponseType.PromiseSuccess; id: number; data: any };
-type IRawPromiseErrorResponse = { type: ResponseType.PromiseError; id: number; data: { message: string; name: string; stack: string[] | undefined } };
+type IRawPromiseErrorResponse = { type: ResponseType.PromiseError; id: number; data: { message: string; name: string; stack: string | undefined } };
 type IRawPromiseErrorObjResponse = { type: ResponseType.PromiseErrorObj; id: number; data: any };
 type IRawEventFireResponse = { type: ResponseType.EventFire; id: number; data: any };
 type IRawResponse = IRawInitializeResponse | IRawPromiseSuccessResponse | IRawPromiseErrorResponse | IRawPromiseErrorObjResponse | IRawEventFireResponse;
@@ -390,11 +390,11 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 			this.activeRequests.delete(request.id);
 		}, err => {
 			if (err instanceof Error) {
-				this.sendResponse(<IRawResponse>{
+				this.sendResponse({
 					id, data: {
 						message: err.message,
 						name: err.name,
-						stack: err.stack ? (err.stack.split ? err.stack.split('\n') : err.stack) : undefined
+						stack: err.stack
 					}, type: ResponseType.PromiseError
 				});
 			} else {
@@ -556,7 +556,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 						case ResponseType.PromiseError: {
 							this.handlers.delete(id);
 							const error = new Error(response.data.message);
-							(<any>error).stack = response.data.stack;
+							error.stack = response.data.stack;
 							error.name = response.data.name;
 							e(error);
 							break;
