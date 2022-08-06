@@ -7,6 +7,7 @@ import { mock } from 'vs/base/test/common/mock';
 import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
+import { Range } from 'vs/editor/common/core/range';
 import { Handler } from 'vs/editor/common/editorCommon';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
@@ -23,6 +24,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 
 suite('SnippetController2', function () {
 
+	/** @deprecated */
 	function assertSelections(editor: ICodeEditor, ...s: Selection[]) {
 		for (const selection of editor.getSelections()!) {
 			const actual = s.shift()!;
@@ -31,10 +33,20 @@ suite('SnippetController2', function () {
 		assert.strictEqual(s.length, 0);
 	}
 
+	/** @deprecated */
 	function assertContextKeys(service: MockContextKeyService, inSnippet: boolean, hasPrev: boolean, hasNext: boolean): void {
-		assert.strictEqual(SnippetController2.InSnippetMode.getValue(service), inSnippet, `inSnippetMode`);
-		assert.strictEqual(SnippetController2.HasPrevTabstop.getValue(service), hasPrev, `HasPrevTabstop`);
-		assert.strictEqual(SnippetController2.HasNextTabstop.getValue(service), hasNext, `HasNextTabstop`);
+		const state = getContextState(service);
+		assert.strictEqual(state.inSnippet, inSnippet, `inSnippetMode`);
+		assert.strictEqual(state.hasPrev, hasPrev, `HasPrevTabstop`);
+		assert.strictEqual(state.hasNext, hasNext, `HasNextTabstop`);
+	}
+
+	function getContextState(service: MockContextKeyService = contextKeys) {
+		return {
+			inSnippet: SnippetController2.InSnippetMode.getValue(service),
+			hasPrev: SnippetController2.HasPrevTabstop.getValue(service),
+			hasNext: SnippetController2.HasNextTabstop.getValue(service),
+		};
 	}
 
 	let editor: ICodeEditor;
@@ -530,5 +542,154 @@ suite('SnippetController2', function () {
 		ctrl.next();
 		assert.strictEqual(model.getValue(), `foo: number;\n\nfoo: 'number',`);
 		// editor.trigger('test', 'type', { text: ';' });
+	});
+
+	suite('createEditsAndSnippetsFromEdits', function () {
+
+		test('apply, tab, done', function () {
+
+			const ctrl = instaService.createInstance(SnippetController2, editor);
+
+			model.setValue('foo("bar")');
+
+			ctrl.apply([
+				{ range: new Range(1, 5, 1, 10), template: '$1' },
+				{ range: new Range(1, 1, 1, 1), template: 'const ${1:new_const} = "bar";\n' }
+			]);
+
+			assert.strictEqual(model.getValue(), "const new_const = \"bar\";\nfoo(new_const)");
+			assertContextKeys(contextKeys, true, false, true);
+			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 7, 1, 16), new Selection(2, 5, 2, 14)]);
+
+			ctrl.next();
+			assertContextKeys(contextKeys, false, false, false);
+			assert.deepStrictEqual(editor.getSelections(), [new Selection(2, 14, 2, 14)]);
+		});
+
+		test('apply, tab, done with special final tabstop', function () {
+
+			model.setValue('foo("bar")');
+
+			const ctrl = instaService.createInstance(SnippetController2, editor);
+			ctrl.apply([
+				{ range: new Range(1, 5, 1, 10), template: '$1' },
+				{ range: new Range(1, 1, 1, 1), template: 'const ${1:new_const}$0 = "bar";\n' }
+			]);
+
+			assert.strictEqual(model.getValue(), "const new_const = \"bar\";\nfoo(new_const)");
+			assertContextKeys(contextKeys, true, false, true);
+			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 7, 1, 16), new Selection(2, 5, 2, 14)]);
+
+			ctrl.next();
+			assertContextKeys(contextKeys, false, false, false);
+			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 16, 1, 16)]);
+		});
+
+		test('apply, tab, tab, done', function () {
+
+			model.setValue('foo\nbar');
+
+			const ctrl = instaService.createInstance(SnippetController2, editor);
+			ctrl.apply([
+				{ range: new Range(1, 4, 1, 4), template: '${3}' },
+				{ range: new Range(2, 4, 2, 4), template: '$3' },
+				{ range: new Range(1, 1, 1, 1), template: '### ${2:Header}\n' }
+			]);
+
+			assert.strictEqual(model.getValue(), "### Header\nfoo\nbar");
+			assert.deepStrictEqual(getContextState(), { inSnippet: true, hasPrev: false, hasNext: true });
+			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 5, 1, 11)]);
+
+			ctrl.next();
+			assert.deepStrictEqual(getContextState(), { inSnippet: true, hasPrev: true, hasNext: true });
+			assert.deepStrictEqual(editor.getSelections(), [new Selection(2, 4, 2, 4), new Selection(3, 4, 3, 4)]);
+
+			ctrl.next();
+			assert.deepStrictEqual(getContextState(), { inSnippet: false, hasPrev: false, hasNext: false });
+			assert.deepStrictEqual(editor.getSelections(), [new Selection(3, 4, 3, 4)]);
+		});
+
+		test('nested into apply works', function () {
+
+			const ctrl = instaService.createInstance(SnippetController2, editor);
+			model.setValue('onetwo');
+
+			editor.setSelections([new Selection(1, 1, 1, 1), new Selection(2, 1, 2, 1)]);
+
+			ctrl.apply([{
+				range: new Range(1, 7, 1, 7),
+				template: '$0${1:three}'
+			}]);
+
+			assert.strictEqual(model.getValue(), 'onetwothree');
+			assert.deepStrictEqual(getContextState(), { inSnippet: true, hasPrev: false, hasNext: true });
+			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 7, 1, 12)]);
+
+			ctrl.insert('foo$1bar$1');
+			assert.strictEqual(model.getValue(), 'onetwofoobar');
+			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 10, 1, 10), new Selection(1, 13, 1, 13)]);
+			assert.deepStrictEqual(getContextState(), ({ inSnippet: true, hasPrev: false, hasNext: true }));
+
+			ctrl.next();
+			assert.deepStrictEqual(getContextState(), ({ inSnippet: true, hasPrev: true, hasNext: true }));
+			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 13, 1, 13)]);
+
+			ctrl.next();
+			assert.deepStrictEqual(getContextState(), { inSnippet: false, hasPrev: false, hasNext: false });
+			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 7, 1, 7)]);
+
+		});
+
+		test('nested into insert abort "outer" snippet', function () {
+
+			const ctrl = instaService.createInstance(SnippetController2, editor);
+			model.setValue('one\ntwo');
+
+			editor.setSelections([new Selection(1, 1, 1, 1), new Selection(2, 1, 2, 1)]);
+
+			ctrl.insert('foo${1:bar}bazz${1:bang}');
+			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 4, 1, 7), new Selection(1, 11, 1, 14), new Selection(2, 4, 2, 7), new Selection(2, 11, 2, 14)]);
+			assert.deepStrictEqual(getContextState(), { inSnippet: true, hasPrev: false, hasNext: true });
+
+			ctrl.apply([{
+				range: new Range(1, 4, 1, 7),
+				template: '$0A'
+			}]);
+
+			assert.strictEqual(model.getValue(), 'fooAbazzbarone\nfoobarbazzbartwo');
+			assert.deepStrictEqual(getContextState(), { inSnippet: false, hasPrev: false, hasNext: false });
+			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 4, 1, 4)]);
+		});
+
+		test('nested into "insert" abort "outer" snippet (2)', function () {
+
+			const ctrl = instaService.createInstance(SnippetController2, editor);
+			model.setValue('one\ntwo');
+
+			editor.setSelections([new Selection(1, 1, 1, 1), new Selection(2, 1, 2, 1)]);
+
+			ctrl.insert('foo${1:bar}bazz${1:bang}');
+			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 4, 1, 7), new Selection(1, 11, 1, 14), new Selection(2, 4, 2, 7), new Selection(2, 11, 2, 14)]);
+			assert.deepStrictEqual(getContextState(), { inSnippet: true, hasPrev: false, hasNext: true });
+
+			const edits = [{
+				range: new Range(1, 4, 1, 7),
+				template: 'A'
+			}, {
+				range: new Range(1, 11, 1, 14),
+				template: 'B'
+			}, {
+				range: new Range(2, 4, 2, 7),
+				template: 'C'
+			}, {
+				range: new Range(2, 11, 2, 14),
+				template: 'D'
+			}];
+			ctrl.apply(edits);
+
+			assert.strictEqual(model.getValue(), "fooAbazzBone\nfooCbazzDtwo");
+			assert.deepStrictEqual(getContextState(), { inSnippet: false, hasPrev: false, hasNext: false });
+			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 5, 1, 5), new Selection(1, 10, 1, 10), new Selection(2, 5, 2, 5), new Selection(2, 10, 2, 10)]);
+		});
 	});
 });

@@ -279,7 +279,7 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/sessionSync",
+			"name": "vs/workbench/contrib/editSessions",
 			"project": "vscode-workbench"
 		},
 		{
@@ -292,6 +292,14 @@
 		},
 		{
 			"name": "vs/workbench/contrib/audioCues",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/deprecatedExtensionMigrator",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/bracketPairColorizer2Telemetry",
 			"project": "vscode-workbench"
 		},
 		{
@@ -431,7 +439,7 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/services/sessionSync",
+			"name": "vs/workbench/services/editSessions",
 			"project": "vscode-workbench"
 		},
 		{

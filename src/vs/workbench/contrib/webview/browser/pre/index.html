@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-v9xEHcwDE5dc/lU7HYs5bG3LpPWGmQe0w/Vz6kmdd60=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-JpX/ganPoxpavjxWCz9DUZgwVZ59o2lwSYTQrziPsdU=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -920,14 +920,21 @@
 					sandboxRules.add('allow-forms');
 				}
 				newFrame.setAttribute('sandbox', Array.from(sandboxRules).join(' '));
-				if (!isFirefox) {
-					newFrame.setAttribute('allow', options.allowScripts ? 'clipboard-read; clipboard-write;' : '');
+
+				const allowRules = ['cross-origin-isolated;']
+				if(!isFirefox && options.allowScripts) {
+					allowRules.push('clipboard-read;','clipboard-write;')
 				}
+				newFrame.setAttribute('allow', allowRules.join(' '));
 				// We should just be able to use srcdoc, but I wasn't
 				// seeing the service worker applying properly.
 				// Fake load an empty on the correct origin and then write real html
 				// into it to get around this.
-				newFrame.src = `./fake.html?id=${ID}`;
+				const fakeUrlParams = new URLSearchParams({id: ID});
+				if(globalThis.crossOriginIsolated) {
+					fakeUrlParams.set('vscode-coi', '3') /*COOP+COEP*/
+				}
+				newFrame.src = `./fake.html?${fakeUrlParams.toString()}`;
 
 				newFrame.style.cssText = 'display: block; margin: 0; overflow: hidden; position: absolute; width: 100%; height: 100%; visibility: hidden';
 				document.body.appendChild(newFrame);
@@ -1047,9 +1054,35 @@
 						}
 
 						e.preventDefault();
+
+						let context = {};
+
+						/** @type HTMLElement */
+						let el = e.target;
+						while (true) {
+							if (!el) {
+								break;
+							}
+
+							// Search self/ancestors for the closest context data attribute
+							el = el.closest('[data-vscode-context]');
+							if (!el) {
+								break;
+							}
+
+							try {
+								context = { ...JSON.parse(el.dataset.vscodeContext), ...context };
+							} catch (e) {
+								console.error(`Error parsing 'data-vscode-context' as json`, el, e)
+							}
+
+							el = el.parentElement;
+						}
+
 						hostMessaging.postMessage('did-context-menu', {
 							clientX: e.clientX,
 							clientY: e.clientY,
+							context: context
 						});
 					});
 

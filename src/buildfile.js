@@ -33,8 +33,11 @@ exports.base = [
 		name: 'vs/editor/common/services/editorSimpleWorker',
 		include: ['vs/base/common/worker/simpleWorker'],
 		exclude: ['vs/nls'],
-		prepend: ['vs/loader.js', 'vs/nls.js'],
-		append: ['vs/base/worker/workerMain'],
+		prepend: [
+			{ path: 'vs/loader.js' },
+			{ path: 'vs/nls.js', amdModuleId: 'vs/nls' },
+			{ path: 'vs/base/worker/workerMain.js' }
+		],
 		dest: 'vs/base/worker/workerMain.js'
 	},
 	{

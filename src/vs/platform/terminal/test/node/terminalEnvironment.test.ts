@@ -25,15 +25,18 @@ suite('platform - terminalEnvironment', () => {
 
 		suite('pwsh', () => {
 			const expectedPs1 = process.platform === 'win32'
-				? `${repoRoot}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1`
-				: `${repoRoot}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1`;
+				? `try { . "${repoRoot}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1" } catch {}`
+				: `. "${repoRoot}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"`;
 			suite('should override args', () => {
 				const enabledExpectedResult = Object.freeze<IShellIntegrationConfigInjection>({
 					newArgs: [
 						'-noexit',
 						'-command',
-						`. "${expectedPs1}"`
-					]
+						expectedPs1
+					],
+					envMixin: {
+						VSCODE_INJECTION: '1'
+					}
 				});
 				test('when undefined, []', () => {
 					deepStrictEqual(getShellIntegrationInjection({ executable: pwshExe, args: [] }, enabledProcessOptions, logService), enabledExpectedResult);
@@ -60,8 +63,11 @@ suite('platform - terminalEnvironment', () => {
 						'-l',
 						'-noexit',
 						'-command',
-						`. "${expectedPs1}"`
-					]
+						expectedPs1
+					],
+					envMixin: {
+						VSCODE_INJECTION: '1'
+					}
 				});
 				test('when array contains no logo and login', () => {
 					deepStrictEqual(getShellIntegrationInjection({ executable: pwshExe, args: ['-l', '-NoLogo'] }, enabledProcessOptions, logService), enabledExpectedResult);
@@ -97,8 +103,9 @@ suite('platform - terminalEnvironment', () => {
 						/.+\/out\/vs\/workbench\/contrib\/terminal\/browser\/media\/shellIntegration-login.zsh/
 					];
 					function assertIsEnabled(result: IShellIntegrationConfigInjection) {
-						strictEqual(Object.keys(result.envMixin!).length, 1);
+						strictEqual(Object.keys(result.envMixin!).length, 2);
 						ok(result.envMixin!['ZDOTDIR']?.match(expectedDir));
+						ok(result.envMixin!['VSCODE_INJECTION']?.match('1'));
 						strictEqual(result.filesToCopy?.length, 4);
 						ok(result.filesToCopy[0].dest.match(expectedDests[0]));
 						ok(result.filesToCopy[1].dest.match(expectedDests[1]));
@@ -143,7 +150,9 @@ suite('platform - terminalEnvironment', () => {
 								'--init-file',
 								`${repoRoot}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration-bash.sh`
 							],
-							envMixin: {}
+							envMixin: {
+								VSCODE_INJECTION: '1'
+							}
 						});
 						deepStrictEqual(getShellIntegrationInjection({ executable: 'bash', args: [] }, enabledProcessOptions, logService), enabledExpectedResult);
 						deepStrictEqual(getShellIntegrationInjection({ executable: 'bash', args: '' }, enabledProcessOptions, logService), enabledExpectedResult);
@@ -156,6 +165,7 @@ suite('platform - terminalEnvironment', () => {
 								`${repoRoot}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration-bash.sh`
 							],
 							envMixin: {
+								VSCODE_INJECTION: '1',
 								VSCODE_SHELL_LOGIN: '1'
 							}
 						});

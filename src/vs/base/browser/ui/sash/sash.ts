@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, createStyleSheet, EventHelper, EventLike, getElementsByTagName } from 'vs/base/browser/dom';
+import { $, append, createStyleSheet, EventHelper, EventLike } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { EventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
 import { Delayer } from 'vs/base/common/async';
@@ -493,7 +493,7 @@ export class Sash extends Disposable {
 			return;
 		}
 
-		const iframes = getElementsByTagName('iframe');
+		const iframes = document.getElementsByTagName('iframe');
 		for (const iframe of iframes) {
 			iframe.classList.add(PointerEventsDisabledCssClass); // disable mouse events on iframes as long as we drag the sash
 		}

@@ -64,6 +64,10 @@ export interface IEnvironmentService {
 	userDataSyncLogResource: URI;
 	sync: 'on' | 'off' | undefined;
 
+	// --- continue edit session
+	editSessionId?: string;
+	editSessionsLogResource: URI;
+
 	// --- extension development
 	debugExtensionHost: IExtensionHostDebugParams;
 	isExtensionDevelopment: boolean;

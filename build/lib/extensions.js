@@ -25,6 +25,7 @@ const buffer = require('gulp-buffer');
 const jsoncParser = require("jsonc-parser");
 const dependencies_1 = require("./dependencies");
 const _ = require("underscore");
+const builtInExtensions_1 = require("./builtInExtensions");
 const util = require('./util');
 const root = path.dirname(path.dirname(__dirname));
 const commit = util.getVersion(root);
@@ -246,7 +247,6 @@ const excludedExtensions = [
     'ms-vscode.node-debug',
     'ms-vscode.node-debug2',
     'vscode-notebook-tests',
-    'vscode-custom-editor-tests',
 ];
 const marketplaceWebExtensionsExclude = new Set([
     'ms-vscode.node-debug',
@@ -313,16 +313,15 @@ function packageLocalExtensionsStream(forWeb) {
         .pipe(util2.setExecutableBit(['**/*.sh'])));
 }
 exports.packageLocalExtensionsStream = packageLocalExtensionsStream;
-function packageMarketplaceExtensionsStream(forWeb, galleryServiceUrl) {
+function packageMarketplaceExtensionsStream(forWeb) {
     const marketplaceExtensionsDescriptions = [
         ...builtInExtensions.filter(({ name }) => (forWeb ? !marketplaceWebExtensionsExclude.has(name) : true)),
         ...(forWeb ? webBuiltInExtensions : [])
     ];
     const marketplaceExtensionsStream = minifyExtensionResources(es.merge(...marketplaceExtensionsDescriptions
         .map(extension => {
-        const input = (galleryServiceUrl ? fromMarketplace(galleryServiceUrl, extension) : fromGithub(extension))
-            .pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
-        return updateExtensionPackageJSON(input, (data) => {
+        const src = (0, builtInExtensions_1.getExtensionStream)(extension).pipe(rename(p => p.dirname = `extensions/${p.dirname}`));
+        return updateExtensionPackageJSON(src, (data) => {
             delete data.scripts;
             delete data.dependencies;
             delete data.devDependencies;
@@ -400,6 +399,7 @@ const esbuildMediaScripts = [
     'markdown-language-features/esbuild-preview.js',
     'markdown-math/esbuild.js',
     'notebook-renderers/esbuild.js',
+    'ipynb/esbuild.js',
     'simple-browser/esbuild-preview.js',
 ];
 async function webpackExtensions(taskName, isWatch, webpackConfigLocations) {

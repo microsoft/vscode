@@ -59,7 +59,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadNotebookKernels);
 
-		// todo@rebornix @joyceerhl: move to APICommands once stablized.
+		// todo@rebornix @joyceerhl: move to APICommands once stabilized.
 		const selectKernelApiCommand = new ApiCommand(
 			'notebook.selectKernel',
 			'_notebook.selectKernel',
@@ -348,10 +348,13 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		const document = this._extHostNotebook.getNotebookDocument(URI.revive(uri));
 		const cell = document.getCell(cellHandle);
 		if (cell) {
-			this._onDidChangeCellExecutionState.fire({
-				cell: cell.apiCell,
-				state: state ? extHostTypeConverters.NotebookCellExecutionState.to(state) : ExtHostNotebookCellExecutionState.Idle
-			});
+			const newState = state ? extHostTypeConverters.NotebookCellExecutionState.to(state) : ExtHostNotebookCellExecutionState.Idle;
+			if (newState !== undefined) {
+				this._onDidChangeCellExecutionState.fire({
+					cell: cell.apiCell,
+					state: newState
+				});
+			}
 		}
 	}
 

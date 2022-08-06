@@ -157,7 +157,7 @@ export interface IExtensionHost {
 	readonly extensions: ExtensionHostExtensions;
 	readonly onExit: Event<[number, string | null]>;
 
-	start(): Promise<IMessagePassingProtocol> | null;
+	start(): Promise<IMessagePassingProtocol>;
 	getInspectPort(): number | undefined;
 	enableInspectPort(): Promise<boolean>;
 	dispose(): void;

@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as sinon from 'sinon';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService, Trace } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -128,4 +130,37 @@ export class TestInstantiationService extends InstantiationService {
 interface SinonOptions {
 	mock?: boolean;
 	stub?: boolean;
+}
+
+export type ServiceIdCtorPair<T> = [id: ServiceIdentifier<T>, ctorOrInstance: T | (new (...args: any[]) => T)];
+
+export function createServices(disposables: DisposableStore, services: ServiceIdCtorPair<any>[]): TestInstantiationService {
+	const serviceIdentifiers: ServiceIdentifier<any>[] = [];
+	const serviceCollection = new ServiceCollection();
+
+	const define = <T>(id: ServiceIdentifier<T>, ctorOrInstance: T | (new (...args: any[]) => T)) => {
+		if (!serviceCollection.has(id)) {
+			if (typeof ctorOrInstance === 'function') {
+				serviceCollection.set(id, new SyncDescriptor(ctorOrInstance as any));
+			} else {
+				serviceCollection.set(id, ctorOrInstance);
+			}
+		}
+		serviceIdentifiers.push(id);
+	};
+
+	for (const [id, ctor] of services) {
+		define(id, ctor);
+	}
+
+	const instantiationService = new TestInstantiationService(serviceCollection, true);
+	disposables.add(toDisposable(() => {
+		for (const id of serviceIdentifiers) {
+			const instanceOrDescriptor = serviceCollection.get(id);
+			if (typeof instanceOrDescriptor.dispose === 'function') {
+				instanceOrDescriptor.dispose();
+			}
+		}
+	}));
+	return instantiationService;
 }

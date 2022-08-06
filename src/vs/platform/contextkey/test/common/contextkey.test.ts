@@ -179,6 +179,21 @@ suite('ContextKeyExpr', () => {
 		assert.strictEqual(ainb.evaluate(createContext({ 'a': 'prototype', 'b': {} })), false);
 	});
 
+	test('ContextKeyNotInExpr', () => {
+		const aNotInB = ContextKeyExpr.deserialize('a not in b')!;
+		assert.strictEqual(aNotInB.evaluate(createContext({ 'a': 3, 'b': [3, 2, 1] })), false);
+		assert.strictEqual(aNotInB.evaluate(createContext({ 'a': 3, 'b': [1, 2, 3] })), false);
+		assert.strictEqual(aNotInB.evaluate(createContext({ 'a': 3, 'b': [1, 2] })), true);
+		assert.strictEqual(aNotInB.evaluate(createContext({ 'a': 3 })), true);
+		assert.strictEqual(aNotInB.evaluate(createContext({ 'a': 3, 'b': null })), true);
+		assert.strictEqual(aNotInB.evaluate(createContext({ 'a': 'x', 'b': ['x'] })), false);
+		assert.strictEqual(aNotInB.evaluate(createContext({ 'a': 'x', 'b': ['y'] })), true);
+		assert.strictEqual(aNotInB.evaluate(createContext({ 'a': 'x', 'b': {} })), true);
+		assert.strictEqual(aNotInB.evaluate(createContext({ 'a': 'x', 'b': { 'x': false } })), false);
+		assert.strictEqual(aNotInB.evaluate(createContext({ 'a': 'x', 'b': { 'x': true } })), false);
+		assert.strictEqual(aNotInB.evaluate(createContext({ 'a': 'prototype', 'b': {} })), true);
+	});
+
 	test('issue #106524: distributing AND should normalize', () => {
 		const actual = ContextKeyExpr.and(
 			ContextKeyExpr.or(

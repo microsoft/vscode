@@ -12,7 +12,7 @@ import { Mimes } from 'vs/base/common/mime';
 import { isWeb } from 'vs/base/common/platform';
 import { ConfigurationSyncStore } from 'vs/base/common/product';
 import { joinPath, relativePath } from 'vs/base/common/resources';
-import { isArray, isObject, isString } from 'vs/base/common/types';
+import { isObject, isString } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IHeaders, IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
@@ -72,7 +72,7 @@ export abstract class AbstractUserDataSyncStoreManagementService extends Disposa
 		if (value
 			&& isString(value.url)
 			&& isObject(value.authenticationProviders)
-			&& Object.keys(value.authenticationProviders).every(authenticationProviderId => isArray(value!.authenticationProviders![authenticationProviderId].scopes))
+			&& Object.keys(value.authenticationProviders).every(authenticationProviderId => Array.isArray(value!.authenticationProviders![authenticationProviderId].scopes))
 		) {
 			const syncStore = value as ConfigurationSyncStore;
 			const canSwitch = !!syncStore.canSwitch && !configuredStore?.url;
@@ -244,13 +244,13 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 		return result.map(({ url, created }) => ({ ref: relativePath(uri, uri.with({ path: url }))!, created: created * 1000 /* Server returns in seconds */ }));
 	}
 
-	async resolveContent(resource: ServerResource, ref: string): Promise<string | null> {
+	async resolveContent(resource: ServerResource, ref: string, headers: IHeaders = {}): Promise<string | null> {
 		if (!this.userDataSyncStoreUrl) {
 			throw new Error('No settings sync store url configured.');
 		}
 
 		const url = joinPath(this.userDataSyncStoreUrl, 'resource', resource, ref).toString();
-		const headers: IHeaders = {};
+		headers = { ...headers };
 		headers['Cache-Control'] = 'no-cache';
 
 		const context = await this.request(url, { type: 'GET', headers }, [], CancellationToken.None);
@@ -258,12 +258,12 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 		return content;
 	}
 
-	async delete(resource: ServerResource): Promise<void> {
+	async delete(resource: ServerResource, ref: string | null): Promise<void> {
 		if (!this.userDataSyncStoreUrl) {
 			throw new Error('No settings sync store url configured.');
 		}
 
-		const url = joinPath(this.userDataSyncStoreUrl, 'resource', resource).toString();
+		const url = ref !== null ? joinPath(this.userDataSyncStoreUrl, 'resource', resource, ref).toString() : joinPath(this.userDataSyncStoreUrl, 'resource', resource).toString();
 		const headers: IHeaders = {};
 
 		await this.request(url, { type: 'DELETE', headers }, [], CancellationToken.None);

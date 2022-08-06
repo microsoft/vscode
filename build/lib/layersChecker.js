@@ -51,6 +51,7 @@ const CORE_TYPES = [
     'BigInt64Array',
     'btoa',
     'atob',
+    'AbortController',
     'AbortSignal',
     'MessageChannel',
     'MessagePort',
@@ -71,6 +72,11 @@ const RULES = [
     {
         target: '**/vs/**/test/**',
         skip: true // -> skip all test files
+    },
+    // TODO@bpasero remove me once electron utility process has landed
+    {
+        target: '**/vs/workbench/services/extensions/electron-sandbox/nativeLocalProcessExtensionHost.ts',
+        skip: true
     },
     // Common: vs/base/common/platform.ts
     {
