@@ -73,6 +73,7 @@ export class IssueReporter extends Disposable {
 
 		const targetExtension = configuration.data.extensionId ? configuration.data.enabledExtensions.find(extension => extension.id === configuration.data.extensionId) : undefined;
 		this.issueReporterModel = new IssueReporterModel({
+			...configuration.data,
 			issueType: configuration.data.issueType || IssueType.Bug,
 			versionInfo: {
 				vscodeVersion: `${configuration.product.nameShort} ${!!configuration.product.darwinUniversalAssetId ? `${configuration.product.version} (Universal)` : configuration.product.version} (${configuration.product.commit || 'Commit unknown'}, ${configuration.product.date || 'Date unknown'})`,
@@ -80,7 +81,7 @@ export class IssueReporter extends Disposable {
 			},
 			extensionsDisabled: !!configuration.disableExtensions,
 			fileOnExtension: configuration.data.extensionId ? !targetExtension?.isBuiltin : undefined,
-			selectedExtension: targetExtension,
+			selectedExtension: targetExtension
 		});
 
 		const issueReporterElement = this.getElementById('issue-reporter');
@@ -151,14 +152,10 @@ export class IssueReporter extends Disposable {
 		const { fileOnExtension } = this.issueReporterModel.getData();
 		if (fileOnExtension) {
 			const issueTitle = document.getElementById('issue-title');
-			if (issueTitle) {
-				issueTitle.focus();
-			}
+			issueTitle?.focus();
 		} else {
 			const issueType = document.getElementById('issue-type');
-			if (issueType) {
-				issueType.focus();
-			}
+			issueType?.focus();
 		}
 	}
 
@@ -730,7 +727,7 @@ export class IssueReporter extends Disposable {
 			} else if (!fileOnMarketplace) {
 				show(extensionsBlock);
 			}
-			reset(descriptionTitle, localize('stepsToReproduce', "Steps to Reproduce"), $('span.required-input', undefined, '*'));
+			reset(descriptionTitle, localize('stepsToReproduce', "Steps to Reproduce") + ' ', $('span.required-input', undefined, '*'));
 			reset(descriptionSubtitle, localize('bugDescription', "Share the steps needed to reliably reproduce the problem. Please include actual and expected results. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
 		} else if (issueType === IssueType.PerformanceIssue) {
 			show(problemSource);
@@ -749,10 +746,10 @@ export class IssueReporter extends Disposable {
 				show(extensionsBlock);
 			}
 
-			reset(descriptionTitle, localize('stepsToReproduce', "Steps to Reproduce"), $('span.required-input', undefined, '*'));
+			reset(descriptionTitle, localize('stepsToReproduce', "Steps to Reproduce") + ' ', $('span.required-input', undefined, '*'));
 			reset(descriptionSubtitle, localize('performanceIssueDesciption', "When did this performance issue happen? Does it occur on startup or after a specific series of actions? We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
 		} else if (issueType === IssueType.FeatureRequest) {
-			reset(descriptionTitle, localize('description', "Description"), $('span.required-input', undefined, '*'));
+			reset(descriptionTitle, localize('description', "Description") + ' ', $('span.required-input', undefined, '*'));
 			reset(descriptionSubtitle, localize('featureRequestDescription', "Please describe the feature you would like to see. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
 			show(problemSource);
 

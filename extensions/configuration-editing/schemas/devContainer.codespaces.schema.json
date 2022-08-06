@@ -177,6 +177,13 @@
 					}
 				}
 			}
+		},
+		"codespaces": {
+			"type": "object",
+			"additionalProperties": true,
+			"description": "Codespaces-specific configuration.",
+			"deprecated": true,
+			"deprecationMessage": "Use 'customizations/codespaces' instead"
 		}
 	}
 }

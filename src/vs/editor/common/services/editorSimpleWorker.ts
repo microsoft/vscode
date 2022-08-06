@@ -19,10 +19,10 @@ import { ILinkComputerTarget, computeLinks } from 'vs/editor/common/languages/li
 import { BasicInplaceReplace } from 'vs/editor/common/languages/supports/inplaceReplaceSupport';
 import { IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
 import { createMonacoBaseAPI } from 'vs/editor/common/services/editorBaseApi';
-import * as types from 'vs/base/common/types';
 import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { UnicodeTextModelHighlighter, UnicodeHighlighterOptions } from 'vs/editor/common/services/unicodeTextModelHighlighter';
+import { createProxyObject, getAllMethodNames } from 'vs/base/common/objects';
 
 export interface IMirrorModel extends IMirrorTextModel {
 	readonly uri: URI;
@@ -634,7 +634,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 			return this._host.fhr(method, args);
 		};
 
-		const foreignHost = types.createProxyObject(foreignHostMethods, proxyMethodRequest);
+		const foreignHost = createProxyObject(foreignHostMethods, proxyMethodRequest);
 
 		const ctx: IWorkerContext<any> = {
 			host: foreignHost,
@@ -646,14 +646,14 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 		if (this._foreignModuleFactory) {
 			this._foreignModule = this._foreignModuleFactory(ctx, createData);
 			// static foreing module
-			return Promise.resolve(types.getAllMethodNames(this._foreignModule));
+			return Promise.resolve(getAllMethodNames(this._foreignModule));
 		}
 		// ESM-comment-begin
 		return new Promise<any>((resolve, reject) => {
 			require([moduleId], (foreignModule: { create: IForeignModuleFactory }) => {
 				this._foreignModule = foreignModule.create(ctx, createData);
 
-				resolve(types.getAllMethodNames(this._foreignModule));
+				resolve(getAllMethodNames(this._foreignModule));
 
 			}, reject);
 		});

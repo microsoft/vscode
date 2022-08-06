@@ -278,9 +278,7 @@ abstract class AbstractFocusGroupAction extends Action {
 
 	override async run(): Promise<void> {
 		const group = this.editorGroupService.findGroup(this.scope, this.editorGroupService.activeGroup, true);
-		if (group) {
-			group.focus();
-		}
+		group?.focus();
 	}
 }
 

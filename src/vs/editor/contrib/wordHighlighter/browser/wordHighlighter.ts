@@ -550,15 +550,11 @@ class WordHighlighterContribution extends Disposable implements IEditorContribut
 	}
 
 	public moveNext() {
-		if (this.wordHighlighter) {
-			this.wordHighlighter.moveNext();
-		}
+		this.wordHighlighter?.moveNext();
 	}
 
 	public moveBack() {
-		if (this.wordHighlighter) {
-			this.wordHighlighter.moveBack();
-		}
+		this.wordHighlighter?.moveBack();
 	}
 
 	public restoreViewState(state: boolean | undefined): void {
