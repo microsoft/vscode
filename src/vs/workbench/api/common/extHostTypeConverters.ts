@@ -340,7 +340,8 @@ export namespace MarkdownString {
 
 		const collectUri = (href: string): string => {
 			try {
-				let uri = uriTransformer ? uriTransformer.transformOutgoingURI(URI.parse(href, true)) : URI.parse(href, true);
+				let uri = URI.parse(href, true);
+				uri = uriTransformer ? uriTransformer.transformOutgoingURI(uri) : uri;
 				uri = uri.with({ query: _uriMassage(uri.query, resUris) });
 				resUris[href] = uri;
 				console.log('uri', uri);

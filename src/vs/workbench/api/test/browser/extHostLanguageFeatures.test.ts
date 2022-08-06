@@ -54,6 +54,8 @@ import { OutlineModel } from 'vs/editor/contrib/documentSymbols/browser/outlineM
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 import { CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/browser/types';
+import { IURITransformer, URITransformer } from 'vs/base/common/uriIpc';
+import { createRemoteRawURITransformer } from 'vs/workbench/api/common/uriTransformer';
 
 suite('ExtHostLanguageFeatures', function () {
 
@@ -115,7 +117,8 @@ suite('ExtHostLanguageFeatures', function () {
 		const diagnostics = new ExtHostDiagnostics(rpcProtocol, new NullLogService(), new class extends mock<IExtHostFileSystemInfo>() { });
 		rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
 
-		extHost = new ExtHostLanguageFeatures(rpcProtocol, new URITransformerService(null), extHostDocuments, commands, diagnostics, new NullLogService(), NullApiDeprecationService);
+		const uriTransformer: IURITransformer = new URITransformer(createRemoteRawURITransformer('host'));
+		extHost = new ExtHostLanguageFeatures(rpcProtocol, new URITransformerService(uriTransformer), extHostDocuments, commands, diagnostics, new NullLogService(), NullApiDeprecationService);
 		rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
 		mainThread = rpcProtocol.set(MainContext.MainThreadLanguageFeatures, inst.createInstance(MainThreadLanguageFeatures, rpcProtocol));
@@ -475,6 +478,31 @@ suite('ExtHostLanguageFeatures', function () {
 		await rpcProtocol.sync();
 		getHoverPromise(languageFeaturesService.hoverProvider, model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
 			assert.strictEqual(value.length, 1);
+		});
+	});
+
+	test('HoverProvider, transform uri', async () => {
+		// [markdown content, transformed collected uris]
+		const fixtures: [string, string[]][] = [
+			[`![link](file:///foo/bar)`, [`vscode-remote://host/foo/bar`]],
+			[`[link](file:///foo/bar#L1)`, [`vscode-remote://host/foo/bar#L1`]],
+			[`[link](vscode-local:///foo/bar)`, [`file:///foo/bar`]],
+			[`[link](https://example.com/foo/bar)`, [`https://example.com/foo/bar`]],
+		];
+
+		disposables.push(extHost.registerHoverProvider(defaultExtension, defaultSelector, new class implements vscode.HoverProvider {
+			provideHover(): vscode.Hover {
+				return { contents: fixtures.map(([md]) => new types.MarkdownString(md)) };
+			}
+		}));
+
+		await rpcProtocol.sync();
+		await getHoverPromise(languageFeaturesService.hoverProvider, model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
+			console.error(JSON.stringify(value[0].contents[0]));
+
+			value[0].contents.forEach((md, index) => assert.deepEqual(
+				Object.values((md.uris || {})).map(uri => URI.revive(uri).toString()), fixtures[index][1])
+			);
 		});
 	});
 
