@@ -250,7 +250,8 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			} else {
 				let resolvedHref = _href(href, false);
 				if (markdown.baseUri) {
-					resolvedHref = resolveWithBaseUri(URI.from(markdown.baseUri), href);
+					// resolvedHref might have different URI parts in the case of being transformed during collecting
+					resolvedHref = resolveWithBaseUri(URI.from(markdown.baseUri), resolvedHref);
 				}
 				a.dataset.href = resolvedHref;
 			}
