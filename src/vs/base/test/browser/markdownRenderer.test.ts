@@ -219,6 +219,24 @@ suite('MarkdownRenderer', () => {
 		assert.ok(data.documentUri.toString().startsWith('file:///c%3A/'));
 	});
 
+	test('render collected transformed uri', () => {
+		// MarkdownString.uris maps hrefs into uris, which may have different scheme and authority
+		// should render the transformed uri to data-href
+		const md: IMarkdownString = JSON.parse('{"value":"[link](file:///foo/bar)","supportThemeIcons":false,"supportHtml":false,"uris":{"file:///foo/bar":{"$mid":1,"external":"vscode-remote://host/foo/bar","path":"/foo/bar","scheme":"vscode-remote","authority":"host"}}}');
+		const element = renderMarkdown(md).element;
+
+		const anchor = element.querySelector('a')!;
+		assert.ok(anchor);
+		assert.ok(anchor.dataset['href']);
+
+		const uri = URI.parse(anchor.dataset['href']!);
+
+		assert.ok(uri);
+		assert.strictEqual(uri.scheme, 'vscode-remote');
+		assert.strictEqual(uri.authority, 'host');
+		assert.strictEqual(uri.fsPath, '/foo/bar');
+	});
+
 	test('Should not render command links by default', () => {
 		const md = new MarkdownString(`[command1](command:doFoo) <a href="command:doFoo">command2</a>`, {
 			supportHtml: true
