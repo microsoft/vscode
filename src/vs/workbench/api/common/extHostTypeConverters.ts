@@ -344,7 +344,6 @@ export namespace MarkdownString {
 				uri = uriTransformer ? uriTransformer.transformOutgoingURI(uri) : uri;
 				uri = uri.with({ query: _uriMassage(uri.query, resUris) });
 				resUris[href] = uri;
-				console.log('uri', uri);
 			} catch (e) {
 				// ignore
 			}

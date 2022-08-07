@@ -497,13 +497,11 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		await getHoverPromise(languageFeaturesService.hoverProvider, model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
-			console.error(JSON.stringify(value[0].contents[0]));
-
-			value[0].contents.forEach((md, index) => assert.deepEqual(
-				Object.values((md.uris || {})).map(uri => URI.revive(uri).toString()), fixtures[index][1])
-			);
-		});
+		const hovers = await getHoverPromise(languageFeaturesService.hoverProvider, model, new EditorPosition(1, 1), CancellationToken.None);
+		assert.strictEqual(hovers.length, 1);
+		hovers[0].contents.forEach((md, index) => assert.deepEqual(
+			Object.values((md.uris || {})).map(uri => URI.revive(uri).toString()), fixtures[index][1])
+		);
 	});
 
 	// --- occurrences
