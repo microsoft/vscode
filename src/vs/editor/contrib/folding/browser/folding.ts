@@ -39,7 +39,7 @@ import Severity from 'vs/base/common/severity';
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 const CONTEXT_FOLDING_ENABLED = new RawContextKey<boolean>('foldingEnabled', false);
 
@@ -66,6 +66,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 
 	private readonly editor: ICodeEditor;
 	private _isEnabled: boolean;
+	private _foldingStrategy: string;
 	private _useFoldingProviders: boolean;
 	private _unfoldOnClickAfterEndOfLine: boolean;
 	private _restoringViewState: boolean;
@@ -105,7 +106,8 @@ export class FoldingController extends Disposable implements IEditorContribution
 		this.editor = editor;
 		const options = this.editor.getOptions();
 		this._isEnabled = options.get(EditorOption.folding);
-		this._useFoldingProviders = options.get(EditorOption.foldingStrategy) !== 'indentation';
+		this._foldingStrategy = options.get(EditorOption.foldingStrategy);
+		this._useFoldingProviders = this._foldingStrategy !== 'indentation';
 		this._unfoldOnClickAfterEndOfLine = options.get(EditorOption.unfoldOnClickAfterEndOfLine);
 		this._restoringViewState = false;
 		this._currentModelHasFoldedImports = false;
@@ -160,7 +162,8 @@ export class FoldingController extends Disposable implements IEditorContribution
 				this.triggerFoldingModelChanged();
 			}
 			if (e.hasChanged(EditorOption.foldingStrategy)) {
-				this._useFoldingProviders = this.editor.getOptions().get(EditorOption.foldingStrategy) !== 'indentation';
+				this._foldingStrategy = this.editor.getOptions().get(EditorOption.foldingStrategy);
+				this._useFoldingProviders = this._foldingStrategy !== 'indentation';
 				this.onFoldingStrategyChanged();
 			}
 			if (e.hasChanged(EditorOption.unfoldOnClickAfterEndOfLine)) {
@@ -271,6 +274,16 @@ export class FoldingController extends Disposable implements IEditorContribution
 		this.rangeProvider = new IndentRangeProvider(editorModel, this.languageConfigurationService, this._maxFoldingRegions); // fallback
 		if (this._useFoldingProviders && this.foldingModel) {
 			const foldingProviders = this.languageFeaturesService.foldingRangeProvider.ordered(this.foldingModel.textModel);
+
+			// select unique provider if the foldingStrategy is equal to an extension's id
+			for (const provider of foldingProviders) {
+				if (provider.extensionId && ExtensionIdentifier.equals(provider.extensionId, this._foldingStrategy)) {
+					this.rangeProvider = new SyntaxRangeProvider(editorModel, [provider], () => this.triggerFoldingModelChanged(), this._maxFoldingRegions);
+
+					return this.rangeProvider;
+				}
+			}
+
 			if (foldingProviders.length > 0) {
 				this.rangeProvider = new SyntaxRangeProvider(editorModel, foldingProviders, () => this.triggerFoldingModelChanged(), this._maxFoldingRegions);
 			}
