@@ -2106,8 +2106,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return ret;
 	}
 
-	deltaCellOutputContainerClassNames(cellId: string, added: string[], removed: string[]) {
-		this._webview?.deltaCellOutputContainerClassNames(cellId, added, removed);
+	deltaCellContainerClassNames(cellId: string, added: string[], removed: string[]) {
+		this._webview?.deltaCellContainerClassNames(cellId, added, removed);
 	}
 
 	changeModelDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null {

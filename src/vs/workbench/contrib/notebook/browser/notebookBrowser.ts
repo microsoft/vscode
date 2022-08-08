@@ -675,7 +675,7 @@ export interface INotebookEditorDelegate extends INotebookEditor {
 	 * Hide the inset in the webview layer without removing it
 	 */
 	hideInset(output: IDisplayOutputViewModel): void;
-	deltaCellOutputContainerClassNames(cellId: string, added: string[], removed: string[]): void;
+	deltaCellContainerClassNames(cellId: string, added: string[], removed: string[]): void;
 }
 
 export interface IActiveNotebookEditorDelegate extends INotebookEditorDelegate {
