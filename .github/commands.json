@@ -440,5 +440,13 @@
 		"name": "*workspace-trust-docs",
 		"action": "close",
 		"comment": "This issue appears to be the result of the new workspace trust feature shipped in June 2021. This security-focused feature has major impact on the functionality of VS Code. Due to the volume of issues, we ask that you take some time to review our [comprehensive documentation](https://aka.ms/vscode-workspace-trust) on the feature. If your issue is still not resolved, please let us know."
+	},
+	{
+		"type": "label",
+		"name": "~verification-steps-needed",
+		"action": "updateLabels",
+		"addLabel": "verification-steps-needed",
+		"removeLabel": "~verification-steps-needed",
+		"comment": "Friendly ping! Looks like this issue requires some further steps to be verified. Please provide us with the steps necessary to verify this issue."
 	}
 ]
