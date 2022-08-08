@@ -598,7 +598,7 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 				const nextFocusElement = !currentElement || currentElement instanceof SearchResult || arrayContainsElementOrParent(currentElement, elementsToRemove) ?
 					this.getElementToFocusAfterRemoved(this.viewer, currentElement) :
 					null;
-				if (nextFocusElement && !elementsToRemove.includes(nextFocusElement)) {
+				if (nextFocusElement && !arrayContainsElementOrParent(nextFocusElement, elementsToRemove)) {
 					this.viewer.reveal(nextFocusElement);
 					this.viewer.setFocus([nextFocusElement], getSelectionKeyboardEvent());
 					this.viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
