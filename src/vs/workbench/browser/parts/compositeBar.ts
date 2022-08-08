@@ -557,9 +557,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			this.compositeOverflowAction.dispose();
 			this.compositeOverflowAction = undefined;
 
-			if (this.compositeOverflowActionViewItem) {
-				this.compositeOverflowActionViewItem.dispose();
-			}
+			this.compositeOverflowActionViewItem?.dispose();
 			this.compositeOverflowActionViewItem = undefined;
 		}
 
@@ -596,9 +594,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		// Add overflow action as needed
 		if (totalComposites > compositesToShow.length && !this.compositeOverflowAction) {
 			this.compositeOverflowAction = this.instantiationService.createInstance(CompositeOverflowActivityAction, () => {
-				if (this.compositeOverflowActionViewItem) {
-					this.compositeOverflowActionViewItem.showMenu();
-				}
+				this.compositeOverflowActionViewItem?.showMenu();
 			});
 			this.compositeOverflowActionViewItem = this.instantiationService.createInstance(
 				CompositeOverflowActivityActionViewItem,

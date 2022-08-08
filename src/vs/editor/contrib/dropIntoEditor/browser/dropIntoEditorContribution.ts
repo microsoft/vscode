@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -23,7 +24,8 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/editorState';
 import { performSnippetEdit } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { localize } from 'vs/nls';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 
@@ -33,31 +35,16 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 
 	constructor(
 		editor: ICodeEditor,
-		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
-		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
+		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
+		@IProgressService private readonly _progressService: IProgressService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 
 		this._register(editor.onDropIntoEditor(e => this.onDropIntoEditor(editor, e.position, e.event)));
 
-
 		this._languageFeaturesService.documentOnDropEditProvider.register('*', new DefaultOnDropProvider(workspaceContextService));
-
-		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('workbench.experimental.editor.dropIntoEditor.enabled')) {
-				this.updateEditorOptions(editor);
-			}
-		}));
-
-		this.updateEditorOptions(editor);
-	}
-
-	private updateEditorOptions(editor: ICodeEditor) {
-		editor.updateOptions({
-			enableDropIntoEditor: this._configurationService.getValue('workbench.experimental.editor.dropIntoEditor.enabled')
-		});
 	}
 
 	private async onDropIntoEditor(editor: ICodeEditor, position: IPosition, dragEvent: DragEvent) {
@@ -66,35 +53,55 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 		}
 
 		const model = editor.getModel();
-		const modelVersionNow = model.getVersionId();
+		const initialModelVersion = model.getVersionId();
 
 		const ourDataTransfer = await this.extractDataTransferData(dragEvent);
 		if (ourDataTransfer.size === 0) {
 			return;
 		}
 
-		if (editor.getModel().getVersionId() !== modelVersionNow) {
+		if (editor.getModel().getVersionId() !== initialModelVersion) {
 			return;
 		}
 
 		const tokenSource = new EditorStateCancellationTokenSource(editor, CodeEditorStateFlag.Value);
 		try {
 			const providers = this._languageFeaturesService.documentOnDropEditProvider.ordered(model);
-			for (const provider of providers) {
-				const edit = await provider.provideDocumentOnDropEdits(model, position, ourDataTransfer, tokenSource.token);
-				if (tokenSource.token.isCancellationRequested || editor.getModel().getVersionId() !== modelVersionNow) {
-					return;
-				}
 
-				if (edit) {
-					const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-					performSnippetEdit(editor, typeof edit.insertText === 'string' ? SnippetParser.escape(edit.insertText) : edit.insertText.snippet, [Selection.fromRange(range, SelectionDirection.LTR)]);
-
-					if (edit.additionalEdit) {
-						await this._bulkEditService.apply(ResourceEdit.convert(edit.additionalEdit), { editor });
+			const edit = await this._progressService.withProgress({
+				location: ProgressLocation.Notification,
+				delay: 750,
+				title: localize('dropProgressTitle', "Running drop handlers..."),
+				cancellable: true,
+			}, () => {
+				return raceCancellation((async () => {
+					for (const provider of providers) {
+						const edit = await provider.provideDocumentOnDropEdits(model, position, ourDataTransfer, tokenSource.token);
+						if (tokenSource.token.isCancellationRequested) {
+							return undefined;
+						}
+						if (edit) {
+							return edit;
+						}
 					}
-					return;
+					return undefined;
+				})(), tokenSource.token);
+			}, () => {
+				tokenSource.cancel();
+			});
+
+			if (tokenSource.token.isCancellationRequested || editor.getModel().getVersionId() !== initialModelVersion) {
+				return;
+			}
+
+			if (edit) {
+				const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
+				performSnippetEdit(editor, typeof edit.insertText === 'string' ? SnippetParser.escape(edit.insertText) : edit.insertText.snippet, [Selection.fromRange(range, SelectionDirection.LTR)]);
+
+				if (edit.additionalEdit) {
+					await this._bulkEditService.apply(ResourceEdit.convert(edit.additionalEdit), { editor });
 				}
+				return;
 			}
 		} finally {
 			tokenSource.dispose();

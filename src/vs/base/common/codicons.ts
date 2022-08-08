@@ -94,11 +94,12 @@ export class Codicon implements CSSIcon {
 	public static readonly eyeUnwatch = new Codicon('eye-unwatch', { fontCharacter: '\\ea70' });
 	public static readonly eyeWatch = new Codicon('eye-watch', { fontCharacter: '\\ea70' });
 	public static readonly circleFilled = new Codicon('circle-filled', { fontCharacter: '\\ea71' });
-	public static readonly primitiveDot = new Codicon('primitive-dot', { fontCharacter: '\\ea71' });
-	public static readonly closeDirty = new Codicon('close-dirty', { fontCharacter: '\\ea71' });
-	public static readonly debugBreakpoint = new Codicon('debug-breakpoint', { fontCharacter: '\\ea71' });
-	public static readonly debugBreakpointDisabled = new Codicon('debug-breakpoint-disabled', { fontCharacter: '\\ea71' });
-	public static readonly debugHint = new Codicon('debug-hint', { fontCharacter: '\\ea71' });
+	public static readonly primitiveDot = new Codicon('primitive-dot', Codicon.circleFilled.definition);
+	public static readonly closeDirty = new Codicon('close-dirty', Codicon.circleFilled.definition);
+	public static readonly terminalDecorationSuccess = new Codicon('terminal-decoration-success', Codicon.circleFilled.definition);
+	public static readonly debugBreakpoint = new Codicon('debug-breakpoint', Codicon.circleFilled.definition);
+	public static readonly debugBreakpointDisabled = new Codicon('debug-breakpoint-disabled', Codicon.circleFilled.definition);
+	public static readonly debugHint = new Codicon('debug-hint', Codicon.circleFilled.definition);
 	public static readonly primitiveSquare = new Codicon('primitive-square', { fontCharacter: '\\ea72' });
 	public static readonly edit = new Codicon('edit', { fontCharacter: '\\ea73' });
 	public static readonly pencil = new Codicon('pencil', { fontCharacter: '\\ea73' });
@@ -218,8 +219,10 @@ export class Codicon implements CSSIcon {
 	public static readonly chromeMaximize = new Codicon('chrome-maximize', { fontCharacter: '\\eab9' });
 	public static readonly chromeMinimize = new Codicon('chrome-minimize', { fontCharacter: '\\eaba' });
 	public static readonly chromeRestore = new Codicon('chrome-restore', { fontCharacter: '\\eabb' });
-	public static readonly circleOutline = new Codicon('circle-outline', { fontCharacter: '\\eabc' });
-	public static readonly debugBreakpointUnverified = new Codicon('debug-breakpoint-unverified', { fontCharacter: '\\eabc' });
+	public static readonly circle = new Codicon('circle', { fontCharacter: '\\eabc' });
+	public static readonly circleOutline = new Codicon('circle-outline', Codicon.circle.definition);
+	public static readonly terminalDecorationIncomplete = new Codicon('terminal-decoration-incomplete', Codicon.circle.definition);
+	public static readonly debugBreakpointUnverified = new Codicon('debug-breakpoint-unverified', Codicon.circle.definition);
 	public static readonly circleSlash = new Codicon('circle-slash', { fontCharacter: '\\eabd' });
 	public static readonly circuitBoard = new Codicon('circuit-board', { fontCharacter: '\\eabe' });
 	public static readonly clearAll = new Codicon('clear-all', { fontCharacter: '\\eabf' });
@@ -430,6 +433,7 @@ export class Codicon implements CSSIcon {
 	public static readonly debugStackframeActive = new Codicon('debug-stackframe-active', { fontCharacter: '\\eb89' });
 	public static readonly circleSmallFilled = new Codicon('circle-small-filled', { fontCharacter: '\\eb8a' });
 	public static readonly debugStackframeDot = new Codicon('debug-stackframe-dot', Codicon.circleSmallFilled.definition);
+	public static readonly terminalDecorationMark = new Codicon('terminal-decoration-mark', Codicon.circleSmallFilled.definition);
 	public static readonly debugStackframe = new Codicon('debug-stackframe', { fontCharacter: '\\eb8b' });
 	public static readonly debugStackframeFocused = new Codicon('debug-stackframe-focused', { fontCharacter: '\\eb8b' });
 	public static readonly debugBreakpointUnsupported = new Codicon('debug-breakpoint-unsupported', { fontCharacter: '\\eb8c' });
@@ -473,7 +477,8 @@ export class Codicon implements CSSIcon {
 	public static readonly pinnedDirty = new Codicon('pinned-dirty', { fontCharacter: '\\ebb2' });
 	public static readonly passFilled = new Codicon('pass-filled', { fontCharacter: '\\ebb3' });
 	public static readonly circleLargeFilled = new Codicon('circle-large-filled', { fontCharacter: '\\ebb4' });
-	public static readonly circleLargeOutline = new Codicon('circle-large-outline', { fontCharacter: '\\ebb5' });
+	public static readonly circleLarge = new Codicon('circle-large', { fontCharacter: '\\ebb5' });
+	public static readonly circleLargeOutline = new Codicon('circle-large-outline', Codicon.circleLarge.definition);
 	public static readonly combine = new Codicon('combine', { fontCharacter: '\\ebb6' });
 	public static readonly gather = new Codicon('gather', { fontCharacter: '\\ebb6' });
 	public static readonly table = new Codicon('table', { fontCharacter: '\\ebb7' });
@@ -549,6 +554,7 @@ export class Codicon implements CSSIcon {
 	public static readonly indent = new Codicon('indent', { fontCharacter: '\\ebf9' });
 	public static readonly recordSmall = new Codicon('record-small', { fontCharacter: '\\ebfa' });
 	public static readonly errorSmall = new Codicon('error-small', { fontCharacter: '\\ebfb' });
+	public static readonly terminalDecorationError = new Codicon('terminal-decoration-error', Codicon.errorSmall.definition);
 	public static readonly arrowCircleDown = new Codicon('arrow-circle-down', { fontCharacter: '\\ebfc' });
 	public static readonly arrowCircleLeft = new Codicon('arrow-circle-left', { fontCharacter: '\\ebfd' });
 	public static readonly arrowCircleRight = new Codicon('arrow-circle-right', { fontCharacter: '\\ebfe' });
@@ -558,7 +564,10 @@ export class Codicon implements CSSIcon {
 	public static readonly mapFilled = new Codicon('map-filled', { fontCharacter: '\\ec06' });
 	public static readonly circleSmall = new Codicon('circle-small', { fontCharacter: '\\ec07' });
 	public static readonly bellSlash = new Codicon('bell-slash', { fontCharacter: '\\ec08' });
-	public static readonly bellSlashDot = new Codicon('bell-slash-dot', { fontCharacter: '\\f101' });
+	public static readonly bellSlashDot = new Codicon('bell-slash-dot', { fontCharacter: '\\ec09' });
+	public static readonly commentUnresolved = new Codicon('comment-unresolved', { fontCharacter: '\\ec0a' });
+	public static readonly gitPullRequestGoToChanges = new Codicon('git-pull-request-go-to-changes', { fontCharacter: '\\ec0b' });
+	public static readonly gitPullRequestNewChanges = new Codicon('git-pull-request-new-changes', { fontCharacter: '\\ec0c' });
 
 
 	// derived icons, that could become separate icons

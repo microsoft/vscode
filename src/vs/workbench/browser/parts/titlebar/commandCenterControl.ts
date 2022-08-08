@@ -7,7 +7,7 @@ import { reset } from 'vs/base/browser/dom';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -20,6 +20,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import * as colors from 'vs/platform/theme/common/colorRegistry';
 import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
 import { MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_FOREGROUND, PANEL_BORDER, TITLE_BAR_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
@@ -42,6 +43,7 @@ export class CommandCenterControl {
 		@IMenuService menuService: IMenuService,
 		@IQuickInputService quickInputService: IQuickInputService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		this.element.classList.add('command-center');
 
@@ -65,15 +67,14 @@ export class CommandCenterControl {
 							searchIcon.classList.add('search-icon');
 
 							this.workspaceTitle.classList.add('search-label');
-							this._updateFromWindowTitle();
+							this.updateTooltip();
 							reset(this.label, searchIcon, this.workspaceTitle);
 							// this._renderAllQuickPickItem(container);
 
-							this._store.add(windowTitle.onDidChange(this._updateFromWindowTitle, this));
+							this._store.add(windowTitle.onDidChange(this.updateTooltip, this));
 						}
 
-						private _updateFromWindowTitle() {
-
+						override getTooltip() {
 							// label: just workspace name and optional decorations
 							const { prefix, suffix } = windowTitle.getTitleDecorations();
 							let label = windowTitle.workspaceName;
@@ -93,7 +94,8 @@ export class CommandCenterControl {
 							const title = kb
 								? localize('title', "Search {0} ({1}) \u2014 {2}", windowTitle.workspaceName, kb, windowTitle.value)
 								: localize('title2', "Search {0} \u2014 {1}", windowTitle.workspaceName, windowTitle.value);
-							this._applyUpdateTooltip(title);
+
+							return title;
 						}
 					}
 					return instantiationService.createInstance(InputLikeViewItem, action, { hoverDelegate });
@@ -112,7 +114,8 @@ export class CommandCenterControl {
 				} else {
 					return createActionViewItem(instantiationService, action, { hoverDelegate });
 				}
-			}
+			},
+			allowContextMenu: true
 		});
 		const menu = this._disposables.add(menuService.createMenu(MenuId.CommandCenter, contextKeyService));
 		const menuDisposables = this._disposables.add(new DisposableStore());
@@ -129,6 +132,10 @@ export class CommandCenterControl {
 		}));
 		this._disposables.add(quickInputService.onShow(this._setVisibility.bind(this, false)));
 		this._disposables.add(quickInputService.onHide(this._setVisibility.bind(this, true)));
+
+		titleToolbar.actionRunner.onDidRun(e => {
+			telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: 'commandCenter' });
+		});
 	}
 
 	private _setVisibility(show: boolean): void {
@@ -148,7 +155,7 @@ registerAction2(class extends Action2 {
 			id: 'commandCenter.help',
 			title: localize('all', "Show Search Modes..."),
 			icon: Codicon.chevronDown,
-			menu: { id: MenuId.CommandCenter, order: 100 }
+			menu: { id: MenuId.CommandCenter, order: 101 }
 		});
 	}
 	run(accessor: ServicesAccessor): void {

@@ -27,7 +27,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
-import { count, removeAnsiEscapeCodes } from 'vs/base/common/strings';
+import { count } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor, IDiffEditorConstructionOptions, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
@@ -1165,7 +1165,7 @@ class TestMessageElement implements ITreeElement {
 		public readonly taskIndex: number,
 		public readonly messageIndex: number,
 	) {
-		const { type, message, location } = test.tasks[taskIndex].messages[messageIndex];
+		const { message, location } = test.tasks[taskIndex].messages[messageIndex];
 
 		this.location = location;
 		this.uri = this.context = buildTestUri({
@@ -1178,9 +1178,7 @@ class TestMessageElement implements ITreeElement {
 
 		this.id = this.uri.toString();
 
-		const asPlaintext = type === TestMessageType.Output
-			? removeAnsiEscapeCodes(message)
-			: renderStringAsPlaintext(message);
+		const asPlaintext = renderStringAsPlaintext(message);
 		const lines = count(asPlaintext.trimRight(), '\n');
 		this.label = firstLine(asPlaintext);
 		if (lines > 0) {
@@ -1666,7 +1664,7 @@ export class GoToNextMessageAction extends EditorAction2 {
 		super({
 			id: GoToNextMessageAction.ID,
 			f1: true,
-			title: localize('testing.goToNextMessage', "Go to Next Test Failure"),
+			title: { value: localize('testing.goToNextMessage', "Go to Next Test Failure"), original: 'Go to Next Test Failure' },
 			icon: Codicon.arrowDown,
 			category: CATEGORIES.Test,
 			keybinding: {
@@ -1696,7 +1694,7 @@ export class GoToPreviousMessageAction extends EditorAction2 {
 		super({
 			id: GoToPreviousMessageAction.ID,
 			f1: true,
-			title: localize('testing.goToPreviousMessage', "Go to Previous Test Failure"),
+			title: { value: localize('testing.goToPreviousMessage', "Go to Previous Test Failure"), original: 'Go to Previous Test Failure' },
 			icon: Codicon.arrowUp,
 			category: CATEGORIES.Test,
 			keybinding: {
@@ -1726,7 +1724,7 @@ export class OpenMessageInEditorAction extends EditorAction2 {
 		super({
 			id: OpenMessageInEditorAction.ID,
 			f1: false,
-			title: localize('testing.openMessageInEditor', "Open in Editor"),
+			title: { value: localize('testing.openMessageInEditor', "Open in Editor"), original: 'Open in Editor' },
 			icon: Codicon.linkExternal,
 			category: CATEGORIES.Test,
 			menu: [{ id: MenuId.TestPeekTitle }],
@@ -1744,7 +1742,7 @@ export class ToggleTestingPeekHistory extends EditorAction2 {
 		super({
 			id: ToggleTestingPeekHistory.ID,
 			f1: true,
-			title: localize('testing.toggleTestingPeekHistory', "Toggle Test History in Peek"),
+			title: { value: localize('testing.toggleTestingPeekHistory', "Toggle Test History in Peek"), original: 'Toggle Test History in Peek' },
 			icon: Codicon.history,
 			category: CATEGORIES.Test,
 			menu: [{

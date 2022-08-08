@@ -24,14 +24,15 @@ export abstract class CodeEditorView extends Disposable {
 	readonly model = this._viewModel.map(m => /** @description model */ m?.model);
 
 	protected readonly htmlElements = h('div.code-view', [
-		h('div.title', [
-			h('span.title', { $: 'title' }),
-			h('span.description', { $: 'description' }),
-			h('span.detail', { $: 'detail' }),
+		h('div.title@header', [
+			h('span.title@title'),
+			h('span.description@description'),
+			h('span.detail@detail'),
+			h('span.toolbar@toolbar'),
 		]),
 		h('div.container', [
-			h('div.gutter', { $: 'gutterDiv' }),
-			h('div', { $: 'editor' }),
+			h('div.gutter@gutterDiv'),
+			h('div@editor'),
 		]),
 	]);
 
@@ -48,7 +49,7 @@ export abstract class CodeEditorView extends Disposable {
 			setStyle(this.htmlElements.root, { width, height, top, left });
 			this.editor.layout({
 				width: width - this.htmlElements.gutterDiv.clientWidth,
-				height: height - this.htmlElements.title.clientHeight,
+				height: height - this.htmlElements.header.clientHeight,
 			});
 		}
 		// preferredWidth?: number | undefined;

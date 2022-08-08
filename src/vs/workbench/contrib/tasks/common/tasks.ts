@@ -18,6 +18,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 
+
 export const USER_TASKS_GROUP_KEY = 'settings';
 
 export const TASK_RUNNING_STATE = new RawContextKey<boolean>('taskRunning', false, nls.localize('tasks.taskRunningContext', "Whether a task is currently running."));
@@ -549,6 +550,11 @@ export interface IConfigurationProperties {
 	 * The icon for this task in the terminal tabs list
 	 */
 	icon?: { id?: string; color?: string };
+
+	/**
+	 * Do not show this task in the run task quickpick
+	 */
+	hide?: boolean;
 }
 
 export enum RunOnOptions {
@@ -914,6 +920,11 @@ export class ContributedTask extends CommonTask {
 	 */
 	icon: { id?: string; color?: string } | undefined;
 
+	/**
+	 * Don't show the task in the run task quickpick
+	 */
+	hide?: boolean;
+
 	public constructor(id: string, source: IExtensionTaskSource, label: string, type: string | undefined, defines: KeyedTaskIdentifier,
 		command: ICommandConfiguration, hasDefinedMatchers: boolean, runOptions: IRunOptions,
 		configurationProperties: IConfigurationProperties) {
@@ -922,6 +933,7 @@ export class ContributedTask extends CommonTask {
 		this.hasDefinedMatchers = hasDefinedMatchers;
 		this.command = command;
 		this.icon = configurationProperties.icon;
+		this.hide = configurationProperties.hide;
 	}
 
 	public override clone(): ContributedTask {
@@ -1120,7 +1132,8 @@ export const enum TaskRunSource {
 	System,
 	User,
 	FolderOpen,
-	ConfigurationChange
+	ConfigurationChange,
+	Reconnect
 }
 
 export namespace TaskEvent {
@@ -1139,7 +1152,7 @@ export namespace TaskEvent {
 				processId: undefined as number | undefined,
 				exitCode: undefined as number | undefined,
 				terminalId: undefined as number | undefined,
-				__task: task,
+				__task: task
 			};
 			if (kind === TaskEventKind.Start) {
 				result.terminalId = processIdOrExitCodeOrTerminalId;
@@ -1177,6 +1190,31 @@ export namespace KeyedTaskIdentifier {
 		Object.assign(result, value);
 		return result;
 	}
+}
+
+export const enum TaskSettingId {
+	AutoDetect = 'task.autoDetect',
+	SaveBeforeRun = 'task.saveBeforeRun',
+	ShowDecorations = 'task.showDecorations',
+	ProblemMatchersNeverPrompt = 'task.problemMatchers.neverPrompt',
+	SlowProviderWarning = 'task.slowProviderWarning',
+	QuickOpenHistory = 'task.quickOpen.history',
+	QuickOpenDetail = 'task.quickOpen.detail',
+	QuickOpenSkip = 'task.quickOpen.skip',
+	QuickOpenShowAll = 'task.quickOpen.showAll',
+	AllowAutomaticTasks = 'task.allowAutomaticTasks',
+	Reconnection = 'task.experimental.reconnection'
+}
+
+export const enum TasksSchemaProperties {
+	Tasks = 'tasks',
+	SuppressTaskName = 'tasks.suppressTaskName',
+	Windows = 'tasks.windows',
+	Osx = 'tasks.osx',
+	Linux = 'tasks.linux',
+	ShowOutput = 'tasks.showOutput',
+	IsShellCommand = 'tasks.isShellCommand',
+	ServiceTestSetting = 'tasks.service.testSetting',
 }
 
 export namespace TaskDefinition {

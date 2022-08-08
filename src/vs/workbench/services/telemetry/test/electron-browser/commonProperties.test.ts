@@ -46,7 +46,7 @@ suite('Telemetry - common properties', function () {
 	test('default', async function () {
 		await Promises.mkdir(parentDir, { recursive: true });
 		fs.writeFileSync(installSource, 'my.install.source');
-		const props = await resolveWorkbenchCommonProperties(testStorageService, testFileService, release(), hostname(), commit, version, 'someMachineId', undefined, installSource);
+		const props = await resolveWorkbenchCommonProperties(testStorageService, testFileService, release(), hostname(), commit, version, 'someMachineId', false, installSource);
 		assert.ok('commitHash' in props);
 		assert.ok('sessionID' in props);
 		assert.ok('timestamp' in props);
@@ -66,7 +66,7 @@ suite('Telemetry - common properties', function () {
 		// machine id et al
 		assert.ok('common.machineId' in props, 'machineId');
 		fs.unlinkSync(installSource);
-		const props_1 = await resolveWorkbenchCommonProperties(testStorageService, testFileService, release(), hostname(), commit, version, 'someMachineId', undefined, installSource);
+		const props_1 = await resolveWorkbenchCommonProperties(testStorageService, testFileService, release(), hostname(), commit, version, 'someMachineId', false, installSource);
 		assert.ok(!('common.source' in props_1));
 	});
 
@@ -74,14 +74,14 @@ suite('Telemetry - common properties', function () {
 
 		testStorageService.store('telemetry.lastSessionDate', new Date().toUTCString(), StorageScope.APPLICATION, StorageTarget.MACHINE);
 
-		const props = await resolveWorkbenchCommonProperties(testStorageService, testFileService, release(), hostname(), commit, version, 'someMachineId', undefined, installSource);
+		const props = await resolveWorkbenchCommonProperties(testStorageService, testFileService, release(), hostname(), commit, version, 'someMachineId', false, installSource);
 		assert.ok('common.lastSessionDate' in props); // conditional, see below
 		assert.ok('common.isNewSession' in props);
 		assert.strictEqual(props['common.isNewSession'], '0');
 	});
 
 	test('values chance on ask', async function () {
-		const props = await resolveWorkbenchCommonProperties(testStorageService, testFileService, release(), hostname(), commit, version, 'someMachineId', undefined, installSource);
+		const props = await resolveWorkbenchCommonProperties(testStorageService, testFileService, release(), hostname(), commit, version, 'someMachineId', false, installSource);
 		let value1 = props['common.sequence'];
 		let value2 = props['common.sequence'];
 		assert.ok(value1 !== value2, 'seq');

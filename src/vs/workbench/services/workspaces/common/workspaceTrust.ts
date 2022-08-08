@@ -15,7 +15,7 @@ import { IRemoteAuthorityResolverService, ResolverResult } from 'vs/platform/rem
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { isVirtualResource } from 'vs/platform/workspace/common/virtualWorkspace';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ISingleFolderWorkspaceIdentifier, isSavedWorkspace, isSingleFolderWorkspaceIdentifier, IWorkspace, IWorkspaceContextService, IWorkspaceFolder, toWorkspaceIdentifier, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { ISingleFolderWorkspaceIdentifier, isSavedWorkspace, isSingleFolderWorkspaceIdentifier, isTemporaryWorkspace, IWorkspace, IWorkspaceContextService, IWorkspaceFolder, toWorkspaceIdentifier, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustInfo, IWorkspaceTrustUriInfo, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, WorkspaceTrustUriResponse, IWorkspaceTrustEnablementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -132,7 +132,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			this._workspaceTrustInitializedPromiseResolve = resolve;
 		});
 
-		this._storedTrustState = new WorkspaceTrustMemento(isWeb && this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : this.storageService);
+		this._storedTrustState = new WorkspaceTrustMemento(isWeb && this.isEmptyWorkspace() ? undefined : this.storageService);
 		this._trustTransitionManager = this._register(new WorkspaceTrustTransitionManager());
 
 		this._trustStateInfo = this.loadTrustInfo();
@@ -172,7 +172,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		}
 
 		// Empty workspace - save initial state to memento
-		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
+		if (this.isEmptyWorkspace()) {
 			this._workspaceTrustInitializedPromise.then(() => {
 				if (this._storedTrustState.isEmptyWorkspaceTrusted === undefined) {
 					this._storedTrustState.isEmptyWorkspaceTrusted = this.isWorkspaceTrusted();
@@ -222,6 +222,10 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 		if (this.environmentService.filesToDiff) {
 			filesToOpen.push(...this.environmentService.filesToDiff);
+		}
+
+		if (this.environmentService.filesToMerge) {
+			filesToOpen.push(...this.environmentService.filesToMerge);
 		}
 
 		if (filesToOpen.length) {
@@ -303,7 +307,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		}
 
 		// Empty workspace - use memento, open ediors, or user setting
-		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
+		if (this.isEmptyWorkspace()) {
 			// Use memento if present
 			if (this._storedTrustState.isEmptyWorkspaceTrusted !== undefined) {
 				return this._storedTrustState.isEmptyWorkspaceTrusted;
@@ -422,6 +426,19 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		}
 	}
 
+	private isEmptyWorkspace(): boolean {
+		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
+			return true;
+		}
+
+		const workspace = this.workspaceService.getWorkspace();
+		if (workspace) {
+			return isTemporaryWorkspace(this.workspaceService.getWorkspace()) && workspace.folders.length === 0;
+		}
+
+		return false;
+	}
+
 	private isTrustedVirtualResource(uri: URI): boolean {
 		return isVirtualResource(uri) && uri.scheme !== 'vscode-vfs';
 	}
@@ -447,7 +464,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		}
 
 		// Empty workspace - save memento
-		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
+		if (this.isEmptyWorkspace()) {
 			this._storedTrustState.isEmptyWorkspaceTrusted = value;
 		}
 	}
@@ -526,7 +543,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		}
 
 		// Empty workspace
-		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
+		if (this.isEmptyWorkspace()) {
 			return true;
 		}
 
@@ -573,7 +590,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 	async setWorkspaceTrust(trusted: boolean): Promise<void> {
 		// Empty workspace
-		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
+		if (this.isEmptyWorkspace()) {
 			await this.updateWorkspaceTrust(trusted);
 			return;
 		}
@@ -856,9 +873,7 @@ class WorkspaceTrustMemento {
 	set acceptsOutOfWorkspaceFiles(value: boolean) {
 		this._mementoObject[this._acceptsOutOfWorkspaceFilesKey] = value;
 
-		if (this._memento) {
-			this._memento.saveMemento();
-		}
+		this._memento?.saveMemento();
 	}
 
 	get isEmptyWorkspaceTrusted(): boolean | undefined {
@@ -868,9 +883,7 @@ class WorkspaceTrustMemento {
 	set isEmptyWorkspaceTrusted(value: boolean | undefined) {
 		this._mementoObject[this._isEmptyWorkspaceTrustedKey] = value;
 
-		if (this._memento) {
-			this._memento.saveMemento();
-		}
+		this._memento?.saveMemento();
 	}
 }
 

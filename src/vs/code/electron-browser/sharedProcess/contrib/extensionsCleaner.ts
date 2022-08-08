@@ -34,7 +34,7 @@ export class ExtensionsCleaner extends Disposable {
 	) {
 		super();
 
-		extensionManagementService.removeUninstalledExtensions(this.userDataProfilesService.profiles.length === 0);
+		extensionManagementService.removeUninstalledExtensions(this.userDataProfilesService.profiles.length === 1);
 		migrateUnsupportedExtensions(extensionManagementService, extensionGalleryService, extensionStorageService, extensionEnablementService, logService);
 		ExtensionStorageService.removeOutdatedExtensionVersions(extensionManagementService, storageService);
 		this._register(instantiationService.createInstance(ProfileExtensionsCleaner));
@@ -59,14 +59,14 @@ class ProfileExtensionsCleaner extends Disposable {
 		this.onDidChangeProfiles({ added: this.userDataProfilesService.profiles, removed: [], all: this.userDataProfilesService.profiles });
 	}
 
-	private async onDidChangeProfiles({ added, removed, all }: DidChangeProfilesEvent): Promise<void> {
+	private async onDidChangeProfiles({ added, removed, all }: Omit<DidChangeProfilesEvent, 'updated'>): Promise<void> {
 		try {
 			await Promise.all(removed.map(profile => profile.extensionsResource ? this.removeExtensionsFromProfile(profile.extensionsResource) : Promise.resolve()));
 		} catch (error) {
 			this.logService.error(error);
 		}
 
-		if (all.length === 0) {
+		if (all.length === 1) {
 			// Exit profile mode
 			this.profileModeDisposables.clear();
 			// Listen for entering into profile mode

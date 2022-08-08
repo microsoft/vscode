@@ -7,7 +7,6 @@ import type { AppInsightsCore, IExtendedConfiguration } from '@microsoft/1ds-cor
 import type { IChannelConfiguration, IXHROverride, PostChannel } from '@microsoft/1ds-post-js';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { mixin } from 'vs/base/common/objects';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryAppender, validateTelemetryData } from 'vs/platform/telemetry/common/telemetryUtils';
 
 const endpointUrl = 'https://mobile.events.data.microsoft.com/OneCollector/1.0';
@@ -63,7 +62,7 @@ export abstract class AbstractOneDataSystemAppender implements ITelemetryAppende
 	protected readonly endPointUrl = endpointUrl;
 
 	constructor(
-		private readonly _configurationService: IConfigurationService,
+		private readonly _isInternalTelemetry: boolean,
 		private _eventPrefix: string,
 		private _defaultData: { [key: string]: any } | null,
 		iKeyOrClientFactory: string | (() => AppInsightsCore), // allow factory function for testing
@@ -92,8 +91,7 @@ export abstract class AbstractOneDataSystemAppender implements ITelemetryAppende
 		}
 
 		if (!this._asyncAiCore) {
-			const isInternal = this._configurationService.getValue<boolean>('telemetry.internalTesting');
-			this._asyncAiCore = getClient(this._aiCoreOrKey, isInternal, this._xhrOverride);
+			this._asyncAiCore = getClient(this._aiCoreOrKey, this._isInternalTelemetry, this._xhrOverride);
 		}
 
 		this._asyncAiCore.then(
@@ -116,10 +114,13 @@ export abstract class AbstractOneDataSystemAppender implements ITelemetryAppende
 		const name = this._eventPrefix + '/' + eventName;
 
 		try {
-			this._withAIClient((aiClient) => aiClient.track({
-				name,
-				baseData: { name, properties: data?.properties, measurements: data?.measurements }
-			}));
+			this._withAIClient((aiClient) => {
+				aiClient.pluginVersionString = data?.properties.version ?? 'Unknown';
+				aiClient.track({
+					name,
+					baseData: { name, properties: data?.properties, measurements: data?.measurements }
+				});
+			});
 		} catch { }
 	}
 

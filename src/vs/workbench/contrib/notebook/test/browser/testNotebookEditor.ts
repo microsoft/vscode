@@ -44,7 +44,7 @@ import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/vie
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellKind, CellUri, INotebookDiffEditorModel, INotebookEditorModel, INotebookSearchOptions, IOutputDto, IResolvedNotebookEditorModel, NotebookCellExecutionState, NotebookCellMetadata, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionStateChangedEvent, INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionStateChangedEvent, INotebookCellExecution, INotebookExecutionStateService, INotebookFailStateChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
@@ -54,6 +54,8 @@ import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServic
 import { ResourceMap } from 'vs/base/common/map';
 import { TestClipboardService } from 'vs/platform/clipboard/test/common/testClipboardService';
 import { IWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -173,6 +175,7 @@ export function setupInstantiationService(disposables = new DisposableStore()) {
 	instantiationService.stub(IStorageService, new TestStorageService());
 	instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService(true));
 	instantiationService.stub(INotebookExecutionStateService, new TestNotebookExecutionStateService());
+	instantiationService.stub(IKeybindingService, new MockKeybindingService());
 
 	return instantiationService;
 }
@@ -366,7 +369,6 @@ export function createNotebookCellList(instantiationService: TestInstantiationSe
 		{
 			supportDynamicHeights: true,
 			multipleSelectionSupport: true,
-			enableKeyboardNavigation: true,
 			focusNextPreviousDelegate: {
 				onFocusNext: (applyFocusNext: () => void) => { applyFocusNext(); },
 				onFocusPrevious: (applyFocusPrevious: () => void) => { applyFocusPrevious(); },
@@ -405,11 +407,17 @@ class TestCellExecution implements INotebookCellExecution {
 }
 
 class TestNotebookExecutionStateService implements INotebookExecutionStateService {
+
+	getLastFailedCellForNotebook(notebook: URI): number | undefined {
+		return;
+	}
+
 	_serviceBrand: undefined;
 
 	private _executions = new ResourceMap<INotebookCellExecution>();
 
 	onDidChangeCellExecution = new Emitter<ICellExecutionStateChangedEvent>().event;
+	onDidChangeLastRunFailState = new Emitter<INotebookFailStateChangedEvent>().event;
 
 	forceCancelNotebookExecutions(notebookUri: URI): void {
 	}

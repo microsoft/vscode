@@ -16,7 +16,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IRequestService } from 'vs/platform/request/common/request';
-import { IRemoteUserData, IUserData, IUserDataInitializer, IUserDataSyncLogService, IUserDataSyncStoreClient, IUserDataSyncStoreManagementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
+import { IRemoteUserData, IUserData, IUserDataInitializer, IUserDataSyncLogService, IUserDataSyncStoreManagementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { AuthenticationSessionInfo, getCurrentAuthenticationSessionInfo } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { getSyncAreaLabel } from 'vs/workbench/services/userDataSync/common/userDataSync';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
@@ -77,10 +77,10 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 		});
 	}
 
-	private _userDataSyncStoreClientPromise: Promise<IUserDataSyncStoreClient | undefined> | undefined;
-	private createUserDataSyncStoreClient(): Promise<IUserDataSyncStoreClient | undefined> {
+	private _userDataSyncStoreClientPromise: Promise<UserDataSyncStoreClient | undefined> | undefined;
+	private createUserDataSyncStoreClient(): Promise<UserDataSyncStoreClient | undefined> {
 		if (!this._userDataSyncStoreClientPromise) {
-			this._userDataSyncStoreClientPromise = (async (): Promise<IUserDataSyncStoreClient | undefined> => {
+			this._userDataSyncStoreClientPromise = (async (): Promise<UserDataSyncStoreClient | undefined> => {
 				try {
 					if (!isWeb) {
 						this.logService.trace(`Skipping initializing user data in desktop`);
@@ -151,7 +151,7 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 			userDataSyncStoreClient.setAuthToken(authenticationSession.accessToken, authenticationSession.providerId);
 
 			// Cache global state data for global state initialization
-			this.globalStateUserData = await userDataSyncStoreClient.read(SyncResource.GlobalState, null);
+			this.globalStateUserData = await userDataSyncStoreClient.readResource(SyncResource.GlobalState, null);
 
 			if (this.globalStateUserData) {
 				const userDataSyncStoreType = new UserDataSyncStoreTypeSynchronizer(userDataSyncStoreClient, this.storageService, this.environmentService, this.fileService, this.logService).getSyncStoreType(this.globalStateUserData);
@@ -238,7 +238,7 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 				if (!userDataSyncStoreClient) {
 					return null;
 				}
-				const userData = await userDataSyncStoreClient.read(SyncResource.Extensions, null);
+				const userData = await userDataSyncStoreClient.readResource(SyncResource.Extensions, null);
 				return instantiationService.createInstance(ExtensionsPreviewInitializer, userData);
 			})();
 		}
@@ -260,7 +260,7 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 				this.initialized.push(syncResource);
 				this.logService.trace(`Initializing ${getSyncAreaLabel(syncResource)}`);
 				const initializer = this.createSyncResourceInitializer(syncResource);
-				const userData = await userDataSyncStoreClient.read(syncResource, syncResource === SyncResource.GlobalState ? this.globalStateUserData : null);
+				const userData = await userDataSyncStoreClient.readResource(syncResource, syncResource === SyncResource.GlobalState ? this.globalStateUserData : null);
 				await initializer.initialize(userData);
 				this.logService.info(`Initialized ${getSyncAreaLabel(syncResource)}`);
 			} catch (error) {

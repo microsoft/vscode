@@ -8,7 +8,7 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export interface IContentActionHandler {
-	callback: (content: string, event?: IMouseEvent) => void;
+	callback: (content: string, event: IMouseEvent) => void;
 	readonly disposables: DisposableStore;
 }
 

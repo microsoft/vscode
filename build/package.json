@@ -43,7 +43,6 @@
     "@typescript-eslint/experimental-utils": "^5.10.0",
     "@typescript-eslint/parser": "^5.10.0",
     "@vscode/iconv-lite-umd": "0.7.0",
-    "applicationinsights": "1.4.2",
     "byline": "^5.0.0",
     "colors": "^1.4.0",
     "commander": "^7.0.0",
