@@ -568,7 +568,7 @@
     "picomatch": "^2.3.1",
     "vscode-languageclient": "^8.0.1",
     "vscode-languageserver-textdocument": "^1.0.4",
-    "vscode-nls": "^5.0.0",
+    "vscode-nls": "^5.1.0",
     "vscode-uri": "^3.0.3"
   },
   "devDependencies": {
