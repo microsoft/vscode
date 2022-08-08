@@ -88,11 +88,11 @@ export class StickyLineCandidateProvider extends Disposable {
 		if (this.editor.hasModel()) {
 			const model = this.editor.getModel();
 			const modelVersionId = model.getVersionId();
-			this.outlineModel = structuredClone(await OutlineModel.create(this.languageFeaturesService.documentSymbolProvider, model, token)) as OutlineModel;
+			const outlineModel = await OutlineModel.create(this.languageFeaturesService.documentSymbolProvider, model, token) as OutlineModel;
 			if (token.isCancellationRequested) {
 				return;
 			}
-			this.outlineModel = this.sortOutline(this.outlineModel) as OutlineModel;
+			this.outlineModel = this.sortOutline(outlineModel) as OutlineModel;
 			this.modelVersionId = modelVersionId;
 		}
 	}
@@ -107,9 +107,9 @@ export class StickyLineCandidateProvider extends Disposable {
 		const updatedOutline = model;
 		updatedOutline.children = updatedChildrenMap;
 
-		for (const [key, child] of model.children) {
+		for (const [_definitionString, child] of model.children) {
 			const updatedChild = this.sortOutline(child) as OutlineElement | OutlineGroup;
-			updatedOutline.children.set(key, updatedChild);
+			updatedOutline.children.set(_definitionString, updatedChild);
 		}
 		return updatedOutline;
 	}
