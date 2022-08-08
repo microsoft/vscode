@@ -16,7 +16,7 @@ import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configur
 import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { getDefaultIgnoredSettings, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
-import { MODIFIED_INDICATOR_USE_INLINE_ONLY } from 'vs/workbench/contrib/preferences/common/preferences';
+import { MODIFIED_INDICATOR_USE_INLINE_ONLY, POLICY_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 
 const $ = DOM.$;
@@ -34,13 +34,17 @@ export interface ISettingOverrideClickEvent {
  */
 export class SettingsTreeIndicatorsLabel implements IDisposable {
 	private indicatorsContainerElement: HTMLElement;
+	private workspaceTrustElement: HTMLElement;
 	private scopeOverridesElement: HTMLElement;
 	private scopeOverridesLabel: SimpleIconLabel;
 	private scopeOverridesHover: MutableDisposable<ICustomHover>;
 	private syncIgnoredElement: HTMLElement;
-	private syncIgnoredHover: ICustomHover | undefined;
 	private defaultOverrideIndicatorElement: HTMLElement;
 	private hoverDelegate: IHoverDelegate;
+	private profilesEnabled: boolean;
+
+	// Holds hovers that contain a fixed message.
+	private simpleHoverStore: DisposableStore;
 
 	constructor(
 		container: HTMLElement,
@@ -60,12 +64,24 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 			placement: 'element'
 		};
 
+		this.simpleHoverStore = new DisposableStore();
 		const scopeOverridesIndicator = this.createScopeOverridesIndicator();
+		this.workspaceTrustElement = this.createWorkspaceTrustElement();
 		this.scopeOverridesElement = scopeOverridesIndicator.element;
 		this.scopeOverridesLabel = scopeOverridesIndicator.label;
 		this.syncIgnoredElement = this.createSyncIgnoredElement();
 		this.defaultOverrideIndicatorElement = this.createDefaultOverrideIndicator();
 		this.scopeOverridesHover = new MutableDisposable();
+		this.profilesEnabled = this.configurationService.getValue<boolean>('workbench.experimental.settingsProfiles.enabled');
+	}
+
+	private createWorkspaceTrustElement(): HTMLElement {
+		const workspaceTrustElement = $('span.setting-item-workspace-trust');
+		const workspaceTrustLabel = new SimpleIconLabel(workspaceTrustElement);
+		workspaceTrustLabel.text = localize('workspaceUntrustedLabel', 'Requires Workspace Trust');
+		const workspaceTrustHoverContent = localize('workspaceUntrustedHoverContent', "This setting requires a trusted workspace for its value to take effect.");
+		this.simpleHoverStore.add(setupCustomHover(this.hoverDelegate, workspaceTrustElement, workspaceTrustHoverContent));
+		return workspaceTrustElement;
 	}
 
 	private createScopeOverridesIndicator(): { element: HTMLElement; label: SimpleIconLabel } {
@@ -79,7 +95,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		const syncIgnoredLabel = new SimpleIconLabel(syncIgnoredElement);
 		syncIgnoredLabel.text = localize('extensionSyncIgnoredLabel', 'Not synced');
 		const syncIgnoredHoverContent = localize('syncIgnoredTitle', "This setting is ignored during sync");
-		this.syncIgnoredHover = setupCustomHover(this.hoverDelegate, syncIgnoredElement, syncIgnoredHoverContent);
+		this.simpleHoverStore.add(setupCustomHover(this.hoverDelegate, syncIgnoredElement, syncIgnoredHoverContent));
 		return syncIgnoredElement;
 	}
 
@@ -91,7 +107,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	}
 
 	private render() {
-		const elementsToShow = [this.scopeOverridesElement, this.syncIgnoredElement, this.defaultOverrideIndicatorElement].filter(element => {
+		const elementsToShow = [this.scopeOverridesElement, this.workspaceTrustElement, this.syncIgnoredElement, this.defaultOverrideIndicatorElement].filter(element => {
 			return element.style.display !== 'none';
 		});
 
@@ -107,6 +123,11 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 			DOM.append(this.indicatorsContainerElement, elementsToShow[elementsToShow.length - 1]);
 			DOM.append(this.indicatorsContainerElement, $('span', undefined, ')'));
 		}
+	}
+
+	updateWorkspaceTrust(element: SettingsTreeSettingElement) {
+		this.workspaceTrustElement.style.display = element.isUntrusted ? 'inline' : 'none';
+		this.render();
 	}
 
 	updateSyncIgnored(element: SettingsTreeSettingElement, ignoredSettings: string[]) {
@@ -128,14 +149,38 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 	dispose() {
 		this.scopeOverridesHover.dispose();
-		this.syncIgnoredHover?.dispose();
+		this.simpleHoverStore.dispose();
 	}
 
-	updateScopeOverrides(element: SettingsTreeSettingElement, elementDisposables: DisposableStore, onDidClickOverrideElement: Emitter<ISettingOverrideClickEvent>) {
+	updateScopeOverrides(element: SettingsTreeSettingElement, elementDisposables: DisposableStore, onDidClickOverrideElement: Emitter<ISettingOverrideClickEvent>, onApplyFilter: Emitter<string>) {
 		this.scopeOverridesElement.innerText = '';
 		this.scopeOverridesElement.style.display = 'none';
-		const profileFeatureEnabled = this.configurationService.getValue<boolean>('workbench.experimental.settingsProfiles.enabled');
-		if (profileFeatureEnabled && !element.setting.isLanguageTagSetting && element.matchesScope(ConfigurationTarget.APPLICATION, false)) {
+		if (element.hasPolicyValue) {
+			// If the setting falls under a policy, then no matter what the user sets, the policy value takes effect.
+			this.scopeOverridesElement.style.display = 'inline';
+			this.scopeOverridesElement.classList.add('with-custom-hover');
+
+			const policyText = localize('policyLabelText', "Managed by policy");
+			this.scopeOverridesLabel.text = policyText;
+
+			const contentFallback = localize('policyDescription', "This setting is managed by your organization.");
+			const contentMarkdownString = contentFallback + ` [${localize('policyFilterLink', "View policy settings")}](blank).`;
+			const content: ITooltipMarkdownString = {
+				markdown: {
+					value: contentMarkdownString,
+					isTrusted: false,
+					supportHtml: false
+				},
+				markdownNotSupportedFallback: contentFallback
+			};
+			const options: IUpdatableHoverOptions = {
+				linkHandler: (url: string) => {
+					onApplyFilter.fire(`@${POLICY_SETTING_TAG}`);
+					this.scopeOverridesHover.value?.hide();
+				}
+			};
+			this.scopeOverridesHover.value = setupCustomHover(this.hoverDelegate, this.scopeOverridesElement, content, options);
+		} else if (this.profilesEnabled && element.matchesScope(ConfigurationTarget.APPLICATION, false)) {
 			// If the setting is an application-scoped setting, there are no overrides so we can use this
 			// indicator to display that information instead.
 			this.scopeOverridesElement.style.display = 'inline';
@@ -293,19 +338,26 @@ function getAccessibleScopeDisplayMidSentenceText(completeScope: string, languag
 export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement, configurationService: IConfigurationService, languageService: ILanguageService): string {
 	const ariaLabelSections: string[] = [];
 
-	const profileFeatureEnabled = configurationService.getValue<boolean>('workbench.experimental.settingsProfiles.enabled');
-	if (profileFeatureEnabled && element.matchesScope(ConfigurationTarget.APPLICATION, false)) {
-		ariaLabelSections.push(localize('applicationSettingDescriptionAccessible', "Setting value retained when switching profiles"));
+	// Add workspace trust text
+	if (element.isUntrusted) {
+		ariaLabelSections.push(localize('workspaceUntrustedAriaLabel', "Workspace untrusted; setting value will not take effect"));
 	}
 
-	// Add other overrides text
-	const otherOverridesStart = element.isConfigured ?
-		localize('alsoConfiguredIn', "Also modified in") :
-		localize('configuredIn', "Modified in");
-	const otherOverridesList = element.overriddenScopeList
-		.map(scope => getAccessibleScopeDisplayMidSentenceText(scope, languageService)).join(', ');
-	if (element.overriddenScopeList.length) {
-		ariaLabelSections.push(`${otherOverridesStart} ${otherOverridesList}`);
+	const profilesEnabled = configurationService.getValue<boolean>('workbench.experimental.settingsProfiles.enabled');
+	if (element.hasPolicyValue) {
+		ariaLabelSections.push(localize('policyDescriptionAccessible', "Managed by organization policy"));
+	} else if (profilesEnabled && element.matchesScope(ConfigurationTarget.APPLICATION, false)) {
+		ariaLabelSections.push(localize('applicationSettingDescriptionAccessible', "Setting value retained when switching profiles"));
+	} else {
+		// Add other overrides text
+		const otherOverridesStart = element.isConfigured ?
+			localize('alsoConfiguredIn', "Also modified in") :
+			localize('configuredIn', "Modified in");
+		const otherOverridesList = element.overriddenScopeList
+			.map(scope => getAccessibleScopeDisplayMidSentenceText(scope, languageService)).join(', ');
+		if (element.overriddenScopeList.length) {
+			ariaLabelSections.push(`${otherOverridesStart} ${otherOverridesList}`);
+		}
 	}
 
 	// Add sync ignored text
