@@ -87,7 +87,7 @@ import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 
 import { VirtualWorkspaceContext } from 'vs/workbench/common/contextkeys';
 import { Schemas } from 'vs/base/common/network';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ILifecycleService, StartupKind } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ILifecycleService, ShutdownReason, StartupKind } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
@@ -230,6 +230,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private _waitForSupportedExecutions: Promise<void>;
 	private _onDidRegisterSupportedExecutions: Emitter<void> = new Emitter();
 	private _onDidChangeTaskSystemInfo: Emitter<void> = new Emitter();
+	private _willRestart: boolean = false;
 	public onDidChangeTaskSystemInfo: Event<void> = this._onDidChangeTaskSystemInfo.event;
 
 	constructor(
@@ -322,10 +323,15 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 			return task._label;
 		});
+		this._lifecycleService.onBeforeShutdown(e => {
+			this._willRestart = e.reason !== ShutdownReason.RELOAD;
+		});
 		this._register(this.onDidStateChange(e => {
-			const key = e.__task?.getRecentlyUsedKey();
-			if (e.kind === TaskEventKind.Terminated && key) {
-				this.removePersistentTask(key);
+			if (this._willRestart) {
+				const key = e.__task?.getRecentlyUsedKey();
+				if (e.kind === TaskEventKind.Terminated && key) {
+					this.removePersistentTask(key);
+				}
 			}
 		}));
 		this._waitForSupportedExecutions = new Promise(resolve => {
