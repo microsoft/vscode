@@ -103,17 +103,17 @@ export class StickyLineCandidateProvider extends Disposable {
 		}
 	}
 
-	public getCandidateStickyLinesIntersectingFromOutline(range: StickyRange, outlineModel: StickyOutlineElement, stickyLineCandidates: StickyLineCandidate[], depth: number, lastStartLineNumber: number): void {
+	public getCandidateStickyLinesIntersectingFromOutline(range: StickyRange, outlineModel: StickyOutlineElement, result: StickyLineCandidate[], depth: number, lastStartLineNumber: number): void {
 		for (const child of outlineModel.children) {
 			if (child.range) {
 				const childStartLine = child.range.startLineNumber;
 				const childEndLine = child.range.endLineNumber;
 				if (range.startLineNumber <= childEndLine + 1 && childStartLine - 1 <= range.endLineNumber && childStartLine !== lastStartLineNumber) {
-					stickyLineCandidates.push(new StickyLineCandidate(childStartLine, childEndLine - 1, depth + 1));
-					this.getCandidateStickyLinesIntersectingFromOutline(range, child, stickyLineCandidates, depth + 1, childStartLine);
+					result.push(new StickyLineCandidate(childStartLine, childEndLine - 1, depth + 1));
+					this.getCandidateStickyLinesIntersectingFromOutline(range, child, result, depth + 1, childStartLine);
 				}
 			} else if (child instanceof OutlineGroup) {
-				this.getCandidateStickyLinesIntersectingFromOutline(range, child, stickyLineCandidates, depth, lastStartLineNumber);
+				this.getCandidateStickyLinesIntersectingFromOutline(range, child, result, depth, lastStartLineNumber);
 			}
 		}
 	}
