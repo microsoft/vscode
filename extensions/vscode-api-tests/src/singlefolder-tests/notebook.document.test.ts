@@ -423,7 +423,7 @@ suite('Notebook Document', function () {
 		assert.strictEqual(document.isDirty, false);
 	});
 
-	test.skip('onDidOpenNotebookDocument - emit event only once when opened in two editors', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/157222
+	test('onDidOpenNotebookDocument - emit event only once when opened in two editors', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/157222
 		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 		let counter = 0;
 		testDisposables.push(vscode.workspace.onDidOpenNotebookDocument(nb => {
@@ -432,14 +432,19 @@ suite('Notebook Document', function () {
 			}
 		}));
 
+		console.log('file created, now open notebook document');
 		const notebook = await vscode.workspace.openNotebookDocument(uri);
 		assert.strictEqual(counter, 1);
 
+		console.log('showNotebookDocument');
 		await vscode.window.showNotebookDocument(notebook, { viewColumn: vscode.ViewColumn.Active });
+		console.log('check counter 1');
 		assert.strictEqual(counter, 1);
 		assert.strictEqual(vscode.window.visibleNotebookEditors.length, 1);
 
+		console.log('showNotebookDocument to the side');
 		await vscode.window.showNotebookDocument(notebook, { viewColumn: vscode.ViewColumn.Beside });
+		console.log('check counter 1');
 		assert.strictEqual(counter, 1);
 		assert.strictEqual(vscode.window.visibleNotebookEditors.length, 2);
 	});
