@@ -48,7 +48,7 @@ export async function startServer(connection: Connection) {
 		});
 
 		registerCompletionsSupport(connection, documents, provider, configurationManager);
-		registerValidateSupport(connection, workspace, provider, configurationManager);
+		registerValidateSupport(connection, workspace, provider, configurationManager, logger);
 
 		workspace.workspaceFolders = (params.workspaceFolders ?? []).map(x => URI.parse(x.uri));
 		return {

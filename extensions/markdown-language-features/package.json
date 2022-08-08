@@ -187,22 +187,22 @@
         },
         {
           "command": "markdown.showSource",
-          "when": "markdownPreviewFocus",
+          "when": "activeWebviewPanelId == 'markdown.preview' || activeCustomEditorId == 'vscode.markdown.preview.editor'",
           "group": "navigation"
         },
         {
           "command": "markdown.preview.refresh",
-          "when": "markdownPreviewFocus",
+          "when": "activeWebviewPanelId == 'markdown.preview' || activeCustomEditorId == 'vscode.markdown.preview.editor'",
           "group": "1_markdown"
         },
         {
           "command": "markdown.preview.toggleLock",
-          "when": "markdownPreviewFocus",
+          "when": "activeWebviewPanelId == 'markdown.preview' || activeCustomEditorId == 'vscode.markdown.preview.editor'",
           "group": "1_markdown"
         },
         {
           "command": "markdown.showPreviewSecuritySelector",
-          "when": "markdownPreviewFocus",
+          "when": "activeWebviewPanelId == 'markdown.preview' || activeCustomEditorId == 'vscode.markdown.preview.editor'",
           "group": "1_markdown"
         }
       ],
@@ -247,7 +247,7 @@
         },
         {
           "command": "markdown.showSource",
-          "when": "markdownPreviewFocus",
+          "when": "activeWebviewPanelId == 'markdown.preview' || activeCustomEditorId == 'vscode.markdown.preview.editor'",
           "group": "navigation"
         },
         {
@@ -256,11 +256,11 @@
         },
         {
           "command": "markdown.showPreviewSecuritySelector",
-          "when": "markdownPreviewFocus"
+          "when": "activeWebviewPanelId == 'markdown.preview' || activeCustomEditorId == 'vscode.markdown.preview.editor'"
         },
         {
           "command": "markdown.preview.toggleLock",
-          "when": "markdownPreviewFocus"
+          "when": "activeWebviewPanelId == 'markdown.preview' || activeCustomEditorId == 'vscode.markdown.preview.editor'"
         },
         {
           "command": "markdown.preview.refresh",
@@ -268,7 +268,7 @@
         },
         {
           "command": "markdown.preview.refresh",
-          "when": "markdownPreviewFocus"
+          "when": "activeWebviewPanelId == 'markdown.preview' || activeCustomEditorId == 'vscode.markdown.preview.editor'"
         },
         {
           "command": "markdown.findAllFileReferences",
@@ -515,7 +515,11 @@
     "configurationDefaults": {
       "[markdown]": {
         "editor.wordWrap": "on",
-        "editor.quickSuggestions": false
+        "editor.quickSuggestions": {
+          "comments": "off",
+          "strings": "off",
+          "other": "off"
+        }
       }
     },
     "jsonValidation": [

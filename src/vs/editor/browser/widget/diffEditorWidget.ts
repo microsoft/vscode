@@ -1189,7 +1189,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			result.ariaLabel = options.originalAriaLabel;
 		}
 		result.readOnly = !this._options.originalEditable;
-		result.enableDropIntoEditor = !result.readOnly;
+		result.dropIntoEditor = { enabled: !result.readOnly };
 		result.extraEditorClassName = 'original-in-monaco-diff-editor';
 		return {
 			...result,
@@ -1324,9 +1324,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	private _setStrategy(newStrategy: DiffEditorWidgetStyle): void {
-		if (this._strategy) {
-			this._strategy.dispose();
-		}
+		this._strategy?.dispose();
 
 		this._strategy = newStrategy;
 		newStrategy.applyColors(this._themeService.getColorTheme());

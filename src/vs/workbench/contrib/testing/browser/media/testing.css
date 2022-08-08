@@ -76,6 +76,11 @@
 	margin-right: 0.25em;
 }
 
+.test-explorer .computed-state.retired,
+.testing-run-glyph.retired {
+	opacity: 0.7  !important;
+}
+
 .test-explorer .test-is-hidden {
 	opacity: 0.8;
 }
@@ -158,7 +163,7 @@
 }
 
 /** -- filter  */
-.testing-filter-action-bar {
+.monaco-action-bar.testing-filter-action-bar {
 	flex-shrink: 0;
 	margin: 4px 12px;
 	height: auto;

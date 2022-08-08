@@ -53,6 +53,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	// Data Stores
 	private _editors: Map<string | glob.IRelativePattern, Map<string, RegisteredEditors>> = new Map<string | glob.IRelativePattern, Map<string, RegisteredEditors>>();
 	private _flattenedEditors: Map<string | glob.IRelativePattern, RegisteredEditors> = new Map();
+	private _shouldReFlattenEditors: boolean = true;
 	private cache: Set<string> | undefined;
 
 	constructor(
@@ -82,37 +83,19 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		});
 	}
 
-	private resolveUntypedInputAndGroup(editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): [IUntypedEditorInput, IEditorGroup, EditorActivation | undefined] | undefined {
-		let untypedEditor: IUntypedEditorInput | undefined = undefined;
+	private resolveUntypedInputAndGroup(editor: IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): [IUntypedEditorInput, IEditorGroup, EditorActivation | undefined] | undefined {
+		const untypedEditor = editor;
 
-		// Typed: convert to untyped to be able to resolve the editor as the service only uses untyped
-		if (isEditorInputWithOptions(editor)) {
-			untypedEditor = editor.editor.toUntyped();
-
-			if (untypedEditor) {
-				// Preserve original options: specifically it is
-				// possible that a `override` was defined from
-				// the outside and we do not want to lose it.
-				untypedEditor.options = { ...untypedEditor.options, ...editor.options };
-			}
-		}
-
-		// Untyped: take as is
-		else {
-			untypedEditor = editor;
-		}
-
-		// Typed editors that cannot convert to untyped will be returned as undefined
-		if (!untypedEditor) {
-			return undefined;
-		}
 		// Use the untyped editor to find a group
 		const [group, activation] = this.instantiationService.invokeFunction(findGroup, untypedEditor, preferredGroup);
 
 		return [untypedEditor, group, activation];
 	}
 
-	async resolveEditor(editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<ResolvedEditor> {
+	async resolveEditor(editor: IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<ResolvedEditor> {
+		// Update the flattened editors
+		this._flattenedEditors = this._flattenEditorsMap();
+
 		// Special case: side by side editors requires us to
 		// independently resolve both sides and then build
 		// a side by side editor with the result
@@ -161,8 +144,17 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 		// Resolved the editor ID as much as possible, now find a given editor (cast here is ok because we resolve down to a string above)
 		let { editor: selectedEditor, conflictingDefault } = this.getEditor(resource, untypedEditor.options?.override as (string | EditorResolution.EXCLUSIVE_ONLY | undefined));
-		if (!selectedEditor) {
+		// If no editor was found and this was a typed editor or an editor with an explicit override we could not resolve it
+		if (!selectedEditor && (untypedEditor.options?.override || isEditorInputWithOptions(editor))) {
 			return ResolvedStatus.NONE;
+		} else if (!selectedEditor) {
+			// Simple untyped editors that we could not resolve will be resolved to the default editor
+			const resolvedEditor = this.getEditor(resource, DEFAULT_EDITOR_ASSOCIATION.id);
+			selectedEditor = resolvedEditor?.editor;
+			conflictingDefault = resolvedEditor?.conflictingDefault;
+			if (!selectedEditor) {
+				return ResolvedStatus.NONE;
+			}
 		}
 
 		// In the special case of diff editors we do some more work to determine the correct editor for both sides
@@ -251,14 +243,14 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			editorFactoryObject
 		});
 		registeredEditor.set(editorInfo.id, editorsWithId);
-		this._flattenedEditors = this._flattenEditorsMap();
+		this._shouldReFlattenEditors = true;
 		this._onDidChangeEditorRegistrations.fire();
 		return toDisposable(() => {
 			remove();
 			if (editorsWithId && editorsWithId.length === 0) {
 				registeredEditor?.delete(editorInfo.id);
 			}
-			this._flattenedEditors = this._flattenEditorsMap();
+			this._shouldReFlattenEditors = true;
 			this._onDidChangeEditorRegistrations.fire();
 		});
 	}
@@ -294,9 +286,15 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	}
 
 	/**
-	 * Given the nested nature of the editors map, we should merge factories of the same glob and id to make it flat
+	 * Given the nested nature of the editors map, we merge factories of the same glob and id to make it flat
+	 * and easier to work with
 	 */
 	private _flattenEditorsMap() {
+		// If we shouldn't be re-flattening (due to lack of update) then return early
+		if (!this._shouldReFlattenEditors) {
+			return this._flattenedEditors;
+		}
+		this._shouldReFlattenEditors = false;
 		const editors = new Map<string | glob.IRelativePattern, RegisteredEditors>();
 		for (const [glob, value] of this._editors) {
 			const registeredEditors: RegisteredEditors = [];
@@ -369,6 +367,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	}
 
 	public getEditors(resource?: URI): RegisteredEditorInfo[] {
+		this._flattenedEditors = this._flattenEditorsMap();
 
 		// By resource
 		if (URI.isUri(resource)) {

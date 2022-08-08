@@ -951,8 +951,14 @@ function registerCloseEditorCommands() {
 			if (!editor) {
 				return;
 			}
+			const untypedEditor = editor.toUntyped();
 
-			const resolvedEditor = await editorResolverService.resolveEditor({ editor, options: { ...editorService.activeEditorPane?.options, override: EditorResolution.PICK } }, group);
+			// Resolver can only resolve untyped editors
+			if (!untypedEditor) {
+				return;
+			}
+			untypedEditor.options = { ...editorService.activeEditorPane?.options, override: EditorResolution.PICK };
+			const resolvedEditor = await editorResolverService.resolveEditor(untypedEditor, group);
 			if (!isEditorInputWithOptionsAndGroup(resolvedEditor)) {
 				return;
 			}
@@ -1035,9 +1041,7 @@ function registerFocusEditorGroupWihoutWrapCommands(): void {
 			const editorGroupService = accessor.get(IEditorGroupsService);
 
 			const group = editorGroupService.findGroup({ direction: command.direction }, editorGroupService.activeGroup, false);
-			if (group) {
-				group.focus();
-			}
+			group?.focus();
 		});
 	}
 }

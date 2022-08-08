@@ -34,9 +34,9 @@ import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
 import { MinimapTokensColorTracker } from 'vs/editor/common/viewModel/minimapTokensColorTracker';
 import { ILineBreaksComputer, ILineBreaksComputerFactory, InjectedText } from 'vs/editor/common/modelLineProjectionData';
 import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
-import { ICoordinatesConverter, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from 'vs/editor/common/viewModel';
+import { ICoordinatesConverter, InlineDecoration, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from 'vs/editor/common/viewModel';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
-import { FocusChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent } from 'vs/editor/common/viewModelEventDispatcher';
+import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent } from 'vs/editor/common/viewModelEventDispatcher';
 import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from 'vs/editor/common/viewModel/viewModelLines';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
@@ -485,7 +485,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._updateConfigurationViewLineCount.schedule();
 
 		if (lineMappingChanged) {
-			this._eventDispatcher.emitOutgoingEvent(new ViewZonesChangedEvent());
+			this._eventDispatcher.emitOutgoingEvent(new HiddenAreasChangedEvent());
 		}
 	}
 
@@ -506,6 +506,10 @@ export class ViewModel extends Disposable implements IViewModel {
 	public getVisibleRanges(): Range[] {
 		const visibleViewRange = this.getCompletelyVisibleViewRange();
 		return this._toModelVisibleRanges(visibleViewRange);
+	}
+
+	public getHiddenAreas(): Range[] {
+		return this._lines.getHiddenAreas();
 	}
 
 	private _toModelVisibleRanges(visibleViewRange: Range): Range[] {
@@ -671,21 +675,30 @@ export class ViewModel extends Disposable implements IViewModel {
 		return result + 2;
 	}
 
-	public getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[] {
-		return this._decorations.getDecorationsViewportData(visibleRange).decorations;
+	public getDecorationsInViewport(visibleRange: Range, onlyMinimapDecorations: boolean = false): ViewModelDecoration[] {
+		return this._decorations.getDecorationsViewportData(visibleRange, onlyMinimapDecorations).decorations;
 	}
 
 	public getInjectedTextAt(viewPosition: Position): InjectedText | null {
 		return this._lines.getInjectedTextAt(viewPosition);
 	}
 
-	public getViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData {
+	public getViewportViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData {
+		const allInlineDecorations = this._decorations.getDecorationsViewportData(visibleRange).inlineDecorations;
+		const inlineDecorations = allInlineDecorations[lineNumber - visibleRange.startLineNumber];
+		return this._getViewLineRenderingData(lineNumber, inlineDecorations);
+	}
+
+	public getViewLineRenderingData(lineNumber: number): ViewLineRenderingData {
+		const inlineDecorations = this._decorations.getInlineDecorationsOnLine(lineNumber);
+		return this._getViewLineRenderingData(lineNumber, inlineDecorations);
+	}
+
+	private _getViewLineRenderingData(lineNumber: number, inlineDecorations: InlineDecoration[]): ViewLineRenderingData {
 		const mightContainRTL = this.model.mightContainRTL();
 		const mightContainNonBasicASCII = this.model.mightContainNonBasicASCII();
 		const tabSize = this.getTabSize();
 		const lineData = this._lines.getViewLineData(lineNumber);
-		const allInlineDecorations = this._decorations.getDecorationsViewportData(visibleRange).inlineDecorations;
-		let inlineDecorations = allInlineDecorations[lineNumber - visibleRange.startLineNumber];
 
 		if (lineData.inlineDecorations) {
 			inlineDecorations = [
@@ -748,13 +761,9 @@ export class ViewModel extends Disposable implements IViewModel {
 		const decorations = this.model.getOverviewRulerDecorations();
 		for (const decoration of decorations) {
 			const opts1 = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
-			if (opts1) {
-				opts1.invalidateCachedColor();
-			}
+			opts1?.invalidateCachedColor();
 			const opts2 = <ModelDecorationMinimapOptions>decoration.options.minimap;
-			if (opts2) {
-				opts2.invalidateCachedColor();
-			}
+			opts2?.invalidateCachedColor();
 		}
 	}
 

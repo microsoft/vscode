@@ -87,7 +87,8 @@ export class TaskService extends AbstractTaskService {
 		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@ILogService logService: ILogService,
 		@IThemeService themeService: IThemeService,
-		@IInstantiationService instantiationService: IInstantiationService) {
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
 		super(configurationService,
 			markerService,
 			outputService,
@@ -121,6 +122,7 @@ export class TaskService extends AbstractTaskService {
 			workspaceTrustManagementService,
 			logService,
 			themeService,
+			lifecycleService
 		);
 		this._register(lifecycleService.onBeforeShutdown(event => event.veto(this.beforeShutdown(), 'veto.tasks')));
 	}

@@ -1855,6 +1855,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				// The notebook editor doesn't have focus yet
 				if (!this.hasEditorFocus()) {
 					this.focusContainer();
+					// trigger editor to update as FocusTracker might not emit focus change event
+					this.updateEditorFocus();
 				}
 
 				if (element && element.focusMode === CellFocusMode.Editor) {
@@ -2530,9 +2532,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	findStop() {
-		if (this._webview) {
-			this._webview.findStop();
-		}
+		this._webview?.findStop();
 	}
 
 	//#endregion
@@ -2570,6 +2570,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		if (!this.viewModel) {
+			return;
+		}
+
+		if (this.viewModel.getCellIndex(cell) === -1) {
 			return;
 		}
 

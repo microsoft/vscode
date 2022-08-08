@@ -62,7 +62,7 @@ import { ICustomEndpointTelemetryService, ITelemetryService } from 'vs/platform/
 import { TelemetryAppenderChannel } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryLogAppender } from 'vs/platform/telemetry/common/telemetryLogAppender';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { supportsTelemetry, ITelemetryAppender, NullAppender, NullTelemetryService, getPiiPathsFromEnvironment } from 'vs/platform/telemetry/common/telemetryUtils';
+import { supportsTelemetry, ITelemetryAppender, NullAppender, NullTelemetryService, getPiiPathsFromEnvironment, isInternalTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { CustomEndpointTelemetryService } from 'vs/platform/telemetry/node/customEndpointTelemetryService';
 import { LocalReconnectConstants, TerminalIpcChannels, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
@@ -103,9 +103,9 @@ import { ExtensionsProfileScannerService, IExtensionsProfileScannerService } fro
 import { PolicyChannelClient } from 'vs/platform/policy/common/policyIpc';
 import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
 import { UserDataProfilesNativeService } from 'vs/platform/userDataProfile/electron-sandbox/userDataProfile';
-import { OneDataSystemWebAppender } from 'vs/platform/telemetry/browser/1dsAppender';
 import { DefaultExtensionsProfileInitService } from 'vs/platform/extensionManagement/electron-sandbox/defaultExtensionsProfileInit';
 import { SharedProcessRequestService } from 'vs/platform/request/electron-browser/sharedProcessRequestService';
+import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
 
 class SharedProcessMain extends Disposable {
 
@@ -277,19 +277,20 @@ class SharedProcessMain extends Disposable {
 		// Telemetry
 		let telemetryService: ITelemetryService;
 		const appenders: ITelemetryAppender[] = [];
+		const internalTelemetry = isInternalTelemetry(productService, configurationService);
 		if (supportsTelemetry(productService, environmentService)) {
 			const logAppender = new TelemetryLogAppender(loggerService, environmentService);
 			appenders.push(logAppender);
 			const { installSourcePath } = environmentService;
 			if (productService.aiConfig?.ariaKey) {
-				const collectorAppender = new OneDataSystemWebAppender(configurationService, 'monacoworkbench', null, productService.aiConfig.ariaKey);
+				const collectorAppender = new OneDataSystemAppender(internalTelemetry, 'monacoworkbench', null, productService.aiConfig.ariaKey);
 				this._register(toDisposable(() => collectorAppender.flush())); // Ensure the 1DS appender is disposed so that it flushes remaining data
 				appenders.push(collectorAppender);
 			}
 
 			telemetryService = new TelemetryService({
 				appenders,
-				commonProperties: resolveCommonProperties(fileService, release(), hostname(), process.arch, productService.commit, productService.version, this.configuration.machineId, productService.msftInternalDomains, installSourcePath),
+				commonProperties: resolveCommonProperties(fileService, release(), hostname(), process.arch, productService.commit, productService.version, this.configuration.machineId, internalTelemetry, installSourcePath),
 				sendErrorTelemetry: true,
 				piiPaths: getPiiPathsFromEnvironment(environmentService),
 			}, configurationService, productService);
