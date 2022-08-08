@@ -424,6 +424,47 @@ class ProcessExplorer {
 			content.push(`.monaco-list-row:hover { outline: 1px dashed ${styles.listHoverOutline}; outline-offset: -1px; }`);
 		}
 
+		// Scrollbars
+		if (styles.scrollbarShadowColor) {
+			content.push(`
+				.monaco-scrollable-element > .shadow.top {
+					box-shadow: ${styles.scrollbarShadowColor} 0 6px 6px -6px inset;
+				}
+
+				.monaco-scrollable-element > .shadow.left {
+					box-shadow: ${styles.scrollbarShadowColor} 6px 0 6px -6px inset;
+				}
+
+				.monaco-scrollable-element > .shadow.top.left {
+					box-shadow: ${styles.scrollbarShadowColor} 6px 6px 6px -6px inset;
+				}
+			`);
+		}
+
+		if (styles.scrollbarSliderBackgroundColor) {
+			content.push(`
+				.monaco-scrollable-element > .scrollbar > .slider {
+					background: ${styles.scrollbarSliderBackgroundColor};
+				}
+			`);
+		}
+
+		if (styles.scrollbarSliderHoverBackgroundColor) {
+			content.push(`
+				.monaco-scrollable-element > .scrollbar > .slider:hover {
+					background: ${styles.scrollbarSliderHoverBackgroundColor};
+				}
+			`);
+		}
+
+		if (styles.scrollbarSliderActiveBackgroundColor) {
+			content.push(`
+				.monaco-scrollable-element > .scrollbar > .slider.active {
+					background: ${styles.scrollbarSliderActiveBackgroundColor};
+				}
+			`);
+		}
+
 		styleElement.textContent = content.join('\n');
 
 		if (styles.color) {
