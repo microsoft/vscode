@@ -144,22 +144,17 @@ export function getStoredWorkspaceFolder(folderURI: URI, forceAbsolute: boolean,
 	if (folderPath !== undefined) {
 		if (folderPath.length === 0) {
 			folderPath = '.';
-		} else if (isWindows && folderURI.scheme === Schemas.file && isAbsolute(folderPath) && useSlashForAbsolutePaths) {
-			// Windows gets special treatment:
-			// - use backslahes unless slash is used by other existing folders
-			folderPath = folderPath.replace(/\//g, '\\');
+		} else if (isWindows && folderURI.scheme === Schemas.file && isAbsolute(folderPath) && !useSlashForAbsolutePaths) {
+			folderPath = folderPath.replace(/\//g, '\\'); // convert to backslash on Windows if we should for absolute paths
 		}
 	} else {
 
 		if (folderURI.scheme === Schemas.file) {
 			folderPath = folderURI.fsPath;
 			if (isWindows) {
-				// Windows gets special treatment:
-				// - normalize all paths to get nice casing of drive letters
-				// - use backslahes unless slash is used by other existing folders
 				folderPath = normalizeDriveLetter(folderPath);
 				if (isAbsolute(folderPath) && useSlashForAbsolutePaths) {
-					folderPath = toSlashes(folderPath);
+					folderPath = toSlashes(folderPath); // convert to slash on Windows if we should for absolute paths
 				}
 			}
 		} else {
