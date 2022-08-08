@@ -329,7 +329,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._register(this.onDidStateChange(e => {
 			if (this._willRestart) {
 				const key = e.__task?.getRecentlyUsedKey();
-				if (e.kind === TaskEventKind.Terminated && key) {
+				if (e.kind === TaskEventKind.End && key) {
 					this.removePersistentTask(key);
 				}
 			}
