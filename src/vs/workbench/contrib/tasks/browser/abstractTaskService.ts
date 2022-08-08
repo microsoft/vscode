@@ -55,7 +55,8 @@ import {
 	KeyedTaskIdentifier as KeyedTaskIdentifier, TaskDefinition, RuntimeType,
 	USER_TASKS_GROUP_KEY,
 	TaskSettingId,
-	TasksSchemaProperties
+	TasksSchemaProperties,
+	TaskEventKind
 } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ITaskService, ITaskProvider, IProblemMatcherRunOptions, ICustomizationProperties, ITaskFilter, IWorkspaceFolderTaskResult, CustomExecutionSupportedContext, ShellExecutionSupportedContext, ProcessExecutionSupportedContext, TaskCommandsRegistered } from 'vs/workbench/contrib/tasks/common/taskService';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/common/taskTemplates';
@@ -86,6 +87,7 @@ import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 
 import { VirtualWorkspaceContext } from 'vs/workbench/common/contextkeys';
 import { Schemas } from 'vs/base/common/network';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { ILifecycleService, StartupKind } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
@@ -263,7 +265,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@ILogService private readonly _logService: ILogService,
-		@IThemeService private readonly _themeService: IThemeService
+		@IThemeService private readonly _themeService: IThemeService,
+		@ILifecycleService private readonly _lifecycleService: ILifecycleService
 	) {
 		super();
 
@@ -319,7 +322,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 			return task._label;
 		});
-
+		this._register(this.onDidStateChange(e => {
+			const key = e.__task?.getRecentlyUsedKey();
+			if (e.kind === TaskEventKind.Terminated && key) {
+				this.removePersistentTask(key);
+			}
+		}));
 		this._waitForSupportedExecutions = new Promise(resolve => {
 			once(this._onDidRegisterSupportedExecutions.event)(() => resolve());
 		});
@@ -348,8 +356,17 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	private async _reconnectTasks(): Promise<void> {
 		const tasks = await this.getSavedTasks('persistent');
+		if (!this._taskSystem) {
+			await this._getTaskSystem();
+		}
 		if (!tasks.length) {
 			this._tasksReconnected = true;
+			return;
+		}
+		if (this._lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
+			this._persistentTasks?.clear();
+			this._storageService.remove(AbstractTaskService.PersistentTasks_Key, StorageScope.WORKSPACE);
+			await this._storageService.flush();
 			return;
 		}
 		for (const task of tasks) {
@@ -1012,6 +1029,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (this._getTasksFromStorage('historical').has(taskRecentlyUsedKey)) {
 			this._getTasksFromStorage('historical').delete(taskRecentlyUsedKey);
 			this._saveRecentlyUsedTasks();
+		}
+	}
+
+	public removePersistentTask(key: string) {
+		if (this._getTasksFromStorage('persistent').has(key)) {
+			this._getTasksFromStorage('persistent').delete(key);
+			this._savePersistentTasks();
 		}
 	}
 
@@ -1820,7 +1844,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _handleExecuteResult(executeResult: ITaskExecuteResult, runSource?: TaskRunSource): Promise<ITaskSummary> {
-		if (this._configurationService.getValue(TaskSettingId.Reconnection) === true) {
+		if (this._configurationService.getValue(TaskSettingId.Reconnection) === true && runSource !== TaskRunSource.Reconnect) {
 			await this._setPersistentTask(executeResult.task);
 		}
 		if (runSource === TaskRunSource.User) {
@@ -1851,7 +1875,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		}
 		this._setRecentlyUsedTask(executeResult.task);
-		this._setPersistentTask(executeResult.task);
 		return executeResult.promise;
 	}
 

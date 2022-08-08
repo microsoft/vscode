@@ -8,10 +8,11 @@ import { ExtensionActivationTimesBuilder } from 'vs/workbench/api/common/extHost
 import { AbstractExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 import { URI } from 'vs/base/common/uri';
 import { RequireInterceptor } from 'vs/workbench/api/common/extHostRequireInterceptor';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
 import { timeout } from 'vs/base/common/async';
 import { ExtHostConsoleForwarder } from 'vs/workbench/api/worker/extHostConsoleForwarder';
+import { Language } from 'vs/base/common/platform';
 
 class WorkerRequireInterceptor extends RequireInterceptor {
 
@@ -55,10 +56,11 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		return extensionDescription.browser;
 	}
 
-	protected async _loadCommonJSModule<T extends object | undefined>(extensionId: ExtensionIdentifier | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
+	protected async _loadCommonJSModule<T extends object | undefined>(extension: IExtensionDescription | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
 		module = module.with({ path: ensureSuffix(module.path, '.js') });
+		const extensionId = extension?.identifier.value;
 		if (extensionId) {
-			performance.mark(`code/extHost/willFetchExtensionCode/${extensionId.value}`);
+			performance.mark(`code/extHost/willFetchExtensionCode/${extensionId}`);
 		}
 
 		// First resolve the extension entry point URI to something we can load using `fetch`
@@ -67,7 +69,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		const browserUri = URI.revive(await this._mainThreadExtensionsProxy.$asBrowserUri(module));
 		const response = await fetch(browserUri.toString(true));
 		if (extensionId) {
-			performance.mark(`code/extHost/didFetchExtensionCode/${extensionId.value}`);
+			performance.mark(`code/extHost/didFetchExtensionCode/${extensionId}`);
 		}
 
 		if (response.status !== 200) {
@@ -85,7 +87,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 			initFn = new Function('module', 'exports', 'require', fullSource);
 		} catch (err) {
 			if (extensionId) {
-				console.error(`Loading code for extension ${extensionId.value} failed: ${err.message}`);
+				console.error(`Loading code for extension ${extensionId} failed: ${err.message}`);
 			} else {
 				console.error(`Loading code failed: ${err.message}`);
 			}
@@ -94,10 +96,17 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 			throw err;
 		}
 
+		const strings: { [key: string]: string[] } = await this.fetchTranslatedStrings(extension);
+
 		// define commonjs globals: `module`, `exports`, and `require`
 		const _exports = {};
 		const _module = { exports: _exports };
 		const _require = (request: string) => {
+			// In order to keep vscode-nls synchronous, we prefetched the translations above
+			// and then return them here when the extension is loaded.
+			if (request === 'vscode-nls-web-data') {
+				return strings;
+			}
 			const result = this._fakeModules!.getModule(request, module);
 			if (result === undefined) {
 				throw new Error(`Cannot load module '${request}'`);
@@ -108,13 +117,13 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		try {
 			activationTimesBuilder.codeLoadingStart();
 			if (extensionId) {
-				performance.mark(`code/extHost/willLoadExtensionCode/${extensionId.value}`);
+				performance.mark(`code/extHost/willLoadExtensionCode/${extensionId}`);
 			}
 			initFn(_module, _exports, _require);
 			return <T>(_module.exports !== _exports ? _module.exports : _exports);
 		} finally {
 			if (extensionId) {
-				performance.mark(`code/extHost/didLoadExtensionCode/${extensionId.value}`);
+				performance.mark(`code/extHost/didLoadExtensionCode/${extensionId}`);
 			}
 			activationTimesBuilder.codeLoadingStop();
 		}
@@ -134,6 +143,44 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		while (Date.now() < deadline && !('__jsDebugIsReady' in globalThis)) {
 			await timeout(10);
 		}
+	}
+
+	private async fetchTranslatedStrings(extension: IExtensionDescription | null): Promise<{ [key: string]: string[] }> {
+		let strings: { [key: string]: string[] } = {};
+		if (!extension) {
+			return {};
+		}
+		const translationsUri = Language.isDefaultVariant()
+			// If we are in the default variant, load the translations for en only.
+			? extension.browserNlsBundleUris?.en
+			// Otherwise load the translations for the current locale with English as a fallback.
+			: extension.browserNlsBundleUris?.[Language.value()] ?? extension.browserNlsBundleUris?.en;
+		if (extension && translationsUri) {
+			try {
+				const response = await fetch(translationsUri.toString(true));
+				if (!response.ok) {
+					throw new Error(await response.text());
+				}
+				strings = await response.json();
+			} catch (e) {
+				try {
+					console.error(`Failed to load translations for ${extension.identifier.value} from ${translationsUri}: ${e.message}`);
+					const englishStrings = extension.browserNlsBundleUris?.en;
+					if (englishStrings) {
+						const response = await fetch(englishStrings.toString(true));
+						if (!response.ok) {
+							throw new Error(await response.text());
+						}
+						strings = await response.json();
+					}
+					throw new Error('No English strings found');
+				} catch (e) {
+					// TODO what should this do? We really shouldn't ever be here...
+					console.error(e);
+				}
+			}
+		}
+		return strings;
 	}
 }
 

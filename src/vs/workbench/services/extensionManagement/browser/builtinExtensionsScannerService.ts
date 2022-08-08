@@ -20,6 +20,7 @@ interface IBundledExtension {
 	extensionPath: string;
 	packageJSON: IExtensionManifest;
 	packageNLS?: any;
+	browserNlsMetadataPath?: string;
 	readmePath?: string;
 	changelogPath?: string;
 }
@@ -66,11 +67,19 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 
 				this.builtinExtensionsPromises = bundledExtensions.map(async e => {
 					const id = getGalleryExtensionId(e.packageJSON.publisher, e.packageJSON.name);
+					const browserNlsBundleUris: { [language: string]: URI } = {};
+					if (e.browserNlsMetadataPath) {
+						if (this.nlsUrl) {
+							browserNlsBundleUris[Language.value()] = uriIdentityService.extUri.joinPath(this.nlsUrl, id, 'main');
+						}
+						browserNlsBundleUris.en = uriIdentityService.extUri.resolvePath(builtinExtensionsServiceUrl!, e.browserNlsMetadataPath);
+					}
 					return {
 						identifier: { id },
 						location: uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl!, e.extensionPath),
 						type: ExtensionType.System,
 						isBuiltin: true,
+						browserNlsBundleUris,
 						manifest: e.packageNLS ? await this.localizeManifest(id, e.packageJSON, e.packageNLS) : e.packageJSON,
 						readmeUrl: e.readmePath ? uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl!, e.readmePath) : undefined,
 						changelogUrl: e.changelogPath ? uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl!, e.changelogPath) : undefined,
