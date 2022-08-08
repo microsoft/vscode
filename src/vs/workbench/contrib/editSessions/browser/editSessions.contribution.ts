@@ -10,7 +10,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { Action2, IAction2Options, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
-import { IEditSessionsWorkbenchService, Change, ChangeType, Folder, EditSession, FileType, EDIT_SESSION_SYNC_CATEGORY, EDIT_SESSIONS_CONTAINER_ID, EditSessionSchemaVersion, IEditSessionsLogService, EDIT_SESSIONS_VIEW_ICON, EDIT_SESSIONS_TITLE, EDIT_SESSIONS_SCHEME, EDIT_SESSIONS_SHOW_VIEW, EDIT_SESSIONS_SIGNED_IN, EDIT_SESSIONS_DATA_VIEW_ID, decodeEditSessionFileContent } from 'vs/workbench/contrib/editSessions/common/editSessions';
+import { IEditSessionsWorkbenchService, Change, ChangeType, Folder, EditSession, FileType, EDIT_SESSION_SYNC_CATEGORY, EDIT_SESSIONS_CONTAINER_ID, EditSessionSchemaVersion, IEditSessionsLogService, EDIT_SESSIONS_VIEW_ICON, EDIT_SESSIONS_TITLE, EDIT_SESSIONS_SHOW_VIEW, EDIT_SESSIONS_SIGNED_IN, EDIT_SESSIONS_DATA_VIEW_ID, decodeEditSessionFileContent } from 'vs/workbench/contrib/editSessions/common/editSessions';
 import { ISCMRepository, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -45,7 +45,7 @@ import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneCont
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditSessionsDataViews } from 'vs/workbench/contrib/editSessions/browser/editSessionsViews';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { EditSessionsContentProvider } from 'vs/workbench/contrib/editSessions/browser/editSessionsContentProvider';
+import { EditSessionsFileSystemProvider } from 'vs/workbench/contrib/editSessions/browser/editSessionsFileSystemProvider';
 import { isNative } from 'vs/base/common/platform';
 import { WorkspaceFolderCountContext } from 'vs/workbench/common/contextkeys';
 
@@ -148,7 +148,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 		this.shouldShowViewsContext = EDIT_SESSIONS_SHOW_VIEW.bindTo(this.contextKeyService);
 
-		textModelResolverService.registerTextModelContentProvider(EDIT_SESSIONS_SCHEME, instantiationService.createInstance(EditSessionsContentProvider));
+		this._register(this.fileService.registerProvider(EditSessionsFileSystemProvider.SCHEMA, new EditSessionsFileSystemProvider(this.editSessionsWorkbenchService)));
 	}
 
 	private registerViews() {
