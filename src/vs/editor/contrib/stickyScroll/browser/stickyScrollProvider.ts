@@ -134,7 +134,9 @@ export class StickyLineCandidateProvider extends Disposable {
 
 		this.startLinesConsidered.clear();
 		let stickyLineCandidates: StickyLineCandidate[] = [];
-		this.getCandidateStickyLinesIntersectingFromOutline(range, this.outlineModel as OutlineModel, stickyLineCandidates, 0);
+		if (range) {
+			this.getCandidateStickyLinesIntersectingFromOutline(range, this.outlineModel as OutlineModel, stickyLineCandidates, 0);
+		}
 		const hiddenRanges: Range[] | undefined = this.editor._getViewModel()?.getHiddenAreas();
 		if (hiddenRanges) {
 			for (const hiddenRange of hiddenRanges) {
