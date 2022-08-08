@@ -367,7 +367,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._persistentTasks?.clear();
 			this._storageService.remove(AbstractTaskService.PersistentTasks_Key, StorageScope.WORKSPACE);
 			await this._storageService.flush();
-			console.log('removing saved tasks');
 			return;
 		}
 		for (const task of tasks) {
