@@ -11,6 +11,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { StickyScrollWidget, StickyScrollWidgetState } from './stickyScrollWidget';
 import { StickyLineCandidateProvider } from './stickyScrollProvider';
+import { IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
 
 class StickyScrollController extends Disposable implements IEditorContribution {
 
@@ -27,17 +28,17 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 		super();
 		this.editor = editor;
 		this.stickyScrollWidget = new StickyScrollWidget(this.editor);
-		this.stickyLineCandidateProvider = new StickyLineCandidateProvider(this.editor, this.stickyScrollWidget, _languageFeaturesService);
+		this.stickyLineCandidateProvider = new StickyLineCandidateProvider(this.editor, _languageFeaturesService);
 
 		this._register(this.editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.experimental)) {
-				this.onConfigurationChange();
+				this.readConfiguration();
 			}
 		}));
-		this.onConfigurationChange();
+		this.readConfiguration();
 	}
 
-	private onConfigurationChange() {
+	private readConfiguration() {
 		const options = this.editor.getOption(EditorOption.experimental);
 		if (options.stickyScroll.enabled === false) {
 			this.editor.removeOverlayWidget(this.stickyScrollWidget);
@@ -46,7 +47,27 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 		} else {
 			this.editor.addOverlayWidget(this.stickyScrollWidget);
 			this.sessionStore.add(this.editor.onDidLayoutChange(() => this.onDidResize()));
+			this.sessionStore.add(this.editor.onDidChangeModelTokens((e) => this.onTokensChange(e)));
 			this.sessionStore.add(this.stickyLineCandidateProvider.onStickyScrollChange(() => this.renderStickyScroll()));
+		}
+	}
+
+
+	private needsUpdate(event: IModelTokensChangedEvent) {
+		const stickyLineNumbers = this.stickyScrollWidget.getCurrentLines();
+		for (const stickyLineNumber of stickyLineNumbers) {
+			for (const range of event.ranges) {
+				if (stickyLineNumber >= range.fromLineNumber && stickyLineNumber <= range.toLineNumber) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	private onTokensChange(event: IModelTokensChangedEvent) {
+		if (this.needsUpdate(event)) {
+			this.renderStickyScroll();
 		}
 	}
 
@@ -72,7 +93,6 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 		const scrollTop: number = this.editor.getScrollTop();
 		let lastLineRelativePosition: number = 0;
 		const lineNumbers: number[] = [];
-		// TODO later consider the case of folding ranges
 		const candidateRanges = this.stickyLineCandidateProvider.getCandidateStickyLinesIntersecting(this.editor.getVisibleRanges()[0]);
 		for (const range of candidateRanges) {
 			const start = range.startLineNumber;

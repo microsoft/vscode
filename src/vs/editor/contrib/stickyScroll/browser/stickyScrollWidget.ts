@@ -67,103 +67,107 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this.renderRootNode();
 	}
 
+	private getChildNode(index: number, line: number): HTMLElement {
+
+		const child = document.createElement('div');
+		const viewModel = this._editor._getViewModel();
+		const viewLineNumber = viewModel!.coordinatesConverter.convertModelPositionToViewPosition(new Position(line, 1)).lineNumber;
+		const lineRenderingData = viewModel!.getViewLineRenderingData(viewLineNumber);
+		const layoutInfo = this._editor.getLayoutInfo();
+		const width = layoutInfo.width - layoutInfo.minimap.minimapCanvasOuterWidth - layoutInfo.verticalScrollbarWidth;
+		const minimapSide = this._editor.getOption(EditorOption.minimap).side;
+		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
+		const lineNumberOption = this._editor.getOption(EditorOption.lineNumbers);
+
+		let actualInlineDecorations: LineDecoration[];
+		try {
+			actualInlineDecorations = LineDecoration.filter(lineRenderingData.inlineDecorations, viewLineNumber, lineRenderingData.minColumn, lineRenderingData.maxColumn);
+		} catch (err) {
+			actualInlineDecorations = [];
+		}
+
+		const renderLineInput: RenderLineInput =
+			new RenderLineInput(true, true, lineRenderingData.content,
+				lineRenderingData.continuesWithWrappedLine,
+				lineRenderingData.isBasicASCII, lineRenderingData.containsRTL, 0,
+				lineRenderingData.tokens, actualInlineDecorations,
+				lineRenderingData.tabSize, lineRenderingData.startVisibleColumn,
+				1, 1, 1, 500, 'none', true, true, null);
+
+		const sb = createStringBuilder(2000);
+		renderViewLine(renderLineInput, sb);
+
+		let newLine;
+		if (_ttPolicy) {
+			newLine = _ttPolicy.createHTML(sb.build() as string);
+		} else {
+			newLine = sb.build();
+		}
+
+		const lineHTMLNode = document.createElement('span');
+		lineHTMLNode.className = 'sticky-line';
+		lineHTMLNode.style.lineHeight = `${lineHeight}px`;
+		lineHTMLNode.innerHTML = newLine as string;
+
+		const lineNumberHTMLNode = document.createElement('span');
+		lineNumberHTMLNode.className = 'sticky-line';
+		lineNumberHTMLNode.style.lineHeight = `${lineHeight}px`;
+		if (minimapSide === 'left') {
+			lineNumberHTMLNode.style.width = `${layoutInfo.contentLeft - layoutInfo.minimap.minimapCanvasOuterWidth}px`;
+		} else if (minimapSide === 'right') {
+			lineNumberHTMLNode.style.width = `${layoutInfo.contentLeft}px`;
+		}
+
+		const innerLineNumberHTML = document.createElement('span');
+		if (lineNumberOption.renderType === RenderLineNumbersType.On || lineNumberOption.renderType === RenderLineNumbersType.Interval && line % 10 === 0) {
+			innerLineNumberHTML.innerText = line.toString();
+		} else if (lineNumberOption.renderType === RenderLineNumbersType.Relative) {
+			innerLineNumberHTML.innerText = Math.abs(line - this._editor.getPosition()!.lineNumber).toString();
+		}
+		innerLineNumberHTML.className = 'sticky-line-number';
+		innerLineNumberHTML.style.lineHeight = `${lineHeight}px`;
+		innerLineNumberHTML.style.width = `${layoutInfo.lineNumbersWidth}px`;
+		if (minimapSide === 'left') {
+			innerLineNumberHTML.style.paddingLeft = `${layoutInfo.lineNumbersLeft - layoutInfo.minimap.minimapCanvasOuterWidth}px`;
+		} else if (minimapSide === 'right') {
+			innerLineNumberHTML.style.paddingLeft = `${layoutInfo.lineNumbersLeft}px`;
+		}
+		lineNumberHTMLNode.appendChild(innerLineNumberHTML);
+
+		this._editor.applyFontInfo(lineHTMLNode);
+		this._editor.applyFontInfo(innerLineNumberHTML);
+
+		child.appendChild(lineNumberHTMLNode);
+		child.appendChild(lineHTMLNode);
+
+		child.className = 'sticky-line-root';
+		child.style.lineHeight = `${lineHeight}px`;
+		child.style.width = `${width}px`;
+		child.style.height = `${lineHeight}px`;
+		child.style.zIndex = '0';
+
+		// Special case for the last line of sticky scroll
+		if (index === this.lineNumbers.length - 1) {
+			child.style.position = 'relative';
+			child.style.zIndex = '-1';
+			child.style.top = this.lastLineRelativePosition + 'px';
+		}
+		this.disposableStore.add(dom.addDisposableListener(child, 'click', e => {
+			e.stopPropagation();
+			e.preventDefault();
+			this._editor.revealPosition({ lineNumber: line - index, column: 1 });
+		}));
+
+		return child;
+	}
+
 	private renderRootNode(): void {
 
 		if (!this._editor._getViewModel()) {
 			return;
 		}
-
 		for (const [index, line] of this.lineNumbers.entries()) {
-			const child = document.createElement('div');
-			const viewModel = this._editor._getViewModel();
-			const viewLineNumber = viewModel!.coordinatesConverter.convertModelPositionToViewPosition(new Position(line, 1)).lineNumber;
-			const lineRenderingData = viewModel!.getViewLineRenderingData(viewLineNumber);
-			const layoutInfo = this._editor.getLayoutInfo();
-			const width = layoutInfo.width - layoutInfo.minimap.minimapCanvasOuterWidth - layoutInfo.verticalScrollbarWidth;
-			const minimapSide = this._editor.getOption(EditorOption.minimap).side;
-			const lineHeight = this._editor.getOption(EditorOption.lineHeight);
-			const lineNumberOption = this._editor.getOption(EditorOption.lineNumbers);
-
-			let actualInlineDecorations: LineDecoration[];
-			try {
-				actualInlineDecorations = LineDecoration.filter(lineRenderingData.inlineDecorations, viewLineNumber, lineRenderingData.minColumn, lineRenderingData.maxColumn);
-			} catch (err) {
-				actualInlineDecorations = [];
-			}
-
-			const renderLineInput: RenderLineInput =
-				new RenderLineInput(true, true, lineRenderingData.content,
-					lineRenderingData.continuesWithWrappedLine,
-					lineRenderingData.isBasicASCII, lineRenderingData.containsRTL, 0,
-					lineRenderingData.tokens, actualInlineDecorations,
-					lineRenderingData.tabSize, lineRenderingData.startVisibleColumn,
-					1, 1, 1, 500, 'none', true, true, null);
-
-			const sb = createStringBuilder(2000);
-			renderViewLine(renderLineInput, sb);
-
-			let newLine;
-			if (_ttPolicy) {
-				newLine = _ttPolicy.createHTML(sb.build() as string);
-			} else {
-				newLine = sb.build();
-			}
-
-			const lineHTMLNode = document.createElement('span');
-			lineHTMLNode.className = 'sticky-line';
-			lineHTMLNode.style.lineHeight = `${lineHeight}px`;
-			lineHTMLNode.innerHTML = newLine as string;
-
-			const lineNumberHTMLNode = document.createElement('span');
-			lineNumberHTMLNode.className = 'sticky-line';
-			lineNumberHTMLNode.style.lineHeight = `${lineHeight}px`;
-			if (minimapSide === 'left') {
-				lineNumberHTMLNode.style.width = `${layoutInfo.contentLeft - layoutInfo.minimap.minimapCanvasOuterWidth}px`;
-			} else if (minimapSide === 'right') {
-				lineNumberHTMLNode.style.width = `${layoutInfo.contentLeft}px`;
-			}
-
-			const innerLineNumberHTML = document.createElement('span');
-			if (lineNumberOption.renderType === RenderLineNumbersType.On || lineNumberOption.renderType === RenderLineNumbersType.Interval && line % 10 === 0) {
-				innerLineNumberHTML.innerText = line.toString();
-			} else if (lineNumberOption.renderType === RenderLineNumbersType.Relative) {
-				innerLineNumberHTML.innerText = Math.abs(line - this._editor.getPosition()!.lineNumber).toString();
-			}
-			innerLineNumberHTML.className = 'sticky-line-number';
-			innerLineNumberHTML.style.lineHeight = `${lineHeight}px`;
-			innerLineNumberHTML.style.width = `${layoutInfo.lineNumbersWidth}px`;
-			if (minimapSide === 'left') {
-				innerLineNumberHTML.style.paddingLeft = `${layoutInfo.lineNumbersLeft - layoutInfo.minimap.minimapCanvasOuterWidth}px`;
-			} else if (minimapSide === 'right') {
-				innerLineNumberHTML.style.paddingLeft = `${layoutInfo.lineNumbersLeft}px`;
-			}
-			lineNumberHTMLNode.appendChild(innerLineNumberHTML);
-
-			this._editor.applyFontInfo(lineHTMLNode);
-			this._editor.applyFontInfo(innerLineNumberHTML);
-
-			child.appendChild(lineNumberHTMLNode);
-			child.appendChild(lineHTMLNode);
-
-			child.className = 'sticky-line-root';
-			child.style.lineHeight = `${lineHeight}px`;
-			child.style.width = `${width}px`;
-			child.style.height = `${lineHeight}px`;
-			child.style.zIndex = '0';
-
-			// Special case for last line of sticky scroll
-			if (index === this.lineNumbers.length - 1) {
-				child.style.position = 'relative';
-				child.style.zIndex = '-1';
-				child.style.top = this.lastLineRelativePosition + 'px';
-			}
-
-			this.disposableStore.add(dom.addDisposableListener(child, 'click', e => {
-				e.stopPropagation();
-				e.preventDefault();
-				this._editor.revealPosition({ lineNumber: line - index, column: 1 });
-			}));
-			this.rootDomNode.appendChild(child);
+			this.rootDomNode.appendChild(this.getChildNode(index, line));
 		}
 
 		const widgetHeight: number = this.lineNumbers.length * this.lineHeight + this.lastLineRelativePosition;
@@ -188,5 +192,10 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		return {
 			preference: null
 		};
+	}
+
+	override dispose(): void {
+		super.dispose();
+		this.disposableStore.dispose();
 	}
 }

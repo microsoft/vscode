@@ -9,12 +9,9 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { OutlineModel, OutlineElement, OutlineGroup } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
 import { CancellationToken, CancellationTokenSource, } from 'vs/base/common/cancellation';
 import { EditorOption, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
-import { SymbolKind } from 'vs/editor/common/languages';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
 import { Range } from 'vs/editor/common/core/range';
 import { Emitter } from 'vs/base/common/event';
-import { StickyScrollWidget } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollWidget';
 
 export class StickyLineCandidate {
 	constructor(
@@ -30,7 +27,6 @@ export class StickyLineCandidateProvider extends Disposable {
 
 	static readonly ID = 'store.contrib.stickyScrollController';
 	private readonly editor: ICodeEditor;
-	private readonly stickyScrollWidget: StickyScrollWidget;
 	private readonly languageFeaturesService: ILanguageFeaturesService;
 	private readonly updateSoon: RunOnceScheduler;
 
@@ -42,23 +38,21 @@ export class StickyLineCandidateProvider extends Disposable {
 
 	constructor(
 		editor: ICodeEditor,
-		stickyScrollWidget: StickyScrollWidget,
 		@ILanguageFeaturesService _languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
 		this.editor = editor;
-		this.stickyScrollWidget = stickyScrollWidget;
 		this.languageFeaturesService = _languageFeaturesService;
 		this.updateSoon = this._register(new RunOnceScheduler(() => this.update(true), 50));
 		this._register(this.editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.experimental)) {
-				this.onConfigurationChange();
+				this.readConfiguration();
 			}
 		}));
-		this.onConfigurationChange();
+		this.readConfiguration();
 	}
 
-	private onConfigurationChange() {
+	private readConfiguration() {
 		const options = this.editor.getOption(EditorOption.experimental);
 		if (options.stickyScroll.enabled === false) {
 			this.sessionStore.clear();
@@ -67,7 +61,6 @@ export class StickyLineCandidateProvider extends Disposable {
 			this.sessionStore.add(this.editor.onDidChangeModel(() => this.update(true)));
 			this.sessionStore.add(this.editor.onDidScrollChange(() => this.update(false)));
 			this.sessionStore.add(this.editor.onDidChangeHiddenAreas(() => this.update(true)));
-			this.sessionStore.add(this.editor.onDidChangeModelTokens((e) => this.onTokensChange(e)));
 			this.sessionStore.add(this.editor.onDidChangeModelContent(() => this.updateSoon.schedule()));
 			this.sessionStore.add(this.languageFeaturesService.documentSymbolProvider.onDidChange(() => this.update(true)));
 			const lineNumberOption = this.editor.getOption(EditorOption.lineNumbers);
@@ -80,24 +73,6 @@ export class StickyLineCandidateProvider extends Disposable {
 
 	public getVersionId() {
 		return this.modelVersionId;
-	}
-
-	private needsUpdate(event: IModelTokensChangedEvent) {
-		const stickyLineNumbers = this.stickyScrollWidget.getCurrentLines();
-		for (const stickyLineNumber of stickyLineNumbers) {
-			for (const range of event.ranges) {
-				if (stickyLineNumber >= range.fromLineNumber && stickyLineNumber <= range.toLineNumber) {
-					return true;
-				}
-			}
-		}
-		return false;
-	}
-
-	private onTokensChange(event: IModelTokensChangedEvent) {
-		if (this.needsUpdate(event)) {
-			this.update(false);
-		}
 	}
 
 	private async update(updateOutline: boolean = false): Promise<void> {
@@ -113,7 +88,7 @@ export class StickyLineCandidateProvider extends Disposable {
 		if (this.editor.hasModel()) {
 			const model = this.editor.getModel();
 			const modelVersionId = model.getVersionId();
-			this.outlineModel = await OutlineModel.create(this.languageFeaturesService.documentSymbolProvider, model, token);
+			this.outlineModel = structuredClone(await OutlineModel.create(this.languageFeaturesService.documentSymbolProvider, model, token)) as OutlineModel;
 			if (token.isCancellationRequested) {
 				return;
 			}
@@ -140,19 +115,17 @@ export class StickyLineCandidateProvider extends Disposable {
 	}
 
 	public getCandidateStickyLinesIntersectingFromOutline(range: Range, outlineModel: OutlineModel | OutlineElement | OutlineGroup, stickyLineCandidates: StickyLineCandidate[], depth: number): void {
-		for (const child of outlineModel.children) {
-			if (child[1] instanceof OutlineElement) {
-				const childStartLine = child[1].symbol.range.startLineNumber;
-				const childEndLine = child[1].symbol.range.endLineNumber;
+		for (const [_definitionString, child] of outlineModel.children) {
+			if (child instanceof OutlineElement) {
+				const childStartLine = child.symbol.range.startLineNumber;
+				const childEndLine = child.symbol.range.endLineNumber;
 				if (range.startLineNumber <= childEndLine + 1 && childStartLine - 1 <= range.endLineNumber && !this.startLinesConsidered.has(childStartLine)) {
-					depth++;
 					this.startLinesConsidered.add(childStartLine);
-					stickyLineCandidates.push(new StickyLineCandidate(childStartLine, childEndLine - 1, depth));
-					this.getCandidateStickyLinesIntersectingFromOutline(range, child[1], stickyLineCandidates, depth);
-					depth--;
+					stickyLineCandidates.push(new StickyLineCandidate(childStartLine, childEndLine - 1, depth + 1));
+					this.getCandidateStickyLinesIntersectingFromOutline(range, child, stickyLineCandidates, depth + 1);
 				}
-			} else if (child[1] instanceof OutlineGroup) {
-				this.getCandidateStickyLinesIntersectingFromOutline(range, child[1], stickyLineCandidates, depth);
+			} else if (child instanceof OutlineGroup) {
+				this.getCandidateStickyLinesIntersectingFromOutline(range, child, stickyLineCandidates, depth);
 			}
 		}
 	}
@@ -162,7 +135,6 @@ export class StickyLineCandidateProvider extends Disposable {
 		this.startLinesConsidered.clear();
 		let stickyLineCandidates: StickyLineCandidate[] = [];
 		this.getCandidateStickyLinesIntersectingFromOutline(range, this.outlineModel as OutlineModel, stickyLineCandidates, 0);
-
 		const hiddenRanges: Range[] | undefined = this.editor._getViewModel()?.getHiddenAreas();
 		if (hiddenRanges) {
 			for (const hiddenRange of hiddenRanges) {
@@ -170,5 +142,10 @@ export class StickyLineCandidateProvider extends Disposable {
 			}
 		}
 		return stickyLineCandidates;
+	}
+
+	override dispose(): void {
+		super.dispose();
+		this.sessionStore.dispose();
 	}
 }
