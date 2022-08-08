@@ -55,7 +55,8 @@ import {
 	KeyedTaskIdentifier as KeyedTaskIdentifier, TaskDefinition, RuntimeType,
 	USER_TASKS_GROUP_KEY,
 	TaskSettingId,
-	TasksSchemaProperties
+	TasksSchemaProperties,
+	TaskEventKind
 } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ITaskService, ITaskProvider, IProblemMatcherRunOptions, ICustomizationProperties, ITaskFilter, IWorkspaceFolderTaskResult, CustomExecutionSupportedContext, ShellExecutionSupportedContext, ProcessExecutionSupportedContext, TaskCommandsRegistered } from 'vs/workbench/contrib/tasks/common/taskService';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/common/taskTemplates';
@@ -321,7 +322,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 			return task._label;
 		});
-
+		this._register(this.onDidStateChange(e => {
+			const key = e.__task?.getRecentlyUsedKey();
+			if (e.kind === TaskEventKind.Terminated && key) {
+				this.removePersistentTask(key);
+			}
+		}));
 		this._waitForSupportedExecutions = new Promise(resolve => {
 			once(this._onDidRegisterSupportedExecutions.event)(() => resolve());
 		});
@@ -1023,6 +1029,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (this._getTasksFromStorage('historical').has(taskRecentlyUsedKey)) {
 			this._getTasksFromStorage('historical').delete(taskRecentlyUsedKey);
 			this._saveRecentlyUsedTasks();
+		}
+	}
+
+	public removePersistentTask(key: string) {
+		if (this._getTasksFromStorage('persistent').has(key)) {
+			this._getTasksFromStorage('persistent').delete(key);
+			this._savePersistentTasks();
 		}
 	}
 
@@ -1862,7 +1875,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		}
 		this._setRecentlyUsedTask(executeResult.task);
-		this._setPersistentTask(executeResult.task);
 		return executeResult.promise;
 	}
 
