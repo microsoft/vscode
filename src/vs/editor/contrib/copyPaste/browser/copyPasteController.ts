@@ -12,7 +12,7 @@ import { Mimes } from 'vs/base/common/mime';
 import { generateUuid } from 'vs/base/common/uuid';
 import { toVSDataTransfer, UriList } from 'vs/editor/browser/dnd';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IBulkEditService, ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Handler, IEditorContribution, PastePayload } from 'vs/editor/common/editorCommon';
@@ -201,7 +201,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 					performSnippetEdit(this._editor, typeof edit.insertText === 'string' ? SnippetParser.escape(edit.insertText) : edit.insertText.snippet, selections);
 
 					if (edit.additionalEdit) {
-						await this._bulkEditService.apply(ResourceEdit.convert(edit.additionalEdit), { editor: this._editor });
+						await this._bulkEditService.apply(edit.additionalEdit, { editor: this._editor });
 					}
 					return;
 				}

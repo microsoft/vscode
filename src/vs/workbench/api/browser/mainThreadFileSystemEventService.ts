@@ -6,10 +6,9 @@
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { FileOperation, IFileService } from 'vs/platform/files/common/files';
 import { extHostCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ExtHostContext } from '../common/extHost.protocol';
+import { ExtHostContext, reviveWorkspaceEditDto } from '../common/extHost.protocol';
 import { localize } from 'vs/nls';
 import { IWorkingCopyFileOperationParticipant, IWorkingCopyFileService, SourceTargetPair, IFileOperationUndoRedoInfo } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { reviveWorkspaceEditDto2 } from 'vs/workbench/api/browser/mainThreadBulkEdits';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { raceCancellation } from 'vs/base/common/async';
@@ -148,7 +147,7 @@ export class MainThreadFileSystemEventService {
 				logService.info('[onWill-handler] applying additional workspace edit from extensions', data.extensionNames);
 
 				await bulkEditService.apply(
-					reviveWorkspaceEditDto2(data.edit),
+					reviveWorkspaceEditDto(data.edit),
 					{ undoRedoGroupId: undoInfo?.undoRedoGroupId, showPreview }
 				);
 			}
