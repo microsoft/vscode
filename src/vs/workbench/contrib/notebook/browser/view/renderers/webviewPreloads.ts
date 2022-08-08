@@ -1158,11 +1158,14 @@ async function webviewPreloads(ctx: PreloadContext) {
 				focusFirstFocusableInCell(event.data.cellId);
 				break;
 			case 'decorations': {
+				console.log(event);
 				let outputContainer = document.getElementById(event.data.cellId);
+				console.log(outputContainer);
 				if (!outputContainer) {
 					viewModel.ensureOutputCell(event.data.cellId, -100000, true);
 					outputContainer = document.getElementById(event.data.cellId);
 				}
+				console.log(outputContainer);
 				outputContainer?.classList.add(...event.data.addedClassNames);
 				outputContainer?.classList.remove(...event.data.removedClassNames);
 				break;
