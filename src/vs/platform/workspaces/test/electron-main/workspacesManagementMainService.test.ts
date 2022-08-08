@@ -396,7 +396,7 @@ flakySuite('WorkspacesManagementMainService', () => {
 		const ws = (JSON.parse(newContent) as IStoredWorkspace);
 		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[0]).path, folder1Location);
 		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[1]).path, folder2Location);
-		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[2]).path, 'inner\\more');
+		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[2]).path, 'inner/more');
 
 		service.deleteUntitledWorkspaceSync(workspace);
 	});
