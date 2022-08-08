@@ -10,7 +10,7 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { StickyScrollWidget, StickyScrollWidgetState } from './stickyScrollWidget';
-import { StickyLineCandidateProvider } from './stickyScrollProvider';
+import { StickyLineCandidateProvider, StickyRange } from './stickyScrollProvider';
 import { IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
 
 class StickyScrollController extends Disposable implements IEditorContribution {
@@ -93,7 +93,9 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 		const scrollTop: number = this.editor.getScrollTop();
 		let lastLineRelativePosition: number = 0;
 		const lineNumbers: number[] = [];
-		const candidateRanges = this.stickyLineCandidateProvider.getCandidateStickyLinesIntersecting(this.editor.getVisibleRanges()[0]);
+		const arrayVisibleRanges = this.editor.getVisibleRanges();
+		const fullVisibleRange = new StickyRange(arrayVisibleRanges[0].startLineNumber, arrayVisibleRanges[arrayVisibleRanges.length - 1].endLineNumber);
+		const candidateRanges = this.stickyLineCandidateProvider.getCandidateStickyLinesIntersecting(fullVisibleRange);
 		for (const range of candidateRanges) {
 			const start = range.startLineNumber;
 			const end = range.endLineNumber;
@@ -106,12 +108,12 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 				const topOfEndLine = this.editor.getTopForLineNumber(end) - scrollTop;
 				const bottomOfEndLine = this.editor.getBottomForLineNumber(end) - scrollTop;
 
-				if (topOfElementAtDepth >= topOfEndLine - 1 && topOfElementAtDepth < bottomOfEndLine - 2) {
+				if (topOfElementAtDepth > topOfEndLine && topOfElementAtDepth <= bottomOfEndLine) {
 					lineNumbers.push(start);
 					lastLineRelativePosition = bottomOfEndLine - bottomOfElementAtDepth;
 					break;
 				}
-				else if (bottomOfElementAtDepth > bottomOfBeginningLine && bottomOfElementAtDepth < bottomOfEndLine - 1) {
+				else if (bottomOfElementAtDepth > bottomOfBeginningLine && bottomOfElementAtDepth <= bottomOfEndLine) {
 					lineNumbers.push(start);
 				}
 			}

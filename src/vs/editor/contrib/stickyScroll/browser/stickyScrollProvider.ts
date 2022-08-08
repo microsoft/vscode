@@ -13,6 +13,13 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { Range } from 'vs/editor/common/core/range';
 import { Emitter } from 'vs/base/common/event';
 
+export class StickyRange {
+	constructor(
+		public readonly startLineNumber: number,
+		public readonly endLineNumber: number
+	) { }
+}
+
 export class StickyLineCandidate {
 	constructor(
 		public readonly startLineNumber: number,
@@ -31,10 +38,9 @@ export class StickyLineCandidateProvider extends Disposable {
 	private readonly updateSoon: RunOnceScheduler;
 
 	private cts: CancellationTokenSource | undefined;
-	private outlineModel: OutlineModel | undefined;
+	private outlineModel: StickyOutlineElement | undefined;
 	private readonly sessionStore: DisposableStore = new DisposableStore();
 	private modelVersionId: number = 0;
-	private startLinesConsidered: Set<number> = new Set();
 
 	constructor(
 		editor: ICodeEditor,
@@ -92,50 +98,30 @@ export class StickyLineCandidateProvider extends Disposable {
 			if (token.isCancellationRequested) {
 				return;
 			}
-			this.outlineModel = this.sortOutline(outlineModel) as OutlineModel;
+			this.outlineModel = StickyOutlineElement.fromOutlineModel(outlineModel);
 			this.modelVersionId = modelVersionId;
 		}
 	}
 
-	private sortOutline(model: OutlineModel | OutlineElement | OutlineGroup): OutlineModel | OutlineElement | OutlineGroup {
-
-		const outlineElementChildren = new Map([...model.children].filter(child => child[1] instanceof OutlineElement));
-		const outlineGroupChildren = new Map([...model.children].filter(child => child[1] instanceof OutlineGroup));
-
-		const sortedChildren = new Map([...outlineElementChildren].sort((child1, child2) => (child1[1] as OutlineElement).symbol.range.startLineNumber - (child2[1] as OutlineElement).symbol.range.startLineNumber));
-		const updatedChildrenMap = new Map([...sortedChildren, ...outlineGroupChildren]);
-		const updatedOutline = model;
-		updatedOutline.children = updatedChildrenMap;
-
-		for (const [_definitionString, child] of model.children) {
-			const updatedChild = this.sortOutline(child) as OutlineElement | OutlineGroup;
-			updatedOutline.children.set(_definitionString, updatedChild);
-		}
-		return updatedOutline;
-	}
-
-	public getCandidateStickyLinesIntersectingFromOutline(range: Range, outlineModel: OutlineModel | OutlineElement | OutlineGroup, stickyLineCandidates: StickyLineCandidate[], depth: number): void {
-		for (const [_definitionString, child] of outlineModel.children) {
-			if (child instanceof OutlineElement) {
-				const childStartLine = child.symbol.range.startLineNumber;
-				const childEndLine = child.symbol.range.endLineNumber;
-				if (range.startLineNumber <= childEndLine + 1 && childStartLine - 1 <= range.endLineNumber && !this.startLinesConsidered.has(childStartLine)) {
-					this.startLinesConsidered.add(childStartLine);
+	public getCandidateStickyLinesIntersectingFromOutline(range: StickyRange, outlineModel: StickyOutlineElement, stickyLineCandidates: StickyLineCandidate[], depth: number, lastStartLineNumber: number): void {
+		for (const child of outlineModel.children) {
+			if (child.range) {
+				const childStartLine = child.range.startLineNumber;
+				const childEndLine = child.range.endLineNumber;
+				if (range.startLineNumber <= childEndLine + 1 && childStartLine - 1 <= range.endLineNumber && childStartLine !== lastStartLineNumber) {
 					stickyLineCandidates.push(new StickyLineCandidate(childStartLine, childEndLine - 1, depth + 1));
-					this.getCandidateStickyLinesIntersectingFromOutline(range, child, stickyLineCandidates, depth + 1);
+					this.getCandidateStickyLinesIntersectingFromOutline(range, child, stickyLineCandidates, depth + 1, childStartLine);
 				}
 			} else if (child instanceof OutlineGroup) {
-				this.getCandidateStickyLinesIntersectingFromOutline(range, child, stickyLineCandidates, depth);
+				this.getCandidateStickyLinesIntersectingFromOutline(range, child, stickyLineCandidates, depth, lastStartLineNumber);
 			}
 		}
 	}
 
-	public getCandidateStickyLinesIntersecting(range: Range): StickyLineCandidate[] {
-
-		this.startLinesConsidered.clear();
+	public getCandidateStickyLinesIntersecting(range: StickyRange): StickyLineCandidate[] {
 		let stickyLineCandidates: StickyLineCandidate[] = [];
-		if (range) {
-			this.getCandidateStickyLinesIntersectingFromOutline(range, this.outlineModel as OutlineModel, stickyLineCandidates, 0);
+		if (range.startLineNumber && range.endLineNumber) {
+			this.getCandidateStickyLinesIntersectingFromOutline(range, this.outlineModel as StickyOutlineElement, stickyLineCandidates, 0, -1);
 		}
 		const hiddenRanges: Range[] | undefined = this.editor._getViewModel()?.getHiddenAreas();
 		if (hiddenRanges) {
@@ -149,5 +135,43 @@ export class StickyLineCandidateProvider extends Disposable {
 	override dispose(): void {
 		super.dispose();
 		this.sessionStore.dispose();
+	}
+}
+
+class StickyOutlineElement {
+	public static fromOutlineModel(outlineModel: OutlineModel | OutlineElement | OutlineGroup): StickyOutlineElement {
+		const children = [...outlineModel.children].map(entry =>
+			StickyOutlineElement.fromOutlineModel(entry[1])
+		);
+		children.sort((child1, child2) => {
+			if (!child1.range || !child2.range) {
+				return 1;
+			} else if (child1.range.startLineNumber !== child2.range.startLineNumber) {
+				return child1.range.startLineNumber - child2.range.startLineNumber;
+			} else {
+				return child2.range.endLineNumber - child1.range.endLineNumber;
+			}
+		});
+		let range;
+		if (outlineModel instanceof OutlineElement) {
+			range = new StickyRange(outlineModel.symbol.range.startLineNumber, outlineModel.symbol.range.endLineNumber);
+		} else {
+			range = undefined;
+		}
+		return new StickyOutlineElement(
+			range,
+			children
+		);
+	}
+	constructor(
+		/**
+		 * Range of line numbers spanned by the current scope
+		 */
+		public readonly range: StickyRange | undefined,
+		/**
+		 * Must be sorted by start line number
+		*/
+		public readonly children: readonly StickyOutlineElement[],
+	) {
 	}
 }
