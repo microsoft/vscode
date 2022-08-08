@@ -41,7 +41,7 @@ function Global:Prompt() {
 			} else {
 				$CommandLine = ""
 			}
-			$Result += $CommandLine.Replace("`n", "<LF>").Replace(";", "<CL>")
+			$Result += $CommandLine.Replace("\", "\\").Replace("`n", "\x0a").Replace(";", "\x3b")
 			$Result += "`a"
 			# Command finished exit code
 			# OSC 633 ; D [; <ExitCode>] ST
