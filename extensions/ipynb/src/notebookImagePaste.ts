@@ -14,6 +14,11 @@ class CopyPasteEditProvider implements vscode.DocumentPasteEditProvider {
 		_token: vscode.CancellationToken
 	): Promise<vscode.DocumentPasteEdit | undefined> {
 
+		const enabled = vscode.workspace.getConfiguration('ipynb', _document).get('experimental.pasteImages.enabled', false);
+		if (!enabled) {
+			return undefined;
+		}
+
 		// get b64 data from paste
 		// TODO: dataTransfer.get() limits to one image pasted
 		const dataItem = dataTransfer.get('image/png');
