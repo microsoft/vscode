@@ -37,7 +37,6 @@ const enum DecorationSelector {
 	Default = 'default',
 	Codicon = 'codicon',
 	XtermDecoration = 'xterm-decoration',
-	GenericMarkerIcon = 'codicon-circle-small-filled',
 	OverviewRuler = '.xterm-decoration-overview-ruler'
 }
 
@@ -79,11 +78,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		this._hoverDelayer = this._register(new Delayer(this._configurationService.getValue('workbench.hover.delay')));
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIcon) ||
-				e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIconSuccess) ||
-				e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIconError)) {
-				this._refreshStyles();
-			} else if (e.affectsConfiguration(TerminalSettingId.FontSize) || e.affectsConfiguration(TerminalSettingId.LineHeight)) {
+			if (e.affectsConfiguration(TerminalSettingId.FontSize) || e.affectsConfiguration(TerminalSettingId.LineHeight)) {
 				this.refreshLayouts();
 			} else if (e.affectsConfiguration('workbench.colorCustomizations')) {
 				this._refreshStyles(true);
@@ -338,7 +333,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		element.classList.add(DecorationSelector.CommandDecoration, DecorationSelector.Codicon, DecorationSelector.XtermDecoration);
 
 		if (genericMarkProperties) {
-			element.classList.add(DecorationSelector.DefaultColor, DecorationSelector.GenericMarkerIcon);
+			element.classList.add(DecorationSelector.DefaultColor, ...Codicon.terminalDecorationMark.classNamesArray);
 			if (!genericMarkProperties.hoverMessage) {
 				//disable the mouse pointer
 				element.classList.add(DecorationSelector.Default);
@@ -348,12 +343,12 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			this._updateCommandDecorationVisibility(element);
 			if (exitCode === undefined) {
 				element.classList.add(DecorationSelector.DefaultColor, DecorationSelector.Default);
-				element.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationIcon)}`);
+				element.classList.add(...Codicon.terminalDecorationIncomplete.classNamesArray);
 			} else if (exitCode) {
 				element.classList.add(DecorationSelector.ErrorColor);
-				element.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationIconError)}`);
+				element.classList.add(...Codicon.terminalDecorationError.classNamesArray);
 			} else {
-				element.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationIconSuccess)}`);
+				element.classList.add(...Codicon.terminalDecorationSuccess.classNamesArray);
 			}
 		}
 	}
@@ -453,11 +448,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	private async _showConfigureCommandDecorationsQuickPick() {
 		const quickPick = this._quickInputService.createQuickPick();
 		quickPick.items = [
-			{ id: 'a', label: localize('changeDefaultIcon', 'Change default icon') },
-			{ id: 'b', label: localize('changeSuccessIcon', 'Change success icon') },
-			{ id: 'c', label: localize('changeErrorIcon', 'Change error icon') },
-			{ type: 'separator' },
-			{ id: 'd', label: localize('toggleVisibility', 'Toggle visibility') },
+			{ id: 'a', label: localize('toggleVisibility', 'Toggle visibility') },
 		];
 		quickPick.canSelectMany = false;
 		quickPick.onDidAccept(async e => {
@@ -465,10 +456,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			const result = quickPick.activeItems[0];
 			let iconSetting: string | undefined;
 			switch (result.id) {
-				case 'a': iconSetting = TerminalSettingId.ShellIntegrationDecorationIcon; break;
-				case 'b': iconSetting = TerminalSettingId.ShellIntegrationDecorationIconSuccess; break;
-				case 'c': iconSetting = TerminalSettingId.ShellIntegrationDecorationIconError; break;
-				case 'd': this._showToggleVisibilityQuickPick(); break;
+				case 'a': this._showToggleVisibilityQuickPick(); break;
 			}
 			if (iconSetting) {
 				this._showChangeIconQuickPick(iconSetting);

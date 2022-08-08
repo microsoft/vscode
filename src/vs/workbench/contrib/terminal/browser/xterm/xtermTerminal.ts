@@ -50,6 +50,22 @@ let SerializeAddon: typeof SerializeAddonType;
 let Unicode11Addon: typeof Unicode11AddonType;
 let WebglAddon: typeof WebglAddonType;
 
+function getFullBufferLineAsString(lineIndex: number, buffer: IBuffer): { lineData: string | undefined; lineIndex: number } {
+	let line = buffer.getLine(lineIndex);
+	if (!line) {
+		return { lineData: undefined, lineIndex };
+	}
+	let lineData = line.translateToString(true);
+	while (lineIndex > 0 && line.isWrapped) {
+		line = buffer.getLine(--lineIndex);
+		if (!line) {
+			break;
+		}
+		lineData = line.translateToString(false) + lineData;
+	}
+	return { lineData, lineIndex };
+}
+
 /**
  * Wraps the xterm object with additional functionality. Interaction with the backing process is out
  * of the scope of this class.
@@ -57,19 +73,15 @@ let WebglAddon: typeof WebglAddonType;
 export class XtermTerminal extends DisposableStore implements IXtermTerminal, IInternalXtermTerminal {
 	/** The raw xterm.js instance */
 	readonly raw: RawXtermTerminal;
-	private _bufferLines: string[] = [];
 
-	get bufferLines(): string[] {
-		if (this.raw.buffer.active.length === this._bufferLines.length) {
-			return this._bufferLines;
-		}
-		for (let i = this._bufferLines.length; i < this.raw.buffer.active.length; i++) {
-			const line = this.raw.buffer.active.getLine(i)?.translateToString();
-			if (line) {
-				this._bufferLines.push(line);
+	*getBufferReverseIterator(): IterableIterator<string> {
+		for (let i = this.raw.buffer.active.length; i >= 0; i--) {
+			const { lineData, lineIndex } = getFullBufferLineAsString(i, this.raw.buffer.active);
+			if (lineData) {
+				i = lineIndex;
+				yield lineData;
 			}
 		}
-		return this._bufferLines;
 	}
 	private _core: IXtermCore;
 	private static _suggestedRendererType: 'canvas' | 'dom' | undefined = undefined;

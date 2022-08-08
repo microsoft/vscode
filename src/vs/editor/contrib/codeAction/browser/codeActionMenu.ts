@@ -117,7 +117,6 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 
 		element.isEnabled = element.action.enabled;
 
-
 		if (element.action instanceof CodeActionAction) {
 
 			// Check documentation type
@@ -239,6 +238,15 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		}
 	}
 
+	private _onListClick(e: IListMouseEvent<ICodeActionMenuItem>): void {
+		if (e.element) {
+			if (!e.element.isEnabled) {
+				this.currSelectedItem = undefined;
+				this.codeActionList.value?.setFocus([]);
+			}
+		}
+	}
+
 	private renderCodeActionMenuList(element: HTMLElement, inputArray: IAction[]): IDisposable {
 		const renderDisposables = new DisposableStore();
 		const renderMenu = document.createElement('div');
@@ -275,11 +283,11 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		}, [this.listRenderer], { keyboardSupport: false }
 		);
 
+		renderDisposables.add(this.codeActionList.value.onMouseClick(e => this._onListClick(e)));
 		renderDisposables.add(this.codeActionList.value.onMouseOver(e => this._onListHover(e)));
 		renderDisposables.add(this.codeActionList.value.onDidChangeFocus(e => this.codeActionList.value?.domFocus()));
 		renderDisposables.add(this.codeActionList.value.onDidChangeSelection(e => this._onListSelection(e)));
 		renderDisposables.add(this._editor.onDidLayoutChange(e => this.hideCodeActionWidget()));
-
 
 		// Populating the list widget and tracking enabled options.
 		inputArray.forEach((item, index) => {

@@ -23,7 +23,7 @@ export interface IEditSessionsWorkbenchService {
 
 	read(ref: string | undefined): Promise<{ ref: string; editSession: EditSession } | undefined>;
 	write(editSession: EditSession): Promise<string>;
-	delete(ref: string): Promise<void>;
+	delete(ref: string | null): Promise<void>;
 	list(): Promise<IResourceRefHandle[]>;
 }
 
