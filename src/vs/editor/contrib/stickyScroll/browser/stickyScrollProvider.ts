@@ -49,7 +49,7 @@ export class StickyLineCandidateProvider extends Disposable {
 		super();
 		this.editor = editor;
 		this.languageFeaturesService = _languageFeaturesService;
-		this.updateSoon = this._register(new RunOnceScheduler(() => this.update(true), 50));
+		this.updateSoon = this._register(new RunOnceScheduler(() => this.update(), 50));
 		this._register(this.editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.experimental)) {
 				this.readConfiguration();
@@ -64,16 +64,11 @@ export class StickyLineCandidateProvider extends Disposable {
 			this.sessionStore.clear();
 			return;
 		} else {
-			this.sessionStore.add(this.editor.onDidChangeModel(() => this.update(true)));
-			this.sessionStore.add(this.editor.onDidScrollChange(() => this.update(false)));
-			this.sessionStore.add(this.editor.onDidChangeHiddenAreas(() => this.update(true)));
+			this.sessionStore.add(this.editor.onDidChangeModel(() => this.update()));
+			this.sessionStore.add(this.editor.onDidChangeHiddenAreas(() => this.update()));
 			this.sessionStore.add(this.editor.onDidChangeModelContent(() => this.updateSoon.schedule()));
-			this.sessionStore.add(this.languageFeaturesService.documentSymbolProvider.onDidChange(() => this.update(true)));
-			const lineNumberOption = this.editor.getOption(EditorOption.lineNumbers);
-			if (lineNumberOption.renderType === RenderLineNumbersType.Relative) {
-				this.sessionStore.add(this.editor.onDidChangeCursorPosition(() => this.update(false)));
-			}
-			this.update(true);
+			this.sessionStore.add(this.languageFeaturesService.documentSymbolProvider.onDidChange(() => this.update()));
+			this.update();
 		}
 	}
 
@@ -81,12 +76,10 @@ export class StickyLineCandidateProvider extends Disposable {
 		return this.modelVersionId;
 	}
 
-	private async update(updateOutline: boolean = false): Promise<void> {
-		if (updateOutline) {
-			this.cts?.dispose(true);
-			this.cts = new CancellationTokenSource();
-			await this.updateOutlineModel(this.cts.token);
-		}
+	private async update(): Promise<void> {
+		this.cts?.dispose(true);
+		this.cts = new CancellationTokenSource();
+		await this.updateOutlineModel(this.cts.token);
 		this.onStickyScrollChangeEmitter.fire();
 	}
 
@@ -104,15 +97,17 @@ export class StickyLineCandidateProvider extends Disposable {
 	}
 
 	public getCandidateStickyLinesIntersectingFromOutline(range: StickyRange, outlineModel: StickyOutlineElement, result: StickyLineCandidate[], depth: number, lastStartLineNumber: number): void {
+		let lastLine = lastStartLineNumber;
 		for (const child of outlineModel.children) {
 			if (child.range) {
 				const childStartLine = child.range.startLineNumber;
 				const childEndLine = child.range.endLineNumber;
-				if (range.startLineNumber <= childEndLine + 1 && childStartLine - 1 <= range.endLineNumber && childStartLine !== lastStartLineNumber) {
+				if (range.startLineNumber <= childEndLine + 1 && childStartLine - 1 <= range.endLineNumber && childStartLine !== lastLine) {
+					lastLine = childStartLine;
 					result.push(new StickyLineCandidate(childStartLine, childEndLine - 1, depth + 1));
 					this.getCandidateStickyLinesIntersectingFromOutline(range, child, result, depth + 1, childStartLine);
 				}
-			} else if (child instanceof OutlineGroup) {
+			} else {
 				this.getCandidateStickyLinesIntersectingFromOutline(range, child, result, depth, lastStartLineNumber);
 			}
 		}

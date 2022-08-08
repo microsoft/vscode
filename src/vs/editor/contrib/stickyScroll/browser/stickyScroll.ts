@@ -8,7 +8,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { StickyScrollWidget, StickyScrollWidgetState } from './stickyScrollWidget';
 import { StickyLineCandidateProvider, StickyRange } from './stickyScrollProvider';
 import { IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
@@ -46,12 +46,16 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 			return;
 		} else {
 			this.editor.addOverlayWidget(this.stickyScrollWidget);
+			this.sessionStore.add(this.editor.onDidScrollChange(() => this.renderStickyScroll()));
 			this.sessionStore.add(this.editor.onDidLayoutChange(() => this.onDidResize()));
 			this.sessionStore.add(this.editor.onDidChangeModelTokens((e) => this.onTokensChange(e)));
 			this.sessionStore.add(this.stickyLineCandidateProvider.onStickyScrollChange(() => this.renderStickyScroll()));
+			const lineNumberOption = this.editor.getOption(EditorOption.lineNumbers);
+			if (lineNumberOption.renderType === RenderLineNumbersType.Relative) {
+				this.sessionStore.add(this.editor.onDidChangeCursorPosition(() => this.renderStickyScroll()));
+			}
 		}
 	}
-
 
 	private needsUpdate(event: IModelTokensChangedEvent) {
 		const stickyLineNumbers = this.stickyScrollWidget.getCurrentLines();
