@@ -335,7 +335,7 @@ flakySuite('WorkspacesManagementMainService', () => {
 		assert.strictEqual(ws.folders.length, 3);
 		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[0]).path, folder1);
 		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[1]).path, 'inside');
-		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[2]).path, isWindows ? 'inside\\somefolder' : 'inside/somefolder');
+		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[2]).path, 'inside/somefolder');
 
 		origConfigPath = workspaceConfigPath;
 		workspaceConfigPath = URI.file(path.join(tmpDir, 'other', 'myworkspace2.code-workspace'));
@@ -343,8 +343,8 @@ flakySuite('WorkspacesManagementMainService', () => {
 		ws = (JSON.parse(newContent) as IStoredWorkspace);
 		assert.strictEqual(ws.folders.length, 3);
 		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[0]).path, folder1);
-		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[1]).path, isWindows ? '..\\inside' : '../inside');
-		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[2]).path, isWindows ? '..\\inside\\somefolder' : '../inside/somefolder');
+		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[1]).path, '../inside');
+		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[2]).path, '../inside/somefolder');
 
 		origConfigPath = workspaceConfigPath;
 		workspaceConfigPath = URI.parse('foo://foo/bar/myworkspace2.code-workspace');

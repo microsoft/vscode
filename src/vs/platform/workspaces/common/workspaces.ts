@@ -266,11 +266,13 @@ function doParseStoredWorkspace(path: URI, contents: string): IStoredWorkspace {
 }
 
 export function usesSlashForPaths(storedFolders: IStoredWorkspaceFolder[]): boolean {
-	if (isWindows) {
-		return storedFolders.some(folder => isRawFileWorkspaceFolder(folder) && folder.path.indexOf(posix.sep) >= 0);
+	if (!isWindows) {
+		return true; // Linux/macOS always use slash
 	}
 
-	return true;
+	// Only prefer slashes if other absolute paths in the
+	// workspace configuration file use slashes as well
+	return storedFolders.some(folder => isRawFileWorkspaceFolder(folder) && isAbsolute(folder.path) && folder.path.indexOf(posix.sep) >= 0);
 }
 
 //#endregion
