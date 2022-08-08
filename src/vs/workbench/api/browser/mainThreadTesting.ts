@@ -173,7 +173,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 			canRefresh,
 			refreshTests: token => this.proxy.$refreshTests(controllerId, token),
 			configureRunProfile: id => this.proxy.$configureRunProfile(controllerId, id),
-			runTests: (req, token) => this.proxy.$runControllerTests(req, token),
+			runTests: (reqs, token) => this.proxy.$runControllerTests(reqs, token),
 			expandTest: (testId, levels) => this.proxy.$expandTest(testId, isFinite(levels) ? levels : -1),
 		};
 

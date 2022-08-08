@@ -20,9 +20,8 @@ import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle
 import { ILogService } from 'vs/platform/log/common/log';
 import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IApplicationStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
-import { ICodeWindow } from 'vs/platform/window/electron-main/window';
 import { IRecent, IRecentFile, IRecentFolder, IRecentlyOpened, IRecentWorkspace, isRecentFile, isRecentFolder, isRecentWorkspace, restoreRecentlyOpened, toStoreData } from 'vs/platform/workspaces/common/workspaces';
-import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 
 export const IWorkspacesHistoryMainService = createDecorator<IWorkspacesHistoryMainService>('workspacesHistoryMainService');
@@ -34,7 +33,7 @@ export interface IWorkspacesHistoryMainService {
 	readonly onDidChangeRecentlyOpened: CommonEvent<void>;
 
 	addRecentlyOpened(recents: IRecent[]): Promise<void>;
-	getRecentlyOpened(include?: ICodeWindow): Promise<IRecentlyOpened>;
+	getRecentlyOpened(): Promise<IRecentlyOpened>;
 	removeRecentlyOpened(paths: URI[]): Promise<void>;
 	clearRecentlyOpened(): Promise<void>;
 }
@@ -162,30 +161,9 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		this._onDidChangeRecentlyOpened.fire();
 	}
 
-	async getRecentlyOpened(include?: ICodeWindow): Promise<IRecentlyOpened> {
+	async getRecentlyOpened(): Promise<IRecentlyOpened> {
 		const workspaces: Array<IRecentFolder | IRecentWorkspace> = [];
 		const files: IRecentFile[] = [];
-
-		// Add current workspace to beginning if set
-		if (include) {
-			const currentWorkspace = include.config?.workspace;
-			if (isWorkspaceIdentifier(currentWorkspace) && !this.workspacesManagementMainService.isUntitledWorkspace(currentWorkspace)) {
-				workspaces.push({ workspace: currentWorkspace, remoteAuthority: include.remoteAuthority });
-			} else if (isSingleFolderWorkspaceIdentifier(currentWorkspace)) {
-				workspaces.push({ folderUri: currentWorkspace.uri, remoteAuthority: include.remoteAuthority });
-			}
-		}
-
-		// Add currently files to open to the beginning if any
-		const currentFiles = include?.config?.filesToOpenOrCreate;
-		if (currentFiles) {
-			for (const currentFile of currentFiles) {
-				const fileUri = currentFile.fileUri;
-				if (fileUri && this.indexOfFile(files, fileUri) === -1) {
-					files.push({ fileUri });
-				}
-			}
-		}
 
 		await this.addEntriesFromStorage(workspaces, files);
 
