@@ -12,6 +12,7 @@ import { Emitter } from 'vs/base/common/event';
 import { IDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { getDefaultIgnoredSettings, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
@@ -51,7 +52,8 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IHoverService hoverService: IHoverService,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
-		@ILanguageService private readonly languageService: ILanguageService) {
+		@ILanguageService private readonly languageService: ILanguageService,
+		@ICommandService private readonly commandService: ICommandService) {
 		this.indicatorsContainerElement = DOM.append(container, $('.misc-label'));
 		this.indicatorsContainerElement.style.display = 'inline';
 
@@ -78,9 +80,26 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	private createWorkspaceTrustElement(): HTMLElement {
 		const workspaceTrustElement = $('span.setting-item-workspace-trust');
 		const workspaceTrustLabel = new SimpleIconLabel(workspaceTrustElement);
-		workspaceTrustLabel.text = localize('workspaceUntrustedLabel', 'Requires Workspace Trust');
-		const workspaceTrustHoverContent = localize('workspaceUntrustedHoverContent', "This setting requires a trusted workspace for its value to take effect.");
-		this.simpleHoverStore.add(setupCustomHover(this.hoverDelegate, workspaceTrustElement, workspaceTrustHoverContent));
+		workspaceTrustLabel.text = localize('workspaceUntrustedLabel', "Requires Workspace Trust");
+		const contentFallback = localize('trustLabel', "This setting can only be applied in a trusted workspace.");
+
+		const contentMarkdownString = contentFallback + ` [${localize('manageWorkspaceTrust', "Manage Workspace Trust")}](manage-workspace-trust).`;
+		const content: ITooltipMarkdownString = {
+			markdown: {
+				value: contentMarkdownString,
+				isTrusted: false,
+				supportHtml: false
+			},
+			markdownNotSupportedFallback: contentFallback
+		};
+		const options: IUpdatableHoverOptions = {
+			linkHandler: (url: string) => {
+				this.commandService.executeCommand('workbench.trust.manage');
+				this.scopeOverridesHover.value?.hide();
+			}
+		};
+
+		this.simpleHoverStore.add(setupCustomHover(this.hoverDelegate, workspaceTrustElement, content, options));
 		return workspaceTrustElement;
 	}
 
@@ -164,7 +183,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 			this.scopeOverridesLabel.text = policyText;
 
 			const contentFallback = localize('policyDescription', "This setting is managed by your organization.");
-			const contentMarkdownString = contentFallback + ` [${localize('policyFilterLink', "View policy settings")}](blank).`;
+			const contentMarkdownString = contentFallback + ` [${localize('policyFilterLink', "View policy settings")}](policy-settings).`;
 			const content: ITooltipMarkdownString = {
 				markdown: {
 					value: contentMarkdownString,
