@@ -583,7 +583,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 					return;
 				}
 				this._logService.trace('IPty#pid');
-				exec('lsof -OPln -p ' + this._ptyProcess.pid + ' | grep cwd', (error, stdout, stderr) => {
+				exec('lsof -OPln -p ' + this._ptyProcess.pid + ' | grep cwd', { env: { ...process.env, LANG: 'en_US.UTF-8' } }, (error, stdout, stderr) => {
 					if (!error && stdout !== '') {
 						resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
 					} else {
