@@ -1855,6 +1855,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				// The notebook editor doesn't have focus yet
 				if (!this.hasEditorFocus()) {
 					this.focusContainer();
+					// trigger editor to update as FocusTracker might not emit focus change event
+					this.updateEditorFocus();
 				}
 
 				if (element && element.focusMode === CellFocusMode.Editor) {
