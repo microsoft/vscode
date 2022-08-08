@@ -86,6 +86,7 @@ import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 
 import { VirtualWorkspaceContext } from 'vs/workbench/common/contextkeys';
 import { Schemas } from 'vs/base/common/network';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { ILifecycleService, StartupKind } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
@@ -263,7 +264,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@ILogService private readonly _logService: ILogService,
-		@IThemeService private readonly _themeService: IThemeService
+		@IThemeService private readonly _themeService: IThemeService,
+		@ILifecycleService private readonly _lifecycleService: ILifecycleService
 	) {
 		super();
 
@@ -348,8 +350,17 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	private async _reconnectTasks(): Promise<void> {
 		const tasks = await this.getSavedTasks('persistent');
+		if (!this._taskSystem) {
+			await this._getTaskSystem();
+		}
 		if (!tasks.length) {
 			this._tasksReconnected = true;
+			return;
+		}
+		if (this._lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
+			this._persistentTasks?.clear();
+			this._storageService.remove(AbstractTaskService.PersistentTasks_Key, StorageScope.WORKSPACE);
+			await this._storageService.flush();
 			return;
 		}
 		for (const task of tasks) {
@@ -1820,7 +1831,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _handleExecuteResult(executeResult: ITaskExecuteResult, runSource?: TaskRunSource): Promise<ITaskSummary> {
-		if (this._configurationService.getValue(TaskSettingId.Reconnection) === true) {
+		if (this._configurationService.getValue(TaskSettingId.Reconnection) === true && runSource !== TaskRunSource.Reconnect) {
 			await this._setPersistentTask(executeResult.task);
 		}
 		if (runSource === TaskRunSource.User) {
