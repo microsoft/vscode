@@ -218,7 +218,7 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 			return;
 		}
 		const title = this.getTooltip() ?? '';
-		this.element.setAttribute('aria-label', title);
+		this.updateAriaLabel();
 		if (!this.options.hoverDelegate) {
 			this.element.title = title;
 		} else {
@@ -229,6 +229,13 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 			} else {
 				this.customHover.update(title);
 			}
+		}
+	}
+
+	protected updateAriaLabel(): void {
+		if (this.element) {
+			const title = this.getTooltip() ?? '';
+			this.element.setAttribute('aria-label', title);
 		}
 	}
 
@@ -388,8 +395,7 @@ export class ActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	override updateTooltip(): void {
-		super.updateTooltip();
+	override updateAriaLabel(): void {
 		if (this.label) {
 			const title = this.getTooltip() ?? '';
 			this.label.setAttribute('aria-label', title);
