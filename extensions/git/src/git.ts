@@ -481,7 +481,7 @@ export class Git {
 			const repoUri = Uri.file(repoPath);
 			const pathUri = Uri.file(repositoryPath);
 			if (repoUri.authority.length !== 0 && pathUri.authority.length === 0) {
-				// eslint-disable-next-line code-no-look-behind-regex
+				// eslint-disable-next-line @vscode/code-no-look-behind-regex
 				const match = /(?<=^\/?)([a-zA-Z])(?=:\/)/.exec(pathUri.path);
 				if (match !== null) {
 					const [, letter] = match;

@@ -141,6 +141,7 @@
     "eslint": "8.7.0",
     "eslint-plugin-header": "3.1.1",
     "eslint-plugin-jsdoc": "^39.3.2",
+    "@vscode/eslint-plugin": "link:./build/lib/eslint-plugin-vscode",
     "event-stream": "3.3.4",
     "fancy-log": "^1.3.3",
     "fast-plist": "0.1.2",

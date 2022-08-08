@@ -10,7 +10,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand, IHandleCommandOptions, ICommandInvalidationRequest, CommandInvalidationReason } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ISerializedCommand, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
 // Importing types is safe in any layer
-// eslint-disable-next-line code-import-patterns
+// eslint-disable-next-line @vscode/code-import-patterns
 import type { IBuffer, IBufferLine, IDisposable, IMarker, Terminal } from 'xterm-headless';
 
 export interface ICurrentPartialCommand {
