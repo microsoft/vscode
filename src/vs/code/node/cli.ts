@@ -62,20 +62,16 @@ export async function main(argv: string[]): Promise<any> {
 	}
 
 	// Shell integration
-	else if (args['shell-integration']) {
-		// Silently fail when the terminal is not VS Code's integrated terminal
-		if (process.env['TERM_PROGRAM'] !== 'vscode') {
-			return;
-		}
+	else if (args['locate-shell-integration-path']) {
 		let file: string;
-		switch (args['shell-integration']) {
-			// Usage: `[[ "$TERM_PROGRAM" == "vscode" ]] && . "$(code --shell-integration bash)"`
+		switch (args['locate-shell-integration-path']) {
+			// Usage: `[[ "$TERM_PROGRAM" == "vscode" ]] && . "$(code --locate-shell-integration-path bash)"`
 			case 'bash': file = 'shellIntegration-bash.sh'; break;
-			// Usage: `if ($env:TERM_PROGRAM -eq "vscode") { . "$(code --shell-integration pwsh)" }`
+			// Usage: `if ($env:TERM_PROGRAM -eq "vscode") { . "$(code --locate-shell-integration-path pwsh)" }`
 			case 'pwsh': file = 'shellIntegration.ps1'; break;
-			// Usage: `[[ "$TERM_PROGRAM" == "vscode" ]] && . "$(code --shell-integration zsh)"`
+			// Usage: `[[ "$TERM_PROGRAM" == "vscode" ]] && . "$(code --locate-shell-integration-path zsh)"`
 			case 'zsh': file = 'shellIntegration-rc.zsh'; break;
-			default: throw new Error('Error using --shell-integration: Invalid shell type');
+			default: throw new Error('Error using --locate-shell-integration-path: Invalid shell type');
 		}
 		console.log(join(dirname(FileAccess.asFileUri('', require)).fsPath, 'out', 'vs', 'workbench', 'contrib', 'terminal', 'browser', 'media', file));
 	}
@@ -183,7 +179,7 @@ export async function main(argv: string[]): Promise<any> {
 
 				// returns a file path where stdin input is written into (write in progress).
 				try {
-					readFromStdin(stdinFilePath, !!verbose); // throws error if file can not be written
+					await readFromStdin(stdinFilePath, !!verbose); // throws error if file can not be written
 
 					// Make sure to open tmp file
 					addArg(argv, stdinFilePath);

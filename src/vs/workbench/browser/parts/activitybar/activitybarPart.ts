@@ -483,9 +483,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 			this.keyboardNavigationDisposables.add(addDisposableListener(this.menuBarContainer, EventType.KEY_DOWN, e => {
 				const kbEvent = new StandardKeyboardEvent(e);
 				if (kbEvent.equals(KeyCode.DownArrow) || kbEvent.equals(KeyCode.RightArrow)) {
-					if (this.compositeBar) {
-						this.compositeBar.focus();
-					}
+					this.compositeBar?.focus();
 				}
 			}));
 		}
@@ -497,9 +495,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 				if (kbEvent.equals(KeyCode.DownArrow) || kbEvent.equals(KeyCode.RightArrow)) {
 					this.globalActivityActionBar?.focus(true);
 				} else if (kbEvent.equals(KeyCode.UpArrow) || kbEvent.equals(KeyCode.LeftArrow)) {
-					if (this.menuBar) {
-						this.menuBar.toggleFocus();
-					}
+					this.menuBar?.toggleFocus();
 				}
 			}));
 		}
@@ -628,9 +624,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 
 	private onDidDeregisterViewContainer(viewContainer: ViewContainer): void {
 		const disposable = this.viewContainerDisposables.get(viewContainer.id);
-		if (disposable) {
-			disposable.dispose();
-		}
+		disposable?.dispose();
 
 		this.viewContainerDisposables.delete(viewContainer.id);
 		this.removeComposite(viewContainer.id);
@@ -722,7 +716,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 	}
 
 	private addComposite(viewContainer: ViewContainer): void {
-		this.compositeBar.addComposite({ id: viewContainer.id, name: viewContainer.title, order: viewContainer.order, requestedIndex: viewContainer.requestedIndex });
+		this.compositeBar.addComposite({ id: viewContainer.id, name: typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.value, order: viewContainer.order, requestedIndex: viewContainer.requestedIndex });
 	}
 
 	private hideComposite(compositeId: string): void {

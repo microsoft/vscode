@@ -333,9 +333,7 @@ async function connectToRemoteExtensionHostAgentAndReadOneMessage<T>(options: IS
 			}
 			result.reject(error);
 		} else {
-			if (options.reconnectionProtocol) {
-				options.reconnectionProtocol.endAcceptReconnection();
-			}
+			options.reconnectionProtocol?.endAcceptReconnection();
 			options.logService.trace(`${logPrefix} 6/6. handshake finished, connection is up and running after ${logElapsed(startTime)}!`);
 			result.resolve({ protocol, firstMessage: msg });
 		}
@@ -417,30 +415,48 @@ export interface IAddressProvider {
 }
 
 export async function connectRemoteAgentManagement(options: IConnectionOptions, remoteAuthority: string, clientId: string): Promise<ManagementPersistentConnection> {
-	try {
-		const reconnectionToken = generateUuid();
-		const simpleOptions = await resolveConnectionOptions(options, reconnectionToken, null);
-		const { protocol } = await doConnectRemoteAgentManagement(simpleOptions, CancellationToken.None);
-		return new ManagementPersistentConnection(options, remoteAuthority, clientId, reconnectionToken, protocol);
-	} catch (err) {
-		options.logService.error(`[remote-connection] An error occurred in the very first connect attempt, it will be treated as a permanent error! Error:`);
-		options.logService.error(err);
-		PersistentConnection.triggerPermanentFailure(0, 0, RemoteAuthorityResolverError.isHandled(err));
-		throw err;
-	}
+	return createInitialConnection(
+		options,
+		async (simpleOptions) => {
+			const { protocol } = await doConnectRemoteAgentManagement(simpleOptions, CancellationToken.None);
+			return new ManagementPersistentConnection(options, remoteAuthority, clientId, simpleOptions.reconnectionToken, protocol);
+		}
+	);
 }
 
 export async function connectRemoteAgentExtensionHost(options: IConnectionOptions, startArguments: IRemoteExtensionHostStartParams): Promise<ExtensionHostPersistentConnection> {
-	try {
-		const reconnectionToken = generateUuid();
-		const simpleOptions = await resolveConnectionOptions(options, reconnectionToken, null);
-		const { protocol, debugPort } = await doConnectRemoteAgentExtensionHost(simpleOptions, startArguments, CancellationToken.None);
-		return new ExtensionHostPersistentConnection(options, startArguments, reconnectionToken, protocol, debugPort);
-	} catch (err) {
-		options.logService.error(`[remote-connection] An error occurred in the very first connect attempt, it will be treated as a permanent error! Error:`);
-		options.logService.error(err);
-		PersistentConnection.triggerPermanentFailure(0, 0, RemoteAuthorityResolverError.isHandled(err));
-		throw err;
+	return createInitialConnection(
+		options,
+		async (simpleOptions) => {
+			const { protocol, debugPort } = await doConnectRemoteAgentExtensionHost(simpleOptions, startArguments, CancellationToken.None);
+			return new ExtensionHostPersistentConnection(options, startArguments, simpleOptions.reconnectionToken, protocol, debugPort);
+		}
+	);
+}
+
+/**
+ * Will attempt to connect 5 times. If it fails 5 consecutive times, it will give up.
+ */
+async function createInitialConnection<T extends PersistentConnection>(options: IConnectionOptions, connectionFactory: (simpleOptions: ISimpleConnectionOptions) => Promise<T>): Promise<T> {
+	const MAX_ATTEMPTS = 5;
+
+	for (let attempt = 1; ; attempt++) {
+		try {
+			const reconnectionToken = generateUuid();
+			const simpleOptions = await resolveConnectionOptions(options, reconnectionToken, null);
+			const result = await connectionFactory(simpleOptions);
+			return result;
+		} catch (err) {
+			if (attempt < MAX_ATTEMPTS) {
+				options.logService.error(`[remote-connection][attempt ${attempt}] An error occurred in initial connection! Will retry... Error:`);
+				options.logService.error(err);
+			} else {
+				options.logService.error(`[remote-connection][attempt ${attempt}]  An error occurred in initial connection! It will be treated as a permanent error. Error:`);
+				options.logService.error(err);
+				PersistentConnection.triggerPermanentFailure(0, 0, RemoteAuthorityResolverError.isHandled(err));
+				throw err;
+			}
+		}
 	}
 }
 
@@ -579,9 +595,9 @@ export abstract class PersistentConnection extends Disposable {
 			}
 			this._beginReconnecting();
 		}));
-		this._register(protocol.onSocketTimeout(() => {
+		this._register(protocol.onSocketTimeout((e) => {
 			const logPrefix = commonLogPrefix(this._connectionType, this.reconnectionToken, true);
-			this._options.logService.info(`${logPrefix} received socket timeout event.`);
+			this._options.logService.info(`${logPrefix} received socket timeout event (unacknowledgedMsgCount: ${e.unacknowledgedMsgCount}, timeSinceOldestUnacknowledgedMsg: ${e.timeSinceOldestUnacknowledgedMsg}, timeSinceLastReceivedSomeData: ${e.timeSinceLastReceivedSomeData}).`);
 			this._beginReconnecting();
 		}));
 

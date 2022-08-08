@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
 import { disposeAll } from '../utils';
-import { Kernel, saveAllFilesAndCloseAll } from './notebook.test';
+import { Kernel, saveAllFilesAndCloseAll } from './notebook.api.test';
 
 export type INativeInteractiveWindow = { notebookUri: vscode.Uri; inputUri: vscode.Uri; notebookEditor: vscode.NotebookEditor };
 

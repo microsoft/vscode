@@ -194,9 +194,16 @@ export const isAndroid = (userAgent.indexOf('Android') >= 0);
 
 let standalone = false;
 if (window.matchMedia) {
-	const matchMedia = window.matchMedia('(display-mode: standalone)');
-	standalone = matchMedia.matches;
-	addMatchMediaChangeListener(matchMedia, ({ matches }) => {
+	const standaloneMatchMedia = window.matchMedia('(display-mode: standalone)');
+	const fullScreenMatchMedia = window.matchMedia('(display-mode: fullscreen)');
+	standalone = standaloneMatchMedia.matches;
+	addMatchMediaChangeListener(standaloneMatchMedia, ({ matches }) => {
+		// entering fullscreen would change standaloneMatchMedia.matches to false
+		// if standalone is true (running as PWA) and entering fullscreen, skip this change
+		if (standalone && fullScreenMatchMedia.matches) {
+			return;
+		}
+		// otherwise update standalone (browser to PWA or PWA to browser)
 		standalone = matches;
 	});
 }

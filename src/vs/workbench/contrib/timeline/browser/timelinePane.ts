@@ -52,6 +52,7 @@ import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 const ItemHeight = 22;
 
@@ -226,6 +227,7 @@ class LoadMoreCommand {
 }
 
 export const TimelineFollowActiveEditorContext = new RawContextKey<boolean>('timelineFollowActiveEditor', true, true);
+export const TimelineExcludeSources = new RawContextKey<string>('timelineExcludeSources', '[]', true);
 
 export class TimelinePane extends ViewPane {
 	static readonly TITLE = localize('timeline', "Timeline");
@@ -239,6 +241,7 @@ export class TimelinePane extends ViewPane {
 	private visibilityDisposables: DisposableStore | undefined;
 
 	private followActiveEditorContext: IContextKey<boolean>;
+	private timelineExcludeSourcesContext: IContextKey<string>;
 
 	private excludedSources: Set<string>;
 	private pendingRequests = new Map<string, TimelineRequest>();
@@ -252,6 +255,7 @@ export class TimelinePane extends ViewPane {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IStorageService private readonly storageService: IStorageService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IEditorService protected editorService: IEditorService,
@@ -270,9 +274,20 @@ export class TimelinePane extends ViewPane {
 		this.commands = this._register(this.instantiationService.createInstance(TimelinePaneCommands, this));
 
 		this.followActiveEditorContext = TimelineFollowActiveEditorContext.bindTo(this.contextKeyService);
+		this.timelineExcludeSourcesContext = TimelineExcludeSources.bindTo(this.contextKeyService);
 
-		this.excludedSources = new Set(configurationService.getValue('timeline.excludeSources'));
+		// TOOD @lramos15 remove after a few iterations of deprecated setting
+		const oldExcludedSourcesSetting: string[] = configurationService.getValue('timeline.excludeSources');
+		if (oldExcludedSourcesSetting) {
+			configurationService.updateValue('timeline.excludeSources', undefined);
+			const oldSettingString = JSON.stringify(oldExcludedSourcesSetting);
+			this.timelineExcludeSourcesContext.set(oldSettingString);
+			// Update the storage service with the setting
+			storageService.store('timeline.excludeSources', oldSettingString, StorageScope.PROFILE, StorageTarget.USER);
+		}
+		this.excludedSources = new Set(JSON.parse(storageService.get('timeline.excludeSources', StorageScope.PROFILE, '[]')));
 
+		this._register(storageService.onDidChangeValue(this.onStorageServiceChanged, this));
 		this._register(configurationService.onDidChangeConfiguration(this.onConfigurationChanged, this));
 		this._register(timelineService.onDidChangeProviders(this.onProvidersChanged, this));
 		this._register(timelineService.onDidChangeTimeline(this.onTimelineChanged, this));
@@ -335,13 +350,11 @@ export class TimelinePane extends ViewPane {
 		this.loadTimeline(true);
 	}
 
-	private onConfigurationChanged(e: IConfigurationChangeEvent) {
-		if (e.affectsConfiguration('timeline.pageOnScroll')) {
-			this._pageOnScroll = undefined;
-		}
-
-		if (e.affectsConfiguration('timeline.excludeSources')) {
-			this.excludedSources = new Set(this.configurationService.getValue('timeline.excludeSources'));
+	private onStorageServiceChanged(e: IStorageValueChangeEvent) {
+		if (e.key === 'timeline.excludeSources') {
+			const excludedSourcesString = this.storageService.get('timeline.excludeSources', StorageScope.PROFILE, '[]');
+			this.timelineExcludeSourcesContext.set(excludedSourcesString);
+			this.excludedSources = new Set(JSON.parse(excludedSourcesString));
 
 			const missing = this.timelineService.getSources()
 				.filter(({ id }) => !this.excludedSources.has(id) && !this.timelinesBySource.has(id));
@@ -350,6 +363,12 @@ export class TimelinePane extends ViewPane {
 			} else {
 				this.refresh();
 			}
+		}
+	}
+
+	private onConfigurationChanged(e: IConfigurationChangeEvent) {
+		if (e.affectsConfiguration('timeline.pageOnScroll')) {
+			this._pageOnScroll = undefined;
 		}
 	}
 
@@ -1207,7 +1226,7 @@ class TimelinePaneCommands extends Disposable {
 	constructor(
 		private readonly pane: TimelinePane,
 		@ITimelineService private readonly timelineService: ITimelineService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IStorageService private readonly storageService: IStorageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService,
 	) {
@@ -1294,7 +1313,7 @@ class TimelinePaneCommands extends Disposable {
 	private updateTimelineSourceFilters() {
 		this.sourceDisposables.clear();
 
-		const excluded = new Set(this.configurationService.getValue<string[] | undefined>('timeline.excludeSources') ?? []);
+		const excluded = new Set(JSON.parse(this.storageService.get('timeline.excludeSources', StorageScope.PROFILE, '[]')));
 		for (const source of this.timelineService.getSources()) {
 			this.sourceDisposables.add(registerAction2(class extends Action2 {
 				constructor() {
@@ -1305,7 +1324,7 @@ class TimelinePaneCommands extends Disposable {
 							id: MenuId.TimelineFilterSubMenu,
 							group: 'navigation',
 						},
-						toggled: ContextKeyExpr.regex(`config.timeline.excludeSources`, new RegExp(`\\b${escapeRegExpCharacters(source.id)}\\b`)).negate()
+						toggled: ContextKeyExpr.regex(`timelineExcludeSources`, new RegExp(`\\b${escapeRegExpCharacters(source.id)}\\b`)).negate()
 					});
 				}
 				run(accessor: ServicesAccessor, ...args: any[]) {
@@ -1315,8 +1334,8 @@ class TimelinePaneCommands extends Disposable {
 						excluded.add(source.id);
 					}
 
-					const configurationService = accessor.get(IConfigurationService);
-					configurationService.updateValue('timeline.excludeSources', [...excluded.keys()]);
+					const storageService = accessor.get(IStorageService);
+					storageService.store('timeline.excludeSources', JSON.stringify([...excluded.keys()]), StorageScope.PROFILE, StorageTarget.USER);
 				}
 			}));
 		}

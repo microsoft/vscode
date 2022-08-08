@@ -5430,7 +5430,9 @@ declare module 'vscode' {
 	/**
 	 * Provider which handles dropping of resources into a text editor.
 	 *
-	 * The user can drop into a text editor by holding down `shift` while dragging. Requires `workbench.editor.dropIntoEditor.enabled` to be on.
+	 * This allows users to drag and drop resources (including resources from external apps) into the editor. While dragging
+	 * and dropping files, users can hold down `shift` to drop the file into the editor instead of opening it.
+	 * Requires `editor.dropIntoEditor.enabled` to be on.
 	 */
 	export interface DocumentDropEditProvider {
 		/**
@@ -10184,7 +10186,7 @@ declare module 'vscode' {
 		 * @param callbackfn Callback for iteration through the data transfer items.
 		 * @param thisArg The `this` context used when invoking the handler function.
 		 */
-		forEach(callbackfn: (value: DataTransferItem, key: string, dataTransfer: DataTransfer) => void, thisArg?: any): void;
+		forEach(callbackfn: (item: DataTransferItem, mimeType: string, dataTransfer: DataTransfer) => void, thisArg?: any): void;
 
 		/**
 		 * Get a new iterator with the `[mime, item]` pairs for each element in this data transfer.
@@ -15061,7 +15063,7 @@ declare module 'vscode' {
 		/**
 		 * Optional commenting range provider. Provide a list {@link Range ranges} which support commenting to any given resource uri.
 		 *
-		 * If not provided, users can leave comments in any document opened in the editor.
+		 * If not provided, users cannot leave any comments.
 		 */
 		commentingRangeProvider?: CommentingRangeProvider;
 

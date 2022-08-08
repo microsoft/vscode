@@ -6,6 +6,7 @@
 import type { Event } from 'vs/base/common/event';
 import type { IDisposable } from 'vs/base/common/lifecycle';
 import type * as webviewMessages from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewMessages';
+import { NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import type * as rendererApi from 'vscode-notebook-renderer';
 
 // !! IMPORTANT !! ----------------------------------------------------------------------------------
@@ -225,6 +226,14 @@ async function webviewPreloads(ctx: PreloadContext) {
 		activate(ctx: KernelPreloadContext): Promise<void> | void;
 	}
 
+	interface IObservedElement {
+		id: string;
+		output: boolean;
+		lastKnownPadding: number;
+		lastKnownHeight: number;
+		cellId: string;
+	}
+
 	function createKernelContext(): KernelPreloadContext {
 		return {
 			onDidReceiveKernelMessage: onDidReceiveKernelMessage.event,
@@ -299,7 +308,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		private readonly _observer: ResizeObserver;
 
-		private readonly _observedElements = new WeakMap<Element, { id: string; output: boolean; lastKnownHeight: number; cellId: string }>();
+		private readonly _observedElements = new WeakMap<Element, IObservedElement>();
 		private _outputResizeTimer: any;
 
 		constructor() {
@@ -316,25 +325,49 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 					this.postResizeMessage(observedElementInfo.cellId);
 
-					if (entry.target.id === observedElementInfo.id && entry.contentRect) {
-						if (observedElementInfo.output) {
-							if (entry.contentRect.height !== 0) {
+					if (entry.target.id !== observedElementInfo.id) {
+						continue;
+					}
+
+					if (!entry.contentRect) {
+						continue;
+					}
+
+					if (!observedElementInfo.output) {
+						// markup, update directly
+						this.updateHeight(observedElementInfo, entry.target.offsetHeight);
+						continue;
+					}
+
+					const newHeight = entry.contentRect.height;
+					const shouldUpdatePadding =
+						(newHeight !== 0 && observedElementInfo.lastKnownPadding === 0) ||
+						(newHeight === 0 && observedElementInfo.lastKnownPadding !== 0);
+
+					if (shouldUpdatePadding) {
+						// Do not update dimension in resize observer
+						window.requestAnimationFrame(() => {
+							if (newHeight !== 0) {
 								entry.target.style.padding = `${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodeLeftPadding}px`;
 							} else {
 								entry.target.style.padding = `0px`;
 							}
-						}
-
-						const offsetHeight = entry.target.offsetHeight;
-						if (observedElementInfo.lastKnownHeight !== offsetHeight) {
-							observedElementInfo.lastKnownHeight = offsetHeight;
-							dimensionUpdater.updateHeight(observedElementInfo.id, offsetHeight, {
-								isOutput: observedElementInfo.output
-							});
-						}
+							this.updateHeight(observedElementInfo, entry.target.offsetHeight);
+						});
+					} else {
+						this.updateHeight(observedElementInfo, entry.target.offsetHeight);
 					}
 				}
 			});
+		}
+
+		private updateHeight(observedElementInfo: IObservedElement, offsetHeight: number) {
+			if (observedElementInfo.lastKnownHeight !== offsetHeight) {
+				observedElementInfo.lastKnownHeight = offsetHeight;
+				dimensionUpdater.updateHeight(observedElementInfo.id, offsetHeight, {
+					isOutput: observedElementInfo.output
+				});
+			}
 		}
 
 		public observe(container: Element, id: string, output: boolean, cellId: string) {
@@ -342,7 +375,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				return;
 			}
 
-			this._observedElements.set(container, { id, output, lastKnownHeight: -1, cellId });
+			this._observedElements.set(container, { id, output, lastKnownPadding: ctx.style.outputNodePadding, lastKnownHeight: -1, cellId });
 			this._observer.observe(container);
 		}
 
@@ -1034,7 +1067,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				break;
 
 			case 'showMarkupCell':
-				viewModel.showMarkupCell(event.data.id, event.data.top, event.data.content);
+				viewModel.showMarkupCell(event.data.id, event.data.top, event.data.content, event.data.metadata);
 				break;
 
 			case 'hideMarkupCells':
@@ -1125,11 +1158,14 @@ async function webviewPreloads(ctx: PreloadContext) {
 				focusFirstFocusableInCell(event.data.cellId);
 				break;
 			case 'decorations': {
+				console.log(event);
 				let outputContainer = document.getElementById(event.data.cellId);
+				console.log(outputContainer);
 				if (!outputContainer) {
 					viewModel.ensureOutputCell(event.data.cellId, -100000, true);
 					outputContainer = document.getElementById(event.data.cellId);
 				}
+				console.log(outputContainer);
 				outputContainer?.classList.add(...event.data.addedClassNames);
 				outputContainer?.classList.remove(...event.data.removedClassNames);
 				break;
@@ -1435,7 +1471,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				return existing;
 			}
 
-			const cell = new MarkupCell(init.cellId, init.mime, init.content, top);
+			const cell = new MarkupCell(init.cellId, init.mime, init.content, top, init.metadata);
 			cell.element.style.visibility = visible ? 'visible' : 'hidden';
 			this._markupCells.set(init.cellId, cell);
 
@@ -1447,7 +1483,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			let cell = this._markupCells.get(info.cellId);
 			if (cell) {
 				cell.element.style.visibility = info.visible ? 'visible' : 'hidden';
-				await cell.updateContentAndRender(info.content);
+				await cell.updateContentAndRender(info.content, info.metadata);
 			} else {
 				cell = await this.createMarkupCell(info, info.offset, info.visible);
 			}
@@ -1461,14 +1497,14 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 		}
 
-		public async updateMarkupContent(id: string, newContent: string): Promise<void> {
+		public async updateMarkupContent(id: string, newContent: string, metadata: NotebookCellMetadata): Promise<void> {
 			const cell = this.getExpectedMarkupCell(id);
-			await cell?.updateContentAndRender(newContent);
+			await cell?.updateContentAndRender(newContent, metadata);
 		}
 
-		public showMarkupCell(id: string, top: number, newContent: string | undefined): void {
+		public showMarkupCell(id: string, top: number, newContent: string | undefined, metadata: NotebookCellMetadata | undefined): void {
 			const cell = this.getExpectedMarkupCell(id);
-			cell?.show(top, newContent);
+			cell?.show(top, newContent, metadata);
 		}
 
 		public hideMarkupCell(id: string): void {
@@ -1632,11 +1668,12 @@ async function webviewPreloads(ctx: PreloadContext) {
 		private readonly outputItem: rendererApi.OutputItem;
 
 		/// Internal field that holds text content
-		private _content: { readonly value: string; readonly version: number };
+		private _content: { readonly value: string; readonly version: number; readonly metadata: NotebookCellMetadata };
 
-		constructor(id: string, mime: string, content: string, top: number) {
+		constructor(id: string, mime: string, content: string, top: number, metadata: NotebookCellMetadata) {
+			const self = this;
 			this.id = id;
-			this._content = { value: content, version: 0 };
+			this._content = { value: content, version: 0, metadata: metadata };
 
 			let resolveReady: () => void;
 			this.ready = new Promise<void>(r => resolveReady = r);
@@ -1645,7 +1682,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.outputItem = Object.freeze(<rendererApi.OutputItem>{
 				id,
 				mime,
-				metadata: undefined,
+
+				get metadata(): NotebookCellMetadata {
+					return self._content.metadata;
+				},
 
 				text: (): string => {
 					return this._content.value;
@@ -1687,7 +1727,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			this.addEventListeners();
 
-			this.updateContentAndRender(this._content.value).then(() => {
+			this.updateContentAndRender(this._content.value, this._content.metadata).then(() => {
 				resizeObserver.observe(this.element, this.id, false, this.id);
 				resolveReady();
 			});
@@ -1737,8 +1777,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 			});
 		}
 
-		public async updateContentAndRender(newContent: string): Promise<void> {
-			this._content = { value: newContent, version: this._content.version + 1 };
+		public async updateContentAndRender(newContent: string, metadata: NotebookCellMetadata): Promise<void> {
+			this._content = { value: newContent, version: this._content.version + 1, metadata };
 
 			await renderers.render(this.outputItem, this.element);
 
@@ -1771,11 +1811,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 			});
 		}
 
-		public show(top: number, newContent: string | undefined): void {
+		public show(top: number, newContent: string | undefined, metadata: NotebookCellMetadata | undefined): void {
 			this.element.style.visibility = 'visible';
 			this.element.style.top = `${top}px`;
-			if (typeof newContent === 'string') {
-				this.updateContentAndRender(newContent);
+			if (typeof newContent === 'string' || metadata) {
+				this.updateContentAndRender(newContent ?? this._content.value, metadata ?? this._content.metadata);
 			} else {
 				this.updateMarkupDimensions();
 			}
@@ -1791,7 +1831,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		public rerender() {
-			this.updateContentAndRender(this._content.value);
+			this.updateContentAndRender(this._content.value, this._content.metadata);
 		}
 
 		public remove() {
@@ -1984,7 +2024,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.element.style.position = 'absolute';
 			this.element.style.top = `0px`;
 			this.element.style.left = left + 'px';
-			this.element.style.padding = '0px';
+			this.element.style.padding = `${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodeLeftPadding}`;
 
 			addMouseoverListeners(this.element, outputId);
 		}

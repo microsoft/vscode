@@ -432,11 +432,11 @@ export class CommandCenter {
 			]);
 			// ours (current branch and commit)
 			ours.detail = head.refNames.map(s => s.replace(/^HEAD ->/, '')).join(', ');
-			ours.description = head.hash.substring(0, 7);
+			ours.description = '$(git-commit) ' + head.hash.substring(0, 7);
 
 			// theirs
 			theirs.detail = rebaseOrMergeHead.refNames.join(', ');
-			theirs.description = rebaseOrMergeHead.hash.substring(0, 7);
+			theirs.description = '$(git-commit) ' + rebaseOrMergeHead.hash.substring(0, 7);
 
 		} catch (error) {
 			// not so bad, can continue with just uris
@@ -469,7 +469,7 @@ export class CommandCenter {
 			/* __GDPR__
 				"clone" : {
 					"owner": "lszomoru",
-					"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the git operation" }
 				}
 			*/
 			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'no_URL' });
@@ -495,7 +495,7 @@ export class CommandCenter {
 				/* __GDPR__
 					"clone" : {
 						"owner": "lszomoru",
-						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the git operation" }
 					}
 				*/
 				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'no_directory' });
@@ -554,8 +554,8 @@ export class CommandCenter {
 			/* __GDPR__
 				"clone" : {
 					"owner": "lszomoru",
-					"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"openFolder": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+					"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the git operation" },
+					"openFolder": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Indicates whether the folder is opened following the clone operation" }
 				}
 			*/
 			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'success' }, { openFolder: action === PostCloneAction.Open || action === PostCloneAction.OpenNewWindow ? 1 : 0 });
@@ -574,7 +574,7 @@ export class CommandCenter {
 				/* __GDPR__
 					"clone" : {
 						"owner": "lszomoru",
-						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the git operation" }
 					}
 				*/
 				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'directory_not_empty' });
@@ -584,7 +584,7 @@ export class CommandCenter {
 				/* __GDPR__
 					"clone" : {
 						"owner": "lszomoru",
-						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the git operation" }
 					}
 				*/
 				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'error' });
@@ -1524,7 +1524,7 @@ export class CommandCenter {
 		}
 
 		if (opts.all === undefined) {
-			opts = { all: noStagedChanges };
+			opts = { ...opts, all: noStagedChanges };
 		} else if (!opts.all && noStagedChanges && !opts.empty) {
 			opts = { ...opts, all: true };
 		}
@@ -1558,6 +1558,8 @@ export class CommandCenter {
 			// amend allows changing only the commit message
 			&& !opts.amend
 			&& !opts.empty
+			// rebase not in progress
+			&& repository.rebaseCommit === undefined
 		) {
 			const commitAnyway = localize('commit anyway', "Create Empty Commit");
 			const answer = await window.showInformationMessage(localize('no changes', "There are no changes to commit."), commitAnyway);
@@ -1770,7 +1772,7 @@ export class CommandCenter {
 		const shouldPrompt = config.get<boolean>('confirmEmptyCommits') === true;
 
 		if (shouldPrompt) {
-			const message = localize('confirm emtpy commit', "Are you sure you want to create an empty commit?");
+			const message = localize('confirm empty commit', "Are you sure you want to create an empty commit?");
 			const yes = localize('yes', "Yes");
 			const neverAgain = localize('yes never again', "Yes, Don't Show Again");
 			const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
@@ -2575,17 +2577,16 @@ export class CommandCenter {
 			}
 		}
 
-		if (rebase) {
-			await repository.syncRebase(HEAD);
-		} else {
-			await repository.sync(HEAD);
-		}
+		await repository.sync(HEAD, rebase);
 	}
 
 	@command('git.sync', { repository: true })
 	async sync(repository: Repository): Promise<void> {
+		const config = workspace.getConfiguration('git', Uri.file(repository.root));
+		const rebase = config.get<boolean>('rebaseWhenSync', false) === true;
+
 		try {
-			await this._sync(repository, false);
+			await this._sync(repository, rebase);
 		} catch (err) {
 			if (/Cancelled/i.test(err && (err.message || err.stderr || ''))) {
 				return;
@@ -2598,13 +2599,16 @@ export class CommandCenter {
 	@command('git._syncAll')
 	async syncAll(): Promise<void> {
 		await Promise.all(this.model.repositories.map(async repository => {
+			const config = workspace.getConfiguration('git', Uri.file(repository.root));
+			const rebase = config.get<boolean>('rebaseWhenSync', false) === true;
+
 			const HEAD = repository.HEAD;
 
 			if (!HEAD || !HEAD.upstream) {
 				return;
 			}
 
-			await repository.sync(HEAD);
+			await repository.sync(HEAD, rebase);
 		}));
 	}
 
@@ -3064,7 +3068,7 @@ export class CommandCenter {
 			/* __GDPR__
 				"git.command" : {
 					"owner": "lszomoru",
-					"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The command id of the command being executed" }
 				}
 			*/
 			this.telemetryReporter.sendTelemetryEvent('git.command', { command: id });

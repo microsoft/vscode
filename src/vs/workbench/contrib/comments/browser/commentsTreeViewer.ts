@@ -27,7 +27,8 @@ import { CommentThreadState } from 'vs/editor/common/languages';
 import { Color } from 'vs/base/common/color';
 
 export const COMMENTS_VIEW_ID = 'workbench.panel.comments';
-export const COMMENTS_VIEW_TITLE = 'Comments';
+export const COMMENTS_VIEW_STORAGE_ID = 'Comments';
+export const COMMENTS_VIEW_TITLE = nls.localize('comments.view.title', "Comments");
 
 export class CommentsAsyncDataSource implements IAsyncDataSource<any, any> {
 	hasChildren(element: any): boolean {
@@ -186,13 +187,11 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		return renderedComment;
 	}
 
-	private getIcon(commentCount: number, threadState?: CommentThreadState): Codicon {
+	private getIcon(threadState?: CommentThreadState): Codicon {
 		if (threadState === CommentThreadState.Unresolved) {
 			return Codicon.commentUnresolved;
-		} else if (commentCount === 1) {
-			return Codicon.comment;
 		} else {
-			return Codicon.commentDiscussion;
+			return Codicon.comment;
 		}
 	}
 
@@ -200,7 +199,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		const commentCount = node.element.replies.length + 1;
 		templateData.threadMetadata.icon.classList.remove(...Array.from(templateData.threadMetadata.icon.classList.values())
 			.filter(value => value.startsWith('codicon')));
-		templateData.threadMetadata.icon.classList.add(...ThemeIcon.asClassNameArray(this.getIcon(commentCount, node.element.threadState)));
+		templateData.threadMetadata.icon.classList.add(...ThemeIcon.asClassNameArray(this.getIcon(node.element.threadState)));
 		if (node.element.threadState !== undefined) {
 			const color = this.getCommentThreadWidgetStateColor(node.element.threadState, this.themeService.getColorTheme());
 			templateData.threadMetadata.icon.style.setProperty(commentViewThreadStateColorVar, `${color}`);
@@ -219,7 +218,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			templateData.disposables.push(disposables);
 			const renderedComment = this.getRenderedComment(originalComment.comment.body, disposables);
 			templateData.disposables.push(renderedComment);
-			templateData.threadMetadata.commentPreview.appendChild(renderedComment.element);
+			templateData.threadMetadata.commentPreview.appendChild(renderedComment.element.firstElementChild ?? renderedComment.element);
 			templateData.threadMetadata.commentPreview.title = renderedComment.element.textContent ?? '';
 		}
 

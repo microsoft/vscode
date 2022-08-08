@@ -11,7 +11,7 @@ import * as nls from 'vscode-nls';
 import { v4 as uuid } from 'uuid';
 import fetch, { Response } from 'node-fetch';
 import Logger from './logger';
-import { toBase64UrlEncoding } from './utils';
+import { isSupportedEnvironment, toBase64UrlEncoding } from './utils';
 import { sha256 } from './env/node/sha256';
 import { BetterTokenStorage, IDidChangeInOtherWindowEvent } from './betterSecretStorage';
 import { LoopbackAuthServer } from './authServer';
@@ -184,6 +184,9 @@ export class AzureActiveDirectoryService {
 		if (!modifiedScopes.includes('profile')) {
 			modifiedScopes.push('profile');
 		}
+		if (!modifiedScopes.includes('offline_access')) {
+			modifiedScopes.push('offline_access');
+		}
 		modifiedScopes = modifiedScopes.sort();
 
 		let modifiedScopesStr = modifiedScopes.join(' ');
@@ -319,13 +322,7 @@ export class AzureActiveDirectoryService {
 			}, 5000);
 		}
 
-		const token = await this.exchangeCodeForToken(codeToExchange, codeVerifier, scopeData);
-		if (token.expiresIn) {
-			this.setSessionTimeout(token.sessionId, token.refreshToken, scopeData, token.expiresIn * AzureActiveDirectoryService.REFRESH_TIMEOUT_MODIFIER);
-		}
-		await this.setToken(token, scopeData);
-		Logger.info(`Login successful for scopes: ${scopeData.scopeStr}`);
-		const session = await this.convertToSession(token);
+		const session = await this.exchangeCodeForSession(codeToExchange, codeVerifier, scopeData);
 		return session;
 	}
 
@@ -355,9 +352,11 @@ export class AzureActiveDirectoryService {
 		const uri = vscode.Uri.parse(`${signInUrl}?${oauthStartQuery.toString()}`);
 		vscode.env.openExternal(uri);
 
+		let inputBox: vscode.InputBox | undefined;
 		const timeoutPromise = new Promise((_: (value: vscode.AuthenticationSession) => void, reject) => {
 			const wait = setTimeout(() => {
 				clearTimeout(wait);
+				inputBox?.dispose();
 				reject('Login timed out.');
 			}, 1000 * 60 * 5);
 		});
@@ -369,7 +368,12 @@ export class AzureActiveDirectoryService {
 		// before completing it.
 		let existingPromise = this._codeExchangePromises.get(scopeData.scopeStr);
 		if (!existingPromise) {
-			existingPromise = this.handleCodeResponse(scopeData);
+			if (isSupportedEnvironment(callbackUri)) {
+				existingPromise = this.handleCodeResponse(scopeData);
+			} else {
+				inputBox = vscode.window.createInputBox();
+				existingPromise = this.handleCodeInputBox(inputBox, codeVerifier, scopeData);
+			}
 			this._codeExchangePromises.set(scopeData.scopeStr, existingPromise);
 		}
 
@@ -659,13 +663,7 @@ export class AzureActiveDirectoryService {
 						throw new Error('No available code verifier');
 					}
 
-					const token = await this.exchangeCodeForToken(code, verifier, scopeData);
-					if (token.expiresIn) {
-						this.setSessionTimeout(token.sessionId, token.refreshToken, scopeData, token.expiresIn * AzureActiveDirectoryService.REFRESH_TIMEOUT_MODIFIER);
-					}
-					await this.setToken(token, scopeData);
-
-					const session = await this.convertToSession(token);
+					const session = await this.exchangeCodeForSession(code, verifier, scopeData);
 					resolve(session);
 				} catch (err) {
 					reject(err);
@@ -680,8 +678,33 @@ export class AzureActiveDirectoryService {
 		});
 	}
 
-	private async exchangeCodeForToken(code: string, codeVerifier: string, scopeData: IScopeData): Promise<IToken> {
+	private async handleCodeInputBox(inputBox: vscode.InputBox, verifier: string, scopeData: IScopeData): Promise<vscode.AuthenticationSession> {
+		inputBox.ignoreFocusOut = true;
+		inputBox.title = localize('pasteCodeTitle', 'Microsoft Authentication');
+		inputBox.prompt = localize('pasteCodePrompt', 'Provide the authorization code to complete the sign in flow.');
+		inputBox.placeholder = localize('pasteCodePlaceholder', 'Paste authorization code here...');
+		return new Promise((resolve: (value: vscode.AuthenticationSession) => void, reject) => {
+			inputBox.show();
+			inputBox.onDidAccept(async () => {
+				const code = inputBox.value;
+				if (code) {
+					inputBox.dispose();
+					const session = await this.exchangeCodeForSession(code, verifier, scopeData);
+					resolve(session);
+				}
+			});
+			inputBox.onDidHide(() => {
+				if (!inputBox.value) {
+					inputBox.dispose();
+					reject('Cancelled');
+				}
+			});
+		});
+	}
+
+	private async exchangeCodeForSession(code: string, codeVerifier: string, scopeData: IScopeData): Promise<vscode.AuthenticationSession> {
 		Logger.info(`Exchanging login code for token for scopes: ${scopeData.scopeStr}`);
+		let token: IToken | undefined;
 		try {
 			const postData = querystring.stringify({
 				grant_type: 'authorization_code',
@@ -698,11 +721,18 @@ export class AzureActiveDirectoryService {
 
 			const json = await this.fetchTokenResponse(endpoint, postData, scopeData);
 			Logger.info(`Exchanging login code for token (for scopes: ${scopeData.scopeStr}) succeeded!`);
-			return this.convertToTokenSync(json, scopeData);
+			token = this.convertToTokenSync(json, scopeData);
 		} catch (e) {
 			Logger.error(`Error exchanging code for token (for scopes ${scopeData.scopeStr}): ${e}`);
 			throw e;
 		}
+
+		if (token.expiresIn) {
+			this.setSessionTimeout(token.sessionId, token.refreshToken, scopeData, token.expiresIn * AzureActiveDirectoryService.REFRESH_TIMEOUT_MODIFIER);
+		}
+		await this.setToken(token, scopeData);
+		Logger.info(`Login successful for scopes: ${scopeData.scopeStr}`);
+		return await this.convertToSession(token);
 	}
 
 	private async fetchTokenResponse(endpoint: string, postData: string, scopeData: IScopeData): Promise<ITokenResponse> {

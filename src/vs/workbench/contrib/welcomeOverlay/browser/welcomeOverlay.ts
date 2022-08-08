@@ -144,9 +144,7 @@ export class HideWelcomeOverlayAction extends Action {
 	}
 
 	public override run(): Promise<void> {
-		if (welcomeOverlay) {
-			welcomeOverlay.hide();
-		}
+		welcomeOverlay?.hide();
 		return Promise.resolve();
 	}
 }

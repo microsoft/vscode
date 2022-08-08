@@ -175,7 +175,6 @@ export class TerminalService implements ITerminalService {
 		// we update detected profiles when an instance is created so that,
 		// for example, we detect if you've installed a pwsh
 		this.onDidCreateInstance(() => this._terminalProfileService.refreshAvailableProfiles());
-
 		this._forwardInstanceHostEvents(this._terminalGroupService);
 		this._forwardInstanceHostEvents(this._terminalEditorService);
 		this._terminalGroupService.onDidChangeActiveGroup(this._onDidChangeActiveGroup.fire, this._onDidChangeActiveGroup);
@@ -1050,12 +1049,12 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private _addToReconnected(instance: ITerminalInstance): void {
-		if (instance.reconnectionOwner) {
-			const reconnectedTerminals = this._reconnectedTerminals.get(instance.reconnectionOwner);
+		if (instance.reconnectionProperties) {
+			const reconnectedTerminals = this._reconnectedTerminals.get(instance.reconnectionProperties.ownerId);
 			if (reconnectedTerminals) {
 				reconnectedTerminals.push(instance);
 			} else {
-				this._reconnectedTerminals.set(instance.reconnectionOwner, [instance]);
+				this._reconnectedTerminals.set(instance.reconnectionProperties.ownerId, [instance]);
 			}
 		}
 	}

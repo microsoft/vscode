@@ -1102,9 +1102,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			type WorkbenchNotebookOpenClassification = {
 				owner: 'rebornix';
 				comment: 'Identify the notebook editor view type';
-				scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-				ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-				viewType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+				scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File system provider scheme for the resource' };
+				ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File extension for the resource' };
+				viewType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'View type of the notebook editor' };
 			};
 
 			type WorkbenchNotebookOpenEvent = {
@@ -1650,6 +1650,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			content: model.getText(),
 			offset: offset,
 			visible: false,
+			metadata: model.metadata,
 		});
 	}
 
@@ -1854,6 +1855,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				// The notebook editor doesn't have focus yet
 				if (!this.hasEditorFocus()) {
 					this.focusContainer();
+					// trigger editor to update as FocusTracker might not emit focus change event
+					this.updateEditorFocus();
 				}
 
 				if (element && element.focusMode === CellFocusMode.Editor) {
@@ -2103,8 +2106,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return ret;
 	}
 
-	deltaCellOutputContainerClassNames(cellId: string, added: string[], removed: string[]) {
-		this._webview?.deltaCellOutputContainerClassNames(cellId, added, removed);
+	deltaCellContainerClassNames(cellId: string, added: string[], removed: string[]) {
+		this._webview?.deltaCellContainerClassNames(cellId, added, removed);
 	}
 
 	changeModelDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null {
@@ -2529,9 +2532,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	findStop() {
-		if (this._webview) {
-			this._webview.findStop();
-		}
+		this._webview?.findStop();
 	}
 
 	//#endregion
@@ -2572,6 +2573,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			return;
 		}
 
+		if (this.viewModel.getCellIndex(cell) === -1) {
+			return;
+		}
+
 		if (this.cellIsHidden(cell)) {
 			return;
 		}
@@ -2587,6 +2592,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			content: cell.getText(),
 			offset: cellTop + top,
 			visible: true,
+			metadata: cell.metadata,
 		});
 	}
 

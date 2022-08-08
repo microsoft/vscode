@@ -1737,9 +1737,7 @@ registerAction2(class ShowExtensionEditorFindAction extends Action2 {
 	}
 	run(accessor: ServicesAccessor): any {
 		const extensionEditor = getExtensionEditor(accessor);
-		if (extensionEditor) {
-			extensionEditor.showFind();
-		}
+		extensionEditor?.showFind();
 	}
 });
 

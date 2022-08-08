@@ -10,6 +10,7 @@ import { isCancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { combinedDisposable, Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
@@ -17,10 +18,11 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IOverlayWebview, IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInitInfo } from 'vs/workbench/contrib/webview/browser/webviewElement';
+import { CONTEXT_ACTIVE_WEBVIEW_PANEL_ID } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditor';
 import { WebviewIconManager, WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
-import { WebviewInput } from './webviewEditorInput';
+import { WebviewInput, WebviewInputInitInfo } from './webviewEditorInput';
 
 export const IWebviewWorkbenchService = createDecorator<IWebviewWorkbenchService>('webviewEditorService');
 
@@ -94,13 +96,11 @@ export class LazilyResolvedWebviewEditorInput extends WebviewInput {
 
 
 	constructor(
-		id: string,
-		viewType: string,
-		name: string,
+		init: WebviewInputInitInfo,
 		webview: IOverlayWebview,
 		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
 	) {
-		super(id, viewType, name, webview, _webviewWorkbenchService.iconManager);
+		super(init, webview, _webviewWorkbenchService.iconManager);
 	}
 
 	override dispose() {
@@ -187,12 +187,17 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 
 	private readonly _iconManager: WebviewIconManager;
 
+	private readonly _activeWebviewPanelIdContext: IContextKey<string>;
+
 	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
 	) {
 		super();
+
+		this._activeWebviewPanelIdContext = CONTEXT_ACTIVE_WEBVIEW_PANEL_ID.bindTo(contextKeyService);
 
 		this._iconManager = this._register(this._instantiationService.createInstance(WebviewIconManager));
 
@@ -231,6 +236,12 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 			}
 		}
 
+		if (newActiveWebview) {
+			this._activeWebviewPanelIdContext.set(newActiveWebview.webview.providedViewType ?? '');
+		} else {
+			this._activeWebviewPanelIdContext.reset();
+		}
+
 		if (newActiveWebview !== this._activeWebview) {
 			this._activeWebview = newActiveWebview;
 			this._onDidChangeActiveWebviewEditor.fire(newActiveWebview);
@@ -244,7 +255,7 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 		showOptions: ICreateWebViewShowOptions,
 	): WebviewInput {
 		const webview = this._webviewService.createWebviewOverlay(webviewInitInfo);
-		const webviewInput = this._instantiationService.createInstance(WebviewInput, webviewInitInfo.id, viewType, title, webview, this.iconManager);
+		const webviewInput = this._instantiationService.createInstance(WebviewInput, { id: webviewInitInfo.id, viewType, name: title, providedId: webviewInitInfo.providedViewType }, webview, this.iconManager);
 		this._editorService.openEditor(webviewInput, {
 			pinned: true,
 			preserveFocus: showOptions.preserveFocus,
@@ -295,7 +306,7 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 		const webview = this._webviewService.createWebviewOverlay(options.webviewInitInfo);
 		webview.state = options.state;
 
-		const webviewInput = this._instantiationService.createInstance(LazilyResolvedWebviewEditorInput, options.webviewInitInfo.id, options.viewType, options.title, webview);
+		const webviewInput = this._instantiationService.createInstance(LazilyResolvedWebviewEditorInput, { id: options.webviewInitInfo.id, viewType: options.viewType, providedId: options.webviewInitInfo.providedViewType, name: options.title }, webview);
 		webviewInput.iconPath = options.iconPath;
 
 		if (typeof options.group === 'number') {
