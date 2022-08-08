@@ -496,6 +496,14 @@ export class MouseTargetFactory {
 		try {
 			const r = MouseTargetFactory._createMouseTarget(ctx, request, false);
 			// console.log(MouseTarget.toString(r));
+
+			if (r.type === MouseTargetType.CONTENT_TEXT) {
+				// Snap to the nearest soft tab boundary if atomic soft tabs are enabled.
+				if (ctx.stickyTabStops && r.position !== null) {
+					const position = MouseTargetFactory._snapToSoftTabBoundary(r.position, ctx.viewModel);
+					return request.fulfillContentText(position, r.range, r.detail);
+				}
+			}
 			return r;
 		} catch (err) {
 			// console.log(err);
@@ -774,10 +782,12 @@ export class MouseTargetFactory {
 		const lineNumber = pos.lineNumber;
 		const column = pos.column;
 
+		const mouseContentHorizontalOffset = Math.floor(request.mouseContentHorizontalOffset);
+
 		const lineWidth = ctx.getLineWidth(lineNumber);
 
-		if (request.mouseContentHorizontalOffset > lineWidth) {
-			const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
+		if (mouseContentHorizontalOffset > lineWidth) {
+			const detail = createEmptyContentDataInLines(mouseContentHorizontalOffset - lineWidth);
 			return request.fulfillContentEmpty(pos, detail);
 		}
 
@@ -789,7 +799,7 @@ export class MouseTargetFactory {
 
 		const columnHorizontalOffset = visibleRange.left;
 
-		if (request.mouseContentHorizontalOffset === columnHorizontalOffset) {
+		if (mouseContentHorizontalOffset === columnHorizontalOffset) {
 			return request.fulfillContentText(pos, null, { mightBeForeignElement: !!injectedText, injectedText });
 		}
 
@@ -818,29 +828,32 @@ export class MouseTargetFactory {
 		const spanNodeClientRect = spanNode.getBoundingClientRect();
 		const mouseIsOverSpanNode = (spanNodeClientRect.left <= mouseCoordinates.clientX && mouseCoordinates.clientX <= spanNodeClientRect.right);
 
+		let rng: EditorRange | null = null;
+
 		for (let i = 1; i < points.length; i++) {
 			const prev = points[i - 1];
 			const curr = points[i];
-			if (prev.offset <= request.mouseContentHorizontalOffset && request.mouseContentHorizontalOffset <= curr.offset) {
-				const rng = new EditorRange(lineNumber, prev.column, lineNumber, curr.column);
+			if (prev.offset <= mouseContentHorizontalOffset && mouseContentHorizontalOffset <= curr.offset) {
+				rng = new EditorRange(lineNumber, prev.column, lineNumber, curr.column);
 
 				// See https://github.com/microsoft/vscode/issues/152819
 				// Due to the use of zwj, the browser's hit test result is skewed towards the left
 				// Here we try to correct that if the mouse horizontal offset is closer to the right than the left
 
-				const prevDelta = Math.abs(prev.offset - request.mouseContentHorizontalOffset);
-				const nextDelta = Math.abs(curr.offset - request.mouseContentHorizontalOffset);
+				const prevDelta = Math.abs(prev.offset - mouseContentHorizontalOffset);
+				const nextDelta = Math.abs(curr.offset - mouseContentHorizontalOffset);
 
-				const resultPos = (
+				pos = (
 					prevDelta < nextDelta
 						? new Position(lineNumber, prev.column)
 						: new Position(lineNumber, curr.column)
 				);
 
-				return request.fulfillContentText(resultPos, rng, { mightBeForeignElement: !mouseIsOverSpanNode || !!injectedText, injectedText });
+				break;
 			}
 		}
-		return request.fulfillContentText(pos, null, { mightBeForeignElement: !mouseIsOverSpanNode || !!injectedText, injectedText });
+
+		return request.fulfillContentText(pos, rng, { mightBeForeignElement: !mouseIsOverSpanNode || !!injectedText, injectedText });
 	}
 
 	/**
@@ -989,10 +1002,6 @@ export class MouseTargetFactory {
 			if (injectedText || !normalizedPosition.equals(result.position)) {
 				result = new ContentHitTestResult(normalizedPosition, result.spanNode, injectedText);
 			}
-		}
-		// Snap to the nearest soft tab boundary if atomic soft tabs are enabled.
-		if (result.type === HitTestResultType.Content && ctx.stickyTabStops) {
-			result = new ContentHitTestResult(this._snapToSoftTabBoundary(result.position, ctx.viewModel), result.spanNode, result.injectedText);
 		}
 		return result;
 	}
