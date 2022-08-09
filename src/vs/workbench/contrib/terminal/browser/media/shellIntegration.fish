@@ -42,6 +42,12 @@ function __vsc_cmd_finished --on-event fish_postexec
 	__vsc_esc D $status
 end
 
+# Sent when a command line is cleared or reset, but no command was run.
+# Marks the cleared line with neither success nor failure.
+function __vsc_cmd_clear --on-event fish_cancel
+	__vsc_esc D
+end
+
 # Sent whenever a new fish prompt is about to be displayed.
 # Updates the current working directory.
 function __vsc_update_cwd --on-event fish_prompt
