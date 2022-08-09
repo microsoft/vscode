@@ -453,16 +453,7 @@ export class DiffComputer {
 					originalEndLineNumber: this.original.lines.length,
 					modifiedStartLineNumber: 1,
 					modifiedEndLineNumber: 1,
-					charChanges: [{
-						modifiedEndColumn: 0,
-						modifiedEndLineNumber: 0,
-						modifiedStartColumn: 0,
-						modifiedStartLineNumber: 0,
-						originalEndColumn: 0,
-						originalEndLineNumber: 0,
-						originalStartColumn: 0,
-						originalStartLineNumber: 0
-					}]
+					charChanges: undefined
 				}]
 			};
 		}
