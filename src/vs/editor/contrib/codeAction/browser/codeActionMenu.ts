@@ -36,15 +36,11 @@ import { Codicon } from 'vs/base/common/codicons';
 
 
 export enum CodeActionGroupID {
-	OnSave = 'onSave',
-	FromProblemsView = 'fromProblemsView',
-	FromCodeActions = 'fromCodeActions'
-}
-
-export enum CodeActionGroupLabel {
-	OnSave = 'onSave',
-	FromProblemsView = 'fromProblemsView',
-	FromCodeActions = 'fromCodeActions'
+	normalRefactor = 'refactor',
+	quickFix = 'quickfix',
+	extract = 'refactor.extract',
+	convert = 'refactor.rewrite',
+	documentation = '_documementation',
 }
 
 export const Context = {
@@ -135,7 +131,6 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 		container.append(iconContainer);
 		container.append(data.text);
 		// container.append(data.detail);
-
 		return data;
 	}
 	renderElement(element: ICodeActionMenuItem, index: number, templateData: ICodeActionMenuTemplateData): void {
@@ -155,7 +150,6 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 			data.root.classList.add('group-header');
 		} else {
 			const text = element.action.label;
-			data.text.textContent = text;
 			element.isEnabled = element.action.enabled;
 
 			if (element.action instanceof CodeActionAction) {
@@ -164,24 +158,31 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 				element.isDocumentation = element.action.action.kind === CodeActionMenu.documentationID;
 				if (!element.isDocumentation) {
 
-					if (element.action.action.kind?.startsWith(`refactor.extract`)) {
+					if (element.action.action.kind?.startsWith(CodeActionGroupID.extract)) {
 						data.icon.className = Codicon.lightBulb.classNames;
 						data.icon.style.color = `var(--vscode-editorLightBulb-foreground)`;
-					} else if (element.action.action.kind?.startsWith(`refactor.rewrite`)) {
+						console.log(text);
+						data.text.textContent = text.replace('Extract to', 'To');
+					} else if (element.action.action.kind?.startsWith(CodeActionGroupID.convert)) {
 						data.icon.className = Codicon.lightbulbAutofix.classNames;
 						data.icon.style.color = `var(--vscode-editorLightBulbAutoFix-foreground)`;
-						// data.icon.style.color = `var(--vscode-editorLightBulb-foreground)`;
-					} else if (element.action.action.kind === `refactor`) {
+						const label = text.replace('Convert ', '');
+						data.text.textContent = label.charAt(0).toUpperCase() + label.slice(1);
+					} else if (element.action.action.kind === CodeActionGroupID.normalRefactor) {
 						data.icon.className = Codicon.symbolSnippet.classNames;
 						data.icon.style.color = `var(--vscode-symbolIcon-functionForeground)`;
-					} else if (element.action.action.kind === `_documentation`) {
+						const label = text.replace(/(Surround With )*(Surround With: )*/g, '');
+						data.text.textContent = label.charAt(0).toUpperCase() + label.slice(1);
+					} else if (element.action.action.kind === CodeActionGroupID.documentation) {
 						data.icon.className = Codicon.book.classNames;
-						// data.icon.style.color = ``;
-					} else if (element.action.action.kind === `quickfix`) {
+						data.text.textContent = text;
+					} else if (element.action.action.kind === CodeActionGroupID.quickFix) {
 						data.icon.className = Codicon.wrench.classNames;
+						data.text.textContent = text;
 					} else {
 						data.icon.className = Codicon.lightBulb.classNames;
 						data.icon.style.color = `var(--vscode-editorLightBulb-foreground)`;
+						data.text.textContent = text;
 					}
 
 					// Check if action has disabled reason
@@ -195,12 +196,11 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 						updateLabel();
 					}
 				} else {
+					data.text.textContent = text;
 					data.icon.className = Codicon.book.classNames;
 				}
 			}
 
-
-			// data.icon.classList.add(Codicon.lightBulb.classNames);
 
 
 		}
@@ -354,27 +354,39 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 
 
 
+		// allKnownCodeActionKinds;
+
+
+		enum CodeActionArrayGroup {
+			quickfix = 0,
+			extract = 1,
+			convert = 2,
+			normalRefactor = 3,
+			separator = 4,
+			other = 5,
+		}
+
 		const menuEntries: IAction[][] = [[], [], [], [], [], []];
 		let groupID = 0;
 		inputArray.forEach((item, index) => {
 			if (item instanceof CodeActionAction) {
-				if (item.action.kind === `quickfix`) {
-					groupID = 0;
-				} else if (item.action.kind?.startsWith(`refactor.extract`)) {
-					groupID = 1;
-				} else if (item.action.kind?.startsWith(`refactor.rewrite`)) {
-					groupID = 2;
-				} else if (item.action.kind === `refactor`) {
-					groupID = 3;
+				if (item.action.kind === CodeActionGroupID.quickFix) {
+					groupID = CodeActionArrayGroup.quickfix;
+				} else if (item.action.kind?.startsWith(CodeActionGroupID.extract)) {
+					groupID = CodeActionArrayGroup.extract;
+				} else if (item.action.kind?.startsWith(CodeActionGroupID.convert)) {
+					groupID = CodeActionArrayGroup.convert;
+				} else if (item.action.kind === CodeActionGroupID.normalRefactor) {
+					groupID = CodeActionArrayGroup.normalRefactor;
 				} else if (item.id === `vs.actions.separator`) {
-					groupID = 4;
+					groupID = CodeActionArrayGroup.separator;
 				} else {
-					groupID = 5;
+					groupID = CodeActionArrayGroup.other;
 
 				}
 
 			} else if (item.id === `vs.actions.separator`) {
-				groupID = 4;
+				groupID = CodeActionArrayGroup.separator;
 			}
 
 			menuEntries[groupID].push(item);
@@ -383,32 +395,32 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		let numHeaders = 0;
 		const totalActionEntries: (IAction | string)[] = [];
 		menuEntries.forEach(entry => {
-			if (entry.length > 0 && entry[0] instanceof CodeActionAction && entry[0].action.kind === `quickfix`) {
+			if (entry.length > 0 && entry[0] instanceof CodeActionAction && entry[0].action.kind === CodeActionGroupID.quickFix) {
 				totalActionEntries.push(`Quickfix`);
 				totalActionEntries.push(...entry);
 				numHeaders++;
 			}
-			else if (entry.length > 0 && entry[0] instanceof CodeActionAction && entry[0].action.kind?.startsWith(`refactor.extract`)) {
+			else if (entry.length > 0 && entry[0] instanceof CodeActionAction && entry[0].action.kind?.startsWith(CodeActionGroupID.extract)) {
 				totalActionEntries.push(`Extract`);
 				totalActionEntries.push(...entry);
 				numHeaders++;
 			}
-			else if (entry.length > 0 && entry[0] instanceof CodeActionAction && entry[0].action.kind?.startsWith(`refactor.rewrite`)) {
+			else if (entry.length > 0 && entry[0] instanceof CodeActionAction && entry[0].action.kind?.startsWith(CodeActionGroupID.convert)) {
 				totalActionEntries.push(`Convert`);
 				totalActionEntries.push(...entry);
 				numHeaders++;
 			}
-			else if (entry.length > 0 && entry[0] instanceof CodeActionAction && entry[0].action.kind === `refactor`) {
+			else if (entry.length > 0 && entry[0] instanceof CodeActionAction && entry[0].action.kind === CodeActionGroupID.normalRefactor) {
 				totalActionEntries.push(`Surround With ...`);
 				totalActionEntries.push(...entry);
 				numHeaders++;
 			}
-			else if (entry.length > 0 && entry[0].id === `vs.actions.separator`) {
-				totalActionEntries.push(...entry);
-			}
-			else if (entry.length > 0 && entry[0] instanceof CodeActionAction && entry[0].action.kind === `_documentation`) {
-				totalActionEntries.push(...entry);
-			} else {
+			// else if (entry.length > 0 && entry[0].id === `vs.actions.separator`) {
+			// 	totalActionEntries.push(...entry);
+			// }
+			// else if (entry.length > 0 && entry[0] instanceof CodeActionAction && entry[0].action.kind === CodeActionMenu.documentationID) {
+			// 	totalActionEntries.push(...entry);
+			else {
 				totalActionEntries.push(...entry);
 			}
 
