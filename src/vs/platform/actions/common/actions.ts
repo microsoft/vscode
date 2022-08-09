@@ -124,6 +124,7 @@ export class MenuId {
 	static readonly ViewTitleContext = new MenuId('ViewTitleContext');
 	static readonly CommentThreadTitle = new MenuId('CommentThreadTitle');
 	static readonly CommentThreadActions = new MenuId('CommentThreadActions');
+	static readonly CommentThreadWidgetContext = new MenuId('CommentThreadWidgetContext');
 	static readonly CommentTitle = new MenuId('CommentTitle');
 	static readonly CommentActions = new MenuId('CommentActions');
 	static readonly InteractiveToolbar = new MenuId('InteractiveToolbar');
