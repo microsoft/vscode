@@ -63,7 +63,12 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 		});
 
 		documents.onDidClose(e => {
-			this._documentCache.delete(URI.parse(e.document.uri));
+			const uri = URI.parse(e.document.uri);
+			this._documentCache.delete(uri);
+
+			if (this.isRelevantMarkdownDocument(e.document)) {
+				this._onDidDeleteMarkdownDocument.fire(uri);
+			}
 		});
 
 		connection.onDidChangeWatchedFiles(async ({ changes }) => {

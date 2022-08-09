@@ -16,7 +16,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			tags: ['experimental'],
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 			description: nls.localize('codeActionWidget', "Enabling this adjusts how the code action menu is rendered."),
-			default: false,
+			default: true,
 		},
 	}
 });

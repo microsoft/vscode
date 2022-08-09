@@ -67,13 +67,13 @@ suite('Notebook Find', () => {
 				state.change({ searchString: '1' }, true);
 				await found;
 				assert.strictEqual(model.findMatches.length, 2);
-				assert.strictEqual(model.currentMatch, -1);
-				model.find({ previous: false });
 				assert.strictEqual(model.currentMatch, 0);
 				model.find({ previous: false });
 				assert.strictEqual(model.currentMatch, 1);
 				model.find({ previous: false });
 				assert.strictEqual(model.currentMatch, 0);
+				model.find({ previous: false });
+				assert.strictEqual(model.currentMatch, 1);
 
 				assert.strictEqual(editor.textModel.length, 3);
 
@@ -88,7 +88,7 @@ suite('Notebook Find', () => {
 				await found2;
 				assert.strictEqual(editor.textModel.length, 4);
 				assert.strictEqual(model.findMatches.length, 3);
-				assert.strictEqual(model.currentMatch, 0);
+				assert.strictEqual(model.currentMatch, 1);
 			});
 	});
 
@@ -114,13 +114,13 @@ suite('Notebook Find', () => {
 				await found;
 				// find matches is not necessarily find results
 				assert.strictEqual(model.findMatches.length, 4);
-				assert.strictEqual(model.currentMatch, -1);
-				model.find({ previous: false });
 				assert.strictEqual(model.currentMatch, 0);
 				model.find({ previous: false });
 				assert.strictEqual(model.currentMatch, 1);
 				model.find({ previous: false });
 				assert.strictEqual(model.currentMatch, 2);
+				model.find({ previous: false });
+				assert.strictEqual(model.currentMatch, 3);
 
 				const found2 = new Promise<boolean>(resolve => state.onFindReplaceStateChange(e => {
 					if (e.matchesCount) { resolve(true); }
@@ -131,15 +131,15 @@ suite('Notebook Find', () => {
 				await found2;
 				assert.strictEqual(model.findMatches.length, 3);
 
-				assert.strictEqual(model.currentMatch, 2);
+				assert.strictEqual(model.currentMatch, 0);
 				model.find({ previous: true });
-				assert.strictEqual(model.currentMatch, 1);
-				model.find({ previous: false });
-				assert.strictEqual(model.currentMatch, 2);
-				model.find({ previous: false });
 				assert.strictEqual(model.currentMatch, 3);
 				model.find({ previous: false });
 				assert.strictEqual(model.currentMatch, 0);
+				model.find({ previous: false });
+				assert.strictEqual(model.currentMatch, 1);
+				model.find({ previous: false });
+				assert.strictEqual(model.currentMatch, 2);
 			});
 	});
 
@@ -165,7 +165,7 @@ suite('Notebook Find', () => {
 				await found;
 				// find matches is not necessarily find results
 				assert.strictEqual(model.findMatches.length, 4);
-				assert.strictEqual(model.currentMatch, -1);
+				assert.strictEqual(model.currentMatch, 0);
 				model.find({ previous: true });
 				assert.strictEqual(model.currentMatch, 4);
 
@@ -207,11 +207,11 @@ suite('Notebook Find', () => {
 				await found;
 				// find matches is not necessarily find results
 				assert.strictEqual(model.findMatches.length, 4);
-				assert.strictEqual(model.currentMatch, -1);
+				assert.strictEqual(model.currentMatch, 0);
 				model.find({ previous: false });
 				model.find({ previous: false });
 				model.find({ previous: false });
-				assert.strictEqual(model.currentMatch, 2);
+				assert.strictEqual(model.currentMatch, 3);
 				const found2 = new Promise<boolean>(resolve => state.onFindReplaceStateChange(e => {
 					if (e.matchesCount) { resolve(true); }
 				}));
@@ -243,13 +243,13 @@ suite('Notebook Find', () => {
 				state.change({ searchString: '1' }, true);
 				await found;
 				assert.strictEqual(model.findMatches.length, 2);
-				assert.strictEqual(model.currentMatch, -1);
-				model.find({ previous: false });
 				assert.strictEqual(model.currentMatch, 0);
 				model.find({ previous: false });
 				assert.strictEqual(model.currentMatch, 1);
 				model.find({ previous: false });
 				assert.strictEqual(model.currentMatch, 0);
+				model.find({ previous: false });
+				assert.strictEqual(model.currentMatch, 1);
 
 				assert.strictEqual(editor.textModel.length, 3);
 

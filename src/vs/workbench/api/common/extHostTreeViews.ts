@@ -696,8 +696,8 @@ class ExtHostTreeView<T> extends Disposable {
 		return tooltip;
 	}
 
-	private getCommand(disposable: DisposableStore, command?: vscode.Command): Command | undefined {
-		return command ? this.commands.toInternal(command, disposable) : undefined;
+	private getCommand(disposable: DisposableStore, command?: vscode.Command): Command & { originalId: string } | undefined {
+		return command ? { ...this.commands.toInternal(command, disposable), originalId: command.command } : undefined;
 	}
 
 	private validateTreeItem(extensionTreeItem: vscode.TreeItem) {

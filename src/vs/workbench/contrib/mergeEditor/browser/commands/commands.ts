@@ -9,11 +9,11 @@ import { localize } from 'vs/nls';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { EditorResolution } from 'vs/platform/editor/common/editor';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { MergeEditorInput, MergeEditorInputData } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
+import { IResourceMergeEditorInput } from 'vs/workbench/common/editor';
+import { MergeEditorInputData } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { MergeEditor } from 'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor';
 import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
 import { ctxIsMergeEditor, ctxMergeEditorLayout } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
@@ -48,15 +48,14 @@ export class OpenMergeEditor extends Action2 {
 	run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const validatedArgs = IRelaxedOpenArgs.validate(args[0]);
 
-		const instaService = accessor.get(IInstantiationService);
-		const input = instaService.createInstance(
-			MergeEditorInput,
-			validatedArgs.base,
-			validatedArgs.input1,
-			validatedArgs.input2,
-			validatedArgs.output,
-		);
-		accessor.get(IEditorService).openEditor(input, { preserveFocus: true, override: EditorResolution.DISABLED });
+		const input: IResourceMergeEditorInput = {
+			base: { resource: validatedArgs.base },
+			input1: { resource: validatedArgs.input1.uri, label: validatedArgs.input1.title, description: validatedArgs.input1.description, detail: validatedArgs.input1.detail },
+			input2: { resource: validatedArgs.input2.uri, label: validatedArgs.input2.title, description: validatedArgs.input2.description, detail: validatedArgs.input2.detail },
+			result: { resource: validatedArgs.output },
+			options: { preserveFocus: true }
+		};
+		accessor.get(IEditorService).openEditor(input);
 	}
 }
 

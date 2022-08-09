@@ -403,7 +403,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 		this._currentTitle = ptyProcess.process;
 		this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: this._currentTitle });
-		this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: posixShellTypeMap.get(this.currentTitle) });
+		// If fig is installed it may change the title of the process
+		const sanitizedTitle = this.currentTitle.replace(/ \(figterm\)$/g, '');
+		this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: posixShellTypeMap.get(sanitizedTitle) });
 	}
 
 	shutdown(immediate: boolean): void {
@@ -581,7 +583,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 					return;
 				}
 				this._logService.trace('IPty#pid');
-				exec('lsof -OPln -p ' + this._ptyProcess.pid + ' | grep cwd', (error, stdout, stderr) => {
+				exec('lsof -OPln -p ' + this._ptyProcess.pid + ' | grep cwd', { env: { ...process.env, LANG: 'en_US.UTF-8' } }, (error, stdout, stderr) => {
 					if (!error && stdout !== '') {
 						resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
 					} else {

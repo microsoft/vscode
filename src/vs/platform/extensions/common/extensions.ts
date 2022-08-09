@@ -323,6 +323,7 @@ export interface IExtension {
 	readonly changelogUrl?: URI;
 	readonly isValid: boolean;
 	readonly validations: readonly [Severity, string][];
+	readonly browserNlsBundleUris?: { [language: string]: URI };
 }
 
 /**
@@ -389,6 +390,7 @@ export interface IRelaxedExtensionDescription extends IRelaxedExtensionManifest 
 	isUserBuiltin: boolean;
 	isUnderDevelopment: boolean;
 	extensionLocation: URI;
+	browserNlsBundleUris?: { [language: string]: URI };
 }
 
 export type IExtensionDescription = Readonly<IRelaxedExtensionDescription>;

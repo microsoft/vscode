@@ -65,7 +65,7 @@
         "emmet.showAbbreviationSuggestions": {
           "type": "boolean",
           "default": true,
-          "scope": "language-overridable",
+          "scope": "resource",
           "markdownDescription": "%emmetShowAbbreviationSuggestions%"
         },
         "emmet.includeLanguages": {

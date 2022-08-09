@@ -205,8 +205,10 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		// Delete from disk
 		this.doDeleteUntitledWorkspaceSync(workspace);
 
-		// unset workspace from profiles
-		this.userDataProfilesMainService.unsetWorkspace(workspace);
+		if (this.userDataProfilesMainService.isEnabled()) {
+			// unset workspace from profiles
+			this.userDataProfilesMainService.unsetWorkspace(workspace);
+		}
 
 		// Event
 		this._onDidDeleteUntitledWorkspace.fire(workspace);

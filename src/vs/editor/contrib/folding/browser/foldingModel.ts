@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { IModelDecorationOptions, IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
-import { FoldingRegion, FoldingRegions, ILineRange, FoldRange } from './foldingRanges';
+import { FoldingRegion, FoldingRegions, ILineRange, FoldRange, FoldSource } from './foldingRanges';
 import { hash } from 'vs/base/common/hash';
 
 export interface IDecorationProvider {
@@ -22,7 +22,7 @@ export interface FoldingModelChangeEvent {
 interface ILineMemento extends ILineRange {
 	checksum?: number;
 	isCollapsed?: boolean;
-	isUserDefined?: boolean;
+	source?: FoldSource;
 }
 
 export type CollapseMemento = ILineMemento[];
@@ -64,7 +64,7 @@ export class FoldingModel {
 					const endLineNumber = this._regions.getEndLineNumber(k);
 					const isCollapsed = this._regions.isCollapsed(k);
 					if (endLineNumber <= dirtyRegionEndLine) {
-						const isManual = this.regions.isUserDefined(k) || this.regions.isRecovered(k);
+						const isManual = this.regions.getSource(k) !== FoldSource.provider;
 						accessor.changeDecorationOptions(this._editorDecorationIds[k], this._decorationProvider.getDecorationOption(isCollapsed, endLineNumber <= lastHiddenLine, isManual));
 					}
 					if (isCollapsed && endLineNumber > lastHiddenLine) {
@@ -104,7 +104,7 @@ export class FoldingModel {
 		};
 		for (let i = 0; i < this._regions.length; i++) {
 			const foldRange = this._regions.toFoldRange(i);
-			if (!foldRange.isUserDefined && !foldRange.isRecovered || !intersects(foldRange)) {
+			if (foldRange.source === FoldSource.provider || !intersects(foldRange)) {
 				newFoldingRanges.push(foldRange);
 			}
 		}
@@ -124,7 +124,7 @@ export class FoldingModel {
 			const startLineNumber = newRegions.getStartLineNumber(index);
 			const endLineNumber = newRegions.getEndLineNumber(index);
 			const isCollapsed = newRegions.isCollapsed(index);
-			const isManual = newRegions.isUserDefined(index) || newRegions.isRecovered(index);
+			const isManual = newRegions.getSource(index) !== FoldSource.provider;
 			const decorationRange = {
 				startLineNumber: startLineNumber,
 				startColumn: this._textModel.getLineMaxColumn(startLineNumber),
@@ -155,9 +155,8 @@ export class FoldingModel {
 		const foldedRanges: FoldRange[] = [];
 		for (let i = 0, limit = this._regions.length; i < limit; i++) {
 			let isCollapsed = this.regions.isCollapsed(i);
-			const isUserDefined = this.regions.isUserDefined(i);
-			const isRecovered = this.regions.isRecovered(i);
-			if (isCollapsed || isUserDefined || isRecovered) {
+			const source = this.regions.getSource(i);
+			if (isCollapsed || source !== FoldSource.provider) {
 				const foldRange = this._regions.toFoldRange(i);
 				const decRange = this._textModel.getDecorationRange(this._editorDecorationIds[i]);
 				if (decRange) {
@@ -169,8 +168,7 @@ export class FoldingModel {
 						endLineNumber: decRange.endLineNumber,
 						type: foldRange.type,
 						isCollapsed,
-						isUserDefined,
-						isRecovered
+						source
 					});
 				}
 			}
@@ -192,7 +190,7 @@ export class FoldingModel {
 				startLineNumber: range.startLineNumber,
 				endLineNumber: range.endLineNumber,
 				isCollapsed: range.isCollapsed,
-				isUserDefined: range.isRecovered,
+				source: range.source,
 				checksum: checksum
 			});
 		}
@@ -214,14 +212,12 @@ export class FoldingModel {
 			}
 			const checksum = this._getLinesChecksum(range.startLineNumber + 1, range.endLineNumber);
 			if (!range.checksum || checksum === range.checksum) {
-				const isUserDefined = range.isUserDefined === true;
 				rangesToRestore.push({
 					startLineNumber: range.startLineNumber,
 					endLineNumber: range.endLineNumber,
 					type: undefined,
 					isCollapsed: range.isCollapsed ?? true,
-					isUserDefined,
-					isRecovered: !isUserDefined
+					source: range.source ?? FoldSource.provider
 				});
 			}
 		}

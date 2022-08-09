@@ -535,9 +535,7 @@ export class CustomMenubarControl extends MenubarControl {
 				}
 
 				async run(): Promise<void> {
-					if (that.menubar) {
-						that.menubar.toggleFocus();
-					}
+					that.menubar?.toggleFocus();
 				}
 			}));
 		}
@@ -849,9 +847,7 @@ export class CustomMenubarControl extends MenubarControl {
 				this.container.classList.remove('inactive');
 			} else {
 				this.container.classList.add('inactive');
-				if (this.menubar) {
-					this.menubar.blur();
-				}
+				this.menubar?.blur();
 			}
 		}
 	}
@@ -928,8 +924,6 @@ export class CustomMenubarControl extends MenubarControl {
 	}
 
 	toggleFocus() {
-		if (this.menubar) {
-			this.menubar.toggleFocus();
-		}
+		this.menubar?.toggleFocus();
 	}
 }

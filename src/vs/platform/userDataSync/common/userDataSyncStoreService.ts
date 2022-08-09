@@ -12,7 +12,8 @@ import { Mimes } from 'vs/base/common/mime';
 import { isWeb } from 'vs/base/common/platform';
 import { ConfigurationSyncStore } from 'vs/base/common/product';
 import { joinPath, relativePath } from 'vs/base/common/resources';
-import { isArray, isObject, isString } from 'vs/base/common/types';
+import { join } from 'vs/base/common/path';
+import { isObject, isString } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IHeaders, IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
@@ -23,7 +24,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { asJson, asTextOrError, IRequestService, isSuccess as isSuccessContext } from 'vs/platform/request/common/request';
 import { getServiceMachineId } from 'vs/platform/externalServices/common/serviceMachineId';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { CONFIGURATION_SYNC_STORE_KEY, HEADER_EXECUTION_ID, HEADER_OPERATION_ID, IAuthenticationProvider, IResourceRefHandle, IUserData, IUserDataManifest, IUserDataSyncLogService, IUserDataSyncStore, IUserDataSyncStoreClient, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, ServerResource, SYNC_SERVICE_URL_TYPE, UserDataSyncErrorCode, UserDataSyncStoreError, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
+import { CONFIGURATION_SYNC_STORE_KEY, HEADER_EXECUTION_ID, HEADER_OPERATION_ID, IAuthenticationProvider, IResourceRefHandle, IUserData, IUserDataManifest, IUserDataSyncLogService, IUserDataSyncStore, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, ServerResource, SYNC_SERVICE_URL_TYPE, UserDataSyncErrorCode, UserDataSyncStoreError, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
 
 const SYNC_PREVIOUS_STORE = 'sync.previous.store';
 const DONOT_MAKE_REQUESTS_UNTIL_KEY = 'sync.donot-make-requests-until';
@@ -72,7 +73,7 @@ export abstract class AbstractUserDataSyncStoreManagementService extends Disposa
 		if (value
 			&& isString(value.url)
 			&& isObject(value.authenticationProviders)
-			&& Object.keys(value.authenticationProviders).every(authenticationProviderId => isArray(value!.authenticationProviders![authenticationProviderId].scopes))
+			&& Object.keys(value.authenticationProviders).every(authenticationProviderId => Array.isArray(value!.authenticationProviders![authenticationProviderId].scopes))
 		) {
 			const syncStore = value as ConfigurationSyncStore;
 			const canSwitch = !!syncStore.canSwitch && !configuredStore?.url;
@@ -140,7 +141,7 @@ export class UserDataSyncStoreManagementService extends AbstractUserDataSyncStor
 	}
 }
 
-export class UserDataSyncStoreClient extends Disposable implements IUserDataSyncStoreClient {
+export class UserDataSyncStoreClient extends Disposable {
 
 	private userDataSyncStoreUrl: URI | undefined;
 
@@ -230,12 +231,12 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 		}
 	}
 
-	async getAllRefs(resource: ServerResource): Promise<IResourceRefHandle[]> {
+	async getAllResourceRefs(path: string): Promise<IResourceRefHandle[]> {
 		if (!this.userDataSyncStoreUrl) {
 			throw new Error('No settings sync store url configured.');
 		}
 
-		const uri = joinPath(this.userDataSyncStoreUrl, 'resource', resource);
+		const uri = joinPath(this.userDataSyncStoreUrl, 'resource', path);
 		const headers: IHeaders = {};
 
 		const context = await this.request(uri.toString(), { type: 'GET', headers }, [], CancellationToken.None);
@@ -244,12 +245,12 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 		return result.map(({ url, created }) => ({ ref: relativePath(uri, uri.with({ path: url }))!, created: created * 1000 /* Server returns in seconds */ }));
 	}
 
-	async resolveContent(resource: ServerResource, ref: string, headers: IHeaders = {}): Promise<string | null> {
+	async resolveResourceContent(path: string, ref: string, headers: IHeaders = {}): Promise<string | null> {
 		if (!this.userDataSyncStoreUrl) {
 			throw new Error('No settings sync store url configured.');
 		}
 
-		const url = joinPath(this.userDataSyncStoreUrl, 'resource', resource, ref).toString();
+		const url = joinPath(this.userDataSyncStoreUrl, 'resource', path, ref).toString();
 		headers = { ...headers };
 		headers['Cache-Control'] = 'no-cache';
 
@@ -258,23 +259,23 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 		return content;
 	}
 
-	async delete(resource: ServerResource, ref: string | null): Promise<void> {
+	async deleteResource(path: string, ref: string | null): Promise<void> {
 		if (!this.userDataSyncStoreUrl) {
 			throw new Error('No settings sync store url configured.');
 		}
 
-		const url = ref !== null ? joinPath(this.userDataSyncStoreUrl, 'resource', resource, ref).toString() : joinPath(this.userDataSyncStoreUrl, 'resource', resource).toString();
+		const url = ref !== null ? joinPath(this.userDataSyncStoreUrl, 'resource', path, ref).toString() : joinPath(this.userDataSyncStoreUrl, 'resource', path).toString();
 		const headers: IHeaders = {};
 
 		await this.request(url, { type: 'DELETE', headers }, [], CancellationToken.None);
 	}
 
-	async read(resource: ServerResource, oldValue: IUserData | null, headers: IHeaders = {}): Promise<IUserData> {
+	async readResource(path: string, oldValue: IUserData | null, headers: IHeaders = {}): Promise<IUserData> {
 		if (!this.userDataSyncStoreUrl) {
 			throw new Error('No settings sync store url configured.');
 		}
 
-		const url = joinPath(this.userDataSyncStoreUrl, 'resource', resource, 'latest').toString();
+		const url = joinPath(this.userDataSyncStoreUrl, 'resource', path, 'latest').toString();
 		headers = { ...headers };
 		// Disable caching as they are cached by synchronisers
 		headers['Cache-Control'] = 'no-cache';
@@ -306,12 +307,12 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 		return userData;
 	}
 
-	async write(resource: ServerResource, data: string, ref: string | null, headers: IHeaders = {}): Promise<string> {
+	async writeResource(path: string, data: string, ref: string | null, headers: IHeaders = {}): Promise<string> {
 		if (!this.userDataSyncStoreUrl) {
 			throw new Error('No settings sync store url configured.');
 		}
 
-		const url = joinPath(this.userDataSyncStoreUrl, 'resource', resource).toString();
+		const url = joinPath(this.userDataSyncStoreUrl, 'resource', path).toString();
 		headers = { ...headers };
 		headers['Content-Type'] = Mimes.text;
 		if (ref) {
@@ -548,6 +549,33 @@ export class UserDataSyncStoreService extends UserDataSyncStoreClient implements
 	) {
 		super(userDataSyncStoreManagementService.userDataSyncStore?.url, productService, requestService, logService, environmentService, fileService, storageService);
 		this._register(userDataSyncStoreManagementService.onDidChangeUserDataSyncStore(() => this.updateUserDataSyncStoreUrl(userDataSyncStoreManagementService.userDataSyncStore?.url)));
+	}
+
+	getAllRefs(resource: ServerResource, profile?: string): Promise<IResourceRefHandle[]> {
+		return this.getAllResourceRefs(profile ? this.getProfileResource(resource, profile) : resource);
+	}
+
+	read(resource: ServerResource, oldValue: IUserData | null, profile?: string, headers?: IHeaders): Promise<IUserData> {
+		return this.readResource(profile ? this.getProfileResource(resource, profile) : resource, oldValue, headers);
+	}
+
+	write(resource: ServerResource, content: string, ref: string | null, profile?: string, headers?: IHeaders): Promise<string> {
+		return this.writeResource(profile ? this.getProfileResource(resource, profile) : resource, content, ref, headers);
+	}
+
+	delete(resource: ServerResource, ref: string | null, profile?: string): Promise<void> {
+		return this.deleteResource(profile ? this.getProfileResource(resource, profile) : resource, ref);
+	}
+
+	resolveContent(resource: ServerResource, ref: string, profile?: string, headers?: IHeaders): Promise<string | null> {
+		return this.resolveResourceContent(profile ? this.getProfileResource(resource, profile) : resource, ref, headers);
+	}
+
+	private getProfileResource(resource: ServerResource, profile: string): string {
+		if (resource === 'profiles') {
+			throw new Error(`Invalid Resource Argument: ${resource}`);
+		}
+		return join('profiles', profile, resource);
 	}
 }
 

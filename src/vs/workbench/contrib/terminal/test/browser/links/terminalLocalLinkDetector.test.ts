@@ -98,7 +98,7 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 		configurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, configurationService);
 
-		xterm = new Terminal({ cols: 80, rows: 30 });
+		xterm = new Terminal({ allowProposedApi: true, cols: 80, rows: 30 });
 	});
 
 	suite('platform independent', () => {

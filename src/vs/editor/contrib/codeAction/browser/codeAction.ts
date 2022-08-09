@@ -60,23 +60,23 @@ export interface CodeActionSet extends IDisposable {
 
 class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 
-	private static codeActionsComparator({ action: a }: CodeActionItem, { action: b }: CodeActionItem): number {
+	private static codeActionsPreferredComparator(a: languages.CodeAction, b: languages.CodeAction): number {
 		if (a.isPreferred && !b.isPreferred) {
 			return -1;
 		} else if (!a.isPreferred && b.isPreferred) {
 			return 1;
+		} else {
+			return 0;
 		}
+	}
 
+	private static codeActionsComparator({ action: a }: CodeActionItem, { action: b }: CodeActionItem): number {
 		if (isNonEmptyArray(a.diagnostics)) {
-			if (isNonEmptyArray(b.diagnostics)) {
-				return a.diagnostics[0].message.localeCompare(b.diagnostics[0].message);
-			} else {
-				return -1;
-			}
+			return -1;
 		} else if (isNonEmptyArray(b.diagnostics)) {
 			return 1;
 		} else {
-			return 0;	// both have no diagnostics
+			return ManagedCodeActionSet.codeActionsPreferredComparator(a, b); // both have no diagnostics
 		}
 	}
 

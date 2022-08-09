@@ -7,7 +7,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { Color, RGBA } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import { assertNever } from 'vs/base/common/types';
+import { assertNever } from 'vs/base/common/assert';
 import * as nls from 'vs/nls';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import * as platform from 'vs/platform/registry/common/platform';
@@ -315,8 +315,8 @@ export const editorForeground = registerColor('editor.foreground', { light: '#33
 /**
  * Sticky scroll
  */
-export const editorStickyScrollBackground = registerColor('editorStickyScroll.background', { light: darken(editorBackground, 0.2), dark: lighten(editorBackground, 0.2), hcDark: lighten(editorBackground, 0.2), hcLight: darken(editorBackground, 0.2) }, nls.localize('editorStickyScrollBackground', "Sticky scroll background color for the editor"));
-export const editorStickyScrollHoverBackground = registerColor('editorStickyScrollHover.background', { light: darken(editorBackground, 0.4), dark: lighten(editorBackground, 0.4), hcDark: lighten(editorBackground, 0.4), hcLight: darken(editorBackground, 0.4) }, nls.localize('editorStickyScrollHoverBackground', "Sticky scroll on hover background color for the editor"));
+export const editorStickyScrollBackground = registerColor('editorStickyScroll.background', { light: editorBackground, dark: editorBackground, hcDark: editorBackground, hcLight: editorBackground }, nls.localize('editorStickyScrollBackground', "Sticky scroll background color for the editor"));
+export const editorStickyScrollHoverBackground = registerColor('editorStickyScrollHover.background', { dark: '#2A2D2E', light: '#F0F0F0', hcDark: null, hcLight: Color.fromHex('#0F4A85').transparent(0.1) }, nls.localize('editorStickyScrollHoverBackground', "Sticky scroll on hover background color for the editor"));
 
 /**
  * Editor widgets

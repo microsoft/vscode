@@ -65,30 +65,22 @@ function doAppendKeyBindingLabel(label: string, keyBinding: ResolvedKeybinding |
 
 export const toggleCaseSensitiveCommand = (accessor: ServicesAccessor) => {
 	const searchView = getSearchView(accessor.get(IViewsService));
-	if (searchView) {
-		searchView.toggleCaseSensitive();
-	}
+	searchView?.toggleCaseSensitive();
 };
 
 export const toggleWholeWordCommand = (accessor: ServicesAccessor) => {
 	const searchView = getSearchView(accessor.get(IViewsService));
-	if (searchView) {
-		searchView.toggleWholeWords();
-	}
+	searchView?.toggleWholeWords();
 };
 
 export const toggleRegexCommand = (accessor: ServicesAccessor) => {
 	const searchView = getSearchView(accessor.get(IViewsService));
-	if (searchView) {
-		searchView.toggleRegex();
-	}
+	searchView?.toggleRegex();
 };
 
 export const togglePreserveCaseCommand = (accessor: ServicesAccessor) => {
 	const searchView = getSearchView(accessor.get(IViewsService));
-	if (searchView) {
-		searchView.togglePreserveCase();
-	}
+	searchView?.togglePreserveCase();
 };
 
 export class FocusNextInputAction extends Action {
@@ -110,9 +102,7 @@ export class FocusNextInputAction extends Action {
 		}
 
 		const searchView = getSearchView(this.viewsService);
-		if (searchView) {
-			searchView.focusNextInputBox();
-		}
+		searchView?.focusNextInputBox();
 	}
 }
 
@@ -135,9 +125,7 @@ export class FocusPreviousInputAction extends Action {
 		}
 
 		const searchView = getSearchView(this.viewsService);
-		if (searchView) {
-			searchView.focusPreviousInputBox();
-		}
+		searchView?.focusPreviousInputBox();
 	}
 }
 
@@ -275,17 +263,13 @@ export function expandAll(accessor: ServicesAccessor) {
 export function clearSearchResults(accessor: ServicesAccessor) {
 	const viewsService = accessor.get(IViewsService);
 	const searchView = getSearchView(viewsService);
-	if (searchView) {
-		searchView.clearSearchResults();
-	}
+	searchView?.clearSearchResults();
 }
 
 export function cancelSearch(accessor: ServicesAccessor) {
 	const viewsService = accessor.get(IViewsService);
 	const searchView = getSearchView(viewsService);
-	if (searchView) {
-		searchView.cancelSearch();
-	}
+	searchView?.cancelSearch();
 }
 
 export function refreshSearch(accessor: ServicesAccessor) {
@@ -352,9 +336,7 @@ export class FocusNextSearchResultAction extends Action {
 		}
 
 		return openSearchView(this.viewsService).then(searchView => {
-			if (searchView) {
-				searchView.selectNextMatch();
-			}
+			searchView?.selectNextMatch();
 		});
 	}
 }
@@ -378,9 +360,7 @@ export class FocusPreviousSearchResultAction extends Action {
 		}
 
 		return openSearchView(this.viewsService).then(searchView => {
-			if (searchView) {
-				searchView.selectPreviousMatch();
-			}
+			searchView?.selectPreviousMatch();
 		});
 	}
 }
@@ -390,9 +370,9 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 	/**
 	 * Returns element to focus after removing the given element
 	 */
-	getElementToFocusAfterRemoved(viewer: WorkbenchObjectTree<RenderableMatch>, elementToBeRemoved: RenderableMatch): RenderableMatch {
-		const elementToFocus = this.getNextElementAfterRemoved(viewer, elementToBeRemoved);
-		return elementToFocus || this.getPreviousElementAfterRemoved(viewer, elementToBeRemoved);
+	getElementToFocusAfterRemoved(viewer: WorkbenchObjectTree<RenderableMatch>, elementToRemove: RenderableMatch): RenderableMatch {
+		const elementToFocus = this.getNextElementAfterRemoved(viewer, elementToRemove);
+		return elementToFocus || this.getPreviousElementAfterRemoved(viewer, elementToRemove);
 	}
 
 	getNextElementAfterRemoved(viewer: WorkbenchObjectTree<RenderableMatch>, element: RenderableMatch): RenderableMatch {
@@ -445,7 +425,7 @@ class ReplaceActionRunner {
 	constructor(
 		private viewer: WorkbenchObjectTree<RenderableMatch>,
 		private viewlet: SearchView | undefined,
-		private getElementToFocusAfterRemoved: (viewer: WorkbenchObjectTree<RenderableMatch>, elementToBeRemoved: RenderableMatch) => RenderableMatch,
+		private getElementToFocusAfterRemoved: (viewer: WorkbenchObjectTree<RenderableMatch>, lastElementToBeRemoved: RenderableMatch) => RenderableMatch,
 		private getPreviousElementAfterRemoved: (viewer: WorkbenchObjectTree<RenderableMatch>, element: RenderableMatch) => RenderableMatch,
 		// Services
 		@IReplaceService private readonly replaceService: IReplaceService,
@@ -585,20 +565,26 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 		super(Constants.RemoveActionId, appendKeyBindingLabel(RemoveAction.LABEL, keyBindingService.lookupKeybinding(Constants.RemoveActionId), keyBindingService), ThemeIcon.asClassName(searchRemoveIcon));
 	}
 
-	override run(): Promise<any> {
+	override async run(): Promise<any> {
 		const opInfo = getElementsToOperateOnInfo(this.viewer, this.element, this.configurationService.getValue<ISearchConfigurationProperties>('search'));
 		const elementsToRemove = opInfo.elements;
 
-		const currentBottomFocusElement = elementsToRemove[elementsToRemove.length - 1];
+		if (elementsToRemove.length === 0) {
+			return;
+		}
 
-		const nextFocusElement = opInfo.mustReselect && (!currentBottomFocusElement || currentBottomFocusElement instanceof SearchResult || arrayContainsElementOrParent(currentBottomFocusElement, elementsToRemove)) ?
-			this.getElementToFocusAfterRemoved(this.viewer, <any>currentBottomFocusElement) :
-			null;
-
-		if (nextFocusElement) {
-			this.viewer.reveal(nextFocusElement);
-			this.viewer.setFocus([nextFocusElement], getSelectionKeyboardEvent());
-			this.viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
+		if (opInfo.mustReselect) {
+			for (const currentElement of elementsToRemove) {
+				const nextFocusElement = !currentElement || currentElement instanceof SearchResult || arrayContainsElementOrParent(currentElement, elementsToRemove) ?
+					this.getElementToFocusAfterRemoved(this.viewer, currentElement) :
+					null;
+				if (nextFocusElement && !arrayContainsElementOrParent(nextFocusElement, elementsToRemove)) {
+					this.viewer.reveal(nextFocusElement);
+					this.viewer.setFocus([nextFocusElement], getSelectionKeyboardEvent());
+					this.viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
+					break;
+				}
+			}
 		}
 
 		elementsToRemove.forEach((currentElement) =>
@@ -606,7 +592,7 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 		);
 
 		this.viewer.domFocus();
-		return Promise.resolve();
+		return;
 	}
 }
 
@@ -819,9 +805,7 @@ export const clearHistoryCommand: ICommandHandler = accessor => {
 export const focusSearchListCommand: ICommandHandler = accessor => {
 	const viewsService = accessor.get(IViewsService);
 	openSearchView(viewsService).then(searchView => {
-		if (searchView) {
-			searchView.moveFocusToResults();
-		}
+		searchView?.moveFocusToResults();
 	});
 };
 

@@ -9,9 +9,13 @@ import { publishRepository } from './publish';
 import { DisposableStore } from './util';
 import { getPermalink } from './links';
 
+function getVscodeDevHost(): string {
+	return `https://${vscode.env.appName.toLowerCase().includes('insiders') ? 'insiders.' : ''}vscode.dev/github`;
+}
+
 async function copyVscodeDevLink(gitAPI: GitAPI, useSelection: boolean) {
 	try {
-		const permalink = getPermalink(gitAPI, useSelection, 'https://vscode.dev/github');
+		const permalink = getPermalink(gitAPI, useSelection, getVscodeDevHost());
 		if (permalink) {
 			return vscode.env.clipboard.writeText(permalink);
 		}
@@ -22,7 +26,7 @@ async function copyVscodeDevLink(gitAPI: GitAPI, useSelection: boolean) {
 
 async function openVscodeDevLink(gitAPI: GitAPI): Promise<vscode.Uri | undefined> {
 	try {
-		const permalink = getPermalink(gitAPI, true, 'https://vscode.dev/github');
+		const permalink = getPermalink(gitAPI, true, getVscodeDevHost());
 		return permalink ? vscode.Uri.parse(permalink) : undefined;
 	} catch (err) {
 		vscode.window.showErrorMessage(err.message);

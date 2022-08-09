@@ -18,6 +18,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 
+
 export const USER_TASKS_GROUP_KEY = 'settings';
 
 export const TASK_RUNNING_STATE = new RawContextKey<boolean>('taskRunning', false, nls.localize('tasks.taskRunningContext', "Whether a task is currently running."));
@@ -1151,7 +1152,7 @@ export namespace TaskEvent {
 				processId: undefined as number | undefined,
 				exitCode: undefined as number | undefined,
 				terminalId: undefined as number | undefined,
-				__task: task,
+				__task: task
 			};
 			if (kind === TaskEventKind.Start) {
 				result.terminalId = processIdOrExitCodeOrTerminalId;
