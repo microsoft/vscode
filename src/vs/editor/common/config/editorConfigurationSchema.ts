@@ -175,7 +175,16 @@ const editorConfiguration: IConfigurationNode = {
 				nls.localize('wordWrap.on', "Lines will wrap at the viewport width."),
 				nls.localize('wordWrap.inherit', "Lines will wrap according to the `#editor.wordWrap#` setting."),
 			]
-		}
+		},
+		'diffEditor.diffAlgorithm': {
+			type: 'string',
+			enum: ['smart', 'experimental'],
+			default: 'smart',
+			markdownEnumDescriptions: [
+				nls.localize('diffAlgorithm.smart', "Uses the default diffing algorithm."),
+				nls.localize('diffAlgorithm.experimental', "Uses an experimental diffing algorithm."),
+			]
+		},
 	}
 };
 
