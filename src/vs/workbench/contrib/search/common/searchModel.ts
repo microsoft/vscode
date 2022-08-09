@@ -790,8 +790,11 @@ export class SearchResult extends Disposable {
 		this._register(this.modelService.onModelAdded(model => this.onModelAdded(model)));
 
 		this._register(this.onChange(e => {
-			this._onRefreshSearchResult.fire(e);
+			if (e.removed) {
+				this._isDirty = !this.isEmpty();
+			}
 
+			this._onRefreshSearchResult.fire(e);
 		}));
 	}
 
