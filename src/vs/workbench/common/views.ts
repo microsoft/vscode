@@ -755,7 +755,7 @@ export interface ITreeItem {
 
 	contextValue?: string;
 
-	command?: Command;
+	command?: Command & { originalId?: string };
 
 	children?: ITreeItem[];
 
@@ -774,7 +774,7 @@ export class ResolvableTreeItem implements ITreeItem {
 	resourceUri?: UriComponents;
 	tooltip?: string | IMarkdownString;
 	contextValue?: string;
-	command?: Command;
+	command?: Command & { originalId?: string };
 	children?: ITreeItem[];
 	accessibilityInformation?: IAccessibilityInformation;
 	resolve: (token: CancellationToken) => Promise<void>;
