@@ -23,7 +23,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ILineChange } from 'vs/editor/common/diff/diffComputer';
+import { ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { IEditorControl } from 'vs/workbench/common/editor';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';

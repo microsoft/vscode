@@ -416,6 +416,8 @@ export class NotebookService extends Disposable implements INotebookService {
 		return this._notebookProviderInfoStore;
 	}
 	private readonly _notebookRenderersInfoStore = this._instantiationService.createInstance(NotebookOutputRendererInfoStore);
+	private readonly _onDidChangeOutputRenderers = this._register(new Emitter<void>());
+	readonly onDidChangeOutputRenderers = this._onDidChangeOutputRenderers.event;
 	private readonly _models = new ResourceMap<ModelData>();
 
 	private readonly _onWillAddNotebookDocument = this._register(new Emitter<NotebookTextModel>());
@@ -480,6 +482,8 @@ export class NotebookService extends Disposable implements INotebookService {
 					}));
 				}
 			}
+
+			this._onDidChangeOutputRenderers.fire();
 		});
 
 		const updateOrder = () => {

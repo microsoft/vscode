@@ -733,6 +733,10 @@ export interface IDiffEditorBaseOptions {
 	 * Control the wrapping of the diff editor.
 	 */
 	diffWordWrap?: 'off' | 'on' | 'inherit';
+	/**
+	 * Diff Algorithm
+	*/
+	diffAlgorithm?: 'smart' | 'experimental';
 }
 
 /**

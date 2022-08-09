@@ -3531,11 +3531,11 @@ export enum NotebookControllerAffinity {
 
 export class NotebookRendererScript {
 
-	public provides: string[];
+	public provides: readonly string[];
 
 	constructor(
 		public uri: vscode.Uri,
-		provides: string | string[] = []
+		provides: string | readonly string[] = []
 	) {
 		this.provides = asArray(provides);
 	}

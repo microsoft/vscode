@@ -81,6 +81,10 @@ export interface ProcessExplorerStyles extends WindowStyles {
 	listActiveSelectionBackground?: string;
 	listActiveSelectionForeground?: string;
 	listHoverOutline?: string;
+	scrollbarShadowColor?: string;
+	scrollbarSliderBackgroundColor?: string;
+	scrollbarSliderHoverBackgroundColor?: string;
+	scrollbarSliderActiveBackgroundColor?: string;
 }
 
 export interface ProcessExplorerData extends WindowData {
