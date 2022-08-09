@@ -154,6 +154,10 @@ fi
 
 __vsc_update_prompt
 
+__vsc_restor_exit_code() {
+	return $1
+}
+
 __vsc_prompt_cmd_original() {
 	__vsc_status="$?"
 	# Evaluate the original PROMPT_COMMAND similarly to how bash would normally
@@ -164,6 +168,7 @@ __vsc_prompt_cmd_original() {
 			eval "${cmd:-}"
 		done
 	else
+		__vsc_restor_exit_code "${__vsc_status}"
 		eval "${__vsc_original_prompt_command:-}"
 	fi
 	__vsc_precmd
