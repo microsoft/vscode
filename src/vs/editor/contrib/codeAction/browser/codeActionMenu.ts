@@ -156,12 +156,16 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 
 				// Check documentation type
 				element.isDocumentation = element.action.action.kind === CodeActionMenu.documentationID;
-				if (!element.isDocumentation) {
 
+				if (element.isDocumentation) {
+					data.text.textContent = text;
+					data.icon.className = Codicon.book.classNames;
+				} else {
+
+					// Icons and Label modifaction based on group
 					if (element.action.action.kind?.startsWith(CodeActionGroupID.extract)) {
 						data.icon.className = Codicon.lightBulb.classNames;
 						data.icon.style.color = `var(--vscode-editorLightBulb-foreground)`;
-						console.log(text);
 						data.text.textContent = text.replace('Extract to', 'To');
 					} else if (element.action.action.kind?.startsWith(CodeActionGroupID.convert)) {
 						data.icon.className = Codicon.lightbulbAutofix.classNames;
@@ -195,13 +199,8 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 						};
 						updateLabel();
 					}
-				} else {
-					data.text.textContent = text;
-					data.icon.className = Codicon.book.classNames;
 				}
 			}
-
-
 
 		}
 
@@ -352,11 +351,6 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		renderDisposables.add(this.codeActionList.value.onDidChangeSelection(e => this._onListSelection(e)));
 		renderDisposables.add(this._editor.onDidLayoutChange(e => this.hideCodeActionWidget()));
 
-
-
-		// allKnownCodeActionKinds;
-
-
 		enum CodeActionArrayGroup {
 			quickfix = 0,
 			extract = 1,
@@ -366,6 +360,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 			other = 5,
 		}
 
+		// Filters and groups code actions by their group
 		const menuEntries: IAction[][] = [[], [], [], [], [], []];
 		let groupID = 0;
 		inputArray.forEach((item, index) => {
@@ -392,6 +387,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 			menuEntries[groupID].push(item);
 		});
 
+		// Creates flat list of all menu entries with headers as separators
 		let numHeaders = 0;
 		const totalActionEntries: (IAction | string)[] = [];
 		menuEntries.forEach(entry => {
@@ -414,57 +410,11 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 				totalActionEntries.push(`Surround With ...`);
 				totalActionEntries.push(...entry);
 				numHeaders++;
-			}
-			// else if (entry.length > 0 && entry[0].id === `vs.actions.separator`) {
-			// 	totalActionEntries.push(...entry);
-			// }
-			// else if (entry.length > 0 && entry[0] instanceof CodeActionAction && entry[0].action.kind === CodeActionMenu.documentationID) {
-			// 	totalActionEntries.push(...entry);
-			else {
+			} else {
 				totalActionEntries.push(...entry);
 			}
 
 		});
-
-
-		// const unPackVals = (item: IAction, index: number) => {
-		// 	const currIsSeparator = item.class === 'separator';
-
-		// 	if (currIsSeparator) {
-		// 		// set to true forever because there is a separator
-		// 		this.hasSeparator = true;
-		// 	}
-
-		// 	const menuItem = <ICodeActionMenuItem>{ action: item, isEnabled: item.enabled, isSeparator: currIsSeparator, index };
-		// 	if (item.enabled) {
-		// 		this.viewItems.push(menuItem);
-		// 	}
-
-		// 	return menuItem;
-		// };
-
-		// menuEntries.forEach((entry, index) => {
-		// 	if (entry && entry[0] instanceof CodeActionAction && entry[0].action.kind === `quickfix`) {
-		// 		this.options.push();
-		// 		this.options.push(...entry.map(item => unPackVals(item, index)));
-		// 	}
-		// 	else if (entry && entry[0] instanceof CodeActionAction && entry[0].action.kind?.startsWith(`refactor.extract`)) {
-		// 		this.options.push();
-		// 		this.options.push(...entry.map(item => unPackVals(item, index)));
-		// 	}
-		// 	else if (entry && entry[0] instanceof CodeActionAction && entry[0].action.kind?.startsWith(`refactor.rewrite`)) {
-		// 		this.options.push();
-		// 		this.options.push(...entry.map(item => unPackVals(item, index)));
-		// 	}
-		// 	else if (entry && entry[0] instanceof CodeActionAction && entry[0].action.kind === `refactor`) {
-		// 		this.options.push();
-		// 		this.options.push(...entry.map(item => unPackVals(item, index)));
-		// 	}
-
-		// });
-
-
-
 
 		// Populating the list widget and tracking enabled options.
 		totalActionEntries.forEach((item, index) => {
@@ -484,14 +434,12 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 					this.viewItems.push(menuItem);
 				}
 				this.options.push(menuItem);
-
 			}
-
-
 		});
 
 		this.codeActionList.value.splice(0, this.codeActionList.value.length, this.options);
 
+		// Updating list height, depending on how many separators and headers there are.
 		const height = this.hasSeparator ? (totalActionEntries.length - 1) * codeActionLineHeight + 10 : totalActionEntries.length * codeActionLineHeight;
 		const heightWithHeaders = height + numHeaders * headerLineHeight - numHeaders * codeActionLineHeight;
 		console.log(numHeaders);
@@ -529,7 +477,6 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		const focusTracker = dom.trackFocus(element);
 		const blurListener = focusTracker.onDidBlur(() => {
 			this.hideCodeActionWidget();
-			// this._contextViewService.hideContextView({ source: this });
 		});
 		renderDisposables.add(blurListener);
 		renderDisposables.add(focusTracker);
