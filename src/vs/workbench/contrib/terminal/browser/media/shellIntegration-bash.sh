@@ -154,7 +154,7 @@ fi
 
 __vsc_update_prompt
 
-__vsc_restor_exit_code() {
+__vsc_restore_exit_code() {
 	return $1
 }
 
