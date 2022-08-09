@@ -90,6 +90,10 @@ export interface RunTestForControllerRequest {
 	testIds: string[];
 }
 
+export interface RunTestForControllerResult {
+	error?: string;
+}
+
 /**
  * Location with a fully-instantiated Range and URI.
  */

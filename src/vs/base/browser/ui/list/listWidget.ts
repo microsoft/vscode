@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { createStyleSheet } from 'vs/base/browser/dom';
-import { DomEmitter, stopEvent } from 'vs/base/browser/event';
+import { createStyleSheet, EventHelper } from 'vs/base/browser/dom';
+import { DomEmitter } from 'vs/base/browser/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Gesture } from 'vs/base/browser/touch';
 import { alert } from 'vs/base/browser/ui/aria/aria';
@@ -457,7 +457,7 @@ class TypeNavigationController<T> implements IDisposable {
 			.map(event => new StandardKeyboardEvent(event))
 			.filter(e => typing || this.keyboardNavigationEventFilter(e))
 			.filter(e => this.delegate.mightProducePrintableCharacter(e))
-			.forEach(stopEvent)
+			.forEach(e => EventHelper.stop(e, true))
 			.map(event => event.browserEvent.key)
 			.event;
 
@@ -1288,7 +1288,7 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 		const fromKeyDown = this.disposables.add(Event.chain(this.disposables.add(new DomEmitter(this.view.domNode, 'keydown')).event))
 			.map(e => new StandardKeyboardEvent(e))
 			.filter(e => didJustPressContextMenuKey = e.keyCode === KeyCode.ContextMenu || (e.shiftKey && e.keyCode === KeyCode.F10))
-			.map(stopEvent)
+			.map(e => EventHelper.stop(e, true))
 			.filter(() => false)
 			.event as Event<any>;
 
@@ -1296,7 +1296,7 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 			.forEach(() => didJustPressContextMenuKey = false)
 			.map(e => new StandardKeyboardEvent(e))
 			.filter(e => e.keyCode === KeyCode.ContextMenu || (e.shiftKey && e.keyCode === KeyCode.F10))
-			.map(stopEvent)
+			.map(e => EventHelper.stop(e, true))
 			.map(({ browserEvent }) => {
 				const focus = this.getFocus();
 				const index = focus.length ? focus[0] : undefined;

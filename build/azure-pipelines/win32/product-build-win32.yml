@@ -80,6 +80,7 @@ steps:
       "$(VSCODE_ARCH)" | Out-File -Encoding ascii -NoNewLine .build\arch
       "$env:ENABLE_TERRAPIN" | Out-File -Encoding ascii -NoNewLine .build\terrapin
       node build/azure-pipelines/common/computeNodeModulesCacheKey.js > .build/yarnlockhash
+      node build/azure-pipelines/common/computeBuiltInDepsCacheKey.js > .build/builtindepshash
     displayName: Prepare yarn cache flags
 
   - task: Cache@2
@@ -91,7 +92,7 @@ steps:
 
   - task: Cache@2
     inputs:
-      key: '"$(Agent.OS)" | product.json'
+      key: '"builtInDeps" | .build/builtindepshash'
       path: .build/builtInExtensions
     displayName: Restore built-in extensions
 

@@ -99,7 +99,10 @@ export class VariablesView extends ViewPane {
 			// Automatically expand the first non-expensive scope
 			const scopes = await stackFrame.getScopes();
 			const toExpand = scopes.find(s => !s.expensive);
-			if (toExpand) {
+
+			// A race condition could be present causing the scopes here to be different from the scopes that the tree just retrieved.
+			// If that happened, don't try to reveal anything, it will be straightened out on the next update
+			if (toExpand && this.tree.hasNode(toExpand)) {
 				this.autoExpandedScopes.add(toExpand.getId());
 				await this.tree.expand(toExpand);
 			}

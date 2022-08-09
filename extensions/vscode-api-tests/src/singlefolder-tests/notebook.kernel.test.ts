@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import 'mocha';
 import { TextDecoder } from 'util';
 import * as vscode from 'vscode';
-import { asPromise, assertNoRpc, closeAllEditors, createRandomFile, disposeAll, revertAllDirty, saveAllEditors } from '../utils';
+import { asPromise, assertNoRpc, closeAllEditors, createRandomFile, DeferredPromise, disposeAll, revertAllDirty, saveAllEditors } from '../utils';
 
 async function createRandomNotebookFile() {
 	return createRandomFile('', undefined, '.vsctestnb');
@@ -181,7 +181,7 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 		const editor = vscode.window.activeNotebookEditor!;
 		const cell = editor.notebook.cellAt(0);
 
-		await withEvent(vscode.workspace.onDidChangeNotebookDocument, async (event) => {
+		await withEvent(vscode.workspace.onDidChangeNotebookDocument, async event => {
 			await vscode.commands.executeCommand('notebook.execute');
 			await event;
 			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
@@ -196,7 +196,7 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 		const secondResource = await createRandomNotebookFile();
 		await vscode.commands.executeCommand('vscode.openWith', secondResource, 'notebookCoreTest');
 
-		await withEvent<vscode.NotebookDocumentChangeEvent>(vscode.workspace.onDidChangeNotebookDocument, async (event) => {
+		await withEvent<vscode.NotebookDocumentChangeEvent>(vscode.workspace.onDidChangeNotebookDocument, async event => {
 			await vscode.commands.executeCommand('notebook.cell.execute', { start: 0, end: 1 }, notebook.uri);
 			await event;
 			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
@@ -204,35 +204,33 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 		});
 	});
 
-	// #126371
-	test('cell execute command takes arguments', async () => {
+	test('cell execute command takes arguments 2', async () => {
 		const notebook = await openRandomNotebookDocument();
 		await vscode.window.showNotebookDocument(notebook);
 
 		let firstCellExecuted = false;
 		let secondCellExecuted = false;
-		let resolve: () => void;
-		const p = new Promise<void>(r => resolve = r);
-		const listener = vscode.workspace.onDidChangeNotebookDocument(e => {
+
+		const def = new DeferredPromise<void>();
+		testDisposables.push(vscode.workspace.onDidChangeNotebookDocument(e => {
 			e.cellChanges.forEach(change => {
-				if (change.cell.index === 0) {
+				if (change.cell.index === 0 && change.executionSummary) {
 					firstCellExecuted = true;
 				}
 
-				if (change.cell.index === 1) {
+				if (change.cell.index === 1 && change.executionSummary) {
 					secondCellExecuted = true;
 				}
 			});
 
 			if (firstCellExecuted && secondCellExecuted) {
-				resolve();
+				def.complete();
 			}
-		});
+		}));
 
 		vscode.commands.executeCommand('notebook.cell.execute', { document: notebook.uri, ranges: [{ start: 0, end: 1 }, { start: 1, end: 2 }] });
 
-		await p;
-		listener.dispose();
+		await def.p;
 		await saveAllFilesAndCloseAll();
 	});
 
@@ -301,27 +299,30 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 		const cell = editor.notebook.cellAt(0);
 
 		let eventCount = 0;
-		let resolve: () => void;
-		const p = new Promise<void>(r => resolve = r);
-		const listener = vscode.notebooks.onDidChangeNotebookCellExecutionState(e => {
-			if (eventCount === 0) {
-				assert.strictEqual(e.state, vscode.NotebookCellExecutionState.Pending, 'should be set to Pending');
-			} else if (eventCount === 1) {
-				assert.strictEqual(e.state, vscode.NotebookCellExecutionState.Executing, 'should be set to Executing');
-				assert.strictEqual(cell.outputs.length, 0, 'no outputs yet: ' + JSON.stringify(cell.outputs[0]));
-			} else if (eventCount === 2) {
-				assert.strictEqual(e.state, vscode.NotebookCellExecutionState.Idle, 'should be set to Idle');
-				assert.strictEqual(cell.outputs.length, 1, 'should have an output');
-				resolve();
-			}
+		const def = new DeferredPromise<void>();
+		testDisposables.push(vscode.notebooks.onDidChangeNotebookCellExecutionState(e => {
+			try {
+				assert.strictEqual(e.cell.document.uri.toString(), cell.document.uri.toString(), 'event should be fired for the executing cell');
 
-			eventCount++;
-		});
+				if (eventCount === 0) {
+					assert.strictEqual(e.state, vscode.NotebookCellExecutionState.Pending, 'should be set to Pending');
+				} else if (eventCount === 1) {
+					assert.strictEqual(e.state, vscode.NotebookCellExecutionState.Executing, 'should be set to Executing');
+					assert.strictEqual(cell.outputs.length, 0, 'no outputs yet: ' + JSON.stringify(cell.outputs[0]));
+				} else if (e.state === vscode.NotebookCellExecutionState.Idle) {
+					assert.strictEqual(cell.outputs.length, 1, 'should have an output');
+					def.complete();
+				}
+
+				eventCount++;
+			} catch (err) {
+				def.error(err);
+			}
+		}));
 
 		vscode.commands.executeCommand('notebook.cell.execute', { document: notebook.uri, ranges: [{ start: 0, end: 1 }] });
 
-		await p;
-		listener.dispose();
+		await def.p;
 	});
 
 	test('Output changes are applied once the promise resolves', async function () {

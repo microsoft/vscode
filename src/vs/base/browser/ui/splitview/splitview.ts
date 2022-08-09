@@ -52,7 +52,7 @@ export interface IView<TLayoutContext = undefined> {
 	readonly minimumSize: number;
 
 	/**
-	 * A minimum size for this view.
+	 * A maximum size for this view.
 	 *
 	 * @remarks If none, set it to `Number.POSITIVE_INFINITY`.
 	 */

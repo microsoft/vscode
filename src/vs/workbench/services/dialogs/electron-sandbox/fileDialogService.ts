@@ -133,7 +133,11 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		} else {
 			const result = await this.nativeHostService.showSaveDialog(this.toNativeSaveDialogOptions(options));
 			if (result && !result.canceled && result.filePath) {
-				return URI.file(result.filePath);
+				const uri = URI.file(result.filePath);
+
+				this.addFileToRecentlyOpened(uri);
+
+				return uri;
 			}
 		}
 		return;
