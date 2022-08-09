@@ -130,7 +130,7 @@ if [[ -n "${bash_preexec_imported:-}" ]]; then
 	preexec_functions+=(__vsc_preexec_only)
 else
 	__vsc_dbg_trap="$(trap -p DEBUG)"
-	if [[ "$__vsc_db_trap" =~ .*\[\[.* ]]; then
+	if [[ "$__vsc_dbg_trap" =~ .*\[\[.* ]]; then
 		#HACK - is there a better way to do this?
 		__vsc_dbg_trap=${__vsc_dbg_trap#'trap -- '*}
 		__vsc_dbg_trap=${__vsc_dbg_trap%'DEBUG'}
