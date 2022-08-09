@@ -351,12 +351,20 @@ function scanBuiltinExtensions(extensionsRoot, exclude = []) {
             const children = fs.readdirSync(path.join(extensionsRoot, extensionFolder));
             const packageNLSPath = children.filter(child => child === 'package.nls.json')[0];
             const packageNLS = packageNLSPath ? JSON.parse(fs.readFileSync(path.join(extensionsRoot, extensionFolder, packageNLSPath)).toString()) : undefined;
+            let browserNlsMetadataPath;
+            if (packageJSON.browser) {
+                const browserEntrypointFolderPath = path.join(extensionFolder, path.dirname(packageJSON.browser));
+                if (fs.existsSync(path.join(extensionsRoot, browserEntrypointFolderPath, 'nls.metadata.json'))) {
+                    browserNlsMetadataPath = path.join(browserEntrypointFolderPath, 'nls.metadata.json');
+                }
+            }
             const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
             const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
             scannedExtensions.push({
                 extensionPath: extensionFolder,
                 packageJSON,
                 packageNLS,
+                browserNlsMetadataPath,
                 readmePath: readme ? path.join(extensionFolder, readme) : undefined,
                 changelogPath: changelog ? path.join(extensionFolder, changelog) : undefined,
             });

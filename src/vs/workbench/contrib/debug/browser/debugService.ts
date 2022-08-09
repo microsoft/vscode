@@ -6,7 +6,7 @@
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { Action, IAction } from 'vs/base/common/actions';
 import { distinct } from 'vs/base/common/arrays';
-import { raceTimeout, RunOnceScheduler } from 'vs/base/common/async';
+import { Queue, raceTimeout, RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isErrorWithActions } from 'vs/base/common/errorMessage';
 import * as errors from 'vs/base/common/errors';
@@ -544,7 +544,7 @@ export class DebugService implements IDebugService {
 	private async doCreateSession(sessionId: string, root: IWorkspaceFolder | undefined, configuration: { resolved: IConfig; unresolved: IConfig | undefined }, options?: IDebugSessionOptions): Promise<boolean> {
 
 		const session = this.instantiationService.createInstance(DebugSession, sessionId, configuration, root, this.model, options);
-		if (options?.startedByUser && this.model.getSessions().some(s => s.getLabel() === session.getLabel())) {
+		if (options?.startedByUser && this.model.getSessions().some(s => s.getLabel() === session.getLabel()) && configuration.resolved.suppressMultipleSessionWarning !== true) {
 			// There is already a session with the same name, prompt user #127721
 			const result = await this.dialogService.confirm({ message: nls.localize('multipleSession', "'{0}' is already running. Do you want to start another instance?", session.getLabel()) });
 			if (!result.confirmed) {
@@ -825,6 +825,7 @@ export class DebugService implements IDebugService {
 		return Promise.all(sessions.map(s => disconnect ? s.disconnect(undefined, suspend) : s.terminate()));
 	}
 
+	private variableSubstitutionQueue = new Queue<IConfig | undefined>();
 	private async substituteVariables(launch: ILaunch | undefined, config: IConfig): Promise<IConfig | undefined> {
 		const dbg = this.adapterManager.getDebugger(config.type);
 		if (dbg) {
@@ -838,7 +839,8 @@ export class DebugService implements IDebugService {
 				}
 			}
 			try {
-				return await dbg.substituteVariables(folder, config);
+				// Variable substitution can require user interaction, so only one of these should be running at a time.
+				return this.variableSubstitutionQueue.queue(() => dbg.substituteVariables(folder, config));
 			} catch (err) {
 				this.showError(err.message, undefined, !!launch?.getConfiguration(config.name));
 				return undefined;	// bail out

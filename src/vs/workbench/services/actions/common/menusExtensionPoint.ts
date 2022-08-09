@@ -161,6 +161,12 @@ const apiMenus: IAPIMenu[] = [
 		supportsSubmenus: false
 	},
 	{
+		key: 'comments/commentThread/widget/context',
+		id: MenuId.CommentThreadWidgetContext,
+		description: localize('commentThread.widgetContext', "The contributed comment thread widget context menu, rendered as a right click menu on the comment thread editor widget."),
+		proposed: 'contribCommentWidgetContext'
+	},
+	{
 		key: 'comments/comment/title',
 		id: MenuId.CommentTitle,
 		description: localize('comment.title', "The contributed comment title menu")

@@ -509,6 +509,34 @@
           "tags": [
             "experimental"
           ]
+        },
+        "markdown.experimental.updateLinksOnFileMove.enabled": {
+          "type": "string",
+          "enum": [
+            "prompt",
+            "always",
+            "never"
+          ],
+          "markdownEnumDescriptions": [
+            "%configuration.markdown.experimental.updateLinksOnFileMove.enabled.prompt%",
+            "%configuration.markdown.experimental.updateLinksOnFileMove.enabled.always%",
+            "%configuration.markdown.experimental.updateLinksOnFileMove.enabled.never%"
+          ],
+          "default": "never",
+          "markdownDescription": "%configuration.markdown.experimental.updateLinksOnFileMove.enabled%",
+          "scope": "resource",
+          "tags": [
+            "experimental"
+          ]
+        },
+        "markdown.experimental.updateLinksOnFileMove.externalFileGlobs": {
+          "type": "string",
+          "default": "**/*.{jpg,jpe,jpeg,png,bmp,gif,ico,webp,avif}",
+          "description": "%configuration.markdown.experimental.updateLinksOnFileMove.fileGlobs%",
+          "scope": "resource",
+          "tags": [
+            "experimental"
+          ]
         }
       }
     },
@@ -568,7 +596,7 @@
     "picomatch": "^2.3.1",
     "vscode-languageclient": "^8.0.1",
     "vscode-languageserver-textdocument": "^1.0.4",
-    "vscode-nls": "^5.0.0",
+    "vscode-nls": "^5.1.0",
     "vscode-uri": "^3.0.3"
   },
   "devDependencies": {

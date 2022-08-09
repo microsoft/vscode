@@ -914,7 +914,6 @@ export class Repository implements Disposable {
 		const root = Uri.file(repository.root);
 		this._sourceControl = scm.createSourceControl('git', 'Git', root);
 
-		this._sourceControl.acceptInputCommand = { command: 'git.commit', title: localize('commit', "Commit"), arguments: [this._sourceControl] };
 		this._sourceControl.quickDiffProvider = this;
 		this._sourceControl.inputBox.validateInput = this.validateInput.bind(this);
 		this.disposables.push(this._sourceControl);
@@ -950,6 +949,17 @@ export class Repository implements Disposable {
 			|| e.affectsConfiguration('git.openDiffOnClick', root)
 			|| e.affectsConfiguration('git.showActionButton', root)
 		)(this.updateModelState, this, this.disposables);
+
+		const updateInputBoxAcceptInputCommand = () => {
+			const config = workspace.getConfiguration('git', root);
+			const postCommitCommand = config.get<string>('postCommitCommand');
+			const postCommitCommandArg = postCommitCommand === 'push' || postCommitCommand === 'sync' ? `git.${postCommitCommand}` : '';
+			this._sourceControl.acceptInputCommand = { command: 'git.commit', title: localize('commit', "Commit"), arguments: [this._sourceControl, postCommitCommandArg] };
+		};
+
+		const onConfigListenerForPostCommitCommand = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.postCommitCommand', root));
+		onConfigListenerForPostCommitCommand(updateInputBoxAcceptInputCommand, this, this.disposables);
+		updateInputBoxAcceptInputCommand();
 
 		const updateInputBoxVisibility = () => {
 			const config = workspace.getConfiguration('git', root);

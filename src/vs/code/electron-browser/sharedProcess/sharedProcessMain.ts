@@ -103,9 +103,9 @@ import { ExtensionsProfileScannerService, IExtensionsProfileScannerService } fro
 import { PolicyChannelClient } from 'vs/platform/policy/common/policyIpc';
 import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
 import { UserDataProfilesNativeService } from 'vs/platform/userDataProfile/electron-sandbox/userDataProfile';
-import { OneDataSystemWebAppender } from 'vs/platform/telemetry/browser/1dsAppender';
 import { DefaultExtensionsProfileInitService } from 'vs/platform/extensionManagement/electron-sandbox/defaultExtensionsProfileInit';
 import { SharedProcessRequestService } from 'vs/platform/request/electron-browser/sharedProcessRequestService';
+import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
 
 class SharedProcessMain extends Disposable {
 
@@ -283,7 +283,7 @@ class SharedProcessMain extends Disposable {
 			appenders.push(logAppender);
 			const { installSourcePath } = environmentService;
 			if (productService.aiConfig?.ariaKey) {
-				const collectorAppender = new OneDataSystemWebAppender(internalTelemetry, 'monacoworkbench', null, productService.aiConfig.ariaKey);
+				const collectorAppender = new OneDataSystemAppender(internalTelemetry, 'monacoworkbench', null, productService.aiConfig.ariaKey);
 				this._register(toDisposable(() => collectorAppender.flush())); // Ensure the 1DS appender is disposed so that it flushes remaining data
 				appenders.push(collectorAppender);
 			}

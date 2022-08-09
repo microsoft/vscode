@@ -10,6 +10,9 @@
 	position: relative;
 }
 
+.monaco-tl-row.disabled {
+	cursor: default;
+}
 .monaco-tl-indent {
 	height: 100%;
 	position: absolute;

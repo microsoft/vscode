@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI, UriComponents } from 'vs/base/common/uri';
-
 /**
  * @returns whether the provided parameter is a JavaScript String or not.
  */
@@ -20,7 +18,6 @@ export function isStringArray(value: unknown): value is string[] {
 }
 
 /**
- *
  * @returns whether the provided parameter is of type `object` but **not**
  *	`null`, an `array`, a `regexp`, nor a `date`.
  */
@@ -36,7 +33,6 @@ export function isObject(obj: unknown): obj is Object {
 }
 
 /**
- *
  * @returns whether the provided parameter is of type `Buffer` or Uint8Array dervived type
  */
 export function isTypedArray(obj: unknown): obj is Object {
@@ -194,41 +190,6 @@ export function validateConstraint(arg: unknown, constraint: TypeConstraint | un
 	}
 }
 
-export function getAllPropertyNames(obj: object): string[] {
-	let res: string[] = [];
-	let proto = Object.getPrototypeOf(obj);
-	while (Object.prototype !== proto) {
-		res = res.concat(Object.getOwnPropertyNames(proto));
-		proto = Object.getPrototypeOf(proto);
-	}
-	return res;
-}
-
-export function getAllMethodNames(obj: object): string[] {
-	const methods: string[] = [];
-	for (const prop of getAllPropertyNames(obj)) {
-		if (typeof (obj as any)[prop] === 'function') {
-			methods.push(prop);
-		}
-	}
-	return methods;
-}
-
-export function createProxyObject<T extends object>(methodNames: string[], invoke: (method: string, args: unknown[]) => unknown): T {
-	const createProxyMethod = (method: string): () => unknown => {
-		return function () {
-			const args = Array.prototype.slice.call(arguments, 0);
-			return invoke(method, args);
-		};
-	};
-
-	const result = {} as T;
-	for (const methodName of methodNames) {
-		(<any>result)[methodName] = createProxyMethod(methodName);
-	}
-	return result;
-}
-
 /**
  * Converts null to undefined, passes all other values through.
  */
@@ -257,17 +218,6 @@ export type AddFirstParameterToFunctions<Target, TargetFunctionsReturnType, Firs
 	// For every property
 	[K in keyof Target]: AddFirstParameterToFunction<Target[K], TargetFunctionsReturnType, FirstParameter>;
 };
-
-/**
- * Mapped-type that replaces all occurrences of URI with UriComponents
- */
-export type UriDto<T> = { [K in keyof T]: T[K] extends URI
-	? UriComponents
-	: UriDto<T[K]> };
-
-export function assertNever(value: never, message = 'Unreachable'): never {
-	throw new Error(message);
-}
 
 /**
  * Given an object with all optional properties, requires at least one to be defined.

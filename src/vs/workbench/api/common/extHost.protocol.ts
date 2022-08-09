@@ -19,7 +19,7 @@ import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { ILineChange } from 'vs/editor/common/diff/diffComputer';
+import { ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as languages from 'vs/editor/common/languages';
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
@@ -998,7 +998,7 @@ export interface INotebookKernelDto2 {
 	supportedLanguages?: string[];
 	supportsInterrupt?: boolean;
 	supportsExecutionOrder?: boolean;
-	preloads?: { uri: UriComponents; provides: string[] }[];
+	preloads?: { uri: UriComponents; provides: readonly string[] }[];
 }
 
 export interface INotebookProxyKernelDto {
@@ -2173,7 +2173,7 @@ export const enum ExtHostTestingResource {
 }
 
 export interface ExtHostTestingShape {
-	$runControllerTests(req: RunTestForControllerRequest, token: CancellationToken): Promise<void>;
+	$runControllerTests(req: RunTestForControllerRequest[], token: CancellationToken): Promise<{ error?: string }[]>;
 	$cancelExtensionTestRun(runId: string | undefined): void;
 	/** Handles a diff of tests, as a result of a subscribeToDiffs() call */
 	$acceptDiff(diff: TestsDiffOp.Serialized[]): void;

@@ -13,6 +13,7 @@ import { getExtensionForMimeType } from 'vs/base/common/mime';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { dirname, joinPath } from 'vs/base/common/resources';
+import { equals } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import { TokenizationRegistry } from 'vs/editor/common/languages';
@@ -315,7 +316,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						filter: brightness(0) invert(1)
 					}
 
-					#container > div.nb-symbolHighlight {
+					#container .markup > div.nb-symbolHighlight {
 						background-color: var(--theme-notebook-symbol-highlight-background);
 					}
 
@@ -440,7 +441,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	}
 
 	async createWebview(): Promise<void> {
-		const baseUrl = this.asWebviewUri(dirname(this.documentUri), undefined);
+		const baseUrl = this.asWebviewUri(this.getNotebookBaseUri(), undefined);
 
 		// Python notebooks assume that requirejs is a global.
 		// For all other notebooks, they need to provide their own loader.
@@ -502,6 +503,22 @@ var requirejs = (function() {
 		}
 
 		await this._initialized;
+	}
+
+	private getNotebookBaseUri() {
+		if (this.documentUri.scheme === Schemas.untitled || this.documentUri.scheme === Schemas.vscodeInteractive) {
+			const folder = this.workspaceContextService.getWorkspaceFolder(this.documentUri);
+			if (folder) {
+				return folder.uri;
+			}
+
+			const folders = this.workspaceContextService.getWorkspace().folders;
+			if (folders.length) {
+				return folders[0].uri;
+			}
+		}
+
+		return dirname(this.documentUri);
 	}
 
 	private getBuiltinLocalResourceRoots(): URI[] {
@@ -884,7 +901,7 @@ var requirejs = (function() {
 
 	private _createInset(webviewService: IWebviewService, content: string) {
 		const workspaceFolders = this.contextService.getWorkspace().folders.map(x => x.uri);
-		const notebookDir = dirname(this.documentUri);
+		const notebookDir = this.getNotebookBaseUri();
 
 		this.localResourceRootsCache = [
 			...this.notebookService.getNotebookProviderResourceRoots(),
@@ -913,13 +930,6 @@ var requirejs = (function() {
 	}
 
 	private initializeWebViewState() {
-		const renderers = new Set<INotebookRendererInfo>();
-		for (const inset of this.insetMapping.values()) {
-			if (inset.renderer) {
-				renderers.add(inset.renderer);
-			}
-		}
-
 		this._preloadsCache.clear();
 		if (this._currentKernel) {
 			this._updatePreloadsFromKernel(this._currentKernel);
@@ -929,9 +939,6 @@ var requirejs = (function() {
 			this._sendMessageToWebview({ ...inset.cachedCreation, initiallyHidden: this.hiddenInsetMapping.has(output) });
 		}
 
-		const mdCells = [...this.markupPreviewMapping.values()];
-		this.markupPreviewMapping.clear();
-		this.initializeMarkup(mdCells);
 		this._updateStyles();
 		this._updateOptions();
 	}
@@ -1036,7 +1043,7 @@ var requirejs = (function() {
 		}
 
 		const sameContent = newContent.content === entry.content;
-		const sameMetadata = newContent.metadata === entry.metadata;
+		const sameMetadata = (equals(newContent.metadata, entry.metadata));
 		if (!sameContent || !sameMetadata || !entry.visible) {
 			this._sendMessageToWebview({
 				type: 'showMarkupCell',
@@ -1310,19 +1317,6 @@ var requirejs = (function() {
 		});
 	}
 
-	clearInsets() {
-		if (this._disposed) {
-			return;
-		}
-
-		this._sendMessageToWebview({
-			type: 'clear'
-		});
-
-		this.insetMapping = new Map();
-		this.reversedInsetMapping = new Map();
-	}
-
 	focusWebview() {
 		if (this._disposed) {
 			return;
@@ -1403,7 +1397,7 @@ var requirejs = (function() {
 	}
 
 
-	deltaCellOutputContainerClassNames(cellId: string, added: string[], removed: string[]) {
+	deltaCellContainerClassNames(cellId: string, added: string[], removed: string[]) {
 		this._sendMessageToWebview({
 			type: 'decorations',
 			cellId,
@@ -1471,10 +1465,6 @@ var requirejs = (function() {
 		}
 
 		this.webview?.postMessage(message);
-	}
-
-	clearPreloadsCache() {
-		this._preloadsCache.clear();
 	}
 
 	override dispose() {
