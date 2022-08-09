@@ -139,6 +139,7 @@ module.exports.copyrightFilter = [
 	'!**/*.xml',
 	'!**/*.sh',
 	'!**/*.zsh',
+	'!**/*.fish',
 	'!**/*.txt',
 	'!**/*.xpm',
 	'!**/*.opts',
