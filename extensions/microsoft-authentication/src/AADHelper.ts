@@ -184,6 +184,9 @@ export class AzureActiveDirectoryService {
 		if (!modifiedScopes.includes('profile')) {
 			modifiedScopes.push('profile');
 		}
+		if (!modifiedScopes.includes('offline_access')) {
+			modifiedScopes.push('offline_access');
+		}
 		modifiedScopes = modifiedScopes.sort();
 
 		let modifiedScopesStr = modifiedScopes.join(' ');
@@ -369,7 +372,7 @@ export class AzureActiveDirectoryService {
 				existingPromise = this.handleCodeResponse(scopeData);
 			} else {
 				inputBox = vscode.window.createInputBox();
-				existingPromise = Promise.race([this.handleCodeInputBox(inputBox, codeVerifier, scopeData), this.handleCodeResponse(scopeData)]);
+				existingPromise = this.handleCodeInputBox(inputBox, codeVerifier, scopeData);
 			}
 			this._codeExchangePromises.set(scopeData.scopeStr, existingPromise);
 		}

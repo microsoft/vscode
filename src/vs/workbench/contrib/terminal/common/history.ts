@@ -90,6 +90,9 @@ export async function getShellFileHistory(accessor: ServicesAccessor, shellType:
 		case PosixShellType.Zsh:
 			result = await fetchZshHistory(accessor);
 			break;
+		case PosixShellType.Fish:
+			result = await fetchFishHistory(accessor);
+			break;
 		default: return [];
 	}
 	if (result === undefined) {
@@ -360,6 +363,90 @@ export async function fetchPwshHistory(accessor: ServicesAccessor) {
 	}
 
 	return result.values();
+}
+
+export async function fetchFishHistory(accessor: ServicesAccessor) {
+	const fileService = accessor.get(IFileService);
+	const remoteAgentService = accessor.get(IRemoteAgentService);
+	const remoteEnvironment = await remoteAgentService.getEnvironment();
+	if (remoteEnvironment?.os === OperatingSystem.Windows || !remoteEnvironment && isWindows) {
+		return undefined;
+	}
+
+	/**
+	 * From `fish` docs:
+	 * > The command history is stored in the file ~/.local/share/fish/fish_history
+	 *   (or $XDG_DATA_HOME/fish/fish_history if that variable is set) by default.
+	 *
+	 * (https://fishshell.com/docs/current/interactive.html#history-search)
+	 */
+	const overridenDataHome = env['XDG_DATA_HOME'];
+
+	// TODO: Unchecked fish behavior:
+	// What if XDG_DATA_HOME was defined but somehow $XDG_DATA_HOME/fish/fish_history
+	// was not exist. Does fish fall back to ~/.local/share/fish/fish_history?
+
+	const content = await (overridenDataHome
+		? fetchFileContents(env['XDG_DATA_HOME'], 'fish/fish_history', false, fileService, remoteAgentService)
+		: fetchFileContents(env['HOME'], '.local/share/fish/fish_history', false, fileService, remoteAgentService));
+	if (content === undefined) {
+		return undefined;
+	}
+
+	/**
+	 * These apply to `fish` v3.5.1:
+	 * - It looks like YAML but it's not. It's, quoting, *"a broken psuedo-YAML"*.
+	 *   See these discussions for more details:
+	 *   - https://github.com/fish-shell/fish-shell/pull/6493
+	 *   - https://github.com/fish-shell/fish-shell/issues/3341
+	 * - Every record should exactly start with `- cmd:` (the whitespace between `-` and `cmd` cannot be replaced with tab)
+	 * - Both `- cmd: echo 1` and `- cmd:echo 1` are valid entries.
+	 * - Backslashes are esacped as `\\`.
+	 * - Multiline commands are joined with a `\n` sequence, hence they're read as single line commands.
+	 * - Property `when` is optional.
+	 * - History navigation respects the records order and ignore the actual `when` property values (chronological order).
+	 * - If `cmd` value is multiline , it just takes the first line. Also YAML operators like `>-` or `|-` are not supported.
+	 */
+	const result: Set<string> = new Set();
+	const cmds = content.split('\n')
+		.filter(x => x.startsWith('- cmd:'))
+		.map(x => x.substring(6).trimStart());
+	for (let i = 0; i < cmds.length; i++) {
+		const sanitized = sanitizeFishHistoryCmd(cmds[i]).trim();
+		if (sanitized.length > 0) {
+			result.add(sanitized);
+		}
+	}
+	return result.values();
+}
+
+export function sanitizeFishHistoryCmd(cmd: string): string {
+	/**
+	 * NOTE
+	 * This repeatedReplace() call can be eliminated by using look-ahead
+	 * caluses in the original RegExp pattern:
+	 *
+	 * >>> ```ts
+	 * >>> cmds[i].replace(/(?<=^|[^\\])((?:\\\\)*)(\\n)/g, '$1\n')
+	 * >>> ```
+	 *
+	 * But since not all browsers support look aheads we opted to a simple
+	 * pattern and repeatedly calling replace method.
+	 */
+	return repeatedReplace(/(^|[^\\])((?:\\\\)*)(\\n)/g, cmd, '$1$2\n')
+		.replace(/\\/g, '\\');
+}
+
+function repeatedReplace(pattern: RegExp, value: string, replaceValue: string): string {
+	let last;
+	let current = value;
+	while (true) {
+		last = current;
+		current = current.replace(pattern, replaceValue);
+		if (current === last) {
+			return current;
+		}
+	}
 }
 
 async function fetchFileContents(

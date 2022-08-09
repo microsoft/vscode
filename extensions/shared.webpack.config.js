@@ -70,6 +70,10 @@ function withNodeDefaults(/**@type WebpackConfig*/extConfig) {
 	return merge(defaultConfig, extConfig);
 }
 
+/**
+ *
+ * @param {string} context
+ */
 function nodePlugins(context) {
 	// Need to find the top-most `package.json` file
 	const folderName = path.relative(__dirname, context).split(/[\\\/]/)[0];
@@ -109,6 +113,13 @@ function withBrowserDefaults(/**@type WebpackConfig*/extConfig, /** @type Additi
 				test: /\.ts$/,
 				exclude: /node_modules/,
 				use: [{
+					// vscode-nls-dev loader:
+					// * rewrite nls-calls
+					loader: 'vscode-nls-dev/lib/webpack-loader',
+					options: {
+						base: path.join(extConfig.context, 'src')
+					}
+				}, {
 					// configure TypeScript loader:
 					// * enable sources maps for end-to-end source maps
 					loader: 'ts-loader',
@@ -123,6 +134,7 @@ function withBrowserDefaults(/**@type WebpackConfig*/extConfig, /** @type Additi
 		},
 		externals: {
 			'vscode': 'commonjs vscode', // ignored because it doesn't exist,
+			'vscode-nls-web-data': 'commonjs vscode-nls-web-data', // ignored because this is injected by the webworker extension host
 			'applicationinsights-native-metrics': 'commonjs applicationinsights-native-metrics', // ignored because we don't ship native module
 			'@opentelemetry/tracing': 'commonjs @opentelemetry/tracing' // ignored because we don't ship this module
 		},
@@ -138,30 +150,39 @@ function withBrowserDefaults(/**@type WebpackConfig*/extConfig, /** @type Additi
 		},
 		// yes, really source maps
 		devtool: 'source-map',
-		plugins: browserPlugins
+		plugins: browserPlugins(extConfig.context)
 	};
 
 	return merge(defaultConfig, extConfig);
 }
 
-const browserPlugins = [
-	new optimize.LimitChunkCountPlugin({
-		maxChunks: 1
-	}),
-	new CopyWebpackPlugin({
-		patterns: [
-			{ from: 'src', to: '.', globOptions: { ignore: ['**/test/**', '**/*.ts'] }, noErrorOnMissing: true }
-		]
-	}),
-	new DefinePlugin({
-		'process.platform': JSON.stringify('web'),
-		'process.env': JSON.stringify({}),
-		'process.env.BROWSER_ENV': JSON.stringify('true')
-	})
-];
-
-
-
+/**
+ *
+ * @param {string} context
+ */
+function browserPlugins(context) {
+	// Need to find the top-most `package.json` file
+	const folderName = path.relative(__dirname, context).split(/[\\\/]/)[0];
+	const pkgPath = path.join(__dirname, folderName, 'package.json');
+	const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+	const id = `${pkg.publisher}.${pkg.name}`;
+	return [
+		new optimize.LimitChunkCountPlugin({
+			maxChunks: 1
+		}),
+		new CopyWebpackPlugin({
+			patterns: [
+				{ from: 'src', to: '.', globOptions: { ignore: ['**/test/**', '**/*.ts'] }, noErrorOnMissing: true }
+			]
+		}),
+		new DefinePlugin({
+			'process.platform': JSON.stringify('web'),
+			'process.env': JSON.stringify({}),
+			'process.env.BROWSER_ENV': JSON.stringify('true')
+		}),
+		new NLSBundlePlugin(id)
+	];
+}
 
 module.exports = withNodeDefaults;
 module.exports.node = withNodeDefaults;

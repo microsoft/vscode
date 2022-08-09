@@ -87,7 +87,7 @@ const cliRemoteAuthority = process.env['VSCODE_CLI_AUTHORITY'] as string;
 const cliStdInFilePath = process.env['VSCODE_STDIN_FILE_PATH'] as string;
 
 
-export function main(desc: ProductDescription, args: string[]): void {
+export async function main(desc: ProductDescription, args: string[]): Promise<void> {
 	if (!cliPipe && !cliCommand) {
 		console.log('Command is only available in WSL or inside a Visual Studio Code terminal.');
 		return;
@@ -184,7 +184,7 @@ export function main(desc: ProductDescription, args: string[]): void {
 			let stdinFilePath = cliStdInFilePath;
 			if (!stdinFilePath) {
 				stdinFilePath = getStdinFilePath();
-				readFromStdin(stdinFilePath, verbose); // throws error if file can not be written
+				await readFromStdin(stdinFilePath, verbose); // throws error if file can not be written
 			}
 
 			// Make sure to open tmp file
@@ -460,5 +460,6 @@ function mapFileToRemoteUri(uri: string): string {
 }
 
 const [, , productName, version, commit, executableName, ...remainingArgs] = process.argv;
-main({ productName, version, commit, executableName }, remainingArgs);
-
+main({ productName, version, commit, executableName }, remainingArgs).then(null, err => {
+	console.error(err.message || err.stack || err);
+});

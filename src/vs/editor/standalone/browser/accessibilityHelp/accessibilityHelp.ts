@@ -340,9 +340,7 @@ class ShowAccessibilityHelpAction extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const controller = AccessibilityHelpController.get(editor);
-		if (controller) {
-			controller.show();
-		}
+		controller?.show();
 	}
 }
 

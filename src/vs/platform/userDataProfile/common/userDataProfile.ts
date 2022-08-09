@@ -7,8 +7,8 @@ import { hash } from 'vs/base/common/hash';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
-import { isUndefined, UriDto } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
+import { isUndefined } from 'vs/base/common/types';
+import { URI, UriDto } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -69,7 +69,7 @@ export const PROFILES_ENABLEMENT_CONFIG = 'workbench.experimental.settingsProfil
 export type EmptyWindowWorkspaceIdentifier = 'empty-window';
 export type WorkspaceIdentifier = ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier | EmptyWindowWorkspaceIdentifier;
 
-export type DidChangeProfilesEvent = { readonly added: IUserDataProfile[]; readonly removed: IUserDataProfile[]; readonly updated: IUserDataProfile[]; readonly all: IUserDataProfile[] };
+export type DidChangeProfilesEvent = { readonly added: readonly IUserDataProfile[]; readonly removed: readonly IUserDataProfile[]; readonly updated: readonly IUserDataProfile[]; readonly all: readonly IUserDataProfile[] };
 
 export type WillCreateProfileEvent = {
 	profile: IUserDataProfile;
@@ -89,7 +89,7 @@ export interface IUserDataProfilesService {
 	readonly defaultProfile: IUserDataProfile;
 
 	readonly onDidChangeProfiles: Event<DidChangeProfilesEvent>;
-	readonly profiles: IUserDataProfile[];
+	readonly profiles: readonly IUserDataProfile[];
 
 	readonly onDidResetWorkspaces: Event<void>;
 
@@ -225,6 +225,10 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 	}
 
 	getProfile(workspaceIdentifier: WorkspaceIdentifier, profileToUseIfNotSet: IUserDataProfile): IUserDataProfile {
+		if (!this.enabled) {
+			return this.defaultProfile;
+		}
+
 		const workspace = this.getWorkspace(workspaceIdentifier);
 		let profile = URI.isUri(workspace) ? this.profilesObject.workspaces.get(workspace) : this.profilesObject.emptyWindow;
 		if (!profile) {

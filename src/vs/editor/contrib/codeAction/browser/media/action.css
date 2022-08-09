@@ -30,10 +30,10 @@
 	z-index: 5; /* make sure we are on top of the tree items */
 	content: "";
 	pointer-events: none; /* enable click through */
-	outline: 0px solid !important; /* we still need to handle the empty tree or no focus item case */
-	outline-width: 0px !important;
-	outline-style: none !important;
-	outline-offset: 0px !important;
+	outline: 0px solid; /* we still need to handle the empty tree or no focus item case */
+	outline-width: 0px;
+	outline-style: none;
+	outline-offset: 0px;
 }
 
 .codeActionMenuWidget .monaco-list {
@@ -43,11 +43,6 @@
 	border: none !important;
 	border-width: 0px !important;
 }
-
-/* .codeActionMenuWidget .monaco-list:not(.element-focus) {
-	border: none !important;
-	border-width: 0px !important;
-} */
 
 .codeActionMenuWidget .monaco-list .monaco-scrollable-element .monaco-list-rows {
 	height: 100% !important;
@@ -79,15 +74,19 @@
 }
 
 .codeActionMenuWidget .monaco-list .option-disabled,
-.codeActionMenuWidget .monaco-list .option-disabled .focused {
-	pointer-events: none;
+.codeActionMenuWidget .monaco-list .option-disabled:before,
+.codeActionMenuWidget .monaco-list .option-disabled .focused,
+.codeActionMenuWidget .monaco-list .option-disabled .focused:before {
+	cursor: default !important;
 	-webkit-touch-callout: none;
 	-webkit-user-select: none;
 	-khtml-user-select: none;
 	-moz-user-select: none;
 	-ms-user-select: none;
 	user-select: none;
+	background-color: var(--vscode-menu-background) !important;
 	color: var(--vscode-disabledForeground) !important;
+	outline: 0px solid !important;
 }
 
 .codeActionMenuWidget .monaco-list .separator {

@@ -430,9 +430,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	}
 
 	private async _createModifiedWebview(id: string, resource: URI): Promise<void> {
-		if (this._modifiedWebview) {
-			this._modifiedWebview.dispose();
-		}
+		this._modifiedWebview?.dispose();
 
 		this._modifiedWebview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource, {
 			...this._notebookOptions.computeDiffWebviewOptions(),
@@ -449,9 +447,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	}
 
 	private async _createOriginalWebview(id: string, resource: URI): Promise<void> {
-		if (this._originalWebview) {
-			this._originalWebview.dispose();
-		}
+		this._originalWebview?.dispose();
 
 		this._originalWebview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource, {
 			...this._notebookOptions.computeDiffWebviewOptions(),
@@ -873,9 +869,9 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 	deltaCellOutputContainerClassNames(diffSide: DiffSide, cellId: string, added: string[], removed: string[]) {
 		if (diffSide === DiffSide.Original) {
-			this._originalWebview?.deltaCellOutputContainerClassNames(cellId, added, removed);
+			this._originalWebview?.deltaCellContainerClassNames(cellId, added, removed);
 		} else {
-			this._modifiedWebview?.deltaCellOutputContainerClassNames(cellId, added, removed);
+			this._modifiedWebview?.deltaCellContainerClassNames(cellId, added, removed);
 		}
 	}
 

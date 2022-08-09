@@ -11,7 +11,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { OutlineModel, OutlineElement } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
 import { CancellationToken, CancellationTokenSource, } from 'vs/base/common/cancellation';
 import * as dom from 'vs/base/browser/dom';
-import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorLayoutInfo, EditorOption, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { SymbolKind } from 'vs/editor/common/languages';
@@ -68,6 +68,10 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 			this._sessionStore.add(this._editor.onDidLayoutChange(() => this._onDidResize()));
 			this._sessionStore.add(this._editor.onDidChangeModelContent(() => this._updateSoon.schedule()));
 			this._sessionStore.add(this._languageFeaturesService.documentSymbolProvider.onDidChange(() => this._update(true)));
+			const lineNumberOption = this._editor.getOption(EditorOption.lineNumbers);
+			if (lineNumberOption.renderType === RenderLineNumbersType.Relative) {
+				this._sessionStore.add(this._editor.onDidChangeCursorPosition(() => this._update(false)));
+			}
 			this._update(true);
 		}
 	}
@@ -137,7 +141,11 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 			if (kind === SymbolKind.Class || kind === SymbolKind.Constructor || kind === SymbolKind.Function || kind === SymbolKind.Interface || kind === SymbolKind.Method || kind === SymbolKind.Module) {
 				currentStartLine = outlineElement?.symbol.range.startLineNumber as number;
 				currentEndLine = outlineElement?.symbol.range.endLineNumber as number;
-				this._ranges.push([currentStartLine, currentEndLine, depth]);
+				if (currentEndLine > currentStartLine) {
+					this._ranges.push([currentStartLine, currentEndLine - 1, depth]);
+				} else {
+					this._ranges.push([currentStartLine, currentEndLine, depth]);
+				}
 				depth--;
 			}
 			if (outlineElement.parent instanceof OutlineElement) {
@@ -167,7 +175,7 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 						this._findLineRanges(outline, 0);
 					}
 				}
-				this._ranges = this._ranges.sort(function (a, b) {
+				this._ranges.sort(function (a, b) {
 					if (a[0] !== b[0]) {
 						return a[0] - b[0];
 					} else if (a[1] !== b[1]) {
@@ -176,17 +184,27 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 						return a[2] - b[2];
 					}
 				});
-				let previous: number[] = [];
-				for (const [index, arr] of this._ranges.entries()) {
-					const [start, end, _depth] = arr;
-					if (previous[0] === start && previous[1] === end) {
-						this._ranges.splice(index, 1);
+
+				const startLinesConsidered: Set<number[]> = new Set();
+				this._ranges = this._ranges.filter(arr => {
+					if (!this._containsArray(startLinesConsidered, arr)) {
+						startLinesConsidered.add(arr);
+						return true;
 					} else {
-						previous = arr;
+						return false;
 					}
-				}
+				});
 			}
 		}
+	}
+
+	private _containsArray(set: Set<number[]>, array: number[]) {
+		for (const arr of set) {
+			if (arr.toString() === array.toString()) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private _renderStickyScroll() {
@@ -200,11 +218,9 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 			return;
 		}
 		const scrollTop = this._editor.getScrollTop();
-
 		this.stickyScrollWidget.emptyRootNode();
-		const beginningLinesConsidered: Set<number> = new Set<number>();
 
-		for (const [index, arr] of this._ranges.entries()) {
+		for (const arr of this._ranges) {
 			const [start, end, depth] = arr;
 			if (end - start > 0) {
 				const topOfElementAtDepth = (depth - 1) * lineHeight;
@@ -214,18 +230,12 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 				const topOfEndLine = this._editor.getTopForLineNumber(end) - scrollTop;
 				const bottomOfEndLine = this._editor.getBottomForLineNumber(end) - scrollTop;
 
-				if (!beginningLinesConsidered.has(start)) {
-					if (topOfElementAtDepth >= topOfEndLine - 1 && topOfElementAtDepth < bottomOfEndLine - 2) {
-						beginningLinesConsidered.add(start);
-						this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(start, depth, this._editor, -1, bottomOfEndLine - bottomOfElementAtDepth));
-						break;
-					}
-					else if (bottomOfElementAtDepth > bottomOfBeginningLine && bottomOfElementAtDepth < bottomOfEndLine - 1) {
-						beginningLinesConsidered.add(start);
-						this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(start, depth, this._editor, 0, 0));
-					}
-				} else {
-					this._ranges.splice(index, 1);
+				if (topOfElementAtDepth >= topOfEndLine - 1 && topOfElementAtDepth < bottomOfEndLine - 2) {
+					this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(start, depth, this._editor, -1, bottomOfEndLine - bottomOfElementAtDepth));
+					break;
+				}
+				else if (bottomOfElementAtDepth > bottomOfBeginningLine && bottomOfElementAtDepth < bottomOfEndLine - 1) {
+					this.stickyScrollWidget.pushCodeLine(new StickyScrollCodeLine(start, depth, this._editor, 0, 0));
 				}
 			}
 		}
@@ -310,7 +320,12 @@ class StickyScrollCodeLine extends Disposable {
 		}
 
 		const innerLineNumberHTML = document.createElement('span');
-		innerLineNumberHTML.innerText = this._lineNumber.toString();
+		const lineNumberOption = this._editor.getOption(EditorOption.lineNumbers);
+		if (lineNumberOption.renderType === RenderLineNumbersType.On || lineNumberOption.renderType === RenderLineNumbersType.Interval && this._lineNumber % 10 === 0) {
+			innerLineNumberHTML.innerText = this._lineNumber.toString();
+		} else if (lineNumberOption.renderType === RenderLineNumbersType.Relative) {
+			innerLineNumberHTML.innerText = Math.abs(this._lineNumber - this._editor.getPosition().lineNumber).toString();
+		}
 		innerLineNumberHTML.className = 'sticky-line-number';
 		innerLineNumberHTML.style.lineHeight = `${lineHeight}px`;
 		innerLineNumberHTML.style.width = `${layoutInfo.lineNumbersWidth}px`;
