@@ -132,10 +132,8 @@ export interface IEnterWorkspaceResult {
  * @param forceAbsolute if set, keep the path absolute
  * @param folderName a workspace name
  * @param targetConfigFolderURI the folder where the workspace is living in
- * @param useSlashForAbsolutePaths if set, use forward slashes for file paths on windows when the path is absolute
- * (relative paths will always use slashes for easy exchange across OS)
  */
-export function getStoredWorkspaceFolder(folderURI: URI, forceAbsolute: boolean, folderName: string | undefined, targetConfigFolderURI: URI, useSlashForAbsolutePaths = !isWindows, extUri: IExtUri): IStoredWorkspaceFolder {
+export function getStoredWorkspaceFolder(folderURI: URI, forceAbsolute: boolean, folderName: string | undefined, targetConfigFolderURI: URI, extUri: IExtUri): IStoredWorkspaceFolder {
 	if (folderURI.scheme !== targetConfigFolderURI.scheme) {
 		return { name: folderName, uri: folderURI.toString(true) };
 	}
@@ -144,8 +142,9 @@ export function getStoredWorkspaceFolder(folderURI: URI, forceAbsolute: boolean,
 	if (folderPath !== undefined) {
 		if (folderPath.length === 0) {
 			folderPath = '.';
-		} else if (isWindows && folderURI.scheme === Schemas.file && isAbsolute(folderPath) && !useSlashForAbsolutePaths) {
-			folderPath = folderPath.replace(/\//g, '\\'); // convert to backslash on Windows if we should for absolute paths
+		} else if (isWindows) {
+			folderPath = normalizeDriveLetter(folderPath);
+			folderPath = toSlashes(folderPath);
 		}
 	} else {
 
@@ -153,9 +152,7 @@ export function getStoredWorkspaceFolder(folderURI: URI, forceAbsolute: boolean,
 			folderPath = folderURI.fsPath;
 			if (isWindows) {
 				folderPath = normalizeDriveLetter(folderPath);
-				if (isAbsolute(folderPath) && useSlashForAbsolutePaths) {
-					folderPath = toSlashes(folderPath); // convert to slash on Windows if we should for absolute paths
-				}
+				folderPath = toSlashes(folderPath);
 			}
 		} else {
 			if (!extUri.isEqualAuthority(folderURI.authority, targetConfigFolderURI.authority)) {
@@ -217,7 +214,6 @@ export function rewriteWorkspaceFileForNewLocation(rawWorkspaceContents: string,
 	const targetConfigFolder = extUri.dirname(targetConfigPathURI);
 
 	const rewrittenFolders: IStoredWorkspaceFolder[] = [];
-	const slashForAbsolutePath = useSlashForAbsolutePath(storedWorkspace.folders);
 
 	for (const folder of storedWorkspace.folders) {
 		const folderURI = isRawFileWorkspaceFolder(folder) ? extUri.resolvePath(sourceConfigFolder, folder.path) : URI.parse(folder.uri);
@@ -227,7 +223,7 @@ export function rewriteWorkspaceFileForNewLocation(rawWorkspaceContents: string,
 		} else {
 			absolute = !isRawFileWorkspaceFolder(folder) || isAbsolute(folder.path); // for existing workspaces, preserve whether a path was absolute or relative
 		}
-		rewrittenFolders.push(getStoredWorkspaceFolder(folderURI, absolute, folder.name, targetConfigFolder, slashForAbsolutePath, extUri));
+		rewrittenFolders.push(getStoredWorkspaceFolder(folderURI, absolute, folder.name, targetConfigFolder, extUri));
 	}
 
 	// Preserve as much of the existing workspace as possible by using jsonEdit
@@ -257,16 +253,6 @@ function doParseStoredWorkspace(path: URI, contents: string): IStoredWorkspace {
 	}
 
 	return storedWorkspace;
-}
-
-export function useSlashForAbsolutePath(storedFolders: IStoredWorkspaceFolder[]): boolean {
-	if (!isWindows) {
-		return true; // Linux/macOS always use slash
-	}
-
-	// Only prefer slashes if other absolute paths in the
-	// workspace configuration file use slashes as well
-	return storedFolders.some(folder => isRawFileWorkspaceFolder(folder) && isAbsolute(folder.path) && folder.path.indexOf(posix.sep) >= 0);
 }
 
 //#endregion
