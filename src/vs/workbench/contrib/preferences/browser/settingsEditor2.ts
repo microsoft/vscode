@@ -642,6 +642,7 @@ export class SettingsEditor2 extends EditorPane {
 
 	private onDidClickSetting(evt: ISettingLinkClickEvent, recursed?: boolean): void {
 		const targetElement = this.currentSettingsModel.getElementsByName(evt.targetKey)?.[0];
+		let revealFailed = false;
 		if (targetElement) {
 			let sourceTop = 0.5;
 			try {
@@ -661,23 +662,34 @@ export class SettingsEditor2 extends EditorPane {
 			if (this.viewState.filterToCategory && evt.source.displayCategory !== targetElement.displayCategory) {
 				this.tocTree.setFocus([]);
 			}
-			this.settingsTree.reveal(targetElement, sourceTop);
+			try {
+				this.settingsTree.reveal(targetElement, sourceTop);
+			} catch (_) {
+				// The listwidget couldn't find the setting to reveal,
+				// even though it's in the model, meaning there might be a filter
+				// preventing it from showing up.
+				revealFailed = true;
+			}
 
-			// We need to shift focus from the setting that contains the link to the setting that's
-			// linked. Clicking on the link sets focus on the setting that contains the link,
-			// which is why we need the setTimeout.
-			setTimeout(() => {
-				this.settingsTree.setFocus([targetElement]);
-			}, 50);
+			if (!revealFailed) {
+				// We need to shift focus from the setting that contains the link to the setting that's
+				// linked. Clicking on the link sets focus on the setting that contains the link,
+				// which is why we need the setTimeout.
+				setTimeout(() => {
+					this.settingsTree.setFocus([targetElement]);
+				}, 50);
 
-			const domElements = this.settingRenderers.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), evt.targetKey);
-			if (domElements && domElements[0]) {
-				const control = domElements[0].querySelector(AbstractSettingRenderer.CONTROL_SELECTOR);
-				if (control) {
-					(<HTMLElement>control).focus();
+				const domElements = this.settingRenderers.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), evt.targetKey);
+				if (domElements && domElements[0]) {
+					const control = domElements[0].querySelector(AbstractSettingRenderer.CONTROL_SELECTOR);
+					if (control) {
+						(<HTMLElement>control).focus();
+					}
 				}
 			}
-		} else if (!recursed) {
+		}
+
+		if (!recursed && revealFailed) {
 			// We'll call this event handler again after clearing the search query,
 			// so that more settings show up in the list.
 			const p = this.triggerSearch('');

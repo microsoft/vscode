@@ -38,6 +38,8 @@ export async function resolveWorkbenchCommonProperties(
 	result['common.isNewSession'] = !lastSessionDate ? '1' : '0';
 	// __GDPR__COMMON__ "common.remoteAuthority" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 	result['common.remoteAuthority'] = cleanRemoteAuthority(remoteAuthority);
+	// __GDPR__COMMON__ "common.sandboxed" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	result['common.sandboxed'] = process.sandboxed ? '1' : '0'; // TODO@bpasero remove this property when sandbox is on
 
 	return result;
 }

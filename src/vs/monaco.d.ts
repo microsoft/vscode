@@ -701,6 +701,10 @@ declare namespace monaco {
 		 */
 		collapseToStart(): Range;
 		/**
+		 * Moves the range by the given amount of lines.
+		 */
+		delta(lineCount: number): Range;
+		/**
 		 * Create a new empty range using this range's start position.
 		 */
 		static collapseToStart(range: IRange): Range;
@@ -1496,6 +1500,10 @@ declare namespace monaco.editor {
 		 * Should the decoration expand to encompass a whole line.
 		 */
 		isWholeLine?: boolean;
+		/**
+		 * Always render the decoration (even when the range it encompasses is collapsed).
+		 */
+		showIfCollapsed?: boolean;
 		/**
 		 * Specifies the stack order of a decoration.
 		 * A decoration with greater stack order is always in front of a decoration with
@@ -3501,6 +3509,10 @@ declare namespace monaco.editor {
 		 * Control the wrapping of the diff editor.
 		 */
 		diffWordWrap?: 'off' | 'on' | 'inherit';
+		/**
+		 * Diff Algorithm
+		*/
+		diffAlgorithm?: 'smart' | 'experimental';
 	}
 
 	/**

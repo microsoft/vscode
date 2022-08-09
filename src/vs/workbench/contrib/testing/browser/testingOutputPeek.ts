@@ -836,6 +836,7 @@ const diffEditorOptions: IDiffEditorConstructionOptions = {
 	renderSideBySide: true,
 	originalAriaLabel: localize('testingOutputExpected', 'Expected result'),
 	modifiedAriaLabel: localize('testingOutputActual', 'Actual result'),
+	diffAlgorithm: 'smart',
 };
 
 const isDiffable = (message: ITestMessage): message is ITestErrorMessage & { actualOutput: string; expectedOutput: string } =>

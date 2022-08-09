@@ -73,6 +73,7 @@ export class IssueReporter extends Disposable {
 
 		const targetExtension = configuration.data.extensionId ? configuration.data.enabledExtensions.find(extension => extension.id === configuration.data.extensionId) : undefined;
 		this.issueReporterModel = new IssueReporterModel({
+			...configuration.data,
 			issueType: configuration.data.issueType || IssueType.Bug,
 			versionInfo: {
 				vscodeVersion: `${configuration.product.nameShort} ${!!configuration.product.darwinUniversalAssetId ? `${configuration.product.version} (Universal)` : configuration.product.version} (${configuration.product.commit || 'Commit unknown'}, ${configuration.product.date || 'Date unknown'})`,
@@ -80,7 +81,7 @@ export class IssueReporter extends Disposable {
 			},
 			extensionsDisabled: !!configuration.disableExtensions,
 			fileOnExtension: configuration.data.extensionId ? !targetExtension?.isBuiltin : undefined,
-			selectedExtension: targetExtension,
+			selectedExtension: targetExtension
 		});
 
 		const issueReporterElement = this.getElementById('issue-reporter');

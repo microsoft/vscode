@@ -29,7 +29,7 @@ import { MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browse
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 
-export class StatefulMarkdownCell extends Disposable {
+export class MarkupCell extends Disposable {
 
 	private editor: CodeEditorWidget | null = null;
 
@@ -203,20 +203,20 @@ export class StatefulMarkdownCell extends Disposable {
 		this._register(this.viewCell.onCellDecorationsChanged((e) => {
 			e.added.forEach(options => {
 				if (options.className) {
-					this.notebookEditor.deltaCellOutputContainerClassNames(this.viewCell.id, [options.className], []);
+					this.notebookEditor.deltaCellContainerClassNames(this.viewCell.id, [options.className], []);
 				}
 			});
 
 			e.removed.forEach(options => {
 				if (options.className) {
-					this.notebookEditor.deltaCellOutputContainerClassNames(this.viewCell.id, [], [options.className]);
+					this.notebookEditor.deltaCellContainerClassNames(this.viewCell.id, [], [options.className]);
 				}
 			});
 		}));
 
 		this.viewCell.getCellDecorations().forEach(options => {
 			if (options.className) {
-				this.notebookEditor.deltaCellOutputContainerClassNames(this.viewCell.id, [options.className], []);
+				this.notebookEditor.deltaCellContainerClassNames(this.viewCell.id, [options.className], []);
 			}
 		});
 	}

@@ -1855,6 +1855,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				// The notebook editor doesn't have focus yet
 				if (!this.hasEditorFocus()) {
 					this.focusContainer();
+					// trigger editor to update as FocusTracker might not emit focus change event
+					this.updateEditorFocus();
 				}
 
 				if (element && element.focusMode === CellFocusMode.Editor) {
@@ -2104,8 +2106,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return ret;
 	}
 
-	deltaCellOutputContainerClassNames(cellId: string, added: string[], removed: string[]) {
-		this._webview?.deltaCellOutputContainerClassNames(cellId, added, removed);
+	deltaCellContainerClassNames(cellId: string, added: string[], removed: string[]) {
+		this._webview?.deltaCellContainerClassNames(cellId, added, removed);
 	}
 
 	changeModelDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null {
@@ -2568,6 +2570,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		if (!this.viewModel) {
+			return;
+		}
+
+		if (this.viewModel.getCellIndex(cell) === -1) {
 			return;
 		}
 

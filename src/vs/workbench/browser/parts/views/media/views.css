@@ -150,6 +150,9 @@
 	-moz-osx-font-smoothing: grayscale;
 }
 
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item>.custom-view-tree-node-item-icon.disabled {
+	opacity: 60%;
+}
 /* makes spinning icons square */
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item > .custom-view-tree-node-item-icon.codicon.codicon-modifier-spin {
 	padding-left: 6px;

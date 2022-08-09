@@ -137,6 +137,7 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 		const data: ICodeActionMenuTemplateData = templateData;
 
 
+
 		const isSeparator = element.isSeparator;
 		const isHeader = element.isHeader;
 

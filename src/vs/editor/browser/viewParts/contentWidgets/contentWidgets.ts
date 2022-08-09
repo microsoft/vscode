@@ -340,7 +340,7 @@ class Widget {
 		const MIN_LIMIT = Math.max(0, domNodePosition.left - width);
 		const MAX_LIMIT = Math.min(domNodePosition.left + domNodePosition.width + width, windowSize.width);
 
-		let absoluteLeft = domNodePosition.left + left - dom.StandardWindow.scrollX;
+		let absoluteLeft = domNodePosition.left + left - window.scrollX;
 
 		if (absoluteLeft + width > MAX_LIMIT) {
 			const delta = absoluteLeft - (MAX_LIMIT - width);
@@ -362,8 +362,8 @@ class Widget {
 		const belowTop = bottomLeft.top + this._lineHeight;
 
 		const domNodePosition = dom.getDomNodePagePosition(this._viewDomNode.domNode);
-		const absoluteAboveTop = domNodePosition.top + aboveTop - dom.StandardWindow.scrollY;
-		const absoluteBelowTop = domNodePosition.top + belowTop - dom.StandardWindow.scrollY;
+		const absoluteAboveTop = domNodePosition.top + aboveTop - window.scrollY;
+		const absoluteBelowTop = domNodePosition.top + belowTop - window.scrollY;
 
 		const windowSize = dom.getClientArea(document.body);
 		const [aboveLeft, absoluteAboveLeft] = this._layoutHorizontalSegmentInPage(windowSize, domNodePosition, topLeft.left - ctx.scrollLeft + this._contentLeft, width);

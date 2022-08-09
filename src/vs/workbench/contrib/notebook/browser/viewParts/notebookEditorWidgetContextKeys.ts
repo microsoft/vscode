@@ -137,7 +137,7 @@ export class NotebookEditorContextKeys {
 
 	private _updateForLastRunFailState(e: INotebookFailStateChangedEvent): void {
 		if (e.notebook === this._editor.textModel?.uri) {
-			this._lastCellFailed.set(e.failed);
+			this._lastCellFailed.set(e.visible);
 		}
 	}
 

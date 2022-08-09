@@ -51,6 +51,7 @@ const CORE_TYPES = [
     'BigInt64Array',
     'btoa',
     'atob',
+    'AbortController',
     'AbortSignal',
     'MessageChannel',
     'MessagePort',

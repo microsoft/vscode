@@ -16,11 +16,12 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, IEditorIdentifier, IResourceMergeEditorInput, isResourceMergeEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput, IEditorCloseHandler } from 'vs/workbench/common/editor/editorInput';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { EditorWorkerServiceDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
+import { MergeDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ILanguageSupport, ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { autorun } from 'vs/base/common/observable';
+import { WorkerBasedDocumentDiffProvider } from 'vs/editor/browser/widget/workerBasedDocumentDiffProvider';
 
 export class MergeEditorInputData {
 	constructor(
@@ -117,7 +118,7 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 				this.input2.detail,
 				this.input2.description,
 				result.object.textEditorModel,
-				this._instaService.createInstance(EditorWorkerServiceDiffComputer),
+				this._instaService.createInstance(MergeDiffComputer, this._instaService.createInstance(WorkerBasedDocumentDiffProvider)),
 				{
 					resetUnknownOnInitialization: true
 				},
