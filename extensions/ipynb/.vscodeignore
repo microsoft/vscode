@@ -1,6 +1,8 @@
 .vscode/**
 src/**
+notebook-src/**
 out/**
+notebook-out/**
 tsconfig.json
 extension.webpack.config.js
 extension-browser.webpack.config.js
