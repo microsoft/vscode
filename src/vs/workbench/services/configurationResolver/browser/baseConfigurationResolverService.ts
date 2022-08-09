@@ -361,7 +361,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 					if (!Types.isString(info.command)) {
 						missingAttribute('command');
 					}
-					return this.commandService.executeCommand<string>(info.command, info.args).then(result => {
+					return this.userInputAccessQueue.queue(() => this.commandService.executeCommand<string>(info.command, info.args)).then(result => {
 						if (typeof result === 'string' || Types.isUndefinedOrNull(result)) {
 							return result;
 						}
