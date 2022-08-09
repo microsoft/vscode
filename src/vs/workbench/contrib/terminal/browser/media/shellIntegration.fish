@@ -20,7 +20,7 @@
 status is-interactive
 and string match --quiet "$TERM_PROGRAM" "vscode"
 and ! set --query VSCODE_SHELL_INTEGRATION
-or return
+or exit
 
 set --global VSCODE_SHELL_INTEGRATION 1
 
