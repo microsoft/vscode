@@ -217,7 +217,7 @@ export function rewriteWorkspaceFileForNewLocation(rawWorkspaceContents: string,
 	const targetConfigFolder = extUri.dirname(targetConfigPathURI);
 
 	const rewrittenFolders: IStoredWorkspaceFolder[] = [];
-	const slashForPath = useSlashForPath(storedWorkspace.folders);
+	const slashForAbsolutePath = useSlashForAbsolutePath(storedWorkspace.folders);
 
 	for (const folder of storedWorkspace.folders) {
 		const folderURI = isRawFileWorkspaceFolder(folder) ? extUri.resolvePath(sourceConfigFolder, folder.path) : URI.parse(folder.uri);
@@ -227,7 +227,7 @@ export function rewriteWorkspaceFileForNewLocation(rawWorkspaceContents: string,
 		} else {
 			absolute = !isRawFileWorkspaceFolder(folder) || isAbsolute(folder.path); // for existing workspaces, preserve whether a path was absolute or relative
 		}
-		rewrittenFolders.push(getStoredWorkspaceFolder(folderURI, absolute, folder.name, targetConfigFolder, slashForPath, extUri));
+		rewrittenFolders.push(getStoredWorkspaceFolder(folderURI, absolute, folder.name, targetConfigFolder, slashForAbsolutePath, extUri));
 	}
 
 	// Preserve as much of the existing workspace as possible by using jsonEdit
@@ -259,7 +259,7 @@ function doParseStoredWorkspace(path: URI, contents: string): IStoredWorkspace {
 	return storedWorkspace;
 }
 
-export function useSlashForPath(storedFolders: IStoredWorkspaceFolder[]): boolean {
+export function useSlashForAbsolutePath(storedFolders: IStoredWorkspaceFolder[]): boolean {
 	if (!isWindows) {
 		return true; // Linux/macOS always use slash
 	}
