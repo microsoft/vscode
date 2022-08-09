@@ -94,7 +94,7 @@ const enum VSCodeOscPt {
 	 *
 	 * The command line can escape ascii characters using the `\xAB` format, where AB are the
 	 * hexadecimal representation of the character code (case insensitive), and escape the `\`
-	 * character using `\\`. It's recommended to escape semi-colon (`0x3b`) and charcaters 0x20 and
+	 * character using `\\`. It's required to escape semi-colon (`0x3b`) and characters 0x20 and
 	 * below, this is particularly important for new line and semi-colon.
 	 *
 	 * Some examples:
