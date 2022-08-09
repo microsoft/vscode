@@ -1,8 +1,10 @@
-# ----------------------------------------------------------------------------
-#   Visual Studio Code terminal integration for fish
+# ---------------------------------------------------------------------------------------------
 #   Copyright (c) Microsoft Corporation. All rights reserved.
 #   Licensed under the MIT License. See License.txt in the project root for license information.
-# ----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------
+#
+# Visual Studio Code terminal integration for fish
+#
 # Manual installation:
 #
 #   (1) Add the following to the end of `$__fish_config_dir/config.fish`:
@@ -11,10 +13,6 @@
 #         and . (code --locate-shell-integration-path fish)
 #
 #   (2) Restart fish.
-# ----------------------------------------------------------------------------
-# TODO: Confirm all escape sequences once they are finalized.
-# See microsoft/vscode#155639 and microsoft/vscode#139400 for discussion.
-# ----------------------------------------------------------------------------
 
 # Don't run in scripts, other terminals, or more than once per session.
 status is-interactive
