@@ -33,7 +33,18 @@ end
 # Marks the beginning of command output.
 function __vsc_cmd_executed --on-event fish_preexec
 	__vsc_esc C
-	__vsc_esc E "$argv"
+	__vsc_esc E (__vsc_escape_cmd "$argv")
+end
+
+
+# Escapes backslashes, newlines, and semicolons to serialize the command line.
+function __vsc_escape_cmd
+	set -l commandline "$argv"
+	# `string replace` automatically breaks its input apart on any newlines.
+	# Then `string join` at the end will bring it all back together.
+	string replace --all '\\' '\\\\' $commandline \
+		| string replace --all ';' '\x3b' \
+		| string join '\x0a'
 end
 
 # Sent right after an interactive command has finished executing.
