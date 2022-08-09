@@ -102,7 +102,7 @@ class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 
 const emptyCodeActionsResponse = { actions: [] as CodeActionItem[], documentation: undefined };
 
-export function getCodeActions(
+export async function getCodeActions(
 	registry: LanguageFeatureRegistry<languages.CodeActionProvider>,
 	model: ITextModel,
 	rangeOrSelection: Range | Selection,
@@ -155,15 +155,15 @@ export function getCodeActions(
 		}
 	});
 
-	return Promise.all(promises).then(actions => {
+	try {
+		const actions = await Promise.all(promises);
 		const allActions = actions.map(x => x.actions).flat();
 		const allDocumentation = coalesce(actions.map(x => x.documentation));
 		return new ManagedCodeActionSet(allActions, allDocumentation, disposables);
-	})
-		.finally(() => {
-			listener.dispose();
-			cts.dispose();
-		});
+	} finally {
+		listener.dispose();
+		cts.dispose();
+	}
 }
 
 function getCodeActionProviders(
