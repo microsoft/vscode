@@ -11,6 +11,7 @@ import { registerPasteSupport } from './languageFeatures/copyPaste';
 import { registerDiagnosticSupport } from './languageFeatures/diagnostics';
 import { registerDropIntoEditorSupport } from './languageFeatures/dropIntoEditor';
 import { registerFindFileReferenceSupport } from './languageFeatures/fileReferences';
+import { registerUpdatePathsOnRename } from './languageFeatures/updatePathsOnRename';
 import { ILogger } from './logging';
 import { MarkdownItEngine, MdParsingProvider } from './markdownEngine';
 import { MarkdownContributionProvider } from './markdownExtensions';
@@ -62,6 +63,7 @@ function registerMarkdownLanguageFeatures(
 		registerDropIntoEditorSupport(selector),
 		registerFindFileReferenceSupport(commandManager, client),
 		registerPasteSupport(selector),
+		registerUpdatePathsOnRename(client),
 	);
 }
 

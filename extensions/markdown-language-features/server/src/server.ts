@@ -203,6 +203,15 @@ export async function startServer(connection: Connection) {
 		return undefined;
 	}));
 
+	connection.onRequest(protocol.getEditForFileRenames, (async (params, token: CancellationToken) => {
+		try {
+			return await provider!.getRenameFilesInWorkspaceEdit(params.map(x => ({ oldUri: URI.parse(x.oldUri), newUri: URI.parse(x.newUri) })), token);
+		} catch (e) {
+			console.error(e.stack);
+		}
+		return undefined;
+	}));
+
 	documents.listen(connection);
 	notebooks.listen(connection);
 	connection.listen();
