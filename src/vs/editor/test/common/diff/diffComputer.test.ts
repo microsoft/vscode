@@ -527,9 +527,7 @@ suite('Editor Diff - DiffComputer', () => {
 		const original = [''];
 		const modified = ['something'];
 		const expected = [
-			createLineChange(1, 1, 1, 1, [
-				createCharChange(0, 0, 0, 0, 0, 0, 0, 0)
-			])
+			createLineChange(1, 1, 1, 1, undefined)
 		];
 		assertDiff(original, modified, expected, true, false, true);
 	});
@@ -538,9 +536,7 @@ suite('Editor Diff - DiffComputer', () => {
 		const original = [''];
 		const modified = ['something', 'something else'];
 		const expected = [
-			createLineChange(1, 1, 1, 2, [
-				createCharChange(0, 0, 0, 0, 0, 0, 0, 0)
-			])
+			createLineChange(1, 1, 1, 2, undefined)
 		];
 		assertDiff(original, modified, expected, true, false, true);
 	});
@@ -549,9 +545,7 @@ suite('Editor Diff - DiffComputer', () => {
 		const original = ['something', 'something else'];
 		const modified = [''];
 		const expected = [
-			createLineChange(1, 2, 1, 1, [
-				createCharChange(0, 0, 0, 0, 0, 0, 0, 0)
-			])
+			createLineChange(1, 2, 1, 1, undefined)
 		];
 		assertDiff(original, modified, expected, true, false, true);
 	});
@@ -560,9 +554,7 @@ suite('Editor Diff - DiffComputer', () => {
 		const original = ['something'];
 		const modified = [''];
 		const expected = [
-			createLineChange(1, 1, 1, 1, [
-				createCharChange(0, 0, 0, 0, 0, 0, 0, 0)
-			])
+			createLineChange(1, 1, 1, 1, undefined)
 		];
 		assertDiff(original, modified, expected, true, false, true);
 	});
