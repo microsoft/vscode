@@ -60,16 +60,6 @@ function __vsc_fish_cmd_start
 	__vsc_esc B
 end
 
-# Sent at the start of the right-side prompt, if any.
-function __vsc_fish_right_prompt_start
-	__vsc_esc H
-end
-
-# Sent at the end of the right-side prompt, if any.
-function __vsc_fish_right_prompt_end
-	__vsc_esc I
-end
-
 # Preserve the user's existing prompt, and wrap it in our escape sequences.
 functions --copy fish_prompt __vsc_fish_prompt
 
@@ -77,15 +67,4 @@ function fish_prompt
 	__vsc_fish_prompt_start
 	__vsc_fish_prompt
 	__vsc_fish_cmd_start
-end
-
-# Likewise for the right-side prompt, if it exists.
-if functions --query fish_right_prompt
-	functions --copy fish_right_prompt __vsc_fish_right_prompt
-
-	function fish_right_prompt
-		__vsc_fish_right_prompt_start
-		__vsc_fish_right_prompt
-		__vsc_fish_right_prompt_end
-	end
 end
