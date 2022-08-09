@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
+import { isUNC, toSlashes } from 'vs/base/common/extpath';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import * as path from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
@@ -126,13 +127,16 @@ flakySuite('WorkspacesManagementMainService', () => {
 		return pfs.Promises.rm(testDir);
 	});
 
-	function assertPathEquals(p1: string, p2: string): void {
+	function assertPathEquals(pathInWorkspaceFile: string, pathOnDisk: string): void {
 		if (isWindows) {
-			p1 = normalizeDriveLetter(p1);
-			p2 = normalizeDriveLetter(p2);
+			pathInWorkspaceFile = normalizeDriveLetter(pathInWorkspaceFile);
+			pathOnDisk = normalizeDriveLetter(pathOnDisk);
+			if (!isUNC(pathOnDisk)) {
+				pathOnDisk = toSlashes(pathOnDisk); // workspace file is using slashes for all paths except where mandatory
+			}
 		}
 
-		assert.strictEqual(p1, p2);
+		assert.strictEqual(pathInWorkspaceFile, pathOnDisk);
 	}
 
 	function assertEqualURI(u1: URI, u2: URI): void {
