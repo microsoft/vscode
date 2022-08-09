@@ -110,8 +110,14 @@ async function webviewPreloads(ctx: PreloadContext) {
 					handleBlobUrlClick(node.href, node.download);
 				} else if (node.href.startsWith('data:')) {
 					handleDataUrl(node.href, node.download);
-				} else if (node.hash && node.getAttribute('href') === node.hash) {
+				} else if (node.getAttribute('href')?.trim().startsWith('#')) {
 					// Scrolling to location within current doc
+
+					if (!node.hash) {
+						postNotebookMessage<webviewMessages.IScrollToRevealMessage>('scroll-to-reveal', { scrollTop: 0 });
+						return;
+					}
+
 					const targetId = node.hash.substring(1);
 
 					// Check outer document first
@@ -1158,11 +1164,14 @@ async function webviewPreloads(ctx: PreloadContext) {
 				focusFirstFocusableInCell(event.data.cellId);
 				break;
 			case 'decorations': {
+				console.log(event);
 				let outputContainer = document.getElementById(event.data.cellId);
+				console.log(outputContainer);
 				if (!outputContainer) {
 					viewModel.ensureOutputCell(event.data.cellId, -100000, true);
 					outputContainer = document.getElementById(event.data.cellId);
 				}
+				console.log(outputContainer);
 				outputContainer?.classList.add(...event.data.addedClassNames);
 				outputContainer?.classList.remove(...event.data.removedClassNames);
 				break;
@@ -1668,6 +1677,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		private _content: { readonly value: string; readonly version: number; readonly metadata: NotebookCellMetadata };
 
 		constructor(id: string, mime: string, content: string, top: number, metadata: NotebookCellMetadata) {
+			const self = this;
 			this.id = id;
 			this._content = { value: content, version: 0, metadata: metadata };
 
@@ -1679,8 +1689,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 				id,
 				mime,
 
-				metadata: (): NotebookCellMetadata => {
-					return this._content.metadata;
+				get metadata(): NotebookCellMetadata {
+					return self._content.metadata;
 				},
 
 				text: (): string => {

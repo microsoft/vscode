@@ -59,8 +59,7 @@ __vsc_update_cwd() {
 
 __vsc_command_output_start() {
 	builtin printf "\033]633;C\007"
-	# Send command line, escaping printf format chars %
-	builtin printf "\033]633;E;$(echo $__vsc_current_command | sed s/%/%%/g)\007"
+	builtin printf "\033]633;E;%s\007" "$__vsc_current_command"
 }
 
 __vsc_continuation_start() {
@@ -125,7 +124,14 @@ if [[ -n "${bash_preexec_imported:-}" ]]; then
 	precmd_functions+=(__vsc_prompt_cmd)
 	preexec_functions+=(__vsc_preexec_only)
 else
-	__vsc_dbg_trap="$(trap -p DEBUG | cut -d' ' -f3 | tr -d \')"
+	__vsc_dbg_trap="$(trap -p DEBUG)"
+	if [[ "$__vsc_db_trap" =~ .*\[\[.* ]]; then
+		#HACK - is there a better way to do this?
+		__vsc_dbg_trap=${__vsc_dbg_trap#'trap -- '*}
+		__vsc_dbg_trap=${__vsc_dbg_trap%'DEBUG'}
+	else
+		__vsc_dbg_trap="$(trap -p DEBUG | cut -d' ' -f3 | tr -d \')"
+	fi
 	if [[ -z "$__vsc_dbg_trap" ]]; then
 		__vsc_preexec_only() {
 			if [ "$__vsc_in_command_execution" = "0" ]; then

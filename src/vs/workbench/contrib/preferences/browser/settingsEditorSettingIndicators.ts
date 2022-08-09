@@ -135,7 +135,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		this.scopeOverridesElement.innerText = '';
 		this.scopeOverridesElement.style.display = 'none';
 		const profileFeatureEnabled = this.configurationService.getValue<boolean>('workbench.experimental.settingsProfiles.enabled');
-		if (profileFeatureEnabled && element.matchesScope(ConfigurationTarget.APPLICATION, false)) {
+		if (profileFeatureEnabled && !element.setting.isLanguageTagSetting && element.matchesScope(ConfigurationTarget.APPLICATION, false)) {
 			// If the setting is an application-scoped setting, there are no overrides so we can use this
 			// indicator to display that information instead.
 			this.scopeOverridesElement.style.display = 'inline';

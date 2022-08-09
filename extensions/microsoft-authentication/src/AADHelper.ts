@@ -184,6 +184,9 @@ export class AzureActiveDirectoryService {
 		if (!modifiedScopes.includes('profile')) {
 			modifiedScopes.push('profile');
 		}
+		if (!modifiedScopes.includes('offline_access')) {
+			modifiedScopes.push('offline_access');
+		}
 		modifiedScopes = modifiedScopes.sort();
 
 		let modifiedScopesStr = modifiedScopes.join(' ');

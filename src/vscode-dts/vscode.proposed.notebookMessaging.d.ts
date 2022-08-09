@@ -18,7 +18,7 @@ declare module 'vscode' {
 		 * against the `dependencies` and `optionalDependencies` arrays in the
 		 * notebook renderer contribution point.
 		 */
-		provides: string[];
+		provides: readonly string[];
 
 		/**
 		 * URI of the JavaScript module to preload.
@@ -31,7 +31,7 @@ declare module 'vscode' {
 		 * @param uri URI of the JavaScript module to preload
 		 * @param provides Value for the `provides` property
 		 */
-		constructor(uri: Uri, provides?: string | string[]);
+		constructor(uri: Uri, provides?: string | readonly string[]);
 	}
 
 	export interface NotebookController {
@@ -43,7 +43,7 @@ declare module 'vscode' {
 		 * An event that fires when a {@link NotebookController.rendererScripts renderer script} has send a message to
 		 * the controller.
 		 */
-		readonly onDidReceiveMessage: Event<{ editor: NotebookEditor; message: any }>;
+		readonly onDidReceiveMessage: Event<{ readonly editor: NotebookEditor; readonly message: any }>;
 
 		/**
 		 * Send a message to the renderer of notebook editors.

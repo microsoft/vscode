@@ -77,7 +77,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			throw new Error('Please sign in to store your edit session.');
 		}
 
-		return this.storeClient!.write('editSessions', JSON.stringify(editSession), null, createSyncHeaders(generateUuid()));
+		return this.storeClient!.writeResource('editSessions', JSON.stringify(editSession), null, createSyncHeaders(generateUuid()));
 	}
 
 	/**
@@ -96,9 +96,9 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		const headers = createSyncHeaders(generateUuid());
 		try {
 			if (ref !== undefined) {
-				content = await this.storeClient?.resolveContent('editSessions', ref, headers);
+				content = await this.storeClient?.resolveResourceContent('editSessions', ref, headers);
 			} else {
-				const result = await this.storeClient?.read('editSessions', null, headers);
+				const result = await this.storeClient?.readResource('editSessions', null, headers);
 				content = result?.content;
 				ref = result?.ref;
 			}
@@ -117,7 +117,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		}
 
 		try {
-			await this.storeClient?.delete('editSessions', ref);
+			await this.storeClient?.deleteResource('editSessions', ref);
 		} catch (ex) {
 			this.logService.error(ex);
 		}
@@ -130,7 +130,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		}
 
 		try {
-			return this.storeClient?.getAllRefs('editSessions') ?? [];
+			return this.storeClient?.getAllResourceRefs('editSessions') ?? [];
 		} catch (ex) {
 			this.logService.error(ex);
 		}
@@ -400,7 +400,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 				});
 				if (result.confirmed) {
 					if (result.checkboxChecked) {
-						that.storeClient?.delete('editSessions', null);
+						that.storeClient?.deleteResource('editSessions', null);
 					}
 					that.clearAuthenticationPreference();
 				}
