@@ -109,6 +109,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 			// Set a fake detected command starting as line 0 to establish the cwd
 			commandDetection.setCommands([{
 				command: '',
+				rawCommandLine: '',
 				cwd: '/initial/cwd',
 				timestamp: 0,
 				getOutput() { return undefined; },
@@ -187,6 +188,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				// Set a fake detected command starting as line 0 to establish the cwd
 				commandDetection.setCommands([{
 					command: '',
+					rawCommandLine: '',
 					cwd,
 					timestamp: 0,
 					getOutput() { return undefined; },
@@ -259,6 +261,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				commandDetection.setCommands([{
 					command: '',
 					cwd,
+					rawCommandLine: '',
 					timestamp: 0,
 					getOutput() { return undefined; },
 					marker: {
