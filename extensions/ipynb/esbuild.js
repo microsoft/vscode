@@ -18,7 +18,7 @@ if (outputRootIndex >= 0) {
 	outputRoot = args[outputRootIndex + 1];
 }
 
-const srcDir = path.join(__dirname, 'src');
+const srcDir = path.join(__dirname, 'notebook-src');
 const outDir = path.join(outputRoot, 'notebook-out');
 
 async function build() {
