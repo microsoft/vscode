@@ -190,6 +190,7 @@ export interface IPartialCommandDetectionCapability {
 
 export interface ITerminalCommand {
 	command: string;
+	rawCommandLine: string;
 	timestamp: number;
 	cwd?: string;
 	exitCode?: number;

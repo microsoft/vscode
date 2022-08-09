@@ -36,6 +36,7 @@ export interface ICurrentPartialCommand {
 	continuations?: { marker: IMarker; end: number }[];
 
 	command?: string;
+	rawCommandLine?: string;
 
 	/**
 	 * Something invalidated the command before it finished, this will prevent the onCommandFinished
@@ -395,6 +396,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		if (y === commandExecutedLine) {
 			this._currentCommand.command += this._terminal.buffer.active.getLine(commandExecutedLine)?.translateToString(true, undefined, this._currentCommand.commandExecutedX) || '';
 		}
+		this._currentCommand.rawCommandLine = this._currentCommand.command;
 	}
 
 	private _handleCommandExecutedWindows(): void {
@@ -450,6 +452,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			const endMarker = this._currentCommand.commandFinishedMarker;
 			const newCommand: ITerminalCommand = {
 				command: this._handleCommandStartOptions?.ignoreCommandLine ? '' : (command || ''),
+				rawCommandLine: this._handleCommandStartOptions?.ignoreCommandLine ? '' : (this._currentCommand.rawCommandLine || ''),
 				marker: this._currentCommand.commandStartMarker,
 				endMarker,
 				executedMarker,
@@ -523,6 +526,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				endLine: e.endMarker?.line,
 				executedLine: e.executedMarker?.line,
 				command: this.__isCommandStorageDisabled ? '' : e.command,
+				rawCommandLine: this.__isCommandStorageDisabled ? '' : e.rawCommandLine,
 				cwd: e.cwd,
 				exitCode: e.exitCode,
 				commandStartLineContent: e.commandStartLineContent,
@@ -572,6 +576,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			const executedMarker = e.executedLine !== undefined ? this._terminal.registerMarker(e.executedLine - (buffer.baseY + buffer.cursorY)) : undefined;
 			const newCommand = {
 				command: this.__isCommandStorageDisabled ? '' : e.command,
+				rawCommandLine: this.__isCommandStorageDisabled ? '' : e.command,
 				marker,
 				endMarker,
 				executedMarker,
