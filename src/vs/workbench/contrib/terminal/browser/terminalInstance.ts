@@ -716,7 +716,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (e.copyAsHtml) {
 				this.copySelection(true, e.command);
 			} else {
-				this.sendText(e.command.rawCommandLine, true);
+				this.sendText(e.command.command, true);
 			}
 		});
 		// Write initial text, deferring onLineFeed listener when applicable to avoid firing
@@ -875,7 +875,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				for (const entry of commands) {
 					// Trim off any whitespace and/or line endings, replace new lines with the
 					// Downwards Arrow with Corner Leftwards symbol
-					const label = entry.rawCommandLine.trim();
+					const label = entry.command.trim();
 					if (label.length === 0 || commandMap.has(label)) {
 						continue;
 					}
