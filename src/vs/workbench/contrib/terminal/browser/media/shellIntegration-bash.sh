@@ -37,6 +37,11 @@ if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 	builtin return
 fi
 
+# Send the IsWindows property if the environment looks like Windows
+if [[ "$(uname -s)" =~ ^CYGWIN*|MINGW*|MSYS* ]]; then
+	builtin printf "\x1b]633;P;IsWindows=True\x07"
+fi
+
 __vsc_initialized=0
 __vsc_original_PS1="$PS1"
 __vsc_original_PS2="$PS2"
