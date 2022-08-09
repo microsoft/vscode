@@ -8,11 +8,11 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { transaction } from 'vs/base/common/observable';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Range } from 'vs/editor/common/core/range';
+import { linesDiffComputers } from 'vs/editor/common/diff/linesDiffComputers';
 import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
-import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
 import { createModelServices, createTextModel } from 'vs/editor/test/common/testTextModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EditorWorkerServiceDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
+import { MergeDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
 
 suite('merge editor model', () => {
@@ -268,21 +268,22 @@ class MergeModelInterface extends Disposable {
 			'',
 			'',
 			resultTextModel,
-			{
-				async computeDiff(textModel1, textModel2) {
-					const result = EditorSimpleWorker.computeDiff(textModel1, textModel2, false, 10000);
-					if (!result) {
-						return { diffs: null };
-					}
-					return {
-						diffs: EditorWorkerServiceDiffComputer.fromDiffComputationResult(
-							result,
-							textModel1,
-							textModel2
-						),
-					};
-				},
-			}, {
+			instantiationService.createInstance(MergeDiffComputer,
+				{
+					// Don't go through the webworker to improve unit test performance & reduce dependencies
+					async computeDiff(textModel1, textModel2) {
+						const result = linesDiffComputers.smart.computeDiff(
+							textModel1.getLinesContent(),
+							textModel2.getLinesContent(),
+							{ ignoreTrimWhitespace: false, maxComputationTime: 10000 }
+						);
+						return {
+							changes: result.changes,
+							quitEarly: result.quitEarly,
+							identical: result.changes.length === 0
+						};
+					},
+				}), {
 			resetUnknownOnInitialization: false
 		}
 		));

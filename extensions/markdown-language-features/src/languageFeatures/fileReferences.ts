@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import { BaseLanguageClient } from 'vscode-languageclient';
+import type * as lsp from 'vscode-languageserver-types';
 import * as nls from 'vscode-nls';
 import { Command, CommandManager } from '../commandManager';
 import { getReferencesToFileInWorkspace } from '../protocol';
@@ -35,7 +36,7 @@ export class FindFileReferencesCommand implements Command {
 			title: localize('progress.title', "Finding file references")
 		}, async (_progress, token) => {
 			const locations = (await this.client.sendRequest(getReferencesToFileInWorkspace, { uri: resource!.toString() }, token)).map(loc => {
-				return new vscode.Location(vscode.Uri.parse(loc.uri), new vscode.Range(loc.range.start.line, loc.range.start.character, loc.range.end.line, loc.range.end.character));
+				return new vscode.Location(vscode.Uri.parse(loc.uri), convertRange(loc.range));
 			});
 
 			const config = vscode.workspace.getConfiguration('references');
@@ -49,6 +50,10 @@ export class FindFileReferencesCommand implements Command {
 			}
 		});
 	}
+}
+
+export function convertRange(range: lsp.Range): vscode.Range {
+	return new vscode.Range(range.start.line, range.start.character, range.end.line, range.end.character);
 }
 
 export function registerFindFileReferenceSupport(

@@ -5,6 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
+import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
@@ -32,6 +33,20 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 	MergeEditorInput.ID,
 	MergeEditorSerializer
 );
+
+Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+	properties: {
+		'mergeEditor.diffAlgorithm': {
+			type: 'string',
+			enum: ['smart', 'experimental'],
+			default: 'smart',
+			markdownEnumDescriptions: [
+				localize('diffAlgorithm.smart', "Uses the default diffing algorithm."),
+				localize('diffAlgorithm.experimental', "Uses an experimental diffing algorithm."),
+			]
+		},
+	}
+});
 
 registerAction2(OpenResultResource);
 registerAction2(SetMixedLayout);

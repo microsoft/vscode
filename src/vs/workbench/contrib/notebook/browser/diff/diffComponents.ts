@@ -94,7 +94,8 @@ export const fixedDiffEditorOptions: IDiffEditorConstructionOptions = {
 	renderIndicators: true,
 	readOnly: false,
 	isInEmbeddedEditor: true,
-	renderOverviewRuler: false
+	renderOverviewRuler: false,
+	diffAlgorithm: 'smart',
 };
 
 class PropertyHeader extends Disposable {

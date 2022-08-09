@@ -5,9 +5,53 @@
 
 import { CharCode } from 'vs/base/common/charCode';
 import { IDiffChange, ISequence, LcsDiff, IDiffResult } from 'vs/base/common/diff/diff';
+import { ILinesDiffComputer, ILinesDiff, ILinesDiffComputerOptions, LineRange, RangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import * as strings from 'vs/base/common/strings';
+import { Range } from 'vs/editor/common/core/range';
 
 const MINIMUM_MATCHING_CHARACTER_LENGTH = 3;
+
+export class SmartLinesDiffComputer implements ILinesDiffComputer {
+	computeDiff(originalLines: string[], modifiedLines: string[], options: ILinesDiffComputerOptions): ILinesDiff {
+		const diffComputer = new DiffComputer(originalLines, modifiedLines, {
+			maxComputationTime: options.maxComputationTime,
+			shouldIgnoreTrimWhitespace: options.ignoreTrimWhitespace,
+			shouldComputeCharChanges: true,
+			shouldMakePrettyDiff: true,
+			shouldPostProcessCharChanges: true,
+		});
+		const result = diffComputer.computeDiff();
+		return {
+			quitEarly: result.quitEarly,
+			changes: result.changes.map(c => {
+				let originalRange: LineRange;
+				if (c.originalEndLineNumber === 0) {
+					// Insertion
+					originalRange = new LineRange(c.originalStartLineNumber + 1, c.originalStartLineNumber + 1);
+				} else {
+					originalRange = new LineRange(c.originalStartLineNumber, c.originalEndLineNumber + 1);
+				}
+
+				let modifiedRange: LineRange;
+				if (c.modifiedEndLineNumber === 0) {
+					// Deletion
+					modifiedRange = new LineRange(c.modifiedStartLineNumber + 1, c.modifiedStartLineNumber + 1);
+				} else {
+					modifiedRange = new LineRange(c.modifiedStartLineNumber, c.modifiedEndLineNumber + 1);
+				}
+
+				return {
+					originalRange,
+					modifiedRange,
+					innerChanges: c.charChanges?.map(c => new RangeMapping(
+						new Range(c.originalStartLineNumber, c.originalStartColumn, c.originalEndLineNumber, c.originalEndColumn),
+						new Range(c.modifiedStartLineNumber, c.modifiedStartColumn, c.modifiedEndLineNumber, c.modifiedEndColumn),
+					))
+				};
+			})
+		};
+	}
+}
 
 export interface IDiffComputationResult {
 	quitEarly: boolean;
@@ -395,16 +439,7 @@ export class DiffComputer {
 					originalEndLineNumber: 1,
 					modifiedStartLineNumber: 1,
 					modifiedEndLineNumber: this.modified.lines.length,
-					charChanges: [{
-						modifiedEndColumn: 0,
-						modifiedEndLineNumber: 0,
-						modifiedStartColumn: 0,
-						modifiedStartLineNumber: 0,
-						originalEndColumn: 0,
-						originalEndLineNumber: 0,
-						originalStartColumn: 0,
-						originalStartLineNumber: 0
-					}]
+					charChanges: undefined
 				}]
 			};
 		}
@@ -418,16 +453,7 @@ export class DiffComputer {
 					originalEndLineNumber: this.original.lines.length,
 					modifiedStartLineNumber: 1,
 					modifiedEndLineNumber: 1,
-					charChanges: [{
-						modifiedEndColumn: 0,
-						modifiedEndLineNumber: 0,
-						modifiedStartColumn: 0,
-						modifiedStartLineNumber: 0,
-						originalEndColumn: 0,
-						originalEndLineNumber: 0,
-						originalStartColumn: 0,
-						originalStartLineNumber: 0
-					}]
+					charChanges: undefined
 				}]
 			};
 		}
