@@ -133,8 +133,8 @@ export class StickyLineCandidateProvider extends Disposable {
 
 class StickyOutlineElement {
 	public static fromOutlineModel(outlineModel: OutlineModel | OutlineElement | OutlineGroup): StickyOutlineElement {
-		const children = [...outlineModel.children].map(entry =>
-			StickyOutlineElement.fromOutlineModel(entry[1])
+		const children = [...outlineModel.children.values()].map(child =>
+			StickyOutlineElement.fromOutlineModel(child)
 		);
 		children.sort((child1, child2) => {
 			if (!child1.range || !child2.range) {
