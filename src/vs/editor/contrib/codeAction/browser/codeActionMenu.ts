@@ -293,12 +293,11 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		this.pointerBlock.style.top = '0';
 		this.pointerBlock.style.width = '100%';
 		this.pointerBlock.style.height = '100%';
-		this.pointerBlock.style.zIndex = '10';
+		this.pointerBlock.style.zIndex = '2';
 
-
-
-		renderDisposables.add(dom.addDisposableListener(this.pointerBlock, dom.EventType.MOUSE_MOVE, e => e.stopPropagation()));
-
+		// Removes block on click INSIDE widget or ANY mouse movement
+		renderDisposables.add(dom.addDisposableListener(this.pointerBlock, dom.EventType.POINTER_MOVE, () => this.pointerBlock?.remove()));
+		renderDisposables.add(dom.addDisposableListener(this.pointerBlock, dom.EventType.MOUSE_DOWN, () => this.pointerBlock?.remove()));
 
 		renderDisposables.add(this.codeActionList.value.onMouseClick(e => this._onListClick(e)));
 		renderDisposables.add(this.codeActionList.value.onMouseOver(e => this._onListHover(e)));
