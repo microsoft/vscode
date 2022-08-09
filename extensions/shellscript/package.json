@@ -19,6 +19,7 @@
           "Shell Script",
           "shellscript",
           "bash",
+          "fish",
           "sh",
           "zsh",
           "ksh",
@@ -45,6 +46,7 @@
           ".zlogout",
           ".zshenv",
           ".zsh-theme",
+          ".fish",
           ".ksh",
           ".csh",
           ".cshrc",
@@ -65,7 +67,7 @@
           "bashrc_Apple_Terminal",
           "zshrc_Apple_Terminal"
         ],
-        "firstLine": "^#!.*\\b(bash|zsh|sh|ksh|dtksh|pdksh|mksh|ash|dash|yash|sh|csh|jcsh|tcsh|itcsh).*|^#\\s*-\\*-[^*]*mode:\\s*shell-script[^*]*-\\*-",
+        "firstLine": "^#!.*\\b(bash|fish|zsh|sh|ksh|dtksh|pdksh|mksh|ash|dash|yash|sh|csh|jcsh|tcsh|itcsh).*|^#\\s*-\\*-[^*]*mode:\\s*shell-script[^*]*-\\*-",
         "configuration": "./language-configuration.json",
         "mimetypes": [
           "text/x-shellscript"
