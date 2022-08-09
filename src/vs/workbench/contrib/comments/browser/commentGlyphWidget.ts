@@ -12,7 +12,7 @@ import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
 
-const overviewRulerDefault = new Color(new RGBA(197, 197, 197, 1));
+const overviewRulerDefault = new Color(new RGBA(65, 70, 80, 1));
 
 export const overviewRulerCommentingRangeForeground = registerColor('editorGutter.commentRangeForeground', { dark: overviewRulerDefault, light: overviewRulerDefault, hcDark: overviewRulerDefault, hcLight: overviewRulerDefault }, nls.localize('editorGutterCommentRangeForeground', 'Editor gutter decoration color for commenting ranges.'));
 
