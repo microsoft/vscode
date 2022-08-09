@@ -115,9 +115,9 @@ export class Application {
 	}
 
 	private async checkWindowReady(code: Code): Promise<void> {
-		await measureAndLog(code.didFinishLoad(), 'Application#checkWindowReady: wait for navigation to be committed', this.logger);
 
 		// We need a rendered workbench
+		await measureAndLog(code.didFinishLoad(), 'Application#checkWindowReady: wait for navigation to be committed', this.logger);
 		await measureAndLog(code.waitForElement('.monaco-workbench'), 'Application#checkWindowReady: wait for .monaco-workbench element', this.logger);
 
 		// Remote but not web: wait for a remote connection state change

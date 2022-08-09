@@ -78,17 +78,17 @@ export class PlaywrightDriver {
 	}
 
 	async didFinishLoad(): Promise<void> {
+
+		// Web: via `load` state
 		if (this.options.web) {
-			await this.page.waitForLoadState('load');
-		} else {
-			const p = new Promise<void>((f) => {
-				// https://playwright.dev/docs/api/class-electronapplication#electron-application-event-window
-				(this.application as playwright.ElectronApplication).on('window', () => {
-					f();
-				});
-			});
-			await p;
+			return this.page.waitForLoadState('load');
 		}
+
+		// Desktop: via `window` event
+		return new Promise<void>(resolve => {
+			// https://playwright.dev/docs/api/class-electronapplication#electron-application-event-window
+			(this.application as playwright.ElectronApplication).on('window', () => resolve());
+		});
 	}
 
 	private async takeScreenshot(name: string): Promise<void> {

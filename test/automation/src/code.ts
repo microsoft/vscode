@@ -136,7 +136,7 @@ export class Code {
 	}
 
 	async didFinishLoad(): Promise<void> {
-		return await this.driver.didFinishLoad();
+		return this.driver.didFinishLoad();
 	}
 
 	async exit(): Promise<void> {
