@@ -335,7 +335,6 @@ export class FileMatch extends Disposable implements IFileMatch {
 				.map(context => ({ ...context, lineNumber: context.lineNumber + 1 })));
 
 		this._onChange.fire({ forceUpdateModel: modelChange });
-
 		this.updateHighlights();
 	}
 
@@ -387,12 +386,6 @@ export class FileMatch extends Disposable implements IFileMatch {
 		return this.replaceQ = this.replaceQ.finally(async () => {
 			await this.replaceService.replace(toReplace);
 			this.updatesMatchesForLineAfterReplace(toReplace.range().startLineNumber, false);
-		});
-	}
-
-	replaceGroup(toReplace: Match[]) {
-		toReplace.forEach((match) => {
-			this.replace(match);
 		});
 	}
 
@@ -583,12 +576,12 @@ export class FolderMatch extends Disposable {
 	}
 
 	remove(matches: FileMatch | FileMatch[]): void {
-		this.doRemove(matches, true, true);
+		this.doRemove(matches);
 	}
 
 	replace(match: FileMatch): Promise<any> {
 		return this.replaceService.replace([match]).then(() => {
-			this.doRemove(match, true, true);
+			this.doRemove(match);
 		});
 	}
 
@@ -770,26 +763,7 @@ export class SearchResult extends Disposable {
 	private _onChange = this._register(new Emitter<IChangeEvent>());
 	readonly onChange: Event<IChangeEvent> = this._onChange.event;
 	private _onRefreshSearchResult = this._register(new PauseableEmitter<IChangeEvent>({
-		merge: (events: IChangeEvent[]) => {
-			const retEvent: IChangeEvent = {
-				elements: [],
-				added: false,
-				removed: false,
-			};
-			events.forEach((e) => {
-				if (e.added) {
-					retEvent.added = true;
-				}
-
-				if (e.removed) {
-					retEvent.removed = true;
-				}
-
-				retEvent.elements = retEvent.elements.concat(e.elements);
-			});
-
-			return retEvent;
-		}
+		merge: this.mergeEvents
 	}));
 	readonly onRefreshSearchResult: Event<IChangeEvent> = this._onRefreshSearchResult.event;
 	private _folderMatches: FolderMatchWithResource[] = [];
@@ -884,6 +858,26 @@ export class SearchResult extends Disposable {
 		this._query = query;
 	}
 
+	private mergeEvents(events: IChangeEvent[]): IChangeEvent {
+		const retEvent: IChangeEvent = {
+			elements: [],
+			added: false,
+			removed: false,
+		};
+		events.forEach((e) => {
+			if (e.added) {
+				retEvent.added = true;
+			}
+
+			if (e.removed) {
+				retEvent.removed = true;
+			}
+
+			retEvent.elements = retEvent.elements.concat(e.elements);
+		});
+
+		return retEvent;
+	}
 	private onModelAdded(model: ITextModel): void {
 		const folderMatch = this._folderMatchesMap.findSubstr(model.uri);
 		folderMatch?.bindModel(model);
@@ -961,10 +955,6 @@ export class SearchResult extends Disposable {
 
 	replace(match: FileMatch): Promise<any> {
 		return this.getFolderMatch(match.resource).replace(match);
-	}
-
-	replaceGroup(folderMatches: FolderMatch[]) {
-		folderMatches.forEach((folderMatch) => folderMatch.replaceAll());
 	}
 
 	replaceAll(progress: IProgress<IProgressStep>): Promise<any> {
