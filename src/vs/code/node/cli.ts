@@ -72,7 +72,7 @@ export async function main(argv: string[]): Promise<any> {
 			// Usage: `[[ "$TERM_PROGRAM" == "vscode" ]] && . "$(code --locate-shell-integration-path zsh)"`
 			case 'zsh': file = 'shellIntegration-rc.zsh'; break;
 			// Usage: `string match -q "$TERM_PROGRAM" "vscode"; and . (code --locate-shell-integration-path fish)`
-			case 'fish': file = 'shellIntegration-fish.fish'; break;
+			case 'fish': file = 'shellIntegration.fish'; break;
 			default: throw new Error('Error using --locate-shell-integration-path: Invalid shell type');
 		}
 		console.log(join(dirname(FileAccess.asFileUri('', require)).fsPath, 'out', 'vs', 'workbench', 'contrib', 'terminal', 'browser', 'media', file));
