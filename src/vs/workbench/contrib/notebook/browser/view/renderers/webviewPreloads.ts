@@ -6,7 +6,7 @@
 import type { Event } from 'vs/base/common/event';
 import type { IDisposable } from 'vs/base/common/lifecycle';
 import type * as webviewMessages from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewMessages';
-import { NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import type { NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import type * as rendererApi from 'vscode-notebook-renderer';
 
 // !! IMPORTANT !! ----------------------------------------------------------------------------------
@@ -68,7 +68,7 @@ interface PreloadContext {
 	readonly nonce: string;
 	readonly style: PreloadStyles;
 	readonly options: PreloadOptions;
-	readonly rendererData: readonly RendererMetadata[];
+	readonly rendererData: readonly webviewMessages.RendererMetadata[];
 	readonly isWorkspaceTrusted: boolean;
 	readonly lineLimit: number;
 }
@@ -1160,6 +1160,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 				}
 				break;
 			}
+			case 'updateRenderers': {
+				const { rendererData } = event.data;
+				renderers.updateRendererData(rendererData);
+				break;
+			}
 			case 'focus-output':
 				focusFirstFocusableInCell(event.data.cellId);
 				break;
@@ -1242,7 +1247,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	class Renderer {
 		constructor(
-			public readonly data: RendererMetadata,
+			public readonly data: webviewMessages.RendererMetadata,
 			private readonly loadExtension: (id: string) => Promise<void>,
 		) { }
 
@@ -1401,6 +1406,50 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		public getRenderer(id: string) {
 			return this._renderers.get(id);
+		}
+
+		private rendererEqual(a: webviewMessages.RendererMetadata, b: webviewMessages.RendererMetadata) {
+			if (a.entrypoint !== b.entrypoint || a.id !== b.id || a.extends !== b.extends || a.messaging !== b.messaging) {
+				return false;
+			}
+
+			if (a.mimeTypes.length !== b.mimeTypes.length) {
+				return false;
+			}
+
+			for (let i = 0; i < a.mimeTypes.length; i++) {
+				if (a.mimeTypes[i] !== b.mimeTypes[i]) {
+					return false;
+				}
+			}
+
+			return true;
+		}
+
+		public updateRendererData(rendererData: readonly webviewMessages.RendererMetadata[]) {
+			const oldKeys = new Set(this._renderers.keys());
+			const newKeys = new Set(rendererData.map(d => d.id));
+
+			for (const renderer of rendererData) {
+				const existing = this._renderers.get(renderer.id);
+				if (existing && this.rendererEqual(existing.data, renderer)) {
+					continue;
+				}
+
+				this._renderers.set(renderer.id, new Renderer(renderer, async (extensionId) => {
+					const ext = this._renderers.get(extensionId);
+					if (!ext) {
+						throw new Error(`Could not find extending renderer: ${extensionId}`);
+					}
+					await ext.load();
+				}));
+			}
+
+			for (const key of oldKeys) {
+				if (!newKeys.has(key)) {
+					this._renderers.delete(key);
+				}
+			}
 		}
 
 		public async load(id: string) {
@@ -2205,16 +2254,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	}();
 }
 
-export interface RendererMetadata {
-	readonly id: string;
-	readonly entrypoint: string;
-	readonly mimeTypes: readonly string[];
-	readonly extends: string | undefined;
-	readonly messaging: boolean;
-	readonly isBuiltin: boolean;
-}
-
-export function preloadsScriptStr(styleValues: PreloadStyles, options: PreloadOptions, renderers: readonly RendererMetadata[], isWorkspaceTrusted: boolean, lineLimit: number, nonce: string) {
+export function preloadsScriptStr(styleValues: PreloadStyles, options: PreloadOptions, renderers: readonly webviewMessages.RendererMetadata[], isWorkspaceTrusted: boolean, lineLimit: number, nonce: string) {
 	const ctx: PreloadContext = {
 		style: styleValues,
 		options,
