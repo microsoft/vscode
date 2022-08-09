@@ -14,6 +14,9 @@
     "onLanguage:html",
     "onLanguage:handlebars"
   ],
+  "enabledApiProposals": [
+    "extensionsAny"
+  ],
   "main": "./client/out/node/htmlClientMain",
   "browser": "./client/dist/browser/htmlClientMain",
   "capabilities": {
@@ -257,7 +260,7 @@
   "dependencies": {
     "@vscode/extension-telemetry": "0.5.1",
     "vscode-languageclient": "^8.0.2-next.4",
-    "vscode-nls": "^5.0.1",
+    "vscode-nls": "^5.1.0",
     "vscode-uri": "^3.0.3"
   },
   "devDependencies": {

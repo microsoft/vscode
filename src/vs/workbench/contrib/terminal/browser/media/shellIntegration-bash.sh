@@ -33,12 +33,6 @@ if [ "$VSCODE_INJECTION" == "1" ]; then
 	builtin unset VSCODE_INJECTION
 fi
 
-# Disable shell integration if PROMPT_COMMAND is 2+ function calls since that is not handled.
-if [[ "$PROMPT_COMMAND" =~ .*(' '.*\;)|(\;.*' ').* ]]; then
-	builtin unset VSCODE_SHELL_INTEGRATION
-	builtin return
-fi
-
 if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 	builtin return
 fi
@@ -65,7 +59,7 @@ __vsc_update_cwd() {
 
 __vsc_command_output_start() {
 	builtin printf "\033]633;C\007"
-	builtin printf "\033]633;E;$__vsc_current_command\007"
+	builtin printf "\033]633;E;%s\007" "$__vsc_current_command"
 }
 
 __vsc_continuation_start() {
@@ -130,7 +124,14 @@ if [[ -n "${bash_preexec_imported:-}" ]]; then
 	precmd_functions+=(__vsc_prompt_cmd)
 	preexec_functions+=(__vsc_preexec_only)
 else
-	__vsc_dbg_trap="$(trap -p DEBUG | cut -d' ' -f3 | tr -d \')"
+	__vsc_dbg_trap="$(trap -p DEBUG)"
+	if [[ "$__vsc_db_trap" =~ .*\[\[.* ]]; then
+		#HACK - is there a better way to do this?
+		__vsc_dbg_trap=${__vsc_dbg_trap#'trap -- '*}
+		__vsc_dbg_trap=${__vsc_dbg_trap%'DEBUG'}
+	else
+		__vsc_dbg_trap="$(trap -p DEBUG | cut -d' ' -f3 | tr -d \')"
+	fi
 	if [[ -z "$__vsc_dbg_trap" ]]; then
 		__vsc_preexec_only() {
 			if [ "$__vsc_in_command_execution" = "0" ]; then
@@ -155,25 +156,16 @@ __vsc_update_prompt
 
 __vsc_prompt_cmd_original() {
 	__vsc_status="$?"
-	if [[ ${IFS+set} ]]; then
-		__vsc_original_ifs="$IFS"
-	fi
-	if [[ "$__vsc_original_prompt_command" =~ .+\;.+ ]]; then
-		IFS=';'
+	# Evaluate the original PROMPT_COMMAND similarly to how bash would normally
+	# See https://unix.stackexchange.com/a/672843 for technique
+	if [[ ${#__vsc_original_prompt_command[@]} -gt 1 ]]; then
+		for cmd in "${__vsc_original_prompt_command[@]}"; do
+			__vsc_status="$?"
+			eval "${cmd:-}"
+		done
 	else
-		IFS=' '
+		eval "${__vsc_original_prompt_command:-}"
 	fi
-	builtin read -ra ADDR <<<"$__vsc_original_prompt_command"
-	if [[ ${__vsc_original_ifs+set} ]]; then
-		IFS="$__vsc_original_ifs"
-		unset __vsc_original_ifs
-	else
-		unset IFS
-	fi
-	for ((i = 0; i < ${#ADDR[@]}; i++)); do
-		(exit ${__vsc_status})
-		builtin eval ${ADDR[i]}
-	done
 	__vsc_precmd
 }
 
@@ -182,13 +174,9 @@ __vsc_prompt_cmd() {
 	__vsc_precmd
 }
 
-if [[ "$PROMPT_COMMAND" =~ (.+\;.+) ]]; then
-	# item1;item2...
-	__vsc_original_prompt_command="$PROMPT_COMMAND"
-else
-	# (item1, item2...)
-	__vsc_original_prompt_command=${PROMPT_COMMAND[@]}
-fi
+# PROMPT_COMMAND arrays and strings seem to be handled the same (handling only the first entry of
+# the array?)
+__vsc_original_prompt_command=$PROMPT_COMMAND
 
 if [[ -z "${bash_preexec_imported:-}" ]]; then
 	if [[ -n "$__vsc_original_prompt_command" && "$__vsc_original_prompt_command" != "__vsc_prompt_cmd" ]]; then

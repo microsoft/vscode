@@ -7,13 +7,16 @@ import 'vs/platform/update/common/update.config.contribution';
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions, CATEGORIES } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor, MenuRegistry, MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { ShowCurrentReleaseNotesAction, ProductContribution, UpdateContribution, CheckForVSCodeUpdateAction, CONTEXT_UPDATE_STATE, SwitchProductQualityContribution } from 'vs/workbench/contrib/update/browser/update';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import product from 'vs/platform/product/common/product';
 import { IUpdateService, StateType } from 'vs/platform/update/common/update';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { isWindows } from 'vs/base/common/platform';
+import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { mnemonicButtonLabel } from 'vs/base/common/labels';
 
 const workbench = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 
@@ -92,4 +95,38 @@ if (ShowCurrentReleaseNotesAction.AVAILABE) {
 		},
 		order: 5
 	});
+}
+
+if (isWindows) {
+	class DeveloperApplyUpdateAction extends Action2 {
+		constructor() {
+			super({
+				id: '_update.applyupdate',
+				title: { value: localize('applyUpdate', "Apply Update..."), original: 'Apply Update...' },
+				category: CATEGORIES.Developer,
+				f1: true,
+				precondition: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle)
+			});
+		}
+
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const updateService = accessor.get(IUpdateService);
+			const fileDialogService = accessor.get(IFileDialogService);
+
+			const updatePath = await fileDialogService.showOpenDialog({
+				title: localize('pickUpdate', "Apply Update"),
+				filters: [{ name: 'Setup', extensions: ['exe'] }],
+				canSelectFiles: true,
+				openLabel: mnemonicButtonLabel(localize({ key: 'updateButton', comment: ['&& denotes a mnemonic'] }, "&&Update"))
+			});
+
+			if (!updatePath || !updatePath[0]) {
+				return;
+			}
+
+			await updateService._applySpecificUpdate(updatePath[0].fsPath);
+		}
+	}
+
+	registerAction2(DeveloperApplyUpdateAction);
 }

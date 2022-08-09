@@ -24,6 +24,7 @@ export const folderSettingsSchemaId = 'vscode://schemas/settings/folder';
 export const launchSchemaId = 'vscode://schemas/launch';
 export const tasksSchemaId = 'vscode://schemas/tasks';
 
+export const APPLICATION_SCOPES = [ConfigurationScope.APPLICATION];
 export const PROFILE_SCOPES = [ConfigurationScope.MACHINE, ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE, ConfigurationScope.LANGUAGE_OVERRIDABLE];
 export const LOCAL_MACHINE_PROFILE_SCOPES = [ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE, ConfigurationScope.LANGUAGE_OVERRIDABLE];
 export const LOCAL_MACHINE_SCOPES = [ConfigurationScope.APPLICATION, ...LOCAL_MACHINE_PROFILE_SCOPES];
@@ -53,6 +54,7 @@ export interface IConfigurationCache {
 
 export type RestrictedSettings = {
 	default: ReadonlyArray<string>;
+	application?: ReadonlyArray<string>;
 	userLocal?: ReadonlyArray<string>;
 	userRemote?: ReadonlyArray<string>;
 	workspace?: ReadonlyArray<string>;
@@ -62,7 +64,7 @@ export type RestrictedSettings = {
 export const IWorkbenchConfigurationService = refineServiceDecorator<IConfigurationService, IWorkbenchConfigurationService>(IConfigurationService);
 export interface IWorkbenchConfigurationService extends IConfigurationService {
 	/**
-	 * Restricted settings defined in each configuraiton target
+	 * Restricted settings defined in each configuration target
 	 */
 	readonly restrictedSettings: RestrictedSettings;
 

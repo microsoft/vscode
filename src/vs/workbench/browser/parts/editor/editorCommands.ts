@@ -951,8 +951,14 @@ function registerCloseEditorCommands() {
 			if (!editor) {
 				return;
 			}
+			const untypedEditor = editor.toUntyped();
 
-			const resolvedEditor = await editorResolverService.resolveEditor({ editor, options: { ...editorService.activeEditorPane?.options, override: EditorResolution.PICK } }, group);
+			// Resolver can only resolve untyped editors
+			if (!untypedEditor) {
+				return;
+			}
+			untypedEditor.options = { ...editorService.activeEditorPane?.options, override: EditorResolution.PICK };
+			const resolvedEditor = await editorResolverService.resolveEditor(untypedEditor, group);
 			if (!isEditorInputWithOptionsAndGroup(resolvedEditor)) {
 				return;
 			}
@@ -970,10 +976,10 @@ function registerCloseEditorCommands() {
 			type WorkbenchEditorReopenClassification = {
 				owner: 'rebornix';
 				comment: 'Identify how a document is reopened';
-				scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-				ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-				from: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-				to: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+				scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File system provider scheme for the resource' };
+				ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File extension for the resource' };
+				from: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The editor view type the resource is switched from' };
+				to: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The editor view type the resource is switched to' };
 			};
 
 			type WorkbenchEditorReopenEvent = {
@@ -1035,9 +1041,7 @@ function registerFocusEditorGroupWihoutWrapCommands(): void {
 			const editorGroupService = accessor.get(IEditorGroupsService);
 
 			const group = editorGroupService.findGroup({ direction: command.direction }, editorGroupService.activeGroup, false);
-			if (group) {
-				group.focus();
-			}
+			group?.focus();
 		});
 	}
 }

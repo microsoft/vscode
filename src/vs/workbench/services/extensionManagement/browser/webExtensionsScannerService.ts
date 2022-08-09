@@ -76,6 +76,7 @@ interface IWebExtension {
 	// deprecated in favor of packageNLSUris & fallbackPackageNLSUri
 	packageNLSUri?: URI;
 	packageNLSUris?: Map<string, URI>;
+	bundleNLSUris?: Map<string, URI>;
 	fallbackPackageNLSUri?: URI;
 	metadata?: Metadata;
 }
@@ -331,7 +332,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 				const missingExtensions = extensions.filter(({ id }) => !galleryExtensionsMap.has(id.toLowerCase()));
 				if (missingExtensions.length) {
-					this.logService.info('Skipping the additional builtin extensions because their compatible versions are not foud.', missingExtensions);
+					this.logService.info('Skipping the additional builtin extensions because their compatible versions are not found.', missingExtensions);
 				}
 
 				const webExtensions: IWebExtension[] = [];
@@ -444,7 +445,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	}
 
 	async addExtension(location: URI, metadata: Metadata, profileLocation?: URI): Promise<IScannedExtension> {
-		const webExtension = await this.toWebExtension(location, undefined, undefined, undefined, undefined, undefined, metadata);
+		const webExtension = await this.toWebExtension(location, undefined, undefined, undefined, undefined, undefined, undefined, metadata);
 		return this.addWebExtension(webExtension, profileLocation);
 	}
 
@@ -546,7 +547,8 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		}
 		extensionLocation = galleryExtension.properties.targetPlatform === TargetPlatform.WEB ? extensionLocation.with({ query: `${extensionLocation.query ? `${extensionLocation.query}&` : ''}target=${galleryExtension.properties.targetPlatform}` }) : extensionLocation;
 		const extensionResources = await this.listExtensionResources(extensionLocation);
-		const packageNLSResources = this.getNLSResourceMapFromResources(extensionResources);
+		const packageNLSResources = this.getPackageNLSResourceMapFromResources(extensionResources);
+		const bundleNLSResources = this.getBundleNLSResourceMapFromResources(extensionResources);
 
 		// The fallback, in English, will fill in any gaps missing in the localized file.
 		const fallbackPackageNLSResource = extensionResources.find(e => basename(e) === 'package.nls.json');
@@ -554,13 +556,14 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			extensionLocation,
 			galleryExtension.identifier,
 			packageNLSResources,
+			bundleNLSResources,
 			fallbackPackageNLSResource ? URI.parse(fallbackPackageNLSResource) : null,
 			galleryExtension.assets.readme ? URI.parse(galleryExtension.assets.readme.uri) : undefined,
 			galleryExtension.assets.changelog ? URI.parse(galleryExtension.assets.changelog.uri) : undefined,
 			metadata);
 	}
 
-	private getNLSResourceMapFromResources(extensionResources: string[]): Map<string, URI> {
+	private getPackageNLSResourceMapFromResources(extensionResources: string[]): Map<string, URI> {
 		const packageNLSResources = new Map<string, URI>();
 		extensionResources.forEach(e => {
 			// Grab all package.nls.{language}.json files
@@ -572,7 +575,22 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return packageNLSResources;
 	}
 
-	private async toWebExtension(extensionLocation: URI, identifier?: IExtensionIdentifier, packageNLSUris?: Map<string, URI>, fallbackPackageNLSUri?: URI | null, readmeUri?: URI, changelogUri?: URI, metadata?: Metadata): Promise<IWebExtension> {
+	private getBundleNLSResourceMapFromResources(extensionResources: string[]): Map<string, URI> {
+		const bundleNLSResources = new Map<string, URI>();
+		extensionResources.forEach(e => {
+			// Grab all nls.bundle.{language}.json files
+			const regexResult = /nls\.bundle\.([\w-]+)\.json/.exec(basename(e));
+			if (regexResult?.[1]) {
+				bundleNLSResources.set(regexResult[1], URI.parse(e));
+			}
+			if (basename(e) === 'nls.metadata.json') {
+				bundleNLSResources.set('en', URI.parse(e));
+			}
+		});
+		return bundleNLSResources;
+	}
+
+	private async toWebExtension(extensionLocation: URI, identifier?: IExtensionIdentifier, packageNLSUris?: Map<string, URI>, bundleNLSUris?: Map<string, URI>, fallbackPackageNLSUri?: URI | null, readmeUri?: URI, changelogUri?: URI, metadata?: Metadata): Promise<IWebExtension> {
 		let packageJSONContent;
 		try {
 			packageJSONContent = await this.extensionResourceLoaderService.readExtensionResource(joinPath(extensionLocation, 'package.json'));
@@ -598,6 +616,21 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			}
 		}
 
+		if (bundleNLSUris === undefined) {
+			const englishStringsUri = joinPath(
+				this.uriIdentityService.extUri.dirname(joinPath(extensionLocation, manifest.browser)),
+				'nls.metadata.json'
+			);
+
+			try {
+				await this.extensionResourceLoaderService.readExtensionResource(englishStringsUri);
+				bundleNLSUris = new Map();
+				bundleNLSUris.set('en', englishStringsUri);
+			} catch (error) {
+				// noop if file doesn't exist
+			}
+		}
+
 		return {
 			identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name), uuid: identifier?.uuid },
 			version: manifest.version,
@@ -605,6 +638,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			readmeUri,
 			changelogUri,
 			packageNLSUris,
+			bundleNLSUris,
 			fallbackPackageNLSUri: fallbackPackageNLSUri ? fallbackPackageNLSUri : undefined,
 			metadata,
 		};
@@ -661,12 +695,20 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			}
 		}
 
+		const browserNlsBundleUris: { [language: string]: URI } = {};
+		if (webExtension.bundleNLSUris) {
+			for (const [language, uri] of webExtension.bundleNLSUris) {
+				browserNlsBundleUris[language] = uri;
+			}
+		}
+
 		return {
 			identifier: { id: webExtension.identifier.id, uuid: webExtension.identifier.uuid || uuid },
 			location: webExtension.location,
 			manifest,
 			type,
 			isBuiltin,
+			browserNlsBundleUris,
 			readmeUrl: webExtension.readmeUri,
 			changelogUrl: webExtension.changelogUri,
 			metadata: webExtension.metadata,
@@ -708,7 +750,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 						if (!e.packageNLSUris && e.packageNLSUri) {
 							e.fallbackPackageNLSUri = e.packageNLSUri;
 							const extensionResources = await this.listExtensionResources(e.location);
-							e.packageNLSUris = this.getNLSResourceMapFromResources(extensionResources);
+							e.packageNLSUris = this.getPackageNLSResourceMapFromResources(extensionResources);
 							e.packageNLSUri = undefined;
 						}
 						return e;

@@ -67,6 +67,7 @@ import { flatten } from 'vs/base/common/arrays';
 import { fromNow } from 'vs/base/common/date';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
+import { ILocaleService } from 'vs/workbench/contrib/localization/common/locale';
 
 export class PromptExtensionInstallFailureAction extends Action {
 
@@ -566,6 +567,8 @@ export abstract class InstallInOtherServerAction extends ExtensionAction {
 		id: string,
 		private readonly server: IExtensionManagementServer | null,
 		private readonly canInstallAnyWhere: boolean,
+		@IFileService private readonly fileService: IFileService,
+		@ILogService private readonly logService: ILogService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionManagementServerService protected readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
@@ -666,7 +669,15 @@ export abstract class InstallInOtherServerAction extends ExtensionAction {
 			throw new Error(localize('incompatible', "Can't install '{0}' extension because it is not compatible.", this.extension.identifier.id));
 		}
 		const vsix = await this.extension.server.extensionManagementService.zip(this.extension.local);
-		await this.server.extensionManagementService.install(vsix);
+		try {
+			await this.server.extensionManagementService.install(vsix);
+		} finally {
+			try {
+				await this.fileService.del(vsix);
+			} catch (error) {
+				this.logService.error(error);
+			}
+		}
 	}
 
 	protected abstract getInstallLabel(): string;
@@ -676,12 +687,14 @@ export class RemoteInstallAction extends InstallInOtherServerAction {
 
 	constructor(
 		canInstallAnyWhere: boolean,
+		@IFileService fileService: IFileService,
+		@ILogService logService: ILogService,
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
 	) {
-		super(`extensions.remoteinstall`, extensionManagementServerService.remoteExtensionManagementServer, canInstallAnyWhere, extensionsWorkbenchService, extensionManagementServerService, extensionManifestPropertiesService, extensionGalleryService);
+		super(`extensions.remoteinstall`, extensionManagementServerService.remoteExtensionManagementServer, canInstallAnyWhere, fileService, logService, extensionsWorkbenchService, extensionManagementServerService, extensionManifestPropertiesService, extensionGalleryService);
 	}
 
 	protected getInstallLabel(): string {
@@ -695,12 +708,14 @@ export class RemoteInstallAction extends InstallInOtherServerAction {
 export class LocalInstallAction extends InstallInOtherServerAction {
 
 	constructor(
+		@IFileService fileService: IFileService,
+		@ILogService logService: ILogService,
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
 	) {
-		super(`extensions.localinstall`, extensionManagementServerService.localExtensionManagementServer, false, extensionsWorkbenchService, extensionManagementServerService, extensionManifestPropertiesService, extensionGalleryService);
+		super(`extensions.localinstall`, extensionManagementServerService.localExtensionManagementServer, false, fileService, logService, extensionsWorkbenchService, extensionManagementServerService, extensionManifestPropertiesService, extensionGalleryService);
 	}
 
 	protected getInstallLabel(): string {
@@ -712,12 +727,14 @@ export class LocalInstallAction extends InstallInOtherServerAction {
 export class WebInstallAction extends InstallInOtherServerAction {
 
 	constructor(
+		@IFileService fileService: IFileService,
+		@ILogService logService: ILogService,
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
 	) {
-		super(`extensions.webInstall`, extensionManagementServerService.webExtensionManagementServer, false, extensionsWorkbenchService, extensionManagementServerService, extensionManifestPropertiesService, extensionGalleryService);
+		super(`extensions.webInstall`, extensionManagementServerService.webExtensionManagementServer, false, fileService, logService, extensionsWorkbenchService, extensionManagementServerService, extensionManifestPropertiesService, extensionGalleryService);
 	}
 
 	protected getInstallLabel(): string {
@@ -981,6 +998,8 @@ export class DropDownMenuActionViewItem extends ActionViewItem {
 
 async function getContextMenuActionsGroups(extension: IExtension | undefined | null, contextKeyService: IContextKeyService, instantiationService: IInstantiationService): Promise<[string, Array<MenuItemAction | SubmenuItemAction>][]> {
 	return instantiationService.invokeFunction(async accessor => {
+		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+		const languagePackService = accessor.get(ILanguagePackService);
 		const menuService = accessor.get(IMenuService);
 		const extensionRecommendationsService = accessor.get(IExtensionRecommendationsService);
 		const extensionIgnoredRecommendationsService = accessor.get(IExtensionIgnoredRecommendationsService);
@@ -1006,6 +1025,9 @@ async function getContextMenuActionsGroups(extension: IExtension | undefined | n
 			cksOverlay.push(['extensionHasColorThemes', colorThemes.some(theme => isThemeFromExtension(theme, extension))]);
 			cksOverlay.push(['extensionHasFileIconThemes', fileIconThemes.some(theme => isThemeFromExtension(theme, extension))]);
 			cksOverlay.push(['extensionHasProductIconThemes', productIconThemes.some(theme => isThemeFromExtension(theme, extension))]);
+
+			cksOverlay.push(['canSetLanguage', extensionsWorkbenchService.canSetLanguage(extension)]);
+			cksOverlay.push(['isActiveLanguagePackExtension', extension.gallery && language === languagePackService.getLocale(extension.gallery)]);
 		}
 
 		const menu = menuService.createMenu(MenuId.ExtensionContext, contextKeyService.createOverlay(cksOverlay));
@@ -1791,10 +1813,10 @@ export class SetProductIconThemeAction extends ExtensionAction {
 
 export class SetLanguageAction extends ExtensionAction {
 
-	static readonly ID = 'workbench.extensions.action.setLanguageTheme';
-	static readonly TITLE = { value: localize('workbench.extensions.action.setLanguageTheme', "Set Display Language"), original: 'Set Display Language' };
+	static readonly ID = 'workbench.extensions.action.setDisplayLanguage';
+	static readonly TITLE = { value: localize('workbench.extensions.action.setDisplayLanguage', "Set Display Language"), original: 'Set Display Language' };
 
-	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} theme`;
+	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} language`;
 	private static readonly DisabledClass = `${SetLanguageAction.EnabledClass} disabled`;
 
 	constructor(
@@ -1823,6 +1845,44 @@ export class SetLanguageAction extends ExtensionAction {
 
 	override async run(): Promise<any> {
 		return this.extension && this.extensionsWorkbenchService.setLanguage(this.extension);
+	}
+}
+
+export class ClearLanguageAction extends ExtensionAction {
+
+	static readonly ID = 'workbench.extensions.action.clearLanguage';
+	static readonly TITLE = { value: localize('workbench.extensions.action.clearLanguage', "Clear Display Language"), original: 'Clear Display Language' };
+
+	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} language`;
+	private static readonly DisabledClass = `${ClearLanguageAction.EnabledClass} disabled`;
+
+	constructor(
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@ILanguagePackService private readonly languagePackService: ILanguagePackService,
+		@ILocaleService private readonly localeService: ILocaleService,
+	) {
+		super(ClearLanguageAction.ID, ClearLanguageAction.TITLE.value, ClearLanguageAction.DisabledClass, false);
+		this.update();
+	}
+
+	update(): void {
+		this.enabled = false;
+		this.class = ClearLanguageAction.DisabledClass;
+		if (!this.extension) {
+			return;
+		}
+		if (!this.extensionsWorkbenchService.canSetLanguage(this.extension)) {
+			return;
+		}
+		if (this.extension.gallery && language !== this.languagePackService.getLocale(this.extension.gallery)) {
+			return;
+		}
+		this.enabled = true;
+		this.class = ClearLanguageAction.EnabledClass;
+	}
+
+	override async run(): Promise<any> {
+		return this.extension && this.localeService.clearLocalePreference();
 	}
 }
 
@@ -2763,7 +2823,9 @@ export class InstallLocalExtensionsInRemoteAction extends AbstractInstallExtensi
 		@INotificationService notificationService: INotificationService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IFileService private readonly fileService: IFileService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super('workbench.extensions.actions.installLocalExtensionsInRemote', extensionsWorkbenchService, quickInputService, notificationService, progressService);
 	}
@@ -2804,7 +2866,15 @@ export class InstallLocalExtensionsInRemoteAction extends AbstractInstallExtensi
 		}));
 
 		await Promises.settled(galleryExtensions.map(gallery => this.extensionManagementServerService.remoteExtensionManagementServer!.extensionManagementService.installFromGallery(gallery)));
-		await Promises.settled(vsixs.map(vsix => this.extensionManagementServerService.remoteExtensionManagementServer!.extensionManagementService.install(vsix)));
+		try {
+			await Promises.settled(vsixs.map(vsix => this.extensionManagementServerService.remoteExtensionManagementServer!.extensionManagementService.install(vsix)));
+		} finally {
+			try {
+				await Promise.allSettled(vsixs.map(vsix => this.fileService.del(vsix)));
+			} catch (error) {
+				this.logService.error(error);
+			}
+		}
 	}
 }
 
@@ -2818,6 +2888,8 @@ export class InstallRemoteExtensionsInLocalAction extends AbstractInstallExtensi
 		@INotificationService notificationService: INotificationService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
+		@IFileService private readonly fileService: IFileService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super(id, extensionsWorkbenchService, quickInputService, notificationService, progressService);
 	}
@@ -2853,7 +2925,15 @@ export class InstallRemoteExtensionsInLocalAction extends AbstractInstallExtensi
 		}));
 
 		await Promises.settled(galleryExtensions.map(gallery => this.extensionManagementServerService.localExtensionManagementServer!.extensionManagementService.installFromGallery(gallery)));
-		await Promises.settled(vsixs.map(vsix => this.extensionManagementServerService.localExtensionManagementServer!.extensionManagementService.install(vsix)));
+		try {
+			await Promises.settled(vsixs.map(vsix => this.extensionManagementServerService.localExtensionManagementServer!.extensionManagementService.install(vsix)));
+		} finally {
+			try {
+				await Promise.allSettled(vsixs.map(vsix => this.fileService.del(vsix)));
+			} catch (error) {
+				this.logService.error(error);
+			}
+		}
 	}
 }
 

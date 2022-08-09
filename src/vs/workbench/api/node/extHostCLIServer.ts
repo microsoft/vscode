@@ -18,6 +18,7 @@ export interface OpenCommandPipeArgs {
 	folderURIs?: string[];
 	forceNewWindow?: boolean;
 	diffMode?: boolean;
+	mergeMode?: boolean;
 	addMode?: boolean;
 	gotoLineMode?: boolean;
 	forceReuseWindow?: boolean;
@@ -118,7 +119,7 @@ export class CLIServerBase {
 	}
 
 	private async open(data: OpenCommandPipeArgs): Promise<string> {
-		const { fileURIs, folderURIs, forceNewWindow, diffMode, addMode, forceReuseWindow, gotoLineMode, waitMarkerFilePath, remoteAuthority } = data;
+		const { fileURIs, folderURIs, forceNewWindow, diffMode, mergeMode, addMode, forceReuseWindow, gotoLineMode, waitMarkerFilePath, remoteAuthority } = data;
 		const urisToOpen: IWindowOpenable[] = [];
 		if (Array.isArray(folderURIs)) {
 			for (const s of folderURIs) {
@@ -144,7 +145,7 @@ export class CLIServerBase {
 		}
 		const waitMarkerFileURI = waitMarkerFilePath ? URI.file(waitMarkerFilePath) : undefined;
 		const preferNewWindow = !forceReuseWindow && !waitMarkerFileURI && !addMode;
-		const windowOpenArgs: IOpenWindowOptions = { forceNewWindow, diffMode, addMode, gotoLineMode, forceReuseWindow, preferNewWindow, waitMarkerFileURI, remoteAuthority };
+		const windowOpenArgs: IOpenWindowOptions = { forceNewWindow, diffMode, mergeMode, addMode, gotoLineMode, forceReuseWindow, preferNewWindow, waitMarkerFileURI, remoteAuthority };
 		this._commands.executeCommand('_remoteCLI.windowOpen', urisToOpen, windowOpenArgs);
 
 		return '';

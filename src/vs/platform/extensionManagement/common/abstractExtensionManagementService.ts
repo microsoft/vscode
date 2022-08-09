@@ -17,7 +17,7 @@ import {
 	IExtensionsControlManifest, StatisticType, isTargetPlatformCompatible, TargetPlatformToString, ExtensionManagementErrorCode, IServerExtensionManagementService,
 	ServerInstallOptions, ServerInstallVSIXOptions, ServerUninstallOptions, Metadata, ServerInstallExtensionEvent, ServerInstallExtensionResult, ServerUninstallExtensionEvent, ServerDidUninstallExtensionEvent
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions, ExtensionKey, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { areSameExtensions, ExtensionKey, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, IExtensionManifest, isApplicationScopedExtension, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -101,7 +101,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 	async uninstall(extension: ILocalExtension, options: ServerUninstallOptions = {}): Promise<void> {
 		this.logService.trace('ExtensionManagementService#uninstall', extension.identifier.id);
-		return this.unininstallExtension(extension, options);
+		return this.uninstallExtension(extension, options);
 	}
 
 	async reinstallFromGallery(extension: ILocalExtension): Promise<void> {
@@ -364,8 +364,8 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 	}
 
 	private async checkAndGetCompatibleVersion(extension: IGalleryExtension, sameVersion: boolean, installPreRelease: boolean): Promise<{ extension: IGalleryExtension; manifest: IExtensionManifest }> {
-		const report = await this.getExtensionsControlManifest();
-		if (getMaliciousExtensionsSet(report).has(extension.identifier.id)) {
+		const extensionsControlManifest = await this.getExtensionsControlManifest();
+		if (extensionsControlManifest.malicious.some(identifier => areSameExtensions(extension.identifier, identifier))) {
 			throw new ExtensionManagementError(nls.localize('malicious extension', "Can't install '{0}' extension since it was reported to be problematic.", extension.identifier.id), ExtensionManagementErrorCode.Malicious);
 		}
 
@@ -423,8 +423,8 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		return compatibleExtension;
 	}
 
-	private async unininstallExtension(extension: ILocalExtension, options: ServerUninstallOptions): Promise<void> {
-		const getUninstallExtensionTaskKey = (identifier: IExtensionIdentifier) => `${identifier.id.toLowerCase()}${options.profileLocation ? `@${options.profileLocation.toString()}` : ''}`;
+	private async uninstallExtension(extension: ILocalExtension, options: ServerUninstallOptions): Promise<void> {
+		const getUninstallExtensionTaskKey = (identifier: IExtensionIdentifier) => `${identifier.id.toLowerCase()}${options.versionOnly ? `-${extension.manifest.version}` : ''}${options.profileLocation ? `@${options.profileLocation.toString()}` : ''}`;
 		const uninstallExtensionTask = this.uninstallingExtensions.get(getUninstallExtensionTaskKey(extension.identifier));
 		if (uninstallExtensionTask) {
 			this.logService.info('Extensions is already requested to uninstall', extension.identifier.id);

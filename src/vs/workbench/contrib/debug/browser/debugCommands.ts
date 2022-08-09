@@ -32,6 +32,7 @@ import { isWeb, isWindows } from 'vs/base/common/platform';
 import { saveAllBeforeDebugStart } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { showLoadedScriptMenu } from 'vs/workbench/contrib/debug/common/loadedScriptsPicker';
+import { showDebugSessionMenu } from 'vs/workbench/contrib/debug/browser/debugSessionPicker';
 
 export const ADD_CONFIGURATION_ID = 'debug.addConfiguration';
 export const TOGGLE_INLINE_BREAKPOINT_ID = 'editor.debug.action.toggleInlineBreakpoint';
@@ -55,6 +56,7 @@ export const JUMP_TO_CURSOR_ID = 'debug.jumpToCursor';
 export const FOCUS_SESSION_ID = 'workbench.action.debug.focusProcess';
 export const SELECT_AND_START_ID = 'workbench.action.debug.selectandstart';
 export const SELECT_DEBUG_CONSOLE_ID = 'workbench.action.debug.selectDebugConsole';
+export const SELECT_DEBUG_SESSION_ID = 'workbench.action.debug.selectDebugSession';
 export const DEBUG_CONFIGURE_COMMAND_ID = 'workbench.action.debug.configure';
 export const DEBUG_START_COMMAND_ID = 'workbench.action.debug.start';
 export const DEBUG_RUN_COMMAND_ID = 'workbench.action.debug.run';
@@ -94,6 +96,7 @@ export const CALLSTACK_UP_LABEL = { value: nls.localize('callStackUp', "Navigate
 export const CALLSTACK_DOWN_LABEL = { value: nls.localize('callStackDown', "Navigate Down Call Stack"), original: 'Navigate Down Call Stack' };
 
 export const SELECT_DEBUG_CONSOLE_LABEL = { value: nls.localize('selectDebugConsole', "Select Debug Console"), original: 'Select Debug Console' };
+export const SELECT_DEBUG_SESSION_LABEL = { value: nls.localize('selectDebugSession', "Select Debug Session"), original: 'Select Debug Session' };
 
 export const DEBUG_QUICK_ACCESS_PREFIX = 'debug ';
 export const DEBUG_CONSOLE_QUICK_ACCESS_PREFIX = 'debug consoles ';
@@ -304,27 +307,27 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: REVERSE_CONTINUE_ID,
-	handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
-		getThreadAndRun(accessor, context, thread => thread.reverseContinue());
+	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
+		await getThreadAndRun(accessor, context, thread => thread.reverseContinue());
 	}
 });
 
 CommandsRegistry.registerCommand({
 	id: STEP_BACK_ID,
-	handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
+	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 		const contextKeyService = accessor.get(IContextKeyService);
 		if (CONTEXT_DISASSEMBLY_VIEW_FOCUS.getValue(contextKeyService)) {
-			getThreadAndRun(accessor, context, (thread: IThread) => thread.stepBack('instruction'));
+			await getThreadAndRun(accessor, context, (thread: IThread) => thread.stepBack('instruction'));
 		} else {
-			getThreadAndRun(accessor, context, (thread: IThread) => thread.stepBack());
+			await getThreadAndRun(accessor, context, (thread: IThread) => thread.stepBack());
 		}
 	}
 });
 
 CommandsRegistry.registerCommand({
 	id: TERMINATE_THREAD_ID,
-	handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
-		getThreadAndRun(accessor, context, thread => thread.terminate());
+	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
+		await getThreadAndRun(accessor, context, thread => thread.terminate());
 	}
 });
 
@@ -467,12 +470,12 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: isWeb ? (KeyMod.Alt | KeyCode.F10) : KeyCode.F10, // Browsers do not allow F10 to be binded so we have to bind an alternative
 	when: CONTEXT_DEBUG_STATE.isEqualTo('stopped'),
-	handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
+	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 		const contextKeyService = accessor.get(IContextKeyService);
 		if (CONTEXT_DISASSEMBLY_VIEW_FOCUS.getValue(contextKeyService)) {
-			getThreadAndRun(accessor, context, (thread: IThread) => thread.next('instruction'));
+			await getThreadAndRun(accessor, context, (thread: IThread) => thread.next('instruction'));
 		} else {
-			getThreadAndRun(accessor, context, (thread: IThread) => thread.next());
+			await getThreadAndRun(accessor, context, (thread: IThread) => thread.next());
 		}
 	}
 });
@@ -486,12 +489,12 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: STEP_INTO_KEYBINDING,
 	// Use a more flexible when clause to not allow full screen command to take over when F11 pressed a lot of times
 	when: CONTEXT_DEBUG_STATE.notEqualsTo('inactive'),
-	handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
+	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 		const contextKeyService = accessor.get(IContextKeyService);
 		if (CONTEXT_DISASSEMBLY_VIEW_FOCUS.getValue(contextKeyService)) {
-			getThreadAndRun(accessor, context, (thread: IThread) => thread.stepIn('instruction'));
+			await getThreadAndRun(accessor, context, (thread: IThread) => thread.stepIn('instruction'));
 		} else {
-			getThreadAndRun(accessor, context, (thread: IThread) => thread.stepIn());
+			await getThreadAndRun(accessor, context, (thread: IThread) => thread.stepIn());
 		}
 	}
 });
@@ -501,12 +504,12 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyMod.Shift | KeyCode.F11,
 	when: CONTEXT_DEBUG_STATE.isEqualTo('stopped'),
-	handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
+	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 		const contextKeyService = accessor.get(IContextKeyService);
 		if (CONTEXT_DISASSEMBLY_VIEW_FOCUS.getValue(contextKeyService)) {
-			getThreadAndRun(accessor, context, (thread: IThread) => thread.stepOut('instruction'));
+			await getThreadAndRun(accessor, context, (thread: IThread) => thread.stepOut('instruction'));
 		} else {
-			getThreadAndRun(accessor, context, (thread: IThread) => thread.stepOut());
+			await getThreadAndRun(accessor, context, (thread: IThread) => thread.stepOut());
 		}
 	}
 });
@@ -516,8 +519,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib + 2, // take priority over focus next part while we are debugging
 	primary: KeyCode.F6,
 	when: CONTEXT_DEBUG_STATE.isEqualTo('running'),
-	handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
-		getThreadAndRun(accessor, context, thread => thread.pause());
+	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
+		await getThreadAndRun(accessor, context, thread => thread.pause());
 	}
 });
 
@@ -649,17 +652,15 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib + 10, // Use a stronger weight to get priority over start debugging F5 shortcut
 	primary: KeyCode.F5,
 	when: CONTEXT_DEBUG_STATE.isEqualTo('stopped'),
-	handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
-		getThreadAndRun(accessor, context, thread => thread.continue());
+	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
+		await getThreadAndRun(accessor, context, thread => thread.continue());
 	}
 });
 
 CommandsRegistry.registerCommand({
 	id: SHOW_LOADED_SCRIPTS_ID,
 	handler: async (accessor) => {
-
 		await showLoadedScriptMenu(accessor);
-
 	}
 });
 
@@ -709,6 +710,13 @@ CommandsRegistry.registerCommand({
 	handler: async (accessor: ServicesAccessor) => {
 		const quickInputService = accessor.get(IQuickInputService);
 		quickInputService.quickAccess.show(DEBUG_CONSOLE_QUICK_ACCESS_PREFIX);
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: SELECT_DEBUG_SESSION_ID,
+	handler: async (accessor: ServicesAccessor) => {
+		showDebugSessionMenu(accessor, SELECT_AND_START_ID);
 	}
 });
 
@@ -917,7 +925,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 		const launch = manager.getLaunches().find(l => l.uri.toString() === launchUri) || manager.selectedConfiguration.launch;
 		if (launch) {
-			const { editor, created } = await launch.openConfigFile(false);
+			const { editor, created } = await launch.openConfigFile({ preserveFocus: false });
 			if (editor && !created) {
 				const codeEditor = <ICodeEditor>editor.getControl();
 				if (codeEditor) {

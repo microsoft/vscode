@@ -15,7 +15,7 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWo
 import { IOutputChannelRegistry, Extensions as OutputExtensions } from 'vs/workbench/services/output/common/output';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, DefaultViewsContext, ExtensionsSortByContext, WORKSPACE_RECOMMENDATIONS_VIEW_ID, IWorkspaceRecommendedExtensionsView, AutoUpdateConfigurationKey, HasOutdatedExtensionsContext, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, ExtensionEditorTab, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP } from 'vs/workbench/contrib/extensions/common/extensions';
-import { ReinstallAction, InstallSpecificVersionOfExtensionAction, ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, PromptExtensionInstallFailureAction, SearchExtensionsAction, SwitchToPreReleaseVersionAction, SwitchToReleasedVersionAction, SetColorThemeAction, SetFileIconThemeAction, SetProductIconThemeAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { ReinstallAction, InstallSpecificVersionOfExtensionAction, ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, PromptExtensionInstallFailureAction, SearchExtensionsAction, SwitchToPreReleaseVersionAction, SwitchToReleasedVersionAction, SetColorThemeAction, SetFileIconThemeAction, SetProductIconThemeAction, ClearLanguageAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { ExtensionEditor } from 'vs/workbench/contrib/extensions/browser/extensionEditor';
 import { StatusUpdater, MaliciousExtensionChecker, ExtensionsViewletViewsContribution, ExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/browser/extensionsViewlet';
@@ -61,7 +61,6 @@ import { ExtensionEnablementWorkspaceTrustTransitionParticipant } from 'vs/workb
 import { clearSearchResultsIcon, configureRecommendedIcon, extensionsViewIcon, filterIcon, installWorkspaceRecommendedIcon, refreshIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { EXTENSION_CATEGORIES } from 'vs/platform/extensions/common/extensions';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { isArray } from 'vs/base/common/types';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
@@ -111,7 +110,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(
 	{
 		id: VIEWLET_ID,
-		title: localize('extensions', "Extensions"),
+		title: { value: localize('extensions', "Extensions"), original: 'Extensions' },
 		openCommandActionDescriptor: {
 			id: VIEWLET_ID,
 			mnemonicTitle: localize({ key: 'miViewExtensions', comment: ['&& denotes a mnemonic'] }, "E&&xtensions"),
@@ -1339,6 +1338,24 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				}
 			}
 		});
+		this.registerExtensionAction({
+			id: ClearLanguageAction.ID,
+			title: ClearLanguageAction.TITLE,
+			menu: {
+				id: MenuId.ExtensionContext,
+				group: INSTALL_ACTIONS_GROUP,
+				order: 0,
+				when: ContextKeyExpr.and(ContextKeyExpr.not('inExtensionEditor'), ContextKeyExpr.has('canSetLanguage'), ContextKeyExpr.has('isActiveLanguagePackExtension'))
+			},
+			run: async (accessor: ServicesAccessor, extensionId: string) => {
+				const instantiationService = accessor.get(IInstantiationService);
+				const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+				const extension = (await extensionsWorkbenchService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
+				const action = instantiationService.createInstance(ClearLanguageAction);
+				action.extension = extension;
+				return action.run();
+			}
+		});
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.copyExtension',
@@ -1531,7 +1548,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 	}
 
 	private registerExtensionAction(extensionActionOptions: IExtensionActionOptions): IDisposable {
-		const menus = extensionActionOptions.menu ? isArray(extensionActionOptions.menu) ? extensionActionOptions.menu : [extensionActionOptions.menu] : [];
+		const menus = extensionActionOptions.menu ? Array.isArray(extensionActionOptions.menu) ? extensionActionOptions.menu : [extensionActionOptions.menu] : [];
 		let menusWithOutTitles: ({ id: MenuId } & Omit<IMenuItem, 'command'>)[] = [];
 		const menusWithTitles: { id: MenuId; item: IMenuItem }[] = [];
 		if (extensionActionOptions.menuTitles) {

@@ -409,7 +409,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'explorer.expandSingleFolderWorkspaces': {
 			'type': 'boolean',
-			'description': nls.localize('expandSingleFolderWorkspaces', "Controls whether the explorer should expand multi-root workspaces containing only one folder during initilization"),
+			'description': nls.localize('expandSingleFolderWorkspaces', "Controls whether the explorer should expand multi-root workspaces containing only one folder during initialization"),
 			'default': true
 		},
 		'explorer.sortOrder': {

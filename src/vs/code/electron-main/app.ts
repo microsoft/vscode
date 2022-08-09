@@ -75,7 +75,7 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProp
 import { ITelemetryService, machineIdKey, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { getPiiPathsFromEnvironment, getTelemetryLevel, NullTelemetryService, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import { getPiiPathsFromEnvironment, getTelemetryLevel, isInternalTelemetry, NullTelemetryService, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { UpdateChannel } from 'vs/platform/update/common/updateIpc';
 import { DarwinUpdateService } from 'vs/platform/update/electron-main/updateService.darwin';
@@ -104,6 +104,8 @@ import { PolicyChannel } from 'vs/platform/policy/common/policyIpc';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 import { IDefaultExtensionsProfileInitService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { DefaultExtensionsProfileInitHandler } from 'vs/platform/extensionManagement/electron-main/defaultExtensionsProfileInit';
+import { RequestChannel } from 'vs/platform/request/common/requestIpc';
+import { IRequestService } from 'vs/platform/request/common/request';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -678,9 +680,10 @@ export class CodeApplication extends Disposable {
 
 		// Telemetry
 		if (supportsTelemetry(this.productService, this.environmentMainService)) {
+			const isInternal = isInternalTelemetry(this.productService, this.configurationService);
 			const channel = getDelayedChannel(sharedProcessReady.then(client => client.getChannel('telemetryAppender')));
 			const appender = new TelemetryAppenderClient(channel);
-			const commonProperties = resolveCommonProperties(this.fileService, release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, this.productService.msftInternalDomains, this.environmentMainService.installSourcePath);
+			const commonProperties = resolveCommonProperties(this.fileService, release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, isInternal, this.environmentMainService.installSourcePath);
 			const piiPaths = getPiiPathsFromEnvironment(this.environmentMainService);
 			const config: ITelemetryServiceConfig = { appenders: [appender], commonProperties, piiPaths, sendErrorTelemetry: true };
 
@@ -727,6 +730,10 @@ export class CodeApplication extends Disposable {
 		const userDataProfilesService = ProxyChannel.fromService(accessor.get(IUserDataProfilesMainService));
 		mainProcessElectronServer.registerChannel('userDataProfiles', userDataProfilesService);
 		sharedProcessClient.then(client => client.registerChannel('userDataProfiles', userDataProfilesService));
+
+		// Request
+		const requestService = new RequestChannel(accessor.get(IRequestService));
+		sharedProcessClient.then(client => client.registerChannel('request', requestService));
 
 		// Update
 		const updateChannel = new UpdateChannel(accessor.get(IUpdateService));
@@ -1006,6 +1013,7 @@ export class CodeApplication extends Disposable {
 			cli: args,
 			forceNewWindow: args['new-window'] || (!hasCliArgs && args['unity-launch']),
 			diffMode: args.diff,
+			mergeMode: args.merge,
 			noRecentEntry,
 			waitMarkerFileURI,
 			gotoLineMode: args.goto,
@@ -1174,7 +1182,7 @@ export class CodeApplication extends Disposable {
 		// Initialize update service
 		const updateService = accessor.get(IUpdateService);
 		if (updateService instanceof Win32UpdateService || updateService instanceof LinuxUpdateService || updateService instanceof DarwinUpdateService) {
-			updateService.initialize();
+			await updateService.initialize();
 		}
 
 		// Start to fetch shell environment (if needed) after window has opened

@@ -26,7 +26,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { isIOS } from 'vs/base/common/platform';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { isArray, isDefined, isUndefinedOrNull } from 'vs/base/common/types';
+import { isDefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -54,7 +54,6 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IList } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { IListService, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ILogService } from 'vs/platform/log/common/log';
 import { settingsMoreActionIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
@@ -64,6 +63,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { focusedRowBackground, focusedRowBorder, rowHoverBackground, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 import { getIndicatorsLabelAriaLabel, ISettingOverrideClickEvent, SettingsTreeIndicatorsLabel } from 'vs/workbench/contrib/preferences/browser/settingsEditorSettingIndicators';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 
 const $ = DOM.$;
 
@@ -348,7 +348,7 @@ function parseNumericObjectValues(dataElement: SettingsTreeSettingElement, v: Re
 }
 
 function getListDisplayValue(element: SettingsTreeSettingElement): IListDataItem[] {
-	if (!element.value || !isArray(element.value)) {
+	if (!element.value || !Array.isArray(element.value)) {
 		return [];
 	}
 
@@ -667,6 +667,7 @@ export interface ISettingChangeEvent {
 	value: any; // undefined => reset/unconfigure
 	type: SettingValueType | SettingValueType[];
 	manualReset: boolean;
+	scope: ConfigurationScope | undefined;
 }
 
 export interface ISettingLinkClickEvent {
@@ -922,7 +923,13 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 		template.indicatorsLabel.updateScopeOverrides(element, template.elementDisposables, this._onDidClickOverrideElement);
 
-		const onChange = (value: any) => this._onDidChangeSetting.fire({ key: element.setting.key, value, type: template.context!.valueType, manualReset: false });
+		const onChange = (value: any) => this._onDidChangeSetting.fire({
+			key: element.setting.key,
+			value,
+			type: template.context!.valueType,
+			manualReset: false,
+			scope: element.setting.scope
+		});
 		const deprecationText = element.setting.deprecationMessage || '';
 		if (deprecationText && element.setting.deprecationMessageIsMarkdown) {
 			const disposables = new DisposableStore();
@@ -999,9 +1006,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	}
 
 	disposeElement(_element: ITreeNode<SettingsTreeElement>, _index: number, template: IDisposableTemplate, _height: number | undefined): void {
-		if ((template as ISettingItemTemplate).elementDisposables) {
-			(template as ISettingItemTemplate).elementDisposables.clear();
-		}
+		(template as ISettingItemTemplate).elementDisposables?.clear();
 	}
 }
 
@@ -1185,9 +1190,9 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 	private computeNewList(template: ISettingListItemTemplate, e: ISettingListChangeEvent<IListDataItem>): string[] | undefined {
 		if (template.context) {
 			let newValue: string[] = [];
-			if (isArray(template.context.scopeValue)) {
+			if (Array.isArray(template.context.scopeValue)) {
 				newValue = [...template.context.scopeValue];
-			} else if (isArray(template.context.value)) {
+			} else if (Array.isArray(template.context.value)) {
 				newValue = [...template.context.value];
 			}
 
@@ -1222,7 +1227,7 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 
 			if (
 				template.context.defaultValue &&
-				isArray(template.context.defaultValue) &&
+				Array.isArray(template.context.defaultValue) &&
 				template.context.defaultValue.length === newValue.length &&
 				template.context.defaultValue.join() === newValue.join()
 			) {
@@ -1506,7 +1511,8 @@ export class SettingExcludeRenderer extends AbstractSettingRenderer implements I
 				key: template.context.setting.key,
 				value: Object.keys(newValue).length === 0 ? undefined : sortKeys(newValue),
 				type: template.context.valueType,
-				manualReset: false
+				manualReset: false,
+				scope: template.context.setting.scope
 			});
 		}
 	}
@@ -1971,7 +1977,13 @@ export class SettingTreeRenderers {
 			new Action('settings.resetSetting', localize('resetSettingLabel', "Reset Setting"), undefined, undefined, async context => {
 				if (context instanceof SettingsTreeSettingElement) {
 					if (!context.isUntrusted) {
-						this._onDidChangeSetting.fire({ key: context.setting.key, value: undefined, type: context.setting.type as SettingValueType, manualReset: true });
+						this._onDidChangeSetting.fire({
+							key: context.setting.key,
+							value: undefined,
+							type: context.setting.type as SettingValueType,
+							manualReset: true,
+							scope: context.setting.scope
+						});
 					}
 				}
 			}),
@@ -2334,8 +2346,6 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILanguageService languageService: ILanguageService
 	) {
@@ -2355,13 +2365,13 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 				filter: instantiationService.createInstance(SettingsTreeFilter, viewState),
 				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: false,
+				findWidgetEnabled: false
 			},
+			instantiationService,
 			contextKeyService,
 			listService,
 			themeService,
 			configurationService,
-			keybindingService,
-			accessibilityService,
 		);
 
 		this.disposables.add(registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {

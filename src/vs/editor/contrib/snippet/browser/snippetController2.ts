@@ -280,16 +280,12 @@ export class SnippetController2 implements IEditorContribution {
 	}
 
 	prev(): void {
-		if (this._session) {
-			this._session.prev();
-		}
+		this._session?.prev();
 		this._updateState();
 	}
 
 	next(): void {
-		if (this._session) {
-			this._session.next();
-		}
+		this._session?.next();
 		this._updateState();
 	}
 

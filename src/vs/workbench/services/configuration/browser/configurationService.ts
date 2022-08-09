@@ -717,7 +717,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			if (e.preserveData) {
 				await Promise.all([
 					this.copyProfileSettings(e.previous.settingsResource, e.profile.settingsResource),
-					this.fileService.copy(e.previous.tasksResource, e.profile.tasksResource)
+					this.copyProfileTasks(e.previous.tasksResource, e.profile.tasksResource)
 				]);
 			}
 			const promises: Promise<ConfigurationModel>[] = [];
@@ -749,6 +749,12 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		const applicationSettings = Object.keys(allSettings).filter(key => allSettings[key]?.scope === ConfigurationScope.APPLICATION);
 		const toContent = updateIgnoredSettings(fromContent, '{}', applicationSettings, {});
 		await this.fileService.writeFile(to, VSBuffer.fromString(toContent));
+	}
+
+	private async copyProfileTasks(from: URI, to: URI): Promise<void> {
+		if (await this.fileService.exists(from)) {
+			await this.fileService.copy(from, to);
+		}
 	}
 
 	private onDefaultConfigurationChanged(configurationModel: ConfigurationModel, properties?: string[]): void {
@@ -833,6 +839,10 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		const defaultDelta = delta(defaultRestrictedSettings, this._restrictedSettings.default, (a, b) => a.localeCompare(b));
 		changed.push(...defaultDelta.added, ...defaultDelta.removed);
 
+		const application = (this.applicationConfiguration?.getRestrictedSettings() || []).sort((a, b) => a.localeCompare(b));
+		const applicationDelta = delta(application, this._restrictedSettings.application || [], (a, b) => a.localeCompare(b));
+		changed.push(...applicationDelta.added, ...applicationDelta.removed);
+
 		const userLocal = this.localUserConfiguration.getRestrictedSettings().sort((a, b) => a.localeCompare(b));
 		const userLocalDelta = delta(userLocal, this._restrictedSettings.userLocal || [], (a, b) => a.localeCompare(b));
 		changed.push(...userLocalDelta.added, ...userLocalDelta.removed);
@@ -861,6 +871,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		if (changed.length) {
 			this._restrictedSettings = {
 				default: defaultRestrictedSettings,
+				application: application.length ? application : undefined,
 				userLocal: userLocal.length ? userLocal : undefined,
 				userRemote: userRemote.length ? userRemote : undefined,
 				workspace: workspace.length ? workspace : undefined,
@@ -901,12 +912,12 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	private async onWorkspaceFolderConfigurationChanged(folder: IWorkspaceFolder): Promise<void> {
 		const [folderConfiguration] = await this.loadFolderConfigurations([folder]);
 		const previous = { data: this._configuration.toData(), workspace: this.workspace };
-		const folderConfiguraitonChange = this._configuration.compareAndUpdateFolderConfiguration(folder.uri, folderConfiguration);
+		const folderConfigurationChange = this._configuration.compareAndUpdateFolderConfiguration(folder.uri, folderConfiguration);
 		if (this.getWorkbenchState() === WorkbenchState.FOLDER) {
 			const workspaceConfigurationChange = this._configuration.compareAndUpdateWorkspaceConfiguration(folderConfiguration);
-			this.triggerConfigurationChange(mergeChanges(folderConfiguraitonChange, workspaceConfigurationChange), previous, ConfigurationTarget.WORKSPACE);
+			this.triggerConfigurationChange(mergeChanges(folderConfigurationChange, workspaceConfigurationChange), previous, ConfigurationTarget.WORKSPACE);
 		} else {
-			this.triggerConfigurationChange(folderConfiguraitonChange, previous, ConfigurationTarget.WORKSPACE_FOLDER);
+			this.triggerConfigurationChange(folderConfigurationChange, previous, ConfigurationTarget.WORKSPACE_FOLDER);
 		}
 		this.updateRestrictedSettings();
 	}

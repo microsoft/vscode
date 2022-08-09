@@ -35,11 +35,11 @@ export interface ISubmenuItem {
 	rememberDefaultAction?: boolean;	// for dropdown menu: if true the last executed action is remembered as the default action
 }
 
-export function isIMenuItem(item: IMenuItem | ISubmenuItem): item is IMenuItem {
+export function isIMenuItem(item: any): item is IMenuItem {
 	return (item as IMenuItem).command !== undefined;
 }
 
-export function isISubmenuItem(item: IMenuItem | ISubmenuItem): item is ISubmenuItem {
+export function isISubmenuItem(item: any): item is ISubmenuItem {
 	return (item as ISubmenuItem).submenu !== undefined;
 }
 
@@ -109,6 +109,7 @@ export class MenuId {
 	static readonly TestPeekTitle = new MenuId('TestPeekTitle');
 	static readonly TouchBarContext = new MenuId('TouchBarContext');
 	static readonly TitleBarContext = new MenuId('TitleBarContext');
+	static readonly TitleBarTitleContext = new MenuId('TitleBarTitleContext');
 	static readonly TunnelContext = new MenuId('TunnelContext');
 	static readonly TunnelPrivacy = new MenuId('TunnelPrivacy');
 	static readonly TunnelProtocol = new MenuId('TunnelProtocol');
@@ -127,10 +128,12 @@ export class MenuId {
 	static readonly CommentActions = new MenuId('CommentActions');
 	static readonly InteractiveToolbar = new MenuId('InteractiveToolbar');
 	static readonly InteractiveCellTitle = new MenuId('InteractiveCellTitle');
+	static readonly InteractiveCellDelete = new MenuId('InteractiveCellDelete');
 	static readonly InteractiveCellExecute = new MenuId('InteractiveCellExecute');
 	static readonly InteractiveInputExecute = new MenuId('InteractiveInputExecute');
 	static readonly NotebookToolbar = new MenuId('NotebookToolbar');
 	static readonly NotebookCellTitle = new MenuId('NotebookCellTitle');
+	static readonly NotebookCellDelete = new MenuId('NotebookCellDelete');
 	static readonly NotebookCellInsert = new MenuId('NotebookCellInsert');
 	static readonly NotebookCellBetween = new MenuId('NotebookCellBetween');
 	static readonly NotebookCellListTop = new MenuId('NotebookCellTop');
@@ -161,6 +164,8 @@ export class MenuId {
 	static readonly InlineCompletionsActions = new MenuId('InlineCompletionsActions');
 	static readonly NewFile = new MenuId('NewFile');
 	static readonly MergeToolbar = new MenuId('MergeToolbar');
+	static readonly MergeInput1Toolbar = new MenuId('MergeToolbar1Toolbar');
+	static readonly MergeInput2Toolbar = new MenuId('MergeToolbar2Toolbar');
 
 	/**
 	 * Create or reuse a `MenuId` with the given identifier
@@ -375,20 +380,10 @@ export class SubmenuItemAction extends SubmenuAction {
 	}
 }
 
-export class MenuItemActionManageActions {
-	constructor(
-		readonly hideThis: IAction,
-		readonly toggleAny: readonly IAction[][],
-	) { }
-
-	asList(): IAction[] {
-		let result: IAction[] = [this.hideThis];
-		for (const n of this.toggleAny) {
-			result.push(new Separator());
-			result = result.concat(n);
-		}
-		return result;
-	}
+export interface IMenuItemHide {
+	readonly isHidden: boolean;
+	readonly hide: IAction;
+	readonly toggle: IAction;
 }
 
 // implements IAction, does NOT extend Action, so that no one
@@ -411,7 +406,7 @@ export class MenuItemAction implements IAction {
 		item: ICommandAction,
 		alt: ICommandAction | undefined,
 		options: IMenuActionOptions | undefined,
-		readonly hideActions: MenuItemActionManageActions | undefined,
+		readonly hideActions: IMenuItemHide | undefined,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService private _commandService: ICommandService
 	) {

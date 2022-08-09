@@ -18,6 +18,8 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 class TestTerminal extends Terminal {
 	override registerDecoration(decorationOptions: IDecorationOptions): IDecoration | undefined {
@@ -37,11 +39,19 @@ suite('DecorationAddon', () => {
 		const instantiationService = new TestInstantiationService();
 		const configurationService = new TestConfigurationService({
 			workbench: {
-				hover: { delay: 5 }
+				hover: { delay: 5 },
+			},
+			terminal: {
+				integrated: {
+					shellIntegration: {
+						decorationsEnabled: 'both'
+					}
+				}
 			}
 		});
 		instantiationService.stub(IThemeService, new TestThemeService());
 		xterm = new TestTerminal({
+			allowProposedApi: true,
 			cols: 80,
 			rows: 30
 		});
@@ -49,6 +59,7 @@ suite('DecorationAddon', () => {
 		instantiationService.stub(IContextMenuService, instantiationService.createInstance(ContextMenuService));
 		const capabilities = new TerminalCapabilityStore();
 		capabilities.add(TerminalCapability.CommandDetection, new CommandDetectionCapability(xterm, new NullLogService()));
+		instantiationService.stub(ILifecycleService, new TestLifecycleService());
 		decorationAddon = instantiationService.createInstance(DecorationAddon, capabilities);
 		xterm.loadAddon(decorationAddon);
 		instantiationService.stub(ILogService, NullLogService);

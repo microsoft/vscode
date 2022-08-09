@@ -124,7 +124,7 @@ import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 
 import { TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 import { IExtensionTerminalProfile, IShellLaunchConfig, ITerminalProfile, TerminalIcon, TerminalLocation, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { ICreateTerminalOptions, IDeserializedTerminalEditorInput, ITerminalEditorService, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { assertIsDefined, isArray } from 'vs/base/common/types';
+import { assertIsDefined } from 'vs/base/common/types';
 import { IRegisterContributedProfileArgs, IShellLaunchConfigResolveOptions, ITerminalBackend, ITerminalProfileProvider, ITerminalProfileResolverService, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorResolverService } from 'vs/workbench/services/editor/browser/editorResolverService';
 import { FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
@@ -160,7 +160,7 @@ import { ExtensionIdentifier, ExtensionType, IExtension, IExtensionDescription, 
 import { ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { ILayoutOffsetInfo } from 'vs/platform/layout/browser/layoutService';
-import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfilesService, toUserDataProfile, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { EnablementState, IExtensionManagementServer, IScannedExtension, IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -1888,7 +1888,7 @@ export class TestQuickInputService implements IQuickInputService {
 	pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: true }, token?: CancellationToken): Promise<T[]>;
 	pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): Promise<T>;
 	async pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>, token?: CancellationToken): Promise<T | undefined> {
-		if (isArray(picks)) {
+		if (Array.isArray(picks)) {
 			return <any>{ label: 'selectedPick', description: 'pick description', value: 'selectedPick' };
 		} else {
 			return undefined;
@@ -2004,6 +2004,15 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	async updateExtensionScope(local: ILocalExtension, isMachineScoped: boolean): Promise<ILocalExtension> { return local; }
 	registerParticipant(pariticipant: IExtensionManagementParticipant): void { }
 	async getTargetPlatform(): Promise<TargetPlatform> { return TargetPlatform.UNDEFINED; }
+}
+
+export class TestUserDataProfileService implements IUserDataProfileService {
+
+	readonly _serviceBrand: undefined;
+	readonly onDidUpdateCurrentProfile = Event.None;
+	readonly onDidChangeCurrentProfile = Event.None;
+	readonly currentProfile = toUserDataProfile('test', URI.file('tests').with({ scheme: 'vscode-tests' }));
+	async updateCurrentProfile(): Promise<void> { }
 }
 
 export class TestWebExtensionsScannerService implements IWebExtensionsScannerService {

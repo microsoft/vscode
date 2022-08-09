@@ -617,7 +617,7 @@ class ResourceCommandResolver {
 
 		if (!resource.leftUri) {
 			const bothModified = resource.type === Status.BOTH_MODIFIED;
-			if (resource.rightUri && bothModified && workspace.getConfiguration('git').get<boolean>('mergeEditor', false)) {
+			if (resource.rightUri && workspace.getConfiguration('git').get<boolean>('mergeEditor', false) && (bothModified || resource.type === Status.BOTH_ADDED)) {
 				return {
 					command: '_git.openMergeEditor',
 					title: localize('open.merge', "Open Merge"),
@@ -914,7 +914,6 @@ export class Repository implements Disposable {
 		const root = Uri.file(repository.root);
 		this._sourceControl = scm.createSourceControl('git', 'Git', root);
 
-		this._sourceControl.acceptInputCommand = { command: 'git.commit', title: localize('commit', "Commit"), arguments: [this._sourceControl] };
 		this._sourceControl.quickDiffProvider = this;
 		this._sourceControl.inputBox.validateInput = this.validateInput.bind(this);
 		this.disposables.push(this._sourceControl);
@@ -948,9 +947,19 @@ export class Repository implements Disposable {
 			|| e.affectsConfiguration('git.untrackedChanges', root)
 			|| e.affectsConfiguration('git.ignoreSubmodules', root)
 			|| e.affectsConfiguration('git.openDiffOnClick', root)
-			|| e.affectsConfiguration('git.rebaseWhenSync', root)
 			|| e.affectsConfiguration('git.showActionButton', root)
 		)(this.updateModelState, this, this.disposables);
+
+		const updateInputBoxAcceptInputCommand = () => {
+			const config = workspace.getConfiguration('git', root);
+			const postCommitCommand = config.get<string>('postCommitCommand');
+			const postCommitCommandArg = postCommitCommand === 'push' || postCommitCommand === 'sync' ? `git.${postCommitCommand}` : '';
+			this._sourceControl.acceptInputCommand = { command: 'git.commit', title: localize('commit', "Commit"), arguments: [this._sourceControl, postCommitCommandArg] };
+		};
+
+		const onConfigListenerForPostCommitCommand = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.postCommitCommand', root));
+		onConfigListenerForPostCommitCommand(updateInputBoxAcceptInputCommand, this, this.disposables);
+		updateInputBoxAcceptInputCommand();
 
 		const updateInputBoxVisibility = () => {
 			const config = workspace.getConfiguration('git', root);
@@ -1510,13 +1519,8 @@ export class Repository implements Disposable {
 	}
 
 	@throttle
-	sync(head: Branch): Promise<void> {
-		return this._sync(head, false);
-	}
-
-	@throttle
-	async syncRebase(head: Branch): Promise<void> {
-		return this._sync(head, true);
+	sync(head: Branch, rebase: boolean): Promise<void> {
+		return this._sync(head, rebase);
 	}
 
 	private async _sync(head: Branch, rebase: boolean): Promise<void> {
@@ -1900,9 +1904,9 @@ export class Repository implements Disposable {
 			/* __GDPR__
 				"statusLimit" : {
 					"owner": "lszomoru",
-					"ignoreSubmodules": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"limit": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-					"statusLength": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+					"ignoreSubmodules": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Setting indicating whether submodules are ignored" },
+					"limit": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Setting indicating the limit of status entries" },
+					"statusLength": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of status entries" }
 				}
 			*/
 			this.telemetryReporter.sendTelemetryEvent('statusLimit', { ignoreSubmodules: String(ignoreSubmodules) }, { limit, statusLength });
@@ -2033,6 +2037,9 @@ export class Repository implements Disposable {
 
 		// set count badge
 		this.setCountBadge();
+
+		// set mergeChanges context
+		commands.executeCommand('setContext', 'git.mergeChanges', merge.map(item => item.resourceUri.toString()));
 
 		this._onDidChangeStatus.fire();
 

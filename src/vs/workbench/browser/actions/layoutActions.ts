@@ -81,7 +81,7 @@ export class ToggleActivityBarVisibilityAction extends Action2 {
 			id: ToggleActivityBarVisibilityAction.ID,
 			title: {
 				value: localize('toggleActivityBar', "Toggle Activity Bar Visibility"),
-				mnemonicTitle: localize({ key: 'miShowActivityBar', comment: ['&& denotes a mnemonic'] }, "Show &&Activity Bar"),
+				mnemonicTitle: localize({ key: 'miActivityBar', comment: ['&& denotes a mnemonic'] }, "&&Activity Bar"),
 				original: 'Toggle Activity Bar Visibility'
 			},
 			category: CATEGORIES.View,
@@ -406,7 +406,7 @@ MenuRegistry.appendMenuItems([
 			group: '2_workbench_layout',
 			command: {
 				id: ToggleSidebarVisibilityAction.ID,
-				title: localize({ key: 'miShowSidebar', comment: ['&& denotes a mnemonic'] }, "Show &&Primary Side Bar"),
+				title: localize({ key: 'miShowSidebar', comment: ['&& denotes a mnemonic'] }, "&&Primary Side Bar"),
 				toggled: SideBarVisibleContext
 			},
 			order: 1
@@ -417,7 +417,7 @@ MenuRegistry.appendMenuItems([
 			group: '0_workbench_layout',
 			command: {
 				id: ToggleSidebarVisibilityAction.ID,
-				title: localize('miShowSidebarNoMnnemonic', "Show Primary Side Bar"),
+				title: localize('miSidebarNoMnnemonic', "Primary Side Bar"),
 				toggled: SideBarVisibleContext
 			},
 			order: 0
@@ -464,7 +464,7 @@ export class ToggleStatusbarVisibilityAction extends Action2 {
 			id: ToggleStatusbarVisibilityAction.ID,
 			title: {
 				value: localize('toggleStatusbar', "Toggle Status Bar Visibility"),
-				mnemonicTitle: localize({ key: 'miShowStatusbar', comment: ['&& denotes a mnemonic'] }, "Show S&&tatus Bar"),
+				mnemonicTitle: localize({ key: 'miStatusbar', comment: ['&& denotes a mnemonic'] }, "S&&tatus Bar"),
 				original: 'Toggle Status Bar Visibility'
 			},
 			category: CATEGORIES.View,
@@ -573,7 +573,7 @@ if (isWindows || isLinux || isWeb) {
 				id: 'workbench.action.toggleMenuBar',
 				title: {
 					value: localize('toggleMenuBar', "Toggle Menu Bar"),
-					mnemonicTitle: localize({ key: 'miShowMenuBar', comment: ['&& denotes a mnemonic'] }, "Show Menu &&Bar"),
+					mnemonicTitle: localize({ key: 'miMenuBar', comment: ['&& denotes a mnemonic'] }, "Menu &&Bar"),
 					original: 'Toggle Menu Bar'
 				},
 				category: CATEGORIES.View,
@@ -590,6 +590,16 @@ if (isWindows || isLinux || isWeb) {
 		run(accessor: ServicesAccessor): void {
 			return accessor.get(IWorkbenchLayoutService).toggleMenuBar();
 		}
+	});
+
+	// Add separately to title bar context menu so we can use a different title
+	MenuRegistry.appendMenuItem(MenuId.TitleBarContext, {
+		command: {
+			id: 'workbench.action.toggleMenuBar',
+			title: localize('miMenuBarNoMnemonic', "Menu Bar"),
+			toggled: ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'compact'))
+		},
+		order: 0
 	});
 }
 

@@ -25,6 +25,7 @@ const buffer = require('gulp-buffer');
 const jsoncParser = require("jsonc-parser");
 const dependencies_1 = require("./dependencies");
 const _ = require("underscore");
+const builtInExtensions_1 = require("./builtInExtensions");
 const util = require('./util');
 const root = path.dirname(path.dirname(__dirname));
 const commit = util.getVersion(root);
@@ -312,16 +313,15 @@ function packageLocalExtensionsStream(forWeb) {
         .pipe(util2.setExecutableBit(['**/*.sh'])));
 }
 exports.packageLocalExtensionsStream = packageLocalExtensionsStream;
-function packageMarketplaceExtensionsStream(forWeb, galleryServiceUrl) {
+function packageMarketplaceExtensionsStream(forWeb) {
     const marketplaceExtensionsDescriptions = [
         ...builtInExtensions.filter(({ name }) => (forWeb ? !marketplaceWebExtensionsExclude.has(name) : true)),
         ...(forWeb ? webBuiltInExtensions : [])
     ];
     const marketplaceExtensionsStream = minifyExtensionResources(es.merge(...marketplaceExtensionsDescriptions
         .map(extension => {
-        const input = (galleryServiceUrl ? fromMarketplace(galleryServiceUrl, extension) : fromGithub(extension))
-            .pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
-        return updateExtensionPackageJSON(input, (data) => {
+        const src = (0, builtInExtensions_1.getExtensionStream)(extension).pipe(rename(p => p.dirname = `extensions/${p.dirname}`));
+        return updateExtensionPackageJSON(src, (data) => {
             delete data.scripts;
             delete data.dependencies;
             delete data.devDependencies;
@@ -351,12 +351,20 @@ function scanBuiltinExtensions(extensionsRoot, exclude = []) {
             const children = fs.readdirSync(path.join(extensionsRoot, extensionFolder));
             const packageNLSPath = children.filter(child => child === 'package.nls.json')[0];
             const packageNLS = packageNLSPath ? JSON.parse(fs.readFileSync(path.join(extensionsRoot, extensionFolder, packageNLSPath)).toString()) : undefined;
+            let browserNlsMetadataPath;
+            if (packageJSON.browser) {
+                const browserEntrypointFolderPath = path.join(extensionFolder, path.dirname(packageJSON.browser));
+                if (fs.existsSync(path.join(extensionsRoot, browserEntrypointFolderPath, 'nls.metadata.json'))) {
+                    browserNlsMetadataPath = path.join(browserEntrypointFolderPath, 'nls.metadata.json');
+                }
+            }
             const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
             const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
             scannedExtensions.push({
                 extensionPath: extensionFolder,
                 packageJSON,
                 packageNLS,
+                browserNlsMetadataPath,
                 readmePath: readme ? path.join(extensionFolder, readme) : undefined,
                 changelogPath: changelog ? path.join(extensionFolder, changelog) : undefined,
             });
@@ -399,6 +407,7 @@ const esbuildMediaScripts = [
     'markdown-language-features/esbuild-preview.js',
     'markdown-math/esbuild.js',
     'notebook-renderers/esbuild.js',
+    'ipynb/esbuild.js',
     'simple-browser/esbuild-preview.js',
 ];
 async function webpackExtensions(taskName, isWatch, webpackConfigLocations) {

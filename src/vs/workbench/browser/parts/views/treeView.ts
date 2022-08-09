@@ -35,8 +35,8 @@ import { VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { Command } from 'vs/editor/common/languages';
 import { localize } from 'vs/nls';
 import { createActionViewItem, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { Action2, IMenu, IMenuService, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
+import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -226,7 +226,8 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IActivityService private readonly activityService: IActivityService
+		@IActivityService private readonly activityService: IActivityService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 		this.root = new Root();
@@ -495,12 +496,12 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 
 	protected abstract activate(): void;
 
-	focus(reveal: boolean = true): void {
+	focus(reveal: boolean = true, revealItem?: ITreeItem): void {
 		if (this.tree && this.root.children && this.root.children.length > 0) {
 			// Make sure the current selected element is revealed
-			const selectedElement = this.tree.getSelection()[0];
-			if (selectedElement && reveal) {
-				this.tree.reveal(selectedElement, 0.5);
+			const element = revealItem ?? this.tree.getSelection()[0];
+			if (element && reveal) {
+				this.tree.reveal(element, 0.5);
 			}
 
 			// Pass Focus to Viewer
@@ -783,7 +784,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 
 	setFocus(item: ITreeItem): void {
 		if (this.tree) {
-			this.focus();
+			this.focus(true, item);
 			this.tree.setFocus([item]);
 		}
 	}
@@ -799,7 +800,14 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		const tree = this.tree;
 		if (tree && this.visible) {
 			this.refreshing = true;
-			await Promise.all(elements.map(element => tree.updateChildren(element, true, true)));
+			try {
+				await Promise.all(elements.map(element => tree.updateChildren(element, true, true)));
+			} catch (e) {
+				// When multiple calls are made to refresh the tree in quick succession,
+				// we can get a "Tree element not found" error. This is expected.
+				// Ideally this is fixable, so log instead of ignoring so the error is preserved.
+				this.logService.error(e);
+			}
 			this.refreshing = false;
 			this._onDidCompleteRefresh.fire();
 			this.updateContentAreas();
@@ -933,7 +941,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@ITreeViewsService private readonly treeViewsService: ITreeViewsService
+		@ITreeViewsService private readonly treeViewsService: ITreeViewsService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 		this._hoverDelegate = {
@@ -1021,6 +1030,18 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		templateData.actionBar.clear();
 		templateData.icon.style.color = '';
 
+		let commandEnabled = true;
+		if (node.command) {
+			const command = CommandsRegistry.getCommand(node.command.originalId ? node.command.originalId : node.command.id);
+			if (command) {
+				const commandAction = MenuRegistry.getCommand(command.id);
+				const precondition = commandAction && commandAction.precondition;
+				if (precondition) {
+					commandEnabled = this.contextKeyService.contextMatchesRules(precondition);
+				}
+			}
+		}
+
 		if (resource) {
 			const fileDecorations = this.configurationService.getValue<{ colors: boolean; badges: boolean }>('explorer.decorations');
 			const labelResource = resource ? resource : URI.parse('missing:_icon_resource');
@@ -1031,7 +1052,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 				fileDecorations,
 				extraClasses: ['custom-view-tree-node-item-resourceLabel'],
 				matches: matches ? matches : createMatches(element.filterData),
-				strikethrough: treeItemLabel?.strikethrough
+				strikethrough: treeItemLabel?.strikethrough,
+				disabledCommand: !commandEnabled
 			});
 		} else {
 			templateData.resourceLabel.setResource({ name: label, description }, {
@@ -1039,7 +1061,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 				hideIcon: true,
 				extraClasses: ['custom-view-tree-node-item-resourceLabel'],
 				matches: matches ? matches : createMatches(element.filterData),
-				strikethrough: treeItemLabel?.strikethrough
+				strikethrough: treeItemLabel?.strikethrough,
+				disabledCommand: !commandEnabled
 			});
 		}
 
@@ -1056,6 +1079,13 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			}
 			templateData.icon.className = iconClass ? `custom-view-tree-node-item-icon ${iconClass}` : '';
 			templateData.icon.style.backgroundImage = '';
+		}
+
+		if (!commandEnabled) {
+			templateData.icon.className = templateData.icon.className + ' disabled';
+			if (templateData.container.parentElement) {
+				templateData.container.parentElement.className = templateData.container.parentElement.className + ' disabled';
+			}
 		}
 
 		templateData.actionBar.context = <TreeViewItemHandleArg>{ $treeViewId: this.treeViewId, $treeItemHandle: node.handle };
@@ -1283,9 +1313,10 @@ export class CustomTreeView extends AbstractTreeView {
 		@IHoverService hoverService: IHoverService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IActivityService activityService: IActivityService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILogService logService: ILogService,
 	) {
-		super(id, title, themeService, instantiationService, commandService, configurationService, progressService, contextMenuService, keybindingService, notificationService, viewDescriptorService, hoverService, contextKeyService, activityService);
+		super(id, title, themeService, instantiationService, commandService, configurationService, progressService, contextMenuService, keybindingService, notificationService, viewDescriptorService, hoverService, contextKeyService, activityService, logService);
 	}
 
 	protected activate() {

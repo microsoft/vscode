@@ -14,7 +14,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { createSyncHeaders, IAuthenticationProvider } from 'vs/platform/userDataSync/common/userDataSync';
+import { createSyncHeaders, IAuthenticationProvider, IResourceRefHandle } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -59,6 +59,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		// If another window changes the preferred session storage, reset our cached auth state in memory
 		this._register(this.storageService.onDidChangeValue(e => this.onDidChangeStorage(e)));
 
+		this.registerSignInAction();
 		this.registerResetAuthenticationAction();
 
 		this.signedInContext = EDIT_SESSIONS_SIGNED_IN.bindTo(this.contextKeyService);
@@ -76,7 +77,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			throw new Error('Please sign in to store your edit session.');
 		}
 
-		return this.storeClient!.write('editSessions', JSON.stringify(editSession), null, createSyncHeaders(generateUuid()));
+		return this.storeClient!.writeResource('editSessions', JSON.stringify(editSession), null, createSyncHeaders(generateUuid()));
 	}
 
 	/**
@@ -95,9 +96,9 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		const headers = createSyncHeaders(generateUuid());
 		try {
 			if (ref !== undefined) {
-				content = await this.storeClient?.resolveContent('editSessions', ref, headers);
+				content = await this.storeClient?.resolveResourceContent('editSessions', ref, headers);
 			} else {
-				const result = await this.storeClient?.read('editSessions', null, headers);
+				const result = await this.storeClient?.readResource('editSessions', null, headers);
 				content = result?.content;
 				ref = result?.ref;
 			}
@@ -109,17 +110,32 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		return (content !== undefined && content !== null && ref !== undefined) ? { ref: ref, editSession: JSON.parse(content) } : undefined;
 	}
 
-	async delete(ref: string) {
+	async delete(ref: string | null) {
 		await this.initialize();
 		if (!this.initialized) {
 			throw new Error(`Unable to delete edit session with ref ${ref}.`);
 		}
 
 		try {
-			await this.storeClient?.delete('editSessions', ref);
+			await this.storeClient?.deleteResource('editSessions', ref);
 		} catch (ex) {
 			this.logService.error(ex);
 		}
+	}
+
+	async list(): Promise<IResourceRefHandle[]> {
+		await this.initialize();
+		if (!this.initialized) {
+			throw new Error(`Unable to list edit sessions.`);
+		}
+
+		try {
+			return this.storeClient?.getAllResourceRefs('editSessions') ?? [];
+		} catch (ex) {
+			this.logService.error(ex);
+		}
+
+		return [];
 	}
 
 	private async initialize() {
@@ -334,13 +350,34 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		}
 	}
 
+	private registerSignInAction() {
+		const that = this;
+		this._register(registerAction2(class ResetEditSessionAuthenticationAction extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.editSessions.actions.signIn',
+					title: localize('sign in', 'Sign In'),
+					category: EDIT_SESSION_SYNC_CATEGORY,
+					precondition: ContextKeyExpr.equals(EDIT_SESSIONS_SIGNED_IN_KEY, false),
+					menu: [{
+						id: MenuId.CommandPalette,
+					}]
+				});
+			}
+
+			async run() {
+				await that.initialize();
+			}
+		}));
+	}
+
 	private registerResetAuthenticationAction() {
 		const that = this;
 		this._register(registerAction2(class ResetEditSessionAuthenticationAction extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.editSessions.actions.resetAuth',
-					title: localize('reset auth', 'Sign Out'),
+					title: localize('reset auth.v2', 'Sign Out of Edit Sessions'),
 					category: EDIT_SESSION_SYNC_CATEGORY,
 					precondition: ContextKeyExpr.equals(EDIT_SESSIONS_SIGNED_IN_KEY, true),
 					menu: [{
@@ -363,7 +400,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 				});
 				if (result.confirmed) {
 					if (result.checkboxChecked) {
-						that.storeClient?.delete('editSessions', null);
+						that.storeClient?.deleteResource('editSessions', null);
 					}
 					that.clearAuthenticationPreference();
 				}

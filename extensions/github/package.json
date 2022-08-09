@@ -26,7 +26,8 @@
     }
   },
   "enabledApiProposals": [
-    "contribShareMenu"
+    "contribShareMenu",
+    "contribEditSessions"
   ],
   "contributes": {
     "commands": [
@@ -37,10 +38,20 @@
       {
         "command": "github.copyVscodeDevLink",
         "title": "Copy vscode.dev Link"
-	  },
-	  {
-		"command": "github.copyVscodeDevLinkFile",
-		"title": "Copy vscode.dev Link"
+      },
+      {
+        "command": "github.copyVscodeDevLinkFile",
+        "title": "Copy vscode.dev Link"
+      },
+      {
+        "command": "github.openOnVscodeDev",
+        "title": "Open on vscode.dev"
+      }
+    ],
+    "continueEditSession": [
+      {
+        "command": "github.openOnVscodeDev",
+        "when": "github.hasGitHubRepo"
       }
     ],
     "menus": {
@@ -55,6 +66,10 @@
         },
         {
           "command": "github.copyVscodeDevLinkFile",
+          "when": "false"
+        },
+        {
+          "command": "github.openOnVscodeDev",
           "when": "false"
         }
       ],
@@ -117,7 +132,7 @@
   "dependencies": {
     "@octokit/rest": "^18.0.1",
     "tunnel": "^0.0.6",
-    "vscode-nls": "^4.1.2"
+    "vscode-nls": "^5.1.0"
   },
   "devDependencies": {
     "@types/node": "16.x"
