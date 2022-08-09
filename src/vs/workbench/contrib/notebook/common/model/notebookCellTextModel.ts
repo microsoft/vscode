@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { hash } from 'vs/base/common/hash';
+import { hash, StringSHA1 } from 'vs/base/common/hash';
 import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
@@ -143,6 +143,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		return this._textBuffer;
 	}
 
+	private _textBufferHash: string | null = null;
 	private _hash: number | null = null;
 
 	private _versionId: number = 1;
@@ -224,12 +225,27 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		}
 	}
 
+	getTextBufferHash() {
+		if (this._textBufferHash !== null) {
+			return this._textBufferHash;
+		}
+
+		const shaComputer = new StringSHA1();
+		const snapshot = this.textBuffer.createSnapshot(false);
+		let text: string | null;
+		while ((text = snapshot.read())) {
+			shaComputer.update(text);
+		}
+		this._textBufferHash = shaComputer.digest();
+		return this._textBufferHash;
+	}
+
 	getHashValue(): number {
 		if (this._hash !== null) {
 			return this._hash;
 		}
 
-		this._hash = hash([hash(this.language), hash(this.getValue()), this._getPersisentMetadata(), this.transientOptions.transientOutputs ? [] : this._outputs.map(op => ({
+		this._hash = hash([hash(this.language), this.getTextBufferHash(), this._getPersisentMetadata(), this.transientOptions.transientOutputs ? [] : this._outputs.map(op => ({
 			outputs: op.outputs.map(output => ({
 				mime: output.mime,
 				data: Array.from(output.data.buffer)
