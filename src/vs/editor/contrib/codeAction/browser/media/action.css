@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .codeActionMenuWidget {
-	padding: 3px 0px 3px 0px;
+	padding: 0px 0px 3px 0px;
 	overflow: auto;
 	font-size: 13px;
 	border-radius: 2px;
@@ -89,6 +89,17 @@
 	outline: 0px solid !important;
 }
 
+.codeActionMenuWidget .monaco-list .monaco-list-row.group-header {
+	padding: 3px 10px 0px 10px;
+}
+
+
+.codeActionMenuWidget .monaco-list .group-header.option-disabled {
+	color: var(--vscode-textLink-activeForeground) !important;
+	font-weight: bold;
+
+}
+
 .codeActionMenuWidget .monaco-list .separator {
 	border-bottom: 1px solid var(--vscode-menu-separatorBackground);
 	padding-top: 0px !important;
@@ -109,7 +120,7 @@
 	touch-action: none;
 }
 
-.codeActionMenuWidget .monaco-list-row .icon-container {
+.codeActionMenuWidget .monaco-list-row:not(.group-header) .icon-container {
 	margin-top: 3px;
 	margin-right: 10px;
 	width: 13px;

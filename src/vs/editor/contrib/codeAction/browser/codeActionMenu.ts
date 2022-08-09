@@ -108,6 +108,7 @@ export interface ICodeActionMenuTemplateData {
 
 const TEMPLATE_ID = 'codeActionWidget';
 const codeActionLineHeight = 24;
+const headerLineHeight = 32;
 
 class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeActionMenuTemplateData> {
 
@@ -142,14 +143,16 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 
 
 		const isSeparator = element.isSeparator;
+		const isHeader = element.isHeader;
 
 		if (isSeparator) {
 			data.root.classList.add('separator');
 			data.root.style.height = '10px';
-		} else if (element.isHeader) {
+		} else if (isHeader) {
 			const text = element.headerTitle;
 			data.text.textContent = text;
 			element.isEnabled = false;
+			data.root.classList.add('group-header');
 		} else {
 			const text = element.action.label;
 			data.text.textContent = text;
@@ -332,6 +335,8 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 			getHeight(element) {
 				if (element.isSeparator) {
 					return 10;
+				} else if (element.isHeader) {
+					return 32;
 				}
 				return codeActionLineHeight;
 			},
@@ -375,31 +380,36 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 			menuEntries[groupID].push(item);
 		});
 
-		console.log(menuEntries);
-
-		const tempEntries: (IAction | string)[] = [];
+		let numHeaders = 0;
+		const totalActionEntries: (IAction | string)[] = [];
 		menuEntries.forEach(entry => {
 			if (entry.length > 0 && entry[0] instanceof CodeActionAction && entry[0].action.kind === `quickfix`) {
-				tempEntries.push(`quickfix`);
-				tempEntries.push(...entry);
+				totalActionEntries.push(`Quickfix`);
+				totalActionEntries.push(...entry);
+				numHeaders++;
 			}
 			else if (entry.length > 0 && entry[0] instanceof CodeActionAction && entry[0].action.kind?.startsWith(`refactor.extract`)) {
-				tempEntries.push(`extract`);
-				tempEntries.push(...entry);
+				totalActionEntries.push(`Extract`);
+				totalActionEntries.push(...entry);
+				numHeaders++;
 			}
 			else if (entry.length > 0 && entry[0] instanceof CodeActionAction && entry[0].action.kind?.startsWith(`refactor.rewrite`)) {
-				tempEntries.push(`convert`);
-				tempEntries.push(...entry);
+				totalActionEntries.push(`Convert`);
+				totalActionEntries.push(...entry);
+				numHeaders++;
 			}
 			else if (entry.length > 0 && entry[0] instanceof CodeActionAction && entry[0].action.kind === `refactor`) {
-				tempEntries.push(`surround`);
-				tempEntries.push(...entry);
+				totalActionEntries.push(`Surround With ...`);
+				totalActionEntries.push(...entry);
+				numHeaders++;
 			}
 			else if (entry.length > 0 && entry[0].id === `vs.actions.separator`) {
-				tempEntries.push(...entry);
+				totalActionEntries.push(...entry);
 			}
 			else if (entry.length > 0 && entry[0] instanceof CodeActionAction && entry[0].action.kind === `_documentation`) {
-				tempEntries.push(...entry);
+				totalActionEntries.push(...entry);
+			} else {
+				totalActionEntries.push(...entry);
 			}
 
 		});
@@ -445,7 +455,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 
 
 		// Populating the list widget and tracking enabled options.
-		tempEntries.forEach((item, index) => {
+		totalActionEntries.forEach((item, index) => {
 			if (typeof item === `string`) {
 				const menuItem = <ICodeActionMenuItem>{ isEnabled: false, isSeparator: false, index, isHeader: true, headerTitle: item };
 				this.options.push(menuItem);
@@ -470,9 +480,11 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 
 		this.codeActionList.value.splice(0, this.codeActionList.value.length, this.options);
 
-		const height = this.hasSeparator ? (tempEntries.length - 1) * codeActionLineHeight + 10 : tempEntries.length * codeActionLineHeight;
-		renderMenu.style.height = String(height) + 'px';
-		this.codeActionList.value.layout(height);
+		const height = this.hasSeparator ? (totalActionEntries.length - 1) * codeActionLineHeight + 10 : totalActionEntries.length * codeActionLineHeight;
+		const heightWithHeaders = height + numHeaders * headerLineHeight - numHeaders * codeActionLineHeight;
+		console.log(numHeaders);
+		renderMenu.style.height = String(heightWithHeaders) + 'px';
+		this.codeActionList.value.layout(heightWithHeaders);
 
 		// For finding width dynamically (not using resize observer)
 		const arr: number[] = [];
@@ -489,7 +501,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 
 		// 52 is the additional padding for the list widget (26 left, 26 right)
 		renderMenu.style.width = maxWidth + 52 + 5 + 'px';
-		this.codeActionList.value?.layout(height, maxWidth);
+		this.codeActionList.value?.layout(heightWithHeaders, maxWidth);
 
 		// List selection
 		if (this.viewItems.length < 1 || this.viewItems.every(item => item.isDocumentation)) {
@@ -613,8 +625,8 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		if (!model) {
 			return;
 		}
-		// const actionsToShow = options.includeDisabledActions ? codeActions.allActions : codeActions.validActions;
-		const actionsToShow = codeActions.validActions;
+		const actionsToShow = options.includeDisabledActions ? codeActions.allActions : codeActions.validActions;
+		// const actionsToShow = codeActions.validActions;
 
 		if (!actionsToShow.length) {
 			this._visible = false;
