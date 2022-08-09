@@ -22,7 +22,7 @@ export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider {
 		}
 
 		// Convert from space efficient JSON data to rich objects.
-		return {
+		const diff: IDocumentDiff = {
 			identical: result.identical,
 			quitEarly: result.quitEarly,
 			changes: result.changes.map(
@@ -40,5 +40,6 @@ export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider {
 					)
 			),
 		};
+		return diff;
 	}
 }

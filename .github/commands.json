@@ -193,7 +193,7 @@
 			"IllusionMH"
 		],
 		"action": "close",
-		"reason": "complete",
+		"reason": "completed",
 		"addLabel": "unreleased"
 	},
 	{
@@ -428,6 +428,20 @@
 		"reason": "not_planned",
 		"addLabel": "*caused-by-extension",
 		"comment": "It looks like this is caused by the Java Debugger extension. Please file the issue to the [Java Debugger repository](https://github.com/microsoft/vscode-java-debug). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
+	},
+	{
+		"type": "comment",
+		"name": "extCodespaces",
+		"allowUsers": [
+			"cleidigh",
+			"usernamehw",
+			"gjsjohnmurray",
+			"IllusionMH"
+		],
+		"action": "close",
+		"reason": "not_planned",
+		"addLabel": "*caused-by-extension",
+		"comment": "It looks like this is caused by the Codespaces extension. Please file the issue in the [Codespaces Discussion Forum](http://aka.ms/ghcs-feedback). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
