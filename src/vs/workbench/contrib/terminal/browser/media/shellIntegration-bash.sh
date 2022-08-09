@@ -105,8 +105,14 @@ __vsc_precmd() {
 
 __vsc_preexec() {
 	__vsc_initialized=1
-	if [[ ! "$BASH_COMMAND" =~ ^__vsc_prompt* ]]; then
-		__vsc_current_command=$BASH_COMMAND
+	if [[ -z $BASH_COMMAND ]]; then
+		__vsc_command= "$(which $BASH_COMMAND)"
+		__vsc_command= basename __vsc_command
+	else
+		__vsc_command=""
+	fi
+	if [[ ! "$__vsc_command" =~ ^__vsc_prompt* ]]; then
+		__vsc_current_command=__vsc_command
 	else
 		__vsc_current_command=""
 	fi
