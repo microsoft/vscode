@@ -115,9 +115,7 @@ export class Application {
 	}
 
 	private async checkWindowReady(code: Code): Promise<void> {
-		if (!this.web) {
-			await measureAndLog(code.didFinishLoad(), 'Application#checkWindowReady: wait for navigation to be committed', this.logger);
-		}
+		await measureAndLog(code.didFinishLoad(), 'Application#checkWindowReady: wait for navigation to be committed', this.logger);
 
 		// We need a rendered workbench
 		await measureAndLog(code.waitForElement('.monaco-workbench'), 'Application#checkWindowReady: wait for .monaco-workbench element', this.logger);
