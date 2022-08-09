@@ -115,9 +115,7 @@ export class StickyLineCandidateProvider extends Disposable {
 
 	public getCandidateStickyLinesIntersecting(range: StickyRange): StickyLineCandidate[] {
 		let stickyLineCandidates: StickyLineCandidate[] = [];
-		if (range.startLineNumber && range.endLineNumber) {
-			this.getCandidateStickyLinesIntersectingFromOutline(range, this.outlineModel as StickyOutlineElement, stickyLineCandidates, 0, -1);
-		}
+		this.getCandidateStickyLinesIntersectingFromOutline(range, this.outlineModel as StickyOutlineElement, stickyLineCandidates, 0, -1);
 		const hiddenRanges: Range[] | undefined = this.editor._getViewModel()?.getHiddenAreas();
 		if (hiddenRanges) {
 			for (const hiddenRange of hiddenRanges) {
@@ -147,7 +145,7 @@ class StickyOutlineElement {
 				return child2.range.endLineNumber - child1.range.endLineNumber;
 			}
 		});
-		let range;
+		let range: StickyRange | undefined;
 		if (outlineModel instanceof OutlineElement) {
 			range = new StickyRange(outlineModel.symbol.range.startLineNumber, outlineModel.symbol.range.endLineNumber);
 		} else {
