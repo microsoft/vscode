@@ -23,6 +23,7 @@ export interface SerializedWebview {
 	readonly id: string;
 	readonly origin: string | undefined;
 	readonly viewType: string;
+	readonly providedId: string | undefined;
 	readonly title: string;
 	readonly options: SerializedWebviewOptions;
 	readonly extensionLocation: UriComponents | undefined;
@@ -36,6 +37,7 @@ export interface DeserializedWebview {
 	readonly id: string;
 	readonly origin: string | undefined;
 	readonly viewType: string;
+	readonly providedId: string | undefined;
 	readonly title: string;
 	readonly webviewOptions: WebviewOptions;
 	readonly contentOptions: WebviewContentOptions;
@@ -78,6 +80,7 @@ export class WebviewEditorInputSerializer implements IEditorSerializer {
 		return this._webviewWorkbenchService.reviveWebview({
 			webviewInitInfo: {
 				id: data.id,
+				providedViewType: data.providedId,
 				origin: data.origin,
 				options: data.webviewOptions,
 				contentOptions: data.contentOptions,
@@ -107,6 +110,7 @@ export class WebviewEditorInputSerializer implements IEditorSerializer {
 			id: input.id,
 			origin: input.webview.origin,
 			viewType: input.viewType,
+			providedId: input.providedId,
 			title: input.getName(),
 			options: { ...input.webview.options, ...input.webview.contentOptions },
 			extensionLocation: input.extension ? input.extension.location : undefined,

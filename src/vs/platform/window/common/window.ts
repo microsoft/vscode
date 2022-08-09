@@ -6,8 +6,7 @@
 import { IStringDictionary } from 'vs/base/common/collections';
 import { PerformanceMark } from 'vs/base/common/performance';
 import { isLinux, isMacintosh, isNative, isWeb, isWindows } from 'vs/base/common/platform';
-import { UriDto } from 'vs/base/common/types';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents, UriDto } from 'vs/base/common/uri';
 import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
@@ -52,6 +51,7 @@ export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
 	readonly addMode?: boolean;
 
 	readonly diffMode?: boolean;
+	readonly mergeMode?: boolean;
 	readonly gotoLineMode?: boolean;
 
 	readonly waitMarkerFileURI?: URI;
@@ -138,11 +138,6 @@ export interface IWindowSettings {
 	readonly experimental?: { useSandbox: boolean };
 }
 
-interface IWindowBorderColors {
-	readonly 'window.activeBorder'?: string;
-	readonly 'window.inactiveBorder'?: string;
-}
-
 export function getTitleBarStyle(configurationService: IConfigurationService): 'native' | 'custom' {
 	if (isWeb) {
 		return 'custom';
@@ -158,11 +153,6 @@ export function getTitleBarStyle(configurationService: IConfigurationService): '
 		const useSimpleFullScreen = isMacintosh && configuration.nativeFullScreen === false;
 		if (useSimpleFullScreen) {
 			return 'native'; // simple fullscreen does not work well with custom title style (https://github.com/microsoft/vscode/issues/63291)
-		}
-
-		const colorCustomizations = configurationService.getValue<IWindowBorderColors | undefined>('workbench.colorCustomizations');
-		if (colorCustomizations?.['window.activeBorder'] || colorCustomizations?.['window.inactiveBorder']) {
-			return 'custom'; // window border colors do not work with native title style
 		}
 
 		const style = configuration.titleBarStyle;
@@ -240,6 +230,7 @@ interface IPathsToWaitForData {
 export interface IOpenFileRequest {
 	readonly filesToOpenOrCreate?: IPathData[];
 	readonly filesToDiff?: IPathData[];
+	readonly filesToMerge?: IPathData[];
 }
 
 /**
@@ -270,6 +261,7 @@ export interface IWindowConfiguration {
 
 	filesToOpenOrCreate?: IPath[];
 	filesToDiff?: IPath[];
+	filesToMerge?: IPath[];
 }
 
 export interface IOSConfiguration {
@@ -286,7 +278,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	backupPath?: string;
 
 	profiles: {
-		all: UriDto<IUserDataProfile>[];
+		all: readonly UriDto<IUserDataProfile>[];
 		current: UriDto<IUserDataProfile>;
 	};
 

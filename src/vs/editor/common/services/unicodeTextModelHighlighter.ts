@@ -7,7 +7,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { Searcher } from 'vs/editor/common/model/textModelSearch';
 import * as strings from 'vs/base/common/strings';
 import { IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
-import { assertNever } from 'vs/base/common/types';
+import { assertNever } from 'vs/base/common/assert';
 import { DEFAULT_WORD_REGEXP, getWordAtText } from 'vs/editor/common/core/wordHelper';
 
 export class UnicodeTextModelHighlighter {

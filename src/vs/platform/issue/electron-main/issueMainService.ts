@@ -176,15 +176,11 @@ export class IssueMainService implements ICommonIssueService {
 		});
 
 		validatedIpcMain.on('vscode:closeIssueReporter', event => {
-			if (this.issueReporterWindow) {
-				this.issueReporterWindow.close();
-			}
+			this.issueReporterWindow?.close();
 		});
 
 		validatedIpcMain.on('vscode:closeProcessExplorer', event => {
-			if (this.processExplorerWindow) {
-				this.processExplorerWindow.close();
-			}
+			this.processExplorerWindow?.close();
 		});
 
 		validatedIpcMain.on('vscode:windowsInfoRequest', async event => {
@@ -317,7 +313,7 @@ export class IssueMainService implements ICommonIssueService {
 	private createBrowserWindow<T>(position: IWindowState, ipcObjectUrl: IIPCObjectUrl<T>, options: IBrowserWindowOptions, windowKind: string): BrowserWindow {
 		const window = new BrowserWindow({
 			fullscreen: false,
-			skipTaskbar: true,
+			skipTaskbar: false,
 			resizable: true,
 			width: position.width,
 			height: position.height,

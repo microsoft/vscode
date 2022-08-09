@@ -12,7 +12,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
-import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
 import { Constants } from 'vs/base/common/uint';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -440,6 +439,7 @@ const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[]
 	let computedState = TestResultState.Unset;
 	const hoverMessageParts: string[] = [];
 	let testIdWithMessages: string | undefined;
+	let retired = false;
 	for (let i = 0; i < tests.length; i++) {
 		const test = tests[i];
 		const resultItem = states[i];
@@ -448,6 +448,7 @@ const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[]
 			hoverMessageParts.push(labelForTestInState(test.item.label, state));
 		}
 		computedState = maxPriority(computedState, state);
+		retired = retired || !!resultItem?.retired;
 		if (!testIdWithMessages && resultItem?.tasks.some(t => t.messages.length)) {
 			testIdWithMessages = test.item.extId;
 		}
@@ -460,7 +461,10 @@ const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[]
 
 	let hoverMessage: IMarkdownString | undefined;
 
-	const glyphMarginClassName = ThemeIcon.asClassName(icon) + ' testing-run-glyph';
+	let glyphMarginClassName = ThemeIcon.asClassName(icon) + ' testing-run-glyph';
+	if (retired) {
+		glyphMarginClassName += ' retired';
+	}
 
 	return {
 		range: firstLineRange(range),
@@ -815,11 +819,39 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 			allActions.push(new Action('testing.gutter.debugAll', localize('debug all test', 'Debug All Tests'), undefined, undefined, () => this.defaultDebug()));
 		}
 
+		const testItems = this.tests.map(testItem => ({
+			currentLabel: testItem.test.item.label,
+			testItem,
+			parent: testItem.test.parent,
+		}));
+
+		const getLabelConflicts = (tests: typeof testItems) => {
+			const labelCount = new Map<string, number>();
+			for (const test of tests) {
+				labelCount.set(test.currentLabel, (labelCount.get(test.currentLabel) || 0) + 1);
+			}
+
+			return tests.filter(e => labelCount.get(e.currentLabel)! > 1);
+		};
+
+		let conflicts, hasParent = true;
+		while ((conflicts = getLabelConflicts(testItems)).length && hasParent) {
+			for (const conflict of conflicts) {
+				if (conflict.parent) {
+					const parent = this.testService.collection.getNodeById(conflict.parent);
+					conflict.currentLabel = parent?.item.label + ' > ' + conflict.currentLabel;
+					conflict.parent = parent?.parent ? parent.parent : null;
+				} else {
+					hasParent = false;
+				}
+			}
+		}
+
 		const disposable = new DisposableStore();
-		const testSubmenus = this.tests.map(({ test, resultItem }) => {
-			const actions = this.getTestContextMenuActions(test, resultItem);
+		const testSubmenus = testItems.map(({ currentLabel, testItem }) => {
+			const actions = this.getTestContextMenuActions(testItem.test, testItem.resultItem);
 			disposable.add(actions);
-			return new SubmenuAction(test.item.extId, stripIcons(test.item.label), actions.object);
+			return new SubmenuAction(testItem.test.item.extId, stripIcons(currentLabel), actions.object);
 		});
 
 		return { object: Separator.join(allActions, testSubmenus), dispose: () => disposable.dispose() };
@@ -873,7 +905,7 @@ class TestMessageDecoration implements ITestDecoration {
 		this.location = testMessage.location!;
 		this.line = this.location.range.startLineNumber;
 		const severity = testMessage.type;
-		const message = typeof testMessage.message === 'string' ? removeAnsiEscapeCodes(testMessage.message) : testMessage.message;
+		const message = testMessage.message;
 
 		const options = editorService.resolveDecorationOptions(TestMessageDecoration.decorationId, true);
 		options.hoverMessage = typeof message === 'string' ? new MarkdownString().appendText(message) : message;

@@ -5,7 +5,7 @@
 
 import { BroadcastDataChannel } from 'vs/base/browser/broadcast';
 import { revive } from 'vs/base/common/marshalling';
-import { UriDto } from 'vs/base/common/types';
+import { UriDto } from 'vs/base/common/uri';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -31,7 +31,12 @@ export class BrowserUserDataProfilesService extends UserDataProfilesService impl
 		this._register(this.changesBroadcastChannel.onDidReceiveData(changes => {
 			try {
 				this._profilesObject = undefined;
-				this._onDidChangeProfiles.fire({ added: changes.added.map(p => reviveProfile(p, this.profilesHome.scheme)), removed: changes.removed.map(p => reviveProfile(p, this.profilesHome.scheme)), all: this.profiles });
+				this._onDidChangeProfiles.fire({
+					added: changes.added.map(p => reviveProfile(p, this.profilesHome.scheme)),
+					removed: changes.removed.map(p => reviveProfile(p, this.profilesHome.scheme)),
+					updated: changes.updated.map(p => reviveProfile(p, this.profilesHome.scheme)),
+					all: this.profiles
+				});
 			} catch (error) {/* ignore */ }
 		}));
 	}
@@ -54,9 +59,9 @@ export class BrowserUserDataProfilesService extends UserDataProfilesService impl
 		return [];
 	}
 
-	protected override triggerProfilesChanges(added: IUserDataProfile[], removed: IUserDataProfile[]) {
-		super.triggerProfilesChanges(added, removed);
-		this.changesBroadcastChannel.postData({ added, removed });
+	protected override triggerProfilesChanges(added: IUserDataProfile[], removed: IUserDataProfile[], updated: IUserDataProfile[]) {
+		super.triggerProfilesChanges(added, removed, updated);
+		this.changesBroadcastChannel.postData({ added, removed, updated });
 	}
 
 	protected override saveStoredProfiles(storedProfiles: StoredUserDataProfile[]): void {

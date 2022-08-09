@@ -46,7 +46,6 @@ import { IExtensionManifestPropertiesService } from 'vs/workbench/services/exten
 import { IExtensionService, IExtensionsStatus } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionEditor } from 'vs/workbench/contrib/extensions/browser/extensionEditor';
 import { isWeb, language } from 'vs/base/common/platform';
-import { GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
 import { ILocaleService } from 'vs/workbench/contrib/localization/common/locale';
 
@@ -58,11 +57,12 @@ interface InstalledExtensionsEvent {
 	readonly extensionIds: string;
 	readonly count: number;
 }
-interface ExtensionsLoadClassification extends GDPRClassification<InstalledExtensionsEvent> {
+type ExtensionsLoadClassification = {
 	owner: 'digitarald';
-	readonly extensionIds: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
-	readonly count: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
-}
+	comment: 'Helps to understand which extensions are the most actively used.';
+	readonly extensionIds: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The list of extension ids that are installed.' };
+	readonly count: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The number of extensions that are installed.' };
+};
 
 export class Extension implements IExtension {
 
@@ -785,7 +785,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 	private _reportTelemetry() {
 		const extensionIds = this.installed.filter(extension =>
-			extension.type === ExtensionType.User &&
+			!extension.isBuiltin &&
 			(extension.enablementState === EnablementState.EnabledWorkspace ||
 				extension.enablementState === EnablementState.EnabledGlobally))
 			.map(extension => ExtensionIdentifier.toKey(extension.identifier.id));

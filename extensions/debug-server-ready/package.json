@@ -150,7 +150,7 @@
     ]
   },
   "dependencies": {
-    "vscode-nls": "^4.0.0"
+    "vscode-nls": "^5.1.0"
   },
   "devDependencies": {
     "@types/node": "16.x"

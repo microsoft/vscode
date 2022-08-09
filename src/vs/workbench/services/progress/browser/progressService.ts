@@ -71,15 +71,17 @@ export class ProgressService extends Disposable implements IProgressService {
 		switch (location) {
 			case ProgressLocation.Notification:
 				return this.withNotificationProgress({ ...options, location, silent: this.notificationService.doNotDisturbMode }, task, onDidCancel);
-			case ProgressLocation.Window:
+			case ProgressLocation.Window: {
+				const type = (options as IProgressWindowOptions).type;
 				if ((options as IProgressWindowOptions).command) {
 					// Window progress with command get's shown in the status bar
-					return this.withWindowProgress({ ...options, location }, task);
+					return this.withWindowProgress({ ...options, location, type }, task);
 				}
 				// Window progress without command can be shown as silent notification
 				// which will first appear in the status bar and can then be brought to
 				// the front when clicking.
-				return this.withNotificationProgress({ delay: 150 /* default for ProgressLocation.Window */, ...options, silent: true, location: ProgressLocation.Notification }, task, onDidCancel);
+				return this.withNotificationProgress({ delay: 150 /* default for ProgressLocation.Window */, ...options, silent: true, location: ProgressLocation.Notification, type }, task, onDidCancel);
+			}
 			case ProgressLocation.Explorer:
 				return this.withPaneCompositeProgress('workbench.view.explorer', ViewContainerLocation.Sidebar, task, { ...options, location });
 			case ProgressLocation.Scm:
@@ -93,7 +95,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		}
 	}
 
-	private readonly windowProgressStack: [IProgressOptions, Progress<IProgressStep>][] = [];
+	private readonly windowProgressStack: [IProgressWindowOptions, Progress<IProgressStep>][] = [];
 	private windowProgressStatusEntry: IStatusbarEntryAccessor | undefined = undefined;
 
 	private withWindowProgress<R = unknown>(options: IProgressWindowOptions, callback: (progress: IProgress<{ message?: string }>) => Promise<R>): Promise<R> {
@@ -158,7 +160,7 @@ export class ProgressService extends Disposable implements IProgressService {
 			const statusEntryProperties: IStatusbarEntry = {
 				name: localize('status.progress', "Progress Message"),
 				text,
-				showProgress: true,
+				showProgress: options.type || true,
 				ariaLabel: text,
 				tooltip: title,
 				command: progressCommand
@@ -235,7 +237,8 @@ export class ProgressService extends Disposable implements IProgressService {
 			this.withWindowProgress({
 				location: ProgressLocation.Window,
 				title: options.title ? parseLinkedText(options.title).toString() : undefined, // convert markdown links => string
-				command: 'notifications.showList'
+				command: 'notifications.showList',
+				type: options.type
 			}, progress => {
 
 				function reportProgress(step: IProgressStep) {
@@ -505,9 +508,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 			// Infinite
 			else {
-				if (discreteProgressRunner) {
-					discreteProgressRunner.done();
-				}
+				discreteProgressRunner?.done();
 				progressIndicator.showWhile(promise, options.delay);
 			}
 

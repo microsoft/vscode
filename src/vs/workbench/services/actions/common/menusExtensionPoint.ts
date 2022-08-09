@@ -161,6 +161,12 @@ const apiMenus: IAPIMenu[] = [
 		supportsSubmenus: false
 	},
 	{
+		key: 'comments/commentThread/widget/context',
+		id: MenuId.CommentThreadWidgetContext,
+		description: localize('commentThread.widgetContext', "The contributed comment thread widget context menu, rendered as a right click menu on the comment thread editor widget."),
+		proposed: 'contribCommentWidgetContext'
+	},
+	{
 		key: 'comments/comment/title',
 		id: MenuId.CommentTitle,
 		description: localize('comment.title', "The contributed comment title menu")
@@ -272,7 +278,14 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.MergeToolbar,
 		description: localize('merge.toolbar', "The prominent botton in the merge editor"),
 		proposed: 'contribMergeEditorToolbar'
-	}
+	},
+	{
+		key: 'webview/context',
+		id: MenuId.WebviewContext,
+		description: localize('webview.context', "The webview context menu"),
+		proposed: 'contribWebviewContext'
+	},
+
 ];
 
 namespace schema {
@@ -768,7 +781,6 @@ menusExtensionPoint.setHandler(extensions => {
 			}
 
 			if (!menu) {
-				collector.info(localize('menuId.invalid', "`{0}` is not a valid menu identifier", entry[0]));
 				continue;
 			}
 

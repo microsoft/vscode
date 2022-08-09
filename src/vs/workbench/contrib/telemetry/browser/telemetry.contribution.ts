@@ -36,11 +36,11 @@ type TelemetryData = {
 };
 
 type FileTelemetryDataFragment = {
-	mimeType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-	ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-	path: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-	reason?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-	allowlistedjson?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	mimeType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language type of the file (for example XML).' };
+	ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The file extension of the file (for example xml).' };
+	path: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The path of the file as a hash.' };
+	reason?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The reason why a file is read or written. Allows to e.g. distinguish auto save from normal save.' };
+	allowlistedjson?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the file but only if it matches some well known file names such as package.json or tsconfig.json.' };
 };
 
 export class TelemetryContribution extends Disposable implements IWorkbenchContribution {
@@ -63,30 +63,34 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 	) {
 		super();
 
-		const { filesToOpenOrCreate, filesToDiff } = environmentService;
+		const { filesToOpenOrCreate, filesToDiff, filesToMerge } = environmentService;
 		const activeViewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 
 		type WindowSizeFragment = {
-			innerHeight: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-			innerWidth: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-			outerHeight: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-			outerWidth: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+			innerHeight: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The height of the current window.' };
+			innerWidth: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The width of the current window.' };
+			outerHeight: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The height of the current window with all decoration removed.' };
+			outerWidth: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The width of the current window with all decoration removed.' };
+			owner: 'bpasero';
+			comment: 'The size of the window.';
 		};
 
 		type WorkspaceLoadClassification = {
 			owner: 'bpasero';
-			userAgent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			emptyWorkbench: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+			userAgent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The user agent as reported by `navigator.userAgent` by Electron or the web browser.' };
+			emptyWorkbench: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether a folder or workspace is opened or not.' };
 			windowSize: WindowSizeFragment;
-			'workbench.filesToOpenOrCreate': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-			'workbench.filesToDiff': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-			customKeybindingsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-			theme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			language: { classification: 'SystemMetaData'; purpose: 'BusinessInsight' };
-			pinnedViewlets: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			restoredViewlet?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			restoredEditors: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-			startupKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+			'workbench.filesToOpenOrCreate': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files that should open or be created.' };
+			'workbench.filesToDiff': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files that should be compared.' };
+			'workbench.filesToMerge': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files that should be merged.' };
+			customKeybindingsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of custom keybindings' };
+			theme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The current theme of the window.' };
+			language: { classification: 'SystemMetaData'; purpose: 'BusinessInsight'; comment: 'The display language of the window.' };
+			pinnedViewlets: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifiers of views that are pinned.' };
+			restoredViewlet?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the view that is restored.' };
+			restoredEditors: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of editors that restored.' };
+			startupKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How the window was opened, e.g via reload or not.' };
+			comment: 'Metadata around the workspace that is being loaded into a window.';
 		};
 
 		type WorkspaceLoadEvent = {
@@ -95,6 +99,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 			emptyWorkbench: boolean;
 			'workbench.filesToOpenOrCreate': number;
 			'workbench.filesToDiff': number;
+			'workbench.filesToMerge': number;
 			customKeybindingsCount: number;
 			theme: string;
 			language: string;
@@ -110,6 +115,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 			emptyWorkbench: contextService.getWorkbenchState() === WorkbenchState.EMPTY,
 			'workbench.filesToOpenOrCreate': filesToOpenOrCreate && filesToOpenOrCreate.length || 0,
 			'workbench.filesToDiff': filesToDiff && filesToDiff.length || 0,
+			'workbench.filesToMerge': filesToMerge && filesToMerge.length || 0,
 			customKeybindingsCount: keybindingsService.customKeybindingsCount(),
 			theme: themeService.getColorTheme().id,
 			language,
@@ -138,13 +144,15 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		if (settingsType) {
 			type SettingsReadClassification = {
 				owner: 'bpasero';
-				settingsType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+				settingsType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of the settings file that was read.' };
+				comment: 'Track when a settings file was read, for example from an editor.';
 			};
 
 			this.telemetryService.publicLog2<{ settingsType: string }, SettingsReadClassification>('settingsRead', { settingsType }); // Do not log read to user settings.json and .vscode folder as a fileGet event as it ruins our JSON usage data
 		} else {
 			type FileGetClassification = {
 				owner: 'bpasero';
+				comment: 'Track when a file was read, for example from an editor.';
 			} & FileTelemetryDataFragment;
 
 			this.telemetryService.publicLog2<TelemetryData, FileGetClassification>('fileGet', this.getTelemetryData(e.model.resource, e.reason));
@@ -156,12 +164,14 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		if (settingsType) {
 			type SettingsWrittenClassification = {
 				owner: 'bpasero';
-				settingsType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+				settingsType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of the settings file that was written to.' };
+				comment: 'Track when a settings file was written to, for example from an editor.';
 			};
 			this.telemetryService.publicLog2<{ settingsType: string }, SettingsWrittenClassification>('settingsWritten', { settingsType }); // Do not log write to user settings.json and .vscode folder as a filePUT event as it ruins our JSON usage data
 		} else {
 			type FilePutClassfication = {
 				owner: 'bpasero';
+				comment: 'Track when a file was written to, for example from an editor.';
 			} & FileTelemetryDataFragment;
 			this.telemetryService.publicLog2<TelemetryData, FilePutClassfication>('filePUT', this.getTelemetryData(e.model.resource, e.reason));
 		}

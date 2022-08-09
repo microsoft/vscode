@@ -15,6 +15,10 @@ import { DynamicMarkdownPreview, IManagedMarkdownPreview, StaticMarkdownPreview 
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
 import { scrollEditorToLine, StartingScrollFragment } from './scrolling';
 import { TopmostLineMonitor } from './topmostLineMonitor';
+import * as nls from 'vscode-nls';
+
+const localize = nls.loadMessageBundle();
+
 
 export interface DynamicPreviewSettings {
 	readonly resourceColumn: vscode.ViewColumn;
@@ -57,8 +61,6 @@ class PreviewStore<T extends IManagedMarkdownPreview> extends Disposable {
 }
 
 export class MarkdownPreviewManager extends Disposable implements vscode.WebviewPanelSerializer, vscode.CustomTextEditorProvider {
-
-	private static readonly markdownPreviewActiveContextKey = 'markdownPreviewFocus';
 
 	private readonly _topmostLineMonitor = new TopmostLineMonitor();
 	private readonly _previewConfigurations = new MarkdownPreviewConfigurationManager();
@@ -155,23 +157,59 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 		webview: vscode.WebviewPanel,
 		state: any
 	): Promise<void> {
-		const resource = vscode.Uri.parse(state.resource);
-		const locked = state.locked;
-		const line = state.line;
-		const resourceColumn = state.resourceColumn;
+		try {
+			const resource = vscode.Uri.parse(state.resource);
+			const locked = state.locked;
+			const line = state.line;
+			const resourceColumn = state.resourceColumn;
 
-		const preview = await DynamicMarkdownPreview.revive(
-			{ resource, locked, line, resourceColumn },
-			webview,
-			this._contentProvider,
-			this._previewConfigurations,
-			this._workspace,
-			this._logger,
-			this._topmostLineMonitor,
-			this._contributions,
-			this._tocProvider);
+			const preview = DynamicMarkdownPreview.revive(
+				{ resource, locked, line, resourceColumn },
+				webview,
+				this._contentProvider,
+				this._previewConfigurations,
+				this._workspace,
+				this._logger,
+				this._topmostLineMonitor,
+				this._contributions,
+				this._tocProvider);
 
-		this.registerDynamicPreview(preview);
+			this.registerDynamicPreview(preview);
+		} catch (e) {
+			console.error(e);
+
+			webview.webview.html = /* html */`<!DOCTYPE html>
+			<html lang="en">
+			<head>
+				<meta charset="UTF-8">
+
+				<!-- Disable pinch zooming -->
+				<meta name="viewport"
+					content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
+
+				<title>Markdown Preview</title>
+
+				<style>
+					html, body {
+						min-height: 100%;
+						height: 100%;
+					}
+
+					.error-container {
+						display: flex;
+						justify-content: center;
+						align-items: center;
+						text-align: center;
+					}
+				</style>
+
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none';">
+			</head>
+			<body class="error-container">
+				<p>${localize('preview.restoreError', "An unexpected error occurred while restoring the Markdown preview.")}</p>
+			</body>
+			</html>`;
+		}
 	}
 
 	public async resolveCustomTextEditor(
@@ -216,7 +254,6 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 			this._contributions,
 			this._tocProvider);
 
-		this.setPreviewActiveContext(true);
 		this._activePreview = preview;
 		return this.registerDynamicPreview(preview);
 	}
@@ -250,19 +287,14 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 
 	private trackActive(preview: IManagedMarkdownPreview): void {
 		preview.onDidChangeViewState(({ webviewPanel }) => {
-			this.setPreviewActiveContext(webviewPanel.active);
 			this._activePreview = webviewPanel.active ? preview : undefined;
 		});
 
 		preview.onDispose(() => {
 			if (this._activePreview === preview) {
-				this.setPreviewActiveContext(false);
 				this._activePreview = undefined;
 			}
 		});
 	}
 
-	private setPreviewActiveContext(value: boolean) {
-		vscode.commands.executeCommand('setContext', MarkdownPreviewManager.markdownPreviewActiveContextKey, value);
-	}
 }

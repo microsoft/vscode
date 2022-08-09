@@ -31,7 +31,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 
 			if (expandedText.startsWith('<')) {
 				this.lastCompletionType = 'html';
-			} else if (expandedText.indexOf(':') > 0 && expandedText.endsWith(';')) {
+			} else if (expandedText.includes(':') && expandedText.endsWith(';')) {
 				this.lastCompletionType = 'css';
 			} else {
 				this.lastCompletionType = undefined;
@@ -43,7 +43,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 	private provideCompletionItemsInternal(document: vscode.TextDocument, position: vscode.Position, context: vscode.CompletionContext): Thenable<vscode.CompletionList | undefined> | undefined {
 		const emmetConfig = vscode.workspace.getConfiguration('emmet');
 		const excludedLanguages = emmetConfig['excludeLanguages'] ? emmetConfig['excludeLanguages'] : [];
-		if (excludedLanguages.indexOf(document.languageId) > -1) {
+		if (excludedLanguages.includes(document.languageId)) {
 			return;
 		}
 

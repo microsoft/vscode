@@ -10,11 +10,11 @@ import { basename, extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorActivation, EditorResolution, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor, EditorInputWithOptions, IResourceSideBySideEditorInput, isEditorInputWithOptions, isEditorInputWithOptionsAndGroup, isResourceDiffEditorInput, isResourceSideBySideEditorInput, isUntitledResourceEditorInput, IUntypedEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor, EditorInputWithOptions, IResourceSideBySideEditorInput, isEditorInputWithOptions, isEditorInputWithOptionsAndGroup, isResourceDiffEditorInput, isResourceSideBySideEditorInput, isUntitledResourceEditorInput, isResourceMergeEditorInput, IUntypedEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Schemas } from 'vs/base/common/network';
-import { RegisteredEditorInfo, RegisteredEditorPriority, RegisteredEditorOptions, DiffEditorInputFactoryFunction, EditorAssociation, EditorAssociations, EditorInputFactoryFunction, editorsAssociationsSettingId, globMatchesResource, IEditorResolverService, priorityToRank, ResolvedEditor, ResolvedStatus, UntitledEditorInputFactoryFunction } from 'vs/workbench/services/editor/common/editorResolverService';
+import { RegisteredEditorInfo, RegisteredEditorPriority, RegisteredEditorOptions, EditorAssociation, EditorAssociations, editorsAssociationsSettingId, globMatchesResource, IEditorResolverService, priorityToRank, ResolvedEditor, ResolvedStatus, EditorInputFactoryObject } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IKeyMods, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { localize } from 'vs/nls';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -33,9 +33,7 @@ interface RegisteredEditor {
 	globPattern: string | glob.IRelativePattern;
 	editorInfo: RegisteredEditorInfo;
 	options?: RegisteredEditorOptions;
-	createEditorInput: EditorInputFactoryFunction;
-	createUntitledEditorInput?: UntitledEditorInputFactoryFunction | undefined;
-	createDiffEditorInput?: DiffEditorInputFactoryFunction;
+	editorFactoryObject: EditorInputFactoryObject;
 }
 
 type RegisteredEditors = Array<RegisteredEditor>;
@@ -53,7 +51,9 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	private static readonly conflictingDefaultsStorageID = 'editorOverrideService.conflictingDefaults';
 
 	// Data Stores
-	private _editors: Map<string | glob.IRelativePattern, RegisteredEditors> = new Map<string | glob.IRelativePattern, RegisteredEditors>();
+	private _editors: Map<string | glob.IRelativePattern, Map<string, RegisteredEditors>> = new Map<string | glob.IRelativePattern, Map<string, RegisteredEditors>>();
+	private _flattenedEditors: Map<string | glob.IRelativePattern, RegisteredEditors> = new Map();
+	private _shouldReFlattenEditors: boolean = true;
 	private cache: Set<string> | undefined;
 
 	constructor(
@@ -71,7 +71,6 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		// Read in the cache on statup
 		this.cache = new Set<string>(JSON.parse(this.storageService.get(EditorResolverService.cacheStorageID, StorageScope.PROFILE, JSON.stringify([]))));
 		this.storageService.remove(EditorResolverService.cacheStorageID, StorageScope.PROFILE);
-		this.convertOldAssociationFormat();
 
 		this._register(this.storageService.onWillSaveState(() => {
 			// We want to store the glob patterns we would activate on, this allows us to know if we need to await the ext host on startup for opening a resource
@@ -82,46 +81,21 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		this.extensionService.onDidRegisterExtensions(() => {
 			this.cache = undefined;
 		});
-
-		// When the setting changes we want to ensure that it is properly converted
-		this._register(this.configurationService.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration(editorsAssociationsSettingId)) {
-				this.convertOldAssociationFormat();
-			}
-		}));
 	}
 
-	private resolveUntypedInputAndGroup(editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): [IUntypedEditorInput, IEditorGroup, EditorActivation | undefined] | undefined {
-		let untypedEditor: IUntypedEditorInput | undefined = undefined;
+	private resolveUntypedInputAndGroup(editor: IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): [IUntypedEditorInput, IEditorGroup, EditorActivation | undefined] | undefined {
+		const untypedEditor = editor;
 
-		// Typed: convert to untyped to be able to resolve the editor as the service only uses untyped
-		if (isEditorInputWithOptions(editor)) {
-			untypedEditor = editor.editor.toUntyped();
-
-			if (untypedEditor) {
-				// Preserve original options: specifically it is
-				// possible that a `override` was defined from
-				// the outside and we do not want to lose it.
-				untypedEditor.options = { ...untypedEditor.options, ...editor.options };
-			}
-		}
-
-		// Untyped: take as is
-		else {
-			untypedEditor = editor;
-		}
-
-		// Typed editors that cannot convert to untyped will be returned as undefined
-		if (!untypedEditor) {
-			return undefined;
-		}
 		// Use the untyped editor to find a group
 		const [group, activation] = this.instantiationService.invokeFunction(findGroup, untypedEditor, preferredGroup);
 
 		return [untypedEditor, group, activation];
 	}
 
-	async resolveEditor(editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<ResolvedEditor> {
+	async resolveEditor(editor: IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<ResolvedEditor> {
+		// Update the flattened editors
+		this._flattenedEditors = this._flattenEditorsMap();
+
 		// Special case: side by side editors requires us to
 		// independently resolve both sides and then build
 		// a side by side editor with the result
@@ -170,8 +144,17 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 		// Resolved the editor ID as much as possible, now find a given editor (cast here is ok because we resolve down to a string above)
 		let { editor: selectedEditor, conflictingDefault } = this.getEditor(resource, untypedEditor.options?.override as (string | EditorResolution.EXCLUSIVE_ONLY | undefined));
-		if (!selectedEditor) {
+		// If no editor was found and this was a typed editor or an editor with an explicit override we could not resolve it
+		if (!selectedEditor && (untypedEditor.options?.override || isEditorInputWithOptions(editor))) {
 			return ResolvedStatus.NONE;
+		} else if (!selectedEditor) {
+			// Simple untyped editors that we could not resolve will be resolved to the default editor
+			const resolvedEditor = this.getEditor(resource, DEFAULT_EDITOR_ASSOCIATION.id);
+			selectedEditor = resolvedEditor?.editor;
+			conflictingDefault = resolvedEditor?.conflictingDefault;
+			if (!selectedEditor) {
+				return ResolvedStatus.NONE;
+			}
 		}
 
 		// In the special case of diff editors we do some more work to determine the correct editor for both sides
@@ -194,10 +177,8 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		// If no override we take the selected editor id so that matches works with the isActive check
 		untypedEditor.options = { override: selectedEditor.editorInfo.id, ...untypedEditor.options };
 
-		let handlesDiff = typeof selectedEditor.options?.canHandleDiff === 'function' ? selectedEditor.options.canHandleDiff() : selectedEditor.options?.canHandleDiff;
-		// Also check that it has a factory function or else it doesn't matter
-		handlesDiff = handlesDiff && selectedEditor.createDiffEditorInput !== undefined;
-		if (handlesDiff === false && isResourceDiffEditorInput(untypedEditor)) {
+		// Check if diff can be created based on prescene of factory function
+		if (selectedEditor.editorFactoryObject.createDiffEditorInput === undefined && isResourceDiffEditorInput(untypedEditor)) {
 			return ResolvedStatus.NONE;
 		}
 
@@ -243,26 +224,33 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		globPattern: string | glob.IRelativePattern,
 		editorInfo: RegisteredEditorInfo,
 		options: RegisteredEditorOptions,
-		createEditorInput: EditorInputFactoryFunction,
-		createUntitledEditorInput?: UntitledEditorInputFactoryFunction | undefined,
-		createDiffEditorInput?: DiffEditorInputFactoryFunction
+		editorFactoryObject: EditorInputFactoryObject
 	): IDisposable {
 		let registeredEditor = this._editors.get(globPattern);
 		if (registeredEditor === undefined) {
-			registeredEditor = [];
+			registeredEditor = new Map<string, RegisteredEditors>();
 			this._editors.set(globPattern, registeredEditor);
 		}
-		const remove = insert(registeredEditor, {
+
+		let editorsWithId = registeredEditor.get(editorInfo.id);
+		if (editorsWithId === undefined) {
+			editorsWithId = [];
+		}
+		const remove = insert(editorsWithId, {
 			globPattern,
 			editorInfo,
 			options,
-			createEditorInput,
-			createUntitledEditorInput,
-			createDiffEditorInput
+			editorFactoryObject
 		});
+		registeredEditor.set(editorInfo.id, editorsWithId);
+		this._shouldReFlattenEditors = true;
 		this._onDidChangeEditorRegistrations.fire();
 		return toDisposable(() => {
 			remove();
+			if (editorsWithId && editorsWithId.length === 0) {
+				registeredEditor?.delete(editorInfo.id);
+			}
+			this._shouldReFlattenEditors = true;
 			this._onDidChangeEditorRegistrations.fire();
 		});
 	}
@@ -273,23 +261,6 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		const allEditors: RegisteredEditors = this._registeredEditors;
 		// Ensure that the settings are valid editors
 		return matchingAssociations.filter(association => allEditors.find(c => c.editorInfo.id === association.viewType));
-	}
-
-	private convertOldAssociationFormat(): void {
-		const rawAssociations = this.configurationService.getValue<EditorAssociations | { [fileNamePattern: string]: string }>(editorsAssociationsSettingId) || [];
-		// If it's not an array, then it's the new format
-		if (!Array.isArray(rawAssociations)) {
-			return;
-		}
-		const newSettingObject = Object.create(null);
-		// Make the correctly formatted object from the array and then set that object
-		for (const association of rawAssociations) {
-			if (association.filenamePattern) {
-				newSettingObject[association.filenamePattern] = association.viewType;
-			}
-		}
-		this.logService.info(`Migrating ${editorsAssociationsSettingId}`);
-		this.configurationService.updateValue(editorsAssociationsSettingId, newSettingObject);
 	}
 
 	private getAllUserAssociations(): EditorAssociations {
@@ -315,10 +286,48 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	}
 
 	/**
+	 * Given the nested nature of the editors map, we merge factories of the same glob and id to make it flat
+	 * and easier to work with
+	 */
+	private _flattenEditorsMap() {
+		// If we shouldn't be re-flattening (due to lack of update) then return early
+		if (!this._shouldReFlattenEditors) {
+			return this._flattenedEditors;
+		}
+		this._shouldReFlattenEditors = false;
+		const editors = new Map<string | glob.IRelativePattern, RegisteredEditors>();
+		for (const [glob, value] of this._editors) {
+			const registeredEditors: RegisteredEditors = [];
+			for (const editors of value.values()) {
+				let registeredEditor: RegisteredEditor | undefined = undefined;
+				// Merge all editors with the same id and glob pattern together
+				for (const editor of editors) {
+					if (!registeredEditor) {
+						registeredEditor = {
+							editorInfo: editor.editorInfo,
+							globPattern: editor.globPattern,
+							options: {},
+							editorFactoryObject: {}
+						};
+					}
+					// Merge options and factories
+					registeredEditor.options = { ...registeredEditor.options, ...editor.options };
+					registeredEditor.editorFactoryObject = { ...registeredEditor.editorFactoryObject, ...editor.editorFactoryObject };
+				}
+				if (registeredEditor) {
+					registeredEditors.push(registeredEditor);
+				}
+			}
+			editors.set(glob, registeredEditors);
+		}
+		return editors;
+	}
+
+	/**
 	 * Returns all editors as an array. Possible to contain duplicates
 	 */
 	private get _registeredEditors(): RegisteredEditors {
-		return flatten(Array.from(this._editors.values()));
+		return flatten(Array.from(this._flattenedEditors.values()));
 	}
 
 	updateUserAssociations(globPattern: string, editorID: string): void {
@@ -339,7 +348,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		const userSettings = this.getAssociationsForResource(resource);
 		const matchingEditors: RegisteredEditor[] = [];
 		// Then all glob patterns
-		for (const [key, editors] of this._editors) {
+		for (const [key, editors] of this._flattenedEditors) {
 			for (const editor of editors) {
 				const foundInSettings = userSettings.find(setting => setting.viewType === editor.editorInfo.id);
 				if ((foundInSettings && editor.editorInfo.priority !== RegisteredEditorPriority.exclusive) || globMatchesResource(key, resource)) {
@@ -358,6 +367,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	}
 
 	public getEditors(resource?: URI): RegisteredEditorInfo[] {
+		this._flattenedEditors = this._flattenEditorsMap();
 
 		// By resource
 		if (URI.isUri(resource)) {
@@ -435,12 +445,21 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			options = { ...options, activation: options.preserveFocus ? EditorActivation.RESTORE : undefined };
 		}
 
-		// If it's a diff editor we trigger the create diff editor input
-		if (isResourceDiffEditorInput(editor)) {
-			if (!selectedEditor.createDiffEditorInput) {
+		// If it's a merge editor we trigger the create merge editor input
+		if (isResourceMergeEditorInput(editor)) {
+			if (!selectedEditor.editorFactoryObject.createMergeEditorInput) {
 				return;
 			}
-			const inputWithOptions = await selectedEditor.createDiffEditorInput(editor, group);
+			const inputWithOptions = await selectedEditor.editorFactoryObject.createMergeEditorInput(editor, group);
+			return { editor: inputWithOptions.editor, options: inputWithOptions.options ?? options };
+		}
+
+		// If it's a diff editor we trigger the create diff editor input
+		if (isResourceDiffEditorInput(editor)) {
+			if (!selectedEditor.editorFactoryObject.createDiffEditorInput) {
+				return;
+			}
+			const inputWithOptions = await selectedEditor.editorFactoryObject.createDiffEditorInput(editor, group);
 			return { editor: inputWithOptions.editor, options: inputWithOptions.options ?? options };
 		}
 
@@ -449,10 +468,10 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		}
 
 		if (isUntitledResourceEditorInput(editor)) {
-			if (!selectedEditor.createUntitledEditorInput) {
+			if (!selectedEditor.editorFactoryObject.createUntitledEditorInput) {
 				return;
 			}
-			const inputWithOptions = await selectedEditor.createUntitledEditorInput(editor, group);
+			const inputWithOptions = await selectedEditor.editorFactoryObject.createUntitledEditorInput(editor, group);
 			return { editor: inputWithOptions.editor, options: inputWithOptions.options ?? options };
 		}
 
@@ -470,8 +489,13 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			}
 		}
 
+		// If no factory is above, return flow back to caller letting them know we could not resolve it
+		if (!selectedEditor.editorFactoryObject.createEditorInput) {
+			return;
+		}
+
 		// Respect options passed back
-		const inputWithOptions = await selectedEditor.createEditorInput(editor, group);
+		const inputWithOptions = await selectedEditor.editorFactoryObject.createEditorInput(editor, group);
 		options = inputWithOptions.options ?? options;
 		const input = inputWithOptions.editor;
 
@@ -763,7 +787,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		const cacheStorage: Set<string> = new Set<string>();
 
 		// Store just the relative pattern pieces without any path info
-		for (const [globPattern, contribPoint] of this._editors) {
+		for (const [globPattern, contribPoint] of this._flattenedEditors) {
 			const nonOptional = !!contribPoint.find(c => c.editorInfo.priority !== RegisteredEditorPriority.option && c.editorInfo.id !== DEFAULT_EDITOR_ASSOCIATION.id);
 			// Don't keep a cache of the optional ones as those wouldn't be opened on start anyways
 			if (!nonOptional) {

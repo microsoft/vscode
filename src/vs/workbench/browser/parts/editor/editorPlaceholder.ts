@@ -30,6 +30,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { FileChangeType, FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { isErrorWithActions, toErrorMessage } from 'vs/base/common/errorMessage';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { truncate } from 'vs/base/common/strings';
 
 export interface IEditorPlaceholderContents {
 	icon: string;
@@ -47,6 +48,8 @@ export interface IErrorEditorPlaceholderOptions extends IEditorOptions {
 }
 
 export abstract class EditorPlaceholder extends EditorPane {
+
+	private static readonly PLACEHOLDER_LABEL_MAX_LENGTH = 1024;
 
 	private container: HTMLElement | undefined;
 	private scrollbar: DomScrollableElement | undefined;
@@ -96,6 +99,7 @@ export abstract class EditorPlaceholder extends EditorPane {
 		// Delegate to implementation for contents
 		const disposables = new DisposableStore();
 		const { icon, label, actions } = await this.getContents(input, options, disposables);
+		const truncatedLabel = truncate(label, EditorPlaceholder.PLACEHOLDER_LABEL_MAX_LENGTH);
 
 		// Icon
 		const iconContainer = container.appendChild($('.editor-placeholder-icon-container'));
@@ -105,11 +109,11 @@ export abstract class EditorPlaceholder extends EditorPane {
 		// Label
 		const labelContainer = container.appendChild($('.editor-placeholder-label-container'));
 		const labelWidget = document.createElement('span');
-		labelWidget.textContent = label;
+		labelWidget.textContent = truncatedLabel;
 		labelContainer.appendChild(labelWidget);
 
 		// ARIA label
-		container.setAttribute('aria-label', `${computeEditorAriaLabel(input, undefined, this.group, undefined)}, ${label}`);
+		container.setAttribute('aria-label', `${computeEditorAriaLabel(input, undefined, this.group, undefined)}, ${truncatedLabel}`);
 
 		// Actions
 		const actionsContainer = container.appendChild($('.editor-placeholder-actions-container'));

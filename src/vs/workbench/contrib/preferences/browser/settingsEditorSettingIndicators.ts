@@ -9,10 +9,10 @@ import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLa
 import { ICustomHover, ITooltipMarkdownString, IUpdatableHoverOptions, setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
 import { Emitter } from 'vs/base/common/event';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { getDefaultIgnoredSettings, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
@@ -36,15 +36,15 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	private indicatorsContainerElement: HTMLElement;
 	private scopeOverridesElement: HTMLElement;
 	private scopeOverridesLabel: SimpleIconLabel;
+	private scopeOverridesHover: MutableDisposable<ICustomHover>;
 	private syncIgnoredElement: HTMLElement;
 	private syncIgnoredHover: ICustomHover | undefined;
 	private defaultOverrideIndicatorElement: HTMLElement;
 	private hoverDelegate: IHoverDelegate;
-	private hover: ICustomHover | undefined;
 
 	constructor(
 		container: HTMLElement,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IHoverService hoverService: IHoverService,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@ILanguageService private readonly languageService: ILanguageService) {
@@ -65,6 +65,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		this.scopeOverridesLabel = scopeOverridesIndicator.label;
 		this.syncIgnoredElement = this.createSyncIgnoredElement();
 		this.defaultOverrideIndicatorElement = this.createDefaultOverrideIndicator();
+		this.scopeOverridesHover = new MutableDisposable();
 	}
 
 	private createScopeOverridesIndicator(): { element: HTMLElement; label: SimpleIconLabel } {
@@ -126,21 +127,33 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	}
 
 	dispose() {
-		this.hover?.dispose();
+		this.scopeOverridesHover.dispose();
 		this.syncIgnoredHover?.dispose();
 	}
 
 	updateScopeOverrides(element: SettingsTreeSettingElement, elementDisposables: DisposableStore, onDidClickOverrideElement: Emitter<ISettingOverrideClickEvent>) {
 		this.scopeOverridesElement.innerText = '';
 		this.scopeOverridesElement.style.display = 'none';
-		if (element.overriddenScopeList.length || element.overriddenDefaultsLanguageList.length) {
+		const profileFeatureEnabled = this.configurationService.getValue<boolean>('workbench.experimental.settingsProfiles.enabled');
+		if (profileFeatureEnabled && !element.setting.isLanguageTagSetting && element.matchesScope(ConfigurationTarget.APPLICATION, false)) {
+			// If the setting is an application-scoped setting, there are no overrides so we can use this
+			// indicator to display that information instead.
+			this.scopeOverridesElement.style.display = 'inline';
+			this.scopeOverridesElement.classList.add('with-custom-hover');
+
+			const applicationSettingText = localize('applicationSetting', "Applies to all profiles");
+			this.scopeOverridesLabel.text = applicationSettingText;
+
+			const content = localize('applicationSettingDescription', "The setting is not specific to the current profile, and will retain its value when switching profiles.");
+			this.scopeOverridesHover.value = setupCustomHover(this.hoverDelegate, this.scopeOverridesElement, content);
+		} else if (element.overriddenScopeList.length || element.overriddenDefaultsLanguageList.length) {
 			if ((MODIFIED_INDICATOR_USE_INLINE_ONLY && element.overriddenScopeList.length) ||
 				(element.overriddenScopeList.length === 1 && !element.overriddenDefaultsLanguageList.length)) {
 				// Render inline if we have the flag and there are scope overrides to render,
 				// or if there is only one scope override to render and no language overrides.
 				this.scopeOverridesElement.style.display = 'inline';
 				this.scopeOverridesElement.classList.remove('with-custom-hover');
-				this.hover?.dispose();
+				this.scopeOverridesHover.value = undefined;
 
 				// Just show all the text in the label.
 				const prefaceText = element.isConfigured ?
@@ -221,11 +234,10 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 							scope: scope as ScopeString,
 							language
 						});
-						this.hover!.hide();
+						this.scopeOverridesHover.value?.hide();
 					}
 				};
-				this.hover?.dispose();
-				this.hover = setupCustomHover(this.hoverDelegate, this.scopeOverridesElement, content, options);
+				this.scopeOverridesHover.value = setupCustomHover(this.hoverDelegate, this.scopeOverridesElement, content, options);
 			}
 		}
 		this.render();
@@ -280,6 +292,11 @@ function getAccessibleScopeDisplayMidSentenceText(completeScope: string, languag
 
 export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement, configurationService: IConfigurationService, languageService: ILanguageService): string {
 	const ariaLabelSections: string[] = [];
+
+	const profileFeatureEnabled = configurationService.getValue<boolean>('workbench.experimental.settingsProfiles.enabled');
+	if (profileFeatureEnabled && element.matchesScope(ConfigurationTarget.APPLICATION, false)) {
+		ariaLabelSections.push(localize('applicationSettingDescriptionAccessible', "Setting value retained when switching profiles"));
+	}
 
 	// Add other overrides text
 	const otherOverridesStart = element.isConfigured ?

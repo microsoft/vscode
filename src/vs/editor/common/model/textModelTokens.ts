@@ -472,12 +472,12 @@ export class TextModelTokenization extends Disposable {
 			}
 
 			if (newNonWhitespaceIndex < nonWhitespaceColumn) {
+				fakeLines.push(this._textModel.getLineContent(i));
+				nonWhitespaceColumn = newNonWhitespaceIndex;
 				initialState = this._tokenizationStateStore.getBeginState(i - 1);
 				if (initialState) {
 					break;
 				}
-				fakeLines.push(this._textModel.getLineContent(i));
-				nonWhitespaceColumn = newNonWhitespaceIndex;
 			}
 		}
 

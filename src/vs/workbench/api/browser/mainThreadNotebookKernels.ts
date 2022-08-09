@@ -22,7 +22,7 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 
 abstract class MainThreadKernel implements INotebookKernel {
 	private readonly _onDidChange = new Emitter<INotebookKernelChangeEvent>();
-	private readonly preloads: { uri: URI; provides: string[] }[];
+	private readonly preloads: { uri: URI; provides: readonly string[] }[];
 	readonly onDidChange: Event<INotebookKernelChangeEvent> = this._onDidChange.event;
 
 	readonly id: string;

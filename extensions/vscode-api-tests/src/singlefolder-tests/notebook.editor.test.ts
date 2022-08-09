@@ -65,39 +65,6 @@ import * as utils from '../utils';
 		testDisposables.length = 0;
 	});
 
-	test.skip('showNotebookDocument', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/139078
-
-		const notebookDocumentsFromOnDidOpen = new Set<vscode.NotebookDocument>();
-		const sub = vscode.workspace.onDidOpenNotebookDocument(e => {
-			notebookDocumentsFromOnDidOpen.add(e);
-		});
-
-		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
-
-		const editor = await vscode.window.showNotebookDocument(uri);
-		assert.strictEqual(uri.toString(), editor.notebook.uri.toString());
-
-		assert.strictEqual(notebookDocumentsFromOnDidOpen.has(editor.notebook), true);
-
-		const includes = vscode.workspace.notebookDocuments.includes(editor.notebook);
-		assert.strictEqual(true, includes);
-
-		sub.dispose();
-	});
-
-	// TODO@rebornix deal with getting started
-	test.skip('notebook editor has viewColumn', async function () {
-
-		const uri1 = await utils.createRandomFile(undefined, undefined, '.nbdtest');
-		const editor1 = await vscode.window.showNotebookDocument(uri1);
-
-		assert.strictEqual(editor1.viewColumn, vscode.ViewColumn.One);
-
-		const uri2 = await utils.createRandomFile(undefined, undefined, '.nbdtest');
-		const editor2 = await vscode.window.showNotebookDocument(uri2, { viewColumn: vscode.ViewColumn.Beside });
-		assert.strictEqual(editor2.viewColumn, vscode.ViewColumn.Two);
-	});
-
 	// #138683
 	test('Opening a notebook should fire activeNotebook event changed only once', async function () {
 		const openedEditor = onDidOpenNotebookEditor();
