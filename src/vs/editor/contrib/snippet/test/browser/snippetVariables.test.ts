@@ -364,6 +364,8 @@ suite('Snippet Variables Resolver', function () {
 			getWorkspaceFolder = this._throw;
 			isCurrentWorkspace = this._throw;
 			isInsideWorkspace = this._throw;
+			registerCanonicalWorkspaceIdentityProvider = this._throw;
+			getCanonicalWorkspaceIdentifier = this._throw;
 		};
 
 		const resolver = new WorkspaceBasedVariableResolver(workspaceService);

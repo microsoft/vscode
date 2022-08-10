@@ -220,4 +220,14 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	private _onDidGrantWorkspaceTrust(): void {
 		this._proxy.$onDidGrantWorkspaceTrust();
 	}
+
+	// --- edit sessions ---
+	$registerCanonicalWorkspaceIdentityProvider(scheme: string) {
+		this._contextService.registerCanonicalWorkspaceIdentityProvider({
+			scheme: scheme,
+			getCanonicalWorkspaceIdentifier: async (folder: URI, token: CancellationToken) => {
+				return this._proxy.$getCanonicalWorkspaceIdentity(folder, token);
+			}
+		});
+	}
 }

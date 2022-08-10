@@ -4,16 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { delta as arrayDelta, mapArrayOrNot } from 'vs/base/common/arrays';
-import { Barrier } from 'vs/base/common/async';
+import { asPromise, Barrier } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
+import { toDisposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { Counter } from 'vs/base/common/numbers';
 import { basename, basenameOrAuthority, dirname, ExtUri, relativePath } from 'vs/base/common/resources';
 import { compare } from 'vs/base/common/strings';
 import { withUndefinedAsNull } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
@@ -186,6 +187,8 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	private readonly _activeSearchCallbacks: ((match: IRawFileMatch2) => any)[] = [];
 
 	private _trusted: boolean = false;
+
+	private readonly _canonicalWorkspaceIdentityProviders: { [scheme: string]: vscode.CanonicalWorkspaceIdentityProvider } = Object.create(null);
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
@@ -572,6 +575,32 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			this._trusted = true;
 			this._onDidGrantWorkspaceTrust.fire();
 		}
+	}
+
+	// --- edit sessions ---
+
+	// called by ext host
+	registerCanonicalWorkspaceIdentityProvider(scheme: string, provider: vscode.CanonicalWorkspaceIdentityProvider) {
+		this._canonicalWorkspaceIdentityProviders[scheme] = provider;
+		this._proxy.$registerCanonicalWorkspaceIdentityProvider(scheme);
+		return toDisposable(() => {
+			delete this._canonicalWorkspaceIdentityProviders[scheme];
+		});
+	}
+
+	// called by main thread
+	async $getCanonicalWorkspaceIdentity(folder: UriComponents, cancellationToken: CancellationToken): Promise<{ [key: string]: string | null } | null> {
+		const provider = this._canonicalWorkspaceIdentityProviders[folder.scheme];
+		if (!provider) {
+			return null;
+		}
+
+		const result = await asPromise(() => provider.provideCanonicalWorkspaceIdentity(URI.revive(folder), cancellationToken));
+		if (!result) {
+			return null;
+		}
+
+		return result;
 	}
 }
 

@@ -1085,6 +1085,7 @@ export interface MainThreadWorkspaceShape extends IDisposable {
 	$updateWorkspaceFolders(extensionName: string, index: number, deleteCount: number, workspaceFoldersToAdd: { uri: UriComponents; name?: string }[]): Promise<void>;
 	$resolveProxy(url: string): Promise<string | undefined>;
 	$requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined>;
+	$registerCanonicalWorkspaceIdentityProvider(scheme: string): void;
 }
 
 export interface IFileChangeDto {
@@ -1413,6 +1414,7 @@ export interface ExtHostWorkspaceShape {
 	$acceptWorkspaceData(workspace: IWorkspaceData | null): void;
 	$handleTextSearchResult(result: search.IRawFileMatch2, requestId: number): void;
 	$onDidGrantWorkspaceTrust(): void;
+	$getCanonicalWorkspaceIdentity(resource: UriComponents, token: CancellationToken): Promise<{ [key: string]: string | null } | null>;
 }
 
 export interface ExtHostFileSystemInfoShape {
