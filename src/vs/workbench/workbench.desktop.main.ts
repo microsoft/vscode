@@ -157,4 +157,7 @@ import 'vs/workbench/contrib/splash/electron-sandbox/splash.contribution';
 // Local History
 import 'vs/workbench/contrib/localHistory/electron-sandbox/localHistory.contribution';
 
+// Merge Editor
+import 'vs/workbench/contrib/mergeEditor/electron-sandbox/mergeEditor.contribution';
+
 //#endregion
