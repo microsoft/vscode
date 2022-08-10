@@ -186,7 +186,11 @@ export class ActionButtonCommand {
 			}
 
 			if (commandGroups.length > 0) {
-				commandGroups[0].splice(0, 0, { command: 'git.commit', title: localize('scm secondary button commit', "Commit") });
+				commandGroups[0].splice(0, 0, {
+					command: 'git.commit',
+					title: localize('scm secondary button commit', "Commit"),
+					arguments: [this.repository.sourceControl, '']
+				});
 			}
 		}
 
