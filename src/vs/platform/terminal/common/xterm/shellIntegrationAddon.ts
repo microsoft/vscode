@@ -429,4 +429,14 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		}
 		return result;
 	}
+
+	private _parseKeyValueAssignment(message: string): { key: string; value: string | undefined } {
+		const [key, ...rawValues] = message.split('=');
+		if (!rawValues.length) {
+			return { key, value: undefined }; // No '=' was found.
+		}
+		const rawValue = rawValues.join('=');
+		const value = this._deserializeMessage(rawValue);
+		return { key, value };
+	}
 }
