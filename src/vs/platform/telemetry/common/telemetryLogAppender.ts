@@ -24,7 +24,7 @@ export class TelemetryLogAppender extends Disposable implements ITelemetryAppend
 			this.logger = this._register(logger);
 		} else {
 			this.logger = this._register(loggerService.createLogger(environmentService.telemetryLogResource));
-			this.logger.info('The below are logs for every telemetry event sent from VS Code once the log level is set to trace.');
+			this.logger.info('Below are logs for every telemetry event sent from VS Code once the log level is set to trace.');
 			this.logger.info('===========================================================');
 		}
 	}
