@@ -63,6 +63,7 @@ interface IStoredWebExtension {
 	// deprecated in favor of packageNLSUris & fallbackPackageNLSUri
 	readonly packageNLSUri?: UriComponents;
 	readonly packageNLSUris?: IStringDictionary<UriComponents>;
+	readonly bundleNLSUris?: IStringDictionary<UriComponents>;
 	readonly fallbackPackageNLSUri?: UriComponents;
 	readonly metadata?: Metadata;
 }
@@ -75,8 +76,8 @@ interface IWebExtension {
 	changelogUri?: URI;
 	// deprecated in favor of packageNLSUris & fallbackPackageNLSUri
 	packageNLSUri?: URI;
-	packageNLSUris?: Map<string, URI>;
-	bundleNLSUris?: Map<string, URI>;
+	packageNLSUris: Map<string, URI>;
+	bundleNLSUris: Map<string, URI>;
 	fallbackPackageNLSUri?: URI;
 	metadata?: Metadata;
 }
@@ -590,7 +591,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return bundleNLSResources;
 	}
 
-	private async toWebExtension(extensionLocation: URI, identifier?: IExtensionIdentifier, packageNLSUris?: Map<string, URI>, bundleNLSUris?: Map<string, URI>, fallbackPackageNLSUri?: URI | null, readmeUri?: URI, changelogUri?: URI, metadata?: Metadata): Promise<IWebExtension> {
+	private async toWebExtension(extensionLocation: URI, identifier?: IExtensionIdentifier, packageNLSUris: Map<string, URI> = new Map<string, URI>(), bundleNLSUris: Map<string, URI> = new Map<string, URI>(), fallbackPackageNLSUri?: URI | null, readmeUri?: URI, changelogUri?: URI, metadata?: Metadata): Promise<IWebExtension> {
 		let packageJSONContent;
 		try {
 			packageJSONContent = await this.extensionResourceLoaderService.readExtensionResource(joinPath(extensionLocation, 'package.json'));
@@ -805,10 +806,14 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 						this.logService.info('Ignoring invalid extension while scanning', storedWebExtensions);
 						continue;
 					}
-					let packageNLSUris: Map<string, URI> | undefined;
+					const packageNLSUris: Map<string, URI> = new Map<string, URI>();
 					if (e.packageNLSUris) {
-						packageNLSUris = new Map<string, URI>();
 						Object.entries(e.packageNLSUris).forEach(([key, value]) => packageNLSUris!.set(key, URI.revive(value)));
+					}
+
+					const bundleNLSUris: Map<string, URI> = new Map<string, URI>();
+					if (e.bundleNLSUris) {
+						Object.entries(e.bundleNLSUris).forEach(([key, value]) => packageNLSUris!.set(key, URI.revive(value)));
 					}
 
 					webExtensions.push({
@@ -818,6 +823,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 						readmeUri: URI.revive(e.readmeUri),
 						changelogUri: URI.revive(e.changelogUri),
 						packageNLSUris,
+						bundleNLSUris,
 						fallbackPackageNLSUri: URI.revive(e.fallbackPackageNLSUri),
 						packageNLSUri: URI.revive(e.packageNLSUri),
 						metadata: e.metadata,
@@ -848,6 +854,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 					readmeUri: e.readmeUri?.toJSON(),
 					changelogUri: e.changelogUri?.toJSON(),
 					packageNLSUris: toStringDictionary(e.packageNLSUris),
+					bundleNLSUris: toStringDictionary(e.bundleNLSUris),
 					fallbackPackageNLSUri: e.fallbackPackageNLSUri?.toJSON(),
 					metadata: e.metadata
 				}));
