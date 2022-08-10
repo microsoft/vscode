@@ -330,12 +330,10 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				return true;
 			}
 			case VSCodeOscPt.Property: {
-				const [key, ...rawValues] = args[0].split('=');
-				if (!rawValues.length) {
+				const { key, value } = this._parseKeyValueAssignment(args[0]);
+				if (value === undefined) {
 					return true;
 				}
-				const rawValue = rawValues.join('=');
-				const value = this._deserializeMessage(rawValue);
 				switch (key) {
 					case 'Cwd': {
 						// TODO: Ideally we would also support the following to supplement our own:
