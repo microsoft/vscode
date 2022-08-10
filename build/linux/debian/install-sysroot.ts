@@ -9,7 +9,7 @@ import { tmpdir } from 'os';
 import * as fs from 'fs';
 import * as https from 'https';
 import * as path from 'path';
-import { ArchString } from './types';
+import { DebianArchString } from './types';
 import * as util from '../../lib/util';
 
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:build/linux/sysroot_scripts/install-sysroot.py.
@@ -37,7 +37,7 @@ type SysrootDictEntry = {
 	Tarball: string;
 };
 
-export async function getSysroot(arch: ArchString): Promise<string> {
+export async function getSysroot(arch: DebianArchString): Promise<string> {
 	const sysrootJSONUrl = `https://raw.githubusercontent.com/electron/electron/v${util.getElectronVersion()}/script/sysroots.json`;
 	const sysrootDictLocation = `${tmpdir()}/sysroots.json`;
 	const result = spawnSync('curl', [sysrootJSONUrl, '-o', sysrootDictLocation]);

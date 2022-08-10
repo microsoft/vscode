@@ -4,7 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.referenceGeneratedDepsByArch = exports.bundledDeps = exports.additionalDeps = void 0;
+exports.referenceGeneratedDepsByArch = exports.additionalDeps = void 0;
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:chrome/installer/linux/rpm/additional_deps
 // Additional dependencies not in the rpm find-requires output.
 exports.additionalDeps = [
@@ -16,18 +16,6 @@ exports.additionalDeps = [
     'libvulkan.so.1()(64bit)',
     'libcurl.so.4()(64bit)',
     'xdg-utils' // OS integration
-];
-// Based on https://source.chromium.org/chromium/chromium/src/+/refs/tags/98.0.4758.109:chrome/installer/linux/BUILD.gn;l=64-80
-// and the Linux Archive build
-// Shared library dependencies that we already bundle.
-exports.bundledDeps = [
-    'libEGL.so',
-    'libGLESv2.so',
-    'libvulkan.so.1',
-    'swiftshader_libEGL.so',
-    'swiftshader_libGLESv2.so',
-    'libvk_swiftshader.so',
-    'libffmpeg.so'
 ];
 exports.referenceGeneratedDepsByArch = {
     'x86_64': [
