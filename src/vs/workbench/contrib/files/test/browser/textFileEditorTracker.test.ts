@@ -157,7 +157,7 @@ suite('Files - TextFileEditorTracker', () => {
 	test('dirty untitled text file model opens as editor', async function () {
 		const accessor = await createTracker();
 
-		const untitledTextEditor = accessor.textEditorService.createTextEditor({ resource: undefined, forceUntitled: true }) as UntitledTextEditorInput;
+		const untitledTextEditor = await accessor.textEditorService.resolveTextEditor({ resource: undefined, forceUntitled: true }) as UntitledTextEditorInput;
 		const model = disposables.add(await untitledTextEditor.resolve());
 
 		assert.ok(!accessor.editorService.isOpened(untitledTextEditor));
@@ -177,7 +177,7 @@ suite('Files - TextFileEditorTracker', () => {
 
 		const resource = toResource.call(this, '/path/index.txt');
 
-		await accessor.editorService.openEditor(accessor.textEditorService.createTextEditor({ resource, options: { override: DEFAULT_EDITOR_ASSOCIATION.id } }));
+		await accessor.editorService.openEditor(await accessor.textEditorService.resolveTextEditor({ resource, options: { override: DEFAULT_EDITOR_ASSOCIATION.id } }));
 
 		accessor.hostService.setFocus(false);
 		accessor.hostService.setFocus(true);

@@ -31,6 +31,18 @@ export interface ITextEditorService {
 	readonly _serviceBrand: undefined;
 
 	/**
+	 * @deprecated this method should not be used, rather consider using
+	 * `IEditorResolverService` instead with `DEFAULT_EDITOR_ASSOCIATION.id`.
+	 */
+	createTextEditor(input: IUntypedEditorInput): EditorInput;
+
+	/**
+	 * @deprecated this method should not be used, rather consider using
+	 * `IEditorResolverService` instead with `DEFAULT_EDITOR_ASSOCIATION.id`.
+	 */
+	createTextEditor(input: IUntypedFileEditorInput): IFileEditorInput;
+
+	/**
 	 * A way to create text editor inputs from an untyped editor input. Depending
 	 * on the passed in input this will be:
 	 * - a `IFileEditorInput` for file resources
@@ -39,8 +51,8 @@ export interface ITextEditorService {
 	 *
 	 * @param input the untyped editor input to create a typed input from
 	 */
-	createTextEditor(input: IUntypedEditorInput): EditorInput;
-	createTextEditor(input: IUntypedFileEditorInput): IFileEditorInput;
+	resolveTextEditor(input: IUntypedEditorInput): Promise<EditorInput>;
+	resolveTextEditor(input: IUntypedFileEditorInput): Promise<IFileEditorInput>;
 }
 
 export class TextEditorService extends Disposable implements ITextEditorService {
@@ -81,6 +93,12 @@ export class TextEditorService extends Disposable implements ITextEditorService 
 				createDiffEditorInput: diffEditor => ({ editor: this.createTextEditor(diffEditor) })
 			}
 		));
+	}
+
+	resolveTextEditor(input: IUntypedEditorInput): Promise<EditorInput>;
+	resolveTextEditor(input: IUntypedFileEditorInput): Promise<IFileEditorInput>;
+	async resolveTextEditor(input: IUntypedEditorInput | IUntypedFileEditorInput): Promise<EditorInput | IFileEditorInput> {
+		return this.createTextEditor(input);
 	}
 
 	createTextEditor(input: IUntypedEditorInput): EditorInput;
