@@ -16,7 +16,7 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { NotebookCellOutputTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellOutputTextModel';
-import { CellInternalMetadataChangedEvent, CellKind, ICell, ICellOutput, IOutputDto, IOutputItemDto, NotebookCellCollapseState, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellInternalMetadataChangedEvent, CellKind, ICell, ICellDto2, ICellOutput, IOutputDto, IOutputItemDto, NotebookCellCollapseState, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class NotebookCellTextModel extends Disposable implements ICell {
 	private readonly _onDidChangeOutputs = this._register(new Emitter<NotebookCellOutputsSplice>());
@@ -347,6 +347,42 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		}
 
 		return this.getHashValue() === b.getHashValue();
+	}
+
+	/**
+	 * Only compares
+	 * - language
+	 * - mime
+	 * - cellKind
+	 * - internal metadata
+	 * - source
+	 */
+	fastEqual(b: ICellDto2): boolean {
+		if (this.language !== b.language) {
+			return false;
+		}
+
+		if (this.mime !== b.mime) {
+			return false;
+		}
+
+		if (this.cellKind !== b.cellKind) {
+			return false;
+		}
+
+		if (this.internalMetadata?.executionOrder !== b.internalMetadata?.executionOrder
+			|| this.internalMetadata?.lastRunSuccess !== b.internalMetadata?.lastRunSuccess
+			|| this.internalMetadata?.runStartTime !== b.internalMetadata?.runStartTime
+			|| this.internalMetadata?.runStartTimeAdjustment !== b.internalMetadata?.runStartTimeAdjustment
+			|| this.internalMetadata?.runEndTime !== b.internalMetadata?.runEndTime) {
+			return false;
+		}
+
+		if (this._source !== b.source) {
+			return false;
+		}
+
+		return true;
 	}
 
 	override dispose() {
