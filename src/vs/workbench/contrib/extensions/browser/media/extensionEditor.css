@@ -249,6 +249,10 @@
 	height: 16px;
 }
 
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item.empty > .extension-action.label {
+	margin-right: 2px;
+}
+
 .extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item.empty > .action-dropdown-item-separator {
 	display: none;
 }
