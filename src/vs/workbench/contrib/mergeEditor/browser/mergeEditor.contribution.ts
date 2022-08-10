@@ -12,7 +12,6 @@ import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
 import { AcceptAllInput1, AcceptAllInput2, CompareInput1WithBaseCommand, CompareInput2WithBaseCommand, GoToNextConflict, GoToPreviousConflict, OpenBaseFile, OpenMergeEditor, OpenResultResource, SetColumnLayout, SetMixedLayout, ToggleActiveConflictInput1, ToggleActiveConflictInput2 } from 'vs/workbench/contrib/mergeEditor/browser/commands/commands';
-import { MergeEditorCopyContentsToJSON, MergeEditorOpenContents } from 'vs/workbench/contrib/mergeEditor/browser/commands/devCommands';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { MergeEditor, MergeEditorResolverContribution, MergeEditorOpenHandlerContribution } from 'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -53,9 +52,6 @@ registerAction2(SetMixedLayout);
 registerAction2(SetColumnLayout);
 registerAction2(OpenMergeEditor);
 registerAction2(OpenBaseFile);
-
-registerAction2(MergeEditorCopyContentsToJSON);
-registerAction2(MergeEditorOpenContents);
 
 registerAction2(GoToNextConflict);
 registerAction2(GoToPreviousConflict);
