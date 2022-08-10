@@ -32,6 +32,9 @@ end
 function __vsc_cmd_executed --on-event fish_preexec
 	__vsc_esc C
 	__vsc_esc E (__vsc_escape_cmd "$argv")
+
+	# Creates a marker to indicate a command was run.
+	set --global _vsc_has_cmd
 end
 
 
@@ -61,6 +64,14 @@ end
 # Updates the current working directory.
 function __vsc_update_cwd --on-event fish_prompt
 	__vsc_esc P "Cwd=$PWD"
+
+	# If a command marker exists, remove it.
+	# Otherwise, the commandline is empty and no command was run.
+	if set --query _vsc_has_cmd
+		set --erase _vsc_has_cmd
+	else
+		__vsc_cmd_clear
+	end
 end
 
 # Sent at the start of the prompt.
