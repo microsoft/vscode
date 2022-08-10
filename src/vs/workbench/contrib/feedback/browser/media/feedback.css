@@ -93,7 +93,7 @@
 	height: 22px;
 	line-height: 22px;
 	border: none;
-	cursor: pointer;
+
 }
 
 .monaco-workbench .feedback-form .form-buttons {
@@ -106,7 +106,7 @@
 	width: 32px;
 	display: inline-block;
 	margin: .5em 0;
-	cursor: pointer;
+
 	box-sizing:			border-box;
 }
 

@@ -768,7 +768,7 @@ export class ExtensionEditor extends EditorPane {
 						background-color: var(--vscode-button-background);
 						border-color: var(--vscode-button-border);
 						border-radius: 50%;
-						cursor: pointer;
+
 						box-shadow: 1px 1px 1px rgba(0,0,0,.25);
 						outline: none;
 						display: flex;

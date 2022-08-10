@@ -26,7 +26,7 @@
 	box-sizing: border-box;
 	background-position: center center;
 	background-repeat: no-repeat;
-	cursor: pointer;
+
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -131,7 +131,7 @@
 .search-editor .includes-excludes .expand {
 	position: absolute;
 	right: -2px;
-	cursor: pointer;
+
 	width: 25px;
 	height: 16px;
 	z-index: 2; /* Force it above the search results message, which has a negative top margin */

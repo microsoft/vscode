@@ -593,7 +593,7 @@
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-detail-right img.clickable {
-	cursor: pointer;
+
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer button {
@@ -608,7 +608,7 @@
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer button:hover {
-	cursor: pointer;
+
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer button:focus {
@@ -644,7 +644,7 @@
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .prev-button:hover {
-	cursor: pointer;
+
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .prev-button .codicon {
@@ -709,7 +709,7 @@
 	padding: 0;
 	background: transparent;
 	margin: 2px;
-	cursor: pointer;
+
 	overflow: hidden;
 	text-overflow: ellipsis;
 	max-width: 100%;

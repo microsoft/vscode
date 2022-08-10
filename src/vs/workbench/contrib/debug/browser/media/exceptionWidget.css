@@ -39,7 +39,7 @@
 
 .monaco-editor .zone-widget .zone-widget-container.exception-widget .stack-trace a {
 	text-decoration: underline;
-	cursor: pointer;
+
 }
 
 .monaco-workbench.mac .zone-widget .zone-widget-container.exception-widget {

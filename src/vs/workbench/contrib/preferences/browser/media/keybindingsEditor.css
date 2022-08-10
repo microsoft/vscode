@@ -67,7 +67,7 @@
 
 .keybindings-editor > .keybindings-header .open-keybindings-container > .file-name {
 	text-decoration: underline;
-	cursor: pointer;
+
 	margin-left: 4px;
 }
 
@@ -109,7 +109,7 @@
 .keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .monaco-action-bar .action-item > .icon {
 	width:16px;
 	height: 16px;
-	cursor: pointer;
+
 	margin-top: 3px;
 }
 

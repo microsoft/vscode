@@ -26,7 +26,7 @@
 	font-weight: bold;
 	overflow: hidden;
 	display: flex;
-	cursor: pointer;
+
 	align-items: center;
 	box-sizing: border-box;
 }
@@ -76,7 +76,7 @@
 }
 
 .monaco-pane-view .pane > .pane-header .action-item .monaco-select-box {
-	cursor: pointer;
+
 	min-width: 110px;
 	min-height: 18px;
 	padding: 2px 23px 2px 8px;

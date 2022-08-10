@@ -607,7 +607,7 @@ export class DirtyDiffController extends Disposable implements IEditorContributi
 			this.gutterActionDisposables.add(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
 			this.stylesheet.textContent = `
 				.monaco-editor .dirty-diff-glyph {
-					cursor: pointer;
+
 				}
 
 				.monaco-editor .margin-view-overlays .dirty-diff-glyph:hover::before {

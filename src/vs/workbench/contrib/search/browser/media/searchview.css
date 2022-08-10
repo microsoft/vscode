@@ -30,7 +30,7 @@
 	box-sizing: border-box;
 	background-position: center center;
 	background-repeat: no-repeat;
-	cursor: pointer;
+
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -112,7 +112,7 @@
 .search-view .query-details .more {
 	position: absolute;
 	right: -2px;
-	cursor: pointer;
+
 	width: 25px;
 	height: 16px;
 	color: inherit;

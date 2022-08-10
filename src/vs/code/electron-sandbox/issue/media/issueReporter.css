@@ -213,7 +213,7 @@ input[type="checkbox"] {
 	display: inline-block;
 	margin-top: 0;
 	vertical-align: middle;
-	cursor: pointer;
+
 }
 
 input:disabled {
@@ -231,7 +231,7 @@ input:disabled {
 }
 
 a, .workbenchCommand {
-	cursor: pointer;
+
 	border: 1px solid transparent;
 }
 
@@ -273,7 +273,7 @@ a {
 }
 
 #issue-type {
-	cursor: pointer;
+
 }
 
 #similar-issues {

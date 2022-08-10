@@ -9,7 +9,7 @@
 	width: 100%;
 	padding: 4px;
 	text-align: center;
-	cursor: pointer;
+
 	justify-content: center;
 	align-items: center;
 }
@@ -35,7 +35,7 @@
 
 .monaco-button-dropdown {
 	display: flex;
-	cursor: pointer;
+
 }
 
 .monaco-button-dropdown.disabled {

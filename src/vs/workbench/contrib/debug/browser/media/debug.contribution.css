@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .codicon-debug-hint {
-	cursor: pointer;
+
 }
 
 .codicon-debug-hint:not([class*='codicon-debug-breakpoint']):not([class*='codicon-debug-stackframe']) {
@@ -60,7 +60,7 @@
 }
 
 .monaco-editor .inline-breakpoint-widget {
-	cursor: pointer;
+
 }
 
 .monaco-workbench .debug-view-content .monaco-list-row .monaco-tl-contents {
@@ -111,7 +111,7 @@
 }
 
 .monaco-workbench .monaco-list-row .expression .value a.link.pointer {
-	cursor: pointer;
+
 }
 
 /* White color when element is selected and list is focused. White looks better on blue selection background. */

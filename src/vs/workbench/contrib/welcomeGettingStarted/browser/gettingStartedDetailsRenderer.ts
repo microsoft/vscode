@@ -70,7 +70,7 @@ export class GettingStartedDetailsRenderer {
 						flex-direction: column;
 						align-items: center;
 						margin: 5px;
-						cursor: pointer;
+
 					}
 					checkbox > img {
 						margin-bottom: 4px;

@@ -25,7 +25,7 @@
 	display: block;
 	align-items: center;
 	justify-content: center;
-	cursor: pointer;
+
 	position: relative;  /* DO NOT REMOVE - this is the key to preventing the ghosting icon bug in Chrome 42 */
 }
 

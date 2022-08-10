@@ -61,7 +61,7 @@
 	background-repeat: no-repeat;
 	background-position: 2px 2px;
 	white-space: nowrap;
-	cursor: pointer;
+
 	touch-action: none;
 	width: 100%;
 }
@@ -105,6 +105,6 @@
 	background-repeat: no-repeat;
 	background-position: 2px 2px;
 	white-space: nowrap;
-	cursor: pointer;
+
 	touch-action: none;
 }

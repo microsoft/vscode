@@ -113,7 +113,7 @@
 
 /* Apply cursor styles to xterm-screen as well due to how .xterm-viewport/.xterm are positioned */
 .xterm.enable-mouse-events .xterm-screen  { cursor: default; }
-.xterm.xterm-cursor-pointer .xterm-screen { cursor: pointer; }
+.xterm.xterm-cursor-pointer .xterm-screen {   }
 .xterm.column-select.focus .xterm-screen  { cursor: crosshair; }
 
 .monaco-workbench .editor-instance .xterm {
@@ -438,7 +438,7 @@
 }
 
 .terminal-command-decoration:not(.default):hover {
-	cursor: pointer;
+
 	border-radius: 5px;
 }
 

@@ -75,7 +75,7 @@
 	margin-left: 3px;
 	background-position: 50%;
 	background-repeat: no-repeat;
-	cursor: pointer;
+
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -119,7 +119,7 @@
 	margin-left: 3px;
 	background-position: center center;
 	background-repeat: no-repeat;
-	cursor: pointer;
+
 }
 
 .monaco-workbench .simple-fr-find-part-wrapper .button.disabled {
@@ -140,7 +140,7 @@
 	color: inherit;
 	margin-left: 2px;
 	float: left;
-	cursor: pointer;
+
 	box-sizing: border-box;
 	user-select: none;
 	-webkit-user-select: none;

@@ -21,7 +21,7 @@
 }
 
 .monaco-editor .peekview-widget .head .peekview-title.clickable {
-	cursor: pointer;
+
 }
 
 .monaco-editor .peekview-widget .head .peekview-title .dirname:not(:empty) {

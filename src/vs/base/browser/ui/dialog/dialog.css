@@ -102,7 +102,7 @@
 }
 
 .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-checkbox-row .dialog-checkbox-message {
-	cursor: pointer;
+
 	user-select: none;
 	-webkit-user-select: none;
 	-ms-user-select: none;

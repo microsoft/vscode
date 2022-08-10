@@ -49,7 +49,7 @@
 }
 
 .monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-item.cell-status-item-has-command {
-	cursor: pointer;
+
 }
 
 .monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-left > .cell-contributed-items {

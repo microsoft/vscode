@@ -33,7 +33,7 @@
 
 .defineKeybindingWidget .existing .existingText {
 	text-decoration: underline;
-	cursor: pointer;
+
 }
 
 .defineKeybindingWidget .output .monaco-keybinding {

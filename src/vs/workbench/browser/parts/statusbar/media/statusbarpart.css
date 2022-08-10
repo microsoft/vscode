@@ -116,7 +116,7 @@
 }
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item > a {
-	cursor: pointer;
+
 	display: flex;
 	height: 100%;
 	padding: 0 5px 0 5px;

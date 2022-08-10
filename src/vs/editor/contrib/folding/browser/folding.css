@@ -6,7 +6,7 @@
 .monaco-editor .margin-view-overlays .codicon-folding-manual-expanded,
 .monaco-editor .margin-view-overlays .codicon-folding-expanded,
 .monaco-editor .margin-view-overlays .codicon-folding-collapsed {
-	cursor: pointer;
+
 	opacity: 0;
 	transition: opacity 0.5s;
 	display: flex;
@@ -29,6 +29,6 @@
 	content: "⋯";
 	display: inline;
 	line-height: 1em;
-	cursor: pointer;
+
 }
 

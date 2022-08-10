@@ -108,7 +108,7 @@
 	background-repeat: no-repeat;
 	background-position: 2px 2px;
 	white-space: nowrap;
-	cursor: pointer;
+
 	touch-action: none;
 }
 
@@ -163,7 +163,7 @@
 	color: inherit;
 	opacity: 1;
 	font-size: 14px;
-	cursor: pointer;
+
 }
 
 .monaco-editor .suggest-details>.monaco-scrollable-element>.body>.header>.codicon-close {

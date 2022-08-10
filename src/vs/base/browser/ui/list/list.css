@@ -39,7 +39,7 @@
 }
 
 .monaco-list.mouse-support .monaco-list-row {
-	cursor: pointer;
+
 	touch-action: none;
 }
 

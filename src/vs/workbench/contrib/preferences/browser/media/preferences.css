@@ -52,7 +52,7 @@
 	text-transform: uppercase;
 	font-size: 11px;
 	margin-right: 5px;
-	cursor: pointer;
+
 	display: flex;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -171,7 +171,7 @@
 
 .monaco-editor .settings-group-title-widget .title-container {
 	width: 100%;
-	cursor: pointer;
+
 	font-weight: bold;
 	user-select: none;
 	-webkit-user-select: none;

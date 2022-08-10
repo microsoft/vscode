@@ -21,7 +21,7 @@
 	height: 0.8em;
 	line-height: 0.8em;
 	display: inline-block;
-	cursor: pointer;
+
 }
 
 .hc-black .colorpicker-color-decoration,
@@ -46,7 +46,7 @@
 	align-items: center;
 	justify-content: center;
 	line-height: 24px;
-	cursor: pointer;
+
 	color: white;
 	flex: 1;
 }
@@ -65,7 +65,7 @@
 .colorpicker-header .original-color {
 	width: 74px;
 	z-index: inherit;
-	cursor: pointer;
+
 }
 
 

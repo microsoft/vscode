@@ -52,7 +52,7 @@ button {
 }
 
 button:hover:not(:disabled) {
-	cursor: pointer;
+
 	color: var(--vscode-toolbar-hoverForeground);
 	background: var(--vscode-toolbar-hoverBackground);
 }

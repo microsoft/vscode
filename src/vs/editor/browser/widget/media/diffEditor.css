@@ -63,7 +63,7 @@
 }
 
 .monaco-editor .arrow-revert-change:hover {
-	cursor: pointer;
+
 }
 
 /* ---------- Inline Diff ---------- */
@@ -73,5 +73,5 @@
 }
 
 .monaco-editor .margin-view-zones .lightbulb-glyph:hover {
-	cursor: pointer;
+
 }

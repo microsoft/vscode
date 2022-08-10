@@ -6,7 +6,7 @@
 /* Editor Label */
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title {
-	cursor: pointer;
+
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .title-label,
@@ -26,7 +26,7 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label a,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .title-label h2,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label span {
-	cursor: pointer;
+
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .monaco-icon-label::before {

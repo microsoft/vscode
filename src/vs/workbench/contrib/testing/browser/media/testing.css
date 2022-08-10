@@ -159,7 +159,7 @@
 }
 
 .monaco-editor .zone-widget.test-output-peek .preview-text a {
-	cursor: pointer;
+
 }
 
 /** -- filter  */
@@ -204,7 +204,7 @@
 /** -- decorations  */
 
 .monaco-editor .testing-run-glyph {
-	cursor: pointer;
+
 }
 
 .testing-diff-title-widget {
@@ -224,7 +224,7 @@
 }
 
 .test-message-inline-content-clickable {
-	cursor: pointer;
+
 }
 
 .test-label-description {

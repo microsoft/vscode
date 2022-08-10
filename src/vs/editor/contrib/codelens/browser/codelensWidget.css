@@ -25,7 +25,7 @@
 }
 
 .monaco-editor .codelens-decoration>a:hover {
-	cursor: pointer;
+
 	color: var(--vscode-editorLink-activeForeground) !important;
 }
 
@@ -40,7 +40,7 @@
 }
 
 .monaco-editor .codelens-decoration>a:hover .codicon::before {
-	cursor: pointer;
+
 }
 
 @keyframes fadein {

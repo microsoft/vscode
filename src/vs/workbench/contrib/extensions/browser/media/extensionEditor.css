@@ -13,7 +13,7 @@
 }
 
 .extension-editor .clickable {
-	cursor: pointer;
+
 }
 
 .extension-editor > .header {
@@ -429,12 +429,12 @@
 	border-radius: 2px;
 	font-size: 90%;
 	margin: 0px 6px 3px 0px;
-	cursor: pointer;
+
 }
 
 .extension-editor > .body > .content > .details > .additional-details-container .resources-container > .resources > .resource {
 	display: block;
-	cursor: pointer;
+
 }
 
 .extension-editor > .body > .content > .details > .additional-details-container .resources-container > .resources > .resource {
@@ -549,7 +549,7 @@
 }
 
 .extension-editor > .body > .content details > summary {
-	cursor: pointer;
+
 	margin-bottom: 10px;
 	font-weight: bold;
 	font-size: 120%;
@@ -700,7 +700,7 @@
 }
 
 .extension-editor .extensions-grid-view .extension-list-item > .details .header > .name {
-	cursor: pointer;
+
 }
 
 .extension-editor .extensions-grid-view .extension-list-item > .details > .header-container > .header > .version,

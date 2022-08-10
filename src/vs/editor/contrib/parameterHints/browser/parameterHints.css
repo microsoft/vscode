@@ -58,7 +58,7 @@
 }
 
 .monaco-editor .parameter-hints-widget .docs .markdown-docs a:hover {
-	cursor: pointer;
+
 }
 
 .monaco-editor .parameter-hints-widget .docs .markdown-docs code {
@@ -92,7 +92,7 @@
 	width: 16px;
 	height: 16px;
 	background-repeat: no-repeat;
-	cursor: pointer;
+
 }
 
 .monaco-editor .parameter-hints-widget .button.previous {

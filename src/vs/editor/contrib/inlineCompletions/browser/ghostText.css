@@ -14,7 +14,7 @@
 
 .monaco-editor .suggest-preview-additional-widget .button {
 	display: inline-block;
-	cursor: pointer;
+
 	text-decoration: underline;
 	text-underline-position: under;
 }

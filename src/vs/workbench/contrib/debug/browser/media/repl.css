@@ -24,7 +24,7 @@
 }
 
 .monaco-workbench .repl .repl-tree .monaco-tl-contents .expression .lazy-button {
-	cursor: pointer;
+
 }
 
 .monaco-workbench .repl .repl-tree .monaco-tl-twistie {
@@ -45,7 +45,7 @@
 
 .monaco-workbench .repl .repl-tree .monaco-tl-twistie.collapsible + .monaco-tl-contents,
 .monaco-workbench .repl .repl-tree .monaco-tl-twistie {
-	cursor: pointer;
+
 }
 
 .monaco-workbench .repl .repl-tree .output.expression.value-and-source {
@@ -73,7 +73,7 @@
 .monaco-workbench .repl .repl-tree .output.expression.value-and-source .source {
 	margin-left: auto;
 	margin-right: 8px;
-	cursor: pointer;
+
 	text-decoration: underline;
 	overflow: hidden;
 	text-overflow: ellipsis;

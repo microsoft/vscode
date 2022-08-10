@@ -184,7 +184,7 @@
 }
 
 .review-widget .body .review-comment .review-comment-contents a {
-	cursor: pointer;
+
 }
 
 .review-widget .body .comment-body p,
@@ -374,7 +374,7 @@
 .monaco-editor .comment-range-glyph {
 	margin-left: 5px;
 	width: 4px !important;
-	cursor: pointer;
+
 	z-index: 10;
 }
 

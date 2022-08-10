@@ -96,7 +96,7 @@
 	position: relative;
 	display: flex;
 	white-space: nowrap;
-	cursor: pointer;
+
 	height: 35px;
 	box-sizing: border-box;
 	padding-left: 10px;
