@@ -12,7 +12,7 @@ import { IProcessEnvironment, isWindows, isMacintosh, isLinux } from 'vs/base/co
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { localize } from 'vs/nls';
 import { URI as uri } from 'vs/base/common/uri';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { IConfigurationResolverService, VariableError, VariableErrorKind } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { replaceAsync } from 'vs/base/common/strings';
@@ -179,6 +179,13 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		return this._labelService ? this._labelService.getUriLabel(displayUri, { noPrefix: true }) : displayUri.fsPath;
 	}
 
+	private getError(variable: string, message: string): Error {
+		if (Object.values(VariableErrorKind).includes(variable as any)) {
+			return new VariableError(variable as VariableErrorKind, message);
+		}
+		return new Error(message);
+	}
+
 	private async evaluateSingleVariable(environment: Environment, match: string, variable: string, folderUri: uri | undefined, commandValueMapping: IStringDictionary<string> | undefined): Promise<string> {
 
 		// try to separate variable arguments from variable name
@@ -196,7 +203,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 			if (filePath) {
 				return filePath;
 			}
-			throw new Error(localize('canNotResolveFile', "Variable {0} can not be resolved. Please open an editor.", match));
+			throw this.getError(variable, (localize('canNotResolveFile', "Variable {0} can not be resolved. Please open an editor.", match)));
 		};
 
 		// common error handling for all variables that require an open editor

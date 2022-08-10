@@ -79,3 +79,13 @@ export interface CommandInputInfo {
 }
 
 export type ConfiguredInput = PromptStringInputInfo | PickStringInputInfo | CommandInputInfo;
+
+export enum VariableErrorKind {
+	file = 'file',
+}
+
+export class VariableError extends Error {
+	constructor(public readonly variable: VariableErrorKind, message?: string) {
+		super(message);
+	}
+}
