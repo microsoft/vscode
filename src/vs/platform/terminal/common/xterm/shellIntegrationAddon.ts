@@ -342,9 +342,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 						//       - OSC 1337 ; CurrentDir=<Cwd> ST (iTerm)
 						//       - OSC 7 ; scheme://cwd ST        (Unknown origin)
 						//       - OSC 9 ; 9 ; <cwd> ST           (cmder)
-						this._createOrGetCwdDetection().updateCwd(value);
-						const commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
-						commandDetection?.setCwd(value);
+						this._updateCwd(value);
 						return true;
 					}
 					case 'IsWindows': {
@@ -360,6 +358,12 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 
 		// Unrecognized sequence
 		return false;
+	}
+
+	private _updateCwd(value: string) {
+		this._createOrGetCwdDetection().updateCwd(value);
+		const commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
+		commandDetection?.setCwd(value);
 	}
 
 	private _doHandleITermSequence(data: string): boolean {
