@@ -16,7 +16,7 @@ const types_2 = require("./rpm/types");
 // A flag that can easily be toggled.
 // Make sure to compile the build directory after toggling the value.
 // If false, we warn about new dependencies if they show up
-// while running the Debian prepare package task for a release.
+// while running the prepare package tasks for a release.
 // If true, we fail the build if there are new dependencies found during that task.
 // The reference dependencies, which one has to update when the new dependencies
 // are valid, are in dep-lists.ts
@@ -88,7 +88,6 @@ function getDependencies(packageType, buildDir, applicationName, arch, sysroot) 
 exports.getDependencies = getDependencies;
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:chrome/installer/linux/rpm/merge_package_deps.py.
 function mergePackageDeps(inputDeps) {
-    // For now, see if directly appending the dependencies helps.
     const requires = new Set();
     for (const depSet of inputDeps) {
         for (const dep of depSet) {
