@@ -102,7 +102,7 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 				view.domNode.style.top = `${top}px`;
 				view.domNode.style.height = `${height}px`;
 
-				view.gutterItemView.layout(top, height, 0, -1);
+				view.gutterItemView.layout(top, height, 0, this._domNode.clientHeight);
 			}
 		}
 
