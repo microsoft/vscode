@@ -48,7 +48,11 @@ const enum ShellIntegrationOscPs {
 	/**
 	 * Sequences pioneered by iTerm.
 	 */
-	ITerm = 1337
+	ITerm = 1337,
+	/**
+	 * Sequences by Cmder.
+	 */
+	Cmder = 9
 }
 
 /**
@@ -167,6 +171,16 @@ const enum ITermOscPt {
 }
 
 /**
+ * Cmder sequences
+ */
+const enum CmderOscPt {
+	/**
+	 * Reports current working directory (CWD). `OSC 9 ; 9 ; <cwd> ST`
+	 */
+	Code9 = '9'
+}
+
+/**
  * The shell integration addon extends xterm by reading shell integration sequences and creating
  * capabilities and passing along relevant sequences to the capabilities. This is meant to
  * encapsulate all handling/parsing of sequences so the capabilities don't need to.
@@ -206,6 +220,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		this.capabilities.add(TerminalCapability.PartialCommandDetection, new PartialCommandDetectionCapability(this._terminal));
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.VSCode, data => this._handleVSCodeSequence(data)));
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.ITerm, data => this._doHandleITermSequence(data)));
+		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.Cmder, data => this._doHandleCmderSequence(data)));
 		this._commonProtocolDisposables.push(
 			xterm.parser.registerOscHandler(ShellIntegrationOscPs.FinalTerm, data => this._handleFinalTermSequence(data))
 		);
@@ -343,7 +358,6 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 					case 'Cwd': {
 						// TODO: Ideally we would also support the following to supplement our own:
 						//       - OSC 7 ; scheme://cwd ST        (Unknown origin)
-						//       - OSC 9 ; 9 ; <cwd> ST           (cmder)
 						this._updateCwd(value);
 						return true;
 					}
@@ -394,6 +408,24 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 						return true;
 				}
 			}
+		}
+
+		// Unrecognized sequence
+		return false;
+	}
+
+	private _doHandleCmderSequence(data: string): boolean {
+		if (!this._terminal) {
+			return false;
+		}
+
+		const [command, ...args] = data.split(';');
+		switch (command) {
+			case CmderOscPt.Code9:
+				if (args.length) {
+					this._updateCwd(args[0]);
+				}
+				return true;
 		}
 
 		// Unrecognized sequence
