@@ -6,7 +6,9 @@
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Codicon } from 'vs/base/common/codicons';
 import { IQuickInputOptions, IQuickInputStyles, QuickInputController } from 'vs/base/parts/quickinput/browser/quickInput';
+import { localize } from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -14,10 +16,22 @@ import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { QuickAccessController } from 'vs/platform/quickinput/browser/quickAccess';
 import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
-import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
+import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickPickSeparator, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { activeContrastBorder, badgeBackground, badgeForeground, buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, keybindingLabelBackground, keybindingLabelBorder, keybindingLabelBottomBorder, keybindingLabelForeground, pickerGroupBorder, pickerGroupForeground, progressBarBackground, quickInputBackground, quickInputForeground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusIconForeground, quickInputTitleBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { computeStyles } from 'vs/platform/theme/common/styler';
-import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
+import { IThemeService, Themable, ThemeIcon } from 'vs/platform/theme/common/themeService';
+
+const pinButton: IQuickInputButton = {
+	iconClass: ThemeIcon.asClassName(Codicon.pin),
+	tooltip: localize('pinCommand', "Pin command"),
+	alwaysVisible: false
+};
+const pinnedButton: IQuickInputButton = {
+	iconClass: ThemeIcon.asClassName(Codicon.pinned),
+	tooltip: localize('pinnedCommand', "Pinned command"),
+	alwaysVisible: true
+};
 
 export interface IQuickInputControllerHost extends ILayoutService { }
 
@@ -55,7 +69,8 @@ export class QuickInputService extends Themable implements IQuickInputService {
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@ILayoutService protected readonly layoutService: ILayoutService
+		@ILayoutService protected readonly layoutService: ILayoutService,
+		@IStorageService private readonly _storageService: IStorageService
 	) {
 		super(themeService);
 	}
@@ -146,6 +161,54 @@ export class QuickInputService extends Themable implements IQuickInputService {
 
 	toggle() {
 		this.controller.toggle();
+	}
+
+	formatPinnedItems(quickPick: IQuickPick<IQuickPickItem>, storageKey: string, callback: () => {}): void {
+		const formattedItems: (IQuickPickItem | IQuickPickSeparator)[] = [];
+		const pinnedLabels = this._getPinnedLabels(storageKey);
+		const pinnedItems = quickPick.items.filter(i => i.label && pinnedLabels.includes(i.label));
+		for (const item of pinnedItems) {
+			this._togglePinned(item, storageKey, true);
+			formattedItems.push(item);
+		}
+		formattedItems.push({ type: 'separator', label: 'Pinned' });
+		const unpinned = quickPick.items.filter(i => i.label && !pinnedLabels.includes(i.label));
+		for (const item of unpinned) {
+			this._togglePinned(item, storageKey, false);
+			formattedItems.push(item);
+		}
+		quickPick.onDidTriggerItemButton(e => this.formatPinnedItems(quickPick, storageKey, callback));
+		quickPick.items = formattedItems;
+		callback();
+	}
+
+	private _getPinnedLabels(storageKey: string): string[] {
+		const storedItems = this._storageService.get(storageKey, StorageScope.WORKSPACE);
+		const pinnedItems = storedItems ? JSON.parse(storedItems) : [];
+		return pinnedItems;
+	}
+
+	private _savePinned(label: string, storageKey: string, pinned?: boolean): void {
+		const storedLabels = this._storageService.get(storageKey, StorageScope.WORKSPACE);
+		const labels = storedLabels ? JSON.parse(storedLabels) : [];
+		if (pinned) {
+			labels.push(label);
+		}
+		console.log('labels', labels);
+		this._storageService.store(storageKey, JSON.stringify(labels), StorageScope.WORKSPACE, StorageTarget.USER);
+	}
+
+	private _togglePinned(item: IQuickPickItem | IQuickPickSeparator, storageKey: string, shouldPin?: boolean): void {
+		if (!item.label || !('buttons' in item)) {
+			return;
+		}
+		item.buttons = item.buttons?.filter(b => b.iconClass !== pinnedButton.iconClass && b.iconClass !== pinButton.iconClass) || [];
+		if (shouldPin) {
+			item.buttons.push(pinButton);
+		} else {
+			item.buttons.push(pinnedButton);
+		}
+		this._savePinned(item.label, storageKey, shouldPin);
 	}
 
 	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration) {

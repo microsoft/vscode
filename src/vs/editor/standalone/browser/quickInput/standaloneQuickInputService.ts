@@ -19,6 +19,7 @@ import { QuickInputController } from 'vs/base/parts/quickinput/browser/quickInpu
 import { QuickInputService, IQuickInputControllerHost } from 'vs/platform/quickinput/browser/quickInput';
 import { once } from 'vs/base/common/functional';
 import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export class EditorScopedQuickInputService extends QuickInputService {
 
@@ -30,9 +31,10 @@ export class EditorScopedQuickInputService extends QuickInputService {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@ICodeEditorService codeEditorService: ICodeEditorService
+		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@IStorageService storageService: IStorageService
 	) {
-		super(instantiationService, contextKeyService, themeService, accessibilityService, new EditorScopedLayoutService(editor.getContainerDomNode(), codeEditorService));
+		super(instantiationService, contextKeyService, themeService, accessibilityService, new EditorScopedLayoutService(editor.getContainerDomNode(), codeEditorService), storageService);
 
 		// Use the passed in code editor as host for the quick input widget
 		const contribution = QuickInputEditorContribution.get(editor);
@@ -135,6 +137,10 @@ export class StandaloneQuickInputService implements IQuickInputService {
 
 	cancel(): Promise<void> {
 		return this.activeService.cancel();
+	}
+
+	formatPinnedItems(quickPick: IQuickPick<IQuickPickItem>, storageKey: string, callback: () => {}): void {
+		return this.activeService.formatPinnedItems(quickPick, storageKey, callback);
 	}
 }
 
