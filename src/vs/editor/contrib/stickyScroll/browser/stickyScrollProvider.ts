@@ -147,7 +147,7 @@ class StickyOutlineElement {
 		});
 		let range: StickyRange | undefined;
 		if (outlineModel instanceof OutlineElement) {
-			range = new StickyRange(outlineModel.symbol.range.startLineNumber, outlineModel.symbol.range.endLineNumber);
+			range = new StickyRange(outlineModel.symbol.selectionRange.startLineNumber, outlineModel.symbol.range.endLineNumber);
 		} else {
 			range = undefined;
 		}
