@@ -99,7 +99,7 @@ const TestChannelId = 'testchannel';
 
 interface ITestService {
 	marco(): Promise<string>;
-	error(message: string): Promise<void>;
+	error(message: string, stack: string | undefined): Promise<void>;
 	neverComplete(): Promise<void>;
 	neverCompleteCT(cancellationToken: CancellationToken): Promise<void>;
 	buffersLength(buffers: VSBuffer[]): Promise<number>;
@@ -118,8 +118,10 @@ class TestService implements ITestService {
 		return Promise.resolve('polo');
 	}
 
-	error(message: string): Promise<void> {
-		return Promise.reject(new Error(message));
+	error(message: string, stack: string): Promise<void> {
+		const err = new Error(message);
+		err.stack = stack;
+		return Promise.reject(err);
 	}
 
 	neverComplete(): Promise<void> {
@@ -158,7 +160,7 @@ class TestChannel implements IServerChannel {
 	call(_: unknown, command: string, arg: any, cancellationToken: CancellationToken): Promise<any> {
 		switch (command) {
 			case 'marco': return this.service.marco();
-			case 'error': return this.service.error(arg);
+			case 'error': return this.service.error(arg.message, arg.stack);
 			case 'neverComplete': return this.service.neverComplete();
 			case 'neverCompleteCT': return this.service.neverCompleteCT(cancellationToken);
 			case 'buffersLength': return this.service.buffersLength(arg);
@@ -186,8 +188,8 @@ class TestChannelClient implements ITestService {
 		return this.channel.call('marco');
 	}
 
-	error(message: string): Promise<void> {
-		return this.channel.call('error', message);
+	error(message: string, stack: string): Promise<void> {
+		return this.channel.call('error', { message, stack });
 	}
 
 	neverComplete(): Promise<void> {
@@ -257,11 +259,13 @@ suite('Base IPC', function () {
 		});
 
 		test('call error', async function () {
+			const exp = new Error('nice error');
 			try {
-				await ipcService.error('nice error');
+				await ipcService.error(exp.message, exp.stack);
 				return assert.fail('should not reach here');
 			} catch (err) {
-				return assert.strictEqual(err.message, 'nice error');
+				assert.strictEqual(err.message, exp.message);
+				return assert.strictEqual(err.stack, exp.stack);
 			}
 		});
 
@@ -349,11 +353,13 @@ suite('Base IPC', function () {
 		});
 
 		test('call error', async function () {
+			const exp = new Error('nice error');
 			try {
-				await ipcService.error('nice error');
+				await ipcService.error(exp.message, exp.stack);
 				return assert.fail('should not reach here');
 			} catch (err) {
-				return assert.strictEqual(err.message, 'nice error');
+				assert.strictEqual(err.message, exp.message);
+				return assert.strictEqual(err.stack, exp.stack);
 			}
 		});
 
