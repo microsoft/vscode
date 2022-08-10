@@ -798,6 +798,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostEditorTabs.tabGroups;
 			},
 			logTelemetryToOutputChannel(eventName: string, data: Record<string, any>): void {
+				checkProposedApiEnabled(extension, 'telemetryLog');
 				extHostTelemetryLogService.logToTelemetryOutputChannel(extension, eventName, data);
 			}
 		};
