@@ -6,7 +6,7 @@
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { Action, IAction } from 'vs/base/common/actions';
 import { distinct } from 'vs/base/common/arrays';
-import { Queue, raceTimeout, RunOnceScheduler } from 'vs/base/common/async';
+import { raceTimeout, RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isErrorWithActions } from 'vs/base/common/errorMessage';
 import * as errors from 'vs/base/common/errors';
@@ -825,7 +825,6 @@ export class DebugService implements IDebugService {
 		return Promise.all(sessions.map(s => disconnect ? s.disconnect(undefined, suspend) : s.terminate()));
 	}
 
-	private variableSubstitutionQueue = new Queue<IConfig | undefined>();
 	private async substituteVariables(launch: ILaunch | undefined, config: IConfig): Promise<IConfig | undefined> {
 		const dbg = this.adapterManager.getDebugger(config.type);
 		if (dbg) {
@@ -839,8 +838,7 @@ export class DebugService implements IDebugService {
 				}
 			}
 			try {
-				// Variable substitution can require user interaction, so only one of these should be running at a time.
-				return this.variableSubstitutionQueue.queue(() => dbg.substituteVariables(folder, config));
+				return await dbg.substituteVariables(folder, config);
 			} catch (err) {
 				this.showError(err.message, undefined, !!launch?.getConfiguration(config.name));
 				return undefined;	// bail out
