@@ -158,7 +158,12 @@ const enum ITermOscPt {
 	/**
 	 * Sets a mark/point-of-interest in the buffer. `OSC 1337 ; SetMark`
 	 */
-	SetMark = 'SetMark'
+	SetMark = 'SetMark',
+
+	/**
+	 * Reports current working directory (CWD). `OSC 1337 ; CurrentDir=<Cwd> ST`
+	 */
+	CurrentDir = 'CurrentDir'
 }
 
 /**
@@ -337,7 +342,6 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				switch (key) {
 					case 'Cwd': {
 						// TODO: Ideally we would also support the following to supplement our own:
-						//       - OSC 1337 ; CurrentDir=<Cwd> ST (iTerm)
 						//       - OSC 7 ; scheme://cwd ST        (Unknown origin)
 						//       - OSC 9 ; 9 ; <cwd> ST           (cmder)
 						this._updateCwd(value);
@@ -374,7 +378,24 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			case ITermOscPt.SetMark: {
 				this._createOrGetCommandDetection(this._terminal).handleGenericCommand({ genericMarkProperties: { disableCommandStorage: true } });
 			}
+			default: {
+				// Checking for known `<key>=<value>` pairs.
+				const { key, value } = this._parseKeyValueAssignment(command);
+
+				if (value === undefined) {
+					// No '=' was found, so it's not a property assignment.
+					return true;
+				}
+
+				switch (key) {
+					case ITermOscPt.CurrentDir:
+						// Encountered: `OSC 1337 ; CurrentDir=<Cwd> ST`
+						this._updateCwd(value);
+						return true;
+				}
+			}
 		}
+
 		// Unrecognized sequence
 		return false;
 	}
