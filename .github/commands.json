@@ -15,30 +15,35 @@
 		"type": "label",
 		"name": "*question",
 		"action": "close",
+		"reason": "not_planned",
 		"comment": "We closed this issue because it is a question about using VS Code rather than an issue or feature request. Please search for help on [StackOverflow](https://aka.ms/vscodestackoverflow), where the community has already answered thousands of similar questions. You may find their [guide on asking a new question](https://aka.ms/vscodestackoverflowquestion) helpful if your question has not already been asked. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting).\n\nHappy Coding!"
 	},
 	{
 		"type": "label",
 		"name": "*dev-question",
 		"action": "close",
+		"reason": "not_planned",
 		"comment": "We have a great developer community [over on slack](https://aka.ms/vscode-dev-community) where extension authors help each other. This is a great place for you to ask questions and find support.\n\nHappy Coding!"
 	},
 	{
 		"type": "label",
 		"name": "*extension-candidate",
 		"action": "close",
+		"reason": "not_planned",
 		"comment": "We try to keep VS Code lean and we think the functionality you're asking for is great for a VS Code extension. Maybe you can already find one that suits you in the [VS Code Marketplace](https://aka.ms/vscodemarketplace). Just in case, in a few simple steps you can get started [writing your own extension](https://aka.ms/vscodewritingextensions). See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting).\n\nHappy Coding!"
 	},
 	{
 		"type": "label",
 		"name": "*not-reproducible",
 		"action": "close",
+		"reason": "not_planned",
 		"comment": "We closed this issue because we are unable to reproduce the problem with the steps you describe. Chances are we've already fixed your problem in a recent version of VS Code. If not, please ask us to reopen the issue and provide us with more detail. Our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) might help you with that.\n\nHappy Coding!"
 	},
 	{
 		"type": "label",
 		"name": "*out-of-scope",
 		"action": "close",
+		"reason": "not_planned",
 		"comment": "We closed this issue because we [don't plan to address it](https://aka.ms/vscode-out-of-scope) in the foreseeable future. If you disagree and feel that this issue is crucial: we are happy to listen and to reconsider.\n\nIf you wonder what we are up to, please see our [roadmap](https://aka.ms/vscoderoadmap) and [issue reporting guidelines](https://aka.ms/vscodeissuereporting).\n\nThanks for your understanding, and happy coding!"
 	},
 	{
@@ -57,12 +62,14 @@
 		"type": "label",
 		"name": "*caused-by-extension",
 		"action": "close",
+		"reason": "not_planned",
 		"comment": "This issue is caused by an extension, please file it with the repository (or contact) the extension has linked in its overview in VS Code or the [marketplace](https://aka.ms/vscodemarketplace) for VS Code. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting).\n\nHappy Coding!"
 	},
 	{
 		"type": "label",
 		"name": "*as-designed",
 		"action": "close",
+		"reason": "not_planned",
 		"comment": "The described behavior is how it is expected to work. If you disagree, please explain what is expected and what is not in more detail. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting).\n\nHappy Coding!"
 	},
 	{
@@ -104,6 +111,7 @@
 		"type": "label",
 		"name": "*duplicate",
 		"action": "close",
+		"reason": "not_planned",
 		"comment": "Thanks for creating this issue! We figured it's covering the same as another one we already have. Thus, we closed this one as a duplicate. You can search for [similar existing issues](${duplicateQuery}). See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting).\n\nHappy Coding!"
 	},
 	{
@@ -154,7 +162,7 @@
 			"IllusionMH"
 		],
 		"action": "updateLabels",
-		"addLabel": "~needs more info"
+		"addLabel": "~info-needed"
 	},
 	{
 		"type": "comment",
@@ -165,14 +173,14 @@
 			"gjsjohnmurray",
 			"IllusionMH"
 		],
-		"addLabel": "needs more info",
+		"addLabel": "info-needed",
 		"comment": "Thanks for creating this issue regarding performance! Please follow this guide to help us diagnose performance issues: https://github.com/microsoft/vscode/wiki/Performance-Issues \n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
 		"name": "jsDebugLogs",
 		"action": "updateLabels",
-		"addLabel": "needs more info",
+		"addLabel": "info-needed",
 		"comment": "Please collect trace logs using the following instructions:\n\n> If you're able to, add `\"trace\": true` to your `launch.json` and reproduce the issue. The location of the log file on your disk will be written to the Debug Console. Share that with us.\n>\n> ⚠️ This log file will not contain source code, but will contain file paths. You can drop it into https://microsoft.github.io/vscode-pwa-analyzer/index.html to see what it contains. If you'd rather not share the log publicly, you can email it to connor@xbox.com"
 	},
 	{
@@ -185,22 +193,23 @@
 			"IllusionMH"
 		],
 		"action": "close",
+		"reason": "completed",
 		"addLabel": "unreleased"
 	},
 	{
 		"type": "label",
-		"name": "~needs more info",
+		"name": "~info-needed",
 		"action": "updateLabels",
-		"addLabel": "needs more info",
-		"removeLabel": "~needs more info",
+		"addLabel": "info-needed",
+		"removeLabel": "~info-needed",
 		"comment": "Thanks for creating this issue! We figured it's missing some basic information or in some other way doesn't follow our [issue reporting guidelines](https://aka.ms/vscodeissuereporting). Please take the time to review these and update the issue.\n\nHappy Coding!"
 	},
 	{
 		"type": "label",
-		"name": "~needs version info",
+		"name": "~version-info-needed",
 		"action": "updateLabels",
-		"addLabel": "needs more info",
-		"removeLabel": "~needs version info",
+		"addLabel": "info-needed",
+		"removeLabel": "~version-info-needed",
 		"comment": "Thanks for creating this issue! We figured it's missing some basic information, such as a version number, or in some other way doesn't follow our [issue reporting guidelines](https://aka.ms/vscodeissuereporting). Please take the time to review these and update the issue.\n\nHappy Coding!"
 	},
 	{
@@ -222,6 +231,7 @@
 		"type": "label",
 		"name": "*off-topic",
 		"action": "close",
+		"reason": "not_planned",
 		"comment": "Thanks for creating this issue. We think this issue is unactionable or unrelated to the goals of this project. Please follow our [issue reporting guidelines](https://aka.ms/vscodeissuereporting).\n\nHappy Coding!"
 	},
 	{
@@ -234,6 +244,7 @@
 			"IllusionMH"
 		],
 		"action": "close",
+		"reason": "not_planned",
 		"addLabel": "*caused-by-extension",
 		"comment": "It looks like this is caused by the Python extension. Please file the issue to the [Python extension repository](https://github.com/microsoft/vscode-python). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
 	},
@@ -247,6 +258,7 @@
 			"IllusionMH"
 		],
 		"action": "close",
+		"reason": "not_planned",
 		"addLabel": "*caused-by-extension",
 		"comment": "It looks like this is caused by the Jupyter extension. Please file the issue to the [Jupyter extension repository](https://github.com/microsoft/vscode-jupyter). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
 	},
@@ -260,6 +272,7 @@
 			"IllusionMH"
 		],
 		"action": "close",
+		"reason": "not_planned",
 		"addLabel": "*caused-by-extension",
 		"comment": "It looks like this is caused by the C extension. Please file the issue to the [C extension repository](https://github.com/microsoft/vscode-cpptools). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
 	},
@@ -273,6 +286,7 @@
 			"IllusionMH"
 		],
 		"action": "close",
+		"reason": "not_planned",
 		"addLabel": "*caused-by-extension",
 		"comment": "It looks like this is caused by the C++ extension. Please file the issue to the [C++ extension repository](https://github.com/microsoft/vscode-cpptools). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
 	},
@@ -286,6 +300,7 @@
 			"IllusionMH"
 		],
 		"action": "close",
+		"reason": "not_planned",
 		"addLabel": "*caused-by-extension",
 		"comment": "It looks like this is caused by the C++ extension. Please file the issue to the [C++ extension repository](https://github.com/microsoft/vscode-cpptools). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
 	},
@@ -299,6 +314,7 @@
 			"IllusionMH"
 		],
 		"action": "close",
+		"reason": "not_planned",
 		"addLabel": "*caused-by-extension",
 		"comment": "It looks like this is caused by the TypeScript language service. Please file the issue to the [TypeScript repository](https://github.com/microsoft/TypeScript/). Make sure to check their [contributing guidelines](https://github.com/microsoft/TypeScript/blob/master/CONTRIBUTING.md) and provide relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
 	},
@@ -312,6 +328,7 @@
 			"IllusionMH"
 		],
 		"action": "close",
+		"reason": "not_planned",
 		"addLabel": "*caused-by-extension",
 		"comment": "It looks like this is caused by the TypeScript/JavaScript language service. Please file the issue to the [TypeScript repository](https://github.com/microsoft/TypeScript/). Make sure to check their [contributing guidelines](https://github.com/microsoft/TypeScript/blob/master/CONTRIBUTING.md) and provide relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
 	},
@@ -325,6 +342,7 @@
 			"IllusionMH"
 		],
 		"action": "close",
+		"reason": "not_planned",
 		"addLabel": "*caused-by-extension",
 		"comment": "It looks like this is caused by the C# extension. Please file the issue to the [C# extension repository](https://github.com/OmniSharp/omnisharp-vscode.git). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
 	},
@@ -351,6 +369,7 @@
 			"IllusionMH"
 		],
 		"action": "close",
+		"reason": "not_planned",
 		"addLabel": "*caused-by-extension",
 		"comment": "It looks like this is caused by the PowerShell extension. Please file the issue to the [PowerShell extension repository](https://github.com/PowerShell/vscode-powershell). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
 	},
@@ -364,6 +383,7 @@
 			"IllusionMH"
 		],
 		"action": "close",
+		"reason": "not_planned",
 		"addLabel": "*caused-by-extension",
 		"comment": "It looks like this is caused by the LiveShare extension. Please file the issue to the [LiveShare repository](https://github.com/MicrosoftDocs/live-share). Make sure to check their [contributing guidelines](https://github.com/MicrosoftDocs/live-share/blob/master/CONTRIBUTING.md) and provide relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
 	},
@@ -377,6 +397,7 @@
 			"IllusionMH"
 		],
 		"action": "close",
+		"reason": "not_planned",
 		"addLabel": "*caused-by-extension",
 		"comment": "It looks like this is caused by the Docker extension. Please file the issue to the [Docker extension repository](https://github.com/microsoft/vscode-docker). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
 	},
@@ -390,6 +411,7 @@
 			"IllusionMH"
 		],
 		"action": "close",
+		"reason": "not_planned",
 		"addLabel": "*caused-by-extension",
 		"comment": "It looks like this is caused by the Java extension. Please file the issue to the [Java extension repository](https://github.com/redhat-developer/vscode-java). Make sure to check their [troubleshooting instructions](https://github.com/redhat-developer/vscode-java/wiki/Troubleshooting) and provide relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
 	},
@@ -403,8 +425,23 @@
 			"IllusionMH"
 		],
 		"action": "close",
+		"reason": "not_planned",
 		"addLabel": "*caused-by-extension",
 		"comment": "It looks like this is caused by the Java Debugger extension. Please file the issue to the [Java Debugger repository](https://github.com/microsoft/vscode-java-debug). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
+	},
+	{
+		"type": "comment",
+		"name": "extCodespaces",
+		"allowUsers": [
+			"cleidigh",
+			"usernamehw",
+			"gjsjohnmurray",
+			"IllusionMH"
+		],
+		"action": "close",
+		"reason": "not_planned",
+		"addLabel": "*caused-by-extension",
+		"comment": "It looks like this is caused by the Codespaces extension. Please file the issue in the [Codespaces Discussion Forum](http://aka.ms/ghcs-feedback). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
@@ -416,7 +453,7 @@
 			"IllusionMH"
 		],
 		"action": "comment",
-		"addLabel": "needs more info",
+		"addLabel": "info-needed",
 		"comment": "Thanks for reporting this issue! Unfortunately, it's hard for us to understand what issue you're seeing. Please help us out by providing a screen recording showing exactly what isn't working as expected. While we can work with most standard formats, `.gif` files are preferred as they are displayed inline on GitHub. You may find https://gifcap.dev helpful as a browser-based gif recording tool.\n\nIf the issue depends on keyboard input, you can help us by enabling screencast mode for the recording (`Developer: Toggle Screencast Mode` in the command palette).\n\nHappy coding!"
 	},
 	{
@@ -439,6 +476,15 @@
 		"type": "label",
 		"name": "*workspace-trust-docs",
 		"action": "close",
+		"reason": "not_planned",
 		"comment": "This issue appears to be the result of the new workspace trust feature shipped in June 2021. This security-focused feature has major impact on the functionality of VS Code. Due to the volume of issues, we ask that you take some time to review our [comprehensive documentation](https://aka.ms/vscode-workspace-trust) on the feature. If your issue is still not resolved, please let us know."
+	},
+	{
+		"type": "label",
+		"name": "~verification-steps-needed",
+		"action": "updateLabels",
+		"addLabel": "verification-steps-needed",
+		"removeLabel": "~verification-steps-needed",
+		"comment": "Friendly ping! Looks like this issue requires some further steps to be verified. Please provide us with the steps necessary to verify this issue."
 	}
 ]

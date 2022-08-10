@@ -52,9 +52,14 @@ const enum ShellIntegrationOscPs {
 }
 
 /**
- * VS Code-specific shell integration sequences. Some of these are based on common alternatives like
- * those pioneered in FinalTerm. The decision to move to entirely custom sequences was to try to
- * improve reliability and prevent the possibility of applications confusing the terminal.
+ * VS Code-specific shell integration sequences. Some of these are based on more common alternatives
+ * like those pioneered in FinalTerm. The decision to move to entirely custom sequences was to try
+ * to improve reliability and prevent the possibility of applications confusing the terminal. If
+ * multiple shell integration scripts run, VS Code will prioritize the VS Code-specific ones.
+ *
+ * It's recommended that authors of shell integration scripts use the common sequences (eg. 133)
+ * when building general purpose scripts and the VS Code-specific (633) when targeting only VS Code
+ * or when there are no other alternatives.
  */
 const enum VSCodeOscPt {
 	/**
@@ -83,36 +88,65 @@ const enum VSCodeOscPt {
 	CommandFinished = 'D',
 
 	/**
-	 * Explicitly set the command line. This helps workaround problems with conpty not having a
-	 * passthrough mode by providing an option on Windows to send the command that was run. With
-	 * this sequence there's no need for the guessing based on the unreliable cursor positions that
-	 * would otherwise be required.
+	 * Explicitly set the command line. This helps workaround performance and reliability problems
+	 * with parsing out the command, such as conpty not guaranteeing the position of the sequence or
+	 * the shell not guaranteeing that the entire command is even visible.
+	 *
+	 * The command line can escape ascii characters using the `\xAB` format, where AB are the
+	 * hexadecimal representation of the character code (case insensitive), and escape the `\`
+	 * character using `\\`. It's required to escape semi-colon (`0x3b`) and characters 0x20 and
+	 * below, this is particularly important for new line and semi-colon.
+	 *
+	 * Some examples:
+	 *
+	 * ```
+	 * "\"  -> "\\"
+	 * "\n" -> "\x0a"
+	 * ";"  -> "\x3b"
+	 * ```
 	 */
 	CommandLine = 'E',
 
 	/**
 	 * Similar to prompt start but for line continuations.
+	 *
+	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
 	 */
 	ContinuationStart = 'F',
 
 	/**
 	 * Similar to command start but for line continuations.
+	 *
+	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
 	 */
 	ContinuationEnd = 'G',
 
 	/**
 	 * The start of the right prompt.
+	 *
+	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
 	 */
 	RightPromptStart = 'H',
 
 	/**
 	 * The end of the right prompt.
+	 *
+	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
 	 */
 	RightPromptEnd = 'I',
 
 	/**
 	 * Set an arbitrary property: `OSC 633 ; P ; <Property>=<Value> ST`, only known properties will
 	 * be handled.
+	 *
+	 * Known properties:
+	 *
+	 * - `Cwd` - Reports the current working directory to the terminal.
+	 * - `IsWindows` - Indicates whether the terminal is using a Windows backend like winpty or
+	 *   conpty. This may be used to enable additional heuristics as the positioning of the shell
+	 *   integration sequences are not guaranteed to be correct. Valid values: `True`, `False`.
+	 *
+	 * WARNING: Any other properties may be changed and are not guaranteed to work in the future.
 	 */
 	Property = 'P'
 }
@@ -122,7 +156,7 @@ const enum VSCodeOscPt {
  */
 const enum ITermOscPt {
 	/**
-	 * Based on ITerm's `OSC 1337 ; SetMark`, sets a mark on the scroll bar
+	 * Sets a mark/point-of-interest in the buffer. `OSC 1337 ; SetMark`
 	 */
 	SetMark = 'SetMark'
 }
@@ -303,6 +337,10 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				const value = this._deserializeMessage(rawValue);
 				switch (key) {
 					case 'Cwd': {
+						// TODO: Ideally we would also support the following to supplement our own:
+						//       - OSC 1337 ; CurrentDir=<Cwd> ST (iTerm)
+						//       - OSC 7 ; scheme://cwd ST        (Unknown origin)
+						//       - OSC 9 ; 9 ; <cwd> ST           (cmder)
 						this._createOrGetCwdDetection().updateCwd(value);
 						const commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
 						commandDetection?.setCwd(value);
@@ -375,9 +413,15 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	}
 
 	private _deserializeMessage(message: string): string {
-		return message
-			.replace(/<LF>/g, '\n')
-			.replace(/<CL>/g, ';')
-			.replace(/<ST>/g, '\x07');
+		let result = message.replace(/\\\\/g, '\\');
+		const deserializeRegex = /\\x([0-9a-f]{2})/i;
+		while (true) {
+			const match = result.match(deserializeRegex);
+			if (!match?.index || match.length < 2) {
+				break;
+			}
+			result = result.slice(0, match.index) + String.fromCharCode(parseInt(match[1], 16)) + result.slice(match.index + 4);
+		}
+		return result;
 	}
 }

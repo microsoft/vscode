@@ -60,23 +60,23 @@ export interface CodeActionSet extends IDisposable {
 
 class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 
-	private static codeActionsComparator({ action: a }: CodeActionItem, { action: b }: CodeActionItem): number {
+	private static codeActionsPreferredComparator(a: languages.CodeAction, b: languages.CodeAction): number {
 		if (a.isPreferred && !b.isPreferred) {
 			return -1;
 		} else if (!a.isPreferred && b.isPreferred) {
 			return 1;
+		} else {
+			return 0;
 		}
+	}
 
+	private static codeActionsComparator({ action: a }: CodeActionItem, { action: b }: CodeActionItem): number {
 		if (isNonEmptyArray(a.diagnostics)) {
-			if (isNonEmptyArray(b.diagnostics)) {
-				return a.diagnostics[0].message.localeCompare(b.diagnostics[0].message);
-			} else {
-				return -1;
-			}
+			return isNonEmptyArray(b.diagnostics) ? ManagedCodeActionSet.codeActionsPreferredComparator(a, b) : -1;
 		} else if (isNonEmptyArray(b.diagnostics)) {
 			return 1;
 		} else {
-			return 0;	// both have no diagnostics
+			return ManagedCodeActionSet.codeActionsPreferredComparator(a, b); // both have no diagnostics
 		}
 	}
 
@@ -102,7 +102,7 @@ class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 
 const emptyCodeActionsResponse = { actions: [] as CodeActionItem[], documentation: undefined };
 
-export function getCodeActions(
+export async function getCodeActions(
 	registry: LanguageFeatureRegistry<languages.CodeActionProvider>,
 	model: ITextModel,
 	rangeOrSelection: Range | Selection,
@@ -155,15 +155,15 @@ export function getCodeActions(
 		}
 	});
 
-	return Promise.all(promises).then(actions => {
+	try {
+		const actions = await Promise.all(promises);
 		const allActions = actions.map(x => x.actions).flat();
 		const allDocumentation = coalesce(actions.map(x => x.documentation));
 		return new ManagedCodeActionSet(allActions, allDocumentation, disposables);
-	})
-		.finally(() => {
-			listener.dispose();
-			cts.dispose();
-		});
+	} finally {
+		listener.dispose();
+		cts.dispose();
+	}
 }
 
 function getCodeActionProviders(

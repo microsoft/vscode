@@ -167,5 +167,4 @@ export class StateService implements IStateService {
 	getItem<T>(key: string, defaultValue?: T): T | undefined {
 		return this.fileStorage.getItem(key, defaultValue);
 	}
-
 }

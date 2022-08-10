@@ -48,7 +48,7 @@ export async function startServer(connection: Connection) {
 		});
 
 		registerCompletionsSupport(connection, documents, provider, configurationManager);
-		registerValidateSupport(connection, workspace, provider, configurationManager);
+		registerValidateSupport(connection, workspace, provider, configurationManager, logger);
 
 		workspace.workspaceFolders = (params.workspaceFolders ?? []).map(x => URI.parse(x.uri));
 		return {
@@ -197,6 +197,15 @@ export async function startServer(connection: Connection) {
 	connection.onRequest(protocol.getReferencesToFileInWorkspace, (async (params: { uri: string }, token: CancellationToken) => {
 		try {
 			return await provider!.getFileReferences(URI.parse(params.uri), token);
+		} catch (e) {
+			console.error(e.stack);
+		}
+		return undefined;
+	}));
+
+	connection.onRequest(protocol.getEditForFileRenames, (async (params, token: CancellationToken) => {
+		try {
+			return await provider!.getRenameFilesInWorkspaceEdit(params.map(x => ({ oldUri: URI.parse(x.oldUri), newUri: URI.parse(x.newUri) })), token);
 		} catch (e) {
 			console.error(e.stack);
 		}

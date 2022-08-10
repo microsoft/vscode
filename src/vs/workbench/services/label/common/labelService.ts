@@ -143,9 +143,9 @@ export class LabelService extends Disposable implements ILabelService {
 		this.os = OS;
 		this.userHome = pathService.defaultUriScheme === Schemas.file ? this.pathService.userHome({ preferLocal: true }) : undefined;
 
-		const memento = this.storedFormattersMemento = new Memento('cachedResourceLabelFormatters', storageService);
+		const memento = this.storedFormattersMemento = new Memento('cachedResourceLabelFormatters2', storageService);
 		this.storedFormatters = memento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
-		this.formatters = this.storedFormatters?.formatters || [];
+		this.formatters = this.storedFormatters?.formatters?.slice() || [];
 
 		// Remote environment is potentially long running
 		this.resolveRemoteEnvironment();
@@ -402,33 +402,32 @@ export class LabelService extends Disposable implements ILabelService {
 	}
 
 	private formatUri(resource: URI, formatting: ResourceLabelFormatting, forceNoTildify?: boolean): string {
-		let label = typeof formatting.label !== 'string' ? formatting.label(resource) :
-			formatting.label.replace(labelMatchingRegexp, (match, token, qsToken, qsValue) => {
-				switch (token) {
-					case 'scheme': return resource.scheme;
-					case 'authority': return resource.authority;
-					case 'authoritySuffix': {
-						const i = resource.authority.indexOf('+');
-						return i === -1 ? resource.authority : resource.authority.slice(i + 1);
-					}
-					case 'path':
-						return formatting.stripPathStartingSeparator
-							? resource.path.slice(resource.path[0] === formatting.separator ? 1 : 0)
-							: resource.path;
-					default: {
-						if (qsToken === 'query') {
-							const { query } = resource;
-							if (query && query[0] === '{' && query[query.length - 1] === '}') {
-								try {
-									return JSON.parse(query)[qsValue] || '';
-								} catch { }
-							}
-						}
-
-						return '';
-					}
+		let label = formatting.label.replace(labelMatchingRegexp, (match, token, qsToken, qsValue) => {
+			switch (token) {
+				case 'scheme': return resource.scheme;
+				case 'authority': return resource.authority;
+				case 'authoritySuffix': {
+					const i = resource.authority.indexOf('+');
+					return i === -1 ? resource.authority : resource.authority.slice(i + 1);
 				}
-			});
+				case 'path':
+					return formatting.stripPathStartingSeparator
+						? resource.path.slice(resource.path[0] === formatting.separator ? 1 : 0)
+						: resource.path;
+				default: {
+					if (qsToken === 'query') {
+						const { query } = resource;
+						if (query && query[0] === '{' && query[query.length - 1] === '}') {
+							try {
+								return JSON.parse(query)[qsValue] || '';
+							} catch { }
+						}
+					}
+
+					return '';
+				}
+			}
+		});
 
 		// convert \c:\something => C:\something
 		if (formatting.normalizeDriveLetter && hasDriveLetterIgnorePlatform(label)) {

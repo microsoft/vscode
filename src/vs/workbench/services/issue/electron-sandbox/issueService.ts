@@ -6,7 +6,7 @@
 import { IssueReporterStyles, IssueReporterData, ProcessExplorerData, IssueReporterExtensionData } from 'vs/platform/issue/common/issue';
 import { IIssueService } from 'vs/platform/issue/electron-sandbox/issue';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { textLinkForeground, inputBackground, inputBorder, inputForeground, buttonBackground, buttonHoverBackground, buttonForeground, inputValidationErrorBorder, foreground, inputActiveOptionBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, editorBackground, editorForeground, listHoverBackground, listHoverForeground, textLinkActiveForeground, inputValidationErrorBackground, inputValidationErrorForeground, listActiveSelectionBackground, listActiveSelectionForeground, listFocusOutline, listFocusBackground, listFocusForeground, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { textLinkForeground, inputBackground, inputBorder, inputForeground, buttonBackground, buttonHoverBackground, buttonForeground, inputValidationErrorBorder, foreground, inputActiveOptionBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, editorBackground, editorForeground, listHoverBackground, listHoverForeground, textLinkActiveForeground, inputValidationErrorBackground, inputValidationErrorForeground, listActiveSelectionBackground, listActiveSelectionForeground, listFocusOutline, listFocusBackground, listFocusForeground, activeContrastBorder, scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -21,6 +21,7 @@ import { IAuthenticationService } from 'vs/workbench/services/authentication/com
 import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
+import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 
 export class WorkbenchIssueService implements IWorkbenchIssueService {
 	declare readonly _serviceBrand: undefined;
@@ -101,6 +102,7 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 			restrictedMode: !this.workspaceTrustManagementService.isWorkspaceTrusted(),
 			isUnsupported,
 			githubAccessToken,
+			isSandboxed: process.sandboxed
 		}, dataOverrides);
 		return this.issueService.openReporter(issueReporterData);
 	}
@@ -121,6 +123,10 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 				listActiveSelectionBackground: getColor(theme, listActiveSelectionBackground),
 				listActiveSelectionForeground: getColor(theme, listActiveSelectionForeground),
 				listHoverOutline: getColor(theme, activeContrastBorder),
+				scrollbarShadowColor: getColor(theme, scrollbarShadow),
+				scrollbarSliderActiveBackgroundColor: getColor(theme, scrollbarSliderActiveBackground),
+				scrollbarSliderBackgroundColor: getColor(theme, scrollbarSliderBackground),
+				scrollbarSliderHoverBackgroundColor: getColor(theme, scrollbarSliderHoverBackground),
 			},
 			platform: platform,
 			applicationName: this.productService.applicationName

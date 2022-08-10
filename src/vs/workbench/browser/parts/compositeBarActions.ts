@@ -277,7 +277,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 	}
 
 	protected updateBadge(): void {
-		const action = this.getAction();
+		const action = this.action;
 		if (!this.badge || !this.badgeContent || !(action instanceof ActivityAction)) {
 			return;
 		}
@@ -351,7 +351,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		}
 
 		if (!this.options.icon) {
-			this.label.textContent = this.getAction().label;
+			this.label.textContent = this.action.label;
 		}
 	}
 
@@ -370,7 +370,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 	private computeTitle(): string {
 		this.keybindingLabel = this.computeKeybindingLabel();
 		let title = this.keybindingLabel ? localize('titleKeybinding', "{0} ({1})", this.activity.name, this.keybindingLabel) : this.activity.name;
-		const badge = (this.getAction() as ActivityAction).getBadge();
+		const badge = (this.action as ActivityAction).getBadge();
 		if (badge?.getDescription()) {
 			title = localize('badgeTitle', "{0} - {1}", title, badge.getDescription());
 		}
@@ -605,8 +605,8 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 
 		// Activate on drag over to reveal targets
 		[this.badge, this.label].forEach(b => this._register(new DelayedDragHandler(b, () => {
-			if (!this.getAction().checked) {
-				this.getAction().run();
+			if (!this.action.checked) {
+				this.action.run();
 			}
 		})));
 
@@ -692,7 +692,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 	}
 
 	protected override updateChecked(): void {
-		if (this.getAction().checked) {
+		if (this.action.checked) {
 			this.container.classList.add('checked');
 			this.container.setAttribute('aria-label', this.container.title);
 			this.container.setAttribute('aria-expanded', 'true');
@@ -711,7 +711,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 			return;
 		}
 
-		if (this.getAction().enabled) {
+		if (this.action.enabled) {
 			this.element.classList.remove('disabled');
 		} else {
 			this.element.classList.add('disabled');

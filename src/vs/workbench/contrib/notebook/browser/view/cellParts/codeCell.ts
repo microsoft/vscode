@@ -280,7 +280,7 @@ export class CodeCell extends Disposable {
 				}
 
 				if (options.outputClassName) {
-					this.notebookEditor.deltaCellOutputContainerClassNames(this.viewCell.id, [options.outputClassName], []);
+					this.notebookEditor.deltaCellContainerClassNames(this.viewCell.id, [options.outputClassName], []);
 				}
 			});
 
@@ -290,7 +290,7 @@ export class CodeCell extends Disposable {
 				}
 
 				if (options.outputClassName) {
-					this.notebookEditor.deltaCellOutputContainerClassNames(this.viewCell.id, [], [options.outputClassName]);
+					this.notebookEditor.deltaCellContainerClassNames(this.viewCell.id, [], [options.outputClassName]);
 				}
 			});
 		}));
@@ -301,7 +301,7 @@ export class CodeCell extends Disposable {
 			}
 
 			if (options.outputClassName) {
-				this.notebookEditor.deltaCellOutputContainerClassNames(this.viewCell.id, [options.outputClassName], []);
+				this.notebookEditor.deltaCellContainerClassNames(this.viewCell.id, [options.outputClassName], []);
 			}
 		});
 	}

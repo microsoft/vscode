@@ -95,18 +95,19 @@ export class ActionButtonCommand {
 		return {
 			command: this.getCommitActionButtonPrimaryCommand(),
 			secondaryCommands: this.getCommitActionButtonSecondaryCommands(),
-			enabled: this.state.repositoryHasChangesToCommit && !this.state.isCommitInProgress && !this.state.isMergeInProgress
+			enabled: (this.state.repositoryHasChangesToCommit || this.state.isRebaseInProgress) && !this.state.isCommitInProgress && !this.state.isMergeInProgress
 		};
 	}
 
 	private getCommitActionButtonPrimaryCommand(): Command {
-		let commandArg = '';
-		let title = localize('scm button commit title', "{0} Commit", '$(check)');
-		let tooltip = this.state.isCommitInProgress ? localize('scm button committing tooltip', "Committing Changes...") : localize('scm button commit tooltip', "Commit Changes");
-
 		// Rebase Continue
 		if (this.state.isRebaseInProgress) {
-			return { command: 'git.commit', title, tooltip, arguments: [this.repository.sourceControl, commandArg] };
+			return {
+				command: 'git.commit',
+				title: localize('scm button continue title', "{0} Continue", '$(check)'),
+				tooltip: this.state.isCommitInProgress ? localize('scm button continuing tooltip', "Continuing Rebase...") : localize('scm button continue tooltip', "Continue Rebase"),
+				arguments: [this.repository.sourceControl, '']
+			};
 		}
 
 		// Commit
@@ -121,6 +122,10 @@ export class ActionButtonCommand {
 
 		// Icon
 		const icon = alwaysPrompt ? '$(lock)' : alwaysCommitToNewBranch ? '$(git-branch)' : undefined;
+
+		let commandArg = '';
+		let title = localize('scm button commit title', "{0} Commit", icon ?? '$(check)');
+		let tooltip = this.state.isCommitInProgress ? localize('scm button committing tooltip', "Committing Changes...") : localize('scm button commit tooltip', "Commit Changes");
 
 		// Title, tooltip
 		switch (postCommitCommand) {

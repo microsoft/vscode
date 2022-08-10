@@ -7,7 +7,7 @@ import { deepStrictEqual } from 'assert';
 import { Schemas } from 'vs/base/common/network';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { ITextEditorSelection, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IFileService, IFileStatWithPartialMetadata } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -27,6 +27,7 @@ import { Terminal } from 'xterm';
 export interface ITerminalLinkActivationResult {
 	source: 'editor' | 'search';
 	link: string;
+	selection?: ITextEditorSelection;
 }
 
 class TestCommandDetectionCapability extends CommandDetectionCapability {
@@ -79,10 +80,14 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					source: 'editor',
 					link: editor.resource?.toString()
 				};
+				// Only assert on selection if it's not the default value
+				if (editor.options?.selection && (editor.options.selection.startColumn !== 1 || editor.options.selection.startLineNumber !== 1)) {
+					activationResult.selection = editor.options.selection;
+				}
 			}
 		} as Partial<IEditorService>);
 		// /*editorServiceSpy = */instantiationService.spy(IEditorService, 'openEditor');
-		xterm = new Terminal();
+		xterm = new Terminal({ allowProposedApi: true });
 	});
 
 	suite('TerminalSearchLinkOpener', () => {
@@ -212,6 +217,28 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					source: 'search'
 				});
 			});
+
+			test('should extract line and column from links in a workspace containing spaces', async () => {
+				localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener, OperatingSystem.Linux);
+				const localFolderOpener = instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener);
+				opener = instantiationService.createInstance(TerminalSearchLinkOpener, capabilities, Promise.resolve('/space folder'), localFileOpener, localFolderOpener, OperatingSystem.Linux);
+				fileService.setFiles([
+					URI.from({ scheme: Schemas.file, path: '/space folder/foo/bar.txt' })
+				]);
+				await opener.open({
+					text: './foo/bar.txt:10:5',
+					bufferRange: { start: { x: 1, y: 1 }, end: { x: 8, y: 1 } },
+					type: TerminalBuiltinLinkType.Search
+				});
+				deepStrictEqual(activationResult, {
+					link: 'file:///space%20folder/foo/bar.txt',
+					source: 'editor',
+					selection: {
+						startColumn: 5,
+						startLineNumber: 10
+					},
+				});
+			});
 		});
 
 		suite('Windows', () => {
@@ -259,6 +286,41 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				deepStrictEqual(activationResult, {
 					link: 'file.txt',
 					source: 'search'
+				});
+			});
+
+			test('should extract line and column from links in a workspace containing spaces', async () => {
+				localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener, OperatingSystem.Windows);
+				const localFolderOpener = instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener);
+				opener = instantiationService.createInstance(TerminalSearchLinkOpener, capabilities, Promise.resolve('/space folder'), localFileOpener, localFolderOpener, OperatingSystem.Windows);
+				fileService.setFiles([
+					URI.from({ scheme: Schemas.file, path: '/space folder/foo/bar.txt' })
+				]);
+				await opener.open({
+					text: './foo/bar.txt:10:5',
+					bufferRange: { start: { x: 1, y: 1 }, end: { x: 8, y: 1 } },
+					type: TerminalBuiltinLinkType.Search
+				});
+				deepStrictEqual(activationResult, {
+					link: 'file:///space%20folder/foo/bar.txt',
+					source: 'editor',
+					selection: {
+						startColumn: 5,
+						startLineNumber: 10
+					},
+				});
+				await opener.open({
+					text: '.\\foo\\bar.txt:10:5',
+					bufferRange: { start: { x: 1, y: 1 }, end: { x: 8, y: 1 } },
+					type: TerminalBuiltinLinkType.Search
+				});
+				deepStrictEqual(activationResult, {
+					link: 'file:///space%20folder/foo/bar.txt',
+					source: 'editor',
+					selection: {
+						startColumn: 5,
+						startLineNumber: 10
+					},
 				});
 			});
 		});
