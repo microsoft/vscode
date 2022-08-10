@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import * as languages from 'vs/editor/common/languages';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Action, IActionRunner, IAction, Separator } from 'vs/base/common/actions';
+import { Action, IActionRunner, IAction, Separator, ActionRunner } from 'vs/base/common/actions';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
@@ -40,6 +40,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IRange } from 'vs/editor/common/core/range';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
 
 export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private _domNode: HTMLElement;
@@ -62,6 +63,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private _timestampWidget: TimestampWidget | undefined;
 	private _contextKeyService: IContextKeyService;
 	private _commentContextValue: IContextKey<string>;
+	private _commentMenus: CommentMenus;
 
 	protected actionRunner?: IActionRunner;
 	protected toolbar: ToolBar | undefined;
@@ -97,6 +99,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this._domNode = dom.$('div.review-comment');
 		this._contextKeyService = contextKeyService.createScoped(this._domNode);
 		this._commentContextValue = this._contextKeyService.createKey('comment', comment.contextValue);
+		this._commentMenus = this.commentService.getCommentMenus(this.owner);
 
 		this._domNode.tabIndex = -1;
 		const avatar = dom.append(this._domNode, dom.$('div.avatar-container'));
@@ -121,6 +124,10 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this._clearTimeout = null;
 
 		this._register(dom.addDisposableListener(this._domNode, dom.EventType.CLICK, () => this.isEditing || this._onDidClick.fire(this)));
+		this._register(dom.addDisposableListener(this._domNode, dom.EventType.CONTEXT_MENU, e => {
+			return this.onContextMenu(e);
+		}));
+
 	}
 
 	private updateCommentBody(body: string | IMarkdownString) {
@@ -190,6 +197,14 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		return result;
 	}
 
+	private get commentNodeContext() {
+		return {
+			thread: this.commentThread,
+			commentUniqueId: this.comment.uniqueIdInThread,
+			$mid: MarshalledId.CommentNode
+		};
+	}
+
 	private createToolbar() {
 		this.toolbar = new ToolBar(this._actionsToolbarContainer, this.contextMenuService, {
 			actionViewItemProvider: action => {
@@ -211,11 +226,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			orientation: ActionsOrientation.HORIZONTAL
 		});
 
-		this.toolbar.context = {
-			thread: this.commentThread,
-			commentUniqueId: this.comment.uniqueIdInThread,
-			$mid: MarshalledId.CommentNode
-		};
+		this.toolbar.context = this.commentNodeContext;
 
 		this.registerActionBarListeners(this._actionsToolbarContainer);
 		this._register(this.toolbar);
@@ -231,8 +242,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			actions.push(toggleReactionAction);
 		}
 
-		const commentMenus = this.commentService.getCommentMenus(this.owner);
-		const menu = commentMenus.getCommentTitleActions(this.comment, this._contextKeyService);
+		const menu = this._commentMenus.getCommentTitleActions(this.comment, this._contextKeyService);
 		this._register(menu);
 		this._register(menu.onDidChange(e => {
 			const { primary, secondary } = this.getToolbarActions(menu);
@@ -560,6 +570,22 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		if (this.comment.timestamp) {
 			this.updateTimestamp(this.comment.timestamp);
 		}
+	}
+
+
+	private onContextMenu(e: MouseEvent) {
+		const actions = this._commentMenus.getCommentThreadCommentContextActions(this._contextKeyService).getActions({ shouldForwardArgs: true }).map((value) => value[1]).flat();
+		if (!actions.length) {
+			return;
+		}
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => e,
+			getActions: () => actions,
+			actionRunner: new ActionRunner(),
+			getActionsContext: () => {
+				return this.commentNodeContext;
+			},
+		});
 	}
 
 	focus() {
