@@ -142,7 +142,7 @@ registerAction2(class CreateProfileAction extends Action2 {
 			}, {
 				id: CreateEmptyProfileAction.ID,
 				label: CreateEmptyProfileAction.TITLE.value,
-			}], { canPickMany: false, title: localize('create settings profile', "{0}: Create...", PROFILES_CATEGORY) });
+			}], { hideInput: true, canPickMany: false, title: localize('create settings profile', "{0}: Create...", PROFILES_CATEGORY) });
 		if (pick) {
 			return commandService.executeCommand(pick.id);
 		}
