@@ -736,6 +736,8 @@ export interface ITreeItemLabel {
 
 }
 
+export type TreeCommand = Command & { originalId?: string };
+
 export interface ITreeItem {
 
 	handle: string;
@@ -760,7 +762,7 @@ export interface ITreeItem {
 
 	contextValue?: string;
 
-	command?: Command & { originalId?: string };
+	command?: TreeCommand;
 
 	children?: ITreeItem[];
 

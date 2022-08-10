@@ -6178,6 +6178,8 @@ declare module 'vscode' {
 	 * Denotes a location of an editor in the window. Editors can be arranged in a grid
 	 * and each column represents one editor location in that grid by counting the editors
 	 * in order of their appearance.
+	 *
+	 * Columns that do not exists will be created as needed up to the maximum of `ViewColumn.Nine`.
 	 */
 	export enum ViewColumn {
 		/**
@@ -10822,6 +10824,41 @@ declare module 'vscode' {
 		 *   without providing an exit code.
 		 */
 		readonly code: number | undefined;
+
+		/**
+		 * The reason that triggered the exit of a terminal.
+		 */
+		readonly reason: TerminalExitReason;
+	}
+
+	/**
+	 * Terminal exit reason kind.
+	 */
+	export enum TerminalExitReason {
+		/**
+		 * Unknown reason.
+		 */
+		Unknown = 0,
+
+		/**
+		 * The window closed/reloaded.
+		 */
+		Shutdown = 1,
+
+		/**
+		 * The shell process exited.
+		 */
+		Process = 2,
+
+		/**
+		 * The user closed the terminal.
+		 */
+		User = 3,
+
+		/**
+		 * An extension disposed the terminal.
+		 */
+		Extension = 4,
 	}
 
 	/**

@@ -185,7 +185,7 @@ body.web {
 	outline-width: 1px;
 	outline-style: solid;
 	outline-offset: -1px;
-	opacity: 1 !important;
+	opacity: 1;
 }
 
 .monaco-workbench input[type="checkbox"]:focus {

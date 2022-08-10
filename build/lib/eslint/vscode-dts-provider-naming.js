@@ -17,7 +17,7 @@ module.exports = new (_a = class ApiProviderNaming {
             const allowed = new Set(config.allowed);
             return {
                 ['TSInterfaceDeclaration[id.name=/.+Provider/] TSMethodSignature']: (node) => {
-                    const interfaceName = node.parent?.parent.id.name;
+                    const interfaceName = (node.parent?.parent).id.name;
                     if (allowed.has(interfaceName)) {
                         // allowed
                         return;

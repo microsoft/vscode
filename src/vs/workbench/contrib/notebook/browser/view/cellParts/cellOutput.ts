@@ -87,7 +87,11 @@ export class CellOutputElement extends Disposable {
 		this.contextKeyService = parentContextKeyService;
 
 		this._register(this.output.model.onDidChangeData(() => {
-			this.updateOutputData();
+			this.rerender();
+		}));
+
+		this._register(this.output.onDidResetRenderer(() => {
+			this.rerender();
 		}));
 	}
 
@@ -120,7 +124,7 @@ export class CellOutputElement extends Disposable {
 		}
 	}
 
-	updateOutputData() {
+	rerender() {
 		if (
 			this.notebookEditor.hasModel() &&
 			this.innerContainer &&

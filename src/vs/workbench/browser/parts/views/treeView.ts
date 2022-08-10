@@ -32,7 +32,6 @@ import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import 'vs/css!./media/views';
 import { VSDataTransfer } from 'vs/base/common/dataTransfer';
-import { Command } from 'vs/editor/common/languages';
 import { localize } from 'vs/nls';
 import { createActionViewItem, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { Action2, IMenu, IMenuService, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -60,7 +59,7 @@ import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { Extensions, ITreeItem, ITreeItemLabel, ITreeView, ITreeViewDataProvider, ITreeViewDescriptor, ITreeViewDragAndDropController, IViewBadge, IViewDescriptorService, IViewsRegistry, ResolvableTreeItem, TreeItemCollapsibleState, TreeViewItemHandleArg, TreeViewPaneHandleArg, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
+import { Extensions, ITreeItem, ITreeItemLabel, ITreeView, ITreeViewDataProvider, ITreeViewDescriptor, ITreeViewDragAndDropController, IViewBadge, IViewDescriptorService, IViewsRegistry, ResolvableTreeItem, TreeCommand, TreeItemCollapsibleState, TreeViewItemHandleArg, TreeViewPaneHandleArg, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
@@ -161,6 +160,18 @@ class Root implements ITreeItem {
 	children: ITreeItem[] | undefined = undefined;
 }
 
+function isTreeCommandEnabled(treeCommand: TreeCommand, contextKeyService: IContextKeyService): boolean {
+	const command = CommandsRegistry.getCommand(treeCommand.originalId ? treeCommand.originalId : treeCommand.id);
+	if (command) {
+		const commandAction = MenuRegistry.getCommand(command.id);
+		const precondition = commandAction && commandAction.precondition;
+		if (precondition) {
+			return contextKeyService.contextMatchesRules(precondition);
+		}
+	}
+	return true;
+}
+
 const noDataProviderMessage = localize('no-dataprovider', "There is no data provider registered that can provide view data.");
 
 export const RawCustomTreeViewContextKey = new RawContextKey<boolean>('customTreeView', false);
@@ -233,7 +244,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IActivityService private readonly activityService: IActivityService,
 		@ILogService private readonly logService: ILogService
 	) {
@@ -625,7 +636,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			const selection = this.tree!.getSelection();
 			const command = await this.resolveCommand(selection.length === 1 ? selection[0] : undefined);
 
-			if (command) {
+			if (command && isTreeCommandEnabled(command, this.contextKeyService)) {
 				let args = command.arguments || [];
 				if (command.id === API_OPEN_EDITOR_COMMAND_ID || command.id === API_OPEN_DIFF_EDITOR_COMMAND_ID) {
 					// Some commands owned by us should receive the
@@ -640,7 +651,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		this._register(treeMenus.onDidChange((changed) => this.tree?.rerender(changed)));
 	}
 
-	private async resolveCommand(element: ITreeItem | undefined): Promise<Command | undefined> {
+	private async resolveCommand(element: ITreeItem | undefined): Promise<TreeCommand | undefined> {
 		let command = element?.command;
 		if (element && !command) {
 			if ((element instanceof ResolvableTreeItem) && element.hasResolve) {
@@ -1040,14 +1051,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 
 		let commandEnabled = true;
 		if (node.command) {
-			const command = CommandsRegistry.getCommand(node.command.originalId ? node.command.originalId : node.command.id);
-			if (command) {
-				const commandAction = MenuRegistry.getCommand(command.id);
-				const precondition = commandAction && commandAction.precondition;
-				if (precondition) {
-					commandEnabled = this.contextKeyService.contextMatchesRules(precondition);
-				}
-			}
+			commandEnabled = isTreeCommandEnabled(node.command, this.contextKeyService);
 		}
 
 		if (resource) {

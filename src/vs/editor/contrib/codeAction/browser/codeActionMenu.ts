@@ -167,6 +167,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	private currSelectedItem: number | undefined;
 	private hasSeparator: boolean = false;
 	private block?: HTMLElement;
+	private pointerBlock?: HTMLElement;
 
 	public static readonly documentationID: string = '_documentation';
 
@@ -282,6 +283,21 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 			}
 		}, [this.listRenderer], { keyboardSupport: false }
 		);
+
+		const pointerBlockDiv = document.createElement('div');
+		this.pointerBlock = element.appendChild(pointerBlockDiv);
+		this.pointerBlock.classList.add('context-view-pointerBlock');
+		this.pointerBlock.style.position = 'fixed';
+		this.pointerBlock.style.cursor = 'initial';
+		this.pointerBlock.style.left = '0';
+		this.pointerBlock.style.top = '0';
+		this.pointerBlock.style.width = '100%';
+		this.pointerBlock.style.height = '100%';
+		this.pointerBlock.style.zIndex = '2';
+
+		// Removes block on click INSIDE widget or ANY mouse movement
+		renderDisposables.add(dom.addDisposableListener(this.pointerBlock, dom.EventType.POINTER_MOVE, () => this.pointerBlock?.remove()));
+		renderDisposables.add(dom.addDisposableListener(this.pointerBlock, dom.EventType.MOUSE_DOWN, () => this.pointerBlock?.remove()));
 
 		renderDisposables.add(this.codeActionList.value.onMouseClick(e => this._onListClick(e)));
 		renderDisposables.add(this.codeActionList.value.onMouseOver(e => this._onListHover(e)));
