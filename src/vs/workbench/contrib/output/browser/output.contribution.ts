@@ -57,7 +57,7 @@ const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewC
 	title: nls.localize('output', "Output"),
 	icon: outputViewIcon,
 	order: 1,
-	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [OUTPUT_VIEW_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
+	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [OUTPUT_VIEW_ID, { mergeViewWithContainerWhenSingleView: true }]),
 	storageId: OUTPUT_VIEW_ID,
 	hideIfEmpty: true,
 }, ViewContainerLocation.Panel, { doNotRegisterOpenCommand: true });

@@ -131,7 +131,7 @@ const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewC
 	icon: markersViewIcon,
 	hideIfEmpty: true,
 	order: 0,
-	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [Markers.MARKERS_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
+	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [Markers.MARKERS_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]),
 	storageId: Markers.MARKERS_VIEW_STORAGE_ID,
 }, ViewContainerLocation.Panel, { doNotRegisterOpenCommand: true });
 
