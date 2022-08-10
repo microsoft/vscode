@@ -22,12 +22,12 @@ import { activeContrastBorder, badgeBackground, badgeForeground, buttonBackgroun
 import { computeStyles } from 'vs/platform/theme/common/styler';
 import { IThemeService, Themable, ThemeIcon } from 'vs/platform/theme/common/themeService';
 
-const pinButton: IQuickInputButton = {
+export const pinButton: IQuickInputButton = {
 	iconClass: ThemeIcon.asClassName(Codicon.pin),
 	tooltip: localize('pinCommand', "Pin command"),
 	alwaysVisible: false
 };
-const pinnedButton: IQuickInputButton = {
+export const pinnedButton: IQuickInputButton = {
 	iconClass: ThemeIcon.asClassName(Codicon.pinned),
 	tooltip: localize('pinnedCommand', "Pinned command"),
 	alwaysVisible: true
@@ -177,7 +177,11 @@ export class QuickInputService extends Themable implements IQuickInputService {
 			this._togglePinned(item, storageKey, false);
 			formattedItems.push(item);
 		}
-		quickPick.onDidTriggerItemButton(e => this.formatPinnedItems(quickPick, storageKey, callback));
+		quickPick.onDidTriggerItemButton(e => {
+			if (e.button === pinButton || e.button === pinnedButton) {
+				this.formatPinnedItems(quickPick, storageKey, callback);
+			}
+		});
 		quickPick.items = formattedItems;
 		callback();
 	}
@@ -194,7 +198,6 @@ export class QuickInputService extends Themable implements IQuickInputService {
 		if (pinned) {
 			labels.push(label);
 		}
-		console.log('labels', labels);
 		this._storageService.store(storageKey, JSON.stringify(labels), StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 

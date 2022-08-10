@@ -88,6 +88,7 @@ import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProc
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
+import { pinButton, pinnedButton } from 'vs/platform/quickinput/browser/quickInput';
 
 const enum Constants {
 	/**
@@ -1029,7 +1030,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				} else {
 					this._instantiationService.invokeFunction(getDirectoryHistory)?.remove(e.item.label);
 				}
-			} else {
+				quickPick.hide();
+			} else if (e.button !== pinnedButton && e.button !== pinButton) {
 				const selectedCommand = (e.item as Item).command;
 				const output = selectedCommand?.getOutput();
 				if (output && selectedCommand?.command) {
@@ -1046,8 +1048,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						});
 					}
 				}
+				quickPick.hide();
 			}
-			quickPick.hide();
 		});
 		quickPick.onDidAccept(() => {
 			const result = quickPick.activeItems[0];
@@ -1058,7 +1060,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			quickPick.value = value;
 		}
 		return new Promise<void>(r => {
-			this._quickInputService.formatPinnedItems(quickPick, 'terminal.pinnedCommands', async () => await quickPick.show());
+			this._quickInputService.formatPinnedItems(quickPick, 'terminal.pinnedCommands', async () => { });
 			quickPick.show();
 			this._terminalInRunCommandPicker.set(true);
 			quickPick.onDidHide(() => {
