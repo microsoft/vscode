@@ -391,7 +391,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	reset(cells: ICellDto2[], metadata: NotebookDocumentMetadata, transientOptions: TransientOptions): void {
 		this.transientOptions = transientOptions;
-		this._cellhandlePool = 0;
 		const edits = NotebookTextModel.computeEdits(this, cells);
 
 		this.applyEdits(
