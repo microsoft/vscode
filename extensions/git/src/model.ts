@@ -546,7 +546,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 				// If this path is not the root folder of this repo
 				// and it contains it's own .git folder, then consider it a separate repo
 				if (!pathEquals(liveRepository.repository.root, resourcePath)) {
-					if (fs.existsSync(path.join(resourcePath, ".git"))) {
+					if (fs.existsSync(path.join(resourcePath, '.git'))) {
 						continue;
 					}
 				}
