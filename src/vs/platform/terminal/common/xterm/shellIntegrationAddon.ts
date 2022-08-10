@@ -52,7 +52,11 @@ const enum ShellIntegrationOscPs {
 	/**
 	 * Sequences by Cmder.
 	 */
-	Cmder = 9
+	Cmder = 9,
+	/**
+	 * Sequences by unknown terminal (maybe a command, rather than an indentifier).
+	 */
+	Unknown7 = 7
 }
 
 /**
@@ -224,6 +228,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		this._commonProtocolDisposables.push(
 			xterm.parser.registerOscHandler(ShellIntegrationOscPs.FinalTerm, data => this._handleFinalTermSequence(data))
 		);
+		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.Unknown7, data => this._doHandleUnknownSequence(ShellIntegrationOscPs.Unknown7, data)));
 		this._ensureCapabilitiesOrAddFailureTelemetry();
 	}
 
@@ -356,8 +361,6 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				}
 				switch (key) {
 					case 'Cwd': {
-						// TODO: Ideally we would also support the following to supplement our own:
-						//       - OSC 7 ; scheme://cwd ST        (Unknown origin)
 						this._updateCwd(value);
 						return true;
 					}
@@ -426,6 +429,35 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 					this._updateCwd(args[0]);
 				}
 				return true;
+		}
+
+		// Unrecognized sequence
+		return false;
+	}
+
+	/**
+	 * Some escape sequences are not well known/documented, so we handle them in
+	 * an ad-hoc/one-off manner. Also, note that in some cases the `ident` value
+	 * itself acts like a command (not an terminal/emulator identifier). So, it
+	 * seems logical to have a slack method that deals with such cases.
+	 */
+	private _doHandleUnknownSequence(ident: number, data: string): boolean {
+		if (!this._terminal) {
+			return false;
+		}
+
+		const [command] = data.split(';');
+		switch (ident) {
+			case ShellIntegrationOscPs.Unknown7: {
+				// Checking for: `OSC 7 ; scheme://cwd ST`
+				if (command.startsWith('scheme://')) {
+					// TODO: I'm not sure `scheme` here is literal or can be `file` or something else.
+					// TODO: Possibly the path is URL-encoded, but I have no means to test it.
+					const cwd = command.substring(9);
+					this._updateCwd(cwd);
+					return true;
+				}
+			}
 		}
 
 		// Unrecognized sequence
