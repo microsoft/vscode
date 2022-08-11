@@ -78,11 +78,6 @@ export interface IQuickInputService {
 	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration): void;
 
 	/**
-	 * Adds pin buttons on hover, and stores or removes items when pinned/unpinned
-	 */
-	formatPinnedItems(quickPick: IQuickPick<IQuickPickItem>, storageKey: string, callback: () => {}): void;
-
-	/**
 	 * Navigate back in a multi-step quick input.
 	 */
 	back(): Promise<void>;

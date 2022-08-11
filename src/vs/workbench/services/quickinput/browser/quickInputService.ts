@@ -15,7 +15,6 @@ import { QuickInputService as BaseQuickInputService } from 'vs/platform/quickinp
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { InQuickPickContextKey } from 'vs/workbench/browser/quickaccess';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export class QuickInputService extends BaseQuickInputService {
 
@@ -28,10 +27,9 @@ export class QuickInputService extends BaseQuickInputService {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@ILayoutService layoutService: ILayoutService,
-		@IStorageService storageService: IStorageService
+		@ILayoutService layoutService: ILayoutService
 	) {
-		super(instantiationService, contextKeyService, themeService, accessibilityService, layoutService, storageService);
+		super(instantiationService, contextKeyService, themeService, accessibilityService, layoutService);
 
 		this.registerListeners();
 	}

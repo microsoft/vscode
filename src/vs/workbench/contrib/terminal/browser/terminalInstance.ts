@@ -89,6 +89,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
 import { pinButton, pinnedButton } from 'vs/platform/quickinput/browser/quickInput';
+import { formatPinnedItems, updateButtons, updatePinnedList } from 'vs/platform/quickinput/browser/quickPinned';
 
 const enum Constants {
 	/**
@@ -103,6 +104,8 @@ const enum Constants {
 	MaxSupportedCols = 5000,
 	MaxCanvasWidth = 8000
 }
+
+const pinnedRecentCommandStorageKey = 'terminal.pinnedCommands';
 
 let xtermConstructor: Promise<typeof XTermTerminal> | undefined;
 function getXtermConstructor(): Promise<typeof XTermTerminal> {
@@ -937,7 +940,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						label: formatLabel(label),
 						rawLabel: label,
 						buttons: [removeFromCommandHistoryButton],
-						id: (items.length++).toString()
 					});
 					commandMap.add(label);
 				}
@@ -990,8 +992,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					previousSessionItems.unshift({
 						label,
 						rawLabel: label,
-						buttons: [removeFromCommandHistoryButton],
-						id: (items.length++).toString()
+						buttons: [removeFromCommandHistoryButton]
 					});
 				}
 			}
@@ -1051,7 +1052,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						});
 					}
 				}
-				quickPick.hide();
+				await this.runRecent(type, filterMode, value);
+			} else {
+				const pinnedCommands = this._getPinnedItems();
+				const pinned = new Set(pinnedCommands).has(e.item.label);
+				updateButtons(e.item, pinned);
+				updatePinnedList(pinnedCommands, e.item.label, pinned);
+				this._updatePinnedStorage(e.item.label, pinned);
+				await this.runRecent(type, filterMode, value);
 			}
 		});
 		quickPick.onDidAccept(() => {
@@ -1063,7 +1071,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			quickPick.value = value;
 		}
 		return new Promise<void>(r => {
-			this._quickInputService.formatPinnedItems(quickPick, 'terminal.pinnedCommands', async () => { this.runRecent(type, filterMode, value); });
+			const pinnedLabels = this._getPinnedItems();
+			const pinnedItems = [...quickPick.items].filter(i => !!i?.label && new Set(pinnedLabels).has(i.label));
+			formatPinnedItems(pinnedItems, quickPick);
 			quickPick.show();
 			this._terminalInRunCommandPicker.set(true);
 			quickPick.onDidHide(() => {
@@ -1071,6 +1081,26 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				r();
 			});
 		});
+	}
+
+	private _updatePinnedStorage(label: string, removePin?: boolean): void {
+		let pinnedLabels = this._getPinnedItems();
+		if (removePin) {
+			console.log('removing', label);
+			const set = new Set(pinnedLabels);
+			set.delete(label);
+			pinnedLabels = Array.from(set);
+		} else {
+			pinnedLabels.push(label);
+		}
+		console.log('pinned labels', pinnedLabels);
+		this._storageService.store(pinnedRecentCommandStorageKey, JSON.stringify(pinnedLabels), StorageScope.WORKSPACE, StorageTarget.USER);
+	}
+
+	private _getPinnedItems(): string[] {
+		const items = this._storageService.get(pinnedRecentCommandStorageKey, StorageScope.WORKSPACE);
+		console.log('getting items', items);
+		return items ? JSON.parse(items) : [];
 	}
 
 	detachFromElement(): void {
