@@ -417,8 +417,6 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 					menuEntriesToPush(localize('codeAction.widget.id.source', 'Source Action ...'), entry);
 				} else if (firstAction === CodeActionMenu.documentationID) {
 					totalActionEntries.push(...entry);
-				} else {
-					totalActionEntries.push(...entry);
 				}
 			} else {
 				// case for separator - not a code action action
