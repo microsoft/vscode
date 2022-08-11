@@ -119,6 +119,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 	// Sticky Scroll
 	private _stickyScrollEnabled: boolean;
 	private _maxNumberStickyLines: number;
+	private _previousRangeStartLineNumber: number;
 
 	constructor(context: ViewContext, linesContent: FastDomNode<HTMLElement>) {
 		super(context);
@@ -163,6 +164,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		// sticky scroll widget
 		this._stickyScrollEnabled = options.get(EditorOption.experimental).stickyScroll.enabled;
 		this._maxNumberStickyLines = options.get(EditorOption.experimental).stickyScroll.numberLines;
+		this._previousRangeStartLineNumber = -1;
 	}
 
 	public override dispose(): void {
@@ -739,14 +741,19 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 				newScrollTop = Math.max(0, boxMiddleY - viewportHeight / 2);
 			}
 		} else {
-			let viewportAndStickyScrollWidgetStartY = viewportStartY;
-			let boxAndStickyScrollWidgetStartY = boxStartY;
+			let valueToAdd;
 			if (insideWidget && this._stickyScrollEnabled) {
-				viewportAndStickyScrollWidgetStartY -= this._maxNumberStickyLines * this._lineHeight;
-				boxAndStickyScrollWidgetStartY -= this._maxNumberStickyLines * this._lineHeight;
+				if (range?.startLineNumber && this._previousRangeStartLineNumber === range.startLineNumber + 1) {
+					valueToAdd = -2 * this._lineHeight;
+				} else {
+					valueToAdd = -this._maxNumberStickyLines * this._lineHeight;
+				}
+			} else {
+				valueToAdd = 0;
 			}
-			newScrollTop = this._computeMinimumScrolling(viewportAndStickyScrollWidgetStartY, viewportEndY, boxAndStickyScrollWidgetStartY, boxEndY, verticalType === viewEvents.VerticalRevealType.Top, verticalType === viewEvents.VerticalRevealType.Bottom);
+			newScrollTop = this._computeMinimumScrolling(viewportStartY + valueToAdd, viewportEndY, boxStartY + valueToAdd, boxEndY, verticalType === viewEvents.VerticalRevealType.Top, verticalType === viewEvents.VerticalRevealType.Bottom);
 		}
+		if (range?.startLineNumber) { this._previousRangeStartLineNumber = range?.startLineNumber; }
 
 		return newScrollTop;
 	}
