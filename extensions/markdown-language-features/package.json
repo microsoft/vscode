@@ -531,8 +531,17 @@
         },
         "markdown.experimental.updateLinksOnFileMove.externalFileGlobs": {
           "type": "string",
-          "default": "**/*.{jpg,jpe,jpeg,png,bmp,gif,ico,webp,avif}",
+          "default": "**/*.{jpg,jpe,jpeg,png,bmp,gif,ico,webp,avif,tiff,svg,mp4}",
           "description": "%configuration.markdown.experimental.updateLinksOnFileMove.fileGlobs%",
+          "scope": "resource",
+          "tags": [
+            "experimental"
+          ]
+        },
+        "markdown.experimental.updateLinksOnFileMove.enableForDirectories": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.markdown.experimental.updateLinksOnFileMove.enableForDirectories%",
           "scope": "resource",
           "tags": [
             "experimental"
