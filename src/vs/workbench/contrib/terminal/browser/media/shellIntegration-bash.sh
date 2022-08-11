@@ -131,9 +131,8 @@ if [[ -n "${bash_preexec_imported:-}" ]]; then
 else
 	__vsc_dbg_trap="$(trap -p DEBUG)"
 	if [[ "$__vsc_dbg_trap" =~ .*\[\[.* ]]; then
-		#HACK - is there a better way to do this?
-		__vsc_dbg_trap=${__vsc_dbg_trap#'trap -- '*}
-		__vsc_dbg_trap=${__vsc_dbg_trap%'DEBUG'}
+		#https://github.com/microsoft/vscode/issues/157851
+		builtin return;
 	else
 		__vsc_dbg_trap="$(trap -p DEBUG | cut -d' ' -f3 | tr -d \')"
 	fi
