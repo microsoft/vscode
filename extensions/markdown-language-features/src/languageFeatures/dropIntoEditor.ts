@@ -6,6 +6,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as URI from 'vscode-uri';
+import { Schemes } from '../util/schemes';
 
 const imageFileExtensions = new Set<string>([
 	'.bmp',
@@ -56,10 +57,12 @@ export async function tryGetUriListSnippet(document: vscode.TextDocument, dataTr
 		return;
 	}
 
+	const docUri = getParentDocumentUri(document);
+
 	const snippet = new vscode.SnippetString();
 	uris.forEach((uri, i) => {
-		const mdPath = document.uri.scheme === uri.scheme
-			? encodeURI(path.relative(URI.Utils.dirname(document.uri).fsPath, uri.fsPath).replace(/\\/g, '/'))
+		const mdPath = docUri.scheme === uri.scheme && docUri.authority === uri.authority
+			? encodeURI(path.relative(URI.Utils.dirname(docUri).fsPath, uri.fsPath).replace(/\\/g, '/'))
 			: uri.toString(false);
 
 		const ext = URI.Utils.extname(uri).toLowerCase();
@@ -73,4 +76,18 @@ export async function tryGetUriListSnippet(document: vscode.TextDocument, dataTr
 	});
 
 	return snippet;
+}
+
+function getParentDocumentUri(document: vscode.TextDocument): vscode.Uri {
+	if (document.uri.scheme === Schemes.notebookCell) {
+		for (const notebook of vscode.workspace.notebookDocuments) {
+			for (const cell of notebook.getCells()) {
+				if (cell.document === document) {
+					return notebook.uri;
+				}
+			}
+		}
+	}
+
+	return document.uri;
 }
