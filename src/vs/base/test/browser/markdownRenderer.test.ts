@@ -68,7 +68,7 @@ suite('MarkdownRenderer', () => {
 	});
 
 	suite('Code block renderer', () => {
-		const simpleCodeBlockRenderer = (code: string): Promise<HTMLElement> => {
+		const simpleCodeBlockRenderer = (lang: string, code: string): Promise<HTMLElement> => {
 			const element = document.createElement('code');
 			element.textContent = code;
 			return Promise.resolve(element);
@@ -114,6 +114,19 @@ suite('MarkdownRenderer', () => {
 					setTimeout(resolve, 50);
 				}, 50);
 			});
+		});
+
+		test('Code blocks should use leading language id (#157793)', async () => {
+			const markdown = { value: '```js some other stuff\n1 + 1;\n```' };
+			const lang = await new Promise<string>(resolve => {
+				renderMarkdown(markdown, {
+					codeBlockRenderer: async (lang, value) => {
+						resolve(lang);
+						return simpleCodeBlockRenderer(lang, value);
+					}
+				});
+			});
+			assert.strictEqual(lang, 'js');
 		});
 	});
 
