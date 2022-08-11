@@ -43,7 +43,7 @@ async function addCellAndRun(code: string, notebook: vscode.NotebookDocument, i:
 }
 
 
-(vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite.only)('Interactive Window', function () {
+(vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('Interactive Window', function () {
 
 	const testDisposables: vscode.Disposable[] = [];
 	let defaultKernel: Kernel;
