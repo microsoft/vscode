@@ -49,14 +49,8 @@ const enum ShellIntegrationOscPs {
 	 * Sequences pioneered by iTerm.
 	 */
 	ITerm = 1337,
-	/**
-	 * Sequences by Cmder.
-	 */
-	Cmder = 9,
-	/**
-	 * Sequences by unknown terminal (maybe a command, rather than an indentifier).
-	 */
-	Unknown7 = 7
+	SetCwd = 7,
+	SetWindowsFriendlyCwd = 9
 }
 
 /**
@@ -175,16 +169,6 @@ const enum ITermOscPt {
 }
 
 /**
- * Cmder sequences
- */
-const enum CmderOscPt {
-	/**
-	 * Reports current working directory (CWD). `OSC 9 ; 9 ; <cwd> ST`
-	 */
-	Code9 = '9'
-}
-
-/**
  * The shell integration addon extends xterm by reading shell integration sequences and creating
  * capabilities and passing along relevant sequences to the capabilities. This is meant to
  * encapsulate all handling/parsing of sequences so the capabilities don't need to.
@@ -224,11 +208,11 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		this.capabilities.add(TerminalCapability.PartialCommandDetection, new PartialCommandDetectionCapability(this._terminal));
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.VSCode, data => this._handleVSCodeSequence(data)));
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.ITerm, data => this._doHandleITermSequence(data)));
-		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.Cmder, data => this._doHandleCmderSequence(data)));
 		this._commonProtocolDisposables.push(
 			xterm.parser.registerOscHandler(ShellIntegrationOscPs.FinalTerm, data => this._handleFinalTermSequence(data))
 		);
-		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.Unknown7, data => this._doHandleUnknownSequence(ShellIntegrationOscPs.Unknown7, data)));
+		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.SetCwd, data => this._doHandleSetCwd(data)));
+		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.SetWindowsFriendlyCwd, data => this._doHandleSetWindowsFriendlyCwd(data)));
 		this._ensureCapabilitiesOrAddFailureTelemetry();
 	}
 
@@ -417,14 +401,15 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		return false;
 	}
 
-	private _doHandleCmderSequence(data: string): boolean {
+	private _doHandleSetWindowsFriendlyCwd(data: string): boolean {
 		if (!this._terminal) {
 			return false;
 		}
 
 		const [command, ...args] = data.split(';');
 		switch (command) {
-			case CmderOscPt.Code9:
+			case '9':
+				// Encountered `OSC 9 ; 9 ; <cwd> ST`
 				if (args.length) {
 					this._updateCwd(args[0]);
 				}
@@ -435,29 +420,20 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		return false;
 	}
 
-	/**
-	 * Some escape sequences are not well known/documented, so we handle them in
-	 * an ad-hoc/one-off manner. Also, note that in some cases the `ident` value
-	 * itself acts like a command (not an terminal/emulator identifier). So, it
-	 * seems logical to have a slack method that deals with such cases.
-	 */
-	private _doHandleUnknownSequence(ident: number, data: string): boolean {
+	private _doHandleSetCwd(data: string): boolean {
 		if (!this._terminal) {
 			return false;
 		}
 
 		const [command] = data.split(';');
-		switch (ident) {
-			case ShellIntegrationOscPs.Unknown7: {
-				// Checking for: `OSC 7 ; scheme://cwd ST`
-				if (command.startsWith('scheme://')) {
-					// TODO: I'm not sure `scheme` here is literal or can be `file` or something else.
-					// TODO: Possibly the path is URL-encoded, but I have no means to test it.
-					const cwd = command.substring(9);
-					this._updateCwd(cwd);
-					return true;
-				}
-			}
+
+		// Checking for: `OSC 7 ; scheme://cwd ST`
+		if (command.startsWith('scheme://')) {
+			// TODO: I'm not sure `scheme` here is literal or can be `file` or something else.
+			// TODO: Possibly the path is URL-encoded, but I have no means to test it.
+			const cwd = command.substring(9);
+			this._updateCwd(cwd);
+			return true;
 		}
 
 		// Unrecognized sequence
