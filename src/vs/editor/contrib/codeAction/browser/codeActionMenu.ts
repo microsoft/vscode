@@ -104,7 +104,7 @@ export interface ICodeActionMenuTemplateData {
 
 const TEMPLATE_ID = 'codeActionWidget';
 const codeActionLineHeight = 24;
-const headerLineHeight = 32;
+const headerLineHeight = 26;
 
 class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeActionMenuTemplateData> {
 
@@ -339,7 +339,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 				if (element.isSeparator) {
 					return 10;
 				} else if (element.isHeader) {
-					return 32;
+					return headerLineHeight;
 				}
 				return codeActionLineHeight;
 			},
