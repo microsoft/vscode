@@ -34,15 +34,6 @@ import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles
 import 'vs/editor/contrib/symbolIcons/browser/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
 import { Codicon } from 'vs/base/common/codicons';
 
-
-export enum CodeActionGroupID {
-	normalRefactor = 'refactor',
-	quickFix = 'quickfix',
-	extract = 'refactor.extract',
-	convert = 'refactor.rewrite',
-	documentation = '_documementation',
-}
-
 export const Context = {
 	Visible: new RawContextKey<boolean>('CodeActionMenuVisible', false, localize('CodeActionMenuVisible', "Whether the code action list widget is visible"))
 };
@@ -157,31 +148,26 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 
 				if (element.isDocumentation) {
 					data.text.textContent = text;
-					data.icon.className = Codicon.book.classNames;
+					data.root.classList.add('documentation');
 				} else {
 					// Icons and Label modifaction based on group
 					const group = element.action.action.kind;
 
-
 					if (CodeActionKind.Refactor.equals(new CodeActionKind(String(group)))) {
-						data.icon.className = Codicon.symbolSnippet.classNames;
-						data.icon.style.color = `var(--vscode-symbolIcon-functionForeground)`;
+						data.icon.className = Codicon.symbolArray.classNames;
 						const label = text.replace(/(Surround With )*(Surround With: )*/g, '');
 						data.text.textContent = label.charAt(0).toUpperCase() + label.slice(1);
 					} else if (CodeActionKind.Extract.contains(new CodeActionKind(String(group)))) {
-						data.icon.className = Codicon.lightBulb.classNames;
-						data.icon.style.color = `var(--vscode-editorLightBulb-foreground)`;
+						data.icon.className = Codicon.wrench.classNames;
 						data.text.textContent = text.replace('Extract to', 'To');
 					} else if (CodeActionKind.Convert.contains(new CodeActionKind(String(group)))) {
-						data.icon.className = Codicon.lightbulbAutofix.classNames;
+						data.icon.className = Codicon.zap.classNames;
 						data.icon.style.color = `var(--vscode-editorLightBulbAutoFix-foreground)`;
 						const label = text.replace('Convert ', '');
 						data.text.textContent = label.charAt(0).toUpperCase() + label.slice(1);
-					} else if (group === CodeActionGroupID.documentation) {
-						data.icon.className = Codicon.book.classNames;
-						data.text.textContent = text;
 					} else if (CodeActionKind.QuickFix.contains(new CodeActionKind(String(group)))) {
-						data.icon.className = Codicon.wrench.classNames;
+						data.icon.className = Codicon.lightBulb.classNames;
+						data.icon.style.color = `var(--vscode-editorLightBulb-foreground)`;
 						data.text.textContent = text;
 					} else {
 						data.icon.className = Codicon.lightBulb.classNames;
@@ -207,6 +193,7 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 		if (!element.isEnabled) {
 			data.root.classList.add('option-disabled');
 			data.root.style.backgroundColor = 'transparent !important';
+			data.icon.style.opacity = '0.4';
 		} else {
 			data.root.classList.remove('option-disabled');
 		}
@@ -375,7 +362,9 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		const extractGroup: IAction[] = [];
 		const convertGroup: IAction[] = [];
 		const surroundGroup: IAction[] = [];
+		const sourceGroup: IAction[] = [];
 		const separatorGroup: IAction[] = [];
+		const documentationGroup: IAction[] = [];
 		const otherGroup: IAction[] = [];
 
 		inputArray.forEach((item, index) => {
@@ -390,6 +379,10 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 					extractGroup.push(item);
 				} else if (CodeActionKind.Convert.contains(new CodeActionKind(String(optionKind)))) {
 					convertGroup.push(item);
+				} else if (CodeActionKind.Source.contains(new CodeActionKind(String(optionKind)))) {
+					sourceGroup.push(item);
+				} else if (optionKind === CodeActionMenu.documentationID) {
+					documentationGroup.push(item);
 				} else {
 					otherGroup.push(item);
 				}
@@ -399,7 +392,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 			}
 		});
 
-		menuEntries.push(quickfixGroup, extractGroup, convertGroup, surroundGroup, separatorGroup, otherGroup);
+		menuEntries.push(quickfixGroup, extractGroup, convertGroup, surroundGroup, sourceGroup, otherGroup, separatorGroup, documentationGroup);
 
 		const menuEntriesToPush = (menuID: string, entry: IAction[]) => {
 			totalActionEntries.push(menuID);
@@ -420,6 +413,10 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 					menuEntriesToPush(localize('codeAction.widget.id.extract', 'Extract ...'), entry);
 				} else if (CodeActionKind.Convert.contains(new CodeActionKind(String(firstAction)))) {
 					menuEntriesToPush(localize('codeAction.widget.id.convert', 'Convert ...'), entry);
+				} else if (CodeActionKind.Source.contains(new CodeActionKind(String(firstAction)))) {
+					menuEntriesToPush(localize('codeAction.widget.id.source', 'Source Action ...'), entry);
+				} else if (firstAction === CodeActionMenu.documentationID) {
+					totalActionEntries.push(...entry);
 				} else {
 					totalActionEntries.push(...entry);
 				}
