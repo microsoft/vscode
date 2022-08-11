@@ -190,7 +190,7 @@ export class MockSession implements IDebugSession {
 		return undefined;
 	}
 
-	get saveBeforeStart(): boolean {
+	get saveBeforeRestart(): boolean {
 		return true;
 	}
 
