@@ -7,7 +7,7 @@ import * as sinon from 'sinon';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { Match, FileMatch, SearchResult, SearchModel } from 'vs/workbench/contrib/search/common/searchModel';
 import { URI } from 'vs/base/common/uri';
-import { IFileMatch, TextSearchMatch, OneLineRange, ITextSearchMatch } from 'vs/workbench/services/search/common/search';
+import { IFileMatch, TextSearchMatch, OneLineRange, ITextSearchMatch, QueryType } from 'vs/workbench/services/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { Range } from 'vs/editor/common/core/range';
@@ -340,6 +340,38 @@ suite('SearchResult', () => {
 		testObject.replaceAll(null!);
 
 		return voidPromise.then(() => assert.ok(testObject.isEmpty()));
+	});
+
+	test('batchRemove should remove all selected matches', function () {
+		const target = sinon.spy();
+
+		const testObject = aSearchResult();
+
+		testObject.query = {
+			type: QueryType.Text,
+			contentPattern: { pattern: 'foo' },
+			folderQueries: [{
+				folder: URI.parse('file://c:/voo')
+			},
+			{ folder: URI.parse('file://c:/with') },
+			]
+		};
+
+		testObject.add([
+			aRawMatch('file://c:/voo/foo.a',
+				new TextSearchMatch('preview 1', lineOneRange), new TextSearchMatch('preview 2', lineOneRange)),
+			aRawMatch('file://c:/with/path/bar.b',
+				new TextSearchMatch('preview 3', lineOneRange)),
+			aRawMatch('file://c:/with/path.c',
+				new TextSearchMatch('preview 4', lineOneRange), new TextSearchMatch('preview 5', lineOneRange)),
+		]);
+
+		const arrayToRemove = [testObject.folderMatches()[0].matches()[0], testObject.folderMatches()[1].matches()[0]];
+		testObject.onRefreshSearchResult(target);
+		testObject.batchRemove(arrayToRemove);
+
+		assert.ok(target.calledOnce);
+		assert.deepStrictEqual([{ elements: arrayToRemove, removed: true, added: false }], target.args[0]);
 	});
 
 	function aFileMatch(path: string, searchResult?: SearchResult, ...lineMatches: ITextSearchMatch[]): FileMatch {

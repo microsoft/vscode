@@ -797,7 +797,7 @@ export class SearchResult extends Disposable {
 		}));
 	}
 
-	async performMassReplace(elementsToReplace: RenderableMatch[]) {
+	async batchReplace(elementsToReplace: RenderableMatch[]) {
 		this._onRefreshSearchResult.pause();
 		await Promise.all(elementsToReplace.map(async (elem) => {
 			const parent = elem.parent();
@@ -819,7 +819,7 @@ export class SearchResult extends Disposable {
 	}
 
 
-	performMassRemove(elementsToRemove: RenderableMatch[]) {
+	batchRemove(elementsToRemove: RenderableMatch[]) {
 		this._onRefreshSearchResult.pause();
 		elementsToRemove.forEach((currentElement) =>
 			currentElement.parent().remove(<(FolderMatch | FileMatch)[] & Match & FileMatch[]>currentElement)

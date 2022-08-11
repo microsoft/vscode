@@ -443,7 +443,7 @@ class ReplaceActionRunner {
 		const searchResult = getSearchView(this.viewsService)?.searchResult;
 
 		if (searchResult) {
-			searchResult.performMassReplace(elementsToReplace);
+			searchResult.batchReplace(elementsToReplace);
 		}
 
 		const currentBottomFocusElement = elementsToReplace[elementsToReplace.length - 1];
@@ -581,7 +581,7 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 		const searchResult = getSearchView(this.viewsService)?.searchResult;
 
 		if (searchResult) {
-			searchResult.performMassRemove(elementsToRemove);
+			searchResult.batchRemove(elementsToRemove);
 		}
 
 		this.viewer.domFocus();
