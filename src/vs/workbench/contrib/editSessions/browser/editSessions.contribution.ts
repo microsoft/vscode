@@ -110,7 +110,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 			void this.resumeEditSession(this.environmentService.editSessionId).finally(() => this.environmentService.editSessionId = undefined);
 			performance.mark('code/didResumeEditSessionFromIdentifier');
-		} else if (this.editSessionsWorkbenchService.isSignedIn) {
+		} else if (this.configurationService.getValue('workbench.experimental.editSessions.autoResume') === 'onReload' && this.editSessionsWorkbenchService.isSignedIn) {
 			// Attempt to resume edit session based on canonical workspace identifier
 			// Note: at this point if the user is not signed into edit sessions,
 			// we don't want them to sign in and should just return early
@@ -626,6 +626,17 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			'tags': ['experimental', 'usesOnlineServices'],
 			'default': true,
 			'markdownDescription': localize('editSessionsEnabled', "Controls whether to display cloud-enabled actions to store and resume uncommitted changes when switching between web, desktop, or devices."),
+		},
+		'workbench.experimental.editSessions.autoResume': {
+			enum: ['onReload', 'off'],
+			enumDescriptions: [
+				localize('autoResume.onReload', "Automatically resume available edit session on window reload."),
+				localize('autoResume.off', "Never attempt to resume an edit session.")
+			],
+			'type': 'string',
+			'tags': ['experimental', 'usesOnlineServices'],
+			'default': 'off',
+			'markdownDescription': localize('autoResume', "Controls whether to automatically resume an available edit session for the current workspace."),
 		},
 	}
 });
