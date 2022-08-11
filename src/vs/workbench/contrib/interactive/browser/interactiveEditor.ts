@@ -104,6 +104,7 @@ export class InteractiveEditor extends EditorPane {
 	#notebookOptions: NotebookOptions;
 	#editorMemento: IEditorMemento<InteractiveEditorViewState>;
 	#groupListener = this._register(new DisposableStore());
+	#runbuttonToolbar: ToolBar | undefined;
 
 	#onDidFocusWidget = this._register(new Emitter<void>());
 	override get onDidFocus(): Event<void> { return this.#onDidFocusWidget.event; }
@@ -186,7 +187,7 @@ export class InteractiveEditor extends EditorPane {
 
 	#setupRunButtonToolbar(runButtonContainer: HTMLElement) {
 		const menu = this._register(this.#menuService.createMenu(MenuId.InteractiveInputExecute, this.#contextKeyService));
-		const toolbar = this._register(new ToolBar(runButtonContainer, this.#contextMenuService, {
+		this.#runbuttonToolbar = this._register(new ToolBar(runButtonContainer, this.#contextMenuService, {
 			getKeyBinding: action => this.#keybindingService.lookupKeybinding(action.id),
 			actionViewItemProvider: action => {
 				return createActionViewItem(this.#instantiationService, action);
@@ -199,7 +200,7 @@ export class InteractiveEditor extends EditorPane {
 		const result = { primary, secondary };
 
 		createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result);
-		toolbar.setActions([...primary, ...secondary]);
+		this.#runbuttonToolbar.setActions([...primary, ...secondary]);
 	}
 
 	#createLayoutStyles(): void {
@@ -392,6 +393,9 @@ export class InteractiveEditor extends EditorPane {
 
 		await super.setInput(input, options, context, token);
 		const model = await input.resolve();
+		if (this.#runbuttonToolbar) {
+			this.#runbuttonToolbar.context = input.resource;
+		}
 
 		if (model === null) {
 			throw new Error('?');
