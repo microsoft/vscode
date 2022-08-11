@@ -116,6 +116,10 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 	private _horizontalRevealRequest: HorizontalRevealRequest | null;
 	private readonly _lastRenderedData: LastRenderedData;
 
+	// Sticky Scroll
+	private _stickyScrollEnabled: boolean;
+	private _maxNumberStickyLines: number;
+
 	constructor(context: ViewContext, linesContent: FastDomNode<HTMLElement>) {
 		super(context);
 		this._linesContent = linesContent;
@@ -155,6 +159,10 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		this._lastRenderedData = new LastRenderedData();
 
 		this._horizontalRevealRequest = null;
+
+		// sticky scroll widget
+		this._stickyScrollEnabled = options.get(EditorOption.experimental).stickyScroll.enabled;
+		this._maxNumberStickyLines = options.get(EditorOption.experimental).stickyScroll.numberLines;
 	}
 
 	public override dispose(): void {
@@ -196,6 +204,11 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		this._cursorSurroundingLines = options.get(EditorOption.cursorSurroundingLines);
 		this._cursorSurroundingLinesStyle = options.get(EditorOption.cursorSurroundingLinesStyle);
 		this._canUseLayerHinting = !options.get(EditorOption.disableLayerHinting);
+
+		// sticky scroll
+		this._stickyScrollEnabled = options.get(EditorOption.experimental).stickyScroll.enabled;
+		this._maxNumberStickyLines = options.get(EditorOption.experimental).stickyScroll.numberLines;
+
 		applyFontInfo(this.domNode, fontInfo);
 
 		this._onOptionsMaybeChanged();
@@ -640,6 +653,10 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 
 	private _computeScrollTopToRevealRange(viewport: Viewport, source: string | null | undefined, minimalReveal: boolean, range: Range | null, selections: Selection[] | null, verticalType: viewEvents.VerticalRevealType): number {
 		const viewportStartY = viewport.top;
+		let stickyWidgetStartY = viewportStartY;
+		if (this._context.viewModel.stickyWidgetHeight) {
+			stickyWidgetStartY += this._context.viewModel.stickyWidgetHeight;
+		}
 		const viewportHeight = viewport.height;
 		const viewportEndY = viewportStartY + viewportHeight;
 		let boxIsSingleRange: boolean;
@@ -678,6 +695,13 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 			}
 		}
 
+		let insideWidget: boolean = false;
+		if (range) {
+			const topOfRangeStartLineNumber = (range.startLineNumber - 1) * this._lineHeight;
+			if (stickyWidgetStartY && topOfRangeStartLineNumber < stickyWidgetStartY) {
+				insideWidget = true;
+			}
+		}
 		if (verticalType === viewEvents.VerticalRevealType.Simple || verticalType === viewEvents.VerticalRevealType.Bottom) {
 			// Reveal one line more when the last line would be covered by the scrollbar - arrow down case or revealing a line explicitly at bottom
 			boxEndY += (minimalReveal ? this._horizontalScrollbarHeight : this._lineHeight);
@@ -715,7 +739,13 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 				newScrollTop = Math.max(0, boxMiddleY - viewportHeight / 2);
 			}
 		} else {
-			newScrollTop = this._computeMinimumScrolling(viewportStartY, viewportEndY, boxStartY, boxEndY, verticalType === viewEvents.VerticalRevealType.Top, verticalType === viewEvents.VerticalRevealType.Bottom);
+			let viewportAndStickyScrollWidgetStartY = viewportStartY;
+			let boxAndStickyScrollWidgetStartY = boxStartY;
+			if (insideWidget && this._stickyScrollEnabled) {
+				viewportAndStickyScrollWidgetStartY -= this._maxNumberStickyLines * this._lineHeight;
+				boxAndStickyScrollWidgetStartY -= this._maxNumberStickyLines * this._lineHeight;
+			}
+			newScrollTop = this._computeMinimumScrolling(viewportAndStickyScrollWidgetStartY, viewportEndY, boxAndStickyScrollWidgetStartY, boxEndY, verticalType === viewEvents.VerticalRevealType.Top, verticalType === viewEvents.VerticalRevealType.Bottom);
 		}
 
 		return newScrollTop;

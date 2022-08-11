@@ -2523,19 +2523,21 @@ export interface IEditorExperimentalOptions {
 		 * Enable the sticky scroll
 		 */
 		enabled?: boolean;
+		numberLines?: number;
 	};
 }
 
 export interface EditorExperimentalOptions {
 	stickyScroll: {
 		enabled: boolean;
+		numberLines: number;
 	};
 }
 
 class EditorExperimental extends BaseEditorOption<EditorOption.experimental, IEditorExperimentalOptions, EditorExperimentalOptions> {
 
 	constructor() {
-		const defaults: EditorExperimentalOptions = { stickyScroll: { enabled: false } };
+		const defaults: EditorExperimentalOptions = { stickyScroll: { enabled: false, numberLines: 10 } };
 		super(
 			EditorOption.experimental, 'experimental', defaults,
 			{
@@ -2543,6 +2545,18 @@ class EditorExperimental extends BaseEditorOption<EditorOption.experimental, IEd
 					type: 'boolean',
 					default: defaults.stickyScroll.enabled,
 					description: nls.localize('editor.experimental.stickyScroll', "Shows the nested current scopes during the scroll at the top of the editor.")
+				},
+				'editor.experimental.stickyScroll.numberLines': {
+					type: 'number',
+					default: defaults.stickyScroll.numberLines,
+					enum: [1, 5, 10, 15],
+					enumDescriptions: [
+						nls.localize('minimap.size.1', "Render maximum 1 line in the sticky scroll widget"),
+						nls.localize('minimap.size.5', "Render maximum 5 lines in the sticky scroll widget"),
+						nls.localize('minimap.size.10', "Render maximum 10 lines in the sticky scroll widget"),
+						nls.localize('minimap.size.15', "Render maximum 15 lines in the sticky scroll widget"),
+					],
+					description: nls.localize('editor.experimental.stickyScroll.', "Defines the number of sticky lines to show.")
 				},
 			}
 		);
@@ -2555,7 +2569,8 @@ class EditorExperimental extends BaseEditorOption<EditorOption.experimental, IEd
 		const input = _input as IEditorExperimentalOptions;
 		return {
 			stickyScroll: {
-				enabled: boolean(input.stickyScroll?.enabled, this.defaultValue.stickyScroll.enabled)
+				enabled: boolean(input.stickyScroll?.enabled, this.defaultValue.stickyScroll.enabled),
+				numberLines: EditorIntOption.clampedInt(input.stickyScroll?.numberLines, this.defaultValue.stickyScroll.numberLines, 1, 15),
 			}
 		};
 	}

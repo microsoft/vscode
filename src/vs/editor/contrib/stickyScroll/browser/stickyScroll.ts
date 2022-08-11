@@ -89,11 +89,25 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 			// Old _ranges not updated yet
 			return;
 		}
-		this.stickyScrollWidget.setState(this.getScrollWidgetState());
+		const widgetState = this.getScrollWidgetState();
+		this.stickyScrollWidget.setState(widgetState);
+		this.editor._getViewModel().stickyWidgetHeight = this.updateWidgetMeasures(widgetState);
+	}
+
+	public updateWidgetMeasures(state: StickyScrollWidgetState): number {
+		const lineHeight: number = this.editor.getOption(EditorOption.lineHeight);
+		let widgetHeight;
+		if (state.lineNumbers.length > 0) {
+			widgetHeight = lineHeight * (state.lineNumbers.length - 1) + lineHeight + state.lastLineRelativePosition;
+		} else {
+			widgetHeight = 0;
+		}
+		return widgetHeight;
 	}
 
 	private getScrollWidgetState(): StickyScrollWidgetState {
 		const lineHeight: number = this.editor.getOption(EditorOption.lineHeight);
+		const maxNumberStickyLines = this.editor.getOption(EditorOption.experimental).stickyScroll.numberLines;
 		const scrollTop: number = this.editor.getScrollTop();
 		let lastLineRelativePosition: number = 0;
 		const lineNumbers: number[] = [];
@@ -120,6 +134,9 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 					}
 					else if (bottomOfElementAtDepth > bottomOfBeginningLine && bottomOfElementAtDepth <= bottomOfEndLine) {
 						lineNumbers.push(start);
+					}
+					if (lineNumbers.length === maxNumberStickyLines) {
+						break;
 					}
 				}
 			}
