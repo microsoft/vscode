@@ -1,10 +1,10 @@
-pool:
-  vmImage: "ubuntu-latest"
-
 trigger:
   branches:
     include: ["main", "release/*"]
 pr: none
+
+pool:
+  vmImage: "ubuntu-latest"
 
 steps:
   - checkout: self
@@ -14,14 +14,19 @@ steps:
     inputs:
       versionSpec: "16.x"
 
-  - script: |
-      set -e
+  - pwsh: |
+      $result = git config --get-regexp .*extraheader ^AUTHORIZATION:
+      $basicToken = $result -split "AUTHORIZATION: basic " | Select-Object -Last 1
 
       git config user.email "vscode@microsoft.com"
       git config user.name "VSCode"
-
-      git remote add distro "https://github.com/$VSCODE_MIXIN_REPO.git"
+      git config http.https://github.com/microsoft/vscode-distro.extraheader "AUTHORIZATION: basic $basicToken"
       git fetch distro
+
+    displayName: Add distro remote
+
+  - script: |
+      set -e
 
       # Push main branch into oss/main
       git push distro origin/main:refs/heads/oss/main
