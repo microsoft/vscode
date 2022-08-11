@@ -25,6 +25,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { coalesce } from 'vs/base/common/arrays';
 import { Event, Emitter } from 'vs/base/common/event';
+import { AnchorAlignment, AnchorAxisAlignment } from 'vs/base/browser/ui/contextview/contextview';
 
 export class ContextMenuService extends Disposable implements IContextMenuService {
 
@@ -105,8 +106,26 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 				// Window Zoom Level: 1.5, Title Bar Zoom: 1/1.5, Coordinate Multiplier: 1.5 * 1.0 / 1.5 = 1.0
 				zoom *= dom.getDomNodeZoomLevel(anchor);
 
-				x = elementPosition.left;
-				y = elementPosition.top + elementPosition.height;
+				// Position according to the axis alignment and the anchor alignment:
+				// `HORIZONTAL` aligns at the top left or right of the anchor and
+				//  `VERTICAL` aligns at the bottom left of the anchor.
+				if (delegate.anchorAxisAlignment === AnchorAxisAlignment.HORIZONTAL) {
+					if (delegate.anchorAlignment === AnchorAlignment.LEFT) {
+						x = elementPosition.left;
+						y = elementPosition.top;
+					} else {
+						x = elementPosition.left + elementPosition.width;
+						y = elementPosition.top;
+					}
+				} else {
+					if (delegate.anchorAlignment === AnchorAlignment.LEFT) {
+						x = elementPosition.left;
+						y = elementPosition.top + elementPosition.height;
+					} else {
+						x = elementPosition.left + elementPosition.width;
+						y = elementPosition.top + elementPosition.height;
+					}
+				}
 
 				// Shift macOS menus by a few pixels below elements
 				// to account for extra padding on top of native menu
