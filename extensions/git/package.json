@@ -13,6 +13,7 @@
     "diffCommand",
     "contribMergeEditorToolbar",
     "contribViewsWelcome",
+    "contribEditSessions",
     "scmActionButton",
     "scmSelectedProvider",
     "scmValidation",
