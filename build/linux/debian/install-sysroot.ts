@@ -63,14 +63,13 @@ export async function getSysroot(arch: DebianArchString): Promise<string> {
 	console.log(`Downloading ${url}`);
 	let downloadSuccess = false;
 	for (let i = 0; i < 3 && !downloadSuccess; i++) {
+		fs.writeFileSync(tarball, '');
 		await new Promise<void>((c) => {
 			https.get(url, (res) => {
-				const chunks: Uint8Array[] = [];
 				res.on('data', (chunk) => {
-					chunks.push(chunk);
+					fs.appendFileSync(tarball, chunk);
 				});
 				res.on('end', () => {
-					fs.writeFileSync(tarball, Buffer.concat(chunks));
 					downloadSuccess = true;
 					c();
 				});
@@ -81,6 +80,7 @@ export async function getSysroot(arch: DebianArchString): Promise<string> {
 		});
 	}
 	if (!downloadSuccess) {
+		fs.rmSync(tarball);
 		throw new Error('Failed to download ' + url);
 	}
 	const sha = getSha(tarball);
