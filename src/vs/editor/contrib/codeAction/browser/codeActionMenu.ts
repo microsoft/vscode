@@ -162,26 +162,28 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 					data.text.textContent = text;
 					data.icon.className = Codicon.book.classNames;
 				} else {
-
 					// Icons and Label modifaction based on group
-					if (element.action.action.kind?.startsWith(CodeActionGroupID.extract)) {
+					const group = element.action.action.kind;
+
+
+					if (group?.startsWith(CodeActionGroupID.extract)) {
 						data.icon.className = Codicon.lightBulb.classNames;
 						data.icon.style.color = `var(--vscode-editorLightBulb-foreground)`;
 						data.text.textContent = text.replace('Extract to', 'To');
-					} else if (element.action.action.kind?.startsWith(CodeActionGroupID.convert)) {
+					} else if (group?.startsWith(CodeActionGroupID.convert)) {
 						data.icon.className = Codicon.lightbulbAutofix.classNames;
 						data.icon.style.color = `var(--vscode-editorLightBulbAutoFix-foreground)`;
 						const label = text.replace('Convert ', '');
 						data.text.textContent = label.charAt(0).toUpperCase() + label.slice(1);
-					} else if (element.action.action.kind === CodeActionGroupID.normalRefactor) {
+					} else if (group === CodeActionGroupID.normalRefactor) {
 						data.icon.className = Codicon.symbolSnippet.classNames;
 						data.icon.style.color = `var(--vscode-symbolIcon-functionForeground)`;
 						const label = text.replace(/(Surround With )*(Surround With: )*/g, '');
 						data.text.textContent = label.charAt(0).toUpperCase() + label.slice(1);
-					} else if (element.action.action.kind === CodeActionGroupID.documentation) {
+					} else if (group === CodeActionGroupID.documentation) {
 						data.icon.className = Codicon.book.classNames;
 						data.text.textContent = text;
-					} else if (element.action.action.kind === CodeActionGroupID.quickFix) {
+					} else if (group === CodeActionGroupID.quickFix) {
 						data.icon.className = Codicon.wrench.classNames;
 						data.text.textContent = text;
 					} else {
@@ -382,19 +384,23 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		let groupID = 0;
 		inputArray.forEach((item, index) => {
 			if (item instanceof CodeActionAction) {
-				if (item.action.kind === CodeActionGroupID.quickFix) {
+				// create codea action kind from string
+				// not array, but class -> add into class
+				// TODO:
+				const optionKind = item.action.kind;
+
+				if (CodeActionKind.QuickFix.contains(new CodeActionKind(String(optionKind)))) {
 					groupID = CodeActionArrayGroup.quickfix;
-				} else if (item.action.kind?.startsWith(CodeActionGroupID.extract)) {
+				} else if (optionKind?.startsWith(CodeActionGroupID.extract)) {
 					groupID = CodeActionArrayGroup.extract;
-				} else if (item.action.kind?.startsWith(CodeActionGroupID.convert)) {
+				} else if (optionKind?.startsWith(CodeActionGroupID.convert)) {
 					groupID = CodeActionArrayGroup.convert;
-				} else if (item.action.kind === CodeActionGroupID.normalRefactor) {
+				} else if (optionKind === CodeActionGroupID.normalRefactor) {
 					groupID = CodeActionArrayGroup.normalRefactor;
 				} else if (item.id === `vs.actions.separator`) {
 					groupID = CodeActionArrayGroup.separator;
 				} else {
 					groupID = CodeActionArrayGroup.other;
-
 				}
 
 			} else if (item.id === `vs.actions.separator`) {
@@ -408,25 +414,29 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		let numHeaders = 0;
 		const totalActionEntries: (IAction | string)[] = [];
 		menuEntries.forEach(entry => {
-			if (entry.length > 0 && entry[0] instanceof CodeActionAction && entry[0].action.kind === CodeActionGroupID.quickFix) {
-				totalActionEntries.push(`Quickfix`);
-				totalActionEntries.push(...entry);
-				numHeaders++;
-			}
-			else if (entry.length > 0 && entry[0] instanceof CodeActionAction && entry[0].action.kind?.startsWith(CodeActionGroupID.extract)) {
-				totalActionEntries.push(`Extract`);
-				totalActionEntries.push(...entry);
-				numHeaders++;
-			}
-			else if (entry.length > 0 && entry[0] instanceof CodeActionAction && entry[0].action.kind?.startsWith(CodeActionGroupID.convert)) {
-				totalActionEntries.push(`Convert`);
-				totalActionEntries.push(...entry);
-				numHeaders++;
-			}
-			else if (entry.length > 0 && entry[0] instanceof CodeActionAction && entry[0].action.kind === CodeActionGroupID.normalRefactor) {
-				totalActionEntries.push(`Surround With ...`);
-				totalActionEntries.push(...entry);
-				numHeaders++;
+			if (entry.length > 0 && entry[0] instanceof CodeActionAction) {
+				const firstAction = entry[0].action.kind;
+				if (CodeActionKind.QuickFix.contains(new CodeActionKind(String(firstAction)))) {
+					totalActionEntries.push(localize('codeAction.widget.id.quickfix', 'Quickfix'));
+					totalActionEntries.push(...entry);
+					numHeaders++;
+				} else if (firstAction?.startsWith(CodeActionGroupID.extract)) {
+					totalActionEntries.push(localize('codeAction.widget.id.extract', 'Extract'));
+					totalActionEntries.push(...entry);
+					numHeaders++;
+				}
+				else if (firstAction?.startsWith(CodeActionGroupID.convert)) {
+					totalActionEntries.push(localize('codeAction.widget.id.convert', 'Convert'));
+					totalActionEntries.push(...entry);
+					numHeaders++;
+				}
+				else if (firstAction === CodeActionGroupID.normalRefactor) {
+					totalActionEntries.push(localize('codeAction.widget.id.surround', 'Surround With ...'));
+					totalActionEntries.push(...entry);
+					numHeaders++;
+				} else {
+					totalActionEntries.push(...entry);
+				}
 			} else {
 				totalActionEntries.push(...entry);
 			}
@@ -459,7 +469,6 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		// Updating list height, depending on how many separators and headers there are.
 		const height = this.hasSeparator ? (totalActionEntries.length - 1) * codeActionLineHeight + 10 : totalActionEntries.length * codeActionLineHeight;
 		const heightWithHeaders = height + numHeaders * headerLineHeight - numHeaders * codeActionLineHeight;
-		console.log(numHeaders);
 		renderMenu.style.height = String(heightWithHeaders) + 'px';
 		this.codeActionList.value.layout(heightWithHeaders);
 
