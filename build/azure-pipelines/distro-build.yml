@@ -7,25 +7,15 @@ trigger:
 pr: none
 
 steps:
+  - checkout: self
+    persistCredentials: true
+
   - task: NodeTool@0
     inputs:
       versionSpec: "16.x"
 
-  - task: AzureKeyVault@1
-    displayName: "Azure Key Vault: Get Secrets"
-    inputs:
-      azureSubscription: "vscode-builds-subscription"
-      KeyVaultName: vscode
-      SecretsFilter: "github-distro-mixin-password"
-
   - script: |
       set -e
-
-      cat << EOF > ~/.netrc
-      machine github.com
-      login vscode
-      password $(github-distro-mixin-password)
-      EOF
 
       git config user.email "vscode@microsoft.com"
       git config user.name "VSCode"
