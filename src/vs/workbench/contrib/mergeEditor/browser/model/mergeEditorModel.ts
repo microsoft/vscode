@@ -120,7 +120,23 @@ export class MergeEditorModel extends EditorModel {
 		);
 	});
 
-	readonly resultSnapshot: ITextSnapshot;
+	private readonly resultSnapshot: ITextSnapshot;
+
+	public getInitialResultValue(): string {
+		const chunks: string[] = [];
+		while (true) {
+			const chunk = this.resultSnapshot.read();
+			if (chunk === null) {
+				break;
+			}
+			chunks.push(chunk);
+		}
+		return chunks.join();
+	}
+
+	public discardMergeChanges(): void {
+		this.result.setValue(this.getInitialResultValue());
+	}
 
 	constructor(
 		readonly base: ITextModel,

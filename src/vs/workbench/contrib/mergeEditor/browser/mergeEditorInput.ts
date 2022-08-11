@@ -259,7 +259,7 @@ class MergeEditorCloseHandler implements IEditorCloseHandler {
 		} else if (choice === 1) {
 			// discard: undo all changes and save original (pre-merge) state
 			for (const input of handler) {
-				input._discardMergeChanges();
+				input._model.discardMergeChanges();
 			}
 			return ConfirmResult.SAVE;
 
@@ -267,17 +267,5 @@ class MergeEditorCloseHandler implements IEditorCloseHandler {
 			// don't save
 			return ConfirmResult.DONT_SAVE;
 		}
-	}
-
-	private _discardMergeChanges(): void {
-		const chunks: string[] = [];
-		while (true) {
-			const chunk = this._model.resultSnapshot.read();
-			if (chunk === null) {
-				break;
-			}
-			chunks.push(chunk);
-		}
-		this._model.result.setValue(chunks.join());
 	}
 }

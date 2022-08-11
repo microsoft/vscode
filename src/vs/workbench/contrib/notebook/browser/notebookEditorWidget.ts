@@ -71,7 +71,7 @@ import { NotebookEditorContextKeys } from 'vs/workbench/contrib/notebook/browser
 import { NotebookOverviewRuler } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookOverviewRuler';
 import { ListTopCellToolbar } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookTopCellToolbar';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, INotebookSearchOptions, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, INotebookSearchOptions, RENDERER_NOT_AVAILABLE, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NOTEBOOK_CURSOR_NAVIGATION_MODE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
@@ -365,6 +365,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._overlayContainer = document.createElement('div');
 		this.scopedContextKeyService = contextKeyService.createScoped(this._overlayContainer);
 		this.instantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
+
+		this._register(_notebookService.onDidChangeOutputRenderers(() => {
+			this._updateOutputRenderers();
+		}));
 
 		this._register(this.instantiationService.createInstance(NotebookEditorContextKeys, this));
 
@@ -1062,6 +1066,21 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				this.layout(this._dimension);
 			}
 		}));
+	}
+
+	private _updateOutputRenderers() {
+		if (!this.viewModel || !this._webview) {
+			return;
+		}
+
+		this._webview.updateOutputRenderers();
+		this.viewModel.viewCells.forEach(cell => {
+			cell.outputsViewModels.forEach(output => {
+				if (output.pickedMimeType?.rendererId === RENDERER_NOT_AVAILABLE) {
+					output.resetRenderer();
+				}
+			});
+		});
 	}
 
 	getDomNode() {
@@ -2680,8 +2699,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 			const cellTop = this._list.getAbsoluteTopOfElement(cell) + top;
 
-			// const cellTop = this._list.getAbsoluteTopOfElement(cell);
-			if (!this._webview.insetMapping.has(output.source)) {
+			const existingOutput = this._webview.insetMapping.get(output.source);
+			if (!existingOutput
+				|| (!existingOutput.renderer && output.type === RenderOutputType.Extension)
+				|| (existingOutput.renderer
+					&& output.type === RenderOutputType.Extension
+					&& existingOutput.renderer.id !== output.renderer.id)
+			) {
 				await this._webview.createOutput({ cellId: cell.id, cellHandle: cell.handle, cellUri: cell.uri }, output, cellTop, offset);
 			} else {
 				const outputIndex = cell.outputsViewModels.indexOf(output.source);

@@ -213,7 +213,14 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				if (injection.filesToCopy) {
 					for (const f of injection.filesToCopy) {
 						await fs.mkdir(path.dirname(f.dest), { recursive: true });
-						await fs.copyFile(f.source, f.dest);
+						try {
+							await fs.copyFile(f.source, f.dest);
+						} catch {
+							// Swallow error, this should only happen when multiple users are on the same
+							// machine. Since the shell integration scripts rarely change, plus the other user
+							// should be using the same version of the server in this case, assume the script is
+							// fine if copy fails and swallow the error.
+						}
 					}
 				}
 			} else {
@@ -226,7 +233,15 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			const zdotdir = path.join(tmpdir(), 'vscode-zsh');
 			await fs.mkdir(zdotdir, { recursive: true });
 			const source = path.join(path.dirname(FileAccess.asFileUri('', require).fsPath), 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration-rc.zsh');
-			await fs.copyFile(source, path.join(zdotdir, '.zshrc'));
+			// TODO: Does filesToCopy make this unnecessary now?
+			try {
+				await fs.copyFile(source, path.join(zdotdir, '.zshrc'));
+			} catch {
+				// Swallow error, this should only happen when multiple users are on the same
+				// machine. Since the shell integration scripts rarely change, plus the other user
+				// should be using the same version of the server in this case, assume the script is
+				// fine if copy fails and swallow the error.
+			}
 			this._ptyOptions.env = this._ptyOptions.env || {};
 			this._ptyOptions.env['ZDOTDIR'] = zdotdir;
 			delete this._ptyOptions.env['_ZDOTDIR'];

@@ -272,6 +272,20 @@ export interface IUpdateControllerPreloadsMessage {
 	readonly resources: readonly IControllerPreload[];
 }
 
+export interface RendererMetadata {
+	readonly id: string;
+	readonly entrypoint: string;
+	readonly mimeTypes: readonly string[];
+	readonly extends: string | undefined;
+	readonly messaging: boolean;
+	readonly isBuiltin: boolean;
+}
+
+export interface IUpdateRenderersMessage {
+	readonly type: 'updateRenderers';
+	readonly rendererData: readonly RendererMetadata[];
+}
+
 export interface IUpdateDecorationsMessage {
 	readonly type: 'decorations';
 	readonly cellId: string;
@@ -450,6 +464,7 @@ export type ToWebviewMessage = IClearMessage |
 	IHideOutputMessage |
 	IShowOutputMessage |
 	IUpdateControllerPreloadsMessage |
+	IUpdateRenderersMessage |
 	IUpdateDecorationsMessage |
 	ICustomKernelMessage |
 	ICustomRendererMessage |
