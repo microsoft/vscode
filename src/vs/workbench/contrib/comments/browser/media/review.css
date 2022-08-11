@@ -432,6 +432,8 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 	border-radius: 3px;
 	z-index: 20;
 	margin-left: -5px;
+	padding-top: 1px;
+	padding-left: 1px;
 }
 
 .monaco-editor.inline-comment .margin-view-overlays .codicon-folding-expanded,
