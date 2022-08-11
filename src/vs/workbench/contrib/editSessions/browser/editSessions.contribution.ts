@@ -315,7 +315,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		if (!data) {
 			if (ref === undefined && !silent) {
 				this.notificationService.info(localize('no edit session', 'There are no edit sessions to resume.'));
-			} else {
+			} else if (ref !== undefined) {
 				this.notificationService.warn(localize('no edit session content for ref', 'Could not resume edit session contents for ID {0}.', ref));
 			}
 			this.logService.info(`Aborting resuming edit session as no edit session content is available to be applied from ref ${ref}.`);
