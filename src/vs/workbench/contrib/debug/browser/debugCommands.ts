@@ -32,6 +32,7 @@ import { isWeb, isWindows } from 'vs/base/common/platform';
 import { saveAllBeforeDebugStart } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { showLoadedScriptMenu } from 'vs/workbench/contrib/debug/common/loadedScriptsPicker';
+import { showDebugSessionMenu } from 'vs/workbench/contrib/debug/browser/debugSessionPicker';
 
 export const ADD_CONFIGURATION_ID = 'debug.addConfiguration';
 export const TOGGLE_INLINE_BREAKPOINT_ID = 'editor.debug.action.toggleInlineBreakpoint';
@@ -55,6 +56,7 @@ export const JUMP_TO_CURSOR_ID = 'debug.jumpToCursor';
 export const FOCUS_SESSION_ID = 'workbench.action.debug.focusProcess';
 export const SELECT_AND_START_ID = 'workbench.action.debug.selectandstart';
 export const SELECT_DEBUG_CONSOLE_ID = 'workbench.action.debug.selectDebugConsole';
+export const SELECT_DEBUG_SESSION_ID = 'workbench.action.debug.selectDebugSession';
 export const DEBUG_CONFIGURE_COMMAND_ID = 'workbench.action.debug.configure';
 export const DEBUG_START_COMMAND_ID = 'workbench.action.debug.start';
 export const DEBUG_RUN_COMMAND_ID = 'workbench.action.debug.run';
@@ -94,6 +96,7 @@ export const CALLSTACK_UP_LABEL = { value: nls.localize('callStackUp', "Navigate
 export const CALLSTACK_DOWN_LABEL = { value: nls.localize('callStackDown', "Navigate Down Call Stack"), original: 'Navigate Down Call Stack' };
 
 export const SELECT_DEBUG_CONSOLE_LABEL = { value: nls.localize('selectDebugConsole', "Select Debug Console"), original: 'Select Debug Console' };
+export const SELECT_DEBUG_SESSION_LABEL = { value: nls.localize('selectDebugSession', "Select Debug Session"), original: 'Select Debug Session' };
 
 export const DEBUG_QUICK_ACCESS_PREFIX = 'debug ';
 export const DEBUG_CONSOLE_QUICK_ACCESS_PREFIX = 'debug consoles ';
@@ -707,6 +710,13 @@ CommandsRegistry.registerCommand({
 	handler: async (accessor: ServicesAccessor) => {
 		const quickInputService = accessor.get(IQuickInputService);
 		quickInputService.quickAccess.show(DEBUG_CONSOLE_QUICK_ACCESS_PREFIX);
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: SELECT_DEBUG_SESSION_ID,
+	handler: async (accessor: ServicesAccessor) => {
+		showDebugSessionMenu(accessor, SELECT_AND_START_ID);
 	}
 });
 

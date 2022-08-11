@@ -709,9 +709,7 @@ export class RawDebugSession implements IDisposable {
 
 			let cancelationListener: IDisposable;
 			const requestId = this.debugAdapter.sendRequest(command, args, (response: DebugProtocol.Response) => {
-				if (cancelationListener) {
-					cancelationListener.dispose();
-				}
+				cancelationListener?.dispose();
 
 				if (response.success) {
 					completeDispatch(response);

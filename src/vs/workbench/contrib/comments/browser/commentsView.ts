@@ -156,10 +156,6 @@ export class CommentsPanel extends ViewPane {
 		this.tree.layout(height, width);
 	}
 
-	public getTitle(): string {
-		return COMMENTS_VIEW_TITLE;
-	}
-
 	private createMessageBox(parent: HTMLElement): void {
 		this.messageBoxContainer = dom.append(parent, dom.$('.message-box-container'));
 		this.messageBoxContainer.setAttribute('tabIndex', '0');

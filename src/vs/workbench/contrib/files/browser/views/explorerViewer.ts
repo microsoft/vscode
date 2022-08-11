@@ -1176,20 +1176,22 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 	private async handleExplorerDrop(data: ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
 		const elementsData = FileDragAndDrop.getStatsFromDragAndDropData(data);
-		const distinctItems = new Set(elementsData);
+		const distinctItems = new Map(elementsData.map(element => [element, this.isCollapsed(element)]));
 
-		for (const item of distinctItems) {
-			if (this.isCollapsed(item)) {
+		for (const [item, collapsed] of distinctItems) {
+			if (collapsed) {
 				const nestedChildren = item.nestedChildren;
 				if (nestedChildren) {
 					for (const child of nestedChildren) {
-						distinctItems.add(child);
+						// if parent is collapsed, then the nested children is considered collapsed to operate as a group
+						// and skip collapsed state check since they're not in the tree
+						distinctItems.set(child, true);
 					}
 				}
 			}
 		}
 
-		const items = distinctParents([...distinctItems], s => s.resource);
+		const items = distinctParents([...distinctItems.keys()], s => s.resource);
 		const isCopy = (originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh);
 
 		// Handle confirm setting

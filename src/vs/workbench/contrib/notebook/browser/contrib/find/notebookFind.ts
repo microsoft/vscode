@@ -18,7 +18,7 @@ import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { NotebookFindWidget } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindWidget';
+import { IShowNotebookFindWidgetOptions, NotebookFindWidget } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindWidget';
 import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -92,21 +92,27 @@ function notebookContainsTextModel(uri: URI, textModel: ITextModel) {
 	return false;
 }
 
-function getSearchString(editor: ICodeEditor, opts: IFindStartOptions) {
+function getSearchStringOptions(editor: ICodeEditor, opts: IFindStartOptions) {
 	// Get the search string result, following the same logic in _start function in 'vs/editor/contrib/find/browser/findController'
-	let searchString = '';
 	if (opts.seedSearchStringFromSelection === 'single') {
 		const selectionSearchString = getSelectionSearchString(editor, opts.seedSearchStringFromSelection, opts.seedSearchStringFromNonEmptySelection);
 		if (selectionSearchString) {
-			searchString = selectionSearchString;
+			return {
+				searchString: selectionSearchString,
+				selection: editor.getSelection()
+			};
 		}
 	} else if (opts.seedSearchStringFromSelection === 'multiple' && !opts.updateSearchScope) {
 		const selectionSearchString = getSelectionSearchString(editor, opts.seedSearchStringFromSelection);
 		if (selectionSearchString) {
-			searchString = selectionSearchString;
+			return {
+				searchString: selectionSearchString,
+				selection: editor.getSelection()
+			};
 		}
 	}
-	return searchString;
+
+	return undefined;
 }
 
 
@@ -115,6 +121,10 @@ StartFindAction.addImplementation(100, (accessor: ServicesAccessor, codeEditor: 
 	const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
 
 	if (!editor) {
+		return false;
+	}
+
+	if (!codeEditor.hasModel()) {
 		return false;
 	}
 
@@ -131,7 +141,7 @@ StartFindAction.addImplementation(100, (accessor: ServicesAccessor, codeEditor: 
 
 	const controller = editor.getContribution<NotebookFindWidget>(NotebookFindWidget.id);
 
-	const searchString = getSearchString(codeEditor, {
+	const searchStringOptions = getSearchStringOptions(codeEditor, {
 		forceRevealReplace: false,
 		seedSearchStringFromSelection: codeEditor.getOption(EditorOption.find).seedSearchStringFromSelection !== 'never' ? 'single' : 'none',
 		seedSearchStringFromNonEmptySelection: codeEditor.getOption(EditorOption.find).seedSearchStringFromSelection === 'selection',
@@ -142,7 +152,19 @@ StartFindAction.addImplementation(100, (accessor: ServicesAccessor, codeEditor: 
 		loop: codeEditor.getOption(EditorOption.find).loop
 	});
 
-	controller.show(searchString);
+	let options: IShowNotebookFindWidgetOptions | undefined = undefined;
+	const uri = codeEditor.getModel().uri;
+	const data = CellUri.parse(uri);
+	if (searchStringOptions?.selection && data) {
+		const cell = editor.getCellByHandle(data.handle);
+		if (cell) {
+			options = {
+				searchStringSeededFrom: { cell, range: searchStringOptions.selection },
+			};
+		}
+	}
+
+	controller.show(searchStringOptions?.searchString, options);
 	return true;
 });
 
@@ -154,9 +176,13 @@ StartFindReplaceAction.addImplementation(100, (accessor: ServicesAccessor, codeE
 		return false;
 	}
 
+	if (!codeEditor.hasModel()) {
+		return false;
+	}
+
 	const controller = editor.getContribution<NotebookFindWidget>(NotebookFindWidget.id);
 
-	const searchString = getSearchString(codeEditor, {
+	const searchStringOptions = getSearchStringOptions(codeEditor, {
 		forceRevealReplace: false,
 		seedSearchStringFromSelection: codeEditor.getOption(EditorOption.find).seedSearchStringFromSelection !== 'never' ? 'single' : 'none',
 		seedSearchStringFromNonEmptySelection: codeEditor.getOption(EditorOption.find).seedSearchStringFromSelection === 'selection',
@@ -168,7 +194,7 @@ StartFindReplaceAction.addImplementation(100, (accessor: ServicesAccessor, codeE
 	});
 
 	if (controller) {
-		controller.replace(searchString);
+		controller.replace(searchStringOptions?.searchString);
 		return true;
 	}
 

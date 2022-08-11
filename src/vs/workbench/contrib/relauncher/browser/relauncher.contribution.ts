@@ -102,12 +102,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 				changed = true;
 			}
 
-			// Profiles
-			if (typeof config.workbench?.experimental?.settingsProfiles?.enabled === 'boolean' && config.workbench.experimental.settingsProfiles.enabled !== this.settingsProfilesEnabled) {
-				this.settingsProfilesEnabled = config.workbench.experimental.settingsProfiles.enabled;
-				changed = true;
-			}
-
 			// On linux turning on accessibility support will also pass this flag to the chrome renderer, thus a restart is required
 			if (isLinux && typeof config.editor?.accessibilitySupport === 'string' && config.editor.accessibilitySupport !== this.accessibilitySupport) {
 				this.accessibilitySupport = config.editor.accessibilitySupport;
@@ -121,6 +115,12 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 				this.workspaceTrustEnabled = config.security.workspace.trust.enabled;
 				changed = true;
 			}
+		}
+
+		// Profiles
+		if (typeof config.workbench?.experimental?.settingsProfiles?.enabled === 'boolean' && config.workbench.experimental.settingsProfiles.enabled !== this.settingsProfilesEnabled) {
+			this.settingsProfilesEnabled = config.workbench.experimental.settingsProfiles.enabled;
+			changed = true;
 		}
 
 		// Notify only when changed and we are the focused window (avoids notification spam across windows)
@@ -185,9 +185,7 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 			});
 
 		this._register(toDisposable(() => {
-			if (this.onDidChangeWorkspaceFoldersUnbind) {
-				this.onDidChangeWorkspaceFoldersUnbind.dispose();
-			}
+			this.onDidChangeWorkspaceFoldersUnbind?.dispose();
 		}));
 	}
 

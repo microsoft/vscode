@@ -5,6 +5,7 @@
 
 import type { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import type { PreloadOptions } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
+import { NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 interface BaseToWebviewMessage {
 	readonly __vscode_notebook_message: true;
@@ -271,6 +272,20 @@ export interface IUpdateControllerPreloadsMessage {
 	readonly resources: readonly IControllerPreload[];
 }
 
+export interface RendererMetadata {
+	readonly id: string;
+	readonly entrypoint: string;
+	readonly mimeTypes: readonly string[];
+	readonly extends: string | undefined;
+	readonly messaging: boolean;
+	readonly isBuiltin: boolean;
+}
+
+export interface IUpdateRenderersMessage {
+	readonly type: 'updateRenderers';
+	readonly rendererData: readonly RendererMetadata[];
+}
+
 export interface IUpdateDecorationsMessage {
 	readonly type: 'decorations';
 	readonly cellId: string;
@@ -315,6 +330,7 @@ export interface IShowMarkupCellMessage {
 	readonly handle: number;
 	readonly content: string | undefined;
 	readonly top: number;
+	readonly metadata: NotebookCellMetadata | undefined;
 }
 
 export interface IUpdateSelectedMarkupCellsMessage {
@@ -329,6 +345,7 @@ export interface IMarkupCellInitialization {
 	content: string;
 	offset: number;
 	visible: boolean;
+	metadata: NotebookCellMetadata;
 }
 
 export interface IInitializeMarkupCells {
@@ -447,6 +464,7 @@ export type ToWebviewMessage = IClearMessage |
 	IHideOutputMessage |
 	IShowOutputMessage |
 	IUpdateControllerPreloadsMessage |
+	IUpdateRenderersMessage |
 	IUpdateDecorationsMessage |
 	ICustomKernelMessage |
 	ICustomRendererMessage |

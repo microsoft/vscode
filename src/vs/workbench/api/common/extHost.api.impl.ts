@@ -93,6 +93,7 @@ import { combinedDisposable } from 'vs/base/common/lifecycle';
 import { checkProposedApiEnabled, ExtensionIdentifierSet, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/contrib/debug/common/debug';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
+import { IExtHostTelemetryLogService } from 'vs/workbench/api/common/extHostTelemetryLogService';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
@@ -123,6 +124,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostLoggerService = accessor.get(ILoggerService);
 	const extHostLogService = accessor.get(ILogService);
 	const extHostTunnelService = accessor.get(IExtHostTunnelService);
+	const extHostTelemetryLogService = accessor.get(IExtHostTelemetryLogService);
 	const extHostApiDeprecation = accessor.get(IExtHostApiDeprecationService);
 	const extHostWindow = accessor.get(IExtHostWindow);
 	const extHostSecretState = accessor.get(IExtHostSecretState);
@@ -784,7 +786,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			showNotebookDocument(uriOrDocument, options?) {
 				if (URI.isUri(uriOrDocument)) {
 					extHostApiDeprecation.report('window.showNotebookDocument(uri)', extension,
-						`Please use 'window.openNotebookDocument' and 'window.showTextDocument'`);
+						`Please use 'workspace.openNotebookDocument' and 'window.showNotebookDocument'`);
 				}
 				return extHostNotebook.showNotebookDocument(uriOrDocument, options);
 			},
@@ -795,6 +797,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get tabGroups(): vscode.TabGroups {
 				return extHostEditorTabs.tabGroups;
 			},
+			logTelemetryToOutputChannel(eventName: string, data: Record<string, any>): void {
+				checkProposedApiEnabled(extension, 'telemetryLog');
+				extHostTelemetryLogService.logToTelemetryOutputChannel(extension, eventName, data);
+			}
 		};
 
 		// namespace: workspace
@@ -1342,6 +1348,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			InputBoxValidationSeverity: extHostTypes.InputBoxValidationSeverity,
 			TabInputText: extHostTypes.TextTabInput,
 			TabInputTextDiff: extHostTypes.TextDiffTabInput,
+			TabInputTextMerge: extHostTypes.TextMergeTabInput,
 			TabInputCustom: extHostTypes.CustomEditorTabInput,
 			TabInputNotebook: extHostTypes.NotebookEditorTabInput,
 			TabInputNotebookDiff: extHostTypes.NotebookDiffEditorTabInput,

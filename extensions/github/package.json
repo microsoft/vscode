@@ -132,7 +132,7 @@
   "dependencies": {
     "@octokit/rest": "^18.0.1",
     "tunnel": "^0.0.6",
-    "vscode-nls": "^4.1.2"
+    "vscode-nls": "^5.1.0"
   },
   "devDependencies": {
     "@types/node": "16.x"

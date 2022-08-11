@@ -456,7 +456,7 @@ export class Filter implements ITreeFilter<MarkerElement, FilterData> {
 	}
 
 	private filterResourceMarkers(resourceMarkers: ResourceMarkers): TreeFilterResult<FilterData> {
-		if (resourceMarkers.resource.scheme === network.Schemas.walkThrough || resourceMarkers.resource.scheme === network.Schemas.walkThroughSnippet) {
+		if (resourceMarkers.resource.scheme === network.Schemas.walkThrough || resourceMarkers.resource.scheme === network.Schemas.walkThroughSnippet || resourceMarkers.resource.scheme === network.Schemas.vscodeSourceControl) {
 			return false;
 		}
 

@@ -411,7 +411,7 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 		const items: MarkerTableItem[] = [];
 		for (const resourceMarker of this.resourceMarkers) {
 			for (const marker of resourceMarker.markers) {
-				if (marker.resource.scheme === network.Schemas.walkThrough || marker.resource.scheme === network.Schemas.walkThroughSnippet) {
+				if (marker.resource.scheme === network.Schemas.walkThrough || marker.resource.scheme === network.Schemas.walkThroughSnippet || marker.resource.scheme === network.Schemas.vscodeSourceControl) {
 					continue;
 				}
 

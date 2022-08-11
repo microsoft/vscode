@@ -116,8 +116,8 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		}
 	}
 
-	getDefaultIcon(): TerminalIcon & ThemeIcon {
-		return this._iconRegistry.getIcon(this._configurationService.getValue(TerminalSettingId.TabsDefaultIcon)) || Codicon.terminal;
+	getDefaultIcon(resource?: URI): TerminalIcon & ThemeIcon {
+		return this._iconRegistry.getIcon(this._configurationService.getValue(TerminalSettingId.TabsDefaultIcon, { resource })) || Codicon.terminal;
 	}
 
 	async resolveShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig, options: IShellLaunchConfigResolveOptions): Promise<void> {
@@ -145,9 +145,10 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 
 		// Verify the icon is valid, and fallback correctly to the generic terminal id if there is
 		// an issue
+		const resource = shellLaunchConfig === undefined || typeof shellLaunchConfig.cwd === 'string' ? undefined : shellLaunchConfig.cwd;
 		shellLaunchConfig.icon = this._getCustomIcon(shellLaunchConfig.icon)
 			|| this._getCustomIcon(resolvedProfile.icon)
-			|| this.getDefaultIcon();
+			|| this.getDefaultIcon(resource);
 
 		// Override the name if specified
 		if (resolvedProfile.overrideName) {
@@ -157,7 +158,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		// Apply the color
 		shellLaunchConfig.color = shellLaunchConfig.color
 			|| resolvedProfile.color
-			|| this._configurationService.getValue(TerminalSettingId.TabsDefaultColor);
+			|| this._configurationService.getValue(TerminalSettingId.TabsDefaultColor, { resource });
 
 		// Resolve useShellEnvironment based on the setting if it's not set
 		if (shellLaunchConfig.useShellEnvironment === undefined) {

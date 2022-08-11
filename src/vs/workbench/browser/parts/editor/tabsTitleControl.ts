@@ -1154,9 +1154,9 @@ export class TabsTitleControl extends TitleControl {
 			tabContainer.classList.toggle(`sticky-${option}`, isTabSticky && options.pinnedTabSizing === option);
 		}
 
-		// Sticky compact/shrink tabs need a position to remain at their location
+		// If not wrapping tabs, sticky compact/shrink tabs need a position to remain at their location
 		// when scrolling to stay in view (requirement for position: sticky)
-		if (isTabSticky && options.pinnedTabSizing !== 'normal') {
+		if (!options.wrapTabs && isTabSticky && options.pinnedTabSizing !== 'normal') {
 			let stickyTabWidth = 0;
 			switch (options.pinnedTabSizing) {
 				case 'compact':
@@ -1910,9 +1910,14 @@ registerThemingParticipant((theme, collector) => {
 	const activeContrastBorderColor = theme.getColor(activeContrastBorder);
 	if (activeContrastBorderColor) {
 		collector.addRule(`
-			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active,
-			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active:hover  {
+			.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.active,
+			.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.active:hover  {
 				outline: 1px solid;
+				outline-offset: -5px;
+			}
+
+			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active {
+				outline: 1px dotted;
 				outline-offset: -5px;
 			}
 

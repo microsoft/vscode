@@ -39,7 +39,7 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		controller = new QuickInputController({
 			container: fixture,
 			idPrefix: 'testQuickInput',
-			ignoreFocusOut() { return false; },
+			ignoreFocusOut() { return true; },
 			isScreenReaderOptimized() { return false; },
 			returnFocus() { },
 			backKeybindingLabel() { return undefined; },
@@ -80,7 +80,7 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		await wait;
 
 		controller.accept();
-		const pick = await pickPromise;
+		const pick = await raceTimeout(pickPromise, 2000);
 
 		assert.strictEqual(pick, item);
 	});
@@ -104,7 +104,7 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		await wait;
 
 		controller.accept();
-		const value = await inputPromise;
+		const value = await raceTimeout(inputPromise, 2000);
 
 		assert.strictEqual(value, 'foo');
 	});

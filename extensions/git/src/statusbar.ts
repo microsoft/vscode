@@ -145,10 +145,7 @@ class SyncStatusBar {
 					text += this.repository.syncLabel;
 				}
 
-				const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
-				const rebaseWhenSync = config.get<string>('rebaseWhenSync');
-
-				command = rebaseWhenSync ? 'git.syncRebase' : 'git.sync';
+				command = 'git.sync';
 				tooltip = this.repository.syncTooltip;
 			} else {
 				icon = '$(cloud-upload)';

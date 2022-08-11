@@ -118,9 +118,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyCode.UpArrow,
 	secondary: [KeyMod.Alt | KeyCode.UpArrow],
 	handler: (accessor) => {
-		if (lastFocusedWidget) {
-			lastFocusedWidget.showPreviousValue();
-		}
+		lastFocusedWidget?.showPreviousValue();
 	}
 });
 
@@ -135,8 +133,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyCode.DownArrow,
 	secondary: [KeyMod.Alt | KeyCode.DownArrow],
 	handler: (accessor) => {
-		if (lastFocusedWidget) {
-			lastFocusedWidget.showNextValue();
-		}
+		lastFocusedWidget?.showNextValue();
 	}
 });

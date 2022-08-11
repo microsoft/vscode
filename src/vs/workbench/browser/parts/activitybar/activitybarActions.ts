@@ -23,14 +23,12 @@ import { ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_ACTIV
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { getCurrentAuthenticationSessionInfo } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { AuthenticationSession, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { AnchorAlignment, AnchorAxisAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { getTitleBarStyle } from 'vs/platform/window/common/window';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
@@ -103,8 +101,9 @@ export class ViewContainerActivityAction extends ActivityAction {
 	private logAction(action: string) {
 		type ActivityBarActionClassification = {
 			owner: 'sbatten';
-			viewletId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			comment: 'Event logged when an activity bar action is triggered.';
+			viewletId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The view in the activity bar for which the action was performed.' };
+			action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The action that was performed. e.g. "hide", "show", or "refocus"' };
 		};
 		this.telemetryService.publicLog2<{ viewletId: String; action: String }, ActivityBarActionClassification>('activityBarAction', { viewletId: this.activity.id, action });
 	}
@@ -166,13 +165,12 @@ class MenuActivityActionViewItem extends ActivityActionViewItem {
 			actions = await this.resolveContextMenuActions(disposables);
 		}
 
-		const isUsingCustomMenu = isWeb || (getTitleBarStyle(this.configurationService) !== 'native' && !isMacintosh); // see #40262
 		const position = this.configurationService.getValue('workbench.sideBar.location');
 
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => isUsingCustomMenu ? this.container : e || this.container,
-			anchorAlignment: isUsingCustomMenu ? (position === 'left' ? AnchorAlignment.RIGHT : AnchorAlignment.LEFT) : undefined,
-			anchorAxisAlignment: isUsingCustomMenu ? AnchorAxisAlignment.HORIZONTAL : AnchorAxisAlignment.VERTICAL,
+			getAnchor: () => this.container,
+			anchorAlignment: position === 'left' ? AnchorAlignment.RIGHT : AnchorAlignment.LEFT,
+			anchorAxisAlignment: AnchorAxisAlignment.HORIZONTAL,
 			getActions: () => actions,
 			onHide: () => disposables.dispose()
 		});

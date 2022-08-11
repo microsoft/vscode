@@ -531,6 +531,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		}
 
 		this.styleElement.textContent = `
+
 				/* Status bar focus outline */
 				.monaco-workbench .part.statusbar:focus {
 					outline-color: ${statusBarFocusColor};
@@ -541,10 +542,11 @@ export class StatusbarPart extends Part implements IStatusbarService {
 					outline: 1px solid ${this.getColor(activeContrastBorder) ?? itemBorderColor};
 					outline-offset: ${borderColor ? '-2px' : '-1px'};
 				}
+
 				/* Notification Beak */
-				.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak:before {
+				.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak > .status-bar-item-beak-container:before {
 					border-bottom-color: ${backgroundColor};
-					}
+				}
 			`;
 	}
 

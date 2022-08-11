@@ -72,9 +72,11 @@ export class GettingStartedDetailsRenderer {
 						margin: 5px;
 						cursor: pointer;
 					}
+					checkbox > img {
+						margin-bottom: 4px;
+					}
 					checkbox.checked > img {
 						box-sizing: border-box;
-						margin-bottom: 4px;
 					}
 					checkbox.checked > img {
 						outline: 2px solid var(--vscode-focusBorder);

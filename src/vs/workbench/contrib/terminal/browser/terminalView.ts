@@ -112,11 +112,11 @@ export class TerminalViewPane extends ViewPane {
 				this._terminalTabbedView?.rerenderTabs();
 			}
 		}));
-		_configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled) || e.affectsConfiguration(TerminalSettingId.ShellIntegrationEnabled)) {
-				this._updateForShellIntegration();
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (this._parentDomElement && (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled) || e.affectsConfiguration(TerminalSettingId.ShellIntegrationEnabled))) {
+				this._updateForShellIntegration(this._parentDomElement);
 			}
-		});
+		}));
 		this._register(this._terminalService.onDidCreateInstance((i) => {
 			i.capabilities.onDidAddCapability(c => {
 				if (c === TerminalCapability.CommandDetection && !this._gutterDecorationsEnabled()) {
@@ -124,15 +124,10 @@ export class TerminalViewPane extends ViewPane {
 				}
 			});
 		}));
-		this._updateForShellIntegration();
 	}
 
-	private _updateForShellIntegration() {
-		if (this._gutterDecorationsEnabled()) {
-			this._parentDomElement?.classList.add('shell-integration');
-		} else {
-			this._parentDomElement?.classList.remove('shell-integration');
-		}
+	private _updateForShellIntegration(container: HTMLElement) {
+		container.classList.toggle('shell-integration', this._gutterDecorationsEnabled());
 	}
 
 	private _gutterDecorationsEnabled(): boolean {
@@ -143,6 +138,9 @@ export class TerminalViewPane extends ViewPane {
 	override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
+		if (!this._parentDomElement) {
+			this._updateForShellIntegration(container);
+		}
 		this._parentDomElement = container;
 		this._parentDomElement.classList.add('integrated-terminal');
 		this._fontStyleElement = document.createElement('style');
@@ -242,9 +240,7 @@ export class TerminalViewPane extends ViewPane {
 				return this._instantiationService.createInstance(SingleTerminalTabActionViewItem, action, actions);
 			}
 			case TerminalCommandId.CreateWithProfileButton: {
-				if (this._tabButtons) {
-					this._tabButtons.dispose();
-				}
+				this._tabButtons?.dispose();
 
 				const actions = getTerminalActionBarArgs(TerminalLocation.Panel, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._instantiationService, this._terminalService, this._contextKeyService, this._commandService, this._dropdownMenu);
 				this._tabButtons = new DropdownWithPrimaryActionViewItem(actions.primaryAction, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, {}, this._keybindingService, this._notificationService, this._contextKeyService, this._themeService);
@@ -397,7 +393,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 			{
 				id: action.id,
 				title: _instantiationService.invokeFunction(getSingleTabLabel, _terminalGroupService.activeInstance, _terminalService.configHelper.config.tabs.separator),
-				tooltip: getSingleTabTooltip(_terminalGroupService.activeInstance, _terminalService.configHelper.config.tabs.separator, configurationService)
+				tooltip: getSingleTabTooltip(_terminalGroupService.activeInstance, _terminalService.configHelper.config.tabs.separator)
 			},
 			{
 				id: TerminalCommandId.Split,
@@ -419,12 +415,12 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 		this._register(this._terminalService.onDidChangeInstanceColor(e => this.updateLabel(e)));
 		this._register(this._terminalService.onDidChangeInstanceTitle(e => {
 			if (e === this._terminalGroupService.activeInstance) {
-				this._action.tooltip = getSingleTabTooltip(e, this._terminalService.configHelper.config.tabs.separator, configurationService);
+				this._action.tooltip = getSingleTabTooltip(e, this._terminalService.configHelper.config.tabs.separator);
 				this.updateLabel();
 			}
 		}));
 		this._register(this._terminalService.onDidChangeInstanceCapability(e => {
-			this._action.tooltip = getSingleTabTooltip(e, this._terminalService.configHelper.config.tabs.separator, configurationService);
+			this._action.tooltip = getSingleTabTooltip(e, this._terminalService.configHelper.config.tabs.separator);
 			this.updateLabel(e);
 		}));
 
@@ -549,11 +545,11 @@ function getSingleTabLabel(accessor: ServicesAccessor, instance: ITerminalInstan
 	return `${label} $(${primaryStatus.icon.id})`;
 }
 
-function getSingleTabTooltip(instance: ITerminalInstance | undefined, separator: string, configurationService: IConfigurationService): string {
+function getSingleTabTooltip(instance: ITerminalInstance | undefined, separator: string): string {
 	if (!instance) {
 		return '';
 	}
-	const shellIntegrationString = getShellIntegrationTooltip(instance, false, configurationService);
+	const shellIntegrationString = getShellIntegrationTooltip(instance, false);
 	const title = getSingleTabTitle(instance, separator);
 	return shellIntegrationString ? title + shellIntegrationString : title;
 }

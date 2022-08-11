@@ -316,6 +316,16 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 		this.dropdownButton.style(styles);
 
 		// Separator
+		const border = styles.buttonBorder ? styles.buttonBorder.toString() : '';
+
+		this.separatorContainer.style.borderTopWidth = border ? '1px' : '';
+		this.separatorContainer.style.borderTopStyle = border ? 'solid' : '';
+		this.separatorContainer.style.borderTopColor = border;
+
+		this.separatorContainer.style.borderBottomWidth = border ? '1px' : '';
+		this.separatorContainer.style.borderBottomStyle = border ? 'solid' : '';
+		this.separatorContainer.style.borderBottomColor = border;
+
 		this.separatorContainer.style.backgroundColor = styles.buttonBackground?.toString() ?? '';
 		this.separator.style.backgroundColor = styles.buttonSeparator?.toString() ?? '';
 	}

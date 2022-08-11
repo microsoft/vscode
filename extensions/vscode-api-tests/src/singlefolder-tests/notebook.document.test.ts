@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import * as utils from '../utils';
 
-suite.skip('Notebook Document', function () {
+suite('Notebook Document', function () {
 
 	const simpleContentProvider = new class implements vscode.NotebookSerializer {
 		deserializeNotebook(_data: Uint8Array): vscode.NotebookData | Thenable<vscode.NotebookData> {
@@ -315,6 +315,18 @@ suite.skip('Notebook Document', function () {
 		assert.strictEqual(data.cellChanges[0].cell.index, 0);
 	});
 
+	test('workspace edit API (notebookMetadata)', async function () {
+		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
+		const document = await vscode.workspace.openNotebookDocument(uri);
+
+		const edit = new vscode.WorkspaceEdit();
+		const metdataEdit = vscode.NotebookEdit.updateNotebookMetadata({ ...document.metadata, custom: { ...(document.metadata.custom || {}), extraNotebookMetadata: true } });
+		edit.set(document.uri, [metdataEdit]);
+		const success = await vscode.workspace.applyEdit(edit);
+		assert.equal(success, true);
+		assert.ok(document.metadata.custom.extraNotebookMetadata, `Test metadata not found`);
+	});
+
 	test('document save API', async function () {
 		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 		const notebook = await vscode.workspace.openNotebookDocument(uri);
@@ -411,7 +423,7 @@ suite.skip('Notebook Document', function () {
 		assert.strictEqual(document.isDirty, false);
 	});
 
-	test('onDidOpenNotebookDocument - emit event only once when opened in two editors', async function () {
+	test.skip('onDidOpenNotebookDocument - emit event only once when opened in two editors', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/157222
 		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 		let counter = 0;
 		testDisposables.push(vscode.workspace.onDidOpenNotebookDocument(nb => {

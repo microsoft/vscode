@@ -71,7 +71,7 @@ import { NotebookEditorContextKeys } from 'vs/workbench/contrib/notebook/browser
 import { NotebookOverviewRuler } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookOverviewRuler';
 import { ListTopCellToolbar } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookTopCellToolbar';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, INotebookSearchOptions, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, INotebookSearchOptions, RENDERER_NOT_AVAILABLE, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NOTEBOOK_CURSOR_NAVIGATION_MODE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
@@ -365,6 +365,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._overlayContainer = document.createElement('div');
 		this.scopedContextKeyService = contextKeyService.createScoped(this._overlayContainer);
 		this.instantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
+
+		this._register(_notebookService.onDidChangeOutputRenderers(() => {
+			this._updateOutputRenderers();
+		}));
 
 		this._register(this.instantiationService.createInstance(NotebookEditorContextKeys, this));
 
@@ -915,7 +919,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				mouseSupport: true,
 				multipleSelectionSupport: true,
 				selectionNavigation: true,
-				enableKeyboardNavigation: true,
+				typeNavigationEnabled: true,
 				additionalScrollHeight: 0,
 				transformOptimization: false, //(isMacintosh && isNative) || getTitleBarStyle(this.configurationService, this.environmentService) === 'native',
 				styleController: (_suffix: string) => { return this._list; },
@@ -1064,6 +1068,21 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}));
 	}
 
+	private _updateOutputRenderers() {
+		if (!this.viewModel || !this._webview) {
+			return;
+		}
+
+		this._webview.updateOutputRenderers();
+		this.viewModel.viewCells.forEach(cell => {
+			cell.outputsViewModels.forEach(output => {
+				if (output.pickedMimeType?.rendererId === RENDERER_NOT_AVAILABLE) {
+					output.resetRenderer();
+				}
+			});
+		});
+	}
+
 	getDomNode() {
 		return this._overlayContainer;
 	}
@@ -1102,9 +1121,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			type WorkbenchNotebookOpenClassification = {
 				owner: 'rebornix';
 				comment: 'Identify the notebook editor view type';
-				scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-				ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-				viewType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+				scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File system provider scheme for the resource' };
+				ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File extension for the resource' };
+				viewType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'View type of the notebook editor' };
 			};
 
 			type WorkbenchNotebookOpenEvent = {
@@ -1650,6 +1669,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			content: model.getText(),
 			offset: offset,
 			visible: false,
+			metadata: model.metadata,
 		});
 	}
 
@@ -1854,6 +1874,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				// The notebook editor doesn't have focus yet
 				if (!this.hasEditorFocus()) {
 					this.focusContainer();
+					// trigger editor to update as FocusTracker might not emit focus change event
+					this.updateEditorFocus();
 				}
 
 				if (element && element.focusMode === CellFocusMode.Editor) {
@@ -2103,8 +2125,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return ret;
 	}
 
-	deltaCellOutputContainerClassNames(cellId: string, added: string[], removed: string[]) {
-		this._webview?.deltaCellOutputContainerClassNames(cellId, added, removed);
+	deltaCellContainerClassNames(cellId: string, added: string[], removed: string[]) {
+		this._webview?.deltaCellContainerClassNames(cellId, added, removed);
 	}
 
 	changeModelDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null {
@@ -2529,9 +2551,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	findStop() {
-		if (this._webview) {
-			this._webview.findStop();
-		}
+		this._webview?.findStop();
 	}
 
 	//#endregion
@@ -2572,6 +2592,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			return;
 		}
 
+		if (this.viewModel.getCellIndex(cell) === -1) {
+			return;
+		}
+
 		if (this.cellIsHidden(cell)) {
 			return;
 		}
@@ -2587,6 +2611,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			content: cell.getText(),
 			offset: cellTop + top,
 			visible: true,
+			metadata: cell.metadata,
 		});
 	}
 
@@ -2674,8 +2699,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 			const cellTop = this._list.getAbsoluteTopOfElement(cell) + top;
 
-			// const cellTop = this._list.getAbsoluteTopOfElement(cell);
-			if (!this._webview.insetMapping.has(output.source)) {
+			const existingOutput = this._webview.insetMapping.get(output.source);
+			if (!existingOutput
+				|| (!existingOutput.renderer && output.type === RenderOutputType.Extension)
+				|| (existingOutput.renderer
+					&& output.type === RenderOutputType.Extension
+					&& existingOutput.renderer.id !== output.renderer.id)
+			) {
 				await this._webview.createOutput({ cellId: cell.id, cellHandle: cell.handle, cellUri: cell.uri }, output, cellTop, offset);
 			} else {
 				const outputIndex = cell.outputsViewModels.indexOf(output.source);

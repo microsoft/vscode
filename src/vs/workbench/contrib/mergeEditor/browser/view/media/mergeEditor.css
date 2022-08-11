@@ -31,6 +31,10 @@
 	flex-shrink: 0;
 }
 
+.monaco-workbench .merge-editor .code-view > .title>SPAN.detail .codicon {
+	font-size: 13px;
+}
+
 .monaco-workbench .merge-editor .code-view > .container {
 	display: flex;
 	flex-direction: row;
@@ -93,12 +97,8 @@
 }
 
 .merge-accept-gutter-marker .checkbox {
-	height: 100%;
 	width: 100%;
 	position: absolute;
-	display: flex;
-	flex-direction: column;
-	justify-content: center;
 }
 
 .accept-conflict-group.monaco-custom-toggle {

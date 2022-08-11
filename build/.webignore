@@ -20,6 +20,9 @@ vscode-textmate/webpack.config.js
 
 xterm/src/**
 
+xterm-addon-canvas/src/**
+xterm-addon-canvas/out/**
+
 xterm-addon-search/src/**
 xterm-addon-search/out/**
 xterm-addon-search/fixtures/**

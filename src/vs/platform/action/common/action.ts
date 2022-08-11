@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { UriDto } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriDto } from 'vs/base/common/uri';
 import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 

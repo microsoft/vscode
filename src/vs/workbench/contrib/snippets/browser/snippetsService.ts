@@ -318,7 +318,7 @@ export class SnippetsService implements ISnippetsService {
 				// enabled or disabled wanted
 				continue;
 			}
-			if (typeof opts?.topLevelSnippets === 'boolean' && opts.topLevelSnippets !== snippet.isTopLevel) {
+			if (typeof opts?.fileTemplateSnippets === 'boolean' && opts.fileTemplateSnippets !== snippet.isFileTemplate) {
 				// isTopLevel requested but mismatching
 				continue;
 			}

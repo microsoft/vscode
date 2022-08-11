@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { isWindows } from 'vs/base/common/platform';
-import { URI as uri } from 'vs/base/common/uri';
+import { URI, URI as uri } from 'vs/base/common/uri';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ModelService } from 'vs/editor/common/services/modelService';
@@ -21,7 +21,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { FileMatch, Match, searchMatchComparer, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
+import { FileMatch, FolderMatch, Match, searchComparer, searchMatchComparer, SearchModel, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
 import { MockLabelService } from 'vs/workbench/services/label/test/common/mockLabelService';
 import { IFileMatch, ITextSearchMatch, OneLineRange, QueryType, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
@@ -108,12 +108,78 @@ suite('Search - Viewlet', () => {
 		assert(searchMatchComparer(fileMatch3, fileMatch4, SearchSortOrder.Type) < 0);
 	});
 
-	function aFileMatch(path: string, searchResult?: SearchResult, ...lineMatches: ITextSearchMatch[]): FileMatch {
+	test('Cross-type Comparer', () => {
+
+		const searchResult = aSearchResult();
+		const folderMatch1 = aFolderMatch(isWindows ? 'C:\\voo' : '/c/voo', 0, searchResult);
+		const folderMatch2 = aFolderMatch(isWindows ? 'C:\\with' : '/c/with', 1, searchResult);
+
+		const fileMatch1 = aFileMatch(isWindows ? 'C:\\voo\\foo.a' : '/c/voo/foo.a', folderMatch1);
+		const fileMatch2 = aFileMatch(isWindows ? 'C:\\with\\path.c' : '/c/with/path.c', folderMatch2);
+		const fileMatch3 = aFileMatch(isWindows ? 'C:\\with\\path\\bar.b' : '/c/with/path/bar.b', folderMatch2);
+
+		const lineMatch1 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(0, 1, 1));
+		const lineMatch2 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1));
+
+		const lineMatch3 = new Match(fileMatch2, ['barfoo'], new OneLineRange(0, 1, 1), new OneLineRange(0, 1, 1));
+		const lineMatch4 = new Match(fileMatch2, ['fooooo'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1));
+
+		const lineMatch5 = new Match(fileMatch3, ['foobar'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1));
+
+		/***
+		 * Structure would take the following form:
+		 *
+		 *	folderMatch1 (voo)
+		 *		> fileMatch1 (/foo.a)
+		 *			>> lineMatch1
+		 *			>> lineMatch2
+		 *	folderMatch2 (with)
+		 *		> fileMatch2 (/path.c)
+		 *			>> lineMatch4
+		 *			>> lineMatch5
+		 *		> fileMatch3 (/path/bar.b)
+		 *			>> lineMatch3
+		 *
+		 */
+
+		// for these, refer to diagram above
+		assert(searchComparer(fileMatch1, fileMatch3) < 0);
+		assert(searchComparer(fileMatch2, fileMatch3) < 0);
+		assert(searchComparer(folderMatch2, fileMatch2) < 0);
+		assert(searchComparer(lineMatch4, lineMatch5) < 0);
+		assert(searchComparer(lineMatch1, lineMatch3) < 0);
+		assert(searchComparer(lineMatch2, folderMatch2) < 0);
+
+		// travel up hierarchy and order of folders take precedence. "voo < with" in indices
+		assert(searchComparer(fileMatch1, fileMatch3, SearchSortOrder.FileNames) < 0);
+		// bar.b < path.c
+		assert(searchComparer(fileMatch3, fileMatch2, SearchSortOrder.FileNames) < 0);
+		// lineMatch4's parent is fileMatch2, "bar.b < path.c"
+		assert(searchComparer(fileMatch3, lineMatch4, SearchSortOrder.FileNames) < 0);
+
+		// bar.b < path.c
+		assert(searchComparer(fileMatch3, fileMatch2, SearchSortOrder.Type) < 0);
+		// lineMatch4's parent is fileMatch2, "bar.b < path.c"
+		assert(searchComparer(fileMatch3, lineMatch4, SearchSortOrder.Type) < 0);
+	});
+
+	function aFileMatch(path: string, parentFolder?: FolderMatch, ...lineMatches: ITextSearchMatch[]): FileMatch {
 		const rawMatch: IFileMatch = {
 			resource: uri.file(path),
 			results: lineMatches
 		};
-		return instantiation.createInstance(FileMatch, null, null, null, searchResult, rawMatch);
+		return instantiation.createInstance(FileMatch, null, null, null, parentFolder, rawMatch);
+	}
+
+	function aFolderMatch(path: string, index: number, parent?: SearchResult): FolderMatch {
+		const searchModel = instantiation.createInstance(SearchModel);
+		return instantiation.createInstance(FolderMatch, uri.file(path), path, index, null, parent, searchModel);
+	}
+
+	function aSearchResult(): SearchResult {
+		const searchModel = instantiation.createInstance(SearchModel);
+		searchModel.searchResult.query = { type: 1, folderQueries: [{ folder: URI.parse('file://c:/') }] };
+		return searchModel.searchResult;
 	}
 
 	function stubModelService(instantiationService: TestInstantiationService): IModelService {

@@ -40,8 +40,8 @@ function registerVariableCompletions(pattern: string): vscode.Disposable {
 		provideCompletionItems(document, position, _token) {
 			const location = getLocation(document.getText(), document.offsetAt(position));
 			if (isCompletingInsidePropertyStringValue(document, location, position)) {
-				let range = document.getWordRangeAtPosition(position, /\$\{[^\}]*\}/);
-				if (!range || range.end.isEqual(position) || range.start.isEqual(position)) {
+				let range = document.getWordRangeAtPosition(position, /\$\{[^"\}]*\}?/);
+				if (!range || range.start.isEqual(position) || range.end.isEqual(position) && document.getText(range).endsWith('}')) {
 					range = new vscode.Range(position, position);
 				}
 

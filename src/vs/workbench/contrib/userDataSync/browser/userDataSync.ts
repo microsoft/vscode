@@ -18,7 +18,7 @@ import { localize } from 'vs/nls';
 import { MenuId, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyEqualsExpr, ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -57,9 +57,8 @@ import { IUserDataInitializationService } from 'vs/workbench/services/userData/b
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ctxIsMergeEditor } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
+import { ctxIsMergeEditor, ctxMergeBaseUri } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
 
 const CONTEXT_CONFLICTS_SOURCES = new RawContextKey<string>('conflictsSources', '');
 
@@ -729,14 +728,12 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		for (const conflict of conflicts) {
 			const remoteResourceName = localize({ key: 'remoteResourceName', comment: ['remote as in file in cloud'] }, "{0} (Remote)", basename(conflict.remoteResource));
 			const localResourceName = localize('localResourceName', "{0} (Local)", basename(conflict.remoteResource));
-			const input = this.instantiationService.createInstance(
-				MergeEditorInput,
-				conflict.baseResource,
-				{ title: localize('Yours', 'Yours'), description: localResourceName, detail: undefined, uri: conflict.localResource },
-				{ title: localize('Theirs', 'Theirs'), description: remoteResourceName, detail: undefined, uri: conflict.remoteResource },
-				conflict.previewResource,
-			);
-			await this.editorService.openEditor(input);
+			await this.editorService.openEditor({
+				input1: { resource: conflict.remoteResource, label: localize('Theirs', 'Theirs'), description: remoteResourceName },
+				input2: { resource: conflict.localResource, label: localize('Yours', 'Yours'), description: localResourceName },
+				base: { resource: conflict.baseResource },
+				result: { resource: conflict.previewResource }
+			});
 		}
 	}
 
@@ -1291,7 +1288,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					title: localize('accept merges title', "Accept Merge"),
 					menu: [{
 						id: MenuId.MergeToolbar,
-						when: ContextKeyExpr.and(ctxIsMergeEditor, ContextKeyEqualsExpr.create('baseResourceScheme', USER_DATA_SYNC_SCHEME)),
+						when: ContextKeyExpr.and(ctxIsMergeEditor, ContextKeyExpr.regex(ctxMergeBaseUri.key, new RegExp(`^${USER_DATA_SYNC_SCHEME}:`))),
 					}],
 				});
 			}

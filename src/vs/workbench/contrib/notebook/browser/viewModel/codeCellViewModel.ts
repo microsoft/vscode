@@ -125,13 +125,22 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 
 		this._register(this.model.onDidChangeOutputs((splice) => {
 			const removedOutputs: ICellOutputViewModel[] = [];
+			let outputLayoutChange = false;
+			for (let i = splice.start; i < splice.start + splice.deleteCount; i++) {
+				if (this._outputCollection[i] !== undefined && this._outputCollection[i] !== 0) {
+					outputLayoutChange = true;
+				}
+			}
+
 			this._outputCollection.splice(splice.start, splice.deleteCount, ...splice.newOutputs.map(() => 0));
 			removedOutputs.push(...this._outputViewModels.splice(splice.start, splice.deleteCount, ...splice.newOutputs.map(output => new CellOutputViewModel(this, output, this._notebookService))));
 
 			this._outputsTop = null;
 			this._onDidChangeOutputs.fire(splice);
 			this._onDidRemoveOutputs.fire(removedOutputs);
-			this.layoutChange({ outputHeight: true }, 'CodeCellViewModel#model.onDidChangeOutputs');
+			if (outputLayoutChange) {
+				this.layoutChange({ outputHeight: true }, 'CodeCellViewModel#model.onDidChangeOutputs');
+			}
 			dispose(removedOutputs);
 		}));
 

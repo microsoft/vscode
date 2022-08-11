@@ -137,7 +137,7 @@ export class BrowserMain extends Disposable {
 			const openerService = accessor.get(IOpenerService);
 			const productService = accessor.get(IProductService);
 			const telemetryService = accessor.get(ITelemetryService);
-			const progessService = accessor.get(IProgressService);
+			const progressService = accessor.get(IProgressService);
 			const environmentService = accessor.get(IBrowserWorkbenchEnvironmentService);
 			const instantiationService = accessor.get(IInstantiationService);
 			const remoteExplorerService = accessor.get(IRemoteExplorerService);
@@ -169,28 +169,30 @@ export class BrowserMain extends Disposable {
 					}
 				},
 				window: {
-					withProgress: (options, task) => progessService.withProgress(options, task)
+					withProgress: (options, task) => progressService.withProgress(options, task)
 				},
-				shutdown: () => lifecycleService.shutdown(),
-				openTunnel: async (tunnelOptions) => {
-					const tunnel = await remoteExplorerService.forward({
-						remote: tunnelOptions.remoteAddress,
-						local: tunnelOptions.localAddressPort,
-						name: tunnelOptions.label,
-						source: {
-							source: TunnelSource.Extension,
-							description: labelService.getHostLabel(Schemas.vscodeRemote, this.configuration.remoteAuthority)
-						},
-						elevateIfNeeded: false
-					});
-					if (!tunnel) {
-						throw new Error('cannot open tunnel');
-					}
+				workspace: {
+					openTunnel: async (tunnelOptions) => {
+						const tunnel = await remoteExplorerService.forward({
+							remote: tunnelOptions.remoteAddress,
+							local: tunnelOptions.localAddressPort,
+							name: tunnelOptions.label,
+							source: {
+								source: TunnelSource.Extension,
+								description: labelService.getHostLabel(Schemas.vscodeRemote, this.configuration.remoteAuthority)
+							},
+							elevateIfNeeded: false
+						});
+						if (!tunnel) {
+							throw new Error('cannot open tunnel');
+						}
 
-					return new class extends DisposableTunnel implements ITunnel {
-						override localAddress!: string;
-					}({ port: tunnel.tunnelRemotePort, host: tunnel.tunnelRemoteHost }, tunnel.localAddress, () => tunnel.dispose());
-				}
+						return new class extends DisposableTunnel implements ITunnel {
+							override localAddress!: string;
+						}({ port: tunnel.tunnelRemotePort, host: tunnel.tunnelRemoteHost }, tunnel.localAddress, () => tunnel.dispose());
+					}
+				},
+				shutdown: () => lifecycleService.shutdown()
 			};
 		});
 	}
@@ -267,7 +269,9 @@ export class BrowserMain extends Disposable {
 		// User Data Profiles
 		const userDataProfilesService = new BrowserUserDataProfilesService(environmentService, fileService, uriIdentityService, logService);
 		serviceCollection.set(IUserDataProfilesService, userDataProfilesService);
-		const userDataProfileService = new UserDataProfileService(userDataProfilesService.getProfile(isWorkspaceIdentifier(payload) || isSingleFolderWorkspaceIdentifier(payload) ? payload : 'empty-window'), userDataProfilesService);
+		const lastActiveProfile = environmentService.lastActiveProfile ? userDataProfilesService.profiles.find(p => p.id === environmentService.lastActiveProfile) : undefined;
+		const currentProfile = userDataProfilesService.getProfile(isWorkspaceIdentifier(payload) || isSingleFolderWorkspaceIdentifier(payload) ? payload : 'empty-window', lastActiveProfile ?? userDataProfilesService.defaultProfile);
+		const userDataProfileService = new UserDataProfileService(currentProfile, userDataProfilesService);
 		serviceCollection.set(IUserDataProfileService, userDataProfileService);
 
 		// Long running services (workspace, config, storage)
@@ -293,6 +297,11 @@ export class BrowserMain extends Disposable {
 		]);
 
 		userDataProfilesService.setEnablement(!!configurationService.getValue(PROFILES_ENABLEMENT_CONFIG));
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(PROFILES_ENABLEMENT_CONFIG)) {
+				userDataProfilesService.setEnablement(!!configurationService.getValue(PROFILES_ENABLEMENT_CONFIG));
+			}
+		}));
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		//

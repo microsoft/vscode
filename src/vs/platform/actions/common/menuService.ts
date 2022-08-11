@@ -6,11 +6,11 @@
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IMenu, IMenuActionOptions, IMenuCreateOptions, IMenuItem, IMenuService, isIMenuItem, isISubmenuItem, ISubmenuItem, MenuId, MenuItemAction, MenuItemActionManageActions, MenuRegistry, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenu, IMenuActionOptions, IMenuCreateOptions, IMenuItem, IMenuItemHide, IMenuService, isIMenuItem, ISubmenuItem, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { ICommandAction, ILocalizedString } from 'vs/platform/action/common/action';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IAction, SubmenuAction } from 'vs/base/common/actions';
+import { IAction, toAction } from 'vs/base/common/actions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { removeFastWithoutKeepingOrder } from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
@@ -252,32 +252,16 @@ class Menu implements IMenu {
 				if (this._contextKeyService.contextMatchesRules(item.when)) {
 					let action: MenuItemAction | SubmenuItemAction | undefined;
 					const isMenuItem = isIMenuItem(item);
-					const hideActions = new MenuItemActionManageActions(new HideMenuItemAction(this._id, isMenuItem ? item.command : item, this._hiddenStates), allToggleActions);
 
 					if (isMenuItem) {
-						if (!this._hiddenStates.isHidden(this._id, item.command.id)) {
-							action = new MenuItemAction(item.command, item.alt, options, hideActions, this._contextKeyService, this._commandService);
-						}
-						// add toggle commmand
-						toggleActions.push(new ToggleMenuItemAction(this._id, item.command, this._hiddenStates));
+						const menuHide = createMenuHide(this._id, item.command, this._hiddenStates);
+						action = new MenuItemAction(item.command, item.alt, options, menuHide, this._contextKeyService, this._commandService);
+
 					} else {
-						action = new SubmenuItemAction(item, hideActions, this._menuService, this._contextKeyService, options);
+						action = new SubmenuItemAction(item, this._menuService, this._contextKeyService, options);
 						if (action.actions.length === 0) {
 							action.dispose();
 							action = undefined;
-						}
-						// add toggle submenu - this re-creates ToggleMenuItemAction-instances for submenus but that's OK...
-						if (action) {
-							const makeToggleCommand = (id: MenuId, action: IAction): IAction => {
-								if (action instanceof SubmenuItemAction) {
-									return new SubmenuAction(action.id, action.label, action.actions.map(a => makeToggleCommand(action.item.submenu, a)));
-								} else if (action instanceof MenuItemAction) {
-									return new ToggleMenuItemAction(id, action.item, this._hiddenStates);
-								} else {
-									return action;
-								}
-							};
-							toggleActions.push(makeToggleCommand(this._id, action));
 						}
 					}
 
@@ -355,55 +339,30 @@ class Menu implements IMenu {
 	}
 }
 
-class ToggleMenuItemAction implements IAction {
+function createMenuHide(menu: MenuId, command: ICommandAction, states: PersistedMenuHideState): IMenuItemHide {
 
-	readonly id: string;
-	readonly label: string;
-	readonly enabled: boolean = true;
-	readonly tooltip: string = '';
+	const id = `${menu.id}/${command.id}`;
+	const title = typeof command.title === 'string' ? command.title : command.title.value;
 
-	readonly checked: boolean;
-	readonly class: undefined;
+	const hide = toAction({
+		id,
+		label: localize('hide.label', 'Hide \'{0}\'', title),
+		run() { states.updateHidden(menu, command.id, true); }
+	});
 
-	run: () => void;
+	const toggle = toAction({
+		id,
+		label: title,
+		get checked() { return !states.isHidden(menu, command.id); },
+		run() {
+			const newValue = !states.isHidden(menu, command.id);
+			states.updateHidden(menu, command.id, newValue);
+		}
+	});
 
-	constructor(id: MenuId, command: ICommandAction, hiddenStates: PersistedMenuHideState) {
-		this.id = `toggle/${id.id}/${command.id}`;
-		this.label = typeof command.title === 'string' ? command.title : command.title.value;
-
-		let isHidden = hiddenStates.isHidden(id, command.id);
-		this.checked = !isHidden;
-		this.run = () => {
-			isHidden = !isHidden;
-			hiddenStates.updateHidden(id, command.id, isHidden);
-		};
-	}
-
-	dispose(): void {
-		// NOTHING
-	}
-}
-
-class HideMenuItemAction implements IAction {
-
-	readonly id: string;
-	readonly label: string;
-	readonly enabled: boolean = true;
-	readonly tooltip: string = '';
-
-	readonly checked: undefined;
-	readonly class: undefined;
-
-	run: () => void;
-
-	constructor(menu: MenuId, command: ICommandAction | ISubmenuItem, hiddenStates: PersistedMenuHideState) {
-		const id = isISubmenuItem(command) ? command.submenu.id : command.id;
-		this.id = `hide/${menu.id}/${id}`;
-		this.label = localize('hide.label', 'Hide \'{0}\'', typeof command.title === 'string' ? command.title : command.title.value);
-		this.run = () => { hiddenStates.updateHidden(menu, id, true); };
-	}
-
-	dispose(): void {
-		// NOTHING
-	}
+	return {
+		hide,
+		toggle,
+		get isHidden() { return !toggle.checked; },
+	};
 }

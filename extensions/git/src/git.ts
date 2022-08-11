@@ -1095,7 +1095,7 @@ export class Repository {
 		}
 
 		if (!isText) {
-			const result = filetype(buffer);
+			const result = await filetype.fromBuffer(buffer);
 
 			if (!result) {
 				return { mimetype: 'application/octet-stream' };
@@ -1475,7 +1475,7 @@ export class Repository {
 		const args = ['rebase', '--continue'];
 
 		try {
-			await this.exec(args);
+			await this.exec(args, { env: { GIT_EDITOR: 'true' } });
 		} catch (commitErr) {
 			await this.handleCommitError(commitErr);
 		}

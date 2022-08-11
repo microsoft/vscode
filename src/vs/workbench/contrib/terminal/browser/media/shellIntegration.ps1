@@ -36,8 +36,12 @@ function Global:Prompt() {
 			# Sanitize the command line to ensure it can get transferred to the terminal and can be parsed
 			# correctly. This isn't entirely safe but good for most cases, it's important for the Pt parameter
 			# to only be composed of _printable_ characters as per the spec.
-			$CommandLine = $LastHistoryEntry.CommandLine ?? ""
-			$Result += $CommandLine.Replace("`n", "<LF>").Replace(";", "<CL>")
+			if ($LastHistoryEntry.CommandLine) {
+				$CommandLine = $LastHistoryEntry.CommandLine
+			} else {
+				$CommandLine = ""
+			}
+			$Result += $CommandLine.Replace("\", "\\").Replace("`n", "\x0a").Replace(";", "\x3b")
 			$Result += "`a"
 			# Command finished exit code
 			# OSC 633 ; D [; <ExitCode>] ST
@@ -76,7 +80,7 @@ if (Get-Module -Name PSReadLine) {
 # Set always on key handlers which map to default VS Code keybindings
 function Set-MappedKeyHandler {
 	param ([string[]] $Chord, [string[]]$Sequence)
-	$Handler = $(Get-PSReadLineKeyHandler -Chord $Chord)
+	$Handler = $(Get-PSReadLineKeyHandler -Chord $Chord | Select-Object -First 1)
 	if ($Handler) {
 		Set-PSReadLineKeyHandler -Chord $Sequence -Function $Handler.Function
 	}

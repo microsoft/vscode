@@ -174,9 +174,7 @@ export class DebugService implements IDebugService {
 		}));
 		this.disposables.add(this.model.onDidChangeCallStack(() => {
 			const numberOfSessions = this.model.getSessions().filter(s => !s.parentSession).length;
-			if (this.activity) {
-				this.activity.dispose();
-			}
+			this.activity?.dispose();
 			if (numberOfSessions > 0) {
 				const viewContainer = this.viewDescriptorService.getViewContainerByViewId(CALLSTACK_VIEW_ID);
 				if (viewContainer) {
@@ -546,7 +544,7 @@ export class DebugService implements IDebugService {
 	private async doCreateSession(sessionId: string, root: IWorkspaceFolder | undefined, configuration: { resolved: IConfig; unresolved: IConfig | undefined }, options?: IDebugSessionOptions): Promise<boolean> {
 
 		const session = this.instantiationService.createInstance(DebugSession, sessionId, configuration, root, this.model, options);
-		if (options?.startedByUser && this.model.getSessions().some(s => s.getLabel() === session.getLabel())) {
+		if (options?.startedByUser && this.model.getSessions().some(s => s.getLabel() === session.getLabel()) && configuration.resolved.suppressMultipleSessionWarning !== true) {
 			// There is already a session with the same name, prompt user #127721
 			const result = await this.dialogService.confirm({ message: nls.localize('multipleSession', "'{0}' is already running. Do you want to start another instance?", session.getLabel()) });
 			if (!result.confirmed) {
@@ -842,17 +840,19 @@ export class DebugService implements IDebugService {
 			try {
 				return await dbg.substituteVariables(folder, config);
 			} catch (err) {
-				this.showError(err.message);
+				this.showError(err.message, undefined, !!launch?.getConfiguration(config.name));
 				return undefined;	// bail out
 			}
 		}
 		return Promise.resolve(config);
 	}
 
-	private async showError(message: string, errorActions: ReadonlyArray<IAction> = []): Promise<void> {
+	private async showError(message: string, errorActions: ReadonlyArray<IAction> = [], promptLaunchJson = true): Promise<void> {
 		const configureAction = new Action(DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL, undefined, true, () => this.commandService.executeCommand(DEBUG_CONFIGURE_COMMAND_ID));
 		// Don't append the standard command if id of any provided action indicates it is a command
-		const actions = errorActions.filter((action) => action.id.endsWith('.command')).length > 0 ? errorActions : [...errorActions, configureAction];
+		const actions = errorActions.filter((action) => action.id.endsWith('.command')).length > 0 ?
+			errorActions :
+			[...errorActions, ...(promptLaunchJson ? [configureAction] : [])];
 		const { choice } = await this.dialogService.show(severity.Error, message, actions.map(a => a.label).concat(nls.localize('cancel', "Cancel")), { cancelId: actions.length });
 		if (choice < actions.length) {
 			await actions[choice].run();

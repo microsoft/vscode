@@ -66,13 +66,9 @@ export class RipgrepTextSearchEngine {
 			const cancel = () => {
 				isDone = true;
 
-				if (rgProc) {
-					rgProc.kill();
-				}
+				rgProc?.kill();
 
-				if (ripgrepParser) {
-					ripgrepParser.cancel();
-				}
+				ripgrepParser?.cancel();
 			};
 
 			let limitHit = false;

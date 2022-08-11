@@ -81,7 +81,7 @@ function calculatePackageDeps(binaryPath) {
     const requires = new Set(findRequiresResult.stdout.toString('utf-8').trimEnd().split('\n'));
     return requires;
 }
-// Based on https://source.chromium.org/chromium/chromium/src/+/main:chrome/installer/linux/rpm/merge_package_deps.py
+// Based on https://source.chromium.org/chromium/chromium/src/+/main:chrome/installer/linux/rpm/merge_package_deps.py.
 function mergePackageDeps(inputDeps) {
     const requires = new Set();
     for (const depSet of inputDeps) {
