@@ -55,8 +55,7 @@ import {
 	KeyedTaskIdentifier as KeyedTaskIdentifier, TaskDefinition, RuntimeType,
 	USER_TASKS_GROUP_KEY,
 	TaskSettingId,
-	TasksSchemaProperties,
-	TaskEventKind
+	TasksSchemaProperties
 } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ITaskService, ITaskProvider, IProblemMatcherRunOptions, ICustomizationProperties, ITaskFilter, IWorkspaceFolderTaskResult, CustomExecutionSupportedContext, ShellExecutionSupportedContext, ProcessExecutionSupportedContext, TaskCommandsRegistered } from 'vs/workbench/contrib/tasks/common/taskService';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/common/taskTemplates';
@@ -87,7 +86,8 @@ import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 
 import { VirtualWorkspaceContext } from 'vs/workbench/common/contextkeys';
 import { Schemas } from 'vs/base/common/network';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ILifecycleService, ShutdownReason, StartupKind } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { TerminalExitReason } from 'vs/platform/terminal/common/terminal';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
@@ -327,10 +327,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._willRestart = e.reason !== ShutdownReason.RELOAD;
 		});
 		this._register(this.onDidStateChange(e => {
-			if (this._willRestart) {
-				const key = e.__task?.getRecentlyUsedKey();
-				if (e.kind === TaskEventKind.End && key) {
-					this.removePersistentTask(key);
+			if (this._willRestart || e.exitReason === TerminalExitReason.User) {
+				if (e.taskId) {
+					this.removePersistentTask(e.taskId);
 				}
 			}
 		}));
@@ -369,12 +368,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._tasksReconnected = true;
 			return;
 		}
-		if (this._lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
-			this._persistentTasks?.clear();
-			this._storageService.remove(AbstractTaskService.PersistentTasks_Key, StorageScope.WORKSPACE);
-			await this._storageService.flush();
-			return;
-		}
+
 		for (const task of tasks) {
 			if (ConfiguringTask.is(task)) {
 				const resolved = await this.tryResolveTask(task);
@@ -1096,7 +1090,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!task.configurationProperties.problemMatchers || !this._tasksReconnected) {
 			return;
 		}
-		let key = task.getRecentlyUsedKey();
+		let key = task.getMapKey();
 		if (!InMemoryTask.is(task) && key) {
 			const customizations = this._createCustomizableTask(task);
 			if (ContributedTask.is(task) && customizations) {
@@ -1107,7 +1101,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					tasks: [customizations]
 				}, TaskRunSource.System, custom, customized, TaskConfig.TaskConfigSource.TasksJson, true);
 				for (const configuration in customized) {
-					key = customized[configuration].getRecentlyUsedKey()!;
+					key = customized[configuration].getMapKey()!;
 				}
 			}
 			this._getTasksFromStorage('persistent').set(key, JSON.stringify(customizations));

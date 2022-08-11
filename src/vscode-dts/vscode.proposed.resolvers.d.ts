@@ -179,7 +179,7 @@ declare module 'vscode' {
 		 * Gets an array of the currently available tunnels. This does not include environment tunnels, only tunnels that have been created by the user.
 		 * Note that these are of type TunnelDescription and cannot be disposed.
 		 */
-		export let tunnels: Thenable<TunnelDescription[]>;
+		// export let tunnels: Thenable<TunnelDescription[]>;
 
 		/**
 		 * Fired when the list of tunnels has changed.

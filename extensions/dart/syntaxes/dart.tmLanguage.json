@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dart-lang/dart-syntax-highlight/commit/9d4857e114b7000d94232d83187ad142961c678a",
+	"version": "https://github.com/dart-lang/dart-syntax-highlight/commit/45065882c9f699149cb181a5960c05295b4bfbc6",
 	"name": "Dart",
 	"scopeName": "source.dart",
 	"patterns": [

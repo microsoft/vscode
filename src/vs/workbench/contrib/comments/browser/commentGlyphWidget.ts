@@ -4,17 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { Color, RGBA } from 'vs/base/common/color';
+import { Color } from 'vs/base/common/color';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { IModelDecorationOptions, OverviewRulerLane } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { darken, listInactiveSelectionBackground, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
 
-const overviewRulerDefault = new Color(new RGBA(197, 197, 197, 1));
-
-export const overviewRulerCommentingRangeForeground = registerColor('editorGutter.commentRangeForeground', { dark: overviewRulerDefault, light: overviewRulerDefault, hcDark: overviewRulerDefault, hcLight: overviewRulerDefault }, nls.localize('editorGutterCommentRangeForeground', 'Editor gutter decoration color for commenting ranges.'));
+export const overviewRulerCommentingRangeForeground = registerColor('editorGutter.commentRangeForeground', { dark: listInactiveSelectionBackground, light: darken(listInactiveSelectionBackground, .05), hcDark: Color.white, hcLight: Color.black }, nls.localize('editorGutterCommentRangeForeground', 'Editor gutter decoration color for commenting ranges.'));
 
 export class CommentGlyphWidget {
 	public static description = 'comment-glyph-widget';

@@ -372,7 +372,7 @@
 }
 
 .monaco-editor .comment-range-glyph {
-	margin-left: 5px;
+	margin-left: 10px;
 	width: 4px !important;
 	cursor: pointer;
 	z-index: 10;
@@ -400,7 +400,7 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 	width: 9px;
 	left: -6px;
 	z-index: 10;
-	color: black;
+	color: var(--vscode-editor-foreground);
 	text-align: center;
 	display: flex;
 	flex-direction: row;
@@ -410,7 +410,13 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 
 .monaco-editor .margin-view-overlays > div:hover > .comment-range-glyph.comment-diff-added:before,
 .monaco-editor .margin-view-overlays .comment-range-glyph.comment-diff-added.line-hover:before {
-	content: "+";
+	content: "\ea60";
+	font-family: "codicon";
+	border-radius: 3px;
+	width: 19px !important;
+	margin-left: -5px;
+	padding-top: 1px;
+	padding-left: 1px;
 }
 
 .monaco-editor .comment-range-glyph.comment-thread {
@@ -418,16 +424,23 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 }
 
 .monaco-editor .comment-range-glyph.comment-thread:before {
-	content: "◆";
-	font-size: 10px;
+	content: "\ea6b";
+	font-family: "codicon";
+	font-size: 14px;
+	width: 19px !important;
 	line-height: 100%;
+	border-radius: 3px;
 	z-index: 20;
+	margin-left: -5px;
+	padding-top: 1px;
+	padding-left: 1px;
 }
 
-.monaco-editor.inline-comment .margin-view-overlays .folding {
-	margin-left: 7px;
+.monaco-editor.inline-comment .margin-view-overlays .codicon-folding-expanded,
+.monaco-editor.inline-comment .margin-view-overlays .codicon-folding-collapsed {
+	margin-left: 13px;
 }
 
 .monaco-editor.inline-comment .margin-view-overlays .dirty-diff-glyph {
-	margin-left: 14px;
+	margin-left: 23px;
 }

@@ -1634,11 +1634,18 @@ export class CommandCenter {
 
 		await repository.commit(message, opts);
 
-		// Execute post commit command
-		if (opts.postCommitCommand?.length) {
-			await commands.executeCommand(
-				opts.postCommitCommand,
-				new ApiRepository(repository));
+		// Execute post-commit command
+		let postCommitCommand = opts.postCommitCommand;
+
+		if (postCommitCommand === undefined) {
+			// Commit WAS NOT initiated using the action button (ex: keybinding, toolbar
+			// action, command palette) so we honour the `git.postCommitCommand` setting.
+			const postCommitCommandSetting = config.get<string>('postCommitCommand');
+			postCommitCommand = postCommitCommandSetting === 'push' || postCommitCommandSetting === 'sync' ? `git.${postCommitCommandSetting}` : '';
+		}
+
+		if (postCommitCommand.length) {
+			await commands.executeCommand(postCommitCommand, new ApiRepository(repository));
 		}
 
 		return true;

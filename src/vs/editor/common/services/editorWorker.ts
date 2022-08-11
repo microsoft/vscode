@@ -10,6 +10,7 @@ import { IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import { IInplaceReplaceSupportResult, TextEdit } from 'vs/editor/common/languages';
 import { UnicodeHighlighterOptions } from 'vs/editor/common/services/unicodeTextModelHighlighter';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import type { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
 
 export const ID_EDITOR_WORKER_SERVICE = 'editorWorkerService';
 export const IEditorWorkerService = createDecorator<IEditorWorkerService>(ID_EDITOR_WORKER_SERVICE);
@@ -20,6 +21,7 @@ export interface IEditorWorkerService {
 	canComputeUnicodeHighlights(uri: URI): boolean;
 	computedUnicodeHighlights(uri: URI, options: UnicodeHighlighterOptions, range?: IRange): Promise<IUnicodeHighlightsResult>;
 
+	/** Implementation in {@link EditorSimpleWorker.computeDiff} */
 	computeDiff(original: URI, modified: URI, options: IDocumentDiffProviderOptions): Promise<IDiffComputationResult | null>;
 
 	canComputeDirtyDiff(original: URI, modified: URI): boolean;
