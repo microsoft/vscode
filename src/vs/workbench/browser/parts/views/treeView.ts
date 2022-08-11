@@ -59,7 +59,7 @@ import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { Extensions, ITreeItem, ITreeItemLabel, ITreeView, ITreeViewDataProvider, ITreeViewDescriptor, ITreeViewDragAndDropController, IViewBadge, IViewDescriptorService, IViewsRegistry, ResolvableTreeItem, TreeCommand, TreeItemCollapsibleState, TreeViewItemHandleArg, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
+import { Extensions, ITreeItem, ITreeItemLabel, ITreeView, ITreeViewDataProvider, ITreeViewDescriptor, ITreeViewDragAndDropController, IViewBadge, IViewDescriptorService, IViewsRegistry, ResolvableTreeItem, TreeCommand, TreeItemCollapsibleState, TreeViewItemHandleArg, TreeViewPaneHandleArg, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
@@ -84,7 +84,7 @@ export class TreeViewPane extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super({ ...(options as IViewPaneOptions), titleMenuId: MenuId.ViewTitle, donotForwardArgs: true }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super({ ...(options as IViewPaneOptions), titleMenuId: MenuId.ViewTitle, donotForwardArgs: false }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		const { treeView } = (<ITreeViewDescriptor>Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getView(options.id));
 		this.treeView = treeView;
 		this._register(this.treeView.onDidChangeActions(() => this.updateActions(), this));
@@ -142,6 +142,14 @@ export class TreeViewPane extends ViewPane {
 	private updateTreeVisibility(): void {
 		this.treeView.setVisibility(this.isBodyVisible());
 	}
+
+	override getActionsContext(): TreeViewPaneHandleArg {
+		return {
+			$selectedTreeItems: true,
+			$treeViewId: this.id
+		};
+	}
+
 }
 
 class Root implements ITreeItem {
