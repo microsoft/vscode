@@ -936,7 +936,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					previousSessionItems.unshift({
 						label: formatLabel(label),
 						rawLabel: label,
-						buttons: [removeFromCommandHistoryButton]
+						buttons: [removeFromCommandHistoryButton],
+						id: (items.length++).toString()
 					});
 					commandMap.add(label);
 				}
@@ -956,7 +957,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				if (!commandMap.has(label)) {
 					dedupedShellFileItems.unshift({
 						label: formatLabel(label),
-						rawLabel: label
+						rawLabel: label,
+						id: (items.length++).toString()
 					});
 				}
 			}
@@ -988,7 +990,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					previousSessionItems.unshift({
 						label,
 						rawLabel: label,
-						buttons: [removeFromCommandHistoryButton]
+						buttons: [removeFromCommandHistoryButton],
+						id: (items.length++).toString()
 					});
 				}
 			}
@@ -1060,7 +1063,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			quickPick.value = value;
 		}
 		return new Promise<void>(r => {
-			this._quickInputService.formatPinnedItems(quickPick, 'terminal.pinnedCommands', async () => { });
+			this._quickInputService.formatPinnedItems(quickPick, 'terminal.pinnedCommands', async () => { this.runRecent(type, filterMode, value); });
 			quickPick.show();
 			this._terminalInRunCommandPicker.set(true);
 			quickPick.onDidHide(() => {

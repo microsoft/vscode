@@ -30,7 +30,7 @@ export const pinButton: IQuickInputButton = {
 export const pinnedButton: IQuickInputButton = {
 	iconClass: ThemeIcon.asClassName(Codicon.pinned),
 	tooltip: localize('pinnedCommand', "Pinned command"),
-	alwaysVisible: true
+	alwaysVisible: false
 };
 
 export interface IQuickInputControllerHost extends ILayoutService { }
@@ -163,55 +163,72 @@ export class QuickInputService extends Themable implements IQuickInputService {
 		this.controller.toggle();
 	}
 
-	formatPinnedItems(quickPick: IQuickPick<IQuickPickItem>, storageKey: string, callback: () => {}): void {
+	formatPinnedItems(quickPick: IQuickPick<IQuickPickItem>, storageKey: string, callback?: () => {}): void {
 		const formattedItems: (IQuickPickItem | IQuickPickSeparator)[] = [];
-		const pinnedLabels = this._getPinnedLabels(storageKey);
-		const pinnedItems = quickPick.items.filter(i => i.label && pinnedLabels.includes(i.label));
+		const pinnedLabels = this._getPinnedItems(storageKey);
+		const pinnedItems = quickPick.items.filter(i => !!i && 'id' in i && i.id && pinnedLabels.has(i.id));
+		if (pinnedItems.length) {
+			formattedItems.push({ type: 'separator', label: localize("terminal.commands.pinned", 'Pinned') });
+		}
 		for (const item of pinnedItems) {
 			this._togglePinned(item, storageKey, true);
 			formattedItems.push(item);
 		}
-		formattedItems.push({ type: 'separator', label: 'Pinned' });
-		const unpinned = quickPick.items.filter(i => i.label && !pinnedLabels.includes(i.label));
-		for (const item of unpinned) {
+		for (const item of quickPick.items.filter(i => !!i)) {
 			this._togglePinned(item, storageKey, false);
 			formattedItems.push(item);
 		}
 		quickPick.onDidTriggerItemButton(e => {
-			if (e.button === pinButton || e.button === pinnedButton) {
-				this.formatPinnedItems(quickPick, storageKey, callback);
+			this._togglePinned(e.item, storageKey, e.button === pinButton);
+			if (callback) {
+				callback();
 			}
 		});
 		quickPick.items = formattedItems;
-		callback();
 	}
 
-	private _getPinnedLabels(storageKey: string): string[] {
-		const storedItems = this._storageService.get(storageKey, StorageScope.WORKSPACE);
-		const pinnedItems = storedItems ? JSON.parse(storedItems) : [];
-		return pinnedItems;
-	}
-
-	private _savePinned(label: string, storageKey: string, pinned?: boolean): void {
-		const storedLabels = this._storageService.get(storageKey, StorageScope.WORKSPACE);
-		const labels = storedLabels ? JSON.parse(storedLabels) : [];
-		if (pinned) {
-			labels.push(label);
+	private _getPinnedItems(storageKey: string): Map<string, string> {
+		let items = this._storageService.get(storageKey, StorageScope.WORKSPACE);
+		if (!items) {
+			this._storageService.store(storageKey, '[]', StorageScope.WORKSPACE, StorageTarget.USER);
+			items = '[]';
 		}
-		this._storageService.store(storageKey, JSON.stringify(labels), StorageScope.WORKSPACE, StorageTarget.USER);
+		const parsed = JSON.parse(items);
+		return new Map(parsed);
+	}
+
+	private _savePinned(id: string, label: string, storageKey: string, pinned?: boolean): void {
+		const labels = this._getPinnedItems(storageKey);
+		console.log('labels', JSON.stringify(Array.from(labels.entries())));
+		if (pinned) {
+			console.log('save pinned', id, label, pinned);
+		}
+		if (labels.get(id) && pinned) {
+			return;
+		}
+		if (pinned) {
+			labels.set(id, label);
+		} else {
+			labels.delete(id);
+		}
+		if (!labels.size) {
+			return;
+		}
+		console.log('labels after', JSON.stringify(Array.from(labels.entries())));
+		this._storageService.store(storageKey, JSON.stringify(Array.from(labels.entries())), StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
 	private _togglePinned(item: IQuickPickItem | IQuickPickSeparator, storageKey: string, shouldPin?: boolean): void {
-		if (!item.label || !('buttons' in item)) {
+		if (!item || !item.label || !('buttons' in item) || !item.id) {
 			return;
 		}
 		item.buttons = item.buttons?.filter(b => b.iconClass !== pinnedButton.iconClass && b.iconClass !== pinButton.iconClass) || [];
 		if (shouldPin) {
-			item.buttons.push(pinButton);
-		} else {
 			item.buttons.push(pinnedButton);
+		} else {
+			item.buttons.push(pinButton);
 		}
-		this._savePinned(item.label, storageKey, shouldPin);
+		this._savePinned(item.id, item.label, storageKey, shouldPin);
 	}
 
 	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration) {
