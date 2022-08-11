@@ -105,6 +105,7 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 		return widgetHeight;
 	}
 
+
 	private getScrollWidgetState(): StickyScrollWidgetState {
 		const lineHeight: number = this.editor.getOption(EditorOption.lineHeight);
 		const maxNumberStickyLines = this.editor.getOption(EditorOption.experimental).stickyScroll.numberLines;
