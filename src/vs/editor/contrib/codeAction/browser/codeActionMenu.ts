@@ -126,17 +126,14 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 
 		data.icon = document.createElement('div');
 
-		// data.detail = document.createElement('');
 		iconContainer.append(data.icon);
 		container.append(iconContainer);
 		container.append(data.text);
-		// container.append(data.detail);
+
 		return data;
 	}
 	renderElement(element: ICodeActionMenuItem, index: number, templateData: ICodeActionMenuTemplateData): void {
 		const data: ICodeActionMenuTemplateData = templateData;
-
-
 
 		const isSeparator = element.isSeparator;
 		const isHeader = element.isHeader;
@@ -164,7 +161,6 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 				} else {
 					// Icons and Label modifaction based on group
 					const group = element.action.action.kind;
-
 
 					if (group?.startsWith(CodeActionGroupID.extract)) {
 						data.icon.className = Codicon.lightBulb.classNames;

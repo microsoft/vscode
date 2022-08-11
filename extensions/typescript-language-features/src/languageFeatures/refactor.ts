@@ -164,7 +164,7 @@ const Rewrite_Property_GenerateAccessors = Object.freeze<CodeActionKind>({
 	matches: refactor => refactor.name.startsWith('Generate \'get\' and \'set\' accessors')
 });
 
-export const allKnownCodeActionKinds = [
+const allKnownCodeActionKinds = [
 	Extract_Function,
 	Extract_Constant,
 	Extract_Type,
