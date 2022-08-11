@@ -37,8 +37,9 @@ interface IAccountUsage {
 }
 
 const FIRST_PARTY_ALLOWED_EXTENSIONS = [
-	'github.vscode-pull-request-github',
 	'vscode.git',
+	'vscode.github',
+	'github.vscode-pull-request-github',
 	'github.remotehub',
 	'github.remotehub-insiders',
 	'github.codespaces',
