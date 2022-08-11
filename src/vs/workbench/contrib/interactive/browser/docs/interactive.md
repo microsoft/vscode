@@ -9,4 +9,20 @@ The interactive window consists of notebook editor at the top and regular monaco
 
 Users can type in code in the text editor and after users pressing `Shift+Enter`, we will insert a new code cell into the notebook document with the content from the text editor. Then we will request execution for the newly inserted cell. The notebook controller will handle the execution just like it;s in a normal notebook editor.
 
-![arch](interactive.drawio.svg)
+## Intearactive Window registration
+
+Registering a new editor type in the workbench consists of two steps
+
+* Register an editor input factory which is responsible for resolving resources with given `glob` patterns. Here we register an `InteractiveWindowInput` for all resources with `vscode-interactive-input` scheme: `vscode-interactive-input:/**`.
+* Register an editor pane factory for the given editor input type. Here we register `InteractiveEditor` for our own editor input `InteractiveWindowInput`.
+
+The workbench editor service is not aware of how models are resolved in `EditorInput`, neither how `EditorPane`s are rendered. It only cares about the common states and events on `EditorInput` or `EditorPane`, i.e., display name, capabilities (editable), content change, dirty state change. It's `EditorInput`/`EditorPane`'s responsibility to provide the right info and updates to the editor service. One major difference between Interactive Editor and other editor panes is Interactive Window is never dirty so users never  see a dot on the editor title bar.
+
+![editor registration](interactive.editor.drawio.svg)
+
+## UI/EH editor/document syncing
+
+`EditorInput` is responsible for resolving models for the given resources but in Interactive Window it's much simpler as we are not resolving models ourselves but delegating to Notebook and TextEditor. `InteractiveEditorInput` does the coordination job.
+
+![arch](interactive.eh.drawio.svg)
+
