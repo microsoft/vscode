@@ -232,7 +232,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			compact: options.compact,
 			debugUI: options.debugUI,
 			compoundRoot: parentSession?.compoundRoot,
-			saveBeforeStart: saveBeforeStart
+			saveBeforeRestart: saveBeforeStart
 		};
 		try {
 			return this.debugService.startDebugging(launch, nameOrConfig, debugOptions);
