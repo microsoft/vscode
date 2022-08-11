@@ -5,39 +5,13 @@
 
 import * as vscode from 'vscode';
 
-import { readFile } from 'fs/promises';
-import * as path from 'path';
 import { Disposable } from '../utils/dispose';
 
 export class JsWalkthroughState extends Disposable {
-	exampleHtmlDocument: vscode.TextDocument | undefined = undefined;
 	exampleJsDocument: vscode.TextDocument | undefined = undefined;
 
 	override dispose() {
-		this.exampleHtmlDocument = undefined;
 		this.exampleJsDocument = undefined;
-	}
-}
-
-export class CreateHtmlFileWithScriptTagCommand {
-	public static readonly id = 'javascript-walkthrough.commands.createHtmlFileWithScriptTag';
-	public readonly id = CreateHtmlFileWithScriptTagCommand.id;
-
-	constructor(private walkthroughState: JsWalkthroughState) { }
-
-	public execute() {
-		createHtmlFileWithScriptTag(this.walkthroughState);
-	}
-}
-
-export class DebugHtmlFileCommand {
-	public static readonly id = 'javascript-walkthrough.commands.debugHtmlFile';
-	public readonly id = DebugHtmlFileCommand.id;
-
-	constructor(private walkthroughState: JsWalkthroughState) { }
-
-	public execute() {
-		debugHtmlFile(this.walkthroughState);
 	}
 }
 
@@ -63,34 +37,13 @@ export class DebugJsFileCommand {
 	}
 }
 
-async function createHtmlFileWithScriptTag(walkthroughState: JsWalkthroughState) {
-	const htmlPath = path.resolve(__dirname, '../../resources/walkthroughs/htmlFileWithScriptTag.html');
-	const content = await readFile(htmlPath, 'utf8');
-	const newFile = await vscode.workspace.openTextDocument({
-		language: 'html',
-		content,
-	});
-	walkthroughState.exampleHtmlDocument = newFile;
-	//vscode.window.showInformationMessage(process.env.USERNAME!);
-	const scriptStart = newFile.positionAt(newFile.getText().match(/^<script>$/m)!.index!);
-	const editor = await vscode.window.showTextDocument(newFile, {
-		viewColumn: vscode.ViewColumn.Beside,
-		selection: new vscode.Range(scriptStart, scriptStart),
-	});
-	return editor;
-}
-
 async function createNewJSFile(walkthroughState: JsWalkthroughState) {
 	const newFile = await vscode.workspace.openTextDocument({
 		language: 'javascript',
-		content: `// Write a message to the console.\nconsole.log('hello world!');`,
+		content: `// Write a message to the console.\nconsole.log('hello world!');\n`,
 	});
 	walkthroughState.exampleJsDocument = newFile;
 	return vscode.window.showTextDocument(newFile, vscode.ViewColumn.Beside);
-}
-
-async function debugHtmlFile(walkthroughState: JsWalkthroughState) {
-	tryDebugRelevantDocument(walkthroughState.exampleHtmlDocument, 'html', ['.html'], () => createHtmlFileWithScriptTag(walkthroughState));
 }
 
 async function debugJsFile(walkthroughState: JsWalkthroughState) {

@@ -1534,22 +1534,6 @@
         "when": "isWindows && workspacePlatform == windows || isMac && workspacePlatform == mac || isLinux && workspacePlatform == linux",
         "steps": [
           {
-            "id": "walkthroughs.jsWelcome.createHtmlWithScriptTag",
-            "title": "%walkthroughs.jsWelcome.createHtmlWithScriptTag.title%",
-            "description": "%walkthroughs.jsWelcome.createHtmlWithScriptTag.description%",
-            "media": {
-              "markdown": "resources/walkthroughs/TODO.md"
-            }
-          },
-          {
-            "id": "walkthroughs.jsWelcome.debugHtmlFile",
-            "title": "%walkthroughs.jsWelcome.debugHtmlFile.title%",
-            "description": "%walkthroughs.jsWelcome.debugHtmlFile.description%",
-            "media": {
-              "markdown": "resources/walkthroughs/TODO.md"
-            }
-          },
-          {
             "id": "walkthroughs.jsWelcome.downloadNode.forMacOrWindows",
             "title": "%walkthroughs.jsWelcome.downloadNode.forMacOrWindows.title%",
             "description": "%walkthroughs.jsWelcome.downloadNode.forMacOrWindows.description%",
@@ -1571,6 +1555,14 @@
             "id": "walkthroughs.jsWelcome.makeJsFile",
             "title": "%walkthroughs.jsWelcome.makeJsFile.title%",
             "description": "%walkthroughs.jsWelcome.makeJsFile.description%",
+            "media": {
+              "markdown": "resources/walkthroughs/TODO.md"
+            }
+          },
+          {
+            "id": "walkthroughs.jsWelcome.runJsFile",
+            "title": "%walkthroughs.jsWelcome.runJsFile.title%",
+            "description": "%walkthroughs.jsWelcome.runJsFile.description%",
             "media": {
               "markdown": "resources/walkthroughs/TODO.md"
             }
