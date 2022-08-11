@@ -22,6 +22,8 @@ import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IsMacNativeContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ILocalizedString } from 'vs/platform/action/common/action';
+import { URI } from 'vs/base/common/uri';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const workspacesCategory: ILocalizedString = { value: localize('workspaces', "Workspaces"), original: 'Workspaces' };
 const fileCategory = { value: localize('filesCategory', "File"), original: 'File' };
@@ -77,8 +79,13 @@ export class OpenFolderAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, data?: ITelemetryData): Promise<void> {
 		const fileDialogService = accessor.get(IFileDialogService);
+		const configurationService = accessor.get(IConfigurationService);
+		const openFolderDefaultPath = configurationService.getValue<string>('editor.openFolderDefaultPath');
 
-		return fileDialogService.pickFolderAndOpen({ forceNewWindow: false, telemetryExtraData: data });
+
+		const uri = URI.parse(`file:///${openFolderDefaultPath}`);
+
+		return fileDialogService.pickFolderAndOpen({ forceNewWindow: false, telemetryExtraData: data, defaultUri: uri });
 	}
 }
 

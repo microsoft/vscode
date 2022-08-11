@@ -131,6 +131,11 @@ const editorConfiguration: IConfigurationNode = {
 				]
 			}
 		},
+		'editor.openFolderDefaultPath': {
+			type: 'string',
+			default: '',
+			markdownDescription: nls.localize('openFolderDefaultPath', "The default path used when opening a folder in the context menu.")
+		},
 		'diffEditor.maxComputationTime': {
 			type: 'number',
 			default: 5000,

@@ -715,6 +715,11 @@ export interface IDiffEditorBaseOptions {
 	 */
 	renderMarginRevertIcon?: boolean;
 	/**
+	 * The default path used when opening a folder in the context menu.
+	 * Defaults to user's home directory.
+	 */
+	openFolderDefaultPath?: string;
+	/**
 	 * Original model should be editable?
 	 * Defaults to false.
 	 */
