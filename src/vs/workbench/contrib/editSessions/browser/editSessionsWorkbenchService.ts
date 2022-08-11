@@ -38,6 +38,10 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	private initialized = false;
 	private readonly signedInContext: IContextKey<boolean>;
 
+	get isSignedIn() {
+		return this.existingSessionId !== undefined;
+	}
+
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@IStorageService private readonly storageService: IStorageService,

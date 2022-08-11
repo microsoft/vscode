@@ -22,6 +22,8 @@ export const IEditSessionsWorkbenchService = createDecorator<IEditSessionsWorkbe
 export interface IEditSessionsWorkbenchService {
 	_serviceBrand: undefined;
 
+	readonly isSignedIn: boolean;
+
 	read(ref: string | undefined): Promise<{ ref: string; editSession: EditSession } | undefined>;
 	write(editSession: EditSession): Promise<string>;
 	delete(ref: string | null): Promise<void>;
@@ -58,6 +60,7 @@ export type Change = Addition | Deletion;
 
 export interface Folder {
 	name: string;
+	canonicalIdentity: { [key: string]: string | null } | undefined;
 	workingChanges: Change[];
 }
 

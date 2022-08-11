@@ -13,7 +13,7 @@ import { localize } from 'vs/nls';
 import { IEditSessionsWorkbenchService, Change, ChangeType, Folder, EditSession, FileType, EDIT_SESSION_SYNC_CATEGORY, EDIT_SESSIONS_CONTAINER_ID, EditSessionSchemaVersion, IEditSessionsLogService, EDIT_SESSIONS_VIEW_ICON, EDIT_SESSIONS_TITLE, EDIT_SESSIONS_SHOW_VIEW, EDIT_SESSIONS_SIGNED_IN, EDIT_SESSIONS_DATA_VIEW_ID, decodeEditSessionFileContent } from 'vs/workbench/contrib/editSessions/common/editSessions';
 import { ISCMRepository, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { URI } from 'vs/base/common/uri';
 import { joinPath, relativePath } from 'vs/base/common/resources';
 import { encodeBase64 } from 'vs/base/common/buffer';
@@ -48,6 +48,8 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { EditSessionsFileSystemProvider } from 'vs/workbench/contrib/editSessions/browser/editSessionsFileSystemProvider';
 import { isNative } from 'vs/base/common/platform';
 import { WorkspaceFolderCountContext } from 'vs/workbench/common/contextkeys';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { equals } from 'vs/base/common/objects';
 
 registerSingleton(IEditSessionsLogService, EditSessionsLogService);
 registerSingleton(IEditSessionsWorkbenchService, EditSessionsWorkbenchService);
@@ -108,6 +110,11 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 			void this.resumeEditSession(this.environmentService.editSessionId).finally(() => this.environmentService.editSessionId = undefined);
 			performance.mark('code/didResumeEditSessionFromIdentifier');
+		} else if (this.editSessionsWorkbenchService.isSignedIn) {
+			// Attempt to resume edit session based on canonical workspace identifier
+			// Note: at this point if the user is not signed into edit sessions,
+			// we don't want them to sign in and should just return early
+			void this.resumeEditSession(undefined, true);
 		}
 
 		this.configurationService.onDidChangeConfiguration((e) => {
@@ -301,12 +308,12 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		}));
 	}
 
-	async resumeEditSession(ref?: string): Promise<void> {
+	async resumeEditSession(ref?: string, silent?: boolean): Promise<void> {
 		this.logService.info(ref !== undefined ? `Resuming edit session with ref ${ref}...` : 'Resuming edit session...');
 
 		const data = await this.editSessionsWorkbenchService.read(ref);
 		if (!data) {
-			if (ref === undefined) {
+			if (ref === undefined && !silent) {
 				this.notificationService.info(localize('no edit session', 'There are no edit sessions to resume.'));
 			} else {
 				this.notificationService.warn(localize('no edit session content for ref', 'Could not resume edit session contents for ID {0}.', ref));
@@ -325,9 +332,25 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		try {
 			const changes: ({ uri: URI; type: ChangeType; contents: string | undefined })[] = [];
 			let hasLocalUncommittedChanges = false;
+			const workspaceFolders = this.contextService.getWorkspace().folders;
 
 			for (const folder of editSession.folders) {
-				const folderRoot = this.contextService.getWorkspace().folders.find((f) => f.name === folder.name);
+				const cancellationTokenSource = new CancellationTokenSource();
+				let folderRoot: IWorkspaceFolder | undefined;
+
+				if (folder.canonicalIdentity) {
+					// Look for an edit session identifier that we can use
+					for (const f of workspaceFolders) {
+						const identity = await this.contextService.getCanonicalWorkspaceIdentifier(f.uri, cancellationTokenSource);
+						if (equals(identity, folder.canonicalIdentity)) {
+							folderRoot = f;
+							break;
+						}
+					}
+				} else {
+					folderRoot = workspaceFolders.find((f) => f.name === folder.name);
+				}
+
 				if (!folderRoot) {
 					this.logService.info(`Skipping applying ${folder.workingChanges.length} changes from edit session with ref ${ref} as no corresponding workspace folder named ${folder.name} is currently open.`);
 					return;
@@ -387,7 +410,9 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			const trackedUris = this.getChangedResources(repository); // A URI might appear in more than one resource group
 
 			const workingChanges: Change[] = [];
-			let name = repository.provider.rootUri ? this.contextService.getWorkspaceFolder(repository.provider.rootUri)?.name : undefined;
+
+			const { rootUri } = repository.provider;
+			let name = rootUri ? this.contextService.getWorkspaceFolder(rootUri)?.name : undefined;
 
 			for (const uri of trackedUris) {
 				const workspaceFolder = this.contextService.getWorkspaceFolder(uri);
@@ -418,7 +443,9 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				}
 			}
 
-			folders.push({ workingChanges, name: name ?? '' });
+			const canonicalIdentity = rootUri ? await this.contextService.getCanonicalWorkspaceIdentifier(rootUri, new CancellationTokenSource()) : undefined;
+
+			folders.push({ workingChanges, name: name ?? '', canonicalIdentity: canonicalIdentity ?? undefined });
 		}
 
 		if (!hasEdits) {
