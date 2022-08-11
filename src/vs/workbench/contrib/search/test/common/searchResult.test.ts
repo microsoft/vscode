@@ -342,36 +342,40 @@ suite('SearchResult', () => {
 		return voidPromise.then(() => assert.ok(testObject.isEmpty()));
 	});
 
-	test('batchRemove should remove all selected matches', function () {
+	test('batchRemove should trigger the onChange event correctly', function () {
 		const target = sinon.spy();
+		const testObject = getPopulatedSearchResult();
 
-		const testObject = aSearchResult();
+		const folderMatch = testObject.folderMatches()[0];
+		const fileMatch = testObject.folderMatches()[1].matches()[0];
+		const match = testObject.folderMatches()[1].matches()[1].matches()[0];
 
-		testObject.query = {
-			type: QueryType.Text,
-			contentPattern: { pattern: 'foo' },
-			folderQueries: [{
-				folder: URI.parse('file://c:/voo')
-			},
-			{ folder: URI.parse('file://c:/with') },
-			]
-		};
+		const arrayToRemove = [folderMatch, fileMatch, match];
+		const expectedArrayResult = folderMatch.matches().concat([fileMatch, match.parent()]);
 
-		testObject.add([
-			aRawMatch('file://c:/voo/foo.a',
-				new TextSearchMatch('preview 1', lineOneRange), new TextSearchMatch('preview 2', lineOneRange)),
-			aRawMatch('file://c:/with/path/bar.b',
-				new TextSearchMatch('preview 3', lineOneRange)),
-			aRawMatch('file://c:/with/path.c',
-				new TextSearchMatch('preview 4', lineOneRange), new TextSearchMatch('preview 5', lineOneRange)),
-		]);
-
-		const arrayToRemove = [testObject.folderMatches()[0].matches()[0], testObject.folderMatches()[1].matches()[0]];
-		testObject.onRefreshSearchResult(target);
+		testObject.onChange(target);
 		testObject.batchRemove(arrayToRemove);
 
 		assert.ok(target.calledOnce);
-		assert.deepStrictEqual([{ elements: arrayToRemove, removed: true, added: false }], target.args[0]);
+		assert.deepStrictEqual([{ elements: expectedArrayResult, removed: true, added: false }], target.args[0]);
+	});
+
+	test('batchReplace should trigger the onChange event correctly', function () {
+		const target = sinon.spy();
+		const testObject = getPopulatedSearchResult();
+
+		const folderMatch = testObject.folderMatches()[0];
+		const fileMatch = testObject.folderMatches()[1].matches()[0];
+		const match = testObject.folderMatches()[1].matches()[1].matches()[0];
+
+		const arrayToRemove = [folderMatch, fileMatch, match];
+		const expectedArrayResult = folderMatch.matches().concat([fileMatch, match.parent()]);
+
+		testObject.onChange(target);
+		testObject.batchReplace(arrayToRemove).then(() => {
+			assert.ok(target.calledOnce);
+			assert.deepStrictEqual([{ elements: expectedArrayResult, removed: true, added: false }], target.args[0]);
+		});
 	});
 
 	function aFileMatch(path: string, searchResult?: SearchResult, ...lineMatches: ITextSearchMatch[]): FileMatch {
@@ -396,5 +400,29 @@ suite('SearchResult', () => {
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IThemeService, new TestThemeService());
 		return instantiationService.createInstance(ModelService);
+	}
+
+	function getPopulatedSearchResult() {
+		const testObject = aSearchResult();
+
+		testObject.query = {
+			type: QueryType.Text,
+			contentPattern: { pattern: 'foo' },
+			folderQueries: [{
+				folder: URI.parse('file://c:/voo')
+			},
+			{ folder: URI.parse('file://c:/with') },
+			]
+		};
+
+		testObject.add([
+			aRawMatch('file://c:/voo/foo.a',
+				new TextSearchMatch('preview 1', lineOneRange), new TextSearchMatch('preview 2', lineOneRange)),
+			aRawMatch('file://c:/with/path/bar.b',
+				new TextSearchMatch('preview 3', lineOneRange)),
+			aRawMatch('file://c:/with/path.c',
+				new TextSearchMatch('preview 4', lineOneRange), new TextSearchMatch('preview 5', lineOneRange)),
+		]);
+		return testObject;
 	}
 });

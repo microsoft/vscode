@@ -377,7 +377,7 @@ export class SearchView extends ViewPane {
 			this.toggleQueryDetails(true, true, true);
 		}
 
-		this._register(this.viewModel.searchResult.onRefreshSearchResult((event) => this.onSearchResultsChanged(event)));
+		this._register(this.viewModel.searchResult.onChange((event) => this.onSearchResultsChanged(event)));
 
 		this._register(this.onDidChangeBodyVisibility(visible => this.onVisibilityChanged(visible)));
 	}
