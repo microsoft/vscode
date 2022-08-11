@@ -20,6 +20,8 @@ steps:
 
       git config user.email "vscode@microsoft.com"
       git config user.name "VSCode"
+
+      git remote add distro https://github.com/microsoft/vscode-distro
       git config http.https://github.com/microsoft/vscode-distro.extraheader "AUTHORIZATION: basic $basicToken"
       git fetch distro
 
