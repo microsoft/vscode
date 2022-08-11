@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Action } from 'vs/base/common/actions';
+import { Action, ActionRunner } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
@@ -19,6 +19,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
 
 const collapseIcon = registerIcon('review-comment-collapse', Codicon.chevronUp, nls.localize('collapseIcon', 'Icon to collapse a review comment.'));
 const COLLAPSE_ACTION_CLASS = 'expand-review-action ' + ThemeIcon.asClassName(collapseIcon);
@@ -36,7 +38,8 @@ export class CommentThreadHeader<T = IRange> extends Disposable {
 		private _commentMenus: CommentMenus,
 		private _commentThread: languages.CommentThread<T>,
 		private _contextKeyService: IContextKeyService,
-		private instantiationService: IInstantiationService
+		private instantiationService: IInstantiationService,
+		private _contextMenuService: IContextMenuService
 	) {
 		super();
 		this._headElement = <HTMLDivElement>dom.$('.head');
@@ -65,6 +68,10 @@ export class CommentThreadHeader<T = IRange> extends Disposable {
 		this._register(menu);
 		this._register(menu.onDidChange(e => {
 			this.setActionBarActions(menu);
+		}));
+
+		this._register(dom.addDisposableListener(this._headElement, dom.EventType.CONTEXT_MENU, e => {
+			return this.onContextMenu(e);
 		}));
 
 		this._actionbarWidget.context = this._commentThread;
@@ -102,5 +109,24 @@ export class CommentThreadHeader<T = IRange> extends Disposable {
 	updateHeight(headHeight: number) {
 		this._headElement.style.height = `${headHeight}px`;
 		this._headElement.style.lineHeight = this._headElement.style.height;
+	}
+
+	private onContextMenu(e: MouseEvent) {
+		const actions = this._commentMenus.getCommentThreadTitleContextActions(this._contextKeyService).getActions({ shouldForwardArgs: true }).map((value) => value[1]).flat();
+		if (!actions.length) {
+			return;
+		}
+		this._contextMenuService.showContextMenu({
+			getAnchor: () => e,
+			getActions: () => actions,
+			actionRunner: new ActionRunner(),
+			getActionsContext: () => {
+				return {
+					commentControlHandle: this._commentThread.controllerHandle,
+					commentThreadHandle: this._commentThread.commentThreadHandle,
+					$mid: MarshalledId.CommentThread
+				};
+			},
+		});
 	}
 }

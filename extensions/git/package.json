@@ -2716,7 +2716,7 @@
     "@vscode/extension-telemetry": "0.6.2",
     "@vscode/iconv-lite-umd": "0.7.0",
     "byline": "^5.0.0",
-    "file-type": "^7.2.0",
+    "file-type": "16.5.4",
     "jschardet": "3.0.0",
     "picomatch": "2.3.1",
     "vscode-nls": "^5.1.0",
@@ -2725,7 +2725,6 @@
   },
   "devDependencies": {
     "@types/byline": "4.2.31",
-    "@types/file-type": "^5.2.1",
     "@types/mocha": "^9.1.1",
     "@types/node": "16.x",
     "@types/picomatch": "2.3.0",

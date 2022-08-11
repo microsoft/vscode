@@ -26,6 +26,7 @@ import { IRange } from 'vs/editor/common/core/range';
 import { commentThreadStateBackgroundColorVar, commentThreadStateColorVar } from 'vs/workbench/contrib/comments/browser/commentColors';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 
@@ -60,7 +61,8 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			actionRunner: (() => void) | null;
 			collapse: () => void;
 		},
-		@ICommentService private commentService: ICommentService
+		@ICommentService private commentService: ICommentService,
+		@IContextMenuService readonly contextMenuService: IContextMenuService
 	) {
 		super();
 
@@ -77,7 +79,8 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			this._commentMenus,
 			this._commentThread,
 			this._contextKeyService,
-			this._scopedInstatiationService
+			this._scopedInstatiationService,
+			contextMenuService
 		);
 
 		this._header.updateCommentThread(this._commentThread);

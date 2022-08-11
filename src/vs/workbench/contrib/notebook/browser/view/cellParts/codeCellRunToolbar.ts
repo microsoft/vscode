@@ -39,6 +39,7 @@ export class RunToolbar extends CellPart {
 		super();
 
 		const menu = this._register(menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecutePrimary!, contextKeyService));
+		const secondaryMenu = this._register(menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecuteToolbar, contextKeyService));
 		this.createRunCellToolbar(runButtonContainer, cellContainer, contextKeyService);
 		const updateActions = () => {
 			const actions = this.getCellToolbarActions(menu);
@@ -47,6 +48,7 @@ export class RunToolbar extends CellPart {
 		};
 		updateActions();
 		this._register(menu.onDidChange(updateActions));
+		this._register(secondaryMenu.onDidChange(updateActions));
 		this._register(this.notebookEditor.notebookOptions.onDidChangeOptions(updateActions));
 	}
 
