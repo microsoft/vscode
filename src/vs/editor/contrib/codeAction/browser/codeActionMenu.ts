@@ -139,6 +139,7 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 			data.root.classList.add('group-header');
 		} else {
 			const text = element.action.label;
+			data.text.textContent = text;
 			element.isEnabled = element.action.enabled;
 
 			if (element.action instanceof CodeActionAction) {
@@ -153,26 +154,19 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 					// Icons and Label modifaction based on group
 					const group = element.action.action.kind;
 
-					if (CodeActionKind.Refactor.equals(new CodeActionKind(String(group)))) {
+					if (CodeActionKind.SurroundWith.contains(new CodeActionKind(String(group)))) {
 						data.icon.className = Codicon.symbolArray.classNames;
-						const label = text.replace(/(Surround With )*(Surround With: )*/g, '');
-						data.text.textContent = label.charAt(0).toUpperCase() + label.slice(1);
 					} else if (CodeActionKind.Extract.contains(new CodeActionKind(String(group)))) {
 						data.icon.className = Codicon.wrench.classNames;
-						data.text.textContent = text.replace('Extract to', 'To');
 					} else if (CodeActionKind.Convert.contains(new CodeActionKind(String(group)))) {
 						data.icon.className = Codicon.zap.classNames;
 						data.icon.style.color = `var(--vscode-editorLightBulbAutoFix-foreground)`;
-						const label = text.replace('Convert ', '');
-						data.text.textContent = label.charAt(0).toUpperCase() + label.slice(1);
 					} else if (CodeActionKind.QuickFix.contains(new CodeActionKind(String(group)))) {
 						data.icon.className = Codicon.lightBulb.classNames;
 						data.icon.style.color = `var(--vscode-editorLightBulb-foreground)`;
-						data.text.textContent = text;
 					} else {
 						data.icon.className = Codicon.lightBulb.classNames;
 						data.icon.style.color = `var(--vscode-editorLightBulb-foreground)`;
-						data.text.textContent = text;
 					}
 
 					// Check if action has disabled reason
@@ -330,7 +324,11 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 			getTemplateId(element) {
 				return 'codeActionWidget';
 			}
-		}, [this.listRenderer], { keyboardSupport: false }
+		}, [this.listRenderer],
+			{
+				keyboardSupport: false,
+
+			}
 		);
 
 		const pointerBlockDiv = document.createElement('div');
@@ -371,7 +369,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 			if (item instanceof CodeActionAction) {
 				const optionKind = item.action.kind;
 
-				if (CodeActionKind.Refactor.equals(new CodeActionKind(String(optionKind)))) {
+				if (CodeActionKind.SurroundWith.contains(new CodeActionKind(String(optionKind)))) {
 					surroundGroup.push(item);
 				} else if (CodeActionKind.QuickFix.contains(new CodeActionKind(String(optionKind)))) {
 					quickfixGroup.push(item);
@@ -405,7 +403,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		menuEntries.forEach(entry => {
 			if (entry.length > 0 && entry[0] instanceof CodeActionAction) {
 				const firstAction = entry[0].action.kind;
-				if (CodeActionKind.Refactor.equals(new CodeActionKind(String(firstAction)))) {
+				if (CodeActionKind.SurroundWith.contains(new CodeActionKind(String(firstAction)))) {
 					menuEntriesToPush(localize('codeAction.widget.id.surround', 'Surround With ...'), entry);
 				} else if (CodeActionKind.QuickFix.contains(new CodeActionKind(String(firstAction)))) {
 					menuEntriesToPush(localize('codeAction.widget.id.quickfix', 'Quick Fix ...'), entry);
