@@ -17,7 +17,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
 import { popup } from 'vs/base/parts/contextmenu/electron-sandbox/contextmenu';
 import { getTitleBarStyle } from 'vs/platform/window/common/window';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextMenuService as HTMLContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -116,6 +116,18 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 					} else {
 						x = elementPosition.left + elementPosition.width;
 						y = elementPosition.top;
+					}
+
+					if (!isMacintosh) {
+						const availableHeightForMenu = window.screen.height - y;
+						if (availableHeightForMenu < actions.length * (isWindows ? 45 : 32) /* guess of 1 menu item height */) {
+							// this is a guess to detect whether the context menu would
+							// open to the bottom from this point or to the top. If the
+							// menu opens to the top, make sure to align it to the bottom
+							// of the anchor and not to the top.
+							// this seems to be only necessary for Windows and Linux.
+							y += elementPosition.height;
+						}
 					}
 				} else {
 					if (delegate.anchorAlignment === AnchorAlignment.LEFT) {
