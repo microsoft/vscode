@@ -162,24 +162,25 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 					// Icons and Label modifaction based on group
 					const group = element.action.action.kind;
 
-					if (group?.startsWith(CodeActionGroupID.extract)) {
-						data.icon.className = Codicon.lightBulb.classNames;
-						data.icon.style.color = `var(--vscode-editorLightBulb-foreground)`;
-						data.text.textContent = text.replace('Extract to', 'To');
-					} else if (group?.startsWith(CodeActionGroupID.convert)) {
-						data.icon.className = Codicon.lightbulbAutofix.classNames;
-						data.icon.style.color = `var(--vscode-editorLightBulbAutoFix-foreground)`;
-						const label = text.replace('Convert ', '');
-						data.text.textContent = label.charAt(0).toUpperCase() + label.slice(1);
-					} else if (group === CodeActionGroupID.normalRefactor) {
+
+					if (CodeActionKind.Refactor.equals(new CodeActionKind(String(group)))) {
 						data.icon.className = Codicon.symbolSnippet.classNames;
 						data.icon.style.color = `var(--vscode-symbolIcon-functionForeground)`;
 						const label = text.replace(/(Surround With )*(Surround With: )*/g, '');
 						data.text.textContent = label.charAt(0).toUpperCase() + label.slice(1);
+					} else if (CodeActionKind.Extract.contains(new CodeActionKind(String(group)))) {
+						data.icon.className = Codicon.lightBulb.classNames;
+						data.icon.style.color = `var(--vscode-editorLightBulb-foreground)`;
+						data.text.textContent = text.replace('Extract to', 'To');
+					} else if (CodeActionKind.Convert.contains(new CodeActionKind(String(group)))) {
+						data.icon.className = Codicon.lightbulbAutofix.classNames;
+						data.icon.style.color = `var(--vscode-editorLightBulbAutoFix-foreground)`;
+						const label = text.replace('Convert ', '');
+						data.text.textContent = label.charAt(0).toUpperCase() + label.slice(1);
 					} else if (group === CodeActionGroupID.documentation) {
 						data.icon.className = Codicon.book.classNames;
 						data.text.textContent = text;
-					} else if (group === CodeActionGroupID.quickFix) {
+					} else if (CodeActionKind.QuickFix.contains(new CodeActionKind(String(group)))) {
 						data.icon.className = Codicon.wrench.classNames;
 						data.text.textContent = text;
 					} else {
@@ -366,74 +367,64 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		renderDisposables.add(this.codeActionList.value.onDidChangeSelection(e => this._onListSelection(e)));
 		renderDisposables.add(this._editor.onDidLayoutChange(e => this.hideCodeActionWidget()));
 
-		enum CodeActionArrayGroup {
-			quickfix = 0,
-			extract = 1,
-			convert = 2,
-			normalRefactor = 3,
-			separator = 4,
-			other = 5,
-		}
-
 		// Filters and groups code actions by their group
-		const menuEntries: IAction[][] = [[], [], [], [], [], []];
-		let groupID = 0;
+		const menuEntries: IAction[][] = [];
+
+		// Code Action Groups
+		const quickfixGroup: IAction[] = [];
+		const extractGroup: IAction[] = [];
+		const convertGroup: IAction[] = [];
+		const surroundGroup: IAction[] = [];
+		const separatorGroup: IAction[] = [];
+		const otherGroup: IAction[] = [];
+
 		inputArray.forEach((item, index) => {
 			if (item instanceof CodeActionAction) {
-				// create codea action kind from string
-				// not array, but class -> add into class
-				// TODO:
 				const optionKind = item.action.kind;
 
-				if (CodeActionKind.QuickFix.contains(new CodeActionKind(String(optionKind)))) {
-					groupID = CodeActionArrayGroup.quickfix;
-				} else if (optionKind?.startsWith(CodeActionGroupID.extract)) {
-					groupID = CodeActionArrayGroup.extract;
-				} else if (optionKind?.startsWith(CodeActionGroupID.convert)) {
-					groupID = CodeActionArrayGroup.convert;
-				} else if (optionKind === CodeActionGroupID.normalRefactor) {
-					groupID = CodeActionArrayGroup.normalRefactor;
-				} else if (item.id === `vs.actions.separator`) {
-					groupID = CodeActionArrayGroup.separator;
+				if (CodeActionKind.Refactor.equals(new CodeActionKind(String(optionKind)))) {
+					surroundGroup.push(item);
+				} else if (CodeActionKind.QuickFix.contains(new CodeActionKind(String(optionKind)))) {
+					quickfixGroup.push(item);
+				} else if (CodeActionKind.Extract.contains(new CodeActionKind(String(optionKind)))) {
+					extractGroup.push(item);
+				} else if (CodeActionKind.Convert.contains(new CodeActionKind(String(optionKind)))) {
+					convertGroup.push(item);
 				} else {
-					groupID = CodeActionArrayGroup.other;
+					otherGroup.push(item);
 				}
 
 			} else if (item.id === `vs.actions.separator`) {
-				groupID = CodeActionArrayGroup.separator;
+				separatorGroup.push(item);
 			}
-
-			menuEntries[groupID].push(item);
 		});
 
+		menuEntries.push(quickfixGroup, extractGroup, convertGroup, surroundGroup, separatorGroup, otherGroup);
+
+		const menuEntriesToPush = (menuID: string, entry: IAction[]) => {
+			totalActionEntries.push(menuID);
+			totalActionEntries.push(...entry);
+			numHeaders++;
+		};
 		// Creates flat list of all menu entries with headers as separators
 		let numHeaders = 0;
 		const totalActionEntries: (IAction | string)[] = [];
 		menuEntries.forEach(entry => {
 			if (entry.length > 0 && entry[0] instanceof CodeActionAction) {
 				const firstAction = entry[0].action.kind;
-				if (CodeActionKind.QuickFix.contains(new CodeActionKind(String(firstAction)))) {
-					totalActionEntries.push(localize('codeAction.widget.id.quickfix', 'Quickfix'));
-					totalActionEntries.push(...entry);
-					numHeaders++;
-				} else if (firstAction?.startsWith(CodeActionGroupID.extract)) {
-					totalActionEntries.push(localize('codeAction.widget.id.extract', 'Extract'));
-					totalActionEntries.push(...entry);
-					numHeaders++;
-				}
-				else if (firstAction?.startsWith(CodeActionGroupID.convert)) {
-					totalActionEntries.push(localize('codeAction.widget.id.convert', 'Convert'));
-					totalActionEntries.push(...entry);
-					numHeaders++;
-				}
-				else if (firstAction === CodeActionGroupID.normalRefactor) {
-					totalActionEntries.push(localize('codeAction.widget.id.surround', 'Surround With ...'));
-					totalActionEntries.push(...entry);
-					numHeaders++;
+				if (CodeActionKind.Refactor.equals(new CodeActionKind(String(firstAction)))) {
+					menuEntriesToPush(localize('codeAction.widget.id.surround', 'Surround With ...'), entry);
+				} else if (CodeActionKind.QuickFix.contains(new CodeActionKind(String(firstAction)))) {
+					menuEntriesToPush(localize('codeAction.widget.id.quickfix', 'Quick Fix ...'), entry);
+				} else if (CodeActionKind.Extract.contains(new CodeActionKind(String(firstAction)))) {
+					menuEntriesToPush(localize('codeAction.widget.id.extract', 'Extract ...'), entry);
+				} else if (CodeActionKind.Convert.contains(new CodeActionKind(String(firstAction)))) {
+					menuEntriesToPush(localize('codeAction.widget.id.convert', 'Convert ...'), entry);
 				} else {
 					totalActionEntries.push(...entry);
 				}
 			} else {
+				// case for separator - not a code action action
 				totalActionEntries.push(...entry);
 			}
 
@@ -607,7 +598,6 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 			return;
 		}
 		const actionsToShow = options.includeDisabledActions ? codeActions.allActions : codeActions.validActions;
-		// const actionsToShow = codeActions.validActions;
 
 		if (!actionsToShow.length) {
 			this._visible = false;
