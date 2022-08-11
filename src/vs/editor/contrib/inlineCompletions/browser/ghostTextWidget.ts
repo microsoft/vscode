@@ -13,7 +13,7 @@ import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from 'vs/ed
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { IModelDeltaDecoration, InjectedTextCursorStops, PositionAffinity } from 'vs/editor/common/model';
 import { ILanguageIdCodec } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -356,7 +356,7 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: LineData[], o
 	const fontInfo = opts.get(EditorOption.fontInfo);
 	const lineHeight = opts.get(EditorOption.lineHeight);
 
-	const sb = createStringBuilder(10000);
+	const sb = new StringBuilder(10000);
 	sb.appendASCIIString('<div class="suggest-preview-text">');
 
 	for (let i = 0, len = lines.length; i < len; i++) {

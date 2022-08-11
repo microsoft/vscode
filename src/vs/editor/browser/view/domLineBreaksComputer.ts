@@ -5,7 +5,7 @@
 
 import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { createStringBuilder, IStringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
@@ -72,7 +72,7 @@ function createLineBreaks(requests: string[], fontInfo: FontInfo, tabSize: numbe
 	const containerDomNode = document.createElement('div');
 	applyFontInfo(containerDomNode, fontInfo);
 
-	const sb = createStringBuilder(10000);
+	const sb = new StringBuilder(10000);
 	const firstNonWhitespaceIndices: number[] = [];
 	const wrappedTextIndentLengths: number[] = [];
 	const renderLineContents: string[] = [];
@@ -182,7 +182,7 @@ const enum Constants {
 	SPAN_MODULO_LIMIT = 16384
 }
 
-function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: number, width: number, sb: IStringBuilder, wrappingIndentLength: number): [number[], number[]] {
+function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: number, width: number, sb: StringBuilder, wrappingIndentLength: number): [number[], number[]] {
 
 	if (wrappingIndentLength !== 0) {
 		const hangingOffset = String(wrappingIndentLength);

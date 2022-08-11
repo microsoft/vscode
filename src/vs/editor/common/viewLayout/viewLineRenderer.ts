@@ -6,7 +6,7 @@
 import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
 import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { IStringBuilder, createStringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { LineDecoration, LineDecorationsNormalizer } from 'vs/editor/common/viewLayout/lineDecorations';
 import { InlineDecorationType } from 'vs/editor/common/viewModel';
 import { LinePart, LinePartMetadata } from 'vs/editor/common/viewLayout/linePart';
@@ -348,7 +348,7 @@ export class RenderLineOutput {
 	}
 }
 
-export function renderViewLine(input: RenderLineInput, sb: IStringBuilder): RenderLineOutput {
+export function renderViewLine(input: RenderLineInput, sb: StringBuilder): RenderLineOutput {
 	if (input.lineContent.length === 0) {
 
 		if (input.lineDecorations.length > 0) {
@@ -410,7 +410,7 @@ export class RenderLineOutput2 {
 }
 
 export function renderViewLine2(input: RenderLineInput): RenderLineOutput2 {
-	const sb = createStringBuilder(10000);
+	const sb = new StringBuilder(10000);
 	const out = renderViewLine(input, sb);
 	return new RenderLineOutput2(out.characterMapping, sb.build(), out.containsRTL, out.containsForeignElements);
 }
@@ -904,7 +904,7 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: LineP
  * This function is on purpose not split up into multiple functions to allow runtime type inference (i.e. performance reasons).
  * Notice how all the needed data is fully resolved and passed in (i.e. no other calls).
  */
-function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): RenderLineOutput {
+function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderLineOutput {
 	const fontIsMonospace = input.fontIsMonospace;
 	const canUseHalfwidthRightwardsArrow = input.canUseHalfwidthRightwardsArrow;
 	const containsForeignElements = input.containsForeignElements;
