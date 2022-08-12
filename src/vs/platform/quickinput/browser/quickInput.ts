@@ -231,16 +231,16 @@ export class QuickInputService extends Themable implements IQuickInputService {
 		};
 	}
 
-	formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, storageService: IStorageService, callback?: () => Promise<void>): void {
+	formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, storageService: IStorageService, reopenQuickpick?: boolean): void {
 		quickPick.onDidTriggerItemButton((e) => {
-			if (e.button.iconClass === ThemeIcon.asClassName(Codicon.pin) || e.button.iconClass !== ThemeIcon.asClassName(Codicon.pinned)) {
-				this._formatPinnedItems(storageKey, quickPick, storageService, callback, e);
+			if (e.button.iconClass === ThemeIcon.asClassName(Codicon.pin) || e.button.iconClass === ThemeIcon.asClassName(Codicon.pinned)) {
+				this._formatPinnedItems(storageKey, quickPick, storageService, reopenQuickpick, e);
 			}
 		});
-		this._formatPinnedItems(storageKey, quickPick, storageService, callback);
+		this._formatPinnedItems(storageKey, quickPick, storageService, reopenQuickpick);
 	}
 
-	private async _formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, storageService: IStorageService, callback?: () => Promise<void>, event?: IQuickPickItemButtonEvent<IQuickPickItem>): Promise<void> {
+	private async _formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, storageService: IStorageService, reopenQuickpick?: boolean, event?: IQuickPickItemButtonEvent<IQuickPickItem>): Promise<void> {
 		const formattedItems: (IQuickPickItem | IQuickPickSeparator)[] = [];
 		const labels = this._getPinnedLabels(storageKey, storageService);
 		const pinnedLabels = event ? this._updatePinned(storageKey, event.item.label, storageService, new Set(labels).has(event.item.label)) : labels;
@@ -256,12 +256,16 @@ export class QuickInputService extends Themable implements IQuickInputService {
 			formattedItems.push({ type: 'separator', label: localize("terminal.commands.pinned", 'Pinned') });
 		}
 
-		for (const item of quickPick.items.filter(i => !!i.label)) {
-			this._updateButtons(item, true);
+		for (const item of quickPick.items) {
+			if (item.type !== 'separator') {
+				this._updateButtons(item, true);
+			}
 			formattedItems.push(item);
 		}
 		quickPick.items = formattedItems;
-		quickPick.show();
+		if (reopenQuickpick) {
+			quickPick.show();
+		}
 	}
 
 	private _updateButtons(item: IQuickPickItem | IQuickPickSeparator, removePin: boolean): void {
@@ -269,28 +273,16 @@ export class QuickInputService extends Themable implements IQuickInputService {
 			return;
 		}
 		item.buttons = item.buttons ? item.buttons?.filter(b => b.iconClass !== ThemeIcon.asClassName(Codicon.pin) && b.iconClass !== ThemeIcon.asClassName(Codicon.pinned)) : [];
-		if (item.buttons.length) {
-			item.buttons.unshift({
-				iconClass: removePin ? ThemeIcon.asClassName(Codicon.pin) : ThemeIcon.asClassName(Codicon.pinned),
-				tooltip: removePin ? localize('pinCommand', "Pin command") : localize('pinnedCommand', "Pinned command"),
-				alwaysVisible: false
-			});
-		} else {
-			item.buttons.push({
-				iconClass: removePin ? ThemeIcon.asClassName(Codicon.pin) : ThemeIcon.asClassName(Codicon.pinned),
-				tooltip: removePin ? localize('pinCommand', "Pin command") : localize('pinnedCommand', "Pinned command"),
-				alwaysVisible: false
-			});
-		}
+		item.buttons.unshift({
+			iconClass: removePin ? ThemeIcon.asClassName(Codicon.pin) : ThemeIcon.asClassName(Codicon.pinned),
+			tooltip: removePin ? localize('pinCommand', "Pin command") : localize('pinnedCommand', "Pinned command"),
+			alwaysVisible: false
+		});
 	}
 
 	private _updatePinned(storageKey: string, label: string, storageService: IStorageService, removePin: boolean): string[] {
-		let pinnedLabels = this._getPinnedLabels(storageKey, storageService);
-		const set = new Set(pinnedLabels);
-		if (removePin) {
-			set.delete(label);
-			pinnedLabels = Array.from(set);
-		} else if (!set.has(label)) {
+		const pinnedLabels = this._getPinnedLabels(storageKey, storageService).filter(l => l !== label);
+		if (!removePin) {
 			pinnedLabels.push(label);
 		}
 		storageService.store(storageKey, JSON.stringify(pinnedLabels), StorageScope.WORKSPACE, StorageTarget.USER);

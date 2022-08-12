@@ -100,5 +100,5 @@ export interface IQuickInputService {
 	 * Formats quick pick items to be pinnable
 	 * with a sticky pinned category at the top
 	 */
-	formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, storageService: IStorageService, callback?: () => Promise<void>): void;
+	formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, storageService: IStorageService, reopenQuickpick?: boolean): void;
 }

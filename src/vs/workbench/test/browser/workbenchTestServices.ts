@@ -1906,7 +1906,7 @@ export class TestQuickInputService implements IQuickInputService {
 	accept(): Promise<void> { throw new Error('not implemented.'); }
 	back(): Promise<void> { throw new Error('not implemented.'); }
 	cancel(): Promise<void> { throw new Error('not implemented.'); }
-	formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, storageService: IStorageService, callback?: (() => void) | undefined, item?: IQuickPickItem | undefined): void { throw new Error('Method not implemented.'); }
+	formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, storageService: IStorageService, reopenQuickpick?: boolean): void { throw new Error('Method not implemented.'); }
 }
 
 class TestLanguageDetectionService implements ILanguageDetectionService {
