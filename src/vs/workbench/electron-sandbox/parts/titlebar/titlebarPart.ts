@@ -22,6 +22,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { Codicon } from 'vs/base/common/codicons';
 import { NativeMenubarControl } from 'vs/workbench/electron-sandbox/parts/titlebar/menubarControl';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
+import { localize } from 'vs/nls';
 
 export class TitlebarPart extends BrowserTitleBarPart {
 	private maxRestoreControl: HTMLElement | undefined;
@@ -62,7 +64,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService hostService: IHostService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@IHoverService hoverService: IHoverService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super(contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, menuService, contextKeyService, hostService, hoverService);
 
@@ -168,10 +170,24 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		// Window Controls (Native Windows/Linux)
 		const hasWindowControlsOverlay = typeof (navigator as any).windowControlsOverlay !== 'undefined';
 		if (!isMacintosh && getTitleBarStyle(this.configurationService) !== 'native' && !hasWindowControlsOverlay && this.windowControls) {
+			const hoverOptions = {
+				hoverPosition: HoverPosition.BELOW,
+				showPointer: false,
+				//compact: true,
+				//forcePosition: true,
+			};
 			// Minimize
 			const minimizeIcon = append(this.windowControls, $('div.window-icon.window-minimize' + Codicon.chromeMinimize.cssSelector));
 			this._register(addDisposableListener(minimizeIcon, EventType.CLICK, e => {
 				this.nativeHostService.minimizeWindow();
+			}));
+
+			this._register(addDisposableListener(minimizeIcon, EventType.MOUSE_OVER, e => {
+				this.hoverService.showHover({
+					...hoverOptions,
+					target: minimizeIcon,
+					content: localize('window.minimize', 'Minimize'),
+				}, false);
 			}));
 
 			// Restore
@@ -184,11 +200,26 @@ export class TitlebarPart extends BrowserTitleBarPart {
 
 				return this.nativeHostService.maximizeWindow();
 			}));
+			this._register(addDisposableListener(this.maxRestoreControl, EventType.MOUSE_OVER, async e => {
+				const maximized = await this.nativeHostService.isMaximized();
+				this.hoverService.showHover({
+					...hoverOptions,
+					target: this.maxRestoreControl!, // FIXME: maxRestoreControl can be undefined, is this an issue?
+					content: maximized ? localize('window.maximize', 'Maximize') : localize('window.restore', 'Restore'),
+				});
+			}));
 
 			// Close
 			const closeIcon = append(this.windowControls, $('div.window-icon.window-close' + Codicon.chromeClose.cssSelector));
 			this._register(addDisposableListener(closeIcon, EventType.CLICK, e => {
 				this.nativeHostService.closeWindow();
+			}));
+			this._register(addDisposableListener(closeIcon, EventType.MOUSE_OVER, e => {
+				this.hoverService.showHover({
+					...hoverOptions,
+					target: closeIcon,
+					content:localize ('window.close', 'Close'),
+				});
 			}));
 
 			// Resizer
