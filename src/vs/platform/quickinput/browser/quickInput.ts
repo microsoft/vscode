@@ -232,7 +232,11 @@ export class QuickInputService extends Themable implements IQuickInputService {
 	}
 
 	formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, storageService: IStorageService, callback?: () => Promise<void>): void {
-		quickPick.onDidTriggerItemButton((e) => { this._formatPinnedItems(storageKey, quickPick, storageService, callback, e); });
+		quickPick.onDidTriggerItemButton((e) => {
+			if (e.button.iconClass === ThemeIcon.asClassName(Codicon.pin) || e.button.iconClass !== ThemeIcon.asClassName(Codicon.pinned)) {
+				this._formatPinnedItems(storageKey, quickPick, storageService, callback, e);
+			}
+		});
 		this._formatPinnedItems(storageKey, quickPick, storageService, callback);
 	}
 
@@ -252,7 +256,7 @@ export class QuickInputService extends Themable implements IQuickInputService {
 			formattedItems.push({ type: 'separator', label: localize("terminal.commands.pinned", 'Pinned') });
 		}
 
-		for (const item of quickPick.items.filter(i => i.type === 'item')) {
+		for (const item of quickPick.items.filter(i => !!i.label)) {
 			this._updateButtons(item, true);
 			formattedItems.push(item);
 		}
