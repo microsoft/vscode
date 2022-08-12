@@ -97,8 +97,9 @@ export interface IQuickInputService {
 	cancel(): Promise<void>;
 
 	/**
-	 * Formats quick pick items to be pinnable
-	 * with a sticky pinned category at the top
+	 * Initially, adds pin buttons to all @param quickPick items.
+	 * When pinned, a copy of the item will be moved to the end of the pinned list and any duplicate within the pinned list will
+	 * be removed. Pin and pinned button events trigger updates to the underlying storage.
 	 */
 	formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, storageService: IStorageService, reopenQuickpick?: boolean): void;
 }
