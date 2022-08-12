@@ -23,14 +23,16 @@ export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 		}
 
 		this.env = {
+			DISPLAY: process.env.DISPLAY || '1',
 			GIT_ASKPASS: path.join(__dirname, this.ipc ? 'askpass.sh' : 'askpass-empty.sh'),
+			SSH_ASKPASS: path.join(__dirname, this.ipc ? 'askpass.sh' : 'askpass-empty.sh'),
 			VSCODE_GIT_ASKPASS_NODE: process.execPath,
 			VSCODE_GIT_ASKPASS_EXTRA_ARGS: (process.versions['electron'] && process.versions['microsoft-build']) ? '--ms-enable-electron-run-as-node' : '',
 			VSCODE_GIT_ASKPASS_MAIN: path.join(__dirname, 'askpass-main.js'),
 		};
 	}
 
-	async handle({ request, host }: { request: string; host: string }): Promise<string> {
+	async handle({ request, data }: { request: string; data: string }): Promise<string> {
 		const config = workspace.getConfiguration('git', null);
 		const enabled = config.get<boolean>('enabled');
 
@@ -38,34 +40,40 @@ export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 			return '';
 		}
 
-		const uri = Uri.parse(host);
-		const authority = uri.authority.replace(/^.*@/, '');
+		const username = /username/i.test(request);
 		const password = /password/i.test(request);
-		const cached = this.cache.get(authority);
+		const passphrase = /passphrase/i.test(request);
 
-		if (cached && password) {
-			this.cache.delete(authority);
-			return cached.password;
-		}
+		if (username || password) {
+			// HTTPS (Username/Password)
+			const uri = Uri.parse(data);
+			const authority = uri.authority.replace(/^.*@/, '');
+			const cached = this.cache.get(authority);
 
-		if (!password) {
-			for (const credentialsProvider of this.credentialsProviders) {
-				try {
-					const credentials = await credentialsProvider.getCredentials(uri);
+			if (cached && password) {
+				this.cache.delete(authority);
+				return cached.password;
+			}
 
-					if (credentials) {
-						this.cache.set(authority, credentials);
-						setTimeout(() => this.cache.delete(authority), 60_000);
-						return credentials.username;
-					}
-				} catch { }
+			if (username) {
+				for (const credentialsProvider of this.credentialsProviders) {
+					try {
+						const credentials = await credentialsProvider.getCredentials(uri);
+
+						if (credentials) {
+							this.cache.set(authority, credentials);
+							setTimeout(() => this.cache.delete(authority), 60_000);
+							return credentials.username;
+						}
+					} catch { }
+				}
 			}
 		}
 
 		const options: InputBoxOptions = {
-			password,
+			password: password || passphrase,
 			placeHolder: request,
-			prompt: `Git: ${host}`,
+			prompt: passphrase ? `SSH Key: ${data}` : `Git: ${data}`,
 			ignoreFocusOut: true
 		};
 

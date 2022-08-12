@@ -16,7 +16,7 @@ function fatal(err: any): void {
 }
 
 function main(argv: string[]): void {
-	if (argv.length !== 5) {
+	if (argv.length !== 5 && argv.length !== 7) {
 		return fatal('Wrong number of arguments');
 	}
 
@@ -29,11 +29,13 @@ function main(argv: string[]): void {
 	}
 
 	const output = process.env['VSCODE_GIT_ASKPASS_PIPE'] as string;
-	const request = argv[2];
-	const host = argv[4].replace(/^["']+|["':]+$/g, '');
-	const ipcClient = new IPCClient('askpass');
 
-	ipcClient.call({ request, host }).then(res => {
+	const askpass = argv.length === 5 ? 'https' : 'ssh';
+	const request = askpass === 'https' ? argv[2] : argv[3];
+	const data = (askpass === 'https' ? argv[4] : argv[6]).replace(/^["']+|["':]+$/g, '');
+
+	const ipcClient = new IPCClient('askpass');
+	ipcClient.call({ request, data }).then(res => {
 		fs.writeFileSync(output, res + '\n');
 		setTimeout(() => process.exit(0), 0);
 	}).catch(err => fatal(err));
