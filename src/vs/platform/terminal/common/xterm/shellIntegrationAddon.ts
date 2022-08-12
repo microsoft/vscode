@@ -17,6 +17,8 @@ import type { ITerminalAddon, Terminal } from 'xterm-headless';
 import { ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Emitter } from 'vs/base/common/event';
+import { URI } from 'vs/base/common/uri';
+
 
 /**
  * Shell integration is a feature that enhances the terminal's understanding of what's happening
@@ -420,6 +422,9 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		return false;
 	}
 
+	/**
+	 * Handles the sequence: `OSC 7 ; scheme://cwd ST`
+	 */
 	private _doHandleSetCwd(data: string): boolean {
 		if (!this._terminal) {
 			return false;
@@ -427,13 +432,14 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 
 		const [command] = data.split(';');
 
-		// Checking for: `OSC 7 ; scheme://cwd ST`
-		if (command.startsWith('scheme://')) {
-			// TODO: I'm not sure `scheme` here is literal or can be `file` or something else.
-			// TODO: Possibly the path is URL-encoded, but I have no means to test it.
-			const cwd = command.substring(9);
-			this._updateCwd(cwd);
-			return true;
+		// We need to manually make sure the given URI is not merely `file://` because The `URI.parse` handles it
+		// exactly as it handles `file:///` (which is a valid URI for us here).
+		if (command.startsWith('file://') && command.length > 7) {
+			const uri = URI.parse(command);
+			if (uri.path && uri.path.length > 0) {
+				this._updateCwd(uri.path);
+				return true;
+			}
 		}
 
 		// Unrecognized sequence
@@ -499,3 +505,4 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		return { key, value };
 	}
 }
+
