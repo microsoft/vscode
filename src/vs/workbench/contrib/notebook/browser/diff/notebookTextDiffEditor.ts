@@ -864,6 +864,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		this._modifiedResourceDisposableStore.clear();
 		this._list?.splice(0, this._list?.length || 0);
 		this._model = null;
+		this._diffElementViewModels.forEach(vm => vm.dispose());
 		this._diffElementViewModels = [];
 	}
 
@@ -968,6 +969,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	override dispose() {
 		this._isDisposed = true;
 		this._layoutCancellationTokenSource?.dispose();
+		this._detachModel();
 		super.dispose();
 	}
 }
