@@ -921,8 +921,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				items.unshift({
 					label: formatLabel(executingCommand),
 					rawLabel: executingCommand,
-					description: cmdDetection.cwd,
-					buttons: []
+					description: cmdDetection.cwd
 				});
 			}
 			if (items.length > 0) {
@@ -958,8 +957,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				if (!commandMap.has(label)) {
 					dedupedShellFileItems.unshift({
 						label: formatLabel(label),
-						rawLabel: label,
-						buttons: []
+						rawLabel: label
 					});
 				}
 			}
@@ -1034,7 +1032,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					this._instantiationService.invokeFunction(getDirectoryHistory)?.remove(e.item.label);
 				}
 				quickPick.hide();
-			} else if (e.button !== ThemeIcon.asClassName(Codicon.pin) && e.button !== ThemeIcon.asClassName(Codicon.pinned)) {
+			} else if (e.button.iconClass === ThemeIcon.asClassName(Codicon.output)) {
 				const selectedCommand = (e.item as Item).command;
 				const output = selectedCommand?.getOutput();
 				if (output && selectedCommand?.command) {
