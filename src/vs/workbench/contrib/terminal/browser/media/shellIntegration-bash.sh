@@ -8,12 +8,6 @@ if [[ -n "$VSCODE_SHELL_INTEGRATION" ]]; then
 	builtin return
 fi
 
-__vsc_dbg_trap="$(trap -p DEBUG)"
-if [[ "$__vsc_dbg_trap" =~ .*\[\[.* ]]; then
-	#https://github.com/microsoft/vscode/issues/157851
-	builtin return;
-fi
-
 VSCODE_SHELL_INTEGRATION=1
 
 # Run relevant rc/profile only if shell integration has been injected, not when run manually
@@ -41,6 +35,12 @@ fi
 
 if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 	builtin return
+fi
+
+# Return for complex debug traps to avoid
+# issues like https://github.com/microsoft/vscode/issues/157851
+if [[ "$(trap -p DEBUG)" =~ .*\[\[.* ]]; then
+	builtin return;
 fi
 
 # Send the IsWindows property if the environment looks like Windows
