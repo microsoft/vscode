@@ -360,7 +360,7 @@ suite('SearchResult', () => {
 		assert.deepStrictEqual([{ elements: expectedArrayResult, removed: true, added: false }], target.args[0]);
 	});
 
-	test('batchReplace should trigger the onChange event correctly', function () {
+	test('batchReplace should trigger the onChange event correctly', async function () {
 		const target = sinon.spy();
 		const testObject = getPopulatedSearchResult();
 
@@ -372,10 +372,10 @@ suite('SearchResult', () => {
 		const expectedArrayResult = folderMatch.matches().concat([fileMatch, match.parent()]);
 
 		testObject.onChange(target);
-		testObject.batchReplace(arrayToRemove).then(() => {
-			assert.ok(target.calledOnce);
-			assert.deepStrictEqual([{ elements: expectedArrayResult, removed: true, added: false }], target.args[0]);
-		});
+		await testObject.batchReplace(arrayToRemove);
+		assert.ok(target.calledOnce);
+		assert.deepStrictEqual([{ elements: expectedArrayResult, removed: true, added: false }], target.args[0]);
+
 	});
 
 	function aFileMatch(path: string, searchResult?: SearchResult, ...lineMatches: ITextSearchMatch[]): FileMatch {

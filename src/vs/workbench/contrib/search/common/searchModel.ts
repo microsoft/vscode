@@ -585,13 +585,9 @@ export class FolderMatch extends Disposable {
 		});
 	}
 
-	replaceGroup(matches: FileMatch[]): Promise<any> {
-		return this.replaceService.replace(matches).then(() => this.doRemove(matches, true, true));
-	}
-
 	replaceAll(): Promise<any> {
 		const matches = this.matches();
-		return this.replaceGroup(matches);
+		return this.batchReplace(matches);
 	}
 
 	matches(): FileMatch[] {
@@ -608,6 +604,11 @@ export class FolderMatch extends Disposable {
 
 	count(): number {
 		return this.matches().reduce<number>((prev, match) => prev + match.count(), 0);
+	}
+
+	private async batchReplace(matches: FileMatch[]): Promise<any> {
+		this.replaceService.replace(matches);
+		this.doRemove(matches, true, true);
 	}
 
 	private onFileChange(fileMatch: FileMatch, removed = false): void {
@@ -806,9 +807,9 @@ export class SearchResult extends Disposable {
 				}
 
 				if (elem instanceof FileMatch) {
-					elem.parent().replace(elem);
+					await elem.parent().replace(elem);
 				} else if (elem instanceof Match) {
-					elem.parent().replace(elem);
+					await elem.parent().replace(elem);
 				} else if (elem instanceof FolderMatch) {
 					await elem.replaceAll();
 				}
