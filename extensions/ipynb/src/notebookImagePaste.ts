@@ -94,7 +94,7 @@ class CopyPasteEditProvider implements vscode.DocumentPasteEditProvider {
 	}
 }
 
-export function imagePasteSetup() {
+export function notebookImagePasteSetup() {
 	const selector: vscode.DocumentSelector = { notebookType: 'jupyter-notebook', language: 'markdown' }; // this is correct provider
 	return vscode.languages.registerDocumentPasteEditProvider(selector, new CopyPasteEditProvider(), {
 		pasteMimeTypes: ['image/png'],
