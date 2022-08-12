@@ -7,7 +7,7 @@ import { Terminal } from 'xterm';
 import { strictEqual, deepStrictEqual } from 'assert';
 import { timeout } from 'vs/base/common/async';
 import * as sinon from 'sinon';
-import { ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
+import { parseKeyValueAssignment, ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
@@ -195,5 +195,25 @@ suite('ShellIntegrationAddon', () => {
 			await writeP(xterm, '\x1b]633;P;Cwd=/foo\x07');
 			mock.verify();
 		});
+	});
+});
+
+test('parseKeyValueAssignment', () => {
+	type TestCase = [title: string, input: string, expected: [key: string, value: string | undefined]];
+	const cases: TestCase[] = [
+		['empty', '', ['', undefined]],
+		['no "=" sign', 'some-text', ['some-text', undefined]],
+		['empty value', 'key=', ['key', '']],
+		['empty key', '=value', ['', 'value']],
+		['normal', 'key=value', ['key', 'value']],
+		['multiple "=" signs (1)', 'key==value', ['key', '=value']],
+		['multiple "=" signs (2)', 'key=value===true', ['key', 'value===true']],
+		['just a "="', '=', ['', '']],
+		['just a "=="', '==', ['', '=']],
+	];
+
+	cases.forEach(x => {
+		const [title, input, [key, value]] = x;
+		deepStrictEqual(parseKeyValueAssignment(input), { key, value }, title);
 	});
 });
