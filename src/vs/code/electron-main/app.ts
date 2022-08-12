@@ -693,7 +693,8 @@ export class CodeApplication extends Disposable {
 		}
 
 		// Default Extensions Profile Init
-		services.set(IDefaultExtensionsProfileInitService, ProxyChannel.toService(getDelayedChannel(sharedProcessReady.then(client => client.getChannel('IDefaultExtensionsProfileInitService')))));
+		services.set(IExtensionsProfileScannerService, new SyncDescriptor(ExtensionsProfileScannerService));
+		services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService));
 
 		// Init services that require it
 		await backupMainService.initialize();
