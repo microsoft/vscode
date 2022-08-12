@@ -16,21 +16,11 @@ import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { QuickAccessController } from 'vs/platform/quickinput/browser/quickAccess';
 import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
-import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
+import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { activeContrastBorder, badgeBackground, badgeForeground, buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, keybindingLabelBackground, keybindingLabelBorder, keybindingLabelBottomBorder, keybindingLabelForeground, pickerGroupBorder, pickerGroupForeground, progressBarBackground, quickInputBackground, quickInputForeground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusIconForeground, quickInputTitleBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { computeStyles } from 'vs/platform/theme/common/styler';
 import { IThemeService, Themable, ThemeIcon } from 'vs/platform/theme/common/themeService';
-
-export const pinButton: IQuickInputButton = {
-	iconClass: ThemeIcon.asClassName(Codicon.pin),
-	tooltip: localize('pinCommand', "Pin command"),
-	alwaysVisible: false
-};
-export const pinnedButton: IQuickInputButton = {
-	iconClass: ThemeIcon.asClassName(Codicon.pinned),
-	tooltip: localize('pinnedCommand', "Pinned command"),
-	alwaysVisible: false
-};
 
 export interface IQuickInputControllerHost extends ILayoutService { }
 
@@ -239,5 +229,73 @@ export class QuickInputService extends Themable implements IQuickInputService {
 				pickerGroupForeground
 			})
 		};
+	}
+
+	formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, storageService: IStorageService, callback?: () => Promise<void>): void {
+		quickPick.onDidTriggerItemButton((e) => { this._formatPinnedItems(storageKey, quickPick, storageService, callback, e); });
+		this._formatPinnedItems(storageKey, quickPick, storageService, callback);
+	}
+
+	private async _formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, storageService: IStorageService, callback?: () => Promise<void>, event?: IQuickPickItemButtonEvent<IQuickPickItem>): Promise<void> {
+		const formattedItems: (IQuickPickItem | IQuickPickSeparator)[] = [];
+		const p = this._getPinnedLabels(storageKey, storageService);
+		const pinnedLabels = event ? this._updatePinnedStorage(storageKey, event.item!.label, storageService, new Set(p).has(event.item.label)) : this._getPinnedLabels(storageKey, storageService);
+		for (const label of pinnedLabels) {
+			const item = quickPick.items.find(i => i.label === label);
+			if (item) {
+				const itemB = Object.assign({}, item);
+				this._updateButtons(itemB, false);
+				formattedItems.push(itemB);
+			}
+		}
+		if (formattedItems.length) {
+			formattedItems.push({ type: 'separator', label: localize("terminal.commands.pinned", 'Pinned') });
+		}
+
+		for (const item of quickPick.items.filter(i => !!i?.label)) {
+			this._updateButtons(item, true);
+			formattedItems.push(item);
+		}
+		quickPick.items = formattedItems;
+		quickPick.show();
+	}
+
+	private _updateButtons(item: IQuickPickItem | IQuickPickSeparator, removePin: boolean): void {
+		if (item.type === 'separator') {
+			return;
+		}
+		item.buttons = item.buttons ? item.buttons?.filter(b => b.iconClass !== ThemeIcon.asClassName(Codicon.pin) && b.iconClass !== ThemeIcon.asClassName(Codicon.pinned)) : [];
+		if (item.buttons.length) {
+			item.buttons.unshift({
+				iconClass: removePin ? ThemeIcon.asClassName(Codicon.pin) : ThemeIcon.asClassName(Codicon.pinned),
+				tooltip: removePin ? localize('pinCommand', "Pin command") : localize('pinnedCommand', "Pinned command"),
+				alwaysVisible: false
+			});
+		} else {
+			item.buttons.push({
+				iconClass: removePin ? ThemeIcon.asClassName(Codicon.pin) : ThemeIcon.asClassName(Codicon.pinned),
+				tooltip: removePin ? localize('pinCommand', "Pin command") : localize('pinnedCommand', "Pinned command"),
+				alwaysVisible: false
+			});
+		}
+
+	}
+
+	private _updatePinnedStorage(storageKey: string, label: string, storageService: IStorageService, removePin: boolean): string[] {
+		let pinnedLabels = this._getPinnedLabels(storageKey, storageService);
+		if (removePin) {
+			const set = new Set(pinnedLabels);
+			set.delete(label);
+			pinnedLabels = Array.from(set);
+		} else if (!new Set(pinnedLabels).has(label)) {
+			pinnedLabels.push(label);
+		}
+		storageService.store(storageKey, JSON.stringify(pinnedLabels), StorageScope.WORKSPACE, StorageTarget.USER);
+		return pinnedLabels;
+	}
+
+	private _getPinnedLabels(storageKey: string, storageService: IStorageService): string[] {
+		const items = storageService.get(storageKey, StorageScope.WORKSPACE);
+		return items ? JSON.parse(items) : [];
 	}
 }

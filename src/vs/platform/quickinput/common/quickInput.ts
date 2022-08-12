@@ -8,6 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInputButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, QuickPickInput } from 'vs/base/parts/quickinput/common/quickInput';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export * from 'vs/base/parts/quickinput/common/quickInput';
 
@@ -94,4 +95,14 @@ export interface IQuickInputService {
 	 * Cancels quick input and closes it.
 	 */
 	cancel(): Promise<void>;
+
+	/**
+	 * TODO:
+	 * @param storageKey
+	 * @param pinnedItems
+	 * @param quickPick
+	 * @param storageService
+	 * @param callback
+	 */
+	formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, storageService: IStorageService, callback?: () => Promise<void>, item?: IQuickPickItem): void;
 }

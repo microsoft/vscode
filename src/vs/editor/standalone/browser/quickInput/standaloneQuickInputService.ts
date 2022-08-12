@@ -19,6 +19,7 @@ import { QuickInputController } from 'vs/base/parts/quickinput/browser/quickInpu
 import { QuickInputService, IQuickInputControllerHost } from 'vs/platform/quickinput/browser/quickInput';
 import { once } from 'vs/base/common/functional';
 import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export class EditorScopedQuickInputService extends QuickInputService {
 
@@ -95,6 +96,9 @@ export class StandaloneQuickInputService implements IQuickInputService {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
 	) {
+	}
+	formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, storageService: IStorageService, callback?: () => Promise<void>): void {
+		return this.activeService.formatPinnedItems(storageKey, quickPick, storageService, callback);
 	}
 
 	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options: O = <O>{}, token: CancellationToken = CancellationToken.None): Promise<(O extends { canPickMany: true } ? T[] : T) | undefined> {
