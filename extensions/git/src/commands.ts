@@ -2694,6 +2694,15 @@ export class CommandCenter {
 
 	@command('git.ignore')
 	async ignore(...resourceStates: SourceControlResourceState[]): Promise<void> {
+		await this.ignoreBase(false, ...resourceStates);
+	}
+
+	@command('git.ignoreClosest')
+	async ignoreClosest(...resourceStates: SourceControlResourceState[]): Promise<void> {
+		await this.ignoreBase(true, ...resourceStates);
+	}
+
+	private async ignoreBase(closest: boolean, ...resourceStates: SourceControlResourceState[]): Promise<void> {
 		resourceStates = resourceStates.filter(s => !!s);
 
 		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
@@ -2714,7 +2723,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await this.runByRepository(resources, async (repository, resources) => repository.ignore(resources));
+		await this.runByRepository(resources, async (repository, resources) => repository.ignore(resources, closest));
 	}
 
 	@command('git.revealInExplorer')

@@ -487,6 +487,11 @@
         "category": "Git"
       },
       {
+        "command": "git.ignoreClosest",
+        "title": "%command.ignoreClosest%",
+        "category": "Git"
+      },
+      {
         "command": "git.revealInExplorer",
         "title": "%command.revealInExplorer%",
         "category": "Git"
@@ -959,6 +964,10 @@
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourceScheme == file && scmActiveResourceRepository"
         },
         {
+          "command": "git.ignoreClosest",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourceScheme == file && scmActiveResourceRepository"
+        },
+        {
           "command": "git.stashIncludeUntracked",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
@@ -1240,6 +1249,11 @@
           "group": "1_modification@3"
         },
         {
+          "command": "git.ignoreClosest",
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "1_modification@4"
+        },
+        {
           "command": "git.stage",
           "when": "scmProvider == git && scmResourceGroup == untracked",
           "group": "1_modification"
@@ -1263,6 +1277,11 @@
           "command": "git.ignore",
           "when": "scmProvider == git && scmResourceGroup == untracked",
           "group": "1_modification@3"
+        },
+        {
+          "command": "git.ignoreClosest",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "1_modification@4"
         }
       ],
       "scm/resourceState/context": [
@@ -1417,6 +1436,11 @@
           "group": "1_modification@3"
         },
         {
+          "command": "git.ignoreClosest",
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "1_modification@4"
+        },
+        {
           "command": "git.revealInExplorer",
           "when": "scmProvider == git && scmResourceGroup == workingTree",
           "group": "2_view@1"
@@ -1485,6 +1509,11 @@
           "command": "git.ignore",
           "when": "scmProvider == git && scmResourceGroup == untracked",
           "group": "1_modification@3"
+        },
+        {
+          "command": "git.ignoreClosest",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "1_modification@4"
         }
       ],
       "editor/title": [

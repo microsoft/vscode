@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as picomatch from 'picomatch';
-import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, Tab, TabInputTextDiff, TabInputNotebookDiff, RelativePattern } from 'vscode';
+import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, Tab, TabInputTextDiff, TabInputNotebookDiff, RelativePattern, TextDocument } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
 import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status, CommitOptions, BranchQuery, FetchOptions } from './api/git';
@@ -1689,14 +1689,40 @@ export class Repository implements Disposable {
 		return await this.run(Operation.GetCommitTemplate, async () => this.repository.getCommitTemplate());
 	}
 
-	async ignore(files: Uri[]): Promise<void> {
-		return await this.run(Operation.Ignore, async () => {
-			const ignoreFile = `${this.repository.root}${path.sep}.gitignore`;
-			const textToAppend = files
-				.map(uri => relativePath(this.repository.root, uri.fsPath).replace(/\\/g, '/'))
-				.join('\n');
+	async ignore(files: Uri[], relative?: boolean): Promise<void> {
+		let document: TextDocument;
 
-			const document = await new Promise(c => fs.exists(ignoreFile, c))
+		const getRelativeGitIgnoreFilePath = (ignorePath: string) => {
+			let relPath = ignorePath.substring(0, ignorePath.lastIndexOf(path.sep));
+			return `${relPath}${path.sep}`;
+		}
+
+		const gitIgnoreFilePath = async (index: number): Promise<string> => {
+			let rootGitIgnore = `${this.repository.root}${path.sep}`;
+			if (relative) {
+				let ignorePath = getRelativeGitIgnoreFilePath(files[index].fsPath);
+				for (document = await new Promise(c => fs.exists(ignorePath, c)); !document;) {
+					ignorePath = getRelativeGitIgnoreFilePath(ignorePath);
+					if (ignorePath === this.repository.root) {
+						return rootGitIgnore;
+					}
+				}
+				return ignorePath;
+			}
+			return rootGitIgnore;
+		};
+
+		const gitIgnoreFileSearch = async (index: number): Promise<void> => {
+			const ignoreFilePath = await gitIgnoreFilePath(index);
+			const ignoreFile = `${ignoreFilePath}.gitignore`;
+
+			const textToAppend = relative
+				? relativePath(ignoreFilePath, files[index].fsPath).replace(/\\/g, '/')
+				: files
+					.map(uri => relativePath(this.repository.root, uri.fsPath).replace(/\\/g, '/'))
+					.join('\n');
+
+			document = await new Promise(c => fs.exists(ignoreFile, c))
 				? await workspace.openTextDocument(ignoreFile)
 				: await workspace.openTextDocument(Uri.file(ignoreFile).with({ scheme: 'untitled' }));
 
@@ -1709,6 +1735,13 @@ export class Repository implements Disposable {
 			edit.insert(document.uri, lastLine.range.end, text);
 			await workspace.applyEdit(edit);
 			await document.save();
+		};
+
+		return await this.run(Operation.Ignore, async () => {
+			let length = relative ? files.length : 1;
+			for (let index = 0; index < length; index++) {
+				gitIgnoreFileSearch(index);
+			}
 		});
 	}
 

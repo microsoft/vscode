@@ -81,6 +81,7 @@
 	"command.publish": "Publish Branch...",
 	"command.showOutput": "Show Git Output",
 	"command.ignore": "Add to .gitignore",
+	"command.ignoreClosest": "Add to closest .gitignore",
 	"command.revealInExplorer": "Reveal in Explorer View",
 	"command.revealFileInOS.linux": "Open Containing Folder",
 	"command.revealFileInOS.mac": "Reveal in Finder",
