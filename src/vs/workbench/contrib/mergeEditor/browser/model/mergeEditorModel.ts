@@ -10,7 +10,7 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModel, ITextSnapshot } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { IDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
+import { IMergeDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 import { DetailedLineRangeMapping, DocumentMapping, LineRangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
 import { TextModelDiffChangeReason, TextModelDiffs, TextModelDiffState } from 'vs/workbench/contrib/mergeEditor/browser/model/textModelDiffs';
@@ -120,7 +120,23 @@ export class MergeEditorModel extends EditorModel {
 		);
 	});
 
-	readonly resultSnapshot: ITextSnapshot;
+	private readonly resultSnapshot: ITextSnapshot;
+
+	public getInitialResultValue(): string {
+		const chunks: string[] = [];
+		while (true) {
+			const chunk = this.resultSnapshot.read();
+			if (chunk === null) {
+				break;
+			}
+			chunks.push(chunk);
+		}
+		return chunks.join();
+	}
+
+	public discardMergeChanges(): void {
+		this.result.setValue(this.getInitialResultValue());
+	}
 
 	constructor(
 		readonly base: ITextModel,
@@ -133,7 +149,7 @@ export class MergeEditorModel extends EditorModel {
 		readonly input2Detail: string | undefined,
 		readonly input2Description: string | undefined,
 		readonly result: ITextModel,
-		private readonly diffComputer: IDiffComputer,
+		private readonly diffComputer: IMergeDiffComputer,
 		options: { resetUnknownOnInitialization: boolean },
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,

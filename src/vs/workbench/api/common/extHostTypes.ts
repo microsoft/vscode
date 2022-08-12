@@ -2448,8 +2448,11 @@ export class TreeItem {
 			return false;
 		}
 		if ((treeItemThing.iconPath !== undefined) && !isString(treeItemThing.iconPath) && !URI.isUri(treeItemThing.iconPath) && !isString((treeItemThing.iconPath as vscode.ThemeIcon).id)) {
-			console.log('INVALID tree item, invalid iconPath', treeItemThing.iconPath);
-			return false;
+			const asLightAndDarkThing = treeItemThing.iconPath as { light: string | URI; dark: string | URI };
+			if (!isString(asLightAndDarkThing.light) && !URI.isUri(asLightAndDarkThing.light) && !isString(asLightAndDarkThing.dark) && !URI.isUri(asLightAndDarkThing.dark)) {
+				console.log('INVALID tree item, invalid iconPath', treeItemThing.iconPath);
+				return false;
+			}
 		}
 		if ((treeItemThing.description !== undefined) && !isString(treeItemThing.description) && (typeof treeItemThing.description !== 'boolean')) {
 			console.log('INVALID tree item, invalid description', treeItemThing.description);

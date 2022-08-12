@@ -27,7 +27,7 @@ export class TerminalNativeContribution extends Disposable implements IWorkbench
 	) {
 		super();
 
-		ipcRenderer.on('vscode:openFiles', (_: unknown, request: INativeOpenFileRequest) => this._onOpenFileRequest(request));
+		ipcRenderer.on('vscode:openFiles', (_: unknown, request: INativeOpenFileRequest) => { this._onOpenFileRequest(request); });
 		this._register(nativeHostService.onDidResumeOS(() => this._onOsResume()));
 
 		this._terminalService.setNativeDelegate({
