@@ -276,6 +276,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			renderOverviewRuler: true,
 			diffWordWrap: 'inherit',
 			diffAlgorithm: 'smart',
+			openFolderDefaultPath: ''
 		});
 
 		if (typeof options.isInEmbeddedEditor !== 'undefined') {
@@ -2711,6 +2712,7 @@ function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaul
 		renderOverviewRuler: validateBooleanOption(options.renderOverviewRuler, defaults.renderOverviewRuler),
 		diffWordWrap: validateDiffWordWrap(options.diffWordWrap, defaults.diffWordWrap),
 		diffAlgorithm: validateStringSetOption(options.diffAlgorithm, defaults.diffAlgorithm, ['smart', 'experimental']),
+		openFolderDefaultPath: options.openFolderDefaultPath || '',
 	};
 }
 
@@ -2728,6 +2730,7 @@ function changedDiffEditorOptions(a: ValidDiffEditorBaseOptions, b: ValidDiffEdi
 		renderOverviewRuler: (a.renderOverviewRuler !== b.renderOverviewRuler),
 		diffWordWrap: (a.diffWordWrap !== b.diffWordWrap),
 		diffAlgorithm: (a.diffAlgorithm !== b.diffAlgorithm),
+		openFolderDefaultPath: (a.openFolderDefaultPath !== b.openFolderDefaultPath),
 	};
 }
 
