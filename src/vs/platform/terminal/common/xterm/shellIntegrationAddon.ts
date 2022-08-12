@@ -432,9 +432,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 
 		const [command] = data.split(';');
 
-		// We need to manually make sure the given URI is not merely `file://` because The `URI.parse` handles it
-		// exactly as it handles `file:///` (which is a valid URI for us here).
-		if (command.startsWith('file://') && command.length > 7) {
+		if (command.match(/^file:\/\/.*\//)) {
 			const uri = URI.parse(command);
 			if (uri.path && uri.path.length > 0) {
 				this._updateCwd(uri.path);
