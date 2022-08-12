@@ -2537,7 +2537,7 @@ export interface EditorExperimentalOptions {
 class EditorExperimental extends BaseEditorOption<EditorOption.experimental, IEditorExperimentalOptions, EditorExperimentalOptions> {
 
 	constructor() {
-		const defaults: EditorExperimentalOptions = { stickyScroll: { enabled: false, numberLines: 10 } };
+		const defaults: EditorExperimentalOptions = { stickyScroll: { enabled: false, numberLines: 5 } };
 		super(
 			EditorOption.experimental, 'experimental', defaults,
 			{
@@ -2549,12 +2549,11 @@ class EditorExperimental extends BaseEditorOption<EditorOption.experimental, IEd
 				'editor.experimental.stickyScroll.numberLines': {
 					type: 'number',
 					default: defaults.stickyScroll.numberLines,
-					enum: [1, 5, 10, 15],
+					enum: [1, 5, 10],
 					enumDescriptions: [
 						nls.localize('minimap.size.1', "Render maximum 1 line in the sticky scroll widget"),
 						nls.localize('minimap.size.5', "Render maximum 5 lines in the sticky scroll widget"),
 						nls.localize('minimap.size.10', "Render maximum 10 lines in the sticky scroll widget"),
-						nls.localize('minimap.size.15', "Render maximum 15 lines in the sticky scroll widget"),
 					],
 					description: nls.localize('editor.experimental.stickyScroll.', "Defines the number of sticky lines to show.")
 				},
@@ -2570,7 +2569,7 @@ class EditorExperimental extends BaseEditorOption<EditorOption.experimental, IEd
 		return {
 			stickyScroll: {
 				enabled: boolean(input.stickyScroll?.enabled, this.defaultValue.stickyScroll.enabled),
-				numberLines: EditorIntOption.clampedInt(input.stickyScroll?.numberLines, this.defaultValue.stickyScroll.numberLines, 1, 15),
+				numberLines: EditorIntOption.clampedInt(input.stickyScroll?.numberLines, this.defaultValue.stickyScroll.numberLines, 1, 10),
 			}
 		};
 	}

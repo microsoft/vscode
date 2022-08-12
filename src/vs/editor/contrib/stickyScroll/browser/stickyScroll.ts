@@ -89,22 +89,8 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 			// Old _ranges not updated yet
 			return;
 		}
-		const widgetState = this.getScrollWidgetState();
-		this.stickyScrollWidget.setState(widgetState);
-		this.editor._getViewModel().stickyWidgetHeight = this.updateWidgetMeasures(widgetState);
+		this.stickyScrollWidget.setState(this.getScrollWidgetState());
 	}
-
-	public updateWidgetMeasures(state: StickyScrollWidgetState): number {
-		const lineHeight: number = this.editor.getOption(EditorOption.lineHeight);
-		let widgetHeight;
-		if (state.lineNumbers.length > 0) {
-			widgetHeight = lineHeight * (state.lineNumbers.length - 1) + lineHeight + state.lastLineRelativePosition;
-		} else {
-			widgetHeight = 0;
-		}
-		return widgetHeight;
-	}
-
 
 	private getScrollWidgetState(): StickyScrollWidgetState {
 		const lineHeight: number = this.editor.getOption(EditorOption.lineHeight);
