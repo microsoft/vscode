@@ -23,9 +23,9 @@ export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 		}
 
 		this.env = {
-			DISPLAY: process.env.DISPLAY || '1',
 			GIT_ASKPASS: path.join(__dirname, this.ipc ? 'askpass.sh' : 'askpass-empty.sh'),
 			SSH_ASKPASS: path.join(__dirname, this.ipc ? 'askpass.sh' : 'askpass-empty.sh'),
+			SSH_ASKPASS_REQUIRE: 'force',
 			VSCODE_GIT_ASKPASS_NODE: process.execPath,
 			VSCODE_GIT_ASKPASS_EXTRA_ARGS: (process.versions['electron'] && process.versions['microsoft-build']) ? '--ms-enable-electron-run-as-node' : '',
 			VSCODE_GIT_ASKPASS_MAIN: path.join(__dirname, 'askpass-main.js'),
