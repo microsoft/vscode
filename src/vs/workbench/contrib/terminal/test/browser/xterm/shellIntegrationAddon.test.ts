@@ -113,6 +113,21 @@ suite('ShellIntegrationAddon', () => {
 				});
 			});
 		});
+
+		test('detect `SetWindowsFrindlyCwd` sequence: `OSC 9 ; 9 ; <cwd> ST`', async () => {
+			type TestCase = [title: string, input: string, expected: string];
+			const cases: TestCase[] = [
+				['root', '/', '/'],
+				['non-root', '/some/path', '/some/path'],
+			];
+			for (const x of cases) {
+				const [title, input, expected] = x;
+				const mock = shellIntegrationAddon.getCwdDectionMock();
+				mock.expects('updateCwd').once().withExactArgs(expected).named(title);
+				await writeP(xterm, `\x1b]9;9;${input}\x07`);
+				mock.verify();
+			}
+		});
 	});
 
 	suite('command tracking', async () => {
