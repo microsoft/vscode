@@ -788,40 +788,40 @@ wrappy@1:
   resolved "https://registry.yarnpkg.com/wrappy/-/wrappy-1.0.2.tgz#b5243d8f3ec1aa35f1364605bc0d1036e30ab69f"
   integrity sha1-tSQ9jz7BqjXxNkYFvA0QNuMKtp8=
 
-xterm-addon-canvas@0.2.0-beta.15:
-  version "0.2.0-beta.15"
-  resolved "https://registry.yarnpkg.com/xterm-addon-canvas/-/xterm-addon-canvas-0.2.0-beta.15.tgz#de863e46410b1de357b153abf1984227777760e4"
-  integrity sha512-E1pNCDSVTINchwWLysZ9ZD/BPv1WLGV52xRHB00US1PHHELbhtvms+6dZ44WZEDXhtfpptRZ1VBx+QpvfJIuvw==
+xterm-addon-canvas@0.2.0-beta.17:
+  version "0.2.0-beta.17"
+  resolved "https://registry.yarnpkg.com/xterm-addon-canvas/-/xterm-addon-canvas-0.2.0-beta.17.tgz#e84a86530b20bd3edcce16b4566f346cd186ab4d"
+  integrity sha512-2ukPdCA92VTFYQRE56ylzvI3cfaQYDWd/Mc4jlEItI6sV/EA5RnUbbP+2sFIx0JlmHK6nVYXXNY2p6QRB7MRew==
 
-xterm-addon-search@0.10.0-beta.3:
-  version "0.10.0-beta.3"
-  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.10.0-beta.3.tgz#5194434d86105637c71f6f20139a9d0b5c1a956a"
-  integrity sha512-UeGm/ymnp7HUYJJtsP0D+bljOWbdk3MctcLJ+0jv8AmU6YlAzJFtouvYSQrD5SAMyht5CRsvjzFgqic9X02JYg==
+xterm-addon-search@0.10.0-beta.5:
+  version "0.10.0-beta.5"
+  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.10.0-beta.5.tgz#a2cb16bda4ddf8783b80433155ad94f5822271f8"
+  integrity sha512-kjog7cm1iEZ2XyQFVs3KAvoI2pKoX0cq2WWjL0FuXYXpKQ9vXmfrWSR7PiJ6zpTIRvr6UtaSGKhmZVHLNA79WA==
 
-xterm-addon-serialize@0.8.0-beta.3:
-  version "0.8.0-beta.3"
-  resolved "https://registry.yarnpkg.com/xterm-addon-serialize/-/xterm-addon-serialize-0.8.0-beta.3.tgz#47ade3fedacbb75bd26e63cfe0120586623e0e4f"
-  integrity sha512-gvfempZCYuAhLqN4O6fA2TuoavPjOxFKlh8hLcOzPackiLUhwKr1jQpDXcnq8VgqUiGgb+XNZpPEbI0Q7EhTgA==
+xterm-addon-serialize@0.8.0-beta.5:
+  version "0.8.0-beta.5"
+  resolved "https://registry.yarnpkg.com/xterm-addon-serialize/-/xterm-addon-serialize-0.8.0-beta.5.tgz#3d2f3be173f4f1c31ae7bf25179e8ecddf2b33b2"
+  integrity sha512-rkSUaO1XBcy3ipScZMA5PrOKu/DfXo8XC/V7hZlhMiBNbZKlbk2rFb3X0FB1f07hw7oEkHLjuIJEY5Qtxfe9/w==
 
-xterm-addon-unicode11@0.4.0-beta.3:
-  version "0.4.0-beta.3"
-  resolved "https://registry.yarnpkg.com/xterm-addon-unicode11/-/xterm-addon-unicode11-0.4.0-beta.3.tgz#f350184155fafd5ad0d6fbf31d13e6ca7dea1efa"
-  integrity sha512-FryZAVwbUjKTmwXnm1trch/2XO60F5JsDvOkZhzobV1hm10sFLVuZpFyHXiUx7TFeeFsvNP+S77LAtWoeT5z+Q==
+xterm-addon-unicode11@0.4.0-beta.5:
+  version "0.4.0-beta.5"
+  resolved "https://registry.yarnpkg.com/xterm-addon-unicode11/-/xterm-addon-unicode11-0.4.0-beta.5.tgz#3900e66f10d2e506133b61d7421aab6878d32665"
+  integrity sha512-+g+fuxAd/tkCEJ/jhdnebXKtdPrhsu4VKWNnB/3qM35GbuGQOasmYFYnKL+HYZMpbQ6YqeZcXTVg/wnCTttz0g==
 
-xterm-addon-webgl@0.13.0-beta.32:
-  version "0.13.0-beta.32"
-  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.13.0-beta.32.tgz#ae7335f788ae611733e03f6ca38280ab7b86d212"
-  integrity sha512-xOudNzYXaRh9QZ+IigXM5EB3bM8l3/F8F35EpJRYvvsylVxiB6Km8X8l7+nxlWt+uYdnHZs0ka2rvtL8kOP/uw==
+xterm-addon-webgl@0.13.0-beta.35:
+  version "0.13.0-beta.35"
+  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.13.0-beta.35.tgz#98b5dc102583120de25c7c6e0f35cd34ab6bef98"
+  integrity sha512-powgeb3ifEZK7zWwLJuE8YRz/Z0UzDrrVA9NTx9mH7+vWxrGt9ZgroychoeCqZBvKMofiUM5vlf1oWdSmsMfzw==
 
 xterm-headless@5.0.0-beta.5:
   version "5.0.0-beta.5"
   resolved "https://registry.yarnpkg.com/xterm-headless/-/xterm-headless-5.0.0-beta.5.tgz#e29b6c5081f31f887122b7263ba996b0c46b3c22"
   integrity sha512-CMQ1+prBNF92oBMeZzc2rfTcmOaCGfwwSaoPYNTjyziZT6mZsEg7amajYkb0YAnqJ29MFm4kPGZbU78/dX4k2A==
 
-xterm@5.0.0-beta.32:
-  version "5.0.0-beta.32"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-5.0.0-beta.32.tgz#62bb9902429c0055fd2fd85c9eecfbf1756ed31c"
-  integrity sha512-OAM1GaBs/chK63Cr86XbVhfVCLLXLpNxxFrv3RK9xoyb9dwiY3gaMxK9jeGzTnrbGLWJb+k5nxaC0rx2YsHvUA==
+xterm@5.0.0-beta.35:
+  version "5.0.0-beta.35"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-5.0.0-beta.35.tgz#3bbf5780c98aaaa6476e7590dff1d8f5014fce9d"
+  integrity sha512-tzJTel1E/FmB0VQDb44xApVB+ln+BifIbHD4V9x9Z3D9m1cMmPHy8J8efdILkn1TxXGlCl7VC35nG122Qq5exw==
 
 yallist@^4.0.0:
   version "4.0.0"

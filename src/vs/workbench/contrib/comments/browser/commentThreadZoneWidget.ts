@@ -49,7 +49,7 @@ export function parseMouseDownInfoFromEvent(e: IEditorMouseEvent) {
 	const gutterOffsetX = data.offsetX - data.glyphMarginWidth - data.lineNumbersWidth - data.glyphMarginLeft;
 
 	// don't collide with folding and git decorations
-	if (gutterOffsetX > 14) {
+	if (gutterOffsetX > 20) {
 		return null;
 	}
 

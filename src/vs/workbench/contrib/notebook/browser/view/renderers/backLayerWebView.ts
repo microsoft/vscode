@@ -34,7 +34,7 @@ import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/w
 import { asWebviewUri, webviewGenericCspSource } from 'vs/workbench/common/webview';
 import { CellEditState, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IFocusNotebookCellOptions, IGenericCellViewModel, IInsetRenderOutput, INotebookEditorCreationOptions, INotebookWebviewMessage, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NOTEBOOK_WEBVIEW_BOUNDARY } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
-import { preloadsScriptStr, RendererMetadata } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
+import { preloadsScriptStr } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
 import { transformWebviewThemeVars } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewThemeMapping';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { CellUri, INotebookRendererInfo, NotebookSetting, RendererMessagingSpec } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -45,7 +45,7 @@ import { IWebviewElement, IWebviewService, WebviewContentPurpose } from 'vs/work
 import { WebviewWindowDragMonitor } from 'vs/workbench/contrib/webview/browser/webviewWindowDragMonitor';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { FromWebviewMessage, IAckOutputHeight, IClickedDataUrlMessage, ICodeBlockHighlightRequest, IContentWidgetTopRequest, IControllerPreload, ICreationContent, ICreationRequestMessage, IFindMatch, IMarkupCellInitialization, ToWebviewMessage } from './webviewMessages';
+import { FromWebviewMessage, IAckOutputHeight, IClickedDataUrlMessage, ICodeBlockHighlightRequest, IContentWidgetTopRequest, IControllerPreload, ICreationContent, ICreationRequestMessage, IFindMatch, IMarkupCellInitialization, RendererMetadata, ToWebviewMessage } from './webviewMessages';
 
 export interface ICachedInset<K extends ICommonCellInfo> {
 	outputId: string;
@@ -900,16 +900,7 @@ var requirejs = (function() {
 	}
 
 	private _createInset(webviewService: IWebviewService, content: string) {
-		const workspaceFolders = this.contextService.getWorkspace().folders.map(x => x.uri);
-		const notebookDir = this.getNotebookBaseUri();
-
-		this.localResourceRootsCache = [
-			...this.notebookService.getNotebookProviderResourceRoots(),
-			...this.notebookService.getRenderers().map(x => dirname(x.entrypoint)),
-			...workspaceFolders,
-			notebookDir,
-			...this.getBuiltinLocalResourceRoots(),
-		];
+		this.localResourceRootsCache = this._getResourceRootsCache();
 		const webview = webviewService.createWebviewElement({
 			id: this.id,
 			options: {
@@ -927,6 +918,18 @@ var requirejs = (function() {
 
 		webview.html = content;
 		return webview;
+	}
+
+	private _getResourceRootsCache() {
+		const workspaceFolders = this.contextService.getWorkspace().folders.map(x => x.uri);
+		const notebookDir = this.getNotebookBaseUri();
+		return [
+			...this.notebookService.getNotebookProviderResourceRoots(),
+			...this.notebookService.getRenderers().map(x => dirname(x.entrypoint)),
+			...workspaceFolders,
+			notebookDir,
+			...this.getBuiltinLocalResourceRoots()
+		];
 	}
 
 	private initializeWebViewState() {
@@ -1168,25 +1171,37 @@ var requirejs = (function() {
 		await p;
 	}
 
+	/**
+	 * Validate if cached inset is out of date and require a rerender
+	 * Note that it doesn't account for output content change.
+	 */
+	private _cachedInsetEqual(cachedInset: ICachedInset<T>, content: IInsetRenderOutput) {
+		if (content.type === RenderOutputType.Extension) {
+			// Use a new renderer
+			return cachedInset.renderer?.id === content.renderer.id;
+		} else {
+			// The new renderer is the default HTML renderer
+			return cachedInset.cachedCreation.type === 'html';
+		}
+	}
+
 	async createOutput(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number) {
 		if (this._disposed) {
 			return;
 		}
 
-		if (this.insetMapping.has(content.source)) {
-			const outputCache = this.insetMapping.get(content.source);
+		const cachedInset = this.insetMapping.get(content.source);
 
-			if (outputCache) {
-				this.hiddenInsetMapping.delete(content.source);
-				this._sendMessageToWebview({
-					type: 'showOutput',
-					cellId: outputCache.cellInfo.cellId,
-					outputId: outputCache.outputId,
-					cellTop: cellTop,
-					outputOffset: offset
-				});
-				return;
-			}
+		if (cachedInset && this._cachedInsetEqual(cachedInset, content)) {
+			this.hiddenInsetMapping.delete(content.source);
+			this._sendMessageToWebview({
+				type: 'showOutput',
+				cellId: cachedInset.cellInfo.cellId,
+				outputId: cachedInset.outputId,
+				cellTop: cellTop,
+				outputOffset: offset
+			});
+			return;
 		}
 
 		const messageBase = {
@@ -1405,6 +1420,25 @@ var requirejs = (function() {
 			removedClassNames: removed
 		});
 
+	}
+
+	updateOutputRenderers() {
+		if (!this.webview) {
+			return;
+		}
+
+		const renderersData = this.getRendererData();
+		this.localResourceRootsCache = this._getResourceRootsCache();
+		const mixedResourceRoots = [
+			...(this.localResourceRootsCache || []),
+			...(this._currentKernel ? [this._currentKernel.localResourceRoot] : []),
+		];
+
+		this.webview.localResourcesRoot = mixedResourceRoots;
+		this._sendMessageToWebview({
+			type: 'updateRenderers',
+			rendererData: renderersData
+		});
 	}
 
 	async updateKernelPreloads(kernel: INotebookKernel | undefined) {

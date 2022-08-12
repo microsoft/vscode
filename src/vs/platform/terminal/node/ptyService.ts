@@ -376,6 +376,7 @@ export class PtyService extends Disposable implements IPtyService {
 	private async _expandTerminalInstance(t: ITerminalInstanceLayoutInfoById): Promise<IRawTerminalInstanceLayoutInfo<IProcessDetails | null>> {
 		try {
 			const revivedPtyId = this._revivedPtyIdMap.get(t.terminal)?.newId;
+			this._revivedPtyIdMap.delete(t.terminal);
 			const persistentProcessId = revivedPtyId ?? t.terminal;
 			const persistentProcess = this._throwIfNoPty(persistentProcessId);
 			const processDetails = persistentProcess && await this._buildProcessDetails(t.terminal, persistentProcess, revivedPtyId !== undefined);
