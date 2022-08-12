@@ -13,7 +13,7 @@ import { StickyScrollWidget, StickyScrollWidgetState } from './stickyScrollWidge
 import { StickyLineCandidateProvider, StickyRange } from './stickyScrollProvider';
 import { IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
 
-class StickyScrollController extends Disposable implements IEditorContribution {
+export class StickyScrollController extends Disposable implements IEditorContribution {
 
 	static readonly ID = 'store.contrib.stickyScrollController';
 	private readonly editor: ICodeEditor;

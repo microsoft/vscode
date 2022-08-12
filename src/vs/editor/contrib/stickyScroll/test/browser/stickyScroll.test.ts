@@ -2,7 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import * as assert from 'assert';
+import { ITestCodeEditor, withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { StickyScrollController } from 'vs/editor/contrib/stickyScroll/browser/stickyScroll';
 
 suite('Sticky Scroll Tests', () => {
 
@@ -13,8 +15,9 @@ suite('Sticky Scroll Tests', () => {
 			'var z = (3 * 5)',
 		], {}, (editor) => {
 
-			// const findController = editor.registerAndInstantiateContribution(CommonFindController.ID, CommonFindController);
-			// findController.dispose();
+			const stickyScrollController = editor.registerAndInstantiateContribution(StickyScrollController.ID, StickyScrollController);
+
+			stickyScrollController.dispose();
 		});
 	});
 });
