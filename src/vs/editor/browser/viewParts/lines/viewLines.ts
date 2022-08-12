@@ -162,7 +162,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 
 		// sticky scroll widget
 		this._stickyScrollEnabled = options.get(EditorOption.experimental).stickyScroll.enabled;
-		this._maxNumberStickyLines = options.get(EditorOption.experimental).stickyScroll.numberLines;
+		this._maxNumberStickyLines = options.get(EditorOption.experimental).stickyScroll.maxLineCount;
 	}
 
 	public override dispose(): void {
@@ -207,7 +207,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 
 		// sticky scroll
 		this._stickyScrollEnabled = options.get(EditorOption.experimental).stickyScroll.enabled;
-		this._maxNumberStickyLines = options.get(EditorOption.experimental).stickyScroll.numberLines;
+		this._maxNumberStickyLines = options.get(EditorOption.experimental).stickyScroll.maxLineCount;
 
 		applyFontInfo(this.domNode, fontInfo);
 
@@ -680,22 +680,30 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 
 		const shouldIgnoreScrollOff = (source === 'mouse' || minimalReveal) && this._cursorSurroundingLinesStyle === 'default';
 
+		let paddingTop: number = 0;
+		let paddingBottom: number = 0;
+
 		if (!shouldIgnoreScrollOff) {
 			const context = Math.min((viewportHeight / this._lineHeight) / 2, this._cursorSurroundingLines);
-			boxStartY -= context * this._lineHeight;
-			boxEndY += Math.max(0, (context - 1)) * this._lineHeight;
+			if (this._stickyScrollEnabled) {
+				paddingTop = Math.max(context, this._maxNumberStickyLines) * this._lineHeight;
+			} else {
+				paddingTop = context * this._lineHeight;
+			}
+			paddingBottom = Math.max(0, (context - 1)) * this._lineHeight;
 		} else {
 			if (!minimalReveal) {
 				// Reveal one more line above (this case is hit when dragging)
-				boxStartY -= this._lineHeight;
+				paddingTop = this._lineHeight;
 			}
 		}
-
 		if (verticalType === viewEvents.VerticalRevealType.Simple || verticalType === viewEvents.VerticalRevealType.Bottom) {
 			// Reveal one line more when the last line would be covered by the scrollbar - arrow down case or revealing a line explicitly at bottom
-			boxEndY += (minimalReveal ? this._horizontalScrollbarHeight : this._lineHeight);
+			paddingBottom += (minimalReveal ? this._horizontalScrollbarHeight : this._lineHeight);
 		}
 
+		boxStartY -= paddingTop;
+		boxEndY += paddingBottom;
 		let newScrollTop: number;
 
 		if (boxEndY - boxStartY > viewportHeight) {
@@ -731,10 +739,6 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 			newScrollTop = this._computeMinimumScrolling(viewportStartY, viewportEndY, boxStartY, boxEndY, verticalType === viewEvents.VerticalRevealType.Top, verticalType === viewEvents.VerticalRevealType.Bottom);
 		}
 
-		const scrollTopLineNumber = Math.ceil(newScrollTop / this._lineHeight);
-		if (this._stickyScrollEnabled && range && range?.startLineNumber - scrollTopLineNumber <= this._maxNumberStickyLines) {
-			return newScrollTop + this._lineHeight * (range?.startLineNumber - scrollTopLineNumber - this._maxNumberStickyLines - 1);
-		}
 		return newScrollTop;
 	}
 
