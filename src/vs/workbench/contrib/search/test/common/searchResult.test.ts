@@ -37,7 +37,7 @@ suite('SearchResult', () => {
 		instantiationService.stub(IModelService, stubModelService(instantiationService));
 		instantiationService.stub(IUriIdentityService, new UriIdentityService(new FileService(new NullLogService())));
 		instantiationService.stubPromise(IReplaceService, {});
-		instantiationService.stubPromise(IReplaceService, 'replace', null);
+		instantiationService.stub(IReplaceService, 'replace', () => Promise.resolve(null));
 		instantiationService.stub(ILabelService, new MockLabelService());
 	});
 
@@ -361,6 +361,16 @@ suite('SearchResult', () => {
 	});
 
 	test('batchReplace should trigger the onChange event correctly', async function () {
+		const replaceSpy = sinon.spy();
+		instantiationService.stub(IReplaceService, 'replace', (arg: any) => {
+			if (Array.isArray(arg)) {
+				replaceSpy(arg[0]);
+			} else {
+				replaceSpy(arg);
+			}
+			return Promise.resolve();
+		});
+
 		const target = sinon.spy();
 		const testObject = getPopulatedSearchResult();
 
@@ -368,14 +378,18 @@ suite('SearchResult', () => {
 		const fileMatch = testObject.folderMatches()[1].matches()[0];
 		const match = testObject.folderMatches()[1].matches()[1].matches()[0];
 
+		const firstExpectedMatch = folderMatch.matches()[0];
+
 		const arrayToRemove = [folderMatch, fileMatch, match];
-		const expectedArrayResult = folderMatch.matches().concat([fileMatch, match.parent()]);
 
 		testObject.onChange(target);
 		await testObject.batchReplace(arrayToRemove);
-		assert.ok(target.calledOnce);
-		assert.deepStrictEqual([{ elements: expectedArrayResult, removed: true, added: false }], target.args[0]);
 
+		assert.ok(target.calledOnce);
+		sinon.assert.calledThrice(replaceSpy);
+		sinon.assert.calledWith(replaceSpy.firstCall, firstExpectedMatch);
+		sinon.assert.calledWith(replaceSpy.secondCall, fileMatch);
+		sinon.assert.calledWith(replaceSpy.thirdCall, match);
 	});
 
 	function aFileMatch(path: string, searchResult?: SearchResult, ...lineMatches: ITextSearchMatch[]): FileMatch {
