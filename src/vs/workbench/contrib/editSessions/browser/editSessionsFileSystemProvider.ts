@@ -7,7 +7,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileDeleteOptions, IFileOverwriteOptions, IFileSystemProviderWithFileReadCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
-import { decodeEditSessionFileContent, EDIT_SESSIONS_SCHEME, IEditSessionsWorkbenchService } from 'vs/workbench/contrib/editSessions/common/editSessions';
+import { ChangeType, decodeEditSessionFileContent, EDIT_SESSIONS_SCHEME, IEditSessionsWorkbenchService } from 'vs/workbench/contrib/editSessions/common/editSessions';
 
 export class EditSessionsFileSystemProvider implements IFileSystemProviderWithFileReadCapability {
 
@@ -29,11 +29,11 @@ export class EditSessionsFileSystemProvider implements IFileSystemProviderWithFi
 		if (!data) {
 			throw FileSystemProviderErrorCode.FileNotFound;
 		}
-		const content = data?.editSession.folders.find((f) => f.name === folderName)?.workingChanges.find((change) => change.relativeFilePath === filePath)?.contents;
-		if (!content) {
+		const change = data?.editSession.folders.find((f) => f.name === folderName)?.workingChanges.find((change) => change.relativeFilePath === filePath);
+		if (!change || change.type === ChangeType.Deletion) {
 			throw FileSystemProviderErrorCode.FileNotFound;
 		}
-		return decodeEditSessionFileContent(data.editSession.version, content).buffer;
+		return decodeEditSessionFileContent(data.editSession.version, change.contents).buffer;
 	}
 
 	async stat(resource: URI): Promise<IStat> {
