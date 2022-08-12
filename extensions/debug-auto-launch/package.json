@@ -33,7 +33,7 @@
     ]
   },
   "dependencies": {
-    "vscode-nls": "^5.1.0"
+    "vscode-nls": "5.0.1"
   },
   "devDependencies": {
     "@types/node": "16.x"
