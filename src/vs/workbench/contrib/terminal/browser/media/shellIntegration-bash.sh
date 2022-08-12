@@ -8,6 +8,12 @@ if [[ -n "$VSCODE_SHELL_INTEGRATION" ]]; then
 	builtin return
 fi
 
+__vsc_dbg_trap="$(trap -p DEBUG)"
+if [[ "$__vsc_dbg_trap" =~ .*\[\[.* ]]; then
+	#https://github.com/microsoft/vscode/issues/157851
+	builtin return;
+fi
+
 VSCODE_SHELL_INTEGRATION=1
 
 # Run relevant rc/profile only if shell integration has been injected, not when run manually
@@ -129,13 +135,7 @@ if [[ -n "${bash_preexec_imported:-}" ]]; then
 	precmd_functions+=(__vsc_prompt_cmd)
 	preexec_functions+=(__vsc_preexec_only)
 else
-	__vsc_dbg_trap="$(trap -p DEBUG)"
-	if [[ "$__vsc_dbg_trap" =~ .*\[\[.* ]]; then
-		#https://github.com/microsoft/vscode/issues/157851
-		builtin return;
-	else
-		__vsc_dbg_trap="$(trap -p DEBUG | cut -d' ' -f3 | tr -d \')"
-	fi
+	__vsc_dbg_trap="$(trap -p DEBUG | cut -d' ' -f3 | tr -d \')"
 	if [[ -z "$__vsc_dbg_trap" ]]; then
 		__vsc_preexec_only() {
 			if [ "$__vsc_in_command_execution" = "0" ]; then
