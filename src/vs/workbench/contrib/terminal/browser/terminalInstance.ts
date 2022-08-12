@@ -88,6 +88,7 @@ import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProc
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
+import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 
 const enum Constants {
 	/**
@@ -102,8 +103,6 @@ const enum Constants {
 	MaxSupportedCols = 5000,
 	MaxCanvasWidth = 8000
 }
-
-const pinnedRecentCommandStorageKey = 'terminal.pinnedCommands';
 
 let xtermConstructor: Promise<typeof XTermTerminal> | undefined;
 function getXtermConstructor(): Promise<typeof XTermTerminal> {
@@ -851,6 +850,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this.xterm) {
 			return;
 		}
+		const runRecentStorageKey = this._getPinnedCommandStorageKey();
+		if (!runRecentStorageKey) {
+			return;
+		}
 		let placeholder: string;
 		type Item = IQuickPickItem & { command?: ITerminalCommand; rawLabel: string };
 		let items: (Item | IQuickPickItem & { rawLabel: string } | IQuickPickSeparator)[] = [];
@@ -1061,7 +1064,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			quickPick.value = value;
 		}
 		return new Promise<void>(r => {
-			this._quickInputService.formatPinnedItems(pinnedRecentCommandStorageKey, quickPick, this._storageService, true);
+			this._quickInputService.formatPinnedItems(runRecentStorageKey, quickPick, this._storageService, true);
 			this._terminalInRunCommandPicker.set(true);
 			quickPick.onDidHide(() => {
 				this._terminalInRunCommandPicker.set(false);
@@ -1073,6 +1076,25 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	detachFromElement(): void {
 		this._wrapperElement?.remove();
 		this._container = undefined;
+	}
+
+	_getPinnedCommandStorageKey(): string | undefined {
+		switch (this.shellType) {
+			case WindowsShellType.GitBash:
+				return TerminalStorageKeys.PinnedRecentCommandsGitBash;
+			case WindowsShellType.PowerShell:
+				return TerminalStorageKeys.PinnedRecentCommandsPwshWindows;
+			case PosixShellType.Bash:
+				return TerminalStorageKeys.PinnedRecentCommandsBash;
+			case PosixShellType.Zsh:
+				return TerminalStorageKeys.PinnedRecentCommandsZsh;
+			case PosixShellType.PowerShell:
+				return TerminalStorageKeys.PinnedRecentCommandsPwsh;
+			case PosixShellType.Fish:
+				return TerminalStorageKeys.PinnedRecentCommandsFish;
+			default:
+				return undefined;
+		}
 	}
 
 	attachToElement(container: HTMLElement): void {
