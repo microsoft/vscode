@@ -98,7 +98,7 @@ interface IUserFriendlyViewDescriptor {
 	contextualTitle?: string;
 	visibility?: string;
 
-	size?: number;
+	initialSize?: number;
 
 	// From 'remoteViewDescriptor' type
 	group?: string;
@@ -508,10 +508,10 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					}
 
 					let weight: number | undefined = undefined;
-					if (typeof item.size === 'number') {
+					if (typeof item.initialSize === 'number') {
 						checkProposedApiEnabled(extension.description, 'contribViewSize');
 						if (container.extensionId?.value === extension.description.identifier.value) {
-							weight = item.size;
+							weight = item.initialSize;
 						} else {
 							this.logService.warn(`${extension.description.identifier.value} tried to set the view size of ${item.id} but it was ignored because the view container does not belong to it.`);
 						}
