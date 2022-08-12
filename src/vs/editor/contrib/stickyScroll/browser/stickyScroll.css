@@ -28,7 +28,10 @@
 }
 
 .monaco-editor .sticky-widget {
-	width : 100%;
+/* 	IDEA: stay compact, (avoid covering minimap) */
+	border-right: 1px solid gold;
+	padding-right: 1em;
+/* 	 */
 	box-shadow : var(--vscode-scrollbar-shadow) 0 2px 6px -2px;
 	z-index : 2;
 	background-color : var(--vscode-editorStickyScroll-background);
