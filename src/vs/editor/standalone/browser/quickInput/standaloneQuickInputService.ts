@@ -10,7 +10,7 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IQuickInputService, IQuickInputButton, IQuickPickItem, IQuickPick, IInputBox, IQuickNavigateConfiguration, IPickOptions, QuickPickInput, IInputOptions } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { EditorScopedLayoutService } from 'vs/editor/standalone/browser/standaloneLayoutService';
@@ -19,7 +19,6 @@ import { QuickInputController } from 'vs/base/parts/quickinput/browser/quickInpu
 import { QuickInputService, IQuickInputControllerHost } from 'vs/platform/quickinput/browser/quickInput';
 import { once } from 'vs/base/common/functional';
 import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export class EditorScopedQuickInputService extends QuickInputService {
 
@@ -97,8 +96,8 @@ export class StandaloneQuickInputService implements IQuickInputService {
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
 	) {
 	}
-	formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, storageService: IStorageService, reopenQuickpick?: boolean): void {
-		return this.activeService.formatPinnedItems(storageKey, quickPick, storageService, reopenQuickpick);
+	formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, accessor: ServicesAccessor, reopenQuickpick?: boolean): void {
+		return this.activeService.formatPinnedItems(storageKey, quickPick, accessor, reopenQuickpick);
 	}
 
 	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options: O = <O>{}, token: CancellationToken = CancellationToken.None): Promise<(O extends { canPickMany: true } ? T[] : T) | undefined> {

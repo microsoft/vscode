@@ -11,7 +11,7 @@ import { IQuickInputOptions, IQuickInputStyles, QuickInputController } from 'vs/
 import { localize } from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { QuickAccessController } from 'vs/platform/quickinput/browser/quickAccess';
@@ -231,7 +231,8 @@ export class QuickInputService extends Themable implements IQuickInputService {
 		};
 	}
 
-	formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, storageService: IStorageService, reopenQuickpick?: boolean): void {
+	formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, accessor: ServicesAccessor, reopenQuickpick?: boolean): void {
+		const storageService = accessor.get(IStorageService);
 		quickPick.onDidTriggerItemButton((e) => {
 			if (e.button.iconClass === ThemeIcon.asClassName(Codicon.pin) || e.button.iconClass === ThemeIcon.asClassName(Codicon.pinned)) {
 				this._formatPinnedItems(storageKey, quickPick, storageService, reopenQuickpick, e);
@@ -243,23 +244,20 @@ export class QuickInputService extends Themable implements IQuickInputService {
 	private async _formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, storageService: IStorageService, reopenQuickpick?: boolean, event?: IQuickPickItemButtonEvent<IQuickPickItem>): Promise<void> {
 		const formattedItems: (IQuickPickItem | IQuickPickSeparator)[] = [];
 		const labels = this._getPinnedLabels(storageKey, storageService);
-		const pinnedLabels = event ? this._updatePinned(storageKey, event.item.label, storageService, new Set(labels).has(event.item.label)) : labels;
-		for (const label of pinnedLabels) {
-			const item = quickPick.items.find(i => i.label === label);
+		const updatedLabels = !!event?.item ? this._updatePinned(storageKey, event.item.label, storageService, new Set(labels).has(event.item.label)) : labels;
+		for (const label of updatedLabels) {
+			const item = quickPick.items.find(i => i.label === label && i.type !== 'separator');
 			if (item) {
 				const pinnedItem = Object.assign({}, item);
 				this._updateButtons(pinnedItem, false);
 				formattedItems.push(pinnedItem);
 			}
 		}
-		if (pinnedLabels.length) {
+		if (updatedLabels.length) {
 			formattedItems.push({ type: 'separator', label: localize("terminal.commands.pinned", 'Pinned') });
 		}
-
-		for (const item of quickPick.items) {
-			if (item.type !== 'separator') {
-				this._updateButtons(item, true);
-			}
+		for (const item of quickPick.items.filter(i => !!i.label)) {
+			this._updateButtons(item, true);
 			formattedItems.push(item);
 		}
 		quickPick.items = formattedItems;

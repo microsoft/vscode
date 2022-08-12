@@ -6,9 +6,8 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInputButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, QuickPickInput } from 'vs/base/parts/quickinput/common/quickInput';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export * from 'vs/base/parts/quickinput/common/quickInput';
 
@@ -101,5 +100,5 @@ export interface IQuickInputService {
 	 * When pinned, a copy of the item will be moved to the end of the pinned list and any duplicate within the pinned list will
 	 * be removed. Pin and pinned button events trigger updates to the underlying storage.
 	 */
-	formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, storageService: IStorageService, reopenQuickpick?: boolean): void;
+	formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, accessor: ServicesAccessor, reopenQuickpick?: boolean): void;
 }
