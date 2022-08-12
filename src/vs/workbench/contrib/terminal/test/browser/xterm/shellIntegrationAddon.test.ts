@@ -58,6 +58,7 @@ suite('ShellIntegrationAddon', () => {
 			await writeP(xterm, '\x1b]633;P;Cwd=/foo\x07');
 			strictEqual(capabilities.has(TerminalCapability.CwdDetection), true);
 		});
+
 		test('should pass cwd sequence to the capability', async () => {
 			const mock = shellIntegrationAddon.getCwdDectionMock();
 			mock.expects('updateCwd').once().withExactArgs('/foo');
@@ -65,8 +66,22 @@ suite('ShellIntegrationAddon', () => {
 			mock.verify();
 		});
 
-		suite('detect `SetCwd` sequence: `OSC 7; scheme://cwd ST`', async () => {
+		test('detect ITerm sequence: `OSC 1337 ; CurrentDir=<Cwd> ST`', async () => {
+			type TestCase = [title: string, input: string, expected: string];
+			const cases: TestCase[] = [
+				['root', '/', '/'],
+				['non-root', '/some/path', '/some/path'],
+			];
+			for (const x of cases) {
+				const [title, input, expected] = x;
+				const mock = shellIntegrationAddon.getCwdDectionMock();
+				mock.expects('updateCwd').once().withExactArgs(expected).named(title);
+				await writeP(xterm, `\x1b]1337;CurrentDir=${input}\x07`);
+				mock.verify();
+			}
+		});
 
+		suite('detect `SetCwd` sequence: `OSC 7; scheme://cwd ST`', async () => {
 			test('should accept well-formatted URLs', async () => {
 				type TestCase = [title: string, input: string, expected: string];
 				const cases: TestCase[] = [
