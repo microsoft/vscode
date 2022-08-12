@@ -238,21 +238,21 @@ export class QuickInputService extends Themable implements IQuickInputService {
 
 	private async _formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, storageService: IStorageService, callback?: () => Promise<void>, event?: IQuickPickItemButtonEvent<IQuickPickItem>): Promise<void> {
 		const formattedItems: (IQuickPickItem | IQuickPickSeparator)[] = [];
-		const p = this._getPinnedLabels(storageKey, storageService);
-		const pinnedLabels = event ? this._updatePinnedStorage(storageKey, event.item!.label, storageService, new Set(p).has(event.item.label)) : this._getPinnedLabels(storageKey, storageService);
+		const labels = this._getPinnedLabels(storageKey, storageService);
+		const pinnedLabels = event ? this._updatePinned(storageKey, event.item.label, storageService, new Set(labels).has(event.item.label)) : labels;
 		for (const label of pinnedLabels) {
 			const item = quickPick.items.find(i => i.label === label);
 			if (item) {
-				const itemB = Object.assign({}, item);
-				this._updateButtons(itemB, false);
-				formattedItems.push(itemB);
+				const pinnedItem = Object.assign({}, item);
+				this._updateButtons(pinnedItem, false);
+				formattedItems.push(pinnedItem);
 			}
 		}
-		if (formattedItems.length) {
+		if (pinnedLabels.length) {
 			formattedItems.push({ type: 'separator', label: localize("terminal.commands.pinned", 'Pinned') });
 		}
 
-		for (const item of quickPick.items.filter(i => !!i?.label)) {
+		for (const item of quickPick.items.filter(i => i.type === 'item')) {
 			this._updateButtons(item, true);
 			formattedItems.push(item);
 		}
@@ -278,16 +278,15 @@ export class QuickInputService extends Themable implements IQuickInputService {
 				alwaysVisible: false
 			});
 		}
-
 	}
 
-	private _updatePinnedStorage(storageKey: string, label: string, storageService: IStorageService, removePin: boolean): string[] {
+	private _updatePinned(storageKey: string, label: string, storageService: IStorageService, removePin: boolean): string[] {
 		let pinnedLabels = this._getPinnedLabels(storageKey, storageService);
+		const set = new Set(pinnedLabels);
 		if (removePin) {
-			const set = new Set(pinnedLabels);
 			set.delete(label);
 			pinnedLabels = Array.from(set);
-		} else if (!new Set(pinnedLabels).has(label)) {
+		} else if (!set.has(label)) {
 			pinnedLabels.push(label);
 		}
 		storageService.store(storageKey, JSON.stringify(pinnedLabels), StorageScope.WORKSPACE, StorageTarget.USER);

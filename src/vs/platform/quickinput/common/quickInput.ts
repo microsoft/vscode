@@ -104,5 +104,5 @@ export interface IQuickInputService {
 	 * @param storageService
 	 * @param callback
 	 */
-	formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, storageService: IStorageService, callback?: () => Promise<void>, item?: IQuickPickItem): void;
+	formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, storageService: IStorageService, callback?: () => Promise<void>): void;
 }
