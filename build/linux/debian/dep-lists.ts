@@ -20,19 +20,6 @@ export const recommendedDeps = [
 	'libvulkan1' // Move to additionalDeps once support for Trusty and Jessie are dropped.
 ];
 
-// Based on https://source.chromium.org/chromium/chromium/src/+/refs/tags/98.0.4758.109:chrome/installer/linux/BUILD.gn;l=64-80
-// and the Linux Archive build
-// Shared library dependencies that we already bundle.
-export const bundledDeps = [
-	'libEGL.so',
-	'libGLESv2.so',
-	'libvulkan.so.1',
-	'swiftshader_libEGL.so',
-	'swiftshader_libGLESv2.so',
-	'libvk_swiftshader.so',
-	'libffmpeg.so'
-];
-
 export const referenceGeneratedDepsByArch = {
 	'amd64': [
 		'ca-certificates',

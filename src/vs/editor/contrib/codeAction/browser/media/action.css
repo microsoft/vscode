@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 .codeActionMenuWidget .monaco-list:not(.element-focused):focus:before {
 	position: absolute;
 	top: 0;

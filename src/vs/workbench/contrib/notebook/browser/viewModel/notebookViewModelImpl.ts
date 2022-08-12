@@ -22,7 +22,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { FoldingRegions } from 'vs/editor/contrib/folding/browser/foldingRanges';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { CellEditState, CellFindMatch, CellFindMatchWithIndex, CellFoldingState, EditorFoldingStateDelegate, ICellViewModel, INotebookDeltaCellStatusBarItems, INotebookDeltaDecoration, OutputFindMatch, ICellModelDecorations, ICellModelDeltaDecorations, IModelDecorationsChangeAccessor, INotebookEditorViewState, INotebookViewCellsUpdateEvent } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFindMatch, CellFindMatchWithIndex, CellFoldingState, EditorFoldingStateDelegate, ICellViewModel, INotebookDeltaCellStatusBarItems, INotebookDeltaDecoration, OutputFindMatch, ICellModelDecorations, ICellModelDeltaDecorations, IModelDecorationsChangeAccessor, INotebookEditorViewState, INotebookViewCellsUpdateEvent, INotebookViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookCellSelectionCollection } from 'vs/workbench/contrib/notebook/browser/viewModel/cellSelectionCollection';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
@@ -99,7 +99,7 @@ export interface NotebookViewModelOptions {
 	isReadOnly: boolean;
 }
 
-export class NotebookViewModel extends Disposable implements EditorFoldingStateDelegate {
+export class NotebookViewModel extends Disposable implements EditorFoldingStateDelegate, INotebookViewModel {
 	private _localStore: DisposableStore = this._register(new DisposableStore());
 	private _handleToViewCellMapping = new Map<number, CellViewModel>();
 	get options(): NotebookViewModelOptions { return this._options; }
@@ -660,7 +660,6 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				// (2) remove the node from the tree (if it exists)
 				if (node) {
 					this._decorationsTree.delete(node);
-					// this._onDidChangeDecorations.checkAffectedAndFire(node.options);
 				}
 			}
 
@@ -675,16 +674,12 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 				// (4) initialize node
 				const newDecoration = newDecorations[newDecorationIndex];
-				// const range = this._validateRangeRelaxedNoAllocations(newDecoration.range);
 				const range = newDecoration.range;
 				const options = _normalizeOptions(newDecoration.options);
-				// const startOffset = this._buffer.getOffsetAt(range.startLineNumber, range.startColumn);
-				// const endOffset = this._buffer.getOffsetAt(range.endLineNumber, range.endColumn);
 
 				node.ownerId = ownerId;
 				node.reset(versionId, range.startLineNumber, range.endLineNumber, Range.lift(range));
 				node.setOptions(options);
-				// this._onDidChangeDecorations.checkAffectedAndFire(options);
 
 				this._decorationsTree.insert(node);
 

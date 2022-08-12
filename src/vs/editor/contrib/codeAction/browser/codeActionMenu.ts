@@ -175,7 +175,9 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 					} else {
 						const updateLabel = () => {
 							const [accept, preview] = this.acceptKeybindings;
+
 							data.root.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", this.keybindingService.lookupKeybinding(accept)?.getLabel(), this.keybindingService.lookupKeybinding(preview)?.getLabel());
+
 						};
 						updateLabel();
 					}
@@ -413,6 +415,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 					menuEntriesToPush(localize('codeAction.widget.id.convert', 'Convert...'), entry);
 				} else if (CodeActionKind.Source.contains(new CodeActionKind(String(firstAction)))) {
 					menuEntriesToPush(localize('codeAction.widget.id.source', 'Source Action...'), entry);
+
 				} else if (firstAction === CodeActionMenu.documentationID) {
 					totalActionEntries.push(...entry);
 				}

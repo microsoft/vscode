@@ -2523,19 +2523,21 @@ export interface IEditorExperimentalOptions {
 		 * Enable the sticky scroll
 		 */
 		enabled?: boolean;
+		maxLineCount?: number;
 	};
 }
 
 export interface EditorExperimentalOptions {
 	stickyScroll: {
 		enabled: boolean;
+		maxLineCount: number;
 	};
 }
 
 class EditorExperimental extends BaseEditorOption<EditorOption.experimental, IEditorExperimentalOptions, EditorExperimentalOptions> {
 
 	constructor() {
-		const defaults: EditorExperimentalOptions = { stickyScroll: { enabled: false } };
+		const defaults: EditorExperimentalOptions = { stickyScroll: { enabled: false, maxLineCount: 5 } };
 		super(
 			EditorOption.experimental, 'experimental', defaults,
 			{
@@ -2543,6 +2545,13 @@ class EditorExperimental extends BaseEditorOption<EditorOption.experimental, IEd
 					type: 'boolean',
 					default: defaults.stickyScroll.enabled,
 					description: nls.localize('editor.experimental.stickyScroll', "Shows the nested current scopes during the scroll at the top of the editor.")
+				},
+				'editor.experimental.stickyScroll.maxLineCount': {
+					type: 'number',
+					default: defaults.stickyScroll.maxLineCount,
+					minimum: 1,
+					maximum: 10,
+					description: nls.localize('editor.experimental.stickyScroll.', "Defines the maximum number of sticky lines to show.")
 				},
 			}
 		);
@@ -2555,7 +2564,8 @@ class EditorExperimental extends BaseEditorOption<EditorOption.experimental, IEd
 		const input = _input as IEditorExperimentalOptions;
 		return {
 			stickyScroll: {
-				enabled: boolean(input.stickyScroll?.enabled, this.defaultValue.stickyScroll.enabled)
+				enabled: boolean(input.stickyScroll?.enabled, this.defaultValue.stickyScroll.enabled),
+				maxLineCount: EditorIntOption.clampedInt(input.stickyScroll?.maxLineCount, this.defaultValue.stickyScroll.maxLineCount, 1, 10),
 			}
 		};
 	}
