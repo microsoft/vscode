@@ -317,7 +317,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			case VSCodeOscPt.CommandLine: {
 				let commandLine: string;
 				if (args.length === 1) {
-					commandLine = this._deserializeMessage(args[0]);
+					commandLine = deserializeMessage(args[0]);
 				} else {
 					commandLine = '';
 				}
@@ -341,7 +341,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				return true;
 			}
 			case VSCodeOscPt.Property: {
-				const { key, value } = this._parseKeyValueAssignment(args[0]);
+				const { key, value } = parseKeyValueAssignment(args[0]);
 				if (value === undefined) {
 					return true;
 				}
@@ -383,7 +383,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			}
 			default: {
 				// Checking for known `<key>=<value>` pairs.
-				const { key, value } = this._parseKeyValueAssignment(command);
+				const { key, value } = parseKeyValueAssignment(command);
 
 				if (value === undefined) {
 					// No '=' was found, so it's not a property assignment.
@@ -481,28 +481,29 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		}
 		return commandDetection;
 	}
-
-	private _deserializeMessage(message: string): string {
-		let result = message.replace(/\\\\/g, '\\');
-		const deserializeRegex = /\\x([0-9a-f]{2})/i;
-		while (true) {
-			const match = result.match(deserializeRegex);
-			if (!match?.index || match.length < 2) {
-				break;
-			}
-			result = result.slice(0, match.index) + String.fromCharCode(parseInt(match[1], 16)) + result.slice(match.index + 4);
-		}
-		return result;
-	}
-
-	private _parseKeyValueAssignment(message: string): { key: string; value: string | undefined } {
-		const [key, ...rawValues] = message.split('=');
-		if (!rawValues.length) {
-			return { key, value: undefined }; // No '=' was found.
-		}
-		const rawValue = rawValues.join('=');
-		const value = this._deserializeMessage(rawValue);
-		return { key, value };
-	}
 }
 
+export function deserializeMessage(message: string): string {
+	let result = message.replace(/\\\\/g, '\\');
+	const deserializeRegex = /\\x([0-9a-f]{2})/i;
+	while (true) {
+		const match = result.match(deserializeRegex);
+		if (!match?.index || match.length < 2) {
+			break;
+		}
+		result = result.slice(0, match.index) + String.fromCharCode(parseInt(match[1], 16)) + result.slice(match.index + 4);
+	}
+	return result;
+}
+
+export function parseKeyValueAssignment(message: string): { key: string; value: string | undefined } {
+	const deserialized = deserializeMessage(message);
+	const separatorIndex = deserialized.indexOf('=');
+	if (separatorIndex === -1) {
+		return { key: deserialized, value: undefined }; // No '=' was found.
+	}
+	return {
+		key: deserialized.substring(0, separatorIndex),
+		value: deserialized.substring(1 + separatorIndex)
+	};
+}
