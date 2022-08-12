@@ -97,12 +97,8 @@ export interface IQuickInputService {
 	cancel(): Promise<void>;
 
 	/**
-	 * TODO:
-	 * @param storageKey
-	 * @param pinnedItems
-	 * @param quickPick
-	 * @param storageService
-	 * @param callback
+	 * Formats quick pick items to be pinnable
+	 * with a sticky pinned category at the top
 	 */
 	formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, storageService: IStorageService, callback?: () => Promise<void>): void;
 }
