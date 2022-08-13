@@ -1540,7 +1540,11 @@
             "media": {
               "markdown": "resources/walkthroughs/TODO.md"
             },
-            "when": "isWindows || isMac"
+            "when": "isWindows || isMac",
+            "completionEvents": [
+              "onLink:https://nodejs.org/en/download/",
+              "onCommand:javascript-walkthrough.commands.nodeInstallationFound"
+            ]
           },
           {
             "id": "walkthroughs.jsWelcome.downloadNode.forLinux",
@@ -1549,7 +1553,11 @@
             "media": {
               "markdown": "resources/walkthroughs/TODO.md"
             },
-            "when": "isLinux"
+            "when": "isLinux",
+            "completionEvents": [
+              "onLink:https://nodejs.org/en/download/package-manager/",
+              "onCommand:javascript-walkthrough.commands.nodeInstallationFound"
+            ]
           },
           {
             "id": "walkthroughs.jsWelcome.makeJsFile",

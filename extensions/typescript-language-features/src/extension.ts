@@ -8,7 +8,7 @@ import * as vscode from 'vscode';
 import { Api, getExtensionApi } from './api';
 import { CommandManager } from './commands/commandManager';
 import { registerBaseCommands } from './commands/index';
-import { JsWalkthroughState } from './commands/jsWalkthrough';
+import { hasNode, JsWalkthroughState } from './commands/jsWalkthrough';
 import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
 import { nodeRequestCancellerFactory } from './tsServer/cancellation.electron';
 import { NodeLogDirectoryProvider } from './tsServer/logDirectoryProvider.electron';
@@ -55,6 +55,14 @@ export function activate(
 	});
 
 	registerBaseCommands(commandManager, lazyClientHost, pluginManager, activeJsTsEditorTracker, jsWalkthroughState);
+
+	hasNode().then(
+		async (isInstalled) => {
+			if (isInstalled) {
+				await vscode.commands.executeCommand('javascript-walkthrough.commands.nodeInstallationFound');
+			}
+		}
+	);
 
 	import('./task/taskProvider').then(module => {
 		context.subscriptions.push(module.register(lazyClientHost.map(x => x.serviceClient)));

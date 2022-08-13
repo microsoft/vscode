@@ -4,8 +4,37 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import * as cp from 'child_process';
 
 import { Disposable } from '../utils/dispose';
+
+export async function hasNode(): Promise<boolean> {
+	let execStr: string;
+	switch (process.platform) {
+		case 'win32':
+			execStr = 'where node';
+			break;
+		case 'aix':
+		case 'cygwin':
+		case 'darwin':
+		case 'freebsd':
+		case 'haiku':
+		case 'linux':
+		case 'netbsd':
+		case 'openbsd':
+		case 'sunos':
+			execStr = 'which node';
+			break;
+		default:
+			return false;
+	}
+
+	return new Promise(resolve => {
+		cp.exec(execStr, err => {
+			resolve(!err);
+		});
+	});
+}
 
 export class JsWalkthroughState extends Disposable {
 	exampleJsDocument: vscode.TextDocument | undefined = undefined;
@@ -35,6 +64,12 @@ export class DebugJsFileCommand {
 	public execute() {
 		debugJsFile(this.walkthroughState);
 	}
+}
+
+export class NodeInstallationFoundCommand {
+	public static readonly id = 'javascript-walkthrough.commands.nodeInstallationFound';
+	public readonly id = NodeInstallationFoundCommand.id;
+	public execute() { }
 }
 
 async function createNewJSFile(walkthroughState: JsWalkthroughState) {
