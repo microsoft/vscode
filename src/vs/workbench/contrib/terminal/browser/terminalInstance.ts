@@ -88,6 +88,7 @@ import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProc
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
+import { toPosixPath } from 'vs/base/common/extpath';
 
 const enum Constants {
 	/**
@@ -453,7 +454,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					this._cwd = e;
 					this._xtermOnKey?.dispose();
 					this.refreshTabLabels(this.title, TitleEventSource.Config);
-					this._instantiationService.invokeFunction(getDirectoryHistory)?.add(e, { remoteAuthority: this.remoteAuthority });
+					this._instantiationService.invokeFunction(getDirectoryHistory)?.add(toNormalizedCwd(e, this.shellType), { remoteAuthority: this.remoteAuthority });
 				});
 			} else if (e === TerminalCapability.CommandDetection) {
 				this.capabilities.get(TerminalCapability.CommandDetection)?.onCommandFinished(e => {
@@ -971,14 +972,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				: nls.localize('selectRecentDirectory', 'Select a directory to go to (hold Alt-key to edit the command)');
 			const cwds = this.capabilities.get(TerminalCapability.CwdDetection)?.cwds || [];
 			if (cwds && cwds.length > 0) {
-				for (const label of cwds) {
+				for (const cwd of cwds) {
+					const label = toNormalizedCwd(cwd, this.shellType);
 					items.push({ label, rawLabel: label });
 				}
 				items = items.reverse();
 				items.unshift({ type: 'separator', label: terminalStrings.currentSessionCategory });
 			}
 
-			// Gather previous session history
+			// Gather previous session history (which are already normalized)
 			const history = this._instantiationService.invokeFunction(getDirectoryHistory);
 			const previousSessionItems: (IQuickPickItem & { rawLabel: string })[] = [];
 			// Only add previous session item if it's not in this session and it matches the remote authority
@@ -1051,7 +1053,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 		quickPick.onDidAccept(() => {
 			const result = quickPick.activeItems[0];
-			this.sendText(type === 'cwd' ? `cd ${result.rawLabel}` : result.rawLabel, !quickPick.keyMods.alt, true);
+			this.sendText(type === 'cwd' ? `cd ${fromNormalizedCwd(result.rawLabel, this.shellType)}` : result.rawLabel, !quickPick.keyMods.alt, true);
 			quickPick.hide();
 		});
 		if (value) {
@@ -2954,4 +2956,25 @@ async function preparePathForShell(originalPath: string, executable: string | un
 
 		c(escapeNonWindowsPath(originalPath));
 	});
+}
+
+/**
+ * Returns normalized form of the given CWD path. Normalized form is in POSIX format.
+ */
+export function toNormalizedCwd(cwd: string, shellType: TerminalShellType): string {
+	return shellType === WindowsShellType.CommandPrompt || shellType === WindowsShellType.PowerShell
+		? toPosixPath(cwd) : cwd;
+}
+
+/**
+ * Returns CWD path compatible with the `shellType` from a given normalized path.
+ */
+export function fromNormalizedCwd(normalized: string, shellType: TerminalShellType): string {
+	/**
+	 * NOTE: For backward compatibility, we need to check if the given `normalized` value is indeed normalized, that is
+	 * it's in POSIX (not-Windows) format, and if it wasn't, normalize it.
+	 */
+	normalized = !path.posix.parse(normalized).root ? toNormalizedCwd(normalized, WindowsShellType.CommandPrompt) : normalized;
+	return shellType === WindowsShellType.CommandPrompt || shellType === WindowsShellType.PowerShell
+		? path.win32.resolve(normalized).substring(1) : normalized;
 }
