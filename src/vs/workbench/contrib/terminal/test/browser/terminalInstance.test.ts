@@ -5,7 +5,7 @@
 
 import { deepStrictEqual, strictEqual } from 'assert';
 import { isWindows } from 'vs/base/common/platform';
-import { TerminalLabelComputer, parseExitResult } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
+import { TerminalLabelComputer, parseExitResult, fromNormalizedCwd, toNormalizedCwd } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { IWorkspaceContextService, IWorkspaceFolder, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -20,6 +20,7 @@ import { URI } from 'vs/base/common/uri';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { Schemas } from 'vs/base/common/network';
+import { PosixShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 
 function createInstance(partial?: Partial<ITerminalInstance>): Pick<ITerminalInstance, 'shellLaunchConfig' | 'userHome' | 'cwd' | 'initialCwd' | 'processName' | 'sequence' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'> {
 	const capabilities = new TerminalCapabilityStore();
@@ -314,6 +315,42 @@ suite('Workbench - TerminalInstance', () => {
 				strictEqual(terminalLabelComputer.title, 'process ~ root2');
 				strictEqual(terminalLabelComputer.description, 'root2');
 			}
+		});
+	});
+
+	suite('Normalized CWDs', () => {
+		test('toNormalizedCwd', () => {
+			const sut = toNormalizedCwd;
+			strictEqual(sut('C:\\some\\path', WindowsShellType.CommandPrompt), '/C:/some/path');
+			strictEqual(sut('C:\\some\\path', WindowsShellType.PowerShell), '/C:/some/path');
+			// Bypass cases:
+			strictEqual(sut('/some/path', PosixShellType.Sh), '/some/path');
+			strictEqual(sut('/some/path', PosixShellType.Bash), '/some/path');
+			strictEqual(sut('/some/path', PosixShellType.Zsh), '/some/path');
+			strictEqual(sut('/c/some/path', WindowsShellType.GitBash), '/c/some/path');
+			strictEqual(sut('/mnt/c/some/path', WindowsShellType.Wsl), '/mnt/c/some/path');
+		});
+
+		test('fromNormalizedCwd', () => {
+			const sut = fromNormalizedCwd;
+			strictEqual(sut('/C:/some/path', WindowsShellType.CommandPrompt), 'C:\\some\\path');
+			strictEqual(sut('/C:/some/path', WindowsShellType.PowerShell), 'C:\\some\\path');
+			// Bypass cases:
+			strictEqual(sut('/some/path', PosixShellType.Sh), '/some/path');
+			strictEqual(sut('/some/path', PosixShellType.Bash), '/some/path');
+			strictEqual(sut('/some/path', PosixShellType.Zsh), '/some/path');
+			strictEqual(sut('/c/some/path', WindowsShellType.GitBash), '/c/some/path');
+			strictEqual(sut('/mnt/c/some/path', WindowsShellType.Wsl), '/mnt/c/some/path');
+		});
+
+		test('fromNormalized (backward-compatibilty)', () => {
+			/**
+			 * Backward compatibility is required because earlier history entries are not normalized and stored as is in
+			 * the Windows path format.
+			 */
+			const sut = fromNormalizedCwd;
+			strictEqual(sut('C:\\some\\path', WindowsShellType.CommandPrompt), 'C:\\some\\path');
+			strictEqual(sut('C:\\some\\path', WindowsShellType.PowerShell), 'C:\\some\\path');
 		});
 	});
 });
