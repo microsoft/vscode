@@ -123,12 +123,6 @@ export class TestContextService implements IWorkspaceContextService {
 	isCurrentWorkspace(workspaceIdOrFolder: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI): boolean {
 		return URI.isUri(workspaceIdOrFolder) && isEqual(this.workspace.folders[0].uri, workspaceIdOrFolder);
 	}
-
-	registerCanonicalWorkspaceIdentityProvider(provider: { scheme: string; getCanonicalWorkspaceIdentifier: (folder: URI, token: CancellationToken) => Promise<{ [key: string]: string | null } | null> }): void { }
-
-	async getCanonicalWorkspaceIdentifier(resource: URI): Promise<{ [key: string]: string | null } | null> {
-		return null;
-	}
 }
 
 export class TestStorageService extends InMemoryStorageService {

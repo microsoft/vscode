@@ -18,17 +18,17 @@ export class GitCanonicalWorkspaceIdentityProvider implements vscode.CanonicalWo
 		this.providerRegistration.dispose();
 	}
 
-	provideCanonicalWorkspaceIdentity(uri: vscode.Uri, _token: vscode.CancellationToken): vscode.ProviderResult<vscode.CanonicalWorkspaceIdentity> {
-		const repository = this.model.getRepository(uri);
+	async provideCanonicalWorkspaceIdentity(workspaceFolder: vscode.WorkspaceFolder, _token: vscode.CancellationToken): Promise<string | null> {
+		const repository = this.model.getRepository(workspaceFolder.uri);
 
 		if (!repository || !repository?.HEAD?.upstream) {
 			return null;
 		}
 
-		return {
+		return JSON.stringify({
 			remote: repository.remotes.find((remote) => remote.name === repository.HEAD?.upstream?.remote)?.pushUrl ?? null,
 			ref: repository.HEAD?.name ?? null,
 			sha: repository.HEAD?.commit ?? null,
-		};
+		});
 	}
 }

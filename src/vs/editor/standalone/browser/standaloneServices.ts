@@ -89,7 +89,6 @@ import { staticObservableValue } from 'vs/base/common/observableValue';
 
 import 'vs/editor/common/services/languageFeaturesService';
 import { DefaultConfigurationModel } from 'vs/platform/configuration/common/configurations';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -741,12 +740,6 @@ class StandaloneWorkspaceContextService implements IWorkspaceContextService {
 
 	public isCurrentWorkspace(workspaceIdOrFolder: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI): boolean {
 		return true;
-	}
-
-	public registerCanonicalWorkspaceIdentityProvider(provider: { scheme: string; getCanonicalWorkspaceIdentifier: (folder: URI, token: CancellationToken) => Promise<{ [key: string]: string | null } | null> }): void { }
-
-	public async getCanonicalWorkspaceIdentifier(resource: URI, cancellationTokenSource: CancellationTokenSource): Promise<{ [key: string]: string | null } | null> {
-		return null;
 	}
 }
 

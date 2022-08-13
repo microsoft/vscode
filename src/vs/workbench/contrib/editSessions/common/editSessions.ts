@@ -60,7 +60,7 @@ export type Change = Addition | Deletion;
 
 export interface Folder {
 	name: string;
-	canonicalIdentity: { [key: string]: string | null } | undefined;
+	canonicalIdentity: string | undefined;
 	workingChanges: Change[];
 }
 

@@ -50,6 +50,7 @@ import { isNative } from 'vs/base/common/platform';
 import { WorkspaceFolderCountContext } from 'vs/workbench/common/contextkeys';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { equals } from 'vs/base/common/objects';
+import { ICanonicalWorkspaceService } from 'vs/platform/workspace/common/canonicalWorkspace';
 
 registerSingleton(IEditSessionsLogService, EditSessionsLogService);
 registerSingleton(IEditSessionsWorkbenchService, EditSessionsWorkbenchService);
@@ -92,6 +93,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		@IProductService private readonly productService: IProductService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@ICanonicalWorkspaceService private readonly canonicalWorkspaceService: ICanonicalWorkspaceService,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ICommandService private commandService: ICommandService,
@@ -341,7 +343,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				if (folder.canonicalIdentity) {
 					// Look for an edit session identifier that we can use
 					for (const f of workspaceFolders) {
-						const identity = await this.contextService.getCanonicalWorkspaceIdentifier(f.uri, cancellationTokenSource);
+						const identity = await this.canonicalWorkspaceService.getCanonicalWorkspaceIdentifier(f, cancellationTokenSource);
+						this.logService.info(`Matching identity ${identity} against edit session folder identity ${folder.canonicalIdentity}...`);
 						if (equals(identity, folder.canonicalIdentity)) {
 							folderRoot = f;
 							break;
@@ -352,7 +355,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				}
 
 				if (!folderRoot) {
-					this.logService.info(`Skipping applying ${folder.workingChanges.length} changes from edit session with ref ${ref} as no corresponding workspace folder named ${folder.name} is currently open.`);
+					this.logService.info(`Skipping applying ${folder.workingChanges.length} changes from edit session with ref ${ref} as no matching workspace folder was found.`);
 					return;
 				}
 
@@ -412,7 +415,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			const workingChanges: Change[] = [];
 
 			const { rootUri } = repository.provider;
-			let name = rootUri ? this.contextService.getWorkspaceFolder(rootUri)?.name : undefined;
+			const workspaceFolder = rootUri ? this.contextService.getWorkspaceFolder(rootUri) : undefined;
+			let name = workspaceFolder?.name;
 
 			for (const uri of trackedUris) {
 				const workspaceFolder = this.contextService.getWorkspaceFolder(uri);
@@ -443,7 +447,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				}
 			}
 
-			const canonicalIdentity = rootUri ? await this.contextService.getCanonicalWorkspaceIdentifier(rootUri, new CancellationTokenSource()) : undefined;
+			const canonicalIdentity = workspaceFolder ? await this.canonicalWorkspaceService.getCanonicalWorkspaceIdentifier(workspaceFolder, new CancellationTokenSource()) : undefined;
 
 			folders.push({ workingChanges, name: name ?? '', canonicalIdentity: canonicalIdentity ?? undefined });
 		}

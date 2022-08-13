@@ -45,7 +45,6 @@ import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/pol
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { updateIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
 function getLocalUserConfigurationScopes(userDataProfile: IUserDataProfile, hasRemote: boolean): ConfigurationScope[] | undefined {
 	return userDataProfile.isDefault
@@ -106,8 +105,6 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	private jsonEditingService!: JSONEditingService;
 	private cyclicDependencyReady!: Function;
 	private cyclicDependency = new Promise<void>(resolve => this.cyclicDependencyReady = resolve);
-
-	private _canonicalWorkspaceIdentifierProviders = new Map<string, { scheme: string; getCanonicalWorkspaceIdentifier: (folder: URI, token: CancellationToken) => Promise<{ [key: string]: string | null } | null> }>();
 
 	constructor(
 		{ remoteAuthority, configurationCache }: { remoteAuthority?: string; configurationCache: IConfigurationCache },
@@ -234,19 +231,6 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 				return isWorkspaceIdentifier(workspaceIdOrFolder) && this.workspace.id === workspaceIdOrFolder.id;
 		}
 		return false;
-	}
-
-	registerCanonicalWorkspaceIdentityProvider(provider: { scheme: string; getCanonicalWorkspaceIdentifier: (folder: URI, token: CancellationToken) => Promise<{ [key: string]: string | null } | null> }): void {
-		this._canonicalWorkspaceIdentifierProviders.set(provider.scheme, provider);
-	}
-
-	async getCanonicalWorkspaceIdentifier(resource: URI, cancellationTokenSource: CancellationTokenSource): Promise<{ [key: string]: string | null } | null> {
-		const { scheme } = resource;
-		const provider = this._canonicalWorkspaceIdentifierProviders.get(scheme);
-		if (!provider) {
-			return null;
-		}
-		return provider.getCanonicalWorkspaceIdentifier(resource, cancellationTokenSource.token);
 	}
 
 	private async doUpdateFolders(foldersToAdd: IWorkspaceFolderCreationData[], foldersToRemove: URI[], index?: number): Promise<void> {

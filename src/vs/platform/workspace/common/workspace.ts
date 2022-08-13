@@ -12,7 +12,6 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Schemas } from 'vs/base/common/network';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
 
@@ -75,10 +74,6 @@ export interface IWorkspaceContextService {
 	 * Returns if the provided resource is inside the workspace or not.
 	 */
 	isInsideWorkspace(resource: URI): boolean;
-
-	registerCanonicalWorkspaceIdentityProvider(provider: { scheme: string; getCanonicalWorkspaceIdentifier: (folder: URI, token: CancellationToken) => Promise<{ [key: string]: string | null } | null> }): void;
-
-	getCanonicalWorkspaceIdentifier(resource: URI, cancellationTokenSource: CancellationTokenSource): Promise<{ [key: string]: string | null } | null>;
 }
 
 export interface IResolvedWorkspace extends IWorkspaceIdentifier, IBaseWorkspace {

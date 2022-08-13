@@ -17,17 +17,13 @@ declare module 'vscode' {
 		export function registerCanonicalWorkspaceIdentityProvider(scheme: string, provider: CanonicalWorkspaceIdentityProvider): Disposable;
 	}
 
-	export interface CanonicalWorkspaceIdentity {
-		[key: string]: string | null;
-	}
-
 	export interface CanonicalWorkspaceIdentityProvider {
 		/**
 		 *
-		 * @param uri The URI for a workspace folder.
+		 * @param workspaceFolder The workspace folder to provide a canonical identity for.
 		 * @param token A cancellation token for the request.
 		 * @returns An object representing the canonical workspace identity for the requested workspace folder.
 		 */
-		provideCanonicalWorkspaceIdentity(uri: Uri, token: CancellationToken): ProviderResult<CanonicalWorkspaceIdentity>;
+		provideCanonicalWorkspaceIdentity(workspaceFolder: WorkspaceFolder, token: CancellationToken): ProviderResult<string>;
 	}
 }

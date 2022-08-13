@@ -589,13 +589,18 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	}
 
 	// called by main thread
-	async $getCanonicalWorkspaceIdentity(folder: UriComponents, cancellationToken: CancellationToken): Promise<{ [key: string]: string | null } | null> {
-		const provider = this._canonicalWorkspaceIdentityProviders[folder.scheme];
+	async $getCanonicalWorkspaceIdentity(workspaceFolder: UriComponents, cancellationToken: CancellationToken): Promise<string | null> {
+		const folder = await this.resolveWorkspaceFolder(URI.revive(workspaceFolder));
+		if (!folder) {
+			return null;
+		}
+
+		const provider = this._canonicalWorkspaceIdentityProviders[folder.uri.scheme];
 		if (!provider) {
 			return null;
 		}
 
-		const result = await asPromise(() => provider.provideCanonicalWorkspaceIdentity(URI.revive(folder), cancellationToken));
+		const result = await asPromise(() => provider.provideCanonicalWorkspaceIdentity(folder, cancellationToken));
 		if (!result) {
 			return null;
 		}
