@@ -9,6 +9,7 @@ import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { clamp } from 'vs/base/common/numbers';
 import { autorun, derived, IObservable, ISettableObservable, ITransaction, transaction, observableValue } from 'vs/base/common/observable';
 import { noBreakWhitespace } from 'vs/base/common/strings';
 import { isDefined } from 'vs/base/common/types';
@@ -287,6 +288,8 @@ export interface ModifiedBaseRangeGutterItemInfo extends IGutterItemInfo {
 export class MergeConflictGutterItemView extends Disposable implements IGutterItemView<ModifiedBaseRangeGutterItemInfo> {
 	private readonly item: ISettableObservable<ModifiedBaseRangeGutterItemInfo>;
 
+	private readonly checkboxDiv: HTMLDivElement;
+
 	constructor(
 		item: ModifiedBaseRangeGutterItemInfo,
 		private readonly target: HTMLElement,
@@ -359,11 +362,40 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 
 		target.appendChild(dom.h('div.background', [noBreakWhitespace]).root);
 		target.appendChild(
-			dom.h('div.checkbox', [dom.h('div.checkbox-background', [checkBox.domNode])]).root
+			this.checkboxDiv = dom.h('div.checkbox', [dom.h('div.checkbox-background', [checkBox.domNode])]).root
 		);
 	}
 
 	layout(top: number, height: number, viewTop: number, viewHeight: number): void {
+
+		const checkboxHeight = this.checkboxDiv.clientHeight;
+		const middleHeight = height / 2 - checkboxHeight / 2;
+
+		const margin = checkboxHeight;
+
+		const effectiveCheckboxTop = top + middleHeight;
+
+		const preferredViewPortRange = [
+			margin,
+			viewTop + viewHeight - margin - checkboxHeight
+		];
+
+		const preferredParentRange = [
+			top + margin,
+			top + height - checkboxHeight - margin
+		];
+
+		const parentRange = [
+			top,
+			top + height - checkboxHeight
+		];
+
+		const clamped1 = clampIfIntervalIsNonEmpty(effectiveCheckboxTop, preferredViewPortRange[0], preferredViewPortRange[1]);
+		const clamped2 = clampIfIntervalIsNonEmpty(clamped1, preferredParentRange[0], preferredParentRange[1]);
+		const clamped3 = clamp(clamped2, parentRange[0], parentRange[1]);
+
+		this.checkboxDiv.style.top = `${clamped3 - top}px`;
+
 		this.target.classList.remove('multi-line');
 		this.target.classList.remove('single-line');
 		this.target.classList.add(height > 30 ? 'multi-line' : 'single-line');
@@ -375,4 +407,11 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 			this.item.set(baseRange, tx);
 		});
 	}
+}
+
+function clampIfIntervalIsNonEmpty(value: number, min: number, max: number): number {
+	if (min >= max) {
+		return value;
+	}
+	return Math.min(Math.max(value, min), max);
 }

@@ -6178,6 +6178,8 @@ declare module 'vscode' {
 	 * Denotes a location of an editor in the window. Editors can be arranged in a grid
 	 * and each column represents one editor location in that grid by counting the editors
 	 * in order of their appearance.
+	 *
+	 * Columns that do not exists will be created as needed up to the maximum of `ViewColumn.Nine`.
 	 */
 	export enum ViewColumn {
 		/**

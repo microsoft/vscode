@@ -19,7 +19,8 @@ const localize = nls.loadMessageBundle();
 
 const settingNames = Object.freeze({
 	enabled: 'experimental.updateLinksOnFileMove.enabled',
-	externalFileGlobs: 'experimental.updateLinksOnFileMove.externalFileGlobs'
+	externalFileGlobs: 'experimental.updateLinksOnFileMove.externalFileGlobs',
+	enableForDirectories: 'experimental.updateLinksOnFileMove.enableForDirectories',
 });
 
 const enum UpdateLinksOnFileMoveSetting {
@@ -33,7 +34,7 @@ interface RenameAction {
 	readonly newUri: vscode.Uri;
 }
 
-class UpdateImportsOnFileRenameHandler extends Disposable {
+class UpdateLinksOnFileRenameHandler extends Disposable {
 
 	private readonly _delayer = new Delayer(50);
 	private readonly _pendingRenames = new Set<RenameAction>();
@@ -44,27 +45,23 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 		super();
 
 		this._register(vscode.workspace.onDidRenameFiles(async (e) => {
-			const [{ newUri, oldUri }] = e.files; // TODO: only handles first file
+			for (const { newUri, oldUri } of e.files) {
+				const config = this.getConfiguration(newUri);
+				if (!await this.shouldParticipateInLinkUpdate(config, newUri)) {
+					continue;
+				}
 
-			const config = this.getConfiguration(newUri);
-
-			const setting = config.get<UpdateLinksOnFileMoveSetting>(settingNames.enabled);
-			if (setting === UpdateLinksOnFileMoveSetting.Never) {
-				return;
+				this._pendingRenames.add({ newUri, oldUri });
 			}
 
-			if (!this.shouldParticipateInLinkUpdate(config, newUri)) {
-				return;
+			if (this._pendingRenames.size) {
+				this._delayer.trigger(() => {
+					vscode.window.withProgress({
+						location: vscode.ProgressLocation.Window,
+						title: localize('renameProgress.title', "Checking for Markdown links to update")
+					}, () => this.flushRenames());
+				});
 			}
-
-			this._pendingRenames.add({ oldUri, newUri });
-
-			this._delayer.trigger(() => {
-				vscode.window.withProgress({
-					location: vscode.ProgressLocation.Window,
-					title: localize('renameProgress.title', "Checking for Markdown links to update")
-				}, () => this.flushRenames());
-			});
 		}));
 	}
 
@@ -110,13 +107,27 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 		return vscode.workspace.getConfiguration('markdown', resource);
 	}
 
-	private shouldParticipateInLinkUpdate(config: vscode.WorkspaceConfiguration, newUri: vscode.Uri) {
+	private async shouldParticipateInLinkUpdate(config: vscode.WorkspaceConfiguration, newUri: vscode.Uri): Promise<boolean> {
+		const setting = config.get<UpdateLinksOnFileMoveSetting>(settingNames.enabled);
+		if (setting === UpdateLinksOnFileMoveSetting.Never) {
+			return false;
+		}
+
 		if (looksLikeMarkdownPath(newUri)) {
 			return true;
 		}
 
 		const externalGlob = config.get<string>(settingNames.externalFileGlobs);
-		return !!externalGlob && picomatch.isMatch(newUri.fsPath, externalGlob);
+		if (!!externalGlob && picomatch.isMatch(newUri.fsPath, externalGlob)) {
+			return true;
+		}
+
+		const stat = await vscode.workspace.fs.stat(newUri);
+		if (stat.type === vscode.FileType.Directory) {
+			return config.get<boolean>(settingNames.enableForDirectories, true);
+		}
+
+		return false;
 	}
 
 	private async promptUser(newResources: readonly vscode.Uri[]): Promise<boolean> {
@@ -229,6 +240,6 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 	}
 }
 
-export function registerUpdatePathsOnRename(client: BaseLanguageClient) {
-	return new UpdateImportsOnFileRenameHandler(client);
+export function registerUpdateLinksOnRename(client: BaseLanguageClient) {
+	return new UpdateLinksOnFileRenameHandler(client);
 }

@@ -80,13 +80,14 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 		const targetSlice = new Slice(modifiedLines, diff.seq2Range);
 
 		const diffs = this.detailedDiffingAlgorithm.compute(sourceSlice, targetSlice);
-		return diffs.map(
+		const result = diffs.map(
 			(d) =>
 				new RangeMapping(
 					sourceSlice.translateRange(d.seq1Range).delta(diff.seq1Range.start),
 					targetSlice.translateRange(d.seq2Range).delta(diff.seq2Range.start)
 				)
 		);
+		return result;
 	}
 }
 

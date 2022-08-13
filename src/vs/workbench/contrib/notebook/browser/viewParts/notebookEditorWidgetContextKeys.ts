@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as DOM from 'vs/base/browser/dom';
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICellViewModel, INotebookEditorDelegate, KERNEL_EXTENSIONS } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -102,9 +103,15 @@ export class NotebookEditorContextKeys {
 			this._hasOutputs.set(hasOutputs);
 		};
 
+		const layoutDisposable = this._viewModelDisposables.add(new DisposableStore());
+
 		const addCellOutputsListener = (c: ICellViewModel) => {
 			return c.model.onDidChangeOutputs(() => {
-				recomputeOutputsExistence();
+				layoutDisposable.clear();
+
+				layoutDisposable.add(DOM.scheduleAtNextAnimationFrame(() => {
+					recomputeOutputsExistence();
+				}));
 			});
 		};
 

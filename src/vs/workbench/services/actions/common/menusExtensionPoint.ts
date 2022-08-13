@@ -161,10 +161,10 @@ const apiMenus: IAPIMenu[] = [
 		supportsSubmenus: false
 	},
 	{
-		key: 'comments/commentThread/widget/context',
-		id: MenuId.CommentThreadWidgetContext,
-		description: localize('commentThread.widgetContext', "The contributed comment thread widget context menu, rendered as a right click menu on the comment thread editor widget."),
-		proposed: 'contribCommentWidgetContext'
+		key: 'comments/commentThread/title/context',
+		id: MenuId.CommentThreadTitleContext,
+		description: localize('commentThread.titleContext', "The contributed comment thread title's peek context menu, rendered as a right click menu on the comment thread's peek title."),
+		proposed: 'contribCommentPeekContext'
 	},
 	{
 		key: 'comments/comment/title',
@@ -176,6 +176,12 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.CommentActions,
 		description: localize('comment.actions', "The contributed comment context menu, rendered as buttons below the comment editor"),
 		supportsSubmenus: false
+	},
+	{
+		key: 'comments/commentThread/comment/context',
+		id: MenuId.CommentThreadCommentContext,
+		description: localize('comment.commentContext', "The contributed comment context menu, rendered as a right click menu on the an individual comment in the comment thread's peek view."),
+		proposed: 'contribCommentPeekContext'
 	},
 	{
 		key: 'notebook/toolbar',
