@@ -32,7 +32,7 @@ declare namespace UtilityProcessProposedApi {
 		constructor(modulePath: string, args?: string[] | undefined, options?: UtilityProcessOptions);
 		postMessage(channel: string, message: any, transfer?: Electron.MessagePortMain[]): void;
 		kill(signal?: number | string): boolean;
-		on(event: 'exit', listener: (code: number | undefined) => void): this;
+		on(event: 'exit', listener: (event: Electron.Event, code: number) => void): this;
 		on(event: 'spawn', listener: () => void): this;
 	}
 }
@@ -338,8 +338,8 @@ class UtilityExtensionHostProcess extends Disposable {
 		this._register(Event.fromNodeEventEmitter<void>(this._process, 'spawn')(() => {
 			this._logService.info(`UtilityProcess<${this.id}>: received spawn event.`);
 		}));
-		this._register(Event.fromNodeEventEmitter<number | undefined>(this._process, 'exit')((code: number | undefined) => {
-			code = code || 0;
+		const onExit = Event.fromNodeEventEmitter<number>(this._process, 'exit', (_, code: number) => code);
+		this._register(onExit((code: number) => {
 			this._logService.info(`UtilityProcess<${this.id}>: received exit event with code ${code}.`);
 			this._hasExited = true;
 			this._onExit.fire({ pid: this._process!.pid!, code, signal: '' });

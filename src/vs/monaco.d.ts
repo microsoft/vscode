@@ -3829,12 +3829,14 @@ declare namespace monaco.editor {
 			 * Enable the sticky scroll
 			 */
 			enabled?: boolean;
+			maxLineCount?: number;
 		};
 	}
 
 	export interface EditorExperimentalOptions {
 		stickyScroll: {
 			enabled: boolean;
+			maxLineCount: number;
 		};
 	}
 

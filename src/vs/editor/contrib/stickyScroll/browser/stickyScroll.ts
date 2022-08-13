@@ -94,6 +94,7 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 
 	private getScrollWidgetState(): StickyScrollWidgetState {
 		const lineHeight: number = this.editor.getOption(EditorOption.lineHeight);
+		const maxNumberStickyLines = this.editor.getOption(EditorOption.experimental).stickyScroll.maxLineCount;
 		const scrollTop: number = this.editor.getScrollTop();
 		let lastLineRelativePosition: number = 0;
 		const lineNumbers: number[] = [];
@@ -120,6 +121,9 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 					}
 					else if (bottomOfElementAtDepth > bottomOfBeginningLine && bottomOfElementAtDepth <= bottomOfEndLine) {
 						lineNumbers.push(start);
+					}
+					if (lineNumbers.length === maxNumberStickyLines) {
+						break;
 					}
 				}
 			}

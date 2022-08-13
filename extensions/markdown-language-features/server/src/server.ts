@@ -7,14 +7,16 @@ import { CancellationToken, Connection, InitializeParams, InitializeResult, Note
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import * as lsp from 'vscode-languageserver-types';
 import * as md from 'vscode-markdown-languageservice';
-import { IDisposable } from 'vscode-markdown-languageservice/out/util/dispose';
 import { URI } from 'vscode-uri';
-import { getLsConfiguration } from './config';
+import { getLsConfiguration, LsConfiguration } from './config';
 import { ConfigurationManager } from './configuration';
 import { registerValidateSupport } from './languageFeatures/diagnostics';
 import { LogFunctionLogger } from './logging';
 import * as protocol from './protocol';
+import { IDisposable } from './util/dispose';
 import { VsCodeClientWorkspace } from './workspace';
+
+interface MdServerInitializationOptions extends LsConfiguration { }
 
 export async function startServer(connection: Connection) {
 	const documents = new TextDocuments(TextDocument);
@@ -22,7 +24,7 @@ export async function startServer(connection: Connection) {
 
 	const configurationManager = new ConfigurationManager(connection);
 
-	let provider: md.IMdLanguageService | undefined;
+	let mdLs: md.IMdLanguageService | undefined;
 	let workspace: VsCodeClientWorkspace | undefined;
 
 	connection.onInitialize((params: InitializeParams): InitializeResult => {
@@ -34,21 +36,21 @@ export async function startServer(connection: Connection) {
 			}
 		};
 
-		const config = getLsConfiguration({
-			markdownFileExtensions: params.initializationOptions.markdownFileExtensions,
-		});
+		const initOptions = params.initializationOptions as MdServerInitializationOptions | undefined;
+		const config = getLsConfiguration(initOptions ?? {});
 
 		const logger = new LogFunctionLogger(connection.console.log.bind(connection.console));
 		workspace = new VsCodeClientWorkspace(connection, config, documents, notebooks, logger);
-		provider = md.createLanguageService({
+		mdLs = md.createLanguageService({
 			workspace,
 			parser,
 			logger,
 			markdownFileExtensions: config.markdownFileExtensions,
+			excludePaths: config.excludePaths,
 		});
 
-		registerCompletionsSupport(connection, documents, provider, configurationManager);
-		registerValidateSupport(connection, workspace, provider, configurationManager, logger);
+		registerCompletionsSupport(connection, documents, mdLs, configurationManager);
+		registerValidateSupport(connection, workspace, mdLs, configurationManager, logger);
 
 		workspace.workspaceFolders = (params.workspaceFolders ?? []).map(x => URI.parse(x.uri));
 		return {
@@ -77,139 +79,84 @@ export async function startServer(connection: Connection) {
 		};
 	});
 
-
 	connection.onDocumentLinks(async (params, token): Promise<lsp.DocumentLink[]> => {
-		try {
-			const document = documents.get(params.textDocument.uri);
-			if (document) {
-				return await provider!.getDocumentLinks(document, token);
-			}
-		} catch (e) {
-			console.error(e.stack);
+		const document = documents.get(params.textDocument.uri);
+		if (!document) {
+			return [];
 		}
-		return [];
+		return mdLs!.getDocumentLinks(document, token);
 	});
 
 	connection.onDocumentLinkResolve(async (link, token): Promise<lsp.DocumentLink | undefined> => {
-		try {
-			return await provider!.resolveDocumentLink(link, token);
-		} catch (e) {
-			console.error(e.stack);
-		}
-		return undefined;
+		return mdLs!.resolveDocumentLink(link, token);
 	});
 
 	connection.onDocumentSymbol(async (params, token): Promise<lsp.DocumentSymbol[]> => {
-		try {
-			const document = documents.get(params.textDocument.uri);
-			if (document) {
-				return await provider!.getDocumentSymbols(document, token);
-			}
-		} catch (e) {
-			console.error(e.stack);
+		const document = documents.get(params.textDocument.uri);
+		if (!document) {
+			return [];
 		}
-		return [];
+		return mdLs!.getDocumentSymbols(document, token);
 	});
 
 	connection.onFoldingRanges(async (params, token): Promise<lsp.FoldingRange[]> => {
-		try {
-			const document = documents.get(params.textDocument.uri);
-			if (document) {
-				return await provider!.getFoldingRanges(document, token);
-			}
-		} catch (e) {
-			console.error(e.stack);
+		const document = documents.get(params.textDocument.uri);
+		if (!document) {
+			return [];
 		}
-		return [];
+		return mdLs!.getFoldingRanges(document, token);
 	});
 
 	connection.onSelectionRanges(async (params, token): Promise<lsp.SelectionRange[] | undefined> => {
-		try {
-			const document = documents.get(params.textDocument.uri);
-			if (document) {
-				return await provider!.getSelectionRanges(document, params.positions, token);
-			}
-		} catch (e) {
-			console.error(e.stack);
+		const document = documents.get(params.textDocument.uri);
+		if (!document) {
+			return [];
 		}
-		return [];
+		return mdLs!.getSelectionRanges(document, params.positions, token);
 	});
 
 	connection.onWorkspaceSymbol(async (params, token): Promise<lsp.WorkspaceSymbol[]> => {
-		try {
-			return await provider!.getWorkspaceSymbols(params.query, token);
-		} catch (e) {
-			console.error(e.stack);
-		}
-		return [];
+		return mdLs!.getWorkspaceSymbols(params.query, token);
 	});
 
 	connection.onReferences(async (params, token): Promise<lsp.Location[]> => {
-		try {
-			const document = documents.get(params.textDocument.uri);
-			if (document) {
-				return await provider!.getReferences(document, params.position, params.context, token);
-			}
-		} catch (e) {
-			console.error(e.stack);
+		const document = documents.get(params.textDocument.uri);
+		if (!document) {
+			return [];
 		}
-		return [];
+		return mdLs!.getReferences(document, params.position, params.context, token);
 	});
 
 	connection.onDefinition(async (params, token): Promise<lsp.Definition | undefined> => {
-		try {
-			const document = documents.get(params.textDocument.uri);
-			if (document) {
-				return await provider!.getDefinition(document, params.position, token);
-			}
-		} catch (e) {
-			console.error(e.stack);
+		const document = documents.get(params.textDocument.uri);
+		if (!document) {
+			return undefined;
 		}
-		return undefined;
+		return mdLs!.getDefinition(document, params.position, token);
 	});
 
 	connection.onPrepareRename(async (params, token) => {
-		try {
-			const document = documents.get(params.textDocument.uri);
-			if (document) {
-				return await provider!.prepareRename(document, params.position, token);
-			}
-		} catch (e) {
-			console.error(e.stack);
+		const document = documents.get(params.textDocument.uri);
+		if (!document) {
+			return undefined;
 		}
-		return undefined;
+		return mdLs!.prepareRename(document, params.position, token);
 	});
 
 	connection.onRenameRequest(async (params, token) => {
-		try {
-			const document = documents.get(params.textDocument.uri);
-			if (document) {
-				const edit = await provider!.getRenameEdit(document, params.position, params.newName, token);
-				console.log(JSON.stringify(edit));
-				return edit;
-			}
-		} catch (e) {
-			console.error(e.stack);
+		const document = documents.get(params.textDocument.uri);
+		if (!document) {
+			return undefined;
 		}
-		return undefined;
+		return mdLs!.getRenameEdit(document, params.position, params.newName, token);
 	});
 
 	connection.onRequest(protocol.getReferencesToFileInWorkspace, (async (params: { uri: string }, token: CancellationToken) => {
-		try {
-			return await provider!.getFileReferences(URI.parse(params.uri), token);
-		} catch (e) {
-			console.error(e.stack);
-		}
-		return undefined;
+		return mdLs!.getFileReferences(URI.parse(params.uri), token);
 	}));
 
 	connection.onRequest(protocol.getEditForFileRenames, (async (params, token: CancellationToken) => {
-		try {
-			return await provider!.getRenameFilesInWorkspaceEdit(params.map(x => ({ oldUri: URI.parse(x.oldUri), newUri: URI.parse(x.newUri) })), token);
-		} catch (e) {
-			console.error(e.stack);
-		}
-		return undefined;
+		return mdLs!.getRenameFilesInWorkspaceEdit(params.map(x => ({ oldUri: URI.parse(x.oldUri), newUri: URI.parse(x.newUri) })), token);
 	}));
 
 	documents.listen(connection);

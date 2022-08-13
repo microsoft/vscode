@@ -116,7 +116,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	private readonly nonce = UUID.generateUuid();
 
 	constructor(
-		public readonly notebookEditor: INotebookDelegateForWebview,
+		public notebookEditor: INotebookDelegateForWebview,
 		public readonly id: string,
 		public readonly documentUri: URI,
 		private options: BacklayerWebviewOptions,
@@ -1504,6 +1504,9 @@ var requirejs = (function() {
 	override dispose() {
 		this._disposed = true;
 		this.webview?.dispose();
+		this.webview = undefined;
+		this.notebookEditor = null!;
+		this.insetMapping.clear();
 		super.dispose();
 	}
 }
