@@ -57,6 +57,8 @@ export class MainThreadSecretState extends Disposable implements MainThreadSecre
 			await this.credentialsService.setPassword(fullKey, key, encryptedForSet);
 			const passwordEncrypted = await this.credentialsService.getPassword(fullKey, key);
 			decrypted = passwordEncrypted && await this.encryptionService.decrypt(passwordEncrypted);
+		} finally {
+			this.credentialsService.deletePassword(fullKey, key);
 		}
 
 		if (decrypted) {
