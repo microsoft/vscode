@@ -266,14 +266,21 @@
 	outline-offset: -1px;
 }
 
+.scm-editor-validation-container {
+	display: flex;
+	box-sizing: border-box;
+	border-width: 1px;
+	border-style: solid;
+	border-top: none;
+}
+
 .scm-editor-validation {
 	box-sizing: border-box;
 	font-size: 0.9em;
 	padding: 1px 3px;
 	display: block;
-	border-width: 1px;
-	border-style: solid;
-	border-top: none;
+	border-style: none;
+	flex: auto;
 }
 
 .scm-editor-validation p {
@@ -284,6 +291,10 @@
 .scm-editor-validation a {
 	-webkit-user-select: none;
 	user-select: none;
+}
+
+.scm-editor-validation-actions {
+	align-self: start;
 }
 
 .scm-view .scm-editor-placeholder {
