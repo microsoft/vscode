@@ -192,7 +192,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 			}));
 			this._register(addDisposableListener(this.maxRestoreControl, EventType.MOUSE_OVER, async e => {
 				const maximized = await this.nativeHostService.isMaximized();
-				setupCustomHover(this.hoverDelegate, this.maxRestoreControl!, maximized ? localize('window.maximize', 'Maximize') : localize('window.restore', 'Restore'));
+				setupCustomHover(this.hoverDelegate, this.maxRestoreControl!, maximized ? localize('window.restore', 'Restore') : localize('window.maximize', 'Maximize'));
 			}));
 
 			// Close
