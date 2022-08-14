@@ -33,6 +33,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
 import 'vs/editor/contrib/symbolIcons/browser/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
 import { Codicon } from 'vs/base/common/codicons';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 
 export const Context = {
 	Visible: new RawContextKey<boolean>('CodeActionMenuVisible', false, localize('CodeActionMenuVisible', "Whether the code action list widget is visible"))
@@ -73,6 +74,8 @@ export interface ICodeActionMenuItem {
 	isHeader: boolean;
 	headerTitle: string;
 	index: number;
+	options: CodeActionShowOptions;
+	trigger: CodeActionTrigger;
 	disposables?: IDisposable[];
 }
 
@@ -98,6 +101,8 @@ const codeActionLineHeight = 24;
 const headerLineHeight = 26;
 
 class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeActionMenuTemplateData> {
+	private element!: HTMLElement;
+	private actionbar!: ActionBar;
 
 	constructor(
 		private readonly acceptKeybindings: [string, string],
@@ -139,18 +144,45 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 			data.root.classList.add('group-header');
 		} else {
 			const text = element.action.label;
-			data.text.textContent = text;
+
 			element.isEnabled = element.action.enabled;
 
 			if (element.action instanceof CodeActionAction) {
+				const openedFromString = (element.options.fromLightbulb) ? CodeActionTriggerSource.Lightbulb : element.trigger.triggerAction;
+
 
 				// Check documentation type
 				element.isDocumentation = element.action.action.kind === CodeActionMenu.documentationID;
 
 				if (element.isDocumentation) {
-					data.text.textContent = text;
+					// data.text.textContent = text;
+					element.isEnabled = false;
 					data.root.classList.add('documentation');
+
+					const container = data.root;
+
+					this.element = dom.append(container, dom.$('.codeActionWidget-action-bar'));
+
+					// const actionViewItemProvider = <IActionViewItemProvider>(action => {
+					// 	console.log(action instanceof MenuItemAction ? element.action : undefined);
+					// 	return action instanceof MenuItemAction ? element.action : undefined;
+					// });
+
+
+					this.actionbar = new ActionBar(this.element);
+					if (openedFromString === 'refactor') {
+						CodeActionMenu.toggleDisabledOptions();
+						// show or hide refactorings
+						this.actionbar.push([element.action, element.action], { icon: false, label: true });
+					} else {
+						this.actionbar.push([element.action], { icon: false, label: true });
+					}
+
+					this.actionbar.domNode.classList.add('left');
+
+
 				} else {
+					data.text.textContent = text;
 					// Icons and Label modifaction based on group
 					const group = element.action.action.kind;
 
@@ -291,7 +323,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		}
 	}
 
-	private renderCodeActionMenuList(element: HTMLElement, inputArray: IAction[]): IDisposable {
+	private renderCodeActionMenuList(element: HTMLElement, inputArray: IAction[], options: CodeActionShowOptions, trigger: CodeActionTrigger): IDisposable {
 		const renderDisposables = new DisposableStore();
 		const renderMenu = document.createElement('div');
 
@@ -350,9 +382,9 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 
 		renderDisposables.add(this.codeActionList.value.onMouseClick(e => this._onListClick(e)));
 		renderDisposables.add(this.codeActionList.value.onMouseOver(e => this._onListHover(e)));
-		renderDisposables.add(this.codeActionList.value.onDidChangeFocus(e => this.codeActionList.value?.domFocus()));
+		renderDisposables.add(this.codeActionList.value.onDidChangeFocus(() => this.codeActionList.value?.domFocus()));
 		renderDisposables.add(this.codeActionList.value.onDidChangeSelection(e => this._onListSelection(e)));
-		renderDisposables.add(this._editor.onDidLayoutChange(e => this.hideCodeActionWidget()));
+		renderDisposables.add(this._editor.onDidLayoutChange(() => this.hideCodeActionWidget()));
 
 		// Filters and groups code actions by their group
 		const menuEntries: IAction[][] = [];
@@ -367,7 +399,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		const documentationGroup: IAction[] = [];
 		const otherGroup: IAction[] = [];
 
-		inputArray.forEach((item, index) => {
+		inputArray.forEach((item) => {
 			if (item instanceof CodeActionAction) {
 				const optionKind = item.action.kind;
 
@@ -439,7 +471,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 					this.hasSeparator = true;
 				}
 
-				const menuItem = <ICodeActionMenuItem>{ action: item, isEnabled: item.enabled, isSeparator: currIsSeparator, index };
+				const menuItem = <ICodeActionMenuItem>{ action: item, isEnabled: item.enabled, isSeparator: currIsSeparator, index, options, trigger };
 				if (item.enabled) {
 					this.viewItems.push(menuItem);
 				}
@@ -588,6 +620,24 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		});
 	}
 
+	public static toggleDisabledOptions() {
+		console.log('this got called from the renderer');
+
+		// this._contextViewService.showContextView({
+		// 	getAnchor: () => anchor,
+		// 	render: (container: HTMLElement) => this.renderCodeActionMenuList(container, menuActions, options, trigger),
+		// 	onHide: (didCancel) => {
+		// 		const openedFromString = (options.fromLightbulb) ? CodeActionTriggerSource.Lightbulb : trigger.triggerAction;
+		// 		this.codeActionTelemetry(openedFromString, didCancel, codeActions);
+		// 		this._visible = false;
+		// 		this._editor.focus();
+		// 	},
+		// },
+		// 	this._editor.getDomNode()!, false,
+		// );
+
+	}
+
 	public async show(trigger: CodeActionTrigger, codeActions: CodeActionSet, at: IAnchor | IPosition, options: CodeActionShowOptions): Promise<void> {
 		const model = this._editor.getModel();
 		if (!model) {
@@ -620,7 +670,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		if (this.isCodeActionWidgetEnabled(model)) {
 			this._contextViewService.showContextView({
 				getAnchor: () => anchor,
-				render: (container: HTMLElement) => this.renderCodeActionMenuList(container, menuActions),
+				render: (container: HTMLElement) => this.renderCodeActionMenuList(container, menuActions, options, trigger),
 				onHide: (didCancel) => {
 					const openedFromString = (options.fromLightbulb) ? CodeActionTriggerSource.Lightbulb : trigger.triggerAction;
 					this.codeActionTelemetry(openedFromString, didCancel, codeActions);
