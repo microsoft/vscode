@@ -24,6 +24,7 @@ import { NativeMenubarControl } from 'vs/workbench/electron-sandbox/parts/titleb
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { localize } from 'vs/nls';
+import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 
 export class TitlebarPart extends BrowserTitleBarPart {
 	private maxRestoreControl: HTMLElement | undefined;
@@ -183,11 +184,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 			}));
 
 			this._register(addDisposableListener(minimizeIcon, EventType.MOUSE_OVER, e => {
-				this.hoverService.showHover({
-					...hoverOptions,
-					target: minimizeIcon,
-					content: localize('window.minimize', 'Minimize'),
-				}, false);
+				setupCustomHover(this.hoverDelegate, minimizeIcon, localize('window.minimize', 'Minimize'));
 			}));
 
 			// Restore
@@ -202,11 +199,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 			}));
 			this._register(addDisposableListener(this.maxRestoreControl, EventType.MOUSE_OVER, async e => {
 				const maximized = await this.nativeHostService.isMaximized();
-				this.hoverService.showHover({
-					...hoverOptions,
-					target: this.maxRestoreControl!, // FIXME: maxRestoreControl can be undefined, is this an issue?
-					content: maximized ? localize('window.maximize', 'Maximize') : localize('window.restore', 'Restore'),
-				});
+				setupCustomHover(this.hoverDelegate, this.maxRestoreControl!, maximized ? localize('window.maximize', 'Maximize') : localize('window.restore', 'Restore'));
 			}));
 
 			// Close
@@ -215,11 +208,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 				this.nativeHostService.closeWindow();
 			}));
 			this._register(addDisposableListener(closeIcon, EventType.MOUSE_OVER, e => {
-				this.hoverService.showHover({
-					...hoverOptions,
-					target: closeIcon,
-					content:localize ('window.close', 'Close'),
-				});
+				setupCustomHover(this.hoverDelegate, closeIcon, localize('window.close', 'Close'));
 			}));
 
 			// Resizer

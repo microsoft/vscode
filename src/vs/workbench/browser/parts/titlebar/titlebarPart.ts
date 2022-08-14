@@ -75,7 +75,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	private layoutToolbar: ToolBar | undefined;
 	protected lastLayoutDimensions: Dimension | undefined;
 
-	private hoverDelegate: IHoverDelegate;
+	protected hoverDelegate: IHoverDelegate;
 
 	private readonly titleDisposables = this._register(new DisposableStore());
 	private titleBarStyle: 'native' | 'custom';
