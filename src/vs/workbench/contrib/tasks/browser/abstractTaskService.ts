@@ -358,13 +358,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return;
 		}
 		const tasks = await this.getSavedTasks('persistent');
-		this._logService.info('$____', '_reconnectTasks tasks', tasks);
 		if (!this._taskSystem) {
-			this._logService.info('$____', '_reconnectTasks', 'getting task system');
 			await this._getTaskSystem();
 		}
 		if (!tasks.length) {
-			this._logService.info('$____', '_reconnectTasks', 'no tasks, setting reconnected and returning');
 			this._tasksReconnected = true;
 			return;
 		}
@@ -372,7 +369,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		for (const task of tasks) {
 			if (ConfiguringTask.is(task)) {
 				const resolved = await this.tryResolveTask(task);
-				this._logService.info('$____', '_reconnectTasks', 'resolved task,', JSON.stringify(resolved), 'for task', JSON.stringify(task));
 				if (resolved) {
 					this.run(resolved, { attachProblemMatcher: true }, TaskRunSource.Reconnect);
 				}
@@ -700,7 +696,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 			}
 		}
-		console.log('workspace tasks', JSON.stringify(tasks));
 		return result;
 	}
 
@@ -1040,7 +1035,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	public removePersistentTask(key: string) {
 		if (this._getTasksFromStorage('persistent').has(key)) {
-			this._logService.info('$_____', 'removePersistentTask', key);
 			this._getTasksFromStorage('persistent').delete(key);
 			this._savePersistentTasks();
 		}
@@ -1094,9 +1088,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _setPersistentTask(task: Task): Promise<void> {
-		this._logService.info('$____', '_setPersistentTask', JSON.stringify(task));
 		if ((!task.configurationProperties.isBackground && !task.configurationProperties.presentation?.revealProblems && !task.configurationProperties.problemMatchers)) {
-			this._logService.info('$____', '_setPersistentTask', ' returning', task.configurationProperties.isBackground, task.configurationProperties.problemMatchers, this._tasksReconnected);
 			return;
 		}
 		let key = task.getRecentlyUsedKey();
@@ -1114,14 +1106,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 			}
 			this._getTasksFromStorage('persistent').set(key, JSON.stringify(customizations));
-			this._logService.info('_setPersistentTask', this._getTasksFromStorage('persistent'));
 			this._savePersistentTasks();
 		}
 	}
 
 	private _savePersistentTasks(): void {
 		if (!this._persistentTasks) {
-			this._logService.info('_savePersistentTask', 'no persistent tasks so returning');
 			return;
 		}
 		const keys = [...this._persistentTasks.keys()];
@@ -1129,7 +1119,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		for (const key of keys) {
 			keyValues.push([key, this._persistentTasks.get(key, Touch.None)!]);
 		}
-		console.log('saving', JSON.stringify(keyValues));
 		this._storageService.store(AbstractTaskService.PersistentTasks_Key, JSON.stringify(keyValues), StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
@@ -1213,7 +1202,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				if (taskToExecute) {
 					executeTaskResult = await this._executeTask(taskToExecute, resolver, runSource);
 				}
-				this._logService.info('attached problem matcher');
 				this._setPersistentTask(task);
 			} else {
 				executeTaskResult = await this._executeTask(task, resolver, runSource);
@@ -1222,7 +1210,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				const workspaceTasks = await this.getWorkspaceTasks();
 				RunAutomaticTasks.promptForPermission(this, this._storageService, this._notificationService, this._workspaceTrustManagementService, this._openerService, this._configurationService, workspaceTasks);
 			}
-			this._logService.info('$____', 'run', executeTaskResult);
 			return executeTaskResult;
 		} catch (error) {
 			this._handleError(error);

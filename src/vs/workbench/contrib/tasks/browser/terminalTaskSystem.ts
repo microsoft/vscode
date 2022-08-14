@@ -829,7 +829,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		let terminal: ITerminalInstance | undefined = undefined;
 		let error: TaskError | undefined = undefined;
 		let promise: Promise<ITaskSummary> | undefined = undefined;
-		console.log('is background', task.configurationProperties.isBackground);
 		if (task.configurationProperties.isBackground) {
 			const problemMatchers = await this._resolveMatchers(resolver, task.configurationProperties.problemMatchers);
 			const watchingProblemMatcher = new WatchingProblemCollector(problemMatchers, this._markerService, this._modelService, this._fileService);
@@ -1446,7 +1445,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		const terminalData = { terminal: terminal, lastTask: taskKey, group };
 		terminal.onDisposed(() => this._deleteTaskAndTerminal(terminal, terminalData));
 		this._terminals[terminalKey] = terminalData;
-		this._logService.info('$_____', 'task system create set', task.getRecentlyUsedKey());
 		return [terminal, undefined];
 	}
 
@@ -1710,7 +1708,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				result.push(copy);
 			}
 		}
-		console.log('resolved matchers');
 		return result;
 	}
 
