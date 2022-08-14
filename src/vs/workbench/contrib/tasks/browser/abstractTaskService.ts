@@ -377,10 +377,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				const resolved = await this.tryResolveTask(task);
 				this._logService.info('$____', '_reconnectTasks', 'resolved task,', JSON.stringify(resolved), 'for task', JSON.stringify(task));
 				if (resolved) {
-					this.run(resolved, undefined, TaskRunSource.Reconnect);
+					this.run(resolved, { attachProblemMatcher: true }, TaskRunSource.Reconnect);
 				}
 			} else {
-				this.run(task, undefined, TaskRunSource.Reconnect);
+				this.run(task, { attachProblemMatcher: true }, TaskRunSource.Reconnect);
 			}
 		}
 		this._tasksReconnected = true;
@@ -703,6 +703,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 			}
 		}
+		console.log('workspace tasks', JSON.stringify(tasks));
 		return result;
 	}
 
@@ -1211,6 +1212,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				if (taskToExecute) {
 					executeTaskResult = await this._executeTask(taskToExecute, resolver, runSource);
 				}
+				this._logService.info('attached problem matcher');
+				this._setPersistentTask(task);
 			} else {
 				executeTaskResult = await this._executeTask(task, resolver, runSource);
 			}
@@ -1854,9 +1857,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _handleExecuteResult(executeResult: ITaskExecuteResult, runSource?: TaskRunSource): Promise<ITaskSummary> {
-		if (this._configurationService.getValue(TaskSettingId.Reconnection) === true && runSource !== TaskRunSource.Reconnect) {
-			await this._setPersistentTask(executeResult.task);
-		}
 		if (runSource === TaskRunSource.User) {
 			await this._setRecentlyUsedTask(executeResult.task);
 		}
@@ -1885,6 +1885,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		}
 		this._setRecentlyUsedTask(executeResult.task);
+		if (this._configurationService.getValue(TaskSettingId.Reconnection) === true && runSource !== TaskRunSource.Reconnect) {
+			await this._setPersistentTask(executeResult.task);
+		}
 		return executeResult.promise;
 	}
 
