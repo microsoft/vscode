@@ -1088,7 +1088,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _setPersistentTask(task: Task): Promise<void> {
-		if ((!task.configurationProperties.isBackground && !task.configurationProperties.presentation?.revealProblems && !task.configurationProperties.problemMatchers)) {
+		if (!task.configurationProperties.isBackground && !task.configurationProperties.presentation?.revealProblems && !task.configurationProperties.problemMatchers) {
 			return;
 		}
 		let key = task.getRecentlyUsedKey();
@@ -1202,7 +1202,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				if (taskToExecute) {
 					executeTaskResult = await this._executeTask(taskToExecute, resolver, runSource);
 				}
-				this._setPersistentTask(task);
 			} else {
 				executeTaskResult = await this._executeTask(task, resolver, runSource);
 			}
