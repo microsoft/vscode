@@ -361,10 +361,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	private async _reconnectTasks(): Promise<void> {
 		const tasks = await this.getSavedTasks('persistent');
+		this._logService.info('$____', '_reconnectTasks tasks', tasks);
 		if (!this._taskSystem) {
+			this._logService.info('$____', '_reconnectTasks', 'getting task system');
 			await this._getTaskSystem();
 		}
 		if (!tasks.length) {
+			this._logService.info('$____', '_reconnectTasks', 'no tasks, setting reconnected and returning');
 			this._tasksReconnected = true;
 			return;
 		}
@@ -372,6 +375,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		for (const task of tasks) {
 			if (ConfiguringTask.is(task)) {
 				const resolved = await this.tryResolveTask(task);
+				this._logService.info('$____', '_reconnectTasks', 'resolved task,', JSON.stringify(resolved), 'for task', JSON.stringify(task));
 				if (resolved) {
 					this.run(resolved, undefined, TaskRunSource.Reconnect);
 				}
@@ -1034,6 +1038,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	public removePersistentTask(key: string) {
 		if (this._getTasksFromStorage('persistent').has(key)) {
+			this._logService.info('$_____', 'removePersistentTask', key);
 			this._getTasksFromStorage('persistent').delete(key);
 			this._savePersistentTasks();
 		}
@@ -1087,10 +1092,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _setPersistentTask(task: Task): Promise<void> {
-		if (!task.configurationProperties.problemMatchers || !this._tasksReconnected) {
+		this._logService.info('$____', '_setPersistentTask', JSON.stringify(task));
+		if (!task.configurationProperties.isBackground || !this._tasksReconnected) {
+			this._logService.info('$____', '_setPersistentTask', ' returning', task.configurationProperties.isBackground, task.configurationProperties.problemMatchers, this._tasksReconnected);
 			return;
 		}
-		let key = task.getMapKey();
+		let key = task.getRecentlyUsedKey();
 		if (!InMemoryTask.is(task) && key) {
 			const customizations = this._createCustomizableTask(task);
 			if (ContributedTask.is(task) && customizations) {
@@ -1101,16 +1108,18 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					tasks: [customizations]
 				}, TaskRunSource.System, custom, customized, TaskConfig.TaskConfigSource.TasksJson, true);
 				for (const configuration in customized) {
-					key = customized[configuration].getMapKey()!;
+					key = customized[configuration].getRecentlyUsedKey()!;
 				}
 			}
 			this._getTasksFromStorage('persistent').set(key, JSON.stringify(customizations));
+			this._logService.info('_setPersistentTask', this._getTasksFromStorage('persistent'));
 			this._savePersistentTasks();
 		}
 	}
 
 	private _savePersistentTasks(): void {
 		if (!this._persistentTasks) {
+			this._logService.info('_savePersistentTask', 'no persistent tasks so returning');
 			return;
 		}
 		const keys = [...this._persistentTasks.keys()];
@@ -1209,6 +1218,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				const workspaceTasks = await this.getWorkspaceTasks();
 				RunAutomaticTasks.promptForPermission(this, this._storageService, this._notificationService, this._workspaceTrustManagementService, this._openerService, this._configurationService, workspaceTasks);
 			}
+			this._logService.info('$____', 'run', executeTaskResult);
 			return executeTaskResult;
 		} catch (error) {
 			this._handleError(error);
