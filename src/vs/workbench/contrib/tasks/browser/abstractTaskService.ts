@@ -1090,7 +1090,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	private async _setPersistentTask(task: Task): Promise<void> {
 		this._logService.info('$____', '_setPersistentTask', JSON.stringify(task));
-		if ((!task.configurationProperties.isBackground && !task.configurationProperties.presentation?.revealProblems) || !this._tasksReconnected) {
+		if ((!task.configurationProperties.isBackground && !task.configurationProperties.presentation?.revealProblems && !task.configurationProperties.problemMatchers)) {
 			this._logService.info('$____', '_setPersistentTask', ' returning', task.configurationProperties.isBackground, task.configurationProperties.problemMatchers, this._tasksReconnected);
 			return;
 		}
