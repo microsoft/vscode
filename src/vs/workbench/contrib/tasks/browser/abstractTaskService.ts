@@ -76,7 +76,7 @@ import { EditorResourceAccessor, SaveReason } from 'vs/workbench/common/editor';
 import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
 import { configureTaskIcon, isWorkspaceFolder, ITaskQuickPickEntry, ITaskTwoLevelQuickPickEntry, QUICKOPEN_DETAIL_CONFIG, QUICKOPEN_SKIP_CONFIG, TaskQuickPick } from 'vs/workbench/contrib/tasks/browser/taskQuickPick';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ILifecycleService, ShutdownReason, StartupKind } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
@@ -352,6 +352,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _reconnectTasks(): Promise<void> {
+		if (this._lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
+			this._tasksReconnected = true;
+			this._storageService.remove(AbstractTaskService.PersistentTasks_Key, StorageScope.WORKSPACE);
+			return;
+		}
 		const tasks = await this.getSavedTasks('persistent');
 		this._logService.info('$____', '_reconnectTasks tasks', tasks);
 		if (!this._taskSystem) {
