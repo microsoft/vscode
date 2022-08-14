@@ -850,7 +850,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this.xterm) {
 			return;
 		}
-		const runRecentStorageKey = this._getPinnedCommandStorageKey();
+		const runRecentStorageKey = `${TerminalStorageKeys.PinnedRecentCommandsPrefix}.${this._shellType}`;
 		if (!runRecentStorageKey) {
 			return;
 		}
@@ -1034,7 +1034,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				} else {
 					this._instantiationService.invokeFunction(getDirectoryHistory)?.remove(e.item.label);
 				}
-				quickPick.hide();
+				this.runRecent(type, filterMode, value);
 			} else if (e.button.iconClass === ThemeIcon.asClassName(Codicon.output)) {
 				const selectedCommand = (e.item as Item).command;
 				const output = selectedCommand?.getOutput();
@@ -1076,25 +1076,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	detachFromElement(): void {
 		this._wrapperElement?.remove();
 		this._container = undefined;
-	}
-
-	_getPinnedCommandStorageKey(): string | undefined {
-		switch (this.shellType) {
-			case WindowsShellType.GitBash:
-				return TerminalStorageKeys.PinnedRecentCommandsGitBash;
-			case WindowsShellType.PowerShell:
-				return TerminalStorageKeys.PinnedRecentCommandsPwshWindows;
-			case PosixShellType.Bash:
-				return TerminalStorageKeys.PinnedRecentCommandsBash;
-			case PosixShellType.Zsh:
-				return TerminalStorageKeys.PinnedRecentCommandsZsh;
-			case PosixShellType.PowerShell:
-				return TerminalStorageKeys.PinnedRecentCommandsPwsh;
-			case PosixShellType.Fish:
-				return TerminalStorageKeys.PinnedRecentCommandsFish;
-			default:
-				return undefined;
-		}
 	}
 
 	attachToElement(container: HTMLElement): void {

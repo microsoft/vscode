@@ -11,10 +11,5 @@ export const enum TerminalStorageKeys {
 	EnvironmentVariableCollections = 'terminal.integrated.environmentVariableCollections',
 	TerminalBufferState = 'terminal.integrated.bufferState',
 	TerminalLayoutInfo = 'terminal.integrated.layoutInfo',
-	PinnedRecentCommandsZsh = 'terminal.pinnedRecentCommandsZsh',
-	PinnedRecentCommandsBash = 'terminal.pinnedRecentCommandsBash',
-	PinnedRecentCommandsFish = 'terminal.pinnedRecentCommandsFish',
-	PinnedRecentCommandsPwsh = 'terminal.pinnedRecentCommandsPwsh',
-	PinnedRecentCommandsGitBash = 'terminal.pinnedRecentCommandsGitBash',
-	PinnedRecentCommandsPwshWindows = 'terminal.pinnedRecentCommandsPwshWindows'
+	PinnedRecentCommandsPrefix = 'terminal.pinnedRecentCommands'
 }
