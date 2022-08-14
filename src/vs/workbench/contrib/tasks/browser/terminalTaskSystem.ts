@@ -829,6 +829,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		let terminal: ITerminalInstance | undefined = undefined;
 		let error: TaskError | undefined = undefined;
 		let promise: Promise<ITaskSummary> | undefined = undefined;
+		console.log('is background', task.configurationProperties.isBackground);
 		if (task.configurationProperties.isBackground) {
 			const problemMatchers = await this._resolveMatchers(resolver, task.configurationProperties.problemMatchers);
 			const watchingProblemMatcher = new WatchingProblemCollector(problemMatchers, this._markerService, this._modelService, this._fileService);
@@ -1282,7 +1283,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		for (let i = 0; i < this._reconnectedTerminals.length; i++) {
 			const terminal = this._reconnectedTerminals[i];
 			const taskForTerminal = terminal.shellLaunchConfig.attachPersistentProcess?.reconnectionProperties?.data as IReconnectionTaskData;
-			if (taskForTerminal.lastTask === task.getRecentlyUsedKey()) {
+			if (taskForTerminal.lastTask === task.getMapKey()) {
 				this._reconnectedTerminals.splice(i, 1);
 				return terminal;
 			}
@@ -1440,7 +1441,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 		this._terminalCreationQueue = this._terminalCreationQueue.then(() => this._doCreateTerminal(task, group, launchConfigs!));
 		const terminal: ITerminalInstance = (await this._terminalCreationQueue)!;
-		terminal.shellLaunchConfig.reconnectionProperties = { ownerId: ReconnectionType, data: { lastTask: task.getRecentlyUsedKey(), group, label: task._label, id: task._id } };
+		terminal.shellLaunchConfig.reconnectionProperties = { ownerId: ReconnectionType, data: { lastTask: taskKey, group, label: task._label, id: task._id } };
 		const terminalKey = terminal.instanceId.toString();
 		const terminalData = { terminal: terminal, lastTask: taskKey, group };
 		terminal.onDisposed(() => this._deleteTaskAndTerminal(terminal, terminalData));
@@ -1709,6 +1710,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				result.push(copy);
 			}
 		}
+		console.log('resolved matchers');
 		return result;
 	}
 
