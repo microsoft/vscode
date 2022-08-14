@@ -1088,9 +1088,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _setPersistentTask(task: Task): Promise<void> {
-		if (!task.configurationProperties.isBackground && !task.configurationProperties.presentation?.revealProblems && !task.configurationProperties.problemMatchers) {
-			return;
-		}
 		let key = task.getRecentlyUsedKey();
 		if (!InMemoryTask.is(task) && key) {
 			const customizations = this._createCustomizableTask(task);
@@ -1104,6 +1101,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				for (const configuration in customized) {
 					key = customized[configuration].getRecentlyUsedKey()!;
 				}
+			}
+			// isBackground is still false at this pt bc problem matchers
+			// for contributed tasks get attached later
+			// they're set to [] for this case,
+			// so checking if they're defined is sufficient
+			if (!task.configurationProperties.problemMatchers) {
+				return;
 			}
 			this._getTasksFromStorage('persistent').set(key, JSON.stringify(customizations));
 			this._savePersistentTasks();
