@@ -798,7 +798,6 @@ export class CustomTask extends CommonTask {
 			id: string;
 		}
 		const workspaceFolder = this.getFolderId();
-		console.log('__getRecentlyUsedKey', 'workspace folder', workspaceFolder);
 		if (!workspaceFolder) {
 			return undefined;
 		}
@@ -806,7 +805,6 @@ export class CustomTask extends CommonTask {
 		if (this._source.kind !== TaskSourceKind.Workspace) {
 			id += this._source.kind;
 		}
-		console.log('__getRecentlyUsedKey', 'id', id);
 		const key: ICustomKey = { type: CUSTOMIZED_TASK_TYPE, folder: workspaceFolder, id };
 		return JSON.stringify(key);
 	}

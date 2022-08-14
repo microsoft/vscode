@@ -370,10 +370,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			if (ConfiguringTask.is(task)) {
 				const resolved = await this.tryResolveTask(task);
 				if (resolved) {
-					this.run(resolved, { attachProblemMatcher: true }, TaskRunSource.Reconnect);
+					this.run(resolved, undefined, TaskRunSource.Reconnect);
 				}
 			} else {
-				this.run(task, { attachProblemMatcher: true }, TaskRunSource.Reconnect);
+				this.run(task, undefined, TaskRunSource.Reconnect);
 			}
 		}
 		this._tasksReconnected = true;
@@ -935,7 +935,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		//TODO: should this # be configurable?
 		this._persistentTasks = new LRUCache<string, string>(10);
-
 		const storageValue = this._storageService.get(AbstractTaskService.PersistentTasks_Key, StorageScope.WORKSPACE);
 		if (storageValue) {
 			try {
@@ -953,14 +952,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private _getFolderFromTaskKey(key: string): { folder: string | undefined; isWorkspaceFile: boolean | undefined } {
-		try {
-			const keyValue: { folder: string | undefined; id: string | undefined } = JSON.parse(key);
-			return {
-				folder: keyValue.folder, isWorkspaceFile: keyValue.id?.endsWith(TaskSourceKind.WorkspaceFile)
-			};
-		} catch {
-			return { folder: undefined, isWorkspaceFile: undefined };
-		}
+		const keyValue: { folder: string | undefined; id: string | undefined } = JSON.parse(key);
+		return {
+			folder: keyValue.folder, isWorkspaceFile: keyValue.id?.endsWith(TaskSourceKind.WorkspaceFile)
+		};
 	}
 
 	public async getSavedTasks(type: 'persistent' | 'historical'): Promise<(Task | ConfiguringTask)[]> {
@@ -1876,7 +1871,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		}
 		this._setRecentlyUsedTask(executeResult.task);
-		if (this._configurationService.getValue(TaskSettingId.Reconnection) === true && runSource !== TaskRunSource.Reconnect) {
+		if (this._configurationService.getValue(TaskSettingId.Reconnection) === true && runSource !== TaskRunSource.Reconnect && executeResult.task.type !== '$customized') {
 			await this._setPersistentTask(executeResult.task);
 		}
 		return executeResult.promise;
