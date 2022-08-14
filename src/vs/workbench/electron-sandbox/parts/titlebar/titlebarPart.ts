@@ -22,7 +22,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { Codicon } from 'vs/base/common/codicons';
 import { NativeMenubarControl } from 'vs/workbench/electron-sandbox/parts/titlebar/menubarControl';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
-import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { localize } from 'vs/nls';
 import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 
@@ -65,7 +64,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService hostService: IHostService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@IHoverService private readonly hoverService: IHoverService,
+		@IHoverService hoverService: IHoverService,
 	) {
 		super(contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, menuService, contextKeyService, hostService, hoverService);
 
