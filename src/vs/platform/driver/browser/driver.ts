@@ -112,9 +112,8 @@ export class BrowserWindowDriver implements IWindowDriver {
 		const start = textarea.selectionStart;
 		const newStart = start + text.length;
 		const value = textarea.value;
-		const newValue = value.substr(0, start) + text + value.substr(start);
 
-		textarea.value = newValue;
+		textarea.value = value.substring(0, start) + text + value.substring(start);
 		textarea.setSelectionRange(newStart, newStart);
 
 		const event = new Event('input', { 'bubbles': true, 'cancelable': true });
