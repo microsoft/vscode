@@ -6,7 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInputButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, QuickPickInput } from 'vs/base/parts/quickinput/common/quickInput';
-import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
 
 export * from 'vs/base/parts/quickinput/common/quickInput';
@@ -94,13 +94,4 @@ export interface IQuickInputService {
 	 * Cancels quick input and closes it.
 	 */
 	cancel(): Promise<void>;
-
-	/**
-	 * Initially, adds pin buttons to all @param quickPick items.
-	 * When pinned, a copy of the item will be moved to the end of the pinned list and any duplicate within the pinned list will
-	 * be removed. Pin and pinned button events trigger updates to the underlying storage.
-	 * The @param callback to run after the items have been formatted or
-	 * when one the pinned list is updated
-	 */
-	formatPinnedItems(accessor: ServicesAccessor, storageKey: string, quickPick: IQuickPick<IQuickPickItem>, callback?: () => void): void;
 }
