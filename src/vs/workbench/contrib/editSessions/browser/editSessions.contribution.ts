@@ -102,22 +102,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 	) {
 		super();
 
-		if (this.environmentService.editSessionId !== undefined) {
-			performance.mark('code/willResumeEditSessionFromIdentifier');
-			type ResumeEvent = {};
-			type ResumeClassification = {
-				owner: 'joyceerhl'; comment: 'Reporting when an action is resumed from an edit session identifier.';
-			};
-			this.telemetryService.publicLog2<ResumeEvent, ResumeClassification>('editSessions.continue.resume');
-
-			void this.resumeEditSession(this.environmentService.editSessionId).finally(() => this.environmentService.editSessionId = undefined);
-			performance.mark('code/didResumeEditSessionFromIdentifier');
-		} else if (this.configurationService.getValue('workbench.experimental.editSessions.autoResume') === 'onReload' && this.editSessionsWorkbenchService.isSignedIn) {
-			// Attempt to resume edit session based on canonical workspace identifier
-			// Note: at this point if the user is not signed into edit sessions,
-			// we don't want them to sign in and should just return early
-			void this.resumeEditSession(undefined, true);
-		}
+		this.autoResumeEditSession();
 
 		this.configurationService.onDidChangeConfiguration((e) => {
 			if (e.affectsConfiguration(experimentalSettingName)) {
@@ -127,37 +112,38 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 		this.registerActions();
 		this.registerViews();
-
-		continueEditSessionExtPoint.setHandler(extensions => {
-			const continueEditSessionOptions: ContinueEditSessionItem[] = [];
-			for (const extension of extensions) {
-				if (!isProposedApiEnabled(extension.description, 'contribEditSessions')) {
-					continue;
-				}
-				if (!Array.isArray(extension.value)) {
-					continue;
-				}
-				const commands = new Map((extension.description.contributes?.commands ?? []).map(c => [c.command, c]));
-				for (const contribution of extension.value) {
-					if (!contribution.command || !contribution.when) {
-						continue;
-					}
-					const fullCommand = commands.get(contribution.command);
-					if (!fullCommand) { return; }
-
-					continueEditSessionOptions.push(new ContinueEditSessionItem(
-						fullCommand.title,
-						fullCommand.command,
-						ContextKeyExpr.deserialize(contribution.when)
-					));
-				}
-			}
-			this.continueEditSessionOptions = continueEditSessionOptions;
-		});
+		this.registerContributedEditSessionOptions();
 
 		this.shouldShowViewsContext = EDIT_SESSIONS_SHOW_VIEW.bindTo(this.contextKeyService);
 
 		this._register(this.fileService.registerProvider(EditSessionsFileSystemProvider.SCHEMA, new EditSessionsFileSystemProvider(this.editSessionsWorkbenchService)));
+	}
+
+	private async autoResumeEditSession() {
+		if (this.environmentService.editSessionId !== undefined) {
+			// In web, resume edit session based on an edit session GUID that
+			// was explicitly passed into the workbench construction options
+			void this.progressService.withProgress({ location: ProgressLocation.Dialog, type: 'syncing', title: localize('resuming edit session dialog', 'Resuming your latest edit session...') }, async () => {
+				performance.mark('code/willResumeEditSessionFromIdentifier');
+
+				type ResumeEvent = {};
+				type ResumeClassification = {
+					owner: 'joyceerhl'; comment: 'Reporting when an action is resumed from an edit session identifier.';
+				};
+				this.telemetryService.publicLog2<ResumeEvent, ResumeClassification>('editSessions.continue.resume');
+
+				await this.resumeEditSession(this.environmentService.editSessionId).finally(() => this.environmentService.editSessionId = undefined);
+
+				performance.mark('code/didResumeEditSessionFromIdentifier');
+			});
+		} else if (this.configurationService.getValue('workbench.experimental.editSessions.autoResume') === 'onReload' && this.editSessionsWorkbenchService.isSignedIn) {
+			// Attempt to resume edit session based on edit workspace identifier
+			// Note: at this point if the user is not signed into edit sessions,
+			// we don't want them to be prompted to sign in and should just return early
+			void this.progressService.withProgress({ location: ProgressLocation.Window, type: 'syncing', title: localize('resuming edit session window', 'Resuming edit session...') }, async () => {
+				await this.resumeEditSession(undefined, true);
+			});
+		}
 	}
 
 	private registerViews() {
@@ -504,6 +490,35 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 	}
 
 	//#region Continue Edit Session extension contribution point
+
+	private registerContributedEditSessionOptions() {
+		continueEditSessionExtPoint.setHandler(extensions => {
+			const continueEditSessionOptions: ContinueEditSessionItem[] = [];
+			for (const extension of extensions) {
+				if (!isProposedApiEnabled(extension.description, 'contribEditSessions')) {
+					continue;
+				}
+				if (!Array.isArray(extension.value)) {
+					continue;
+				}
+				const commands = new Map((extension.description.contributes?.commands ?? []).map(c => [c.command, c]));
+				for (const contribution of extension.value) {
+					if (!contribution.command || !contribution.when) {
+						continue;
+					}
+					const fullCommand = commands.get(contribution.command);
+					if (!fullCommand) { return; }
+
+					continueEditSessionOptions.push(new ContinueEditSessionItem(
+						fullCommand.title,
+						fullCommand.command,
+						ContextKeyExpr.deserialize(contribution.when)
+					));
+				}
+			}
+			this.continueEditSessionOptions = continueEditSessionOptions;
+		});
+	}
 
 	private registerContinueInLocalFolderAction(): void {
 		const that = this;
