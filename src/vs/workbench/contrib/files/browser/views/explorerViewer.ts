@@ -531,7 +531,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 						inputBox.select({ start: 0, end: inputBox.value.length });
 					} else if (currentSelectionState === 'all') {
 						currentSelectionState = 'suffix';
-						inputBox.select({ start: dotIndex, end: inputBox.value.length });
+						inputBox.select({ start: dotIndex + 1, end: inputBox.value.length });
 					} else {
 						currentSelectionState = 'prefix';
 						inputBox.select({ start: 0, end: dotIndex });
