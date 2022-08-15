@@ -225,7 +225,7 @@ export class DesktopMain extends Disposable {
 		serviceCollection.set(IWorkbenchFileService, fileService);
 
 		// Local Files
-		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(mainProcessService, sharedProcessWorkerWorkbenchService, logService));
+		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(mainProcessService, sharedProcessWorkerWorkbenchService, logService, environmentService));
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 		// Remote Files

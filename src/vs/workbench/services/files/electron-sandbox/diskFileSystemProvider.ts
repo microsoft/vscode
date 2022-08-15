@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { isLinux } from 'vs/base/common/platform';
-import { FileSystemProviderCapabilities, IFileDeleteOptions, IStat, FileType, IFileReadStreamOptions, IFileWriteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileAtomicReadCapability, IFileAtomicReadOptions, IFileSystemProviderWithFileCloneCapability } from 'vs/platform/files/common/files';
+import { FileSystemProviderCapabilities, IFileDeleteOptions, IStat, FileType, IFileReadStreamOptions, IFileWriteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileAtomicReadCapability, IFileAtomicReadOptions, IFileSystemProviderWithFileCloneCapability, FilePermission } from 'vs/platform/files/common/files';
 import { AbstractDiskFileSystemProvider } from 'vs/platform/files/common/diskFileSystemProvider';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -16,6 +16,8 @@ import { IDiskFileChange, ILogMessage, AbstractUniversalWatcherClient } from 'vs
 import { UniversalWatcherClient } from 'vs/workbench/services/files/electron-sandbox/watcherClient';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ISharedProcessWorkerWorkbenchService } from 'vs/workbench/services/sharedProcess/electron-sandbox/sharedProcessWorkerWorkbenchService';
+import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 
 /**
  * A sandbox ready disk file system provider that delegates almost all calls
@@ -35,7 +37,8 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	constructor(
 		private readonly mainProcessService: IMainProcessService,
 		private readonly sharedProcessWorkerWorkbenchService: ISharedProcessWorkerWorkbenchService,
-		logService: ILogService
+		logService: ILogService,
+		@INativeEnvironmentService private readonly nativeEnvironmentService: INativeEnvironmentService,
 	) {
 		super(logService, { watcher: { forceUniversal: true /* send all requests to universal watcher process */ } });
 
@@ -59,8 +62,23 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 	//#region File Metadata Resolving
 
-	stat(resource: URI): Promise<IStat> {
-		return this.provider.stat(resource);
+	private readonly appRootUri = URI.file(this.nativeEnvironmentService.appRoot);
+
+	async stat(resource: URI): Promise<IStat> {
+		let stat = await this.provider.stat(resource);
+
+		// Force readonly if within the appRoot (https://github.com/microsoft/vscode/issues/138815)
+		// unless it is in the folder used as userDataDir when debugging OSS
+		if (extUriBiasedIgnorePathCase.isEqualOrParent(resource, this.appRootUri)
+			&& !extUriBiasedIgnorePathCase.isEqualOrParent(resource, this.appRootUri.with({ path: this.appRootUri.path + '/.profile-oss' }))
+		) {
+			stat = {
+				...stat,
+				permissions: FilePermission.Readonly
+			};
+		}
+
+		return stat;
 	}
 
 	readdir(resource: URI): Promise<[string, FileType][]> {

@@ -230,7 +230,7 @@ export class ExplorerItem {
 			return; // Merging only supported for stats with the same resource
 		}
 
-		// Stop merging when a folder is not resolved to avoid loosing local data
+		// Stop merging when a folder is not resolved to avoid losing local data
 		const mergingDirectories = disk.isDirectory || local.isDirectory;
 		if (mergingDirectories && local._isDirectoryResolved && !disk._isDirectoryResolved) {
 			return;
@@ -242,6 +242,7 @@ export class ExplorerItem {
 			local.updateName(disk.name);
 		}
 		local._isDirectory = disk.isDirectory;
+		local._readonly = disk._readonly;
 		local._mtime = disk.mtime;
 		local._isDirectoryResolved = disk._isDirectoryResolved;
 		local._isSymbolicLink = disk.isSymbolicLink;
@@ -297,7 +298,7 @@ export class ExplorerItem {
 		return this.children.get(this.getPlatformAwareName(name));
 	}
 
-	fetchChildren(sortOrder: SortOrder): ExplorerItem[] | Promise<ExplorerItem[]> {
+	fetchChildren(sortOrder: SortOrder, requireMetadata?: boolean): ExplorerItem[] | Promise<ExplorerItem[]> {
 		const nestingConfig = this.configService.getValue<IFilesConfiguration>({ resource: this.root.resource }).explorer.fileNesting;
 
 		// fast path when the children can be resolved sync
@@ -307,9 +308,9 @@ export class ExplorerItem {
 
 		return (async () => {
 			if (!this._isDirectoryResolved) {
-				// Resolve metadata only when the mtime is needed since this can be expensive
+				// Resolve metadata can be expensive so unless caller insists only do this when the mtime is needed
 				// Mtime is only used when the sort order is 'modified'
-				const resolveMetadata = sortOrder === SortOrder.Modified;
+				const resolveMetadata = sortOrder === SortOrder.Modified || requireMetadata;
 				this.isError = false;
 				try {
 					const stat = await this.fileService.resolve(this.resource, { resolveSingleChildDescendants: true, resolveMetadata });
