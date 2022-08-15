@@ -18,6 +18,8 @@ export interface IQuickPickItemHighlights {
 	detail?: IMatch[];
 }
 
+export type BaseQuickPickItem = IQuickPickSeparator | IQuickPickItem;
+
 export interface IQuickPickItem {
 	type?: 'item';
 	id?: string;
@@ -39,6 +41,7 @@ export interface IQuickPickItem {
 	buttons?: IQuickInputButton[];
 	picked?: boolean;
 	alwaysShow?: boolean;
+	excludeFromSearch?: boolean;
 }
 
 export interface IQuickPickSeparator {
@@ -239,6 +242,8 @@ export enum ItemActivation {
 	SECOND,
 	LAST
 }
+
+
 
 export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 

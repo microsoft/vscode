@@ -15,7 +15,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Schemas } from 'vs/base/common/network';
 import { RegisteredEditorInfo, RegisteredEditorPriority, RegisteredEditorOptions, EditorAssociation, EditorAssociations, editorsAssociationsSettingId, globMatchesResource, IEditorResolverService, priorityToRank, ResolvedEditor, ResolvedStatus, EditorInputFactoryObject } from 'vs/workbench/services/editor/common/editorResolverService';
-import { IKeyMods, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { BaseQuickPickItem, IKeyMods, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { localize } from 'vs/nls';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -638,7 +638,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 				return priorityToRank(b.editorInfo.priority) - priorityToRank(a.editorInfo.priority);
 			}
 		});
-		const quickPickEntries: Array<IQuickPickItem | IQuickPickSeparator> = [];
+		const quickPickEntries: Array<BaseQuickPickItem> = [];
 		const currentlyActiveLabel = localize('promptOpenWith.currentlyActive', "Active");
 		const currentDefaultLabel = localize('promptOpenWith.currentDefault', "Default");
 		const currentDefaultAndActiveLabel = localize('promptOpenWith.currentDefaultAndActive', "Active and Default");

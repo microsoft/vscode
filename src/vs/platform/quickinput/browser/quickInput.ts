@@ -16,7 +16,7 @@ import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { QuickAccessController } from 'vs/platform/quickinput/browser/quickAccess';
 import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
-import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
+import { BaseQuickPickItem, IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickPickItemButtonEvent, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { activeContrastBorder, badgeBackground, badgeForeground, buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, keybindingLabelBackground, keybindingLabelBorder, keybindingLabelBottomBorder, keybindingLabelForeground, pickerGroupBorder, pickerGroupForeground, progressBarBackground, quickInputBackground, quickInputForeground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusIconForeground, quickInputTitleBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { computeStyles } from 'vs/platform/theme/common/styler';
@@ -242,7 +242,7 @@ export class QuickInputService extends Themable implements IQuickInputService {
 	}
 
 	private async _formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, storageService: IStorageService, reopenQuickpick?: boolean, event?: IQuickPickItemButtonEvent<IQuickPickItem>): Promise<void> {
-		const formattedItems: (IQuickPickItem | IQuickPickSeparator)[] = [];
+		const formattedItems: BaseQuickPickItem[] = [];
 		const labels = this._getPinnedLabels(storageKey, storageService);
 		const updatedLabels = !!event?.item ? this._updatePinned(storageKey, event.item.label, storageService, new Set(labels).has(event.item.label)) : labels;
 		for (const label of updatedLabels) {
@@ -266,7 +266,7 @@ export class QuickInputService extends Themable implements IQuickInputService {
 		}
 	}
 
-	private _updateButtons(item: IQuickPickItem | IQuickPickSeparator, removePin: boolean): void {
+	private _updateButtons(item: BaseQuickPickItem, removePin: boolean): void {
 		if (item.type === 'separator') {
 			return;
 		}
@@ -276,6 +276,10 @@ export class QuickInputService extends Themable implements IQuickInputService {
 			tooltip: removePin ? localize('pinCommand', "Pin command") : localize('pinnedCommand', "Pinned command"),
 			alwaysVisible: false
 		});
+
+		if (!removePin) {
+			item.excludeFromSearch = true;
+		}
 	}
 
 	private _updatePinned(storageKey: string, label: string, storageService: IStorageService, removePin: boolean): string[] {
