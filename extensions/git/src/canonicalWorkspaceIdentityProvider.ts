@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { Model } from './model';
 
@@ -19,7 +20,10 @@ export class GitCanonicalWorkspaceIdentityProvider implements vscode.CanonicalWo
 	}
 
 	async provideCanonicalWorkspaceIdentity(workspaceFolder: vscode.WorkspaceFolder, _token: vscode.CancellationToken): Promise<string | null> {
+		await this.model.openRepository(path.dirname(workspaceFolder.uri.fsPath));
+
 		const repository = this.model.getRepository(workspaceFolder.uri);
+		await repository?.status();
 
 		if (!repository || !repository?.HEAD?.upstream) {
 			return null;

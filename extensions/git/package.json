@@ -25,6 +25,7 @@
   ],
   "activationEvents": [
     "*",
+    "onEditSession:file",
     "onFileSystem:git",
     "onFileSystem:git-show"
   ],
