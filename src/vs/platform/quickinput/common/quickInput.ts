@@ -100,5 +100,5 @@ export interface IQuickInputService {
 	 * When pinned, a copy of the item will be moved to the end of the pinned list and any duplicate within the pinned list will
 	 * be removed. Pin and pinned button events trigger updates to the underlying storage.
 	 */
-	formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, accessor: ServicesAccessor, reopenQuickpick?: boolean): void;
+	formatPinnedItems(accessor: ServicesAccessor, storageKey: string, quickPick: IQuickPick<IQuickPickItem>, reopenQuickpick?: boolean): void;
 }
