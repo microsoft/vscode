@@ -243,8 +243,6 @@ export enum ItemActivation {
 	LAST
 }
 
-
-
 export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	value: string;
