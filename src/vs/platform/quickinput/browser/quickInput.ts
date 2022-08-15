@@ -266,7 +266,9 @@ export class QuickInputService extends Themable implements IQuickInputService {
 		quickPick.onDidChangeValue(value => {
 			// don't show pinned items in the search results
 			quickPick.items = value ? quickPick.items.filter(i => i.type !== 'separator' && !i.buttons?.find(b => b.iconClass === ThemeIcon.asClassName(Codicon.pinned))) : quickPick.items;
-			quickPick.show();
+			if (!value && callback) {
+				callback();
+			}
 		});
 		quickPick.show();
 	}
