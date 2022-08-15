@@ -297,6 +297,10 @@
 	align-self: start;
 }
 
+.scm-editor-validation-actions .action-label {
+	border-radius: 0px;
+}
+
 .scm-view .scm-editor-placeholder {
 	position: absolute;
 	pointer-events: none;
