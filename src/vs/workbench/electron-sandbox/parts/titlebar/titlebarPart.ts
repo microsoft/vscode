@@ -180,7 +180,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 				setupCustomHover(this.hoverDelegate, minimizeIcon, localize('window.minimize', 'Minimize'));
 			}));
 
-			// Restore
+			// Maximize - Restore Down
 			this.maxRestoreControl = append(this.windowControls, $('div.window-icon.window-max-restore'));
 			this._register(addDisposableListener(this.maxRestoreControl, EventType.CLICK, async e => {
 				const maximized = await this.nativeHostService.isMaximized();
@@ -192,7 +192,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 			}));
 			this._register(addDisposableListener(this.maxRestoreControl, EventType.MOUSE_OVER, async e => {
 				const maximized = await this.nativeHostService.isMaximized();
-				setupCustomHover(this.hoverDelegate, this.maxRestoreControl!, maximized ? localize('window.restore', 'Restore') : localize('window.maximize', 'Maximize'));
+				setupCustomHover(this.hoverDelegate, this.maxRestoreControl!, maximized ? localize('window.restore', 'Restore Down') : localize('window.maximize', 'Maximize'));
 			}));
 
 			// Close
