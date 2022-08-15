@@ -20,7 +20,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, UndoConfirmLevel } from 'vs/workbench/contrib/files/common/files';
-import { dirname, joinPath, distinctParents, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
+import { dirname, joinPath, distinctParents } from 'vs/base/common/resources';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { localize } from 'vs/nls';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
@@ -60,7 +60,6 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
 import { IgnoreFile } from 'vs/workbench/services/search/common/ignoreFile';
 import { ResourceSet, TernarySearchTree } from 'vs/base/common/map';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -86,16 +85,13 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IFileService private readonly fileService: IFileService,
 		@IExplorerService private readonly explorerService: IExplorerService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@INativeEnvironmentService private readonly nativeEnvironmentService: INativeEnvironmentService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) { }
 
 	hasChildren(element: ExplorerItem | ExplorerItem[]): boolean {
 		// don't render nest parents as containing children when all the children are filtered out
 		return Array.isArray(element) || element.hasChildren((stat) => this.fileFilter.filter(stat, TreeVisibility.Visible));
 	}
-
-	private readonly appRootUri = URI.file(this.nativeEnvironmentService.appRoot);
 
 	getChildren(element: ExplorerItem | ExplorerItem[]): ExplorerItem[] | Promise<ExplorerItem[]> {
 		if (Array.isArray(element)) {
@@ -104,9 +100,9 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 
 		const wasError = element.isError;
 		const sortOrder = this.explorerService.sortOrderConfiguration.sortOrder;
-		// Always get metadata for resources in the appRoot so Explorer discovers they are to be treated as readonly
+		// Always get metadata for resources that could be within the appRoot, so Explorer discovers if they are to be treated as readonly
 		// (https://github.com/microsoft/vscode/issues/138815)
-		const requireMetadata = extUriBiasedIgnorePathCase.isEqualOrParent(element.resource, this.appRootUri);
+		const requireMetadata = element.resource.scheme === 'file';
 		const children = element.fetchChildren(sortOrder, requireMetadata);
 		if (Array.isArray(children)) {
 			// fast path when children are known sync (i.e. nested children)
