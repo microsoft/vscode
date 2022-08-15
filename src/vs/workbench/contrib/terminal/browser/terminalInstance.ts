@@ -865,6 +865,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			tooltip: nls.localize('removeCommand', "Remove from Command History")
 		};
 
+		const commandOutputButton: IQuickInputButton = {
+			iconClass: ThemeIcon.asClassName(Codicon.output),
+			tooltip: nls.localize('viewCommandOutput', "View Command Output"),
+			alwaysVisible: false
+		};
+
 		if (type === 'command') {
 			placeholder = isMacintosh ? nls.localize('selectRecentCommandMac', 'Select a command to run (hold Option-key to edit the command)') : nls.localize('selectRecentCommand', 'Select a command to run (hold Alt-key to edit the command)');
 			const cmdDetection = this.capabilities.get(TerminalCapability.CommandDetection);
@@ -896,12 +902,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						}
 					}
 					description = description.trim();
-					const iconClass = ThemeIcon.asClassName(Codicon.output);
-					const buttons: IQuickInputButton[] = [{
-						iconClass,
-						tooltip: nls.localize('viewCommandOutput', "View Command Output"),
-						alwaysVisible: false
-					}];
+					const buttons: IQuickInputButton[] = [commandOutputButton];
 					// Merge consecutive commands
 					const lastItem = items.length > 0 ? items[items.length - 1] : undefined;
 					if (lastItem?.type !== 'separator' && lastItem?.label === label) {
@@ -1035,8 +1036,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				} else {
 					this._instantiationService.invokeFunction(getDirectoryHistory)?.remove(e.item.label);
 				}
-				this.runRecent(type, filterMode, value);
-			} else if (e.button.iconClass === ThemeIcon.asClassName(Codicon.output)) {
+				await this.runRecent(type, filterMode, value);
+			} else if (e.button === commandOutputButton) {
 				const selectedCommand = (e.item as Item).command;
 				const output = selectedCommand?.getOutput();
 				if (output && selectedCommand?.command) {
@@ -1053,7 +1054,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						});
 					}
 				}
-				await this.runRecent(type, filterMode, value);
 			}
 		});
 		quickPick.onDidAccept(async () => {
@@ -1071,8 +1071,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			quickPick.value = value;
 		}
 		return new Promise<void>(r => {
-			this._instantiationService.invokeFunction(formatPinnedItems, runRecentStorageKey, quickPick, async () => await this.runRecent(type, filterMode, value));
 			this._terminalInRunCommandPicker.set(true);
+			this._instantiationService.invokeFunction(formatPinnedItems, runRecentStorageKey, quickPick, async () => await this.runRecent(type, filterMode, value));
 			quickPick.onDidHide(() => {
 				this._terminalInRunCommandPicker.set(false);
 				r();
