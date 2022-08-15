@@ -41,7 +41,6 @@ export interface IQuickPickItem {
 	buttons?: IQuickInputButton[];
 	picked?: boolean;
 	alwaysShow?: boolean;
-	excludeFromSearch?: boolean;
 }
 
 export interface IQuickPickSeparator {

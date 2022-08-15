@@ -653,7 +653,6 @@ export class QuickInputList {
 					element.detailHighlights = undefined;
 					element.hidden = !element.item.alwaysShow;
 				}
-				element.hidden = !element.hidden || (element.item.excludeFromSearch === true);
 				element.separator = undefined;
 
 				// we can show the separator unless the list gets sorted by match

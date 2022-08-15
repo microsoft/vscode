@@ -231,20 +231,23 @@ export class QuickInputService extends Themable implements IQuickInputService {
 		};
 	}
 
-	formatPinnedItems(accessor: ServicesAccessor, storageKey: string, quickPick: IQuickPick<IQuickPickItem>, reopenQuickpick?: boolean): void {
+	formatPinnedItems(accessor: ServicesAccessor, storageKey: string, quickPick: IQuickPick<IQuickPickItem>, callback: () => void): void {
 		const storageService = accessor.get(IStorageService);
 		quickPick.onDidTriggerItemButton((e) => {
 			if (e.button.iconClass === ThemeIcon.asClassName(Codicon.pin) || e.button.iconClass === ThemeIcon.asClassName(Codicon.pinned)) {
-				this._formatPinnedItems(storageKey, quickPick, storageService, reopenQuickpick, e);
+				this._formatPinnedItems(storageKey, quickPick, storageService, e, callback);
 			}
 		});
-		this._formatPinnedItems(storageKey, quickPick, storageService, reopenQuickpick);
+		this._formatPinnedItems(storageKey, quickPick, storageService, undefined, callback);
 	}
 
-	private async _formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, storageService: IStorageService, reopenQuickpick?: boolean, event?: IQuickPickItemButtonEvent<IQuickPickItem>): Promise<void> {
+	private async _formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, storageService: IStorageService, event?: IQuickPickItemButtonEvent<IQuickPickItem>, callback?: () => void): Promise<void> {
 		const formattedItems: BaseQuickPickItem[] = [];
 		const labels = this._getPinnedLabels(storageKey, storageService);
-		const updatedLabels = !!event?.item ? this._updatePinned(storageKey, event.item.label, storageService, new Set(labels).has(event.item.label)) : labels;
+		const updatedLabels = !!event?.item.label ? this._updatePinned(storageKey, event.item.label, storageService, new Set(labels).has(event.item.label)) : labels.filter(l => l !== 'Pinned');
+		if (updatedLabels.length) {
+			formattedItems.push({ type: 'separator', label: localize("terminal.commands.pinned", 'Pinned') });
+		}
 		for (const label of updatedLabels) {
 			const item = quickPick.items.find(i => i.label === label && i.type !== 'separator');
 			if (item) {
@@ -253,17 +256,21 @@ export class QuickInputService extends Themable implements IQuickInputService {
 				formattedItems.push(pinnedItem);
 			}
 		}
-		if (updatedLabels.length) {
-			formattedItems.push({ type: 'separator', label: localize("terminal.commands.pinned", 'Pinned') });
-		}
+
 		for (const item of quickPick.items.filter(i => !!i.label)) {
 			this._updateButtons(item, true);
 			formattedItems.push(item);
 		}
 		quickPick.items = formattedItems;
-		if (reopenQuickpick) {
+		quickPick.onDidChangeValue(value => {
+			// don't show pinned items in the search results
+			quickPick.items = value ? quickPick.items.filter(i => i.type !== 'separator' && !i.buttons?.find(b => b.iconClass === ThemeIcon.asClassName(Codicon.pinned))) : quickPick.items;
 			quickPick.show();
+		});
+		if (callback) {
+			callback();
 		}
+		quickPick.show();
 	}
 
 	private _updateButtons(item: BaseQuickPickItem, removePin: boolean): void {
@@ -276,10 +283,6 @@ export class QuickInputService extends Themable implements IQuickInputService {
 			tooltip: removePin ? localize('pinCommand', "Pin command") : localize('pinnedCommand', "Pinned command"),
 			alwaysVisible: false
 		});
-
-		if (!removePin) {
-			item.excludeFromSearch = true;
-		}
 	}
 
 	private _updatePinned(storageKey: string, label: string, storageService: IStorageService, removePin: boolean): string[] {

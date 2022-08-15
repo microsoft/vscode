@@ -99,6 +99,8 @@ export interface IQuickInputService {
 	 * Initially, adds pin buttons to all @param quickPick items.
 	 * When pinned, a copy of the item will be moved to the end of the pinned list and any duplicate within the pinned list will
 	 * be removed. Pin and pinned button events trigger updates to the underlying storage.
+	 * The @param callback to run after the items have been formatted or
+	 * when one the pinned list is updated
 	 */
-	formatPinnedItems(accessor: ServicesAccessor, storageKey: string, quickPick: IQuickPick<IQuickPickItem>, reopenQuickpick?: boolean): void;
+	formatPinnedItems(accessor: ServicesAccessor, storageKey: string, quickPick: IQuickPick<IQuickPickItem>, callback?: () => void): void;
 }
