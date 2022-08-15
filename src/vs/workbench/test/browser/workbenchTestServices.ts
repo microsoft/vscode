@@ -30,7 +30,7 @@ import { ModelService } from 'vs/editor/common/services/modelService';
 import { IResourceEncoding, ITextFileService, IReadTextFileOptions, ITextFileStreamContent, IWriteTextFileOptions, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IInstantiationService, ServiceIdentifier, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { MenuBarVisibility, IWindowOpenable, IOpenWindowOptions, IOpenEmptyWindowOptions } from 'vs/platform/window/common/window';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
@@ -1906,7 +1906,6 @@ export class TestQuickInputService implements IQuickInputService {
 	accept(): Promise<void> { throw new Error('not implemented.'); }
 	back(): Promise<void> { throw new Error('not implemented.'); }
 	cancel(): Promise<void> { throw new Error('not implemented.'); }
-	formatPinnedItems(accessor: ServicesAccessor, storageKey: string, quickPick: IQuickPick<IQuickPickItem>, callback?: () => void): void { throw new Error('Method not implemented.'); }
 }
 
 class TestLanguageDetectionService implements ILanguageDetectionService {

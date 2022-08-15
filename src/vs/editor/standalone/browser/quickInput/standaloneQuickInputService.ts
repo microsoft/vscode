@@ -10,7 +10,7 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IQuickInputService, IQuickInputButton, IQuickPickItem, IQuickPick, IInputBox, IQuickNavigateConfiguration, IPickOptions, QuickPickInput, IInputOptions } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { EditorScopedLayoutService } from 'vs/editor/standalone/browser/standaloneLayoutService';
@@ -95,9 +95,6 @@ export class StandaloneQuickInputService implements IQuickInputService {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
 	) {
-	}
-	formatPinnedItems(accessor: ServicesAccessor, storageKey: string, quickPick: IQuickPick<IQuickPickItem>, callback?: () => void): void {
-		return this.activeService.formatPinnedItems(accessor, storageKey, quickPick, callback);
 	}
 
 	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options: O = <O>{}, token: CancellationToken = CancellationToken.None): Promise<(O extends { canPickMany: true } ? T[] : T) | undefined> {
