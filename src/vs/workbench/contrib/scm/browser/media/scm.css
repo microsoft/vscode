@@ -211,7 +211,6 @@
 .scm-view .button-container > .monaco-description-button {
 	flex-direction: row;
 	flex-wrap: wrap;
-	height: 30px;
 	padding: 0 4px;
 	overflow: hidden;
 }
