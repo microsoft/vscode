@@ -359,7 +359,8 @@ registerAction2(class ExportProfileAction extends Action2 {
 					when: PROFILES_ENABLEMENT_CONTEXT,
 					order: 1
 				}, {
-					id: MenuId.CommandPalette
+					id: MenuId.CommandPalette,
+					when: PROFILES_ENABLEMENT_CONTEXT
 				}
 			]
 		});
@@ -404,7 +405,8 @@ registerAction2(class ImportProfileAction extends Action2 {
 					when: PROFILES_ENABLEMENT_CONTEXT,
 					order: 2
 				}, {
-					id: MenuId.CommandPalette
+					id: MenuId.CommandPalette,
+					when: PROFILES_ENABLEMENT_CONTEXT
 				}
 			]
 		});
