@@ -6,21 +6,21 @@
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ICanonicalWorkspaceIdentityProvider, ICanonicalWorkspaceService } from 'vs/platform/workspace/common/canonicalWorkspace';
+import { IEditSessionIdentityProvider, IEditSessionIdentityService } from 'vs/platform/workspace/common/editSessions';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
-export class CanonicalWorkspaceService implements ICanonicalWorkspaceService {
+export class EditSessionIdentityService implements IEditSessionIdentityService {
 	readonly _serviceBrand: undefined;
 
-	private _canonicalWorkspaceIdentifierProviders = new Map<string, ICanonicalWorkspaceIdentityProvider>();
+	private _canonicalWorkspaceIdentifierProviders = new Map<string, IEditSessionIdentityProvider>();
 
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@ILogService private readonly _logService: ILogService,
 	) { }
 
-	registerCanonicalWorkspaceIdentityProvider(provider: ICanonicalWorkspaceIdentityProvider): void {
+	registerEditSessionIdentityProvider(provider: IEditSessionIdentityProvider): void {
 		if (this._canonicalWorkspaceIdentifierProviders.get(provider.scheme)) {
 			throw new Error(`A provider has already been registered for scheme ${provider.scheme}`);
 		}
@@ -28,13 +28,13 @@ export class CanonicalWorkspaceService implements ICanonicalWorkspaceService {
 		this._canonicalWorkspaceIdentifierProviders.set(provider.scheme, provider);
 	}
 
-	async getCanonicalWorkspaceIdentifier(workspaceFolder: IWorkspaceFolder, cancellationTokenSource: CancellationTokenSource): Promise<string | null> {
+	async getEditSessionIdentifier(workspaceFolder: IWorkspaceFolder, cancellationTokenSource: CancellationTokenSource): Promise<string | null> {
 		const { scheme } = workspaceFolder.uri;
 
 		const provider = await this.activateProvider(scheme);
-		this._logService.info(`CanonicalWorkspaceIdentityProvider for scheme ${scheme} available: ${!!provider}`);
+		this._logService.info(`EditSessionIdentityProvider for scheme ${scheme} available: ${!!provider}`);
 
-		return provider?.getCanonicalWorkspaceIdentifier(workspaceFolder, cancellationTokenSource.token) ?? null;
+		return provider?.getEditSessionIdentifier(workspaceFolder, cancellationTokenSource.token) ?? null;
 	}
 
 	private async activateProvider(scheme: string) {
@@ -48,4 +48,4 @@ export class CanonicalWorkspaceService implements ICanonicalWorkspaceService {
 	}
 }
 
-registerSingleton(ICanonicalWorkspaceService, CanonicalWorkspaceService, true);
+registerSingleton(IEditSessionIdentityService, EditSessionIdentityService, true);

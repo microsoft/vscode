@@ -28,7 +28,7 @@ import { OutputChannelLogger } from './log';
 import { createIPCServer, IPCServer } from './ipc/ipcServer';
 import { GitEditor } from './gitEditor';
 import { GitPostCommitCommandsProvider } from './postCommitCommands';
-import { GitCanonicalWorkspaceIdentityProvider } from './canonicalWorkspaceIdentityProvider';
+import { GitEditSessionIdentityProvider } from './editSessionIdentityProvider';
 
 const deactivateTasks: { (): Promise<any> }[] = [];
 
@@ -117,7 +117,7 @@ async function createModel(context: ExtensionContext, outputChannelLogger: Outpu
 		new GitDecorations(model),
 		new GitProtocolHandler(),
 		new GitTimelineProvider(model, cc),
-		new GitCanonicalWorkspaceIdentityProvider(model)
+		new GitEditSessionIdentityProvider(model)
 	);
 
 	const postCommitCommandsProvider = new GitPostCommitCommandsProvider();

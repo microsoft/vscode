@@ -50,7 +50,7 @@ import { isNative } from 'vs/base/common/platform';
 import { WorkspaceFolderCountContext } from 'vs/workbench/common/contextkeys';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { equals } from 'vs/base/common/objects';
-import { ICanonicalWorkspaceService } from 'vs/platform/workspace/common/canonicalWorkspace';
+import { IEditSessionIdentityService } from 'vs/platform/workspace/common/editSessions';
 
 registerSingleton(IEditSessionsLogService, EditSessionsLogService);
 registerSingleton(IEditSessionsWorkbenchService, EditSessionsWorkbenchService);
@@ -93,7 +93,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		@IProductService private readonly productService: IProductService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@ICanonicalWorkspaceService private readonly canonicalWorkspaceService: ICanonicalWorkspaceService,
+		@IEditSessionIdentityService private readonly editSessionIdentityService: IEditSessionIdentityService,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ICommandService private commandService: ICommandService,
@@ -343,7 +343,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				if (folder.canonicalIdentity) {
 					// Look for an edit session identifier that we can use
 					for (const f of workspaceFolders) {
-						const identity = await this.canonicalWorkspaceService.getCanonicalWorkspaceIdentifier(f, cancellationTokenSource);
+						const identity = await this.editSessionIdentityService.getEditSessionIdentifier(f, cancellationTokenSource);
 						this.logService.info(`Matching identity ${identity} against edit session folder identity ${folder.canonicalIdentity}...`);
 						if (equals(identity, folder.canonicalIdentity)) {
 							folderRoot = f;
@@ -447,7 +447,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				}
 			}
 
-			const canonicalIdentity = workspaceFolder ? await this.canonicalWorkspaceService.getCanonicalWorkspaceIdentifier(workspaceFolder, new CancellationTokenSource()) : undefined;
+			const canonicalIdentity = workspaceFolder ? await this.editSessionIdentityService.getEditSessionIdentifier(workspaceFolder, new CancellationTokenSource()) : undefined;
 
 			folders.push({ workingChanges, name: name ?? '', canonicalIdentity: canonicalIdentity ?? undefined });
 		}

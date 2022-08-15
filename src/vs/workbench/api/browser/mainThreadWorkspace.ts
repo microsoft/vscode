@@ -25,7 +25,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IFileMatch, IPatternInfo, ISearchProgressItem, ISearchService } from 'vs/workbench/services/search/common/search';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { ExtHostContext, ExtHostWorkspaceShape, ITextSearchComplete, IWorkspaceData, MainContext, MainThreadWorkspaceShape } from '../common/extHost.protocol';
-import { ICanonicalWorkspaceService } from 'vs/platform/workspace/common/canonicalWorkspace';
+import { IEditSessionIdentityService } from 'vs/platform/workspace/common/editSessions';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -39,7 +39,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		extHostContext: IExtHostContext,
 		@ISearchService private readonly _searchService: ISearchService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
-		@ICanonicalWorkspaceService private readonly _canonicalWorkspaceService: ICanonicalWorkspaceService,
+		@IEditSessionIdentityService private readonly _canonicalWorkspaceService: IEditSessionIdentityService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IWorkspaceEditingService private readonly _workspaceEditingService: IWorkspaceEditingService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -224,10 +224,10 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	}
 
 	// --- edit sessions ---
-	$registerCanonicalWorkspaceIdentityProvider(scheme: string) {
-		this._canonicalWorkspaceService.registerCanonicalWorkspaceIdentityProvider({
+	$registerEditSessionIdentityProvider(scheme: string) {
+		this._canonicalWorkspaceService.registerEditSessionIdentityProvider({
 			scheme: scheme,
-			getCanonicalWorkspaceIdentifier: async (workspaceFolder: WorkspaceFolder, token: CancellationToken) => {
+			getEditSessionIdentifier: async (workspaceFolder: WorkspaceFolder, token: CancellationToken) => {
 				return this._proxy.$getCanonicalWorkspaceIdentity(workspaceFolder.uri, token);
 			}
 		});

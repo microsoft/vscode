@@ -10,20 +10,20 @@ declare module 'vscode' {
 	export namespace workspace {
 		/**
 		 *
-		 * @param scheme The URI scheme that this provider can provide workspace identities for.
+		 * @param scheme The URI scheme that this provider can provide edit session identities for.
 		 * @param provider A provider which can convert URIs for workspace folders of scheme @param scheme to
-		 * a canonical workspace identifier which is stable across machines. This enables edit sessions to be resolved.
+		 * an edit session identifier which is stable across machines. This enables edit sessions to be resolved.
 		 */
-		export function registerCanonicalWorkspaceIdentityProvider(scheme: string, provider: CanonicalWorkspaceIdentityProvider): Disposable;
+		export function registerEditSessionIdentityProvider(scheme: string, provider: EditSessionIdentityProvider): Disposable;
 	}
 
-	export interface CanonicalWorkspaceIdentityProvider {
+	export interface EditSessionIdentityProvider {
 		/**
 		 *
-		 * @param workspaceFolder The workspace folder to provide a canonical identity for.
+		 * @param workspaceFolder The workspace folder to provide an edit session identity for.
 		 * @param token A cancellation token for the request.
-		 * @returns An object representing the canonical workspace identity for the requested workspace folder.
+		 * @returns An string representing the edit session identity for the requested workspace folder.
 		 */
-		provideCanonicalWorkspaceIdentity(workspaceFolder: WorkspaceFolder, token: CancellationToken): ProviderResult<string>;
+		provideEditSessionIdentity(workspaceFolder: WorkspaceFolder, token: CancellationToken): ProviderResult<string>;
 	}
 }

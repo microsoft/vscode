@@ -7,19 +7,19 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { Model } from './model';
 
-export class GitCanonicalWorkspaceIdentityProvider implements vscode.CanonicalWorkspaceIdentityProvider, vscode.Disposable {
+export class GitEditSessionIdentityProvider implements vscode.EditSessionIdentityProvider, vscode.Disposable {
 
 	private providerRegistration: vscode.Disposable;
 
 	constructor(private model: Model) {
-		this.providerRegistration = vscode.workspace.registerCanonicalWorkspaceIdentityProvider('file', this);
+		this.providerRegistration = vscode.workspace.registerEditSessionIdentityProvider('file', this);
 	}
 
 	dispose() {
 		this.providerRegistration.dispose();
 	}
 
-	async provideCanonicalWorkspaceIdentity(workspaceFolder: vscode.WorkspaceFolder, _token: vscode.CancellationToken): Promise<string | null> {
+	async provideEditSessionIdentity(workspaceFolder: vscode.WorkspaceFolder, _token: vscode.CancellationToken): Promise<string | null> {
 		await this.model.openRepository(path.dirname(workspaceFolder.uri.fsPath));
 
 		const repository = this.model.getRepository(workspaceFolder.uri);

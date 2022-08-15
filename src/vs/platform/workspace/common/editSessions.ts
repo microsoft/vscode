@@ -7,16 +7,16 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
-export interface ICanonicalWorkspaceIdentityProvider {
+export interface IEditSessionIdentityProvider {
 	readonly scheme: string;
-	getCanonicalWorkspaceIdentifier(workspaceFolder: IWorkspaceFolder, token: CancellationToken): Promise<string | null>;
+	getEditSessionIdentifier(workspaceFolder: IWorkspaceFolder, token: CancellationToken): Promise<string | null>;
 }
 
-export const ICanonicalWorkspaceService = createDecorator<ICanonicalWorkspaceService>('canonicalWorkspaceService');
+export const IEditSessionIdentityService = createDecorator<IEditSessionIdentityService>('editSessionIdentityService');
 
-export interface ICanonicalWorkspaceService {
+export interface IEditSessionIdentityService {
 	readonly _serviceBrand: undefined;
 
-	registerCanonicalWorkspaceIdentityProvider(provider: ICanonicalWorkspaceIdentityProvider): void;
-	getCanonicalWorkspaceIdentifier(workspaceFolder: IWorkspaceFolder, cancellationTokenSource: CancellationTokenSource): Promise<string | null>;
+	registerEditSessionIdentityProvider(provider: IEditSessionIdentityProvider): void;
+	getEditSessionIdentifier(workspaceFolder: IWorkspaceFolder, cancellationTokenSource: CancellationTokenSource): Promise<string | null>;
 }

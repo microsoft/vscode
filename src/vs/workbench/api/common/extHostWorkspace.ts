@@ -188,7 +188,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 	private _trusted: boolean = false;
 
-	private readonly _canonicalWorkspaceIdentityProviders: { [scheme: string]: vscode.CanonicalWorkspaceIdentityProvider } = Object.create(null);
+	private readonly _EditSessionIdentityProviders: { [scheme: string]: vscode.EditSessionIdentityProvider } = Object.create(null);
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
@@ -580,11 +580,11 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	// --- edit sessions ---
 
 	// called by ext host
-	registerCanonicalWorkspaceIdentityProvider(scheme: string, provider: vscode.CanonicalWorkspaceIdentityProvider) {
-		this._canonicalWorkspaceIdentityProviders[scheme] = provider;
-		this._proxy.$registerCanonicalWorkspaceIdentityProvider(scheme);
+	registerEditSessionIdentityProvider(scheme: string, provider: vscode.EditSessionIdentityProvider) {
+		this._EditSessionIdentityProviders[scheme] = provider;
+		this._proxy.$registerEditSessionIdentityProvider(scheme);
 		return toDisposable(() => {
-			delete this._canonicalWorkspaceIdentityProviders[scheme];
+			delete this._EditSessionIdentityProviders[scheme];
 		});
 	}
 
@@ -595,12 +595,12 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			return null;
 		}
 
-		const provider = this._canonicalWorkspaceIdentityProviders[folder.uri.scheme];
+		const provider = this._EditSessionIdentityProviders[folder.uri.scheme];
 		if (!provider) {
 			return null;
 		}
 
-		const result = await asPromise(() => provider.provideCanonicalWorkspaceIdentity(folder, cancellationToken));
+		const result = await asPromise(() => provider.provideEditSessionIdentity(folder, cancellationToken));
 		if (!result) {
 			return null;
 		}
