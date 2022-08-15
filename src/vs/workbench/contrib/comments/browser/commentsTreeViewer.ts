@@ -309,7 +309,7 @@ export class Filter implements ITreeFilter<ResourceWithCommentThreads | CommentN
 			return true;
 		}
 
-		const textMatches = FilterOptions._messageFilter(typeof marker.comment.body === 'string' ? marker.comment.body : marker.comment.body.value, this.options.textFilter.text);
+		const textMatches = FilterOptions._messageFilter(this.options.textFilter.text, typeof marker.comment.body === 'string' ? marker.comment.body : marker.comment.body.value);
 
 		// Matched and not negated
 		if (textMatches && !this.options.textFilter.negate) {
