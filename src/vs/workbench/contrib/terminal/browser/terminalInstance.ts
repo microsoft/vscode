@@ -869,7 +869,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				commandMap.add(executingCommand);
 			}
 			function formatLabel(label: string) {
-				return label.replace(/\r?\n/g, '\u23CE');
+				return label
+					// Replace new lines with "enter" symbol
+					.replace(/\r?\n/g, '\u23CE')
+					// Replace 3 or more spaces with midline horizontal ellipsis which looks similar
+					// to whitespace in the editor
+					.replace(/\s\s\s+/g, '\u22EF');
 			}
 			if (commands && commands.length > 0) {
 				for (const entry of commands) {
