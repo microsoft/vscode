@@ -1475,9 +1475,9 @@ registerThemingParticipant((theme, collector) => {
 
 	const iconColor = theme.getColor(textLinkForeground);
 	if (iconColor) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .getting-started-category .codicon:not(.codicon-close) { color: ${iconColor} }`);
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .codicon.complete { color: ${iconColor} } `);
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step.expanded .codicon { color: ${iconColor} } `);
+		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .icon-widget { color: ${iconColor} }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .codicon-getting-started-step-checked { color: ${iconColor} } `);
+		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step.expanded .codicon-getting-started-step-unchecked { color: ${iconColor} } `);
 	}
 
 	const buttonColor = theme.getColor(welcomePageTileBackground);
@@ -1510,7 +1510,7 @@ registerThemingParticipant((theme, collector) => {
 
 	const pendingStepColor = theme.getColor(descriptionForeground);
 	if (pendingStepColor) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .codicon { color: ${pendingStepColor} } `);
+		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .codicon-getting-started-step-unchecked { color: ${pendingStepColor} } `);
 	}
 
 	const emphasisButtonHoverBackground = theme.getColor(buttonHoverBackground);
