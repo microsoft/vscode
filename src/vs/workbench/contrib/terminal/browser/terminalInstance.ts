@@ -84,7 +84,6 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import type { IMarker, ITerminalAddon, Terminal as XTermTerminal } from 'xterm';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProcess';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
@@ -1736,8 +1735,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this.xterm?.raw.registerMarker();
 	}
 
-	public addGenericMark(marker: IMarker, genericMarkProperties: IGenericMarkProperties): void {
-		this.xterm?.addDecoration(marker, genericMarkProperties);
+	public addBufferMark(id: string, marker?: IMarker, hidden?: boolean): void {
+		this.capabilities.get(TerminalCapability.BufferMarkDetection)?.addMark(id, marker, hidden);
+	}
+
+	public scrollToMark(startMarkId: string, endMarkId?: string, highlight?: boolean): void {
+		this.capabilities.get(TerminalCapability.BufferMarkDetection)?.scrollToMark(startMarkId, endMarkId, highlight);
 	}
 
 	private _onProcessData(ev: IProcessDataEvent): void {

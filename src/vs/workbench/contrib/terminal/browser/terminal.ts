@@ -12,7 +12,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
 import { ITerminalCapabilityStore, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IExtensionTerminalProfile, IProcessPropertyMap, IReconnectionProperties, IShellIntegration, IShellLaunchConfig, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, ProcessPropertyType, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalShellType, TerminalType, TitleEventSource, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
-import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProcess';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditableData } from 'vs/workbench/common/views';
@@ -666,10 +665,11 @@ export interface ITerminalInstance {
 	registerMarker(): IMarker | undefined;
 
 	/**
-	 * Adds a decoration to the buffer at the @param marker with
-	 * @param genericMarkProperties
+	 * Registers a marker and maps it to an ID
+	 * When not hidden, adds a decoration to the buffer
+	 * @param markProperties
 	 */
-	addGenericMark(marker: IMarker, genericMarkProperties: IGenericMarkProperties): void;
+	addBufferMark(id: string, marker?: IMarker, hidden?: boolean): void;
 
 	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
@@ -967,12 +967,6 @@ export interface IXtermTerminal {
 	 * Clears the active search result decorations
 	 */
 	clearActiveSearchDecoration(): void;
-
-	/**
-	 * Adds a decoration at the @param marker with the given properties
-	 * @param properties
-	 */
-	addDecoration(marker: IMarker, properties: IGenericMarkProperties): void;
 
 	/**
 	 * Returns a reverse iterator of buffer lines as strings

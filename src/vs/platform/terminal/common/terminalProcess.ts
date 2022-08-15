@@ -84,12 +84,16 @@ export interface ISerializedCommand {
 	exitCode: number | undefined;
 	commandStartLineContent: string | undefined;
 	timestamp: number;
-	genericMarkProperties?: IGenericMarkProperties;
+	markProperties?: IMarkProperties;
 }
 
-export interface IGenericMarkProperties {
+export interface IMarkProperties {
 	hoverMessage?: string;
 	disableCommandStorage?: boolean;
+	id: string;
+	visibility?: boolean;
+	endMarker?: boolean;
+	singleMarkOnly?: boolean;
 }
 
 export interface ISerializedCommandDetectionCapability {

@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IGenericMarkProperties, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
+import { IMarkProperties, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
 
 interface IEvent<T, U = void> {
 	(listener: (arg1: T, arg2: U) => any): IDisposable;
@@ -60,7 +60,13 @@ export const enum TerminalCapability {
 	 * may not be so good at remembering the position of commands that ran in the past. This state
 	 * may be enabled when something goes wrong or when using conpty for example.
 	 */
-	PartialCommandDetection
+	PartialCommandDetection,
+
+	/**
+	 * Generic buffer marks made by sources with an ID
+	 * and that may or may not have Visibility
+	 */
+	BufferMarkDetection
 }
 
 /**
@@ -103,6 +109,7 @@ export interface ITerminalCapabilityImplMap {
 	[TerminalCapability.CommandDetection]: ICommandDetectionCapability;
 	[TerminalCapability.NaiveCwdDetection]: INaiveCwdDetectionCapability;
 	[TerminalCapability.PartialCommandDetection]: IPartialCommandDetectionCapability;
+	[TerminalCapability.BufferMarkDetection]: IBufferMarkCapability;
 }
 
 export interface ICwdDetectionCapability {
@@ -122,6 +129,12 @@ export interface ICommandInvalidationRequest {
 	reason: CommandInvalidationReason;
 }
 
+export interface IBufferMarkCapability {
+	type: TerminalCapability.BufferMarkDetection;
+	addMark(id: string, marker?: IMarker, hidden?: boolean): void;
+	scrollToMark(startMarkId: string, endMarkId?: string, highlight?: boolean): void;
+}
+
 export interface ICommandDetectionCapability {
 	readonly type: TerminalCapability.CommandDetection;
 	readonly commands: readonly ITerminalCommand[];
@@ -136,7 +149,6 @@ export interface ICommandDetectionCapability {
 	readonly onCurrentCommandInvalidated: Event<ICommandInvalidationRequest>;
 	setCwd(value: string): void;
 	setIsWindowsPty(value: boolean): void;
-	setIsCommandStorageDisabled(): void;
 	/**
 	 * Gets the working directory for a line, this will return undefined if it's unknown in which
 	 * case the terminal's initial cwd should be used.
@@ -148,7 +160,6 @@ export interface ICommandDetectionCapability {
 	handleRightPromptStart(): void;
 	handleRightPromptEnd(): void;
 	handleCommandStart(options?: IHandleCommandOptions): void;
-	handleGenericCommand(options?: IHandleCommandOptions): void;
 	handleCommandExecuted(options?: IHandleCommandOptions): void;
 	handleCommandFinished(exitCode?: number, options?: IHandleCommandOptions): void;
 	invalidateCurrentCommand(request: ICommandInvalidationRequest): void;
@@ -170,10 +181,6 @@ export interface IHandleCommandOptions {
 	 * The marker to use
 	 */
 	marker?: IMarker;
-	/**
-	 * Properties for a generic mark
-	 */
-	genericMarkProperties?: IGenericMarkProperties;
 }
 
 export interface INaiveCwdDetectionCapability {
@@ -199,7 +206,7 @@ export interface ITerminalCommand {
 	commandStartLineContent?: string;
 	getOutput(): string | undefined;
 	hasOutput(): boolean;
-	genericMarkProperties?: IGenericMarkProperties;
+	markProperties?: IMarkProperties;
 }
 
 /**

@@ -8,15 +8,18 @@ import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/l
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { CwdDetectionCapability } from 'vs/platform/terminal/common/capabilities/cwdDetectionCapability';
-import { ICommandDetectionCapability, ICwdDetectionCapability, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IBufferMarkCapability, ICommandDetectionCapability, ICwdDetectionCapability, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { PartialCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/partialCommandDetectionCapability';
 import { ILogService } from 'vs/platform/log/common/log';
 // Importing types is safe in any layer
 // eslint-disable-next-line code-import-patterns
-import type { ITerminalAddon, Terminal } from 'xterm-headless';
 import { ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Emitter } from 'vs/base/common/event';
+import { BufferMarkCapability } from 'vs/platform/terminal/common/capabilities/bufferMarkCapability';
+// Importing types is safe in any layer
+// eslint-disable-next-line code-import-patterns
+import type { ITerminalAddon, Terminal } from 'xterm-headless';
 
 /**
  * Shell integration is a feature that enhances the terminal's understanding of what's happening
@@ -148,7 +151,14 @@ const enum VSCodeOscPt {
 	 *
 	 * WARNING: Any other properties may be changed and are not guaranteed to work in the future.
 	 */
-	Property = 'P'
+	Property = 'P',
+
+	/**
+	 * Sets a mark/point-of-interest in the buffer. `OSC 633 ; SetMark [; Id=<string>] [; Hidden]`
+	 * `Id` - Indicates the source of the mark
+	 * `Visibility` - Indicates whether a decoration should be added
+	 */
+	SetMark = 'SetMark',
 }
 
 /**
@@ -350,10 +360,14 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 						this._createOrGetCommandDetection(this._terminal).setIsWindowsPty(value === 'True' ? true : false);
 						return true;
 					}
-					case 'Task': {
-						this.capabilities.get(TerminalCapability.CommandDetection)?.setIsCommandStorageDisabled();
-					}
 				}
+			}
+			case VSCodeOscPt.SetMark: {
+				const [id, hidden] = args[0].split('=');
+				if (id === undefined) {
+					return true;
+				}
+				this._createOrGetBufferMarkDetection(this._terminal).addMark(id, undefined, !!hidden);
 			}
 		}
 
@@ -366,10 +380,10 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			return false;
 		}
 
-		const [command] = data.split(';');
+		const [command, id, hidden] = data.split(';');
 		switch (command) {
 			case ITermOscPt.SetMark: {
-				this._createOrGetCommandDetection(this._terminal).handleGenericCommand({ genericMarkProperties: { disableCommandStorage: true } });
+				this._createOrGetBufferMarkDetection(this._terminal).addMark(id, undefined, !!hidden);
 			}
 		}
 		// Unrecognized sequence
@@ -410,6 +424,15 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			this.capabilities.add(TerminalCapability.CommandDetection, commandDetection);
 		}
 		return commandDetection;
+	}
+
+	protected _createOrGetBufferMarkDetection(terminal: Terminal): IBufferMarkCapability {
+		let bufferMarkDetection = this.capabilities.get(TerminalCapability.BufferMarkDetection);
+		if (!bufferMarkDetection) {
+			bufferMarkDetection = new BufferMarkCapability(terminal, this._logService);
+			this.capabilities.add(TerminalCapability.BufferMarkDetection, bufferMarkDetection);
+		}
+		return bufferMarkDetection;
 	}
 
 	private _deserializeMessage(message: string): string {

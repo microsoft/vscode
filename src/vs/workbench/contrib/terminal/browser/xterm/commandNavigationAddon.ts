@@ -13,7 +13,7 @@ import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticip
 import { focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 
-enum Boundary {
+export enum Boundary {
 	Top,
 	Bottom
 }
@@ -93,7 +93,7 @@ export class CommandNavigationAddon extends Disposable implements ICommandTracke
 		let markerIndex;
 		const currentLineY = typeof this._currentMarker === 'object'
 			? this._getTargetScrollLine(this._terminal, this._currentMarker, scrollPosition)
-			: Math.min(this._getLine(this._terminal, this._currentMarker), this._terminal.buffer.active.baseY);
+			: Math.min(getLine(this._terminal, this._currentMarker), this._terminal.buffer.active.baseY);
 		const viewportY = this._terminal.buffer.active.viewportY;
 		if (typeof this._currentMarker === 'object' ? !this._isMarkerInViewport(this._terminal, this._currentMarker) : currentLineY !== viewportY) {
 			// The user has scrolled, find the line based on the current scroll position. This only
@@ -135,7 +135,7 @@ export class CommandNavigationAddon extends Disposable implements ICommandTracke
 		let markerIndex;
 		const currentLineY = typeof this._currentMarker === 'object'
 			? this._getTargetScrollLine(this._terminal, this._currentMarker, scrollPosition)
-			: Math.min(this._getLine(this._terminal, this._currentMarker), this._terminal.buffer.active.baseY);
+			: Math.min(getLine(this._terminal, this._currentMarker), this._terminal.buffer.active.baseY);
 		const viewportY = this._terminal.buffer.active.viewportY;
 		if (typeof this._currentMarker === 'object' ? !this._isMarkerInViewport(this._terminal, this._currentMarker) : currentLineY !== viewportY) {
 			// The user has scrolled, find the line based on the current scroll position. This only
@@ -233,7 +233,7 @@ export class CommandNavigationAddon extends Disposable implements ICommandTracke
 			this._selectionStart = this._currentMarker;
 		}
 		this.scrollToPreviousCommand(ScrollPosition.Middle, true);
-		this._selectLines(this._terminal, this._currentMarker, this._selectionStart);
+		selectLines(this._terminal, this._currentMarker, this._selectionStart);
 	}
 
 	selectToNextCommand(): void {
@@ -244,7 +244,7 @@ export class CommandNavigationAddon extends Disposable implements ICommandTracke
 			this._selectionStart = this._currentMarker;
 		}
 		this.scrollToNextCommand(ScrollPosition.Middle, true);
-		this._selectLines(this._terminal, this._currentMarker, this._selectionStart);
+		selectLines(this._terminal, this._currentMarker, this._selectionStart);
 	}
 
 	selectToPreviousLine(): void {
@@ -255,7 +255,7 @@ export class CommandNavigationAddon extends Disposable implements ICommandTracke
 			this._selectionStart = this._currentMarker;
 		}
 		this.scrollToPreviousLine(this._terminal, ScrollPosition.Middle, true);
-		this._selectLines(this._terminal, this._currentMarker, this._selectionStart);
+		selectLines(this._terminal, this._currentMarker, this._selectionStart);
 	}
 
 	selectToNextLine(): void {
@@ -266,41 +266,7 @@ export class CommandNavigationAddon extends Disposable implements ICommandTracke
 			this._selectionStart = this._currentMarker;
 		}
 		this.scrollToNextLine(this._terminal, ScrollPosition.Middle, true);
-		this._selectLines(this._terminal, this._currentMarker, this._selectionStart);
-	}
-
-	private _selectLines(xterm: Terminal, start: IMarker | Boundary, end: IMarker | Boundary | null): void {
-		if (end === null) {
-			end = Boundary.Bottom;
-		}
-
-		let startLine = this._getLine(xterm, start);
-		let endLine = this._getLine(xterm, end);
-
-		if (startLine > endLine) {
-			const temp = startLine;
-			startLine = endLine;
-			endLine = temp;
-		}
-
-		// Subtract a line as the marker is on the line the command run, we do not want the next
-		// command in the selection for the current command
-		endLine -= 1;
-
-		xterm.selectLines(startLine, endLine);
-	}
-
-	private _getLine(xterm: Terminal, marker: IMarker | Boundary): number {
-		// Use the _second last_ row as the last row is likely the prompt
-		if (marker === Boundary.Bottom) {
-			return xterm.buffer.active.baseY + xterm.rows - 1;
-		}
-
-		if (marker === Boundary.Top) {
-			return 0;
-		}
-
-		return marker.line;
+		selectLines(this._terminal, this._currentMarker, this._selectionStart);
 	}
 
 	scrollToPreviousLine(xterm: Terminal, scrollPosition: ScrollPosition = ScrollPosition.Middle, retainSelection: boolean = false): void {
@@ -363,7 +329,7 @@ export class CommandNavigationAddon extends Disposable implements ICommandTracke
 		} else if (this._currentMarker === Boundary.Top) {
 			return 0 - (xterm.buffer.active.baseY + xterm.buffer.active.cursorY);
 		} else {
-			let offset = this._getLine(xterm, this._currentMarker);
+			let offset = getLine(xterm, this._currentMarker);
 			offset -= xterm.buffer.active.baseY + xterm.buffer.active.cursorY;
 			return offset;
 		}
@@ -411,3 +377,37 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 		collector.addRule(`.terminal-scroll-highlight { border-color: ${focusBorderColor.toString()}; } `);
 	}
 });
+
+export function getLine(xterm: Terminal, marker: IMarker | Boundary): number {
+	// Use the _second last_ row as the last row is likely the prompt
+	if (marker === Boundary.Bottom) {
+		return xterm.buffer.active.baseY + xterm.rows - 1;
+	}
+
+	if (marker === Boundary.Top) {
+		return 0;
+	}
+
+	return marker.line;
+}
+
+export function selectLines(xterm: Terminal, start: IMarker | Boundary, end: IMarker | Boundary | null): void {
+	if (end === null) {
+		end = Boundary.Bottom;
+	}
+
+	let startLine = getLine(xterm, start);
+	let endLine = getLine(xterm, end);
+
+	if (startLine > endLine) {
+		const temp = startLine;
+		startLine = endLine;
+		endLine = temp;
+	}
+
+	// Subtract a line as the marker is on the line the command run, we do not want the next
+	// command in the selection for the current command
+	endLine -= 1;
+
+	xterm.selectLines(startLine, endLine);
+}
