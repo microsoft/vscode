@@ -236,6 +236,7 @@ export class QuickInputService extends Themable implements IQuickInputService {
 		quickPick.onDidTriggerItemButton((e) => {
 			if (e.button.iconClass === ThemeIcon.asClassName(Codicon.pin) || e.button.iconClass === ThemeIcon.asClassName(Codicon.pinned)) {
 				this._formatPinnedItems(storageKey, quickPick, storageService, e, callback);
+				callback();
 			}
 		});
 		this._formatPinnedItems(storageKey, quickPick, storageService, undefined, callback);
@@ -267,9 +268,6 @@ export class QuickInputService extends Themable implements IQuickInputService {
 			quickPick.items = value ? quickPick.items.filter(i => i.type !== 'separator' && !i.buttons?.find(b => b.iconClass === ThemeIcon.asClassName(Codicon.pinned))) : quickPick.items;
 			quickPick.show();
 		});
-		if (callback) {
-			callback();
-		}
 		quickPick.show();
 	}
 
