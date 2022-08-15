@@ -940,7 +940,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					previousSessionItems.unshift({
 						label: formatLabel(label),
 						rawLabel: label,
-						buttons: [removeFromCommandHistoryButton],
+						buttons: [removeFromCommandHistoryButton]
 					});
 					commandMap.add(label);
 				}
