@@ -69,8 +69,10 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 		// Force readonly if within the appRoot (https://github.com/microsoft/vscode/issues/138815)
 		// unless it is in the folder used as userDataDir when debugging OSS
+		// or the folder used by unit tests during build
 		if (extUriBiasedIgnorePathCase.isEqualOrParent(resource, this.appRootUri)
 			&& !extUriBiasedIgnorePathCase.isEqualOrParent(resource, this.appRootUri.with({ path: this.appRootUri.path + '/.profile-oss' }))
+			&& !extUriBiasedIgnorePathCase.isEqualOrParent(resource, this.appRootUri.with({ path: this.appRootUri.path + '/extensions/vscode-api-tests' }))
 		) {
 			stat = {
 				...stat,
