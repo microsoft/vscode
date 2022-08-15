@@ -102,7 +102,7 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 		const sortOrder = this.explorerService.sortOrderConfiguration.sortOrder;
 		// Always get metadata for resources that could be within the appRoot, so Explorer discovers if they are to be treated as readonly
 		// (https://github.com/microsoft/vscode/issues/138815)
-		const requireMetadata = element.resource.scheme === 'file';
+		const requireMetadata = element.resource.scheme === Schemas.file;
 		const children = element.fetchChildren(sortOrder, requireMetadata);
 		if (Array.isArray(children)) {
 			// fast path when children are known sync (i.e. nested children)
