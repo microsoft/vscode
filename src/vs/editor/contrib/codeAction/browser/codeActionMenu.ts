@@ -384,6 +384,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 				} else if (optionKind === CodeActionMenu.documentationID) {
 					documentationGroup.push(item);
 				} else {
+					// Pushes all the other actions to the "Other" group
 					otherGroup.push(item);
 				}
 
@@ -418,6 +419,9 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 
 				} else if (firstAction === CodeActionMenu.documentationID) {
 					totalActionEntries.push(...entry);
+				} else {
+					// Takes and flattens all the `other` actions
+					menuEntriesToPush(localize('codeAction.widget.id.more', 'More Actions...'), entry);
 				}
 			} else {
 				// case for separator - not a code action action
