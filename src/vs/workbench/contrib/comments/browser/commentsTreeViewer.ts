@@ -382,7 +382,8 @@ export class CommentsList extends WorkbenchAsyncDataTree<CommentsModel | Resourc
 				collapseByDefault: () => {
 					return false;
 				},
-				overrideStyles: options.overrideStyles
+				overrideStyles: options.overrideStyles,
+				filter: options.filter
 			},
 			instantiationService,
 			contextKeyService,

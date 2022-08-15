@@ -45,7 +45,7 @@ const VIEW_STORAGE_ID = 'commentsViewState';
 
 export class CommentsPanel extends ViewPane implements ICommentsView {
 	private treeLabels!: ResourceLabels;
-	private tree!: CommentsList;
+	private tree: CommentsList | undefined;
 	private treeContainer!: HTMLElement;
 	private messageBoxContainer!: HTMLElement;
 	private commentsModel!: CommentsModel;
@@ -58,6 +58,7 @@ export class CommentsPanel extends ViewPane implements ICommentsView {
 	private currentHeight = 0;
 	private currentWidth = 0;
 	private readonly viewState: MementoObject;
+	private readonly stateMemento: Memento;
 	private cachedFilterStats: { total: number; filtered: number } | undefined = undefined;
 	private totalComments: number = 0;
 
@@ -89,8 +90,8 @@ export class CommentsPanel extends ViewPane implements ICommentsView {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this.hasCommentsContextKey = CONTEXT_KEY_HAS_COMMENTS.bindTo(contextKeyService);
 		this.smallLayoutContextKey = CommentsViewSmallLayoutContextKey.bindTo(this.contextKeyService);
-		this.viewState = new Memento(VIEW_STORAGE_ID, storageService).getMemento(StorageScope.WORKSPACE, StorageTarget.USER);
-		this.filter = new Filter(FilterOptions.EMPTY());
+		this.stateMemento = new Memento(VIEW_STORAGE_ID, storageService);
+		this.viewState = this.stateMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.USER);
 
 		this.filters = this._register(new CommentsFilters({
 			filterText: this.viewState['filter'] || '',
@@ -99,6 +100,7 @@ export class CommentsPanel extends ViewPane implements ICommentsView {
 			showUnresolved: this.viewState['showUnresolved'] !== false,
 			layout: new dom.Dimension(0, 0)
 		}));
+		this.filter = new Filter(new FilterOptions(this.filters.filterText, this.filters.showResolved, this.filters.showUnresolved));
 
 		this._register(this.commentService.onDidSetAllCommentThreads(e => {
 			this.totalComments = e.commentThreads.length;
@@ -109,6 +111,15 @@ export class CommentsPanel extends ViewPane implements ICommentsView {
 				this.updateFilter();
 			}
 		}));
+	}
+
+	override saveState(): void {
+		this.viewState['filter'] = this.filters.filterText;
+		this.viewState['filterHistory'] = this.filters.filterHistory;
+		this.viewState['showResolved'] = this.filters.showResolved;
+		this.viewState['showUnresolved'] = this.filters.showUnresolved;
+		this.stateMemento.saveMemento();
+		super.saveState();
 	}
 
 	public focusFilter(): void {
@@ -132,7 +143,7 @@ export class CommentsPanel extends ViewPane implements ICommentsView {
 
 	private updateFilter() {
 		this.filter.options = new FilterOptions(this.filters.filterText, this.filters.showResolved, this.filters.showUnresolved);
-		this.tree.filterComments();
+		this.tree?.filterComments();
 
 		this.cachedFilterStats = undefined;
 		this._onDidChangeFilterStats.fire(this.getFilterStats());
@@ -221,7 +232,7 @@ export class CommentsPanel extends ViewPane implements ICommentsView {
 	private async renderComments(): Promise<void> {
 		this.treeContainer.classList.toggle('hidden', !this.commentsModel.hasCommentThreads());
 		this.renderMessage();
-		await this.tree.setInput(this.commentsModel);
+		await this.tree?.setInput(this.commentsModel);
 	}
 
 	public collapseAll() {
@@ -249,7 +260,7 @@ export class CommentsPanel extends ViewPane implements ICommentsView {
 		if (this.messageBoxContainer) {
 			this.messageBoxContainer.style.height = `${contentHeight}px`;
 		}
-		this.tree.layout(contentHeight, width);
+		this.tree?.layout(contentHeight, width);
 		this.filters.layout = new dom.Dimension(this.smallLayout ? width : width - 200, height);
 
 		this.currentHeight = height;
@@ -367,6 +378,9 @@ export class CommentsPanel extends ViewPane implements ICommentsView {
 	}
 
 	private async refresh(): Promise<void> {
+		if (!this.tree) {
+			return;
+		}
 		if (this.isVisible()) {
 			this.hasCommentsContextKey.set(this.commentsModel.hasCommentThreads());
 

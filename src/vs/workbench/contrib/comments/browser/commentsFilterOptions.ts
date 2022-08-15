@@ -11,10 +11,9 @@ export class FilterOptions {
 	static readonly _filter: IFilter = matchesFuzzy2;
 	static readonly _messageFilter: IFilter = matchesFuzzy;
 
-	readonly showResolved: boolean = false;
-	readonly showUnresolved: boolean = false;
+	readonly showResolved: boolean = true;
+	readonly showUnresolved: boolean = true;
 	readonly textFilter: { readonly text: string; readonly negate: boolean };
-	static EMPTY() { return new FilterOptions('', false, false); }
 
 	constructor(
 		readonly filter: string,
