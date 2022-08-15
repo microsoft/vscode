@@ -607,7 +607,7 @@ export class FolderMatch extends Disposable {
 	}
 
 	private async batchReplace(matches: FileMatch[]): Promise<any> {
-		this.replaceService.replace(matches);
+		await this.replaceService.replace(matches);
 		this.doRemove(matches, true, true);
 	}
 
