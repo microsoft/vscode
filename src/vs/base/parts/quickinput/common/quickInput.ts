@@ -18,7 +18,7 @@ export interface IQuickPickItemHighlights {
 	detail?: IMatch[];
 }
 
-export type BaseQuickPickItem = IQuickPickSeparator | IQuickPickItem;
+export type QuickPickItem = IQuickPickSeparator | IQuickPickItem;
 
 export interface IQuickPickItem {
 	type?: 'item';
