@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/activityaction';
 import { localize } from 'vs/nls';
-import { EventType, addDisposableListener, EventHelper } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, EventHelper, getDomNodePagePosition } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { Action, IAction, Separator, SubmenuAction, toAction } from 'vs/base/common/actions';
@@ -23,14 +23,12 @@ import { ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_ACTIV
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { getCurrentAuthenticationSessionInfo } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { AuthenticationSession, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { AnchorAlignment, AnchorAxisAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { getTitleBarStyle } from 'vs/platform/window/common/window';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
@@ -159,24 +157,38 @@ class MenuActivityActionViewItem extends ActivityActionViewItem {
 	private async showContextMenu(e?: MouseEvent): Promise<void> {
 		const disposables = new DisposableStore();
 
-		let actions: IAction[];
-		if (e?.button !== 2) {
+		const isLeftClick = e?.button !== 2;
+
+		// Left-click main menu
+		if (isLeftClick) {
 			const menu = disposables.add(this.menuService.createMenu(this.menuId, this.contextKeyService));
-			actions = await this.resolveMainMenuActions(menu, disposables);
-		} else {
-			actions = await this.resolveContextMenuActions(disposables);
+			const actions = await this.resolveMainMenuActions(menu, disposables);
+
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => this.container,
+				anchorAlignment: this.configurationService.getValue('workbench.sideBar.location') === 'left' ? AnchorAlignment.RIGHT : AnchorAlignment.LEFT,
+				anchorAxisAlignment: AnchorAxisAlignment.HORIZONTAL,
+				getActions: () => actions,
+				onHide: () => disposables.dispose()
+			});
 		}
 
-		const isUsingCustomMenu = isWeb || (getTitleBarStyle(this.configurationService) !== 'native' && !isMacintosh); // see #40262
-		const position = this.configurationService.getValue('workbench.sideBar.location');
+		// Right-click context menu
+		else {
+			const actions = await this.resolveContextMenuActions(disposables);
 
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => isUsingCustomMenu ? this.container : e || this.container,
-			anchorAlignment: isUsingCustomMenu ? (position === 'left' ? AnchorAlignment.RIGHT : AnchorAlignment.LEFT) : undefined,
-			anchorAxisAlignment: isUsingCustomMenu ? AnchorAxisAlignment.HORIZONTAL : AnchorAxisAlignment.VERTICAL,
-			getActions: () => actions,
-			onHide: () => disposables.dispose()
-		});
+			const elementPosition = getDomNodePagePosition(this.container);
+			const anchor = {
+				x: Math.floor(elementPosition.left + (elementPosition.width / 2)),
+				y: elementPosition.top + elementPosition.height
+			};
+
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => anchor,
+				getActions: () => actions,
+				onHide: () => disposables.dispose()
+			});
+		}
 	}
 
 	protected async resolveMainMenuActions(menu: IMenu, disposables: DisposableStore): Promise<IAction[]> {

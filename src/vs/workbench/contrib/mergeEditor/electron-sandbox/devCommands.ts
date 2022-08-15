@@ -100,7 +100,7 @@ export class MergeEditorOpenContentsFromJSON extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async run(accessor: ServicesAccessor, args?: { data?: MergeEditorContents; resultState?: 'initial' | 'current' }): Promise<void> {
 		const quickInputService = accessor.get(IQuickInputService);
 		const clipboardService = accessor.get(IClipboardService);
 		const editorService = accessor.get(IEditorService);
@@ -108,19 +108,26 @@ export class MergeEditorOpenContentsFromJSON extends Action2 {
 		const env = accessor.get(INativeEnvironmentService);
 		const fileService = accessor.get(IFileService);
 
-		const result = await quickInputService.input({
-			prompt: localize('mergeEditor.enterJSON', 'Enter JSON'),
-			value: await clipboardService.readText(),
-		});
-		if (result === undefined) {
-			return;
+		if (!args) {
+			args = {};
 		}
 
-		const content: MergeEditorContents =
-			result !== ''
-				? JSON.parse(result)
-				: { base: '', input1: '', input2: '', result: '', languageId: 'plaintext' };
-
+		let content: MergeEditorContents;
+		if (!args.data) {
+			const result = await quickInputService.input({
+				prompt: localize('mergeEditor.enterJSON', 'Enter JSON'),
+				value: await clipboardService.readText(),
+			});
+			if (result === undefined) {
+				return;
+			}
+			content =
+				result !== ''
+					? JSON.parse(result)
+					: { base: '', input1: '', input2: '', result: '', languageId: 'plaintext' };
+		} else {
+			content = args.data;
+		}
 
 		const targetDir = URI.joinPath(env.tmpDir, randomPath());
 
@@ -136,7 +143,7 @@ export class MergeEditorOpenContentsFromJSON extends Action2 {
 			await fileService.writeFile(uri, VSBuffer.fromString(content));
 		}
 
-		const shouldOpenInitial = await promptOpenInitial(quickInputService);
+		const shouldOpenInitial = await promptOpenInitial(quickInputService, args.resultState);
 
 		await Promise.all([
 			writeFile(baseUri, content.base),
@@ -242,30 +249,39 @@ export class MergeEditorLoadContentsFromFolder extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor) {
+	async run(accessor: ServicesAccessor, args?: { folderUri?: URI; resultState?: 'initial' | 'current' }) {
 		const dialogService = accessor.get(IFileDialogService);
 		const editorService = accessor.get(IEditorService);
 		const fileService = accessor.get(IFileService);
 		const quickInputService = accessor.get(IQuickInputService);
 
-		const result = await dialogService.showOpenDialog({
-			canSelectFiles: false,
-			canSelectFolders: true,
-			canSelectMany: false,
-			title: localize('mergeEditor.selectFolderToSaveTo', 'Select folder to save to')
-		});
-		if (!result) {
-			return;
+		if (!args) {
+			args = {};
 		}
 
-		const targetDir = result[0];
+		let targetDir: URI;
+		if (!args.folderUri) {
+			const result = await dialogService.showOpenDialog({
+				canSelectFiles: false,
+				canSelectFolders: true,
+				canSelectMany: false,
+				title: localize('mergeEditor.selectFolderToSaveTo', 'Select folder to save to')
+			});
+			if (!result) {
+				return;
+			}
+			targetDir = result[0];
+		} else {
+			targetDir = args.folderUri;
+		}
+
 		const targetDirInfo = await fileService.resolve(targetDir);
 
 		function findFile(name: string) {
 			return targetDirInfo.children!.find(c => c.name.startsWith(name))?.resource!;
 		}
 
-		const shouldOpenInitial = await promptOpenInitial(quickInputService);
+		const shouldOpenInitial = await promptOpenInitial(quickInputService, args.resultState);
 
 		const baseUri = findFile('base');
 		const input1Uri = findFile('input1');
@@ -282,7 +298,10 @@ export class MergeEditorLoadContentsFromFolder extends Action2 {
 	}
 }
 
-async function promptOpenInitial(quickInputService: IQuickInputService) {
+async function promptOpenInitial(quickInputService: IQuickInputService, resultStateOverride?: 'initial' | 'current') {
+	if (resultStateOverride) {
+		return resultStateOverride === 'initial';
+	}
 	const result = await quickInputService.pick([{ label: 'result', result: false }, { label: 'initial result', result: true }], { canPickMany: false });
 	return result?.result;
 }

@@ -1,23 +1,50 @@
-"use strict";
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getDependencies = void 0;
 const child_process_1 = require("child_process");
-const fs_1 = require("fs");
 const path = require("path");
-const dep_lists_1 = require("./dep-lists");
+const calculate_deps_1 = require("./debian/calculate-deps");
+const calculate_deps_2 = require("./rpm/calculate-deps");
+const dep_lists_1 = require("./debian/dep-lists");
+const dep_lists_2 = require("./rpm/dep-lists");
+const types_1 = require("./debian/types");
+const types_2 = require("./rpm/types");
 // A flag that can easily be toggled.
 // Make sure to compile the build directory after toggling the value.
 // If false, we warn about new dependencies if they show up
-// while running the rpm prepare package task for a release.
+// while running the prepare package tasks for a release.
 // If true, we fail the build if there are new dependencies found during that task.
 // The reference dependencies, which one has to update when the new dependencies
 // are valid, are in dep-lists.ts
 const FAIL_BUILD_FOR_NEW_DEPENDENCIES = true;
-function getDependencies(buildDir, applicationName, arch) {
+// Based on https://source.chromium.org/chromium/chromium/src/+/refs/tags/98.0.4758.109:chrome/installer/linux/BUILD.gn;l=64-80
+// and the Linux Archive build
+// Shared library dependencies that we already bundle.
+const bundledDeps = [
+    'libEGL.so',
+    'libGLESv2.so',
+    'libvulkan.so.1',
+    'swiftshader_libEGL.so',
+    'swiftshader_libGLESv2.so',
+    'libvk_swiftshader.so',
+    'libffmpeg.so'
+];
+function getDependencies(packageType, buildDir, applicationName, arch, sysroot) {
+    if (packageType === 'deb') {
+        if (!(0, types_1.isDebianArchString)(arch)) {
+            throw new Error('Invalid Debian arch string ' + arch);
+        }
+        if (!sysroot) {
+            throw new Error('Missing sysroot parameter');
+        }
+    }
+    if (packageType === 'rpm' && !(0, types_2.isRpmArchString)(arch)) {
+        throw new Error('Invalid RPM arch string ' + arch);
+    }
     // Get the files for which we want to find dependencies.
     const nativeModulesPath = path.join(buildDir, 'resources', 'app', 'node_modules.asar.unpacked');
     const findResult = (0, child_process_1.spawnSync)('find', [nativeModulesPath, '-name', '*.node']);
@@ -33,26 +60,22 @@ function getDependencies(buildDir, applicationName, arch) {
     files.push(path.join(buildDir, 'chrome-sandbox'));
     files.push(path.join(buildDir, 'chrome_crashpad_handler'));
     // Generate the dependencies.
-    const dependencies = files.map((file) => calculatePackageDeps(file));
-    // Add additional dependencies.
-    const additionalDepsSet = new Set(dep_lists_1.additionalDeps);
-    dependencies.push(additionalDepsSet);
+    const dependencies = packageType === 'deb' ?
+        (0, calculate_deps_1.generatePackageDeps)(files, arch, sysroot) :
+        (0, calculate_deps_2.generatePackageDeps)(files);
     // Merge all the dependencies.
     const mergedDependencies = mergePackageDeps(dependencies);
-    let sortedDependencies = [];
-    for (const dependency of mergedDependencies) {
-        sortedDependencies.push(dependency);
-    }
-    sortedDependencies.sort();
-    // Exclude bundled dependencies
-    sortedDependencies = sortedDependencies.filter(dependency => {
-        return !dep_lists_1.bundledDeps.some(bundledDep => dependency.startsWith(bundledDep));
-    });
-    const referenceGeneratedDeps = dep_lists_1.referenceGeneratedDepsByArch[arch];
+    // Exclude bundled dependencies and sort
+    const sortedDependencies = Array.from(mergedDependencies).filter(dependency => {
+        return !bundledDeps.some(bundledDep => dependency.startsWith(bundledDep));
+    }).sort();
+    const referenceGeneratedDeps = packageType === 'deb' ?
+        dep_lists_1.referenceGeneratedDepsByArch[arch] :
+        dep_lists_2.referenceGeneratedDepsByArch[arch];
     if (JSON.stringify(sortedDependencies) !== JSON.stringify(referenceGeneratedDeps)) {
-        const failMessage = 'The dependencies list has changed. '
-            + 'Printing newer dependencies list that one can use to compare against referenceGeneratedDeps:\n'
-            + sortedDependencies.join('\n');
+        const failMessage = 'The dependencies list has changed.'
+            + '\nOld:\n' + referenceGeneratedDeps.join('\n')
+            + '\nNew:\n' + sortedDependencies.join('\n');
         if (FAIL_BUILD_FOR_NEW_DEPENDENCIES) {
             throw new Error(failMessage);
         }
@@ -63,24 +86,6 @@ function getDependencies(buildDir, applicationName, arch) {
     return sortedDependencies;
 }
 exports.getDependencies = getDependencies;
-// Based on https://source.chromium.org/chromium/chromium/src/+/main:chrome/installer/linux/rpm/calculate_package_deps.py.
-function calculatePackageDeps(binaryPath) {
-    try {
-        if (!((0, fs_1.statSync)(binaryPath).mode & fs_1.constants.S_IXUSR)) {
-            throw new Error(`Binary ${binaryPath} needs to have an executable bit set.`);
-        }
-    }
-    catch (e) {
-        // The package might not exist. Don't re-throw the error here.
-        console.error('Tried to stat ' + binaryPath + ' but failed.');
-    }
-    const findRequiresResult = (0, child_process_1.spawnSync)('/usr/lib/rpm/find-requires', { input: binaryPath + '\n' });
-    if (findRequiresResult.status !== 0) {
-        throw new Error(`find-requires failed with exit code ${findRequiresResult.status}.\nstderr: ${findRequiresResult.stderr}`);
-    }
-    const requires = new Set(findRequiresResult.stdout.toString('utf-8').trimEnd().split('\n'));
-    return requires;
-}
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:chrome/installer/linux/rpm/merge_package_deps.py.
 function mergePackageDeps(inputDeps) {
     const requires = new Set();

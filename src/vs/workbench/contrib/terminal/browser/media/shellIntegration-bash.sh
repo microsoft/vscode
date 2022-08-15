@@ -133,7 +133,9 @@ else
 	if [[ "$__vsc_dbg_trap" =~ .*\[\[.* ]]; then
 		#HACK - is there a better way to do this?
 		__vsc_dbg_trap=${__vsc_dbg_trap#'trap -- '*}
-		__vsc_dbg_trap=${__vsc_dbg_trap%'DEBUG'}
+		__vsc_dbg_trap=${__vsc_dbg_trap%' DEBUG'}
+		__vsc_dbg_trap=${__vsc_dbg_trap#"'"*}
+		__vsc_dbg_trap=${__vsc_dbg_trap%"'"}
 	else
 		__vsc_dbg_trap="$(trap -p DEBUG | cut -d' ' -f3 | tr -d \')"
 	fi

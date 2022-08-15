@@ -27,8 +27,6 @@ import { commentThreadStateBackgroundColorVar, commentThreadStateColorVar } from
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ActionRunner } from 'vs/base/common/actions';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 
@@ -64,7 +62,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			collapse: () => void;
 		},
 		@ICommentService private commentService: ICommentService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService
+		@IContextMenuService readonly contextMenuService: IContextMenuService
 	) {
 		super();
 
@@ -81,7 +79,8 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			this._commentMenus,
 			this._commentThread,
 			this._contextKeyService,
-			this._scopedInstatiationService
+			this._scopedInstatiationService,
+			contextMenuService
 		);
 
 		this._header.updateCommentThread(this._commentThread);
@@ -147,10 +146,6 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			hasFocus = false;
 			this.updateCurrentThread(hasMouse, hasFocus);
 		}, true));
-
-		this._register(dom.addDisposableListener(this.container, dom.EventType.CONTEXT_MENU, e => {
-			return this.onContextMenu(e);
-		}));
 	}
 
 	updateCommentThread(commentThread: languages.CommentThread<T>) {
@@ -289,25 +284,6 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 
 	collapse() {
 		this._containerDelegate.collapse();
-	}
-
-	private onContextMenu(e: MouseEvent) {
-		const actions = this._commentMenus.getCommentThreadWidgetContextActions(this._contextKeyService).getActions({ shouldForwardArgs: true }).map((value) => value[1]).flat();
-		if (!actions.length) {
-			return;
-		}
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => e,
-			getActions: () => actions,
-			actionRunner: new ActionRunner(),
-			getActionsContext: () => {
-				return {
-					commentControlHandle: this._commentThread.controllerHandle,
-					commentThreadHandle: this._commentThread.commentThreadHandle,
-					$mid: MarshalledId.CommentThread
-				};
-			},
-		});
 	}
 
 	applyTheme(theme: IColorTheme, fontInfo: FontInfo) {

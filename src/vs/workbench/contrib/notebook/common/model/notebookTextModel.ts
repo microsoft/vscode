@@ -391,10 +391,11 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	reset(cells: ICellDto2[], metadata: NotebookDocumentMetadata, transientOptions: TransientOptions): void {
 		this.transientOptions = transientOptions;
-		this._cellhandlePool = 0;
+		const edits = NotebookTextModel.computeEdits(this, cells);
+
 		this.applyEdits(
 			[
-				{ editType: CellEditType.Replace, index: 0, count: this.cells.length, cells },
+				...edits,
 				{ editType: CellEditType.DocumentMetadata, metadata }
 			],
 			true,
@@ -402,6 +403,102 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			undefined,
 			true
 		);
+	}
+
+	static computeEdits(model: NotebookTextModel, cells: ICellDto2[]) {
+		const edits: ICellEditOperation[] = [];
+
+		const commonPrefix = this._commonPrefix(model.cells, model.cells.length, 0, cells, cells.length, 0);
+
+		if (commonPrefix > 0) {
+			for (let i = 0; i < commonPrefix; i++) {
+				edits.push(
+					{
+						editType: CellEditType.Metadata,
+						index: i,
+						metadata: cells[i].metadata ?? {}
+					},
+					...this._computeOutputEdit(i, model.cells[i].outputs, cells[i].outputs)
+				);
+			}
+		}
+
+		if (model.cells.length === cells.length && commonPrefix === model.cells.length) {
+			return edits;
+		}
+
+		const commonSuffix = this._commonSuffix(model.cells, model.cells.length - commonPrefix, commonPrefix, cells, cells.length - commonPrefix, commonPrefix);
+
+		if (commonSuffix > 0) {
+			edits.push({ editType: CellEditType.Replace, index: commonPrefix, count: model.cells.length - commonPrefix - commonSuffix, cells: cells.slice(commonPrefix, cells.length - commonSuffix) });
+		} else if (commonPrefix > 0) {
+			edits.push({ editType: CellEditType.Replace, index: commonPrefix, count: model.cells.length - commonPrefix, cells: cells.slice(commonPrefix) });
+		} else {
+			edits.push({ editType: CellEditType.Replace, index: 0, count: model.cells.length, cells });
+		}
+
+		if (commonSuffix > 0) {
+			// has same suffix
+			for (let i = commonSuffix; i > 0; i--) {
+				edits.push(
+					{
+						editType: CellEditType.Metadata,
+						index: model.cells.length - i,
+						metadata: cells[cells.length - i].metadata ?? {}
+					},
+					...this._computeOutputEdit(model.cells.length - i, model.cells[model.cells.length - i].outputs, cells[cells.length - i].outputs)
+				);
+			}
+		}
+
+		return edits;
+	}
+
+	private static _computeOutputEdit(index: number, a: ICellOutput[], b: IOutputDto[]): ICellEditOperation[] {
+		if (a.length !== b.length) {
+			return [
+				{
+					editType: CellEditType.Output,
+					index: index,
+					outputs: b,
+					append: false
+				}
+			];
+		}
+
+		if (a.length === 0) {
+			// no output
+			return [];
+		}
+
+		// same length
+		return b.map((output, i) => {
+			return {
+				editType: CellEditType.OutputItems,
+				outputId: a[i].outputId,
+				items: output.outputs,
+				append: false
+			};
+		});
+	}
+
+	private static _commonPrefix(a: readonly NotebookCellTextModel[], aLen: number, aDelta: number, b: ICellDto2[], bLen: number, bDelta: number): number {
+		const maxResult = Math.min(aLen, bLen);
+		let result = 0;
+		for (let i = 0; i < maxResult && a[aDelta + i].fastEqual(b[bDelta + i]); i++) {
+			result++;
+		}
+
+		return result;
+	}
+
+	private static _commonSuffix(a: readonly NotebookCellTextModel[], aLen: number, aDelta: number, b: ICellDto2[], bLen: number, bDelta: number): number {
+		const maxResult = Math.min(aLen, bLen);
+		let result = 0;
+		for (let i = 0; i < maxResult && a[aDelta + aLen - i - 1].fastEqual(b[bDelta + bLen - i - 1]); i++) {
+			result++;
+		}
+		return result;
 	}
 
 	applyEdits(rawEdits: ICellEditOperation[], synchronous: boolean, beginSelectionState: ISelectionState | undefined, endSelectionsComputer: () => ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined, computeUndoRedo: boolean): boolean {

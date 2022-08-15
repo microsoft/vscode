@@ -8,7 +8,18 @@ import { Application, ApplicationOptions, Logger, Quality } from '../../../../au
 import { createApp, timeout, installDiagnosticsHandler, installAppAfterHandler, getRandomUserDataDir, suiteLogsPath, suiteCrashPath } from '../../utils';
 
 export function setup(ensureStableCode: () => string | undefined, logger: Logger) {
-	describe('Data Loss (insiders -> insiders)', () => {
+	describe('Data Loss (insiders -> insiders)', function () {
+
+		// There are cases where `exitApplication` does not actually
+		// stop the application and our attempt then to `kill` the
+		// process tree results in data loss / state loss. All these
+		// tests here rely on state getting persisted properly, so
+		// until we have figured out the root cause, we retry these
+		// tests.
+		// See: https://github.com/microsoft/vscode/issues/157979
+		if (process.platform === 'darwin') {
+			this.retries(2);
+		}
 
 		let app: Application | undefined = undefined;
 
@@ -130,7 +141,18 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 		}
 	});
 
-	describe('Data Loss (stable -> insiders)', () => {
+	describe('Data Loss (stable -> insiders)', function () {
+
+		// There are cases where `exitApplication` does not actually
+		// stop the application and our attempt then to `kill` the
+		// process tree results in data loss / state loss. All these
+		// tests here rely on state getting persisted properly, so
+		// until we have figured out the root cause, we retry these
+		// tests.
+		// See: https://github.com/microsoft/vscode/issues/157979
+		if (process.platform === 'darwin') {
+			this.retries(2);
+		}
 
 		let insidersApp: Application | undefined = undefined;
 		let stableApp: Application | undefined = undefined;

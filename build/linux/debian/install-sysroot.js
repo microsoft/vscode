@@ -54,14 +54,13 @@ async function getSysroot(arch) {
     console.log(`Downloading ${url}`);
     let downloadSuccess = false;
     for (let i = 0; i < 3 && !downloadSuccess; i++) {
+        fs.writeFileSync(tarball, '');
         await new Promise((c) => {
             https.get(url, (res) => {
-                const chunks = [];
                 res.on('data', (chunk) => {
-                    chunks.push(chunk);
+                    fs.appendFileSync(tarball, chunk);
                 });
                 res.on('end', () => {
-                    fs.writeFileSync(tarball, Buffer.concat(chunks));
                     downloadSuccess = true;
                     c();
                 });
@@ -72,6 +71,7 @@ async function getSysroot(arch) {
         });
     }
     if (!downloadSuccess) {
+        fs.rmSync(tarball);
         throw new Error('Failed to download ' + url);
     }
     const sha = getSha(tarball);

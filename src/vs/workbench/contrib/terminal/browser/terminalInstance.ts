@@ -1055,9 +1055,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				await this.runRecent(type, filterMode, value);
 			}
 		});
-		quickPick.onDidAccept(() => {
+		quickPick.onDidAccept(async () => {
 			const result = quickPick.activeItems[0];
-			this.sendText(type === 'cwd' ? `cd ${result.rawLabel}` : result.rawLabel, !quickPick.keyMods.alt, true);
+			let text: string;
+			if (type === 'cwd') {
+				text = `cd ${await preparePathForShell(result.rawLabel, this._shellLaunchConfig.executable, this.title, this._shellType, this._processManager.backend, this._processManager.os)}`;
+			} else { // command
+				text = result.rawLabel;
+			}
+			this.sendText(text, !quickPick.keyMods.alt, true);
 			quickPick.hide();
 		});
 		if (value) {
