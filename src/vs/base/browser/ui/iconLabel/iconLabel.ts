@@ -31,6 +31,7 @@ export interface IIconLabelValueOptions {
 	labelEscapeNewLines?: boolean;
 	descriptionMatches?: IMatch[];
 	disabledCommand?: boolean;
+	excludeFromSearch?: boolean;
 	readonly separator?: string;
 	readonly domId?: string;
 }
