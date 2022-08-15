@@ -96,8 +96,8 @@ export class StandaloneQuickInputService implements IQuickInputService {
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
 	) {
 	}
-	formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, accessor: ServicesAccessor, reopenQuickpick?: boolean): void {
-		return this.activeService.formatPinnedItems(storageKey, quickPick, accessor, reopenQuickpick);
+	formatPinnedItems(accessor: ServicesAccessor, storageKey: string, quickPick: IQuickPick<IQuickPickItem>, reopenQuickpick?: boolean | undefined): void {
+		return this.activeService.formatPinnedItems(accessor, storageKey, quickPick, reopenQuickpick);
 	}
 
 	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options: O = <O>{}, token: CancellationToken = CancellationToken.None): Promise<(O extends { canPickMany: true } ? T[] : T) | undefined> {

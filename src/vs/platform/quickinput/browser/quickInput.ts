@@ -231,7 +231,7 @@ export class QuickInputService extends Themable implements IQuickInputService {
 		};
 	}
 
-	formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, accessor: ServicesAccessor, reopenQuickpick?: boolean): void {
+	formatPinnedItems(accessor: ServicesAccessor, storageKey: string, quickPick: IQuickPick<IQuickPickItem>, reopenQuickpick?: boolean): void {
 		const storageService = accessor.get(IStorageService);
 		quickPick.onDidTriggerItemButton((e) => {
 			if (e.button.iconClass === ThemeIcon.asClassName(Codicon.pin) || e.button.iconClass === ThemeIcon.asClassName(Codicon.pinned)) {
