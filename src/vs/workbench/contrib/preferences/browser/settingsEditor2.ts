@@ -88,6 +88,11 @@ interface IFocusEventFromScroll extends KeyboardEvent {
 	fromScroll: true;
 }
 
+interface SettingsEditor2ViewState {
+	query: string;
+	target: SettingsTarget | undefined;
+}
+
 const searchBoxLabel = localize('SearchSettings.AriaLabel', "Search settings");
 
 const SETTINGS_EDITOR_STATE_KEY = 'settingsEditorState';
@@ -349,8 +354,9 @@ export class SettingsEditor2 extends EditorPane {
 		this.defaultSettingsEditorModel = model;
 
 		options = options || validateSettingsEditorOptions({});
-		if (!this.viewState.settingsTarget) {
-			if (!options.target) {
+		if (!this.viewState.settingsTarget || !this.settingsTargetsWidget.settingsTarget) {
+			const optionsHasViewStateTarget = options.viewState && (options.viewState as SettingsEditor2ViewState).target;
+			if (!options.target && !optionsHasViewStateTarget) {
 				options.target = ConfigurationTarget.USER_LOCAL;
 			}
 		}
@@ -387,6 +393,12 @@ export class SettingsEditor2 extends EditorPane {
 		return withUndefinedAsNull(cachedState);
 	}
 
+	override getViewState(): object | undefined {
+		const query = this.searchWidget.getValue().trim();
+		const target = withNullAsUndefined(this.settingsTargetsWidget.settingsTarget) as SettingsTarget | undefined;
+		return { query, target };
+	}
+
 	override setOptions(options: ISettingsEditorOptions | undefined): void {
 		super.setOptions(options);
 
@@ -401,11 +413,15 @@ export class SettingsEditor2 extends EditorPane {
 			this.focusSearch();
 		}
 
-		if (options.query) {
-			this.searchWidget.setValue(options.query);
+		const recoveredViewState = options.viewState ?
+			options.viewState as SettingsEditor2ViewState : undefined;
+
+		const query: string | undefined = recoveredViewState?.query ?? options.query;
+		if (query !== undefined) {
+			this.searchWidget.setValue(query);
 		}
 
-		const target: SettingsTarget = options.folderUri || <SettingsTarget>options.target;
+		const target: SettingsTarget | undefined = options.folderUri ?? recoveredViewState?.target ?? <SettingsTarget | undefined>options.target;
 		if (target) {
 			this.settingsTargetsWidget.settingsTarget = target;
 			this.viewState.settingsTarget = target;
