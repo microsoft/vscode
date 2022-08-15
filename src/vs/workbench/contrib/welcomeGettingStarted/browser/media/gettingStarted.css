@@ -338,7 +338,7 @@
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .codicon.hide-category-button {
 	position: absolute;
-	top: 2px;
+	top: 4px;
 	right: 8px;
 }
 
@@ -804,4 +804,17 @@
 	display: -webkit-box;
 	-webkit-box-orient: vertical;
 	overflow: hidden;
+}
+
+.monaco-workbench .part.editor>.content .gettingStartedContainer .hide-category-button {
+	padding: 3px;
+	border-radius: 5px;
+}
+
+.monaco-workbench .part.editor>.content .gettingStartedContainer .hide-category-button::before {
+	vertical-align: unset;
+}
+
+.monaco-workbench .part.editor>.content .gettingStartedContainer .hide-category-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
