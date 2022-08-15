@@ -852,9 +852,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 		const runRecentStorageKey = `${TerminalStorageKeys.PinnedRecentCommandsPrefix}.${this._shellType}`;
-		if (!runRecentStorageKey) {
-			return;
-		}
 		let placeholder: string;
 		type Item = IQuickPickItem & { command?: ITerminalCommand; rawLabel: string };
 		let items: (Item | IQuickPickItem & { rawLabel: string } | IQuickPickSeparator)[] = [];
