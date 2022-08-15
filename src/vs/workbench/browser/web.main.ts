@@ -181,7 +181,8 @@ export class BrowserMain extends Disposable {
 								source: TunnelSource.Extension,
 								description: labelService.getHostLabel(Schemas.vscodeRemote, this.configuration.remoteAuthority)
 							},
-							elevateIfNeeded: false
+							elevateIfNeeded: false,
+							privacy: tunnelOptions.privacy
 						});
 						if (!tunnel) {
 							throw new Error('cannot open tunnel');
