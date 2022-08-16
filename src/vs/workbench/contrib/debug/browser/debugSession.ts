@@ -164,8 +164,8 @@ export class DebugSession implements IDebugSession {
 		return !!this._options.compact;
 	}
 
-	get saveBeforeStart(): boolean {
-		return this._options.saveBeforeStart ?? !this._options?.parentSession;
+	get saveBeforeRestart(): boolean {
+		return this._options.saveBeforeRestart ?? !this._options?.parentSession;
 	}
 
 	get compoundRoot(): DebugCompoundRoot | undefined {

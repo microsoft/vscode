@@ -3,30 +3,46 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { LinkedList } from 'vs/base/common/linkedList';
+import { ResourceMap, ResourceSet } from 'vs/base/common/map';
+import { URI } from 'vs/base/common/uri';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IBulkEditOptions, IBulkEditResult, IBulkEditService, IBulkEditPreviewHandler, ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
+import { IBulkEditOptions, IBulkEditPreviewHandler, IBulkEditResult, IBulkEditService, ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { WorkspaceEdit } from 'vs/editor/common/languages';
+import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgress, IProgressStep, Progress } from 'vs/platform/progress/common/progress';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { BulkTextEdits } from 'vs/workbench/contrib/bulkEdit/browser/bulkTextEdits';
-import { BulkFileEdits } from 'vs/workbench/contrib/bulkEdit/browser/bulkFileEdits';
-import { BulkCellEdits, ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
-import { UndoRedoGroup, UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
-import { LinkedList } from 'vs/base/common/linkedList';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { ResourceMap, ResourceSet } from 'vs/base/common/map';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { URI } from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { UndoRedoGroup, UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
+import { BulkCellEdits, ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
+import { BulkFileEdits } from 'vs/workbench/contrib/bulkEdit/browser/bulkFileEdits';
+import { BulkTextEdits } from 'vs/workbench/contrib/bulkEdit/browser/bulkTextEdits';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+
+function reviveEdits(edits: ResourceEdit[]): ResourceEdit[] {
+	return edits.map(edit => {
+		if (ResourceTextEdit.is(edit)) {
+			return ResourceTextEdit.lift(edit);
+		}
+		if (ResourceFileEdit.is(edit)) {
+			return ResourceFileEdit.lift(edit);
+		}
+		if (ResourceNotebookCellEdit.is(edit)) {
+			return ResourceNotebookCellEdit.lift(edit);
+		}
+		throw new Error('Unsupported edit');
+	});
+}
 
 class BulkEdit {
 
@@ -164,7 +180,8 @@ export class BulkEditService implements IBulkEditService {
 		return Boolean(this._previewHandler);
 	}
 
-	async apply(edits: ResourceEdit[], options?: IBulkEditOptions): Promise<IBulkEditResult> {
+	async apply(editsIn: ResourceEdit[] | WorkspaceEdit, options?: IBulkEditOptions): Promise<IBulkEditResult> {
+		let edits = reviveEdits(Array.isArray(editsIn) ? editsIn : editsIn.edits);
 
 		if (edits.length === 0) {
 			return { ariaSummary: localize('nothing', "Made no edits") };

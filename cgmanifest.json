@@ -46,6 +46,19 @@
 			"component": {
 				"type": "git",
 				"git": {
+					"name": "ffmpeg",
+					"repositoryUrl": "https://chromium.googlesource.com/chromium/third_party/ffmpeg",
+					"commitHash": "5cd95cdf972ad92c38a4ea2d059ac9d6167302ca"
+				}
+			},
+			"isOnlyProductionDependency": true,
+			"license": "LGPL-2.1+",
+			"version": "4.4.git"
+		},
+		{
+			"component": {
+				"type": "git",
+				"git": {
 					"name": "nodejs",
 					"repositoryUrl": "https://github.com/nodejs/node",
 					"commitHash": "442e84a358d75152556b5d087e4dd6a51615330d"

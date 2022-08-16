@@ -47,7 +47,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 
-import { ConfiguringTask, ContributedTask, CustomTask, ExecutionEngine, InMemoryTask, ITaskEvent, ITaskIdentifier, ITaskSet, JsonSchemaVersion, KeyedTaskIdentifier, RuntimeType, Task, TaskDefinition, TaskGroup, TaskRunSource, TaskSettingId, TaskSorter, TaskSourceKind, TasksSchemaProperties, TASK_RUNNING_STATE, USER_TASKS_GROUP_KEY } from 'vs/workbench/contrib/tasks/common/tasks';
+import { ConfiguringTask, ContributedTask, CustomTask, ExecutionEngine, InMemoryTask, ITaskEvent, ITaskIdentifier, ITaskSet, JsonSchemaVersion, KeyedTaskIdentifier, RuntimeType, Task, TaskDefinition, TaskEventKind, TaskGroup, TaskRunSource, TaskSettingId, TaskSorter, TaskSourceKind, TasksSchemaProperties, TASK_RUNNING_STATE, USER_TASKS_GROUP_KEY } from 'vs/workbench/contrib/tasks/common/tasks';
 import { CustomExecutionSupportedContext, ICustomizationProperties, IProblemMatcherRunOptions, ITaskFilter, ITaskProvider, ITaskService, IWorkspaceFolderTaskResult, ProcessExecutionSupportedContext, ShellExecutionSupportedContext, TaskCommandsRegistered } from 'vs/workbench/contrib/tasks/common/taskService';
 import { ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSystemInfo, ITaskTerminateResponse, TaskError, TaskErrors, TaskExecuteKind } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/common/taskTemplates';
@@ -68,7 +68,6 @@ import { Schemas } from 'vs/base/common/network';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { ILogService } from 'vs/platform/log/common/log';
-import { TerminalExitReason } from 'vs/platform/terminal/common/terminal';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { VirtualWorkspaceContext } from 'vs/workbench/common/contextkeys';
@@ -80,6 +79,7 @@ import { ILifecycleService, ShutdownReason, StartupKind } from 'vs/workbench/ser
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { TerminalExitReason } from 'vs/platform/terminal/common/terminal';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
@@ -319,10 +319,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._willRestart = e.reason !== ShutdownReason.RELOAD;
 		});
 		this._register(this.onDidStateChange(e => {
-			if (this._willRestart || e.exitReason === TerminalExitReason.User) {
-				if (e.taskId) {
-					this.removePersistentTask(e.taskId);
-				}
+			if ((this._willRestart || e.exitReason === TerminalExitReason.User) && e.taskId) {
+				this.removePersistentTask(e.taskId);
+			} else if (e.kind === TaskEventKind.Start && e.__task) {
+				this._setPersistentTask(e.__task);
 			}
 		}));
 		this._waitForSupportedExecutions = new Promise(resolve => {
@@ -1083,6 +1083,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _setPersistentTask(task: Task): Promise<void> {
+		if (!this._configurationService.getValue(TaskSettingId.Reconnection)) {
+			return;
+		}
 		let key = task.getRecentlyUsedKey();
 		if (!InMemoryTask.is(task) && key) {
 			const customizations = this._createCustomizableTask(task);
@@ -1871,9 +1874,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		}
 		this._setRecentlyUsedTask(executeResult.task);
-		if (this._configurationService.getValue(TaskSettingId.Reconnection) === true && runSource !== TaskRunSource.Reconnect && executeResult.task.type !== '$customized') {
-			await this._setPersistentTask(executeResult.task);
-		}
 		return executeResult.promise;
 	}
 
