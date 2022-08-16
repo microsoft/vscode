@@ -81,7 +81,7 @@ export interface IQuickPickTerminalObject {
 	keyMods: IKeyMods | undefined;
 }
 
-export interface ICommandTracker {
+export interface IMarkTracker {
 	scrollToPreviousMark(): void;
 	scrollToNextMark(): void;
 	selectToPreviousMark(): void;
@@ -909,7 +909,7 @@ export interface IXtermTerminal {
 	 * An object that tracks when commands are run and enables navigating and selecting between
 	 * them.
 	 */
-	readonly commandTracker: ICommandTracker;
+	readonly markTracker: IMarkTracker;
 
 	/**
 	 * Reports the status of shell integration and fires events relating to it.

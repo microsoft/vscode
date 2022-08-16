@@ -5,7 +5,7 @@
 
 import { coalesce } from 'vs/base/common/arrays';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ICommandTracker } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IMarkTracker } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IBufferMarkDetectionCapability, ICommandDetectionCapability, IPartialCommandDetectionCapability, ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import type { Terminal, IMarker, ITerminalAddon, IDecoration } from 'xterm';
 import { timeout } from 'vs/base/common/async';
@@ -23,7 +23,7 @@ export const enum ScrollPosition {
 	Middle
 }
 
-export class MarkNavigationAddon extends Disposable implements ICommandTracker, ITerminalAddon {
+export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITerminalAddon {
 	private _currentMarker: IMarker | Boundary = Boundary.Bottom;
 	private _selectionStart: IMarker | Boundary | null = null;
 	private _isDisposable: boolean = false;

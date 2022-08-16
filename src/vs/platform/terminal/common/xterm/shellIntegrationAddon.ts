@@ -209,6 +209,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	activate(xterm: Terminal) {
 		this._terminal = xterm;
 		this.capabilities.add(TerminalCapability.PartialCommandDetection, new PartialCommandDetectionCapability(this._terminal));
+		this.capabilities.add(TerminalCapability.BufferMarkDetection, new BufferMarkCapability(this._terminal, this._logService));
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.VSCode, data => this._handleVSCodeSequence(data)));
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.ITerm, data => this._doHandleITermSequence(data)));
 		this._commonProtocolDisposables.push(
