@@ -269,6 +269,10 @@ export interface IOSConfiguration {
 	readonly hostname: string;
 }
 
+export type ProfileOptions = {
+	name?: string;
+};
+
 export interface INativeWindowConfiguration extends IWindowConfiguration, NativeParsedArgs, ISandboxConfiguration {
 	mainPid: number;
 
@@ -279,7 +283,8 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 
 	profiles: {
 		all: readonly UriDto<IUserDataProfile>[];
-		current: UriDto<IUserDataProfile>;
+		profile?: UriDto<IUserDataProfile>;
+		profileOptions?: ProfileOptions;
 	};
 
 	homeDir: string;

@@ -38,7 +38,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
-import { IAddFoldersRequest, INativeOpenFileRequest, INativeWindowConfiguration, IOpenEmptyWindowOptions, IPath, IPathsToWaitFor, isFileToOpen, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable, IWindowSettings } from 'vs/platform/window/common/window';
+import { IAddFoldersRequest, INativeOpenFileRequest, INativeWindowConfiguration, IOpenEmptyWindowOptions, IPath, IPathsToWaitFor, isFileToOpen, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable, IWindowSettings, ProfileOptions as ProfileOptions } from 'vs/platform/window/common/window';
 import { CodeWindow } from 'vs/platform/windows/electron-main/windowImpl';
 import { IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { findWindowOnExtensionDevelopmentPath, findWindowOnFile, findWindowOnWorkspaceOrFolder } from 'vs/platform/windows/electron-main/windowsFinder';
@@ -75,6 +75,8 @@ interface IOpenBrowserWindowOptions {
 	readonly windowToUse?: ICodeWindow;
 
 	readonly emptyWindowBackupInfo?: IEmptyWindowBackupInfo;
+
+	readonly profile?: ProfileOptions;
 }
 
 interface IPathResolveOptions {
@@ -151,6 +153,11 @@ interface IPathToOpen<T = IEditorOptions> extends IPath<T> {
 	 * Optional label for the recent history
 	 */
 	label?: string;
+
+	/**
+	 * Options for the profile to use
+	 */
+	readonly profileOptions?: ProfileOptions;
 }
 
 interface IWorkspacePathToOpen extends IPathToOpen {
@@ -692,7 +699,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			forceNewWindow,
 			forceNewTabbedWindow: openConfig.forceNewTabbedWindow,
 			filesToOpen,
-			windowToUse
+			windowToUse,
+			profile: folderOrWorkspace.profileOptions
 		});
 	}
 
@@ -847,7 +855,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				pathsToOpen.push(path);
 			}
 		}
-		return pathsToOpen;
+		const profileName = cli['settings-profile'];
+		return profileName ? pathsToOpen.map<IPathToOpen>(p => ({ ...p, profileOptions: { name: profileName } })) : pathsToOpen;
 	}
 
 	private cliArgToUri(arg: string): URI | undefined {
@@ -1326,7 +1335,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			profiles: {
 				all: this.userDataProfilesService.profiles,
-				current: this.userDataProfilesService.getProfile(options.workspace ?? 'empty-window', (options.windowToUse ?? this.getLastActiveWindow())?.profile ?? this.userDataProfilesService.defaultProfile),
+				profile: this.userDataProfilesService.getProfile(options.workspace ?? 'empty-window', (options.windowToUse ?? this.getLastActiveWindow())?.profile ?? this.userDataProfilesService.defaultProfile),
+				profileOptions: options.profile
 			},
 
 			homeDir: this.environmentMainService.userHome.fsPath,

@@ -241,8 +241,16 @@ export class DesktopMain extends Disposable {
 		// User Data Profiles
 		const userDataProfilesService = new UserDataProfilesNativeService(this.configuration.profiles.all, mainProcessService, environmentService);
 		serviceCollection.set(IUserDataProfilesService, userDataProfilesService);
-		const userDataProfileService = new UserDataProfileService(reviveProfile(this.configuration.profiles.current, userDataProfilesService.profilesHome.scheme), userDataProfilesService);
+		const userDataProfileService = new UserDataProfileService(this.configuration.profiles.profile ? reviveProfile(this.configuration.profiles.profile, userDataProfilesService.profilesHome.scheme) : userDataProfilesService.defaultProfile, userDataProfilesService);
 		serviceCollection.set(IUserDataProfileService, userDataProfileService);
+
+		const payload = this.resolveWorkspaceInitializationPayload(environmentService);
+		if (this.configuration.profiles.profileOptions?.name) {
+			await userDataProfileService.initProfileWithName(this.configuration.profiles.profileOptions.name, payload);
+			if (!userDataProfilesService.profiles.some(p => p.id === userDataProfileService.currentProfile.id)) {
+				await userDataProfilesService.reload();
+			}
+		}
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		//
@@ -252,9 +260,6 @@ export class DesktopMain extends Disposable {
 		//       is desktop only.
 		//
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-
-		const payload = this.resolveWorkspaceInitializationPayload(environmentService);
 
 		const [configurationService, storageService] = await Promise.all([
 			this.createWorkspaceService(payload, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, logService, policyService).then(service => {
