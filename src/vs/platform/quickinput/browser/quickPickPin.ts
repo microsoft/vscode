@@ -30,8 +30,8 @@ export function formatPinnedItems(accessor: ServicesAccessor, storageKey: string
 
 async function _formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, storageService: IStorageService, event?: IQuickPickItemButtonEvent<IQuickPickItem>, callback?: () => Promise<void>): Promise<void> {
 	const formattedItems: QuickPickItem[] = [];
-	const labels = getPinnedLabels(storageKey, storageService);
-	const updatedLabels = !!event?.item.label ? updatePinned(storageKey, event.item.label, storageService, new Set(labels).has(event.item.label)) : labels.filter(l => l !== 'Pinned');
+	const labels = getPinnedItems(storageKey, storageService).map(item => item.label);
+	const updatedLabels = !!event?.item.label ? updatePinnedItems(storageKey, event.item, storageService, new Set(labels).has(event.item.label)) : labels.filter(l => l !== 'Pinned');
 	if (updatedLabels.length) {
 		formattedItems.push({ type: 'separator', label: localize("terminal.commands.pinned", 'Pinned') });
 	}
@@ -71,16 +71,16 @@ function updateButtons(item: QuickPickItem, removePin: boolean): void {
 	});
 }
 
-function updatePinned(storageKey: string, label: string, storageService: IStorageService, removePin: boolean): string[] {
-	const pinnedLabels = getPinnedLabels(storageKey, storageService).filter(l => l !== label);
+function updatePinnedItems(storageKey: string, item: IQuickPickItem, storageService: IStorageService, removePin: boolean): IQuickPickItem[] {
+	const items = getPinnedItems(storageKey, storageService).filter(l => l.label !== item.label);
 	if (!removePin) {
-		pinnedLabels.push(label);
+		items.push(item);
 	}
-	storageService.store(storageKey, JSON.stringify(pinnedLabels), StorageScope.WORKSPACE, StorageTarget.USER);
-	return pinnedLabels;
+	storageService.store(storageKey, JSON.stringify(items), StorageScope.WORKSPACE, StorageTarget.USER);
+	return items;
 }
 
-function getPinnedLabels(storageKey: string, storageService: IStorageService): string[] {
+function getPinnedItems(storageKey: string, storageService: IStorageService): IQuickPickItem[] {
 	const items = storageService.get(storageKey, StorageScope.WORKSPACE);
 	return items ? JSON.parse(items) : [];
 }
