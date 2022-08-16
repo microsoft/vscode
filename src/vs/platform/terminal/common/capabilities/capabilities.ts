@@ -63,8 +63,12 @@ export const enum TerminalCapability {
 	PartialCommandDetection,
 
 	/**
-	 * Generic buffer marks made by sources with an ID
-	 * and that may or may not have Visibility
+	 * Adds custom marks to the buffer
+	 * that can be used for terminal navigation and selection.
+	 * The source of the request (task, debug, etc)
+	 * provides an ID, optional marker, and hidden property.
+	 * When hidden is not provided, a generic
+	 * decoration is added to the buffer and overview ruler.
 	 */
 	BufferMarkDetection
 }
