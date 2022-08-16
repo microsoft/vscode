@@ -1072,7 +1072,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 
 		// Windows: window control overlay (WCO)
-		if (isWindows) {
+		if (isWindows && useWindowControlsOverlay(this.configurationService, this.environmentMainService)) {
 			this._win.setTitleBarOverlay({
 				color: options.backgroundColor?.trim() === '' ? undefined : options.backgroundColor,
 				symbolColor: options.foregroundColor?.trim() === '' ? undefined : options.foregroundColor,
