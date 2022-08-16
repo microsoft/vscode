@@ -214,8 +214,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 				id: 'fuzzy',
 				label: localize('testing.filters.fuzzyMatch', "Fuzzy Match"),
 				run: () => this.filters.fuzzy.value = !this.filters.fuzzy.value,
-				tooltip: '',
-				dispose: () => null
+				tooltip: ''
 			},
 			new Separator(),
 			{
@@ -225,8 +224,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 				id: 'showExcluded',
 				label: localize('testing.filters.showExcludedTests', "Show Hidden Tests"),
 				run: () => this.filters.toggleFilteringFor(TestFilterTerm.Hidden),
-				tooltip: '',
-				dispose: () => null
+				tooltip: ''
 			},
 			{
 				checked: false,
@@ -235,8 +233,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 				id: 'removeExcluded',
 				label: localize('testing.filters.removeTestExclusions', "Unhide All Tests"),
 				run: async () => this.testService.excluded.clear(),
-				tooltip: '',
-				dispose: () => null
+				tooltip: ''
 			}
 		];
 	}
