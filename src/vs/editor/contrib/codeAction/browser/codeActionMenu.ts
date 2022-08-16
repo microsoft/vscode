@@ -113,6 +113,8 @@ const TEMPLATE_ID = 'codeActionWidget';
 const codeActionLineHeight = 24;
 const headerLineHeight = 26;
 
+let showDisabled = true;
+
 class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeActionMenuTemplateData> {
 	private element!: HTMLElement;
 	private actionbar!: ActionBar;
@@ -658,9 +660,9 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	public static toggleDisabledOptions(params: ICodeActionMenuParameters): void {
 		params.menuObj.hideCodeActionWidget();
 
-		params.showDisabled = !params.showDisabled;
+		showDisabled = !showDisabled;
 
-		const actionsToShow = params.showDisabled ? params.codeActions.allActions : params.codeActions.validActions;
+		const actionsToShow = showDisabled ? params.codeActions.allActions : params.codeActions.validActions;
 
 		const menuActions = params.menuObj.getMenuActions(params.trigger, actionsToShow, params.codeActions.documentation);
 
@@ -684,7 +686,12 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		if (!model) {
 			return;
 		}
-		const actionsToShow = options.includeDisabledActions ? codeActions.allActions : codeActions.validActions;
+
+		let actionsToShow = options.includeDisabledActions ? codeActions.allActions : codeActions.validActions;
+
+		if (trigger.triggerAction === 'refactor') {
+			actionsToShow = showDisabled ? codeActions.allActions : codeActions.validActions;
+		}
 
 		if (!actionsToShow.length) {
 			this._visible = false;
