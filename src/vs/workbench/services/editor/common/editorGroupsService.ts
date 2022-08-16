@@ -47,7 +47,7 @@ export const enum GroupsArrangement {
 	 * Make the current active group consume the maximum
 	 * amount of space possible.
 	 */
-	MINIMIZE_OTHERS,
+	MAXIMIZE,
 
 	/**
 	 * Size all groups evenly.
@@ -181,6 +181,11 @@ export interface IEditorGroupsService {
 	 * An event for when the group container is layed out.
 	 */
 	readonly onDidLayout: Event<IDimension>;
+
+	/**
+	 * An event for when the group container is scrolled.
+	 */
+	readonly onDidScroll: Event<void>;
 
 	/**
 	 * An event for when the index of a group changes.

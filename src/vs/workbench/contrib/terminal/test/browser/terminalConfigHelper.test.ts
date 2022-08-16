@@ -161,7 +161,7 @@ suite('Workbench - TerminalConfigHelper', function () {
 				}
 			}
 		});
-		let configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!);
+		const configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!);
 		configHelper.panelContainer = fixture;
 		assert.strictEqual(configHelper.getFont().lineHeight, 2, 'terminal.integrated.lineHeight should be selected over editor.lineHeight');
 	});
@@ -179,7 +179,7 @@ suite('Workbench - TerminalConfigHelper', function () {
 				}
 			}
 		});
-		let configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!);
+		const configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!);
 		configHelper.panelContainer = fixture;
 		assert.strictEqual(configHelper.getFont().lineHeight, 1, 'editor.lineHeight should be 1 when terminal.integrated.lineHeight not set');
 	});

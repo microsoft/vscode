@@ -48,7 +48,7 @@ const invokeCompletionContext: CompletionContext = {
 
 suite('Tests for Expand Abbreviations (HTML)', () => {
 	const oldValueForExcludeLanguages = workspace.getConfiguration('emmet').inspect('excludeLanguages');
-	const oldValueForInlcudeLanguages = workspace.getConfiguration('emmet').inspect('includeLanguages');
+	const oldValueForIncludeLanguages = workspace.getConfiguration('emmet', null).inspect('includeLanguages');
 	teardown(closeAllEditors);
 
 	test('Expand snippets (HTML)', () => {
@@ -374,7 +374,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 			await expandPromise;
 			assert.strictEqual(editor.document.getText(), htmlContents.replace('span.bye', '<span class="bye"></span>'));
 		});
-		return workspace.getConfiguration('emmet').update('includeLanguages', oldValueForInlcudeLanguages || {}, ConfigurationTarget.Global);
+		return workspace.getConfiguration('emmet').update('includeLanguages', oldValueForIncludeLanguages || {}, ConfigurationTarget.Global);
 	});
 
 	test('Expand html in completion list when inside script tag with javascript type if js is mapped to html (HTML)', async () => {
@@ -399,7 +399,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 			assert.strictEqual(((<string>emmetCompletionItem.documentation) || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
 			return Promise.resolve();
 		});
-		return workspace.getConfiguration('emmet').update('includeLanguages', oldValueForInlcudeLanguages || {}, ConfigurationTarget.Global);
+		return workspace.getConfiguration('emmet').update('includeLanguages', oldValueForIncludeLanguages || {}, ConfigurationTarget.Global);
 	});
 
 	// test('No expanding when html is excluded in the settings', () => {

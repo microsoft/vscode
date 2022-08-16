@@ -48,9 +48,7 @@ class InspectContextKeysAction extends Action2 {
 
 		const stylesheet = createStyleSheet();
 		disposables.add(toDisposable(() => {
-			if (stylesheet.parentNode) {
-				stylesheet.parentNode.removeChild(stylesheet);
-			}
+			stylesheet.parentNode?.removeChild(stylesheet);
 		}));
 		createCSSRule('*', 'cursor: crosshair !important;', stylesheet);
 
@@ -275,7 +273,7 @@ class LogStorageAction extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor): void {
-		accessor.get(IStorageService).logStorage();
+		accessor.get(IStorageService).log();
 	}
 }
 

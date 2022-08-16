@@ -23,9 +23,9 @@ suite('OutputLinkProvider', () => {
 		const rootFolder = isWindows ? URI.file('C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala') :
 			URI.file('C:/Users/someone/AppData/Local/Temp/_monacodata_9888/workspaces/mankala');
 
-		let patterns = OutputLinkComputer.createPatterns(rootFolder);
+		const patterns = OutputLinkComputer.createPatterns(rootFolder);
 
-		let contextService = new TestContextService();
+		const contextService = new TestContextService();
 
 		let line = toOSPath('Foo bar');
 		let result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
@@ -285,12 +285,12 @@ suite('OutputLinkProvider', () => {
 		const rootFolder = isWindows ? URI.file('C:\\Users\\username\\Desktop\\test-ts') :
 			URI.file('C:/Users/username/Desktop');
 
-		let patterns = OutputLinkComputer.createPatterns(rootFolder);
+		const patterns = OutputLinkComputer.createPatterns(rootFolder);
 
-		let contextService = new TestContextService();
+		const contextService = new TestContextService();
 
-		let line = toOSPath('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa C:\\Users\\username\\Desktop\\test-ts\\prj.conf C:\\Users\\username\\Desktop\\test-ts\\prj.conf C:\\Users\\username\\Desktop\\test-ts\\prj.conf');
-		let result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
+		const line = toOSPath('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa C:\\Users\\username\\Desktop\\test-ts\\prj.conf C:\\Users\\username\\Desktop\\test-ts\\prj.conf C:\\Users\\username\\Desktop\\test-ts\\prj.conf');
+		const result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
 		assert.strictEqual(result.length, 3);
 
 		for (const res of result) {

@@ -213,22 +213,22 @@ suite('GlobalStateSync', () => {
 
 	function updateUserStorage(key: string, value: string, client: UserDataSyncClient): void {
 		const storageService = client.instantiationService.get(IStorageService);
-		storageService.store(key, value, StorageScope.GLOBAL, StorageTarget.USER);
+		storageService.store(key, value, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	function updateMachineStorage(key: string, value: string, client: UserDataSyncClient): void {
 		const storageService = client.instantiationService.get(IStorageService);
-		storageService.store(key, value, StorageScope.GLOBAL, StorageTarget.MACHINE);
+		storageService.store(key, value, StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
 	function removeStorage(key: string, client: UserDataSyncClient): void {
 		const storageService = client.instantiationService.get(IStorageService);
-		storageService.remove(key, StorageScope.GLOBAL);
+		storageService.remove(key, StorageScope.PROFILE);
 	}
 
 	function readStorage(key: string, client: UserDataSyncClient): string | undefined {
 		const storageService = client.instantiationService.get(IStorageService);
-		return storageService.get(key, StorageScope.GLOBAL);
+		return storageService.get(key, StorageScope.PROFILE);
 	}
 
 	async function readLocale(client: UserDataSyncClient): Promise<string | undefined> {

@@ -5,7 +5,7 @@
 
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { timeout } from 'vs/base/common/async';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
@@ -75,6 +75,8 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		this.onDidChangeGroups(() => this._terminalGroupCountContextKey.set(this.groups.length));
 
 		this._findState = new FindReplaceState();
+
+		Event.any(this.onDidChangeActiveGroup, this.onDidChangeInstances)(() => this.updateVisibility());
 	}
 
 	hidePanel(): void {
@@ -114,7 +116,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	}
 
 	private _getIndexFromId(terminalId: number): number {
-		let terminalIndex = this.instances.findIndex(e => e.instanceId === terminalId);
+		const terminalIndex = this.instances.findIndex(e => e.instanceId === terminalId);
 		if (terminalIndex === -1) {
 			throw new Error(`Terminal with ID ${terminalId} does not exist (has it already been disposed?)`);
 		}
@@ -229,14 +231,23 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 			this._onDidChangeGroups.fire();
 		}
 
-		// Adjust focus if the group was active
-		if (wasActiveGroup && this.groups.length > 0) {
-			const newIndex = index < this.groups.length ? index : this.groups.length - 1;
-			this.setActiveGroupByIndex(newIndex, true);
-			this.activeInstance?.focus(true);
-		} else if (this.activeGroupIndex >= this.groups.length) {
-			const newIndex = this.groups.length - 1;
-			this.setActiveGroupByIndex(newIndex);
+		if (wasActiveGroup) {
+			// Adjust focus if the group was active
+			if (this.groups.length > 0) {
+				const newIndex = index < this.groups.length ? index : this.groups.length - 1;
+				this.setActiveGroupByIndex(newIndex, true);
+				this.activeInstance?.focus(true);
+			}
+		} else {
+			// Adjust the active group if the removed group was above the active group
+			if (this.activeGroupIndex > index) {
+				this.setActiveGroupByIndex(this.activeGroupIndex - 1);
+			}
+		}
+		// Ensure the active group is still valid, this should set the activeGroupIndex to -1 if
+		// there are no groups
+		if (this.activeGroupIndex >= this.groups.length) {
+			this.setActiveGroupByIndex(this.groups.length - 1);
 		}
 
 		this._onDidChangeInstances.fire();
@@ -271,7 +282,6 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		const oldActiveGroup = this.activeGroup;
 		this.activeGroupIndex = index;
 		if (force || oldActiveGroup !== this.activeGroup) {
-			this.groups.forEach((g, i) => g.setVisible(i === this.activeGroupIndex));
 			this._onDidChangeActiveGroup.fire(this.activeGroup);
 			this._onDidChangeActiveInstance.fire(this.activeInstance);
 		}
@@ -309,8 +319,6 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		this.activeGroupIndex = instanceLocation.groupIndex;
 		this._onDidChangeActiveGroup.fire(this.activeGroup);
 		instanceLocation.group.setActiveInstanceByIndex(activeInstanceIndex, true);
-		this.groups.forEach((g, i) => g.setVisible(i === instanceLocation.groupIndex));
-
 	}
 
 	setActiveGroupToNext() {
@@ -475,6 +483,17 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		return this.groups.filter(group => group.terminalInstances.length > 0).map((group, index) => {
 			return `${index + 1}: ${group.title ? group.title : ''}`;
 		});
+	}
+
+	/**
+	 * Visibility should be updated in the following cases:
+	 * 1. Toggle `TERMINAL_VIEW_ID` visibility
+	 * 2. Change active group
+	 * 3. Change instances in active group
+	 */
+	updateVisibility() {
+		const visible = this._viewsService.isViewVisible(TERMINAL_VIEW_ID);
+		this.groups.forEach((g, i) => g.setVisible(visible && i === this.activeGroupIndex));
 	}
 }
 

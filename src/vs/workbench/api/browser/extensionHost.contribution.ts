@@ -64,7 +64,6 @@ import './mainThreadWorkspace';
 import './mainThreadComments';
 import './mainThreadNotebook';
 import './mainThreadNotebookKernels';
-import './mainThreadNotebookProxyKernels';
 import './mainThreadNotebookDocumentsAndEditors';
 import './mainThreadNotebookRenderers';
 import './mainThreadInteractive';
@@ -90,4 +89,4 @@ export class ExtensionPoints implements IWorkbenchContribution {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ExtensionPoints, LifecyclePhase.Starting);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ExtensionPoints, 'ExtensionPoints', LifecyclePhase.Starting);

@@ -122,6 +122,10 @@ export function convertBufferRangeToViewport(bufferRange: IBufferRange, viewport
 }
 
 export function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd: number, cols: number): string {
+	// Cap the maximum number of lines generated to prevent potential performance problems. This is
+	// more of a sanity check as the wrapped line should already be trimmed down at this point.
+	const maxLineLength = Math.max(2048 / cols * 2);
+	lineEnd = Math.min(lineEnd, lineStart + maxLineLength);
 	let content = '';
 	for (let i = lineStart; i <= lineEnd; i++) {
 		// Make sure only 0 to cols are considered as resizing when windows mode is enabled will

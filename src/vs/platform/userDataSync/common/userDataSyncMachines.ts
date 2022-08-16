@@ -132,7 +132,7 @@ export class UserDataSyncMachinesService extends Disposable implements IUserData
 			await this.writeMachinesData(machineData);
 			const currentMachineId = await this.currentMachineIdPromise;
 			if (machineId === currentMachineId) {
-				this.storageService.store(currentMachineNameKey, name, StorageScope.GLOBAL, StorageTarget.MACHINE);
+				this.storageService.store(currentMachineNameKey, name, StorageScope.APPLICATION, StorageTarget.MACHINE);
 			}
 		}
 	}
@@ -149,7 +149,7 @@ export class UserDataSyncMachinesService extends Disposable implements IUserData
 	}
 
 	private computeCurrentMachineName(machines: IMachineData[]): string {
-		const previousName = this.storageService.get(currentMachineNameKey, StorageScope.GLOBAL);
+		const previousName = this.storageService.get(currentMachineNameKey, StorageScope.APPLICATION);
 		if (previousName) {
 			return previousName;
 		}

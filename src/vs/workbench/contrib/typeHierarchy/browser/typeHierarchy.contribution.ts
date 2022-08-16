@@ -89,7 +89,7 @@ class TypeHierarchyController implements IEditorContribution {
 
 		const cts = new CancellationTokenSource();
 		const model = TypeHierarchyModel.create(document, position, cts.token);
-		const direction = sanitizedDirection(this._storageService.get(TypeHierarchyController._storageDirectionKey, StorageScope.GLOBAL, TypeHierarchyDirection.Subtypes));
+		const direction = sanitizedDirection(this._storageService.get(TypeHierarchyController._storageDirectionKey, StorageScope.PROFILE, TypeHierarchyDirection.Subtypes));
 
 		this._showTypeHierarchyWidget(position, direction, model, cts);
 	}
@@ -103,7 +103,7 @@ class TypeHierarchyController implements IEditorContribution {
 		this._widget.showLoading();
 		this._sessionDisposables.add(this._widget.onDidClose(() => {
 			this.endTypeHierarchy();
-			this._storageService.store(TypeHierarchyController._storageDirectionKey, this._widget!.direction, StorageScope.GLOBAL, StorageTarget.USER);
+			this._storageService.store(TypeHierarchyController._storageDirectionKey, this._widget!.direction, StorageScope.PROFILE, StorageTarget.USER);
 		}));
 		this._sessionDisposables.add({ dispose() { cts.dispose(true); } });
 		this._sessionDisposables.add(this._widget);

@@ -215,9 +215,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		return new extHostTypes.Disposable(() => {
 			this._notebookStatusBarItemProviders.delete(handle);
 			this._notebookProxy.$unregisterNotebookCellStatusBarItemProvider(handle, eventHandle);
-			if (subscription) {
-				subscription.dispose();
-			}
+			subscription?.dispose();
 		});
 	}
 

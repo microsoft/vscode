@@ -92,6 +92,11 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 
 		const allowedCommands = ['_remoteCLI.openExternal', '_remoteCLI.windowOpen', '_remoteCLI.getSystemStatus', '_remoteCLI.manageExtensions'];
 		this._remoteTerminalChannel.onExecuteCommand(async e => {
+			// Ensure this request for for this window
+			const pty = this._ptys.get(e.persistentProcessId);
+			if (!pty) {
+				return;
+			}
 			const reqId = e.reqId;
 			const commandId = e.commandId;
 			if (!allowedCommands.includes(commandId)) {
@@ -204,7 +209,10 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 			args: shellLaunchConfig.args,
 			cwd: shellLaunchConfig.cwd,
 			env: shellLaunchConfig.env,
-			useShellEnvironment: shellLaunchConfig.useShellEnvironment
+			useShellEnvironment: shellLaunchConfig.useShellEnvironment,
+			reconnectionProperties: shellLaunchConfig.reconnectionProperties,
+			type: shellLaunchConfig.type,
+			isFeatureTerminal: shellLaunchConfig.isFeatureTerminal
 		};
 		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
 
@@ -233,6 +241,20 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 			const pty = new RemotePty(id, true, this._remoteTerminalChannel, this._remoteAgentService, this._logService);
 			this._ptys.set(id, pty);
 			return pty;
+		} catch (e) {
+			this._logService.trace(`Couldn't attach to process ${e.message}`);
+		}
+		return undefined;
+	}
+
+	async attachToRevivedProcess(id: number): Promise<ITerminalChildProcess | undefined> {
+		if (!this._remoteTerminalChannel) {
+			throw new Error(`Cannot create remote terminal when there is no remote!`);
+		}
+
+		try {
+			const newId = await this._remoteTerminalChannel.getRevivedPtyNewId(id) ?? id;
+			return await this.attachToProcess(newId);
 		} catch (e) {
 			this._logService.trace(`Couldn't attach to process ${e.message}`);
 		}

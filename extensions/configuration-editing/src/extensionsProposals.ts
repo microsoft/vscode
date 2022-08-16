@@ -8,7 +8,7 @@ import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
 
-export function provideInstalledExtensionProposals(existing: string[], additionalText: string, range: vscode.Range, includeBuiltinExtensions: boolean): vscode.ProviderResult<vscode.CompletionItem[] | vscode.CompletionList> {
+export async function provideInstalledExtensionProposals(existing: string[], additionalText: string, range: vscode.Range, includeBuiltinExtensions: boolean): Promise<vscode.CompletionItem[] | vscode.CompletionList> {
 	if (Array.isArray(existing)) {
 		const extensions = includeBuiltinExtensions ? vscode.extensions.all : vscode.extensions.all.filter(e => !(e.id.startsWith('vscode.') || e.id === 'Microsoft.vscode-markdown'));
 		const knownExtensionProposals = extensions.filter(e => existing.indexOf(e.id) === -1);
@@ -30,10 +30,10 @@ export function provideInstalledExtensionProposals(existing: string[], additiona
 			return [example];
 		}
 	}
-	return undefined;
+	return [];
 }
 
-export function provideWorkspaceTrustExtensionProposals(existing: string[], range: vscode.Range): vscode.ProviderResult<vscode.CompletionItem[] | vscode.CompletionList> {
+export async function provideWorkspaceTrustExtensionProposals(existing: string[], range: vscode.Range): Promise<vscode.CompletionItem[] | vscode.CompletionList> {
 	if (Array.isArray(existing)) {
 		const extensions = vscode.extensions.all.filter(e => e.packageJSON.main);
 		const extensionProposals = extensions.filter(e => existing.indexOf(e.id) === -1);
@@ -56,5 +56,5 @@ export function provideWorkspaceTrustExtensionProposals(existing: string[], rang
 		}
 	}
 
-	return undefined;
+	return [];
 }

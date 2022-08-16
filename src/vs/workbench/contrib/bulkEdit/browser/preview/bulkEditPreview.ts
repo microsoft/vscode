@@ -104,7 +104,7 @@ export class BulkFileOperation {
 	}
 
 	needsConfirmation(): boolean {
-		for (let [, edit] of this.originalEdits) {
+		for (const [, edit] of this.originalEdits) {
 			if (!this.parent.checked.isChecked(edit)) {
 				return true;
 			}
@@ -238,7 +238,7 @@ export class BulkFileOperations {
 			insert(uri, operationByResource);
 
 			// insert into "this" category
-			let key = BulkCategory.keyOf(edit.metadata);
+			const key = BulkCategory.keyOf(edit.metadata);
 			let category = operationByCategory.get(key);
 			if (!category) {
 				category = new BulkCategory(edit.metadata);
@@ -253,7 +253,7 @@ export class BulkFileOperations {
 		// "correct" invalid parent-check child states that is
 		// unchecked file edits (rename, create, delete) uncheck
 		// all edits for a file, e.g no text change without rename
-		for (let file of this.fileOperations) {
+		for (const file of this.fileOperations) {
 			if (file.type !== BulkFileOperationType.TextEdit) {
 				let checked = true;
 				for (const edit of file.originalEdits.values()) {
@@ -307,7 +307,7 @@ export class BulkFileOperations {
 
 	getFileEdits(uri: URI): ISingleEditOperation[] {
 
-		for (let file of this.fileOperations) {
+		for (const file of this.fileOperations) {
 			if (file.uri.toString() === uri.toString()) {
 
 				const result: ISingleEditOperation[] = [];
@@ -336,7 +336,7 @@ export class BulkFileOperations {
 	}
 
 	getUriOfEdit(edit: ResourceEdit): URI {
-		for (let file of this.fileOperations) {
+		for (const file of this.fileOperations) {
 			for (const value of file.originalEdits.values()) {
 				if (value === edit) {
 					return file.uri;
@@ -382,7 +382,7 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 	}
 
 	private async _init() {
-		for (let operation of this._operations.fileOperations) {
+		for (const operation of this._operations.fileOperations) {
 			await this._applyTextEditsToPreviewModel(operation.uri);
 		}
 		this._disposables.add(this._operations.checked.onDidChange(e => {
@@ -395,7 +395,7 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 		const model = await this._getOrCreatePreviewModel(uri);
 
 		// undo edits that have been done before
-		let undoEdits = this._modelPreviewEdits.get(model.id);
+		const undoEdits = this._modelPreviewEdits.get(model.id);
 		if (undoEdits) {
 			model.applyEdits(undoEdits);
 		}

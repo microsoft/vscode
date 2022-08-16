@@ -22,7 +22,9 @@ interface AccessibilityMetrics {
 	enabled: boolean;
 }
 type AccessibilityMetricsClassification = {
-	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	owner: 'isidorn';
+	comment: 'Helps gain an understanding of when accessibility features are being used';
+	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether or not accessibility features are enabled' };
 };
 
 export class NativeAccessibilityService extends AccessibilityService implements IAccessibilityService {
@@ -85,5 +87,5 @@ class LinuxAccessibilityContribution implements IWorkbenchContribution {
 }
 
 if (isLinux) {
-	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(LinuxAccessibilityContribution, LifecyclePhase.Ready);
+	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(LinuxAccessibilityContribution, 'LinuxAccessibilityContribution', LifecyclePhase.Ready);
 }

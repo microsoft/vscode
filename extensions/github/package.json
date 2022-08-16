@@ -25,11 +25,34 @@
       "supported": true
     }
   },
+  "enabledApiProposals": [
+    "contribShareMenu",
+    "contribEditSessions"
+  ],
   "contributes": {
     "commands": [
       {
         "command": "github.publish",
         "title": "Publish to GitHub"
+      },
+      {
+        "command": "github.copyVscodeDevLink",
+        "title": "Copy vscode.dev Link"
+      },
+      {
+        "command": "github.copyVscodeDevLinkFile",
+        "title": "Copy vscode.dev Link"
+      },
+      {
+        "command": "github.openOnVscodeDev",
+        "title": "Open on vscode.dev",
+        "icon": "$(globe)"
+      }
+    ],
+    "continueEditSession": [
+      {
+        "command": "github.openOnVscodeDev",
+        "when": "github.hasGitHubRepo"
       }
     ],
     "menus": {
@@ -37,6 +60,30 @@
         {
           "command": "github.publish",
           "when": "git-base.gitEnabled"
+        },
+        {
+          "command": "github.copyVscodeDevLink",
+          "when": "false"
+        },
+        {
+          "command": "github.copyVscodeDevLinkFile",
+          "when": "false"
+        },
+        {
+          "command": "github.openOnVscodeDev",
+          "when": "false"
+        }
+      ],
+      "file/share": [
+        {
+            "command": "github.copyVscodeDevLinkFile",
+            "when": "github.hasGitHubRepo"
+        }
+      ],
+      "editor/context/share": [
+        {
+            "command": "github.copyVscodeDevLink",
+            "when": "github.hasGitHubRepo && resourceScheme != untitled"
         }
       ]
     },
@@ -86,7 +133,7 @@
   "dependencies": {
     "@octokit/rest": "^18.0.1",
     "tunnel": "^0.0.6",
-    "vscode-nls": "^4.1.2"
+    "vscode-nls": "^5.1.0"
   },
   "devDependencies": {
     "@types/node": "16.x"

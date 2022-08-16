@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import * as utils from '../utils';
 
-suite.skip('Notebook Document', function () {
+suite('Notebook Document', function () {
 
 	const simpleContentProvider = new class implements vscode.NotebookSerializer {
 		deserializeNotebook(_data: Uint8Array): vscode.NotebookData | Thenable<vscode.NotebookData> {
@@ -124,11 +124,10 @@ suite.skip('Notebook Document', function () {
 
 		const p = utils.asPromise(vscode.workspace.onDidOpenNotebookDocument).then(notebook => {
 			for (let i = 0; i < notebook.cellCount; i++) {
-				let cell = notebook.cellAt(i);
+				const cell = notebook.cellAt(i);
 
 				const doc = vscode.workspace.textDocuments.find(doc => doc.uri.toString() === cell.document.uri.toString());
 				assert.ok(doc);
-				assert.strictEqual(doc.notebook === notebook, true);
 				assert.strictEqual(doc === cell.document, true);
 				assert.strictEqual(doc?.languageId, cell.document.languageId);
 				assert.strictEqual(doc?.isDirty, false);
@@ -174,7 +173,7 @@ suite.skip('Notebook Document', function () {
 		// inserting two new cells
 		{
 			const edit = new vscode.WorkspaceEdit();
-			edit.replaceNotebookCells(document.uri, new vscode.NotebookRange(0, 0), [{
+			edit.set(document.uri, [vscode.NotebookEdit.replaceCells(new vscode.NotebookRange(0, 0), [{
 				kind: vscode.NotebookCellKind.Markup,
 				languageId: 'markdown',
 				metadata: undefined,
@@ -186,7 +185,7 @@ suite.skip('Notebook Document', function () {
 				metadata: undefined,
 				outputs: [],
 				value: 'new_code'
-			}]);
+			}])]);
 
 			const success = await vscode.workspace.applyEdit(edit);
 			assert.strictEqual(success, true);
@@ -199,8 +198,10 @@ suite.skip('Notebook Document', function () {
 		// deleting cell 1 and 3
 		{
 			const edit = new vscode.WorkspaceEdit();
-			edit.replaceNotebookCells(document.uri, new vscode.NotebookRange(0, 1), []);
-			edit.replaceNotebookCells(document.uri, new vscode.NotebookRange(2, 3), []);
+			edit.set(document.uri, [
+				vscode.NotebookEdit.replaceCells(new vscode.NotebookRange(0, 1), []),
+				vscode.NotebookEdit.replaceCells(new vscode.NotebookRange(2, 3), [])
+			]);
 			const success = await vscode.workspace.applyEdit(edit);
 			assert.strictEqual(success, true);
 		}
@@ -211,7 +212,7 @@ suite.skip('Notebook Document', function () {
 		// replacing all cells
 		{
 			const edit = new vscode.WorkspaceEdit();
-			edit.replaceNotebookCells(document.uri, new vscode.NotebookRange(0, 1), [{
+			edit.set(document.uri, [vscode.NotebookEdit.replaceCells(new vscode.NotebookRange(0, 1), [{
 				kind: vscode.NotebookCellKind.Markup,
 				languageId: 'markdown',
 				metadata: undefined,
@@ -223,7 +224,7 @@ suite.skip('Notebook Document', function () {
 				metadata: undefined,
 				outputs: [],
 				value: 'new2_code'
-			}]);
+			}])]);
 			const success = await vscode.workspace.applyEdit(edit);
 			assert.strictEqual(success, true);
 		}
@@ -234,7 +235,7 @@ suite.skip('Notebook Document', function () {
 		// remove all cells
 		{
 			const edit = new vscode.WorkspaceEdit();
-			edit.replaceNotebookCells(document.uri, new vscode.NotebookRange(0, document.cellCount), []);
+			edit.set(document.uri, [vscode.NotebookEdit.replaceCells(new vscode.NotebookRange(0, document.cellCount), [])]);
 			const success = await vscode.workspace.applyEdit(edit);
 			assert.strictEqual(success, true);
 		}
@@ -247,7 +248,7 @@ suite.skip('Notebook Document', function () {
 		assert.strictEqual(document.cellCount, 1);
 
 		const edit = new vscode.WorkspaceEdit();
-		edit.replaceNotebookCells(document.uri, new vscode.NotebookRange(0, 0), [{
+		edit.set(document.uri, [vscode.NotebookEdit.replaceCells(new vscode.NotebookRange(0, 0), [{
 			kind: vscode.NotebookCellKind.Markup,
 			languageId: 'markdown',
 			metadata: undefined,
@@ -259,7 +260,7 @@ suite.skip('Notebook Document', function () {
 			metadata: undefined,
 			outputs: [],
 			value: 'new_code'
-		}]);
+		}])]);
 
 		const event = utils.asPromise<vscode.NotebookDocumentChangeEvent>(vscode.workspace.onDidChangeNotebookDocument);
 
@@ -288,7 +289,7 @@ suite.skip('Notebook Document', function () {
 		const document = await vscode.workspace.openNotebookDocument(uri);
 
 		const edit = new vscode.WorkspaceEdit();
-		edit.replaceNotebookCellMetadata(document.uri, 0, { inputCollapsed: true });
+		edit.set(document.uri, [vscode.NotebookEdit.updateCellMetadata(0, { inputCollapsed: true })]);
 		const success = await vscode.workspace.applyEdit(edit);
 		assert.strictEqual(success, true);
 		assert.strictEqual(document.cellAt(0).metadata.inputCollapsed, true);
@@ -301,7 +302,7 @@ suite.skip('Notebook Document', function () {
 		const edit = new vscode.WorkspaceEdit();
 		const event = utils.asPromise<vscode.NotebookDocumentChangeEvent>(vscode.workspace.onDidChangeNotebookDocument);
 
-		edit.replaceNotebookCellMetadata(document.uri, 0, { inputCollapsed: true });
+		edit.set(document.uri, [vscode.NotebookEdit.updateCellMetadata(0, { inputCollapsed: true })]);
 		const success = await vscode.workspace.applyEdit(edit);
 		assert.strictEqual(success, true);
 		const data = await event;
@@ -316,6 +317,18 @@ suite.skip('Notebook Document', function () {
 		assert.strictEqual(data.cellChanges[0].cell.index, 0);
 	});
 
+	test('workspace edit API (notebookMetadata)', async function () {
+		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
+		const document = await vscode.workspace.openNotebookDocument(uri);
+
+		const edit = new vscode.WorkspaceEdit();
+		const metdataEdit = vscode.NotebookEdit.updateNotebookMetadata({ ...document.metadata, custom: { ...(document.metadata.custom || {}), extraNotebookMetadata: true } });
+		edit.set(document.uri, [metdataEdit]);
+		const success = await vscode.workspace.applyEdit(edit);
+		assert.equal(success, true);
+		assert.ok(document.metadata.custom.extraNotebookMetadata, `Test metadata not found`);
+	});
+
 	test('document save API', async function () {
 		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 		const notebook = await vscode.workspace.openNotebookDocument(uri);
@@ -327,7 +340,7 @@ suite.skip('Notebook Document', function () {
 		assert.strictEqual(notebook.notebookType, 'notebook.nbdtest');
 
 		const edit = new vscode.WorkspaceEdit();
-		edit.replaceNotebookCells(notebook.uri, new vscode.NotebookRange(0, 0), [{
+		edit.set(notebook.uri, [vscode.NotebookEdit.replaceCells(new vscode.NotebookRange(0, 0), [{
 			kind: vscode.NotebookCellKind.Markup,
 			languageId: 'markdown',
 			metadata: undefined,
@@ -339,7 +352,7 @@ suite.skip('Notebook Document', function () {
 			metadata: undefined,
 			outputs: [],
 			value: 'new_code'
-		}]);
+		}])]);
 
 		const success = await vscode.workspace.applyEdit(edit);
 		assert.strictEqual(success, true);
@@ -388,7 +401,7 @@ suite.skip('Notebook Document', function () {
 		assert.strictEqual(document.isDirty, false);
 
 		const edit = new vscode.WorkspaceEdit();
-		edit.replaceNotebookCells(document.uri, new vscode.NotebookRange(0, document.cellCount), []);
+		edit.set(document.uri, [vscode.NotebookEdit.replaceCells(new vscode.NotebookRange(0, document.cellCount), [])]);
 		assert.ok(await vscode.workspace.applyEdit(edit));
 
 		assert.strictEqual(document.isDirty, true);
@@ -403,7 +416,7 @@ suite.skip('Notebook Document', function () {
 		assert.strictEqual(document.isDirty, false);
 
 		const edit = new vscode.WorkspaceEdit();
-		edit.replaceNotebookCells(document.uri, new vscode.NotebookRange(0, document.cellCount), []);
+		edit.set(document.uri, [vscode.NotebookEdit.replaceCells(new vscode.NotebookRange(0, document.cellCount), [])]);
 		assert.ok(await vscode.workspace.applyEdit(edit));
 
 		assert.strictEqual(document.isDirty, true);
@@ -412,7 +425,7 @@ suite.skip('Notebook Document', function () {
 		assert.strictEqual(document.isDirty, false);
 	});
 
-	test('onDidOpenNotebookDocument - emit event only once when opened in two editors', async function () {
+	test.skip('onDidOpenNotebookDocument - emit event only once when opened in two editors', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/157222
 		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 		let counter = 0;
 		testDisposables.push(vscode.workspace.onDidOpenNotebookDocument(nb => {

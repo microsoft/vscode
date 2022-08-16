@@ -50,9 +50,10 @@ import { Codicon } from 'vs/base/common/codicons';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { TextCompareEditorActiveContext } from 'vs/workbench/common/contextkeys';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IChange } from 'vs/editor/common/diff/diffComputer';
+import { IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import { Color } from 'vs/base/common/color';
 import { editorGutter } from 'vs/editor/common/core/editorColorRegistry';
+import { Iterable } from 'vs/base/common/iterator';
 
 class DiffActionRunner extends ActionRunner {
 
@@ -259,7 +260,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this._disposables.add(next);
 
 		const actions: IAction[] = [];
-		this._disposables.add(createAndFillInActionBarActions(this.menu, { shouldForwardArgs: true }, actions));
+		createAndFillInActionBarActions(this.menu, { shouldForwardArgs: true }, actions);
 		this._actionbarWidget!.push(actions.reverse(), { label: false, icon: true });
 		this._actionbarWidget!.push([next, previous], { label: false, icon: true });
 		this._actionbarWidget!.push(new Action('peekview.close', nls.localize('label.close', "Close"), Codicon.close.classNames, true, () => this.dispose()), { label: false, icon: true });
@@ -296,7 +297,8 @@ class DirtyDiffWidget extends PeekViewWidget {
 			minimap: { enabled: false },
 			renderSideBySide: false,
 			readOnly: false,
-			renderIndicators: false
+			renderIndicators: false,
+			diffAlgorithm: 'smart',
 		};
 
 		this.diffEditor = this.instantiationService.createInstance(EmbeddedDiffEditorWidget, container, options, this.editor);
@@ -609,7 +611,8 @@ export class DirtyDiffController extends Disposable implements IEditorContributi
 				}
 
 				.monaco-editor .margin-view-overlays .dirty-diff-glyph:hover::before {
-					width: 9px;
+					height: 100%;
+					width: 6px;
 					left: -6px;
 				}
 
@@ -1079,8 +1082,8 @@ export function createProviderComparer(uri: URI): (a: ISCMProvider, b: ISCMProvi
 }
 
 export async function getOriginalResource(scmService: ISCMService, uri: URI): Promise<URI | null> {
-	const providers = scmService.repositories.map(r => r.provider);
-	const rootedProviders = providers.filter(p => !!p.rootUri);
+	const providers = Iterable.map(scmService.repositories, r => r.provider);
+	const rootedProviders = Iterable.collect(Iterable.filter(providers, p => !!p.rootUri));
 
 	rootedProviders.sort(createProviderComparer(uri));
 
@@ -1090,8 +1093,8 @@ export async function getOriginalResource(scmService: ISCMService, uri: URI): Pr
 		return result;
 	}
 
-	const nonRootedProviders = providers.filter(p => !p.rootUri);
-	return first(nonRootedProviders.map(p => () => p.getOriginalResource(uri)));
+	const nonRootedProviders = Iterable.filter(providers, p => !p.rootUri);
+	return first(Iterable.collect(Iterable.map(nonRootedProviders, p => () => p.getOriginalResource(uri))));
 }
 
 export class DirtyDiffModel extends Disposable {
@@ -1132,7 +1135,7 @@ export class DirtyDiffModel extends Disposable {
 			)(this.triggerDiff, this)
 		);
 		this._register(scmService.onDidAddRepository(this.onDidAddRepository, this));
-		scmService.repositories.forEach(r => this.onDidAddRepository(r));
+		Iterable.forEach(scmService.repositories, r => this.onDidAddRepository(r));
 
 		this._register(this._model.onDidChangeEncoding(() => {
 			this.diffDelayer.cancel();

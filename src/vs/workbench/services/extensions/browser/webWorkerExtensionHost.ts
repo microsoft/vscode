@@ -30,8 +30,10 @@ import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { FileAccess } from 'vs/base/common/network';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { parentOriginHash } from 'vs/workbench/browser/webview';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export interface IWebWorkerExtensionHostInitData {
+	readonly autoStart: boolean;
 	readonly allExtensions: IExtensionDescription[];
 	readonly myExtensions: ExtensionIdentifier[];
 }
@@ -65,6 +67,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		@ILabelService private readonly _labelService: ILabelService,
 		@ILogService private readonly _logService: ILogService,
 		@IBrowserWorkbenchEnvironmentService private readonly _environmentService: IBrowserWorkbenchEnvironmentService,
+		@IUserDataProfilesService private readonly _userDataProfilesService: IUserDataProfilesService,
 		@IProductService private readonly _productService: IProductService,
 		@ILayoutService private readonly _layoutService: ILayoutService,
 		@IStorageService private readonly _storageService: IStorageService,
@@ -79,7 +82,15 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 	}
 
 	private async _getWebWorkerExtensionHostIframeSrc(): Promise<string> {
-		const suffix = this._environmentService.debugExtensionHost && this._environmentService.debugRenderer ? '?debugged=1' : '?';
+		const suffixSearchParams = new URLSearchParams();
+		if (this._environmentService.debugExtensionHost && this._environmentService.debugRenderer) {
+			suffixSearchParams.set('debugged', '1');
+		}
+		if (globalThis.crossOriginIsolated) {
+			suffixSearchParams.set('vscode-coi', '3' /*COOP+COEP*/);
+		}
+		const suffix = `?${suffixSearchParams.toString()}`;
+
 		const iframeModulePath = 'vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html';
 		if (platform.isWeb) {
 			const webEndpointUrlTemplate = this._productService.webEndpointUrlTemplate;
@@ -129,6 +140,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		const iframe = document.createElement('iframe');
 		iframe.setAttribute('class', 'web-worker-ext-host-iframe');
 		iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+		iframe.setAttribute('allow', 'usb; serial; hid; cross-origin-isolated;');
 		iframe.setAttribute('aria-hidden', 'true');
 		iframe.style.display = 'none';
 
@@ -250,9 +262,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			return;
 		}
 		this._isTerminating = true;
-		if (this._protocol) {
-			this._protocol.send(createMessageOfType(MessageType.Terminate));
-		}
+		this._protocol?.send(createMessageOfType(MessageType.Terminate));
 		super.dispose();
 	}
 
@@ -271,7 +281,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		return {
 			commit: this._productService.commit,
 			version: this._productService.version,
-			parentPid: -1,
+			parentPid: 0,
 			environment: {
 				isExtensionDevelopmentDebug: this._environmentService.debugRenderer,
 				appName: this._productService.nameLong,
@@ -280,7 +290,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
-				globalStorageHome: this._environmentService.globalStorageHome,
+				globalStorageHome: this._userDataProfilesService.defaultProfile.globalStorageHome,
 				workspaceStorageHome: this._environmentService.workspaceStorageHome,
 			},
 			workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
@@ -289,13 +299,17 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				name: this._labelService.getWorkspaceLabel(workspace),
 				transient: workspace.transient
 			},
+			consoleForward: {
+				includeStack: false,
+				logNative: this._environmentService.debugRenderer
+			},
 			allExtensions: deltaExtensions.toAdd,
 			myExtensions: deltaExtensions.myToAdd,
 			telemetryInfo,
 			logLevel: this._logService.getLevel(),
 			logsLocation: this._extensionHostLogsLocation,
 			logFile: this._extensionHostLogFile,
-			autoStart: true,
+			autoStart: initData.autoStart,
 			remote: {
 				authority: this._environmentService.remoteAuthority,
 				connectionData: null,

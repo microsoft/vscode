@@ -181,7 +181,9 @@ export class WatermarkContribution extends Disposable implements IWorkbenchContr
 		this.handleEditorPartSize(container, this.editorGroupsService.contentDimension);
 
 		/* __GDPR__
-		"watermark:open" : { }
+		"watermark:open" : {
+			"owner": "digitarald"
+		}
 		*/
 		this.telemetryService.publicLog('watermark:open');
 	}
@@ -195,9 +197,7 @@ export class WatermarkContribution extends Disposable implements IWorkbenchContr
 			this.watermark.remove();
 
 			const container = this.layoutService.getContainer(Parts.EDITOR_PART);
-			if (container) {
-				container.classList.remove('has-watermark');
-			}
+			container?.classList.remove('has-watermark');
 
 			this.watermarkDisposable.clear();
 		}
@@ -210,7 +210,7 @@ export class WatermarkContribution extends Disposable implements IWorkbenchContr
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WatermarkContribution, LifecyclePhase.Restored);
+	.registerWorkbenchContribution(WatermarkContribution, 'WatermarkContribution', LifecyclePhase.Restored);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({

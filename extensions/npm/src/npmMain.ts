@@ -93,17 +93,17 @@ function canRunNpmInCurrentWorkspace() {
 let taskProvider: NpmTaskProvider;
 function registerTaskProvider(context: vscode.ExtensionContext): vscode.Disposable | undefined {
 	if (vscode.workspace.workspaceFolders) {
-		let watcher = vscode.workspace.createFileSystemWatcher('**/package.json');
+		const watcher = vscode.workspace.createFileSystemWatcher('**/package.json');
 		watcher.onDidChange((_e) => invalidateScriptCaches());
 		watcher.onDidDelete((_e) => invalidateScriptCaches());
 		watcher.onDidCreate((_e) => invalidateScriptCaches());
 		context.subscriptions.push(watcher);
 
-		let workspaceWatcher = vscode.workspace.onDidChangeWorkspaceFolders((_e) => invalidateScriptCaches());
+		const workspaceWatcher = vscode.workspace.onDidChangeWorkspaceFolders((_e) => invalidateScriptCaches());
 		context.subscriptions.push(workspaceWatcher);
 
 		taskProvider = new NpmTaskProvider(context);
-		let disposable = vscode.tasks.registerTaskProvider('npm', taskProvider);
+		const disposable = vscode.tasks.registerTaskProvider('npm', taskProvider);
 		context.subscriptions.push(disposable);
 		return disposable;
 	}
@@ -112,7 +112,7 @@ function registerTaskProvider(context: vscode.ExtensionContext): vscode.Disposab
 
 function registerExplorer(context: vscode.ExtensionContext): NpmScriptsTreeDataProvider | undefined {
 	if (vscode.workspace.workspaceFolders) {
-		let treeDataProvider = new NpmScriptsTreeDataProvider(context, taskProvider!);
+		const treeDataProvider = new NpmScriptsTreeDataProvider(context, taskProvider!);
 		const view = vscode.window.createTreeView('npm', { treeDataProvider: treeDataProvider, showCollapseAll: true });
 		context.subscriptions.push(view);
 		return treeDataProvider;
@@ -122,12 +122,12 @@ function registerExplorer(context: vscode.ExtensionContext): NpmScriptsTreeDataP
 
 function registerHoverProvider(context: vscode.ExtensionContext): NpmScriptHoverProvider | undefined {
 	if (vscode.workspace.workspaceFolders) {
-		let npmSelector: vscode.DocumentSelector = {
+		const npmSelector: vscode.DocumentSelector = {
 			language: 'json',
 			scheme: 'file',
 			pattern: '**/package.json'
 		};
-		let provider = new NpmScriptHoverProvider(context);
+		const provider = new NpmScriptHoverProvider(context);
 		context.subscriptions.push(vscode.languages.registerHoverProvider(npmSelector, provider));
 		return provider;
 	}

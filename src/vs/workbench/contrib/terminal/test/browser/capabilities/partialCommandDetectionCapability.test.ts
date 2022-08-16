@@ -35,7 +35,7 @@ suite('PartialCommandDetectionCapability', () => {
 	}
 
 	setup(() => {
-		xterm = new Terminal({ cols: 80 }) as TestTerminal;
+		xterm = new Terminal({ allowProposedApi: true, cols: 80 }) as TestTerminal;
 		capability = new PartialCommandDetectionCapability(xterm);
 		addEvents = [];
 		capability.onCommandFinished(e => addEvents.push(e));

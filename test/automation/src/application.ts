@@ -10,7 +10,9 @@ import { Logger, measureAndLog } from './logger';
 export const enum Quality {
 	Dev,
 	Insiders,
-	Stable
+	Stable,
+	Exploration,
+	OSS
 }
 
 export interface ApplicationOptions extends LaunchOptions {
@@ -107,7 +109,7 @@ export class Application {
 			extraArgs: [...(this.options.extraArgs || []), ...extraArgs],
 		});
 
-		this._workbench = new Workbench(this._code, this.userDataPath);
+		this._workbench = new Workbench(this._code);
 
 		return code;
 	}
@@ -115,6 +117,7 @@ export class Application {
 	private async checkWindowReady(code: Code): Promise<void> {
 
 		// We need a rendered workbench
+		await measureAndLog(code.didFinishLoad(), 'Application#checkWindowReady: wait for navigation to be committed', this.logger);
 		await measureAndLog(code.waitForElement('.monaco-workbench'), 'Application#checkWindowReady: wait for .monaco-workbench element', this.logger);
 
 		// Remote but not web: wait for a remote connection state change

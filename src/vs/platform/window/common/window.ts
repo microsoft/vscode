@@ -3,16 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IStringDictionary } from 'vs/base/common/collections';
 import { PerformanceMark } from 'vs/base/common/performance';
-import { isLinux, isMacintosh, isNative, isWeb } from 'vs/base/common/platform';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { isLinux, isMacintosh, isNative, isWeb, isWindows } from 'vs/base/common/platform';
+import { URI, UriComponents, UriDto } from 'vs/base/common/uri';
 import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FileType } from 'vs/platform/files/common/files';
 import { LogLevel } from 'vs/platform/log/common/log';
+import { PolicyDefinition, PolicyValue } from 'vs/platform/policy/common/policy';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
+import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export const WindowMinimumSize = {
@@ -47,6 +51,7 @@ export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
 	readonly addMode?: boolean;
 
 	readonly diffMode?: boolean;
+	readonly mergeMode?: boolean;
 	readonly gotoLineMode?: boolean;
 
 	readonly waitMarkerFileURI?: URI;
@@ -130,11 +135,7 @@ export interface IWindowSettings {
 	readonly enableMenuBarMnemonics: boolean;
 	readonly closeWhenEmpty: boolean;
 	readonly clickThroughInactive: boolean;
-}
-
-interface IWindowBorderColors {
-	readonly 'window.activeBorder'?: string;
-	readonly 'window.inactiveBorder'?: string;
+	readonly experimental?: { useSandbox: boolean };
 }
 
 export function getTitleBarStyle(configurationService: IConfigurationService): 'native' | 'custom' {
@@ -154,11 +155,6 @@ export function getTitleBarStyle(configurationService: IConfigurationService): '
 			return 'native'; // simple fullscreen does not work well with custom title style (https://github.com/microsoft/vscode/issues/63291)
 		}
 
-		const colorCustomizations = configurationService.getValue<IWindowBorderColors | undefined>('workbench.colorCustomizations');
-		if (colorCustomizations?.['window.activeBorder'] || colorCustomizations?.['window.inactiveBorder']) {
-			return 'custom'; // window border colors do not work with native title style
-		}
-
 		const style = configuration.titleBarStyle;
 		if (style === 'native' || style === 'custom') {
 			return style;
@@ -166,6 +162,23 @@ export function getTitleBarStyle(configurationService: IConfigurationService): '
 	}
 
 	return isLinux ? 'native' : 'custom'; // default to custom on all macOS and Windows
+}
+
+export function useWindowControlsOverlay(configurationService: IConfigurationService, environmentService: IEnvironmentService): boolean {
+	if (!isWindows || isWeb || !environmentService.isBuilt) {
+		return false; // only supported on a built desktop windows instance
+	}
+
+	if (getTitleBarStyle(configurationService) === 'native') {
+		return false; // only supported when title bar is custom
+	}
+
+	const configuredUseWindowControlsOverlay = configurationService.getValue<boolean | undefined>('window.experimental.windowControlsOverlay.enabled');
+	if (typeof configuredUseWindowControlsOverlay === 'boolean') {
+		return configuredUseWindowControlsOverlay;
+	}
+
+	return true; // enabled by default
 }
 
 export interface IPath<T = IEditorOptions> extends IPathData<T> {
@@ -221,6 +234,7 @@ interface IPathsToWaitForData {
 export interface IOpenFileRequest {
 	readonly filesToOpenOrCreate?: IPathData[];
 	readonly filesToDiff?: IPathData[];
+	readonly filesToMerge?: IPathData[];
 }
 
 /**
@@ -251,6 +265,7 @@ export interface IWindowConfiguration {
 
 	filesToOpenOrCreate?: IPath[];
 	filesToDiff?: IPath[];
+	filesToMerge?: IPath[];
 }
 
 export interface IOSConfiguration {
@@ -265,6 +280,11 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 
 	execPath: string;
 	backupPath?: string;
+
+	profiles: {
+		all: readonly UriDto<IUserDataProfile>[];
+		profile: UriDto<IUserDataProfile>;
+	};
 
 	homeDir: string;
 	tmpDir: string;
@@ -289,6 +309,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	filesToWait?: IPathsToWaitFor;
 
 	os: IOSConfiguration;
+	policiesData?: IStringDictionary<{ definition: PolicyDefinition; value: PolicyValue }>;
 }
 
 /**

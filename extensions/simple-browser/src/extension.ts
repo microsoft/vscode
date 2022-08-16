@@ -32,6 +32,9 @@ const enabledHosts = new Set<string>([
 	'::'
 ]);
 
+const IPv6Localhost = /0\:0\:0\:0\:0\:0\:0\:1|\:\:1/;
+const IPv6AllInterfaces = /0\:0\:0\:0\:0\:0\:0\:0|\:\:/;
+
 const openerId = 'simpleBrowser.open';
 
 export function activate(context: vscode.ExtensionContext) {
@@ -67,7 +70,8 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(vscode.window.registerExternalUriOpener(openerId, {
 		canOpenExternalUri(uri: vscode.Uri) {
-			const originalUri = new URL(uri.toString());
+			// We have to replace the IPv6 hosts with IPv4 because URL can't handle IPv6.
+			const originalUri = new URL(uri.toString().replace(IPv6Localhost, '127.0.0.1').replace(IPv6AllInterfaces, '0.0.0.0'));
 			if (enabledHosts.has(originalUri.hostname)) {
 				return isWeb()
 					? vscode.ExternalUriOpenerPriority.Default

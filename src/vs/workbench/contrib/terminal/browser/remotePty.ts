@@ -37,7 +37,9 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		shellType: undefined,
 		hasChildProcesses: true,
 		resolvedShellLaunchConfig: {},
-		overrideDimensions: undefined
+		overrideDimensions: undefined,
+		failedShellIntegrationActivation: false,
+		usedShellIntegrationInjection: undefined
 	};
 
 	get id(): number { return this._id; }
@@ -74,9 +76,9 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		return undefined;
 	}
 
-	async detach(): Promise<void> {
+	async detach(forcePersist?: boolean): Promise<void> {
 		await this._startBarrier.wait();
-		return this._remoteTerminalChannel.detachFromProcess(this.id);
+		return this._remoteTerminalChannel.detachFromProcess(this.id, forcePersist);
 	}
 
 	shutdown(immediate: boolean): void {

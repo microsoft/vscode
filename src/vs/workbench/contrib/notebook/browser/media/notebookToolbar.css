@@ -80,3 +80,7 @@
 .monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar:not(.vertical) .action-item.active {
 	background-color: unset;
 }
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item .codicon-notebook-state-error {
+	color: var(--notebook-cell-status-icon-error);
+}

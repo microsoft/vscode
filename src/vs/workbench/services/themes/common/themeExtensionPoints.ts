@@ -191,7 +191,7 @@ export class ThemeRegistry<T extends IThemeData> {
 				log?.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", this.themesExtPoint.name, themeLocation.path, extensionLocation.path));
 			}
 
-			let themeData = this.create(theme, themeLocation, extensionData);
+			const themeData = this.create(theme, themeLocation, extensionData);
 			resultingThemes.push(themeData);
 		});
 		return resultingThemes;
@@ -203,7 +203,7 @@ export class ThemeRegistry<T extends IThemeData> {
 		}
 		const allThemes = this.getThemes();
 		let defaultTheme: T | undefined = undefined;
-		for (let t of allThemes) {
+		for (const t of allThemes) {
 			if (t.id === themeId) {
 				return t;
 			}
@@ -220,7 +220,7 @@ export class ThemeRegistry<T extends IThemeData> {
 		}
 		const allThemes = this.getThemes();
 		let defaultTheme: T | undefined = undefined;
-		for (let t of allThemes) {
+		for (const t of allThemes) {
 			if (t.settingsId === settingsId) {
 				return t;
 			}

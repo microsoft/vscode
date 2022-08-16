@@ -1,5 +1,5 @@
 {
 	"rules": {
-		"prefer-const": "error"
+		"@typescript-eslint/prefer-optional-chain": "warn"
 	}
 }

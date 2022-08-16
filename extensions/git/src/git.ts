@@ -354,7 +354,7 @@ function sanitizePath(path: string): string {
 	return path.replace(/^([a-z]):\\/i, (_, letter) => `${letter.toUpperCase()}:\\`);
 }
 
-const COMMIT_FORMAT = '%H%n%aN%n%aE%n%at%n%ct%n%P%n%B';
+const COMMIT_FORMAT = '%H%n%aN%n%aE%n%at%n%ct%n%P%n%D%n%B';
 
 export interface ICloneOptions {
 	readonly parentPath: string;
@@ -406,7 +406,7 @@ export class Git {
 	}
 
 	async clone(url: string, options: ICloneOptions, cancellationToken?: CancellationToken): Promise<string> {
-		let baseFolderName = decodeURI(url).replace(/[\/]+$/, '').replace(/^.*[\/\\]/, '').replace(/\.git$/, '') || 'repository';
+		const baseFolderName = decodeURI(url).replace(/[\/]+$/, '').replace(/^.*[\/\\]/, '').replace(/\.git$/, '') || 'repository';
 		let folderName = baseFolderName;
 		let folderPath = path.join(options.parentPath, folderName);
 		let count = 1;
@@ -427,7 +427,7 @@ export class Git {
 			let previousProgress = 0;
 
 			lineStream.on('data', (line: string) => {
-				let match: RegExpMatchArray | null = null;
+				let match: RegExpExecArray | null = null;
 
 				if (match = /Counting objects:\s*(\d+)%/i.exec(line)) {
 					totalProgress = Math.floor(parseInt(match[1]) * 0.1);
@@ -447,7 +447,7 @@ export class Git {
 		};
 
 		try {
-			let command = ['clone', url.includes(' ') ? encodeURI(url) : url, folderPath, '--progress'];
+			const command = ['clone', url.includes(' ') ? encodeURI(url) : url, folderPath, '--progress'];
 			if (options.recursive) {
 				command.push('--recursive');
 			}
@@ -475,13 +475,14 @@ export class Git {
 		const repoPath = path.normalize(result.stdout.trimLeft().replace(/[\r\n]+$/, ''));
 
 		if (isWindows) {
-			// On Git 2.25+ if you call `rev-parse --show-toplevel` on a mapped drive, instead of getting the mapped drive path back, you get the UNC path for the mapped drive.
-			// So we will try to normalize it back to the mapped drive path, if possible
+			// On Git 2.25+ if you call `rev-parse --show-toplevel` on a mapped drive, instead of getting the mapped
+			// drive path back, you get the UNC path for the mapped drive. So we will try to normalize it back to the
+			// mapped drive path, if possible
 			const repoUri = Uri.file(repoPath);
 			const pathUri = Uri.file(repositoryPath);
 			if (repoUri.authority.length !== 0 && pathUri.authority.length === 0) {
-				// eslint-disable-next-line code-no-look-behind-regex
-				let match = /(?<=^\/?)([a-zA-Z])(?=:\/)/.exec(pathUri.path);
+				// eslint-disable-next-line local/code-no-look-behind-regex
+				const match = /(?<=^\/?)([a-zA-Z])(?=:\/)/.exec(pathUri.path);
 				if (match !== null) {
 					const [, letter] = match;
 
@@ -556,9 +557,7 @@ export class Git {
 	private async _exec(args: string[], options: SpawnOptions = {}): Promise<IExecutionResult<string>> {
 		const child = this.spawn(args, options);
 
-		if (options.onSpawn) {
-			options.onSpawn(child);
-		}
+		options.onSpawn?.(child);
 
 		if (options.input) {
 			child.stdin!.end(options.input, 'utf8');
@@ -660,6 +659,7 @@ export interface Commit {
 	authorName?: string;
 	authorEmail?: string;
 	commitDate?: Date;
+	refNames: string[];
 }
 
 export class GitStatusParser {
@@ -790,10 +790,10 @@ export function parseGitmodules(raw: string): Submodule[] {
 	return result;
 }
 
-const commitRegex = /([0-9a-f]{40})\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)(?:\n([^]*?))?(?:\x00)/gm;
+const commitRegex = /([0-9a-f]{40})\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)(?:\n([^]*?))?(?:\x00)/gm;
 
 export function parseGitCommits(data: string): Commit[] {
-	let commits: Commit[] = [];
+	const commits: Commit[] = [];
 
 	let ref;
 	let authorName;
@@ -801,6 +801,7 @@ export function parseGitCommits(data: string): Commit[] {
 	let authorDate;
 	let commitDate;
 	let parents;
+	let refNames;
 	let message;
 	let match;
 
@@ -810,7 +811,7 @@ export function parseGitCommits(data: string): Commit[] {
 			break;
 		}
 
-		[, ref, authorName, authorEmail, authorDate, commitDate, parents, message] = match;
+		[, ref, authorName, authorEmail, authorDate, commitDate, parents, refNames, message] = match;
 
 		if (message[message.length - 1] === '\n') {
 			message = message.substr(0, message.length - 1);
@@ -825,6 +826,7 @@ export function parseGitCommits(data: string): Commit[] {
 			authorName: ` ${authorName}`.substr(1),
 			authorEmail: ` ${authorEmail}`.substr(1),
 			commitDate: new Date(Number(commitDate) * 1000),
+			refNames: refNames.split(',').map(s => s.trim())
 		});
 	} while (true);
 
@@ -1086,7 +1088,7 @@ export class Repository {
 		}
 
 		if (!isText) {
-			const result = filetype(buffer);
+			const result = await filetype.fromBuffer(buffer);
 
 			if (!result) {
 				return { mimetype: 'application/octet-stream' };
@@ -1397,20 +1399,37 @@ export class Repository {
 	}
 
 	async commit(message: string | undefined, opts: CommitOptions = Object.create(null)): Promise<void> {
-		const args = ['commit', '--quiet', '--allow-empty-message'];
+		const args = ['commit', '--quiet'];
+		const options: SpawnOptions = {};
+
+		if (message) {
+			options.input = message;
+			args.push('--allow-empty-message', '--file', '-');
+		}
+
+		if (opts.verbose) {
+			args.push('--verbose');
+		}
 
 		if (opts.all) {
 			args.push('--all');
 		}
 
-		if (opts.amend && message) {
+		if (opts.amend) {
 			args.push('--amend');
 		}
 
-		if (opts.amend && !message) {
-			args.push('--amend', '--no-edit');
-		} else {
-			args.push('--file', '-');
+		if (!opts.useEditor) {
+			if (!message) {
+				if (opts.amend) {
+					args.push('--no-edit');
+				} else {
+					options.input = '';
+					args.push('--file', '-');
+				}
+			}
+
+			args.push('--allow-empty-message');
 		}
 
 		if (opts.signoff) {
@@ -1435,7 +1454,7 @@ export class Repository {
 		}
 
 		try {
-			await this.exec(args, !opts.amend || message ? { input: message || '' } : {});
+			await this.exec(args, options);
 		} catch (commitErr) {
 			await this.handleCommitError(commitErr);
 		}
@@ -1449,7 +1468,7 @@ export class Repository {
 		const args = ['rebase', '--continue'];
 
 		try {
-			await this.exec(args);
+			await this.exec(args, { env: { GIT_EDITOR: 'true' } });
 		} catch (commitErr) {
 			await this.handleCommitError(commitErr);
 		}
@@ -1458,6 +1477,9 @@ export class Repository {
 	private async handleCommitError(commitErr: any): Promise<void> {
 		if (/not possible because you have unmerged files/.test(commitErr.stderr || '')) {
 			commitErr.gitErrorCode = GitErrorCodes.UnmergedChanges;
+			throw commitErr;
+		} else if (/Aborting commit due to empty commit message/.test(commitErr.stderr || '')) {
+			commitErr.gitErrorCode = GitErrorCodes.EmptyCommitMessage;
 			throw commitErr;
 		}
 
@@ -1540,7 +1562,7 @@ export class Repository {
 	}
 
 	async deleteTag(name: string): Promise<void> {
-		let args = ['tag', '-d', name];
+		const args = ['tag', '-d', name];
 		await this.exec(args);
 	}
 
@@ -1764,12 +1786,12 @@ export class Repository {
 		} catch (err) {
 			if (/^error: failed to push some refs to\b/m.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.PushRejected;
+			} else if (/Permission.*denied/.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.PermissionDenied;
 			} else if (/Could not read from remote repository/.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.RemoteConnectionError;
 			} else if (/^fatal: The current branch .* has no upstream branch/.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.NoUpstreamBranch;
-			} else if (/Permission.*denied/.test(err.stderr || '')) {
-				err.gitErrorCode = GitErrorCodes.PermissionDenied;
 			}
 
 			throw err;

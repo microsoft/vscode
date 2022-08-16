@@ -58,8 +58,3 @@
 	color: inherit;
 	font-size: 80%;
 }
-
-/* codicon colors */
-.codicon.codicon-extensions-pre-release {
-	color: var(--vscode-extensionIcon-preReleaseForeground);
-}

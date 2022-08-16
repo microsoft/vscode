@@ -7,13 +7,13 @@ import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
 import { isEqual } from 'vs/base/common/resources';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IViewsService } from 'vs/workbench/common/views';
 import { VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/browser/keybindingsEditorInput';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
@@ -22,7 +22,7 @@ export class UserDataSyncTrigger extends Disposable implements IWorkbenchContrib
 
 	constructor(
 		@IEditorService editorService: IEditorService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IViewsService viewsService: IViewsService,
 		@IUserDataAutoSyncService userDataAutoSyncService: IUserDataAutoSyncService,
 		@IHostService hostService: IHostService,
@@ -56,10 +56,10 @@ export class UserDataSyncTrigger extends Disposable implements IWorkbenchContrib
 			return 'keybindingsEditor';
 		}
 		const resource = editorInput.resource;
-		if (isEqual(resource, this.environmentService.settingsResource)) {
+		if (isEqual(resource, this.userDataProfilesService.defaultProfile.settingsResource)) {
 			return 'settingsEditor';
 		}
-		if (isEqual(resource, this.environmentService.keybindingsResource)) {
+		if (isEqual(resource, this.userDataProfilesService.defaultProfile.keybindingsResource)) {
 			return 'keybindingsEditor';
 		}
 		return undefined;

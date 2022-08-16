@@ -34,7 +34,6 @@ import { LanguageService } from 'vs/editor/common/services/languageService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 
 suite('MainThreadDocumentsAndEditors', () => {
 
@@ -43,7 +42,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 	let modelService: ModelService;
 	let codeEditorService: TestCodeEditorService;
 	let textFileService: ITextFileService;
-	let deltas: IDocumentsAndEditorsDelta[] = [];
+	const deltas: IDocumentsAndEditorsDelta[] = [];
 
 	function myCreateTestCodeEditor(model: ITextModel | undefined): ITestCodeEditor {
 		return createTestCodeEditor(model, {
@@ -121,7 +120,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 				}
 			},
 			new TestPathService(),
-			new TestInstantiationService(),
+			new TestConfigurationService(),
 		);
 	});
 

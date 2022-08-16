@@ -366,7 +366,7 @@ export class BulkFileEdits {
 			}
 		}
 
-		for (let group of groups) {
+		for (const group of groups) {
 
 			if (this._token.isCancellationRequested) {
 				break;

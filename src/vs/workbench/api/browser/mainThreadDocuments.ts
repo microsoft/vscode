@@ -50,8 +50,6 @@ export class BoundModelReferenceCollection {
 
 	add(uri: URI, ref: IReference<any>, length: number = 0): void {
 		// const length = ref.object.textEditorModel.getValueLength();
-		let handle: any;
-		let entry: { uri: URI; length: number; dispose(): void };
 		const dispose = () => {
 			const idx = this._data.indexOf(entry);
 			if (idx >= 0) {
@@ -61,8 +59,8 @@ export class BoundModelReferenceCollection {
 				this._data.splice(idx, 1);
 			}
 		};
-		handle = setTimeout(dispose, this._maxAge);
-		entry = { uri, length, dispose };
+		const handle = setTimeout(dispose, this._maxAge);
+		const entry = { uri, length, dispose };
 
 		this._data.push(entry);
 		this._length += length;
@@ -189,7 +187,7 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 	}
 
 	private _onModelModeChanged(event: { model: ITextModel; oldLanguageId: string }): void {
-		let { model } = event;
+		const { model } = event;
 		if (!this._modelTrackers.has(model.uri)) {
 			return;
 		}

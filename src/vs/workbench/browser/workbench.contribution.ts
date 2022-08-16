@@ -7,13 +7,18 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { localize } from 'vs/nls';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common/platform';
-import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
+import { ConfigurationMigrationWorkbenchContribution, workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { isStandalone } from 'vs/base/browser/browser';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 // Configuration
 (function registerConfiguration(): void {
+
+	// Migration support
+	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ConfigurationMigrationWorkbenchContribution, 'ConfigurationMigrationWorkbenchContribution', LifecyclePhase.Eventually);
 
 	// Workbench
 	registry.registerConfiguration({
@@ -91,7 +96,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'string',
 				'enum': ['text', 'hidden'],
 				'default': 'text',
-				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'untitledHint' }, "Controls if the untitled hint should be inline text in the editor or a floating button or hidden.")
+				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'untitledHint' }, "Controls if the untitled text hint should be visible in the editor.")
 			},
 			'workbench.editor.languageDetection': {
 				type: 'boolean',
@@ -112,17 +117,21 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				description: localize('workbench.editor.preferBasedLanguageDetection', "When enabled, a language detection model that takes into account editor history will be given higher precedence."),
 			},
 			'workbench.editor.languageDetectionHints': {
-				type: 'string',
-				default: 'always',
+				type: 'object',
+				default: { 'untitledEditors': true, 'notebookEditors': true },
 				tags: ['experimental'],
-				enum: ['always', 'notebookEditors', 'textEditors', 'never'],
 				description: localize('workbench.editor.showLanguageDetectionHints', "When enabled, shows a status bar quick fix when the editor language doesn't match detected content language."),
-				enumDescriptions: [
-					localize('workbench.editor.showLanguageDetectionHints.always', "Show show language detection quick fixes in both notebooks and untitled editors"),
-					localize('workbench.editor.showLanguageDetectionHints.notebook', "Only show language detection quick fixes in notebooks"),
-					localize('workbench.editor.showLanguageDetectionHints.editors', "Only show language detection quick fixes in untitled editors"),
-					localize('workbench.editor.showLanguageDetectionHints.never', "Never show language quick fixes"),
-				]
+				additionalProperties: false,
+				properties: {
+					untitledEditors: {
+						type: 'boolean',
+						description: localize('workbench.editor.showLanguageDetectionHints.editors', "Show in untitled text editors"),
+					},
+					notebookEditors: {
+						type: 'boolean',
+						description: localize('workbench.editor.showLanguageDetectionHints.notebook', "Show in notebook editors"),
+					}
+				}
 			},
 			'workbench.editor.tabCloseButton': {
 				'type': 'string',
@@ -236,7 +245,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.restoreViewState': {
 				'type': 'boolean',
-				'markdownDescription': localize('restoreViewState', "Restores the last editor view state (e.g. scroll position) when re-opening editors after they have been closed. Editor view state is stored per editor group and discarded when a group closes. Use the `#workbench.editor.sharedViewState#` setting to use the last known view state across all editor groups in case no previous view state was found for a editor group."),
+				'markdownDescription': localize('restoreViewState', "Restores the last editor view state (e.g. scroll position) when re-opening editors after they have been closed. Editor view state is stored per editor group and discarded when a group closes. Use the {0} setting to use the last known view state across all editor groups in case no previous view state was found for a editor group.", '`#workbench.editor.sharedViewState#`'),
 				'default': true,
 				'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
 			},
@@ -269,7 +278,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'number',
 				'default': 10,
 				'exclusiveMinimum': 0,
-				'markdownDescription': localize('limitEditorsMaximum', "Controls the maximum number of opened editors. Use the `#workbench.editor.limit.perEditorGroup#` setting to control this limit per editor group or across all groups.")
+				'markdownDescription': localize('limitEditorsMaximum', "Controls the maximum number of opened editors. Use the {0} setting to control this limit per editor group or across all groups.", '`#workbench.editor.limit.perEditorGroup#`')
 			},
 			'workbench.editor.limit.excludeDirty': {
 				'type': 'boolean',
@@ -477,12 +486,6 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('layoutControlType', "Controls whether the layout control in the custom title bar is displayed as a single menu button or with multiple UI toggles."),
 				'markdownDeprecationMessage': localize({ key: 'layoutControlTypeDeprecation', comment: ['{0} is a placeholder for a setting identifier.'] }, "This setting has been deprecated in favor of {0}", '`#workbench.layoutControl.type#`')
 			},
-			'workbench.experimental.editor.dropIntoEditor.enabled': {
-				'type': 'boolean',
-				'default': true,
-				'tags': ['experimental'],
-				'markdownDescription': localize('dropIntoEditor', "Controls whether you can drag and drop a file into a text editor by holding down `shift` (instead of opening the file in an editor)."),
-			}
 		}
 	});
 
@@ -531,7 +534,13 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'window.titleSeparator': {
 				'type': 'string',
 				'default': isMacintosh ? ' \u2014 ' : ' - ',
-				'markdownDescription': localize("window.titleSeparator", "Separator used by `window.title`.")
+				'markdownDescription': localize("window.titleSeparator", "Separator used by {0}.", '`#window.title#`')
+			},
+			'window.commandCenter': {
+				type: 'boolean',
+				default: false,
+				tags: ['experimental'],
+				markdownDescription: localize('window.commandCenter', "Show command launcher together with the window title. This setting only has an effect when {0} is set to {1}.", '`#window.titleBarStyle#`', '`custom`')
 			},
 			'window.menuBarVisibility': {
 				'type': 'string',
@@ -543,7 +552,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 						localize('window.menuBarVisibility.toggle.mac', "Menu is hidden but can be displayed at the top of the window by executing the `Focus Application Menu` command.") :
 						localize('window.menuBarVisibility.toggle', "Menu is hidden but can be displayed at the top of the window via the Alt key."),
 					localize('window.menuBarVisibility.hidden', "Menu is always hidden."),
-					localize('window.menuBarVisibility.compact', "Menu is displayed as a compact button in the side bar. This value is ignored when `#window.titleBarStyle#` is `native`.")
+					localize('window.menuBarVisibility.compact', "Menu is displayed as a compact button in the side bar. This value is ignored when {0} is {1}.", '`#window.titleBarStyle#`', '`native`')
 				],
 				'default': isWeb ? 'compact' : 'classic',
 				'scope': ConfigurationScope.APPLICATION,
@@ -663,7 +672,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'zenMode.silentNotifications': {
 				'type': 'boolean',
 				'default': true,
-				'description': localize('zenMode.silentNotifications', "Controls whether notifications are shown while in zen mode. If true, only error notifications will pop out.")
+				'description': localize('zenMode.silentNotifications', "Controls whether notifications do not disturb mode should be enabled while in zen mode. If true, only error notifications will pop out.")
 			}
 		}
 	});

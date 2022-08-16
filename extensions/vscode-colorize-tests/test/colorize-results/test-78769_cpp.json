@@ -61,7 +61,7 @@
 	},
 	{
 		"c": "der",
-		"t": "source.cpp meta.preprocessor.macro.cpp variable.parameter.preprocessor.cpp",
+		"t": "source.cpp meta.preprocessor.macro.cpp meta.function.preprocessor.parameters.cpp variable.parameter.preprocessor.cpp",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -73,7 +73,7 @@
 	},
 	{
 		"c": ",",
-		"t": "source.cpp meta.preprocessor.macro.cpp punctuation.separator.parameters.cpp",
+		"t": "source.cpp meta.preprocessor.macro.cpp meta.function.preprocessor.parameters.cpp punctuation.separator.parameters.cpp",
 		"r": {
 			"dark_plus": "meta.preprocessor: #569CD6",
 			"light_plus": "meta.preprocessor: #0000FF",
@@ -85,7 +85,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.preprocessor.macro.cpp",
+		"t": "source.cpp meta.preprocessor.macro.cpp meta.function.preprocessor.parameters.cpp",
 		"r": {
 			"dark_plus": "meta.preprocessor: #569CD6",
 			"light_plus": "meta.preprocessor: #0000FF",
@@ -97,7 +97,7 @@
 	},
 	{
 		"c": "base",
-		"t": "source.cpp meta.preprocessor.macro.cpp variable.parameter.preprocessor.cpp",
+		"t": "source.cpp meta.preprocessor.macro.cpp meta.function.preprocessor.parameters.cpp variable.parameter.preprocessor.cpp",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -109,7 +109,7 @@
 	},
 	{
 		"c": ",",
-		"t": "source.cpp meta.preprocessor.macro.cpp punctuation.separator.parameters.cpp",
+		"t": "source.cpp meta.preprocessor.macro.cpp meta.function.preprocessor.parameters.cpp punctuation.separator.parameters.cpp",
 		"r": {
 			"dark_plus": "meta.preprocessor: #569CD6",
 			"light_plus": "meta.preprocessor: #0000FF",
@@ -121,7 +121,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.preprocessor.macro.cpp",
+		"t": "source.cpp meta.preprocessor.macro.cpp meta.function.preprocessor.parameters.cpp",
 		"r": {
 			"dark_plus": "meta.preprocessor: #569CD6",
 			"light_plus": "meta.preprocessor: #0000FF",
@@ -133,7 +133,7 @@
 	},
 	{
 		"c": "func",
-		"t": "source.cpp meta.preprocessor.macro.cpp variable.parameter.preprocessor.cpp",
+		"t": "source.cpp meta.preprocessor.macro.cpp meta.function.preprocessor.parameters.cpp variable.parameter.preprocessor.cpp",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -145,7 +145,7 @@
 	},
 	{
 		"c": ",",
-		"t": "source.cpp meta.preprocessor.macro.cpp punctuation.separator.parameters.cpp",
+		"t": "source.cpp meta.preprocessor.macro.cpp meta.function.preprocessor.parameters.cpp punctuation.separator.parameters.cpp",
 		"r": {
 			"dark_plus": "meta.preprocessor: #569CD6",
 			"light_plus": "meta.preprocessor: #0000FF",
@@ -157,7 +157,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.preprocessor.macro.cpp",
+		"t": "source.cpp meta.preprocessor.macro.cpp meta.function.preprocessor.parameters.cpp",
 		"r": {
 			"dark_plus": "meta.preprocessor: #569CD6",
 			"light_plus": "meta.preprocessor: #0000FF",
@@ -169,7 +169,7 @@
 	},
 	{
 		"c": "decorators",
-		"t": "source.cpp meta.preprocessor.macro.cpp variable.parameter.preprocessor.cpp",
+		"t": "source.cpp meta.preprocessor.macro.cpp meta.function.preprocessor.parameters.cpp variable.parameter.preprocessor.cpp",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",

@@ -9,11 +9,9 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { mnemonicButtonLabel, mnemonicMenuLabel } from 'vs/base/common/labels';
 import { isMacintosh, language } from 'vs/base/common/platform';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -76,8 +74,7 @@ export class Menubar {
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly logService: ILogService,
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
-		@IProductService private readonly productService: IProductService,
-		@IDialogMainService private readonly dialogMainService: IDialogMainService
+		@IProductService private readonly productService: IProductService
 	) {
 		this.menuUpdater = new RunOnceScheduler(() => this.doUpdateMenu(), 0);
 
@@ -164,6 +161,7 @@ export class Menubar {
 	}
 
 	private registerListeners(): void {
+
 		// Keep flag when app quits
 		this.lifecycleMainService.onWillShutdown(() => this.willShutdown = true);
 
@@ -174,7 +172,7 @@ export class Menubar {
 	}
 
 	private get currentEnableMenuBarMnemonics(): boolean {
-		let enableMenuBarMnemonics = this.configurationService.getValue('window.enableMenuBarMnemonics');
+		const enableMenuBarMnemonics = this.configurationService.getValue('window.enableMenuBarMnemonics');
 		if (typeof enableMenuBarMnemonics !== 'boolean') {
 			return true;
 		}
@@ -187,7 +185,7 @@ export class Menubar {
 			return false;
 		}
 
-		let enableNativeTabs = this.configurationService.getValue('window.nativeTabs');
+		const enableNativeTabs = this.configurationService.getValue('window.nativeTabs');
 		if (typeof enableNativeTabs !== 'boolean') {
 			return false;
 		}
@@ -445,7 +443,7 @@ export class Menubar {
 				cancelId: 1
 			};
 
-			const { response } = await this.dialogMainService.showMessageBox(options, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
+			const { response } = await this.nativeHostMainService.showMessageBox(this.windowsMainService.getFocusedWindow()?.id, options);
 			return response === 0;
 		}
 
@@ -818,9 +816,7 @@ export class Menubar {
 		const originalClick = options.click;
 		options.click = (item, window, event) => {
 			this.reportMenuActionTelemetry(commandId);
-			if (originalClick) {
-				originalClick(item, window, event);
-			}
+			originalClick?.(item, window, event);
 		};
 
 		return options;

@@ -9,6 +9,7 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ISerializableCommandAction } from 'vs/platform/action/common/action';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { INativeWindowConfiguration } from 'vs/platform/window/common/window';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
@@ -16,6 +17,7 @@ export interface ICodeWindow extends IDisposable {
 
 	readonly onWillLoad: Event<ILoadEvent>;
 	readonly onDidSignalReady: Event<void>;
+	readonly onDidTriggerSystemContextMenu: Event<{ x: number; y: number }>;
 	readonly onDidClose: Event<void>;
 	readonly onDidDestroy: Event<void>;
 
@@ -25,7 +27,10 @@ export interface ICodeWindow extends IDisposable {
 	readonly win: BrowserWindow | null; /* `null` after being disposed */
 	readonly config: INativeWindowConfiguration | undefined;
 
+	readonly previousWorkspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
 	readonly openedWorkspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
+
+	readonly profile?: IUserDataProfile;
 
 	readonly backupPath?: string;
 
@@ -39,8 +44,6 @@ export interface ICodeWindow extends IDisposable {
 	readonly isReady: boolean;
 	ready(): Promise<ICodeWindow>;
 	setReady(): void;
-
-	readonly hasHiddenTitleBarStyle: boolean;
 
 	addTabbedWindow(window: ICodeWindow): void;
 
@@ -71,6 +74,8 @@ export interface ICodeWindow extends IDisposable {
 	updateTouchBar(items: ISerializableCommandAction[][]): void;
 
 	serializeWindowState(): IWindowState;
+
+	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): void;
 }
 
 export const enum LoadReason {

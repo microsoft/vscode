@@ -25,7 +25,7 @@ import { IReadTextFileOptions, ITextFileStreamContent, ITextFileService } from '
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IOpenEmptyWindowOptions, IWindowOpenable, IOpenWindowOptions, IOpenedWindow, IColorScheme, INativeWindowConfiguration } from 'vs/platform/window/common/window';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
-import { LogLevel, ILogService } from 'vs/platform/log/common/log';
+import { LogLevel, ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -48,8 +48,29 @@ import { IElevatedFileService } from 'vs/workbench/services/files/common/elevate
 import { IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
+import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { FileService } from 'vs/platform/files/common/fileService';
+import { joinPath } from 'vs/base/common/resources';
+import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 const args = parseArgs(process.argv, OPTIONS);
+
+const homeDir = homedir();
+const NULL_PROFILE = {
+	name: '',
+	id: '',
+	isDefault: false,
+	location: URI.file(homeDir),
+	settingsResource: joinPath(URI.file(homeDir), 'settings.json'),
+	globalStorageHome: joinPath(URI.file(homeDir), 'globalStorage'),
+	keybindingsResource: joinPath(URI.file(homeDir), 'keybindings.json'),
+	tasksResource: joinPath(URI.file(homeDir), 'tasks.json'),
+	snippetsHome: joinPath(URI.file(homeDir), 'snippets'),
+	extensionsResource: undefined
+};
 
 export const TestNativeWindowConfiguration: INativeWindowConfiguration = {
 	windowId: 0,
@@ -63,9 +84,10 @@ export const TestNativeWindowConfiguration: INativeWindowConfiguration = {
 	colorScheme: { dark: true, highContrast: false },
 	os: { release: release(), hostname: hostname() },
 	product,
-	homeDir: homedir(),
+	homeDir: homeDir,
 	tmpDir: tmpdir(),
 	userDataDir: getUserDataPath(args),
+	profiles: { profile: NULL_PROFILE, all: [NULL_PROFILE] },
 	...args
 };
 
@@ -183,6 +205,7 @@ export class TestNativeHostService implements INativeHostService {
 	onDidResumeOS: Event<unknown> = Event.None;
 	onDidChangeColorScheme = Event.None;
 	onDidChangePassword = Event.None;
+	onDidTriggerSystemContextMenu: Event<{ windowId: number; x: number; y: number }> = Event.None;
 	onDidChangeDisplay = Event.None;
 
 	windowCount = Promise.resolve(1);
@@ -203,6 +226,7 @@ export class TestNativeHostService implements INativeHostService {
 	async maximizeWindow(): Promise<void> { }
 	async unmaximizeWindow(): Promise<void> { }
 	async minimizeWindow(): Promise<void> { }
+	async updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void> { }
 	async setMinimumSize(width: number | undefined, height: number | undefined): Promise<void> { }
 	async saveWindowSplash(value: IPartsSplash): Promise<void> { }
 	async focusWindow(options?: { windowId?: number | undefined } | undefined): Promise<void> { }
@@ -250,8 +274,8 @@ export class TestNativeHostService implements INativeHostService {
 	async writeClipboardText(text: string, type?: 'selection' | 'clipboard' | undefined): Promise<void> { }
 	async readClipboardFindText(): Promise<string> { return ''; }
 	async writeClipboardFindText(text: string): Promise<void> { }
-	async writeClipboardBuffer(format: string, buffer: Uint8Array, type?: 'selection' | 'clipboard' | undefined): Promise<void> { }
-	async readClipboardBuffer(format: string): Promise<Uint8Array> { return Uint8Array.from([]); }
+	async writeClipboardBuffer(format: string, buffer: VSBuffer, type?: 'selection' | 'clipboard' | undefined): Promise<void> { }
+	async readClipboardBuffer(format: string): Promise<VSBuffer> { return VSBuffer.wrap(Uint8Array.from([])); }
 	async hasClipboard(format: string, type?: 'selection' | 'clipboard' | undefined): Promise<boolean> { return false; }
 	async sendInputEvent(event: MouseInputEvent): Promise<void> { }
 	async windowsGetStringRegKey(hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined> { return undefined; }
@@ -268,6 +292,9 @@ export function workbenchInstantiationService(disposables = new DisposableStore(
 	instantiationService.stub(INativeEnvironmentService, TestEnvironmentService);
 	instantiationService.stub(IWorkbenchEnvironmentService, TestEnvironmentService);
 	instantiationService.stub(INativeWorkbenchEnvironmentService, TestEnvironmentService);
+	const fileService = new FileService(new NullLogService());
+	const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(TestEnvironmentService, fileService, new UriIdentityService(fileService), new NullLogService()));
+	instantiationService.stub(IUserDataProfileService, new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService));
 
 	return instantiationService;
 }

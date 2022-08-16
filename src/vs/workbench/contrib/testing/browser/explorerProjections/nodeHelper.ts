@@ -6,11 +6,11 @@
 import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
-import { IActionableTestTreeElement, TestExplorerTreeElement, TestItemTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
+import { IActionableTestTreeElement, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 
-export const testIdentityProvider: IIdentityProvider<TestItemTreeElement> = {
+export const testIdentityProvider: IIdentityProvider<TestExplorerTreeElement> = {
 	getId(element) {
-		return element.treeId + '\0' + element.test.expand;
+		return element.treeId + '\0' + (element instanceof TestTreeErrorMessage ? 'error' : element.test.expand);
 	}
 };
 

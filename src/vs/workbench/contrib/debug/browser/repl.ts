@@ -16,7 +16,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { HistoryNavigator } from 'vs/base/common/history';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
 import { URI as uri } from 'vs/base/common/uri';
 import 'vs/css!./media/repl';
@@ -42,7 +42,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { createAndBindHistoryNavigationWidgetScopedContextKeyService } from 'vs/platform/history/browser/contextScopedHistoryWidget';
+import { registerAndCreateHistoryNavigationContext } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { showHistoryKeybindingHint } from 'vs/platform/history/browser/historyWidgetKeybindingHint';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -226,9 +226,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	private async onDidFocusSession(session: IDebugSession | undefined): Promise<void> {
 		if (session) {
 			sessionsToIgnore.delete(session);
-			if (this.completionItemProvider) {
-				this.completionItemProvider.dispose();
-			}
+			this.completionItemProvider?.dispose();
 			if (session.capabilities.supportsCompletionsRequest) {
 				this.completionItemProvider = this.languageFeaturesService.completionProvider.register({ scheme: DEBUG_SCHEME, pattern: '**/replinput', hasAccessToAllModels: true }, {
 					triggerCharacters: session.capabilities.completionTriggerCharacters || ['.'],
@@ -408,9 +406,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			}
 		}
 		if (session) {
-			if (this.replElementsChangeListener) {
-				this.replElementsChangeListener.dispose();
-			}
+			this.replElementsChangeListener?.dispose();
 			this.replElementsChangeListener = session.onDidChangeReplElements(() => {
 				this.refreshReplElements(session!.getReplElements().length === 0);
 			});
@@ -637,12 +633,11 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		this.replInputContainer = dom.append(container, $('.repl-input-wrapper'));
 		dom.append(this.replInputContainer, $('.repl-input-chevron' + ThemeIcon.asCSSSelector(debugConsoleEvaluationPrompt)));
 
-		const { scopedContextKeyService, historyNavigationBackwardsEnablement, historyNavigationForwardsEnablement } = createAndBindHistoryNavigationWidgetScopedContextKeyService(this.contextKeyService, { target: container, historyNavigator: this });
+		const { scopedContextKeyService, historyNavigationBackwardsEnablement, historyNavigationForwardsEnablement } = this._register(registerAndCreateHistoryNavigationContext(this.contextKeyService, this));
 		this.setHistoryNavigationEnablement = enabled => {
 			historyNavigationBackwardsEnablement.set(enabled);
 			historyNavigationForwardsEnablement.set(enabled);
 		};
-		this._register(scopedContextKeyService);
 		CONTEXT_IN_DEBUG_REPL.bindTo(scopedContextKeyService).set(true);
 
 		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
@@ -674,12 +669,11 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 	private onContextMenu(e: ITreeContextMenuEvent<IReplElement>): void {
 		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: e.element, shouldForwardArgs: false }, actions);
+		createAndFillInContextMenuActions(this.menu, { arg: e.element, shouldForwardArgs: false }, actions);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => actions,
-			getActionsContext: () => e.element,
-			onHide: () => dispose(actionsDisposable)
+			getActionsContext: () => e.element
 		});
 	}
 
@@ -719,7 +713,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			});
 		}
 
-		this.replInput.setDecorations('repl-decoration', DECORATION_KEY, decorations);
+		this.replInput.setDecorationsByType('repl-decoration', DECORATION_KEY, decorations);
 	}
 
 	override saveState(): void {
@@ -749,9 +743,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 	override dispose(): void {
 		this.replInput.dispose();
-		if (this.replElementsChangeListener) {
-			this.replElementsChangeListener.dispose();
-		}
+		this.replElementsChangeListener?.dispose();
 		this.refreshScheduler.dispose();
 		this.modelChangeListener.dispose();
 		super.dispose();

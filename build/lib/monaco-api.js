@@ -27,7 +27,7 @@ function isDeclaration(ts, a) {
 }
 function visitTopLevelDeclarations(ts, sourceFile, visitor) {
     let stop = false;
-    let visit = (node) => {
+    const visit = (node) => {
         if (stop) {
             return;
         }
@@ -49,19 +49,19 @@ function visitTopLevelDeclarations(ts, sourceFile, visitor) {
     visit(sourceFile);
 }
 function getAllTopLevelDeclarations(ts, sourceFile) {
-    let all = [];
+    const all = [];
     visitTopLevelDeclarations(ts, sourceFile, (node) => {
         if (node.kind === ts.SyntaxKind.InterfaceDeclaration || node.kind === ts.SyntaxKind.ClassDeclaration || node.kind === ts.SyntaxKind.ModuleDeclaration) {
-            let interfaceDeclaration = node;
-            let triviaStart = interfaceDeclaration.pos;
-            let triviaEnd = interfaceDeclaration.name.pos;
-            let triviaText = getNodeText(sourceFile, { pos: triviaStart, end: triviaEnd });
+            const interfaceDeclaration = node;
+            const triviaStart = interfaceDeclaration.pos;
+            const triviaEnd = interfaceDeclaration.name.pos;
+            const triviaText = getNodeText(sourceFile, { pos: triviaStart, end: triviaEnd });
             if (triviaText.indexOf('@internal') === -1) {
                 all.push(node);
             }
         }
         else {
-            let nodeText = getNodeText(sourceFile, node);
+            const nodeText = getNodeText(sourceFile, node);
             if (nodeText.indexOf('@internal') === -1) {
                 all.push(node);
             }
@@ -95,7 +95,7 @@ function getNodeText(sourceFile, node) {
 function hasModifier(modifiers, kind) {
     if (modifiers) {
         for (let i = 0; i < modifiers.length; i++) {
-            let mod = modifiers[i];
+            const mod = modifiers[i];
             if (mod.kind === kind) {
                 return true;
             }
@@ -113,14 +113,14 @@ function isDefaultExport(ts, declaration) {
 function getMassagedTopLevelDeclarationText(ts, sourceFile, declaration, importName, usage, enums) {
     let result = getNodeText(sourceFile, declaration);
     if (declaration.kind === ts.SyntaxKind.InterfaceDeclaration || declaration.kind === ts.SyntaxKind.ClassDeclaration) {
-        let interfaceDeclaration = declaration;
+        const interfaceDeclaration = declaration;
         const staticTypeName = (isDefaultExport(ts, interfaceDeclaration)
             ? `${importName}.default`
             : `${importName}.${declaration.name.text}`);
         let instanceTypeName = staticTypeName;
         const typeParametersCnt = (interfaceDeclaration.typeParameters ? interfaceDeclaration.typeParameters.length : 0);
         if (typeParametersCnt > 0) {
-            let arr = [];
+            const arr = [];
             for (let i = 0; i < typeParametersCnt; i++) {
                 arr.push('any');
             }
@@ -129,7 +129,7 @@ function getMassagedTopLevelDeclarationText(ts, sourceFile, declaration, importN
         const members = interfaceDeclaration.members;
         members.forEach((member) => {
             try {
-                let memberText = getNodeText(sourceFile, member);
+                const memberText = getNodeText(sourceFile, member);
                 if (memberText.indexOf('@internal') >= 0 || memberText.indexOf('private') >= 0) {
                     result = result.replace(memberText, '');
                 }
@@ -152,7 +152,7 @@ function getMassagedTopLevelDeclarationText(ts, sourceFile, declaration, importN
     result = result.replace(/export default /g, 'export ');
     result = result.replace(/export declare /g, 'export ');
     result = result.replace(/declare /g, '');
-    let lines = result.split(/\r\n|\r|\n/);
+    const lines = result.split(/\r\n|\r|\n/);
     for (let i = 0; i < lines.length; i++) {
         if (/\s*\*/.test(lines[i])) {
             // very likely a comment
@@ -177,9 +177,9 @@ function format(ts, text, endl) {
         return text;
     }
     // Parse the source text
-    let sourceFile = ts.createSourceFile('file.ts', text, ts.ScriptTarget.Latest, /*setParentPointers*/ true);
+    const sourceFile = ts.createSourceFile('file.ts', text, ts.ScriptTarget.Latest, /*setParentPointers*/ true);
     // Get the formatting edits on the input sources
-    let edits = ts.formatting.formatDocument(sourceFile, getRuleProvider(tsfmt), tsfmt);
+    const edits = ts.formatting.formatDocument(sourceFile, getRuleProvider(tsfmt), tsfmt);
     // Apply the edits on the input code
     return applyEdits(text, edits);
     function countParensCurly(text) {
@@ -202,7 +202,7 @@ function format(ts, text, endl) {
         return r;
     }
     function preformat(text, endl) {
-        let lines = text.split(endl);
+        const lines = text.split(endl);
         let inComment = false;
         let inCommentDeltaIndent = 0;
         let indent = 0;
@@ -282,9 +282,9 @@ function format(ts, text, endl) {
         // Apply edits in reverse on the existing text
         let result = text;
         for (let i = edits.length - 1; i >= 0; i--) {
-            let change = edits[i];
-            let head = result.slice(0, change.span.start);
-            let tail = result.slice(change.span.start + change.span.length);
+            const change = edits[i];
+            const head = result.slice(0, change.span.start);
+            const tail = result.slice(change.span.start + change.span.length);
             result = head + change.newText + tail;
         }
         return result;
@@ -300,15 +300,15 @@ function createReplacerFromDirectives(directives) {
 }
 function createReplacer(data) {
     data = data || '';
-    let rawDirectives = data.split(';');
-    let directives = [];
+    const rawDirectives = data.split(';');
+    const directives = [];
     rawDirectives.forEach((rawDirective) => {
         if (rawDirective.length === 0) {
             return;
         }
-        let pieces = rawDirective.split('=>');
+        const pieces = rawDirective.split('=>');
         let findStr = pieces[0];
-        let replaceStr = pieces[1];
+        const replaceStr = pieces[1];
         findStr = findStr.replace(/[\-\\\{\}\*\+\?\|\^\$\.\,\[\]\(\)\#\s]/g, '\\$&');
         findStr = '\\b' + findStr + '\\b';
         directives.push([new RegExp(findStr, 'g'), replaceStr]);
@@ -317,32 +317,32 @@ function createReplacer(data) {
 }
 function generateDeclarationFile(ts, recipe, sourceFileGetter) {
     const endl = /\r\n/.test(recipe) ? '\r\n' : '\n';
-    let lines = recipe.split(endl);
-    let result = [];
+    const lines = recipe.split(endl);
+    const result = [];
     let usageCounter = 0;
-    let usageImports = [];
-    let usage = [];
+    const usageImports = [];
+    const usage = [];
     let failed = false;
     usage.push(`var a: any;`);
     usage.push(`var b: any;`);
     const generateUsageImport = (moduleId) => {
-        let importName = 'm' + (++usageCounter);
+        const importName = 'm' + (++usageCounter);
         usageImports.push(`import * as ${importName} from './${moduleId.replace(/\.d\.ts$/, '')}';`);
         return importName;
     };
-    let enums = [];
+    const enums = [];
     let version = null;
     lines.forEach(line => {
         if (failed) {
             return;
         }
-        let m0 = line.match(/^\/\/dtsv=(\d+)$/);
+        const m0 = line.match(/^\/\/dtsv=(\d+)$/);
         if (m0) {
             version = m0[1];
         }
-        let m1 = line.match(/^\s*#include\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
+        const m1 = line.match(/^\s*#include\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
         if (m1) {
-            let moduleId = m1[1];
+            const moduleId = m1[1];
             const sourceFile = sourceFileGetter(moduleId);
             if (!sourceFile) {
                 logErr(`While handling ${line}`);
@@ -351,14 +351,14 @@ function generateDeclarationFile(ts, recipe, sourceFileGetter) {
                 return;
             }
             const importName = generateUsageImport(moduleId);
-            let replacer = createReplacer(m1[2]);
-            let typeNames = m1[3].split(/,/);
+            const replacer = createReplacer(m1[2]);
+            const typeNames = m1[3].split(/,/);
             typeNames.forEach((typeName) => {
                 typeName = typeName.trim();
                 if (typeName.length === 0) {
                     return;
                 }
-                let declaration = getTopLevelDeclaration(ts, sourceFile, typeName);
+                const declaration = getTopLevelDeclaration(ts, sourceFile, typeName);
                 if (!declaration) {
                     logErr(`While handling ${line}`);
                     logErr(`Cannot find ${typeName}`);
@@ -369,9 +369,9 @@ function generateDeclarationFile(ts, recipe, sourceFileGetter) {
             });
             return;
         }
-        let m2 = line.match(/^\s*#includeAll\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
+        const m2 = line.match(/^\s*#includeAll\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
         if (m2) {
-            let moduleId = m2[1];
+            const moduleId = m2[1];
             const sourceFile = sourceFileGetter(moduleId);
             if (!sourceFile) {
                 logErr(`While handling ${line}`);
@@ -380,10 +380,10 @@ function generateDeclarationFile(ts, recipe, sourceFileGetter) {
                 return;
             }
             const importName = generateUsageImport(moduleId);
-            let replacer = createReplacer(m2[2]);
-            let typeNames = m2[3].split(/,/);
-            let typesToExcludeMap = {};
-            let typesToExcludeArr = [];
+            const replacer = createReplacer(m2[2]);
+            const typeNames = m2[3].split(/,/);
+            const typesToExcludeMap = {};
+            const typesToExcludeArr = [];
             typeNames.forEach((typeName) => {
                 typeName = typeName.trim();
                 if (typeName.length === 0) {
@@ -400,7 +400,7 @@ function generateDeclarationFile(ts, recipe, sourceFileGetter) {
                 }
                 else {
                     // node is ts.VariableStatement
-                    let nodeText = getNodeText(sourceFile, declaration);
+                    const nodeText = getNodeText(sourceFile, declaration);
                     for (let i = 0; i < typesToExcludeArr.length; i++) {
                         if (nodeText.indexOf(typesToExcludeArr[i]) >= 0) {
                             return;
@@ -605,7 +605,7 @@ class TypeScriptLanguageServiceHost {
     }
 }
 function execute() {
-    let r = run3(new DeclarationResolver(new FSProvider()));
+    const r = run3(new DeclarationResolver(new FSProvider()));
     if (!r) {
         throw new Error(`monaco.d.ts generation error - Cannot continue`);
     }

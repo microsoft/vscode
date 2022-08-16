@@ -21,7 +21,7 @@ export class MainThreadLabelService implements MainThreadLabelServiceShape {
 	$registerResourceLabelFormatter(handle: number, formatter: ResourceLabelFormatter): void {
 		// Dynamicily registered formatters should have priority over those contributed via package.json
 		formatter.priority = true;
-		const disposable = this._labelService.registerFormatter(formatter);
+		const disposable = this._labelService.registerCachedFormatter(formatter);
 		this._resourceLabelFormatters.set(handle, disposable);
 	}
 

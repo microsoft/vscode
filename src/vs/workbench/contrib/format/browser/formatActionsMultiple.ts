@@ -65,6 +65,7 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 		this._store.add(_editorService.onDidActiveEditorChange(this._updateStatus, this));
 		this._store.add(_languageFeaturesService.documentFormattingEditProvider.onDidChange(this._updateStatus, this));
 		this._store.add(_languageFeaturesService.documentRangeFormattingEditProvider.onDidChange(this._updateStatus, this));
+		this._store.add(_configService.onDidChangeConfiguration(e => e.affectsConfiguration(DefaultFormatter.configName) && this._updateStatus()));
 		this._updateConfigValues();
 	}
 
@@ -72,8 +73,8 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 		let extensions = await this._extensionService.getExtensions();
 
 		extensions = extensions.sort((a, b) => {
-			let boostA = a.categories?.find(cat => cat === 'Formatters' || cat === 'Programming Languages');
-			let boostB = b.categories?.find(cat => cat === 'Formatters' || cat === 'Programming Languages');
+			const boostA = a.categories?.find(cat => cat === 'Formatters' || cat === 'Programming Languages');
+			const boostB = b.categories?.find(cat => cat === 'Formatters' || cat === 'Programming Languages');
 
 			if (boostA && !boostB) {
 				return -1;
@@ -239,6 +240,7 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
 	DefaultFormatter,
+	'DefaultFormatter',
 	LifecyclePhase.Restored
 );
 
@@ -261,19 +263,22 @@ interface IIndexedPick extends IQuickPickItem {
 }
 
 function logFormatterTelemetry<T extends { extensionId?: ExtensionIdentifier }>(telemetryService: ITelemetryService, mode: 'document' | 'range', options: T[], pick?: T) {
-
+	type FormatterPicks = {
+		mode: 'document' | 'range';
+		extensions: string[];
+		pick: string;
+	};
+	type FormatterPicksClassification = {
+		owner: 'jrieken';
+		comment: 'Information about resolving formatter conflicts';
+		mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Formatting mode: whole document or a range/selection' };
+		extensions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension that got picked' };
+		pick: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The possible extensions to pick' };
+	};
 	function extKey(obj: T): string {
 		return obj.extensionId ? ExtensionIdentifier.toKey(obj.extensionId) : 'unknown';
 	}
-	/*
-	 * __GDPR__
-		"formatterpick" : {
-			"mode" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"extensions" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"pick" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-		}
-	 */
-	telemetryService.publicLog('formatterpick', {
+	telemetryService.publicLog2<FormatterPicks, FormatterPicksClassification>('formatterpick', {
 		mode,
 		extensions: options.map(extKey),
 		pick: pick ? extKey(pick) : 'none'

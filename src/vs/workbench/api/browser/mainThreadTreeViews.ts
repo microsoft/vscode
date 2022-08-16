@@ -13,15 +13,18 @@ import { isUndefinedOrNull, isNumber } from 'vs/base/common/types';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
-import { DataTransferConverter } from 'vs/workbench/api/common/shared/dataTransfer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDataTransfer } from 'vs/workbench/common/dnd';
+import { createStringDataTransferItem, VSDataTransfer } from 'vs/base/common/dataTransfer';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { DataTransferCache } from 'vs/workbench/api/common/shared/dataTransferCache';
+import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 
 @extHostNamedCustomer(MainContext.MainThreadTreeViews)
 export class MainThreadTreeViews extends Disposable implements MainThreadTreeViewsShape {
 
 	private readonly _proxy: ExtHostTreeViewsShape;
 	private readonly _dataProviders: Map<string, TreeViewDataProvider> = new Map<string, TreeViewDataProvider>();
+	private readonly _dndControllers = new Map<string, TreeViewDragAndDropController>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -49,6 +52,9 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 				viewer.showCollapseAllAction = !!options.showCollapseAll;
 				viewer.canSelectMany = !!options.canSelectMany;
 				viewer.dragAndDropController = dndController;
+				if (dndController) {
+					this._dndControllers.set(treeViewId, dndController);
+				}
 				viewer.dataProvider = dataProvider;
 				this.registerListeners(treeViewId, viewer);
 				this._proxy.$setVisible(treeViewId, viewer.visible);
@@ -111,6 +117,14 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		}
 	}
 
+	$resolveDropFileData(destinationViewId: string, requestId: number, dataItemIndex: number): Promise<VSBuffer> {
+		const controller = this._dndControllers.get(destinationViewId);
+		if (!controller) {
+			throw new Error('Unknown tree');
+		}
+		return controller.resolveDropFileData(requestId, dataItemIndex);
+	}
+
 	private async reveal(treeView: ITreeView, dataProvider: TreeViewDataProvider, itemIn: ITreeItem, parentChain: ITreeItem[], options: IRevealOptions): Promise<void> {
 		options = options ? options : { select: false, focus: false };
 		const select = isUndefinedOrNull(options.select) ? false : options.select;
@@ -170,6 +184,9 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 			}
 		});
 		this._dataProviders.clear();
+
+		this._dndControllers.clear();
+
 		super.dispose();
 	}
 }
@@ -178,26 +195,42 @@ type TreeItemHandle = string;
 
 class TreeViewDragAndDropController implements ITreeViewDragAndDropController {
 
+	private readonly dataTransfersCache = new DataTransferCache();
+
 	constructor(private readonly treeViewId: string,
 		readonly dropMimeTypes: string[],
 		readonly dragMimeTypes: string[],
 		readonly hasWillDrop: boolean,
 		private readonly _proxy: ExtHostTreeViewsShape) { }
 
-	async handleDrop(dataTransfer: IDataTransfer, targetTreeItem: ITreeItem | undefined, token: CancellationToken,
+	async handleDrop(dataTransfer: VSDataTransfer, targetTreeItem: ITreeItem | undefined, token: CancellationToken,
 		operationUuid?: string, sourceTreeId?: string, sourceTreeItemHandles?: string[]): Promise<void> {
-		return this._proxy.$handleDrop(this.treeViewId, await DataTransferConverter.toDataTransferDTO(dataTransfer), targetTreeItem?.handle, token, operationUuid, sourceTreeId, sourceTreeItemHandles);
+		const request = this.dataTransfersCache.add(dataTransfer);
+		try {
+			return await this._proxy.$handleDrop(this.treeViewId, request.id, await typeConvert.DataTransfer.toDataTransferDTO(dataTransfer), targetTreeItem?.handle, token, operationUuid, sourceTreeId, sourceTreeItemHandles);
+		} finally {
+			request.dispose();
+		}
 	}
 
-	async handleDrag(sourceTreeItemHandles: string[], operationUuid: string, token: CancellationToken): Promise<IDataTransfer | undefined> {
+	async handleDrag(sourceTreeItemHandles: string[], operationUuid: string, token: CancellationToken): Promise<VSDataTransfer | undefined> {
 		if (!this.hasWillDrop) {
 			return;
 		}
-		const additionalTransferItems = await this._proxy.$handleDrag(this.treeViewId, sourceTreeItemHandles, operationUuid, token);
-		if (!additionalTransferItems) {
+		const additionalDataTransferDTO = await this._proxy.$handleDrag(this.treeViewId, sourceTreeItemHandles, operationUuid, token);
+		if (!additionalDataTransferDTO) {
 			return;
 		}
-		return DataTransferConverter.toDataTransfer(additionalTransferItems);
+
+		const additionalDataTransfer = new VSDataTransfer();
+		additionalDataTransferDTO.items.forEach(([type, item]) => {
+			additionalDataTransfer.replace(type, createStringDataTransferItem(item.asString));
+		});
+		return additionalDataTransfer;
+	}
+
+	public resolveDropFileData(requestId: number, dataItemIndex: number): Promise<VSBuffer> {
+		return this.dataTransfersCache.resolveDropFileData(requestId, dataItemIndex);
 	}
 }
 

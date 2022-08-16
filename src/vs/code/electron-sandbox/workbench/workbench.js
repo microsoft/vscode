@@ -16,10 +16,10 @@
 
 	// Load workbench main JS, CSS and NLS all in parallel. This is an
 	// optimization to prevent a waterfall of loading to happen, because
-	// we know for a fact that workbench.desktop.sandbox.main will depend on
+	// we know for a fact that workbench.desktop.main will depend on
 	// the related CSS and NLS counterparts.
 	bootstrapWindow.load([
-		'vs/workbench/workbench.desktop.sandbox.main',
+		'vs/workbench/workbench.desktop.main',
 		'vs/nls!vs/workbench/workbench.desktop.main',
 		'vs/css!vs/workbench/workbench.desktop.main'
 	],
@@ -36,7 +36,7 @@
 				return {
 					// disable automated devtools opening on error when running extension tests
 					// as this can lead to nondeterministic test execution (devtools steals focus)
-					forceDisableShowDevtoolsOnError: typeof windowConfig.extensionTestsPath === 'string',
+					forceDisableShowDevtoolsOnError: typeof windowConfig.extensionTestsPath === 'string' || windowConfig['enable-smoke-test-driver'] === true,
 					// enable devtools keybindings in extension development window
 					forceEnableDeveloperKeybindings: Array.isArray(windowConfig.extensionDevelopmentPath) && windowConfig.extensionDevelopmentPath.length > 0,
 					removeDeveloperKeybindingsAfterLoad: true
@@ -61,7 +61,7 @@
 				window.requestIdleCallback(() => {
 					const canvas = document.createElement('canvas');
 					const context = canvas.getContext('2d');
-					context.clearRect(0, 0, canvas.width, canvas.height);
+					context?.clearRect(0, 0, canvas.width, canvas.height);
 					canvas.remove();
 				}, { timeout: 50 });
 			}

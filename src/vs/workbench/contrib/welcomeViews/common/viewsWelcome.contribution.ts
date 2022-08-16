@@ -22,4 +22,4 @@ class WorkbenchConfigurationContribution {
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WorkbenchConfigurationContribution, LifecyclePhase.Restored);
+	.registerWorkbenchContribution(WorkbenchConfigurationContribution, 'WorkbenchConfigurationContribution', LifecyclePhase.Restored);

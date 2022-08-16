@@ -6,6 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { ActionRunner, IAction, IActionRunner, IRunEvent, Separator } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -49,6 +50,7 @@ export interface IActionBarOptions {
 	readonly allowContextMenu?: boolean;
 	readonly preventLoopNavigation?: boolean;
 	readonly focusOnlyEnabledItems?: boolean;
+	readonly hoverDelegate?: IHoverDelegate;
 }
 
 export interface IActionOptions extends IActionViewItemOptions {
@@ -327,7 +329,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 			}
 
 			if (!item) {
-				item = new ActionViewItem(this.context, action, options);
+				item = new ActionViewItem(this.context, action, { hoverDelegate: this.options.hoverDelegate, ...options });
 			}
 
 			// Prevent native context menu on actions

@@ -60,7 +60,7 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 			id: TUNNEL_VIEW_CONTAINER_ID,
 			title: nls.localize('ports', "Ports"),
 			icon: portsViewIcon,
-			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [TUNNEL_VIEW_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
+			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [TUNNEL_VIEW_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]),
 			storageId: TUNNEL_VIEW_CONTAINER_ID,
 			hideIfEmpty: true,
 			order: 5
@@ -112,9 +112,7 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 	}
 
 	private async updateActivityBadge() {
-		if (this._activityBadge) {
-			this._activityBadge.dispose();
-		}
+		this._activityBadge?.dispose();
 		if (this.remoteExplorerService.tunnelModel.forwarded.size > 0) {
 			this._activityBadge = this.activityService.showViewActivity(TUNNEL_VIEW_ID, {
 				badge: new NumberBadge(this.remoteExplorerService.tunnelModel.forwarded.size, n => n === 1 ? nls.localize('1forwardedPort', "1 forwarded port") : nls.localize('nForwardedPorts', "{0} forwarded ports", n))
@@ -131,10 +129,9 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 	}
 
 	private get entry(): IStatusbarEntry {
-		let text: string;
 		let tooltip: string;
 		const count = this.remoteExplorerService.tunnelModel.forwarded.size + this.remoteExplorerService.tunnelModel.detected.size;
-		text = `${count}`;
+		const text = `${count}`;
 		if (count === 0) {
 			tooltip = nls.localize('remote.forwardedPorts.statusbarTextNone', "No Ports Forwarded");
 		} else {
@@ -335,9 +332,7 @@ class OnAutoForwardedAction extends Disposable {
 			return;
 		}
 
-		if (this.lastNotification) {
-			this.lastNotification.close();
-		}
+		this.lastNotification?.close();
 		let message = this.basicMessage(tunnel);
 		const choices = [this.openBrowserChoice(tunnel)];
 		if (!isWeb) {
@@ -392,9 +387,7 @@ class OnAutoForwardedAction extends Disposable {
 				if (!newTunnel) {
 					return;
 				}
-				if (this.lastNotification) {
-					this.lastNotification.close();
-				}
+				this.lastNotification?.close();
 				this.lastShownPort = newTunnel.tunnelRemotePort;
 				this.lastNotification = this.notificationService.prompt(Severity.Info,
 					this.basicMessage(newTunnel) + this.linkMessage(),
@@ -454,9 +447,7 @@ class OutputAutomaticPortForwarding extends Disposable {
 		if (!this.urlFinder && !this.remoteExplorerService.portsFeaturesEnabled) {
 			return;
 		}
-		if (this.portsFeatures) {
-			this.portsFeatures.dispose();
-		}
+		this.portsFeatures?.dispose();
 		this.urlFinder = this._register(new UrlFinder(this.terminalService, this.debugService));
 		this._register(this.urlFinder.onDidMatchLocalUrl(async (localUrl) => {
 			if (mapHasAddressLocalhostOrAllInterfaces(this.remoteExplorerService.tunnelModel.detected, localUrl.host, localUrl.port)) {
@@ -544,9 +535,7 @@ class ProcAutomaticPortForwarding extends Disposable {
 		if (this.candidateListener || !this.remoteExplorerService.portsFeaturesEnabled) {
 			return;
 		}
-		if (this.portsFeatures) {
-			this.portsFeatures.dispose();
-		}
+		this.portsFeatures?.dispose();
 
 		// Capture list of starting candidates so we don't auto forward them later.
 		await this.setInitialCandidates();

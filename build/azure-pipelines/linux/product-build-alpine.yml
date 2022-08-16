@@ -58,6 +58,7 @@ steps:
   - script: |
       mkdir -p .build
       node build/azure-pipelines/common/computeNodeModulesCacheKey.js "alpine" $ENABLE_TERRAPIN > .build/yarnlockhash
+      node build/azure-pipelines/common/computeBuiltInDepsCacheKey.js > .build/builtindepshash
     displayName: Prepare yarn cache flags
 
   - task: Cache@2
@@ -66,6 +67,12 @@ steps:
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Restore node_modules cache
+
+  - task: Cache@2
+    inputs:
+      key: '"builtInDeps" | .build/builtindepshash'
+      path: .build/builtInExtensions
+    displayName: Restore built-in extensions
 
   - script: |
       set -e
@@ -100,6 +107,13 @@ steps:
 
   - script: |
       set -e
+      node build/lib/builtInExtensions.js
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Download missing built-in extensions
+
+  - script: |
+      set -e
       node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
       mkdir -p .build/node_modules_cache
       tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
@@ -118,7 +132,9 @@ steps:
 
   - script: |
       set -e
-      docker run -e VSCODE_QUALITY -v $(pwd):/root/vscode -v ~/.netrc:/root/.netrc vscodehub.azurecr.io/vscode-linux-build-agent:alpine-$(VSCODE_ARCH) /root/vscode/build/azure-pipelines/linux/scripts/install-remote-dependencies.sh
+      docker run -e VSCODE_QUALITY -e GITHUB_TOKEN -v $(pwd):/root/vscode -v ~/.netrc:/root/.netrc vscodehub.azurecr.io/vscode-linux-build-agent:alpine-$(VSCODE_ARCH) /root/vscode/build/azure-pipelines/linux/scripts/install-remote-dependencies.sh
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Prebuild
 
   - script: |

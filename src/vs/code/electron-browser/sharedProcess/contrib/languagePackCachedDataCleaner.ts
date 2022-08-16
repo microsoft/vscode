@@ -59,7 +59,7 @@ export class LanguagePackCachedDataCleaner extends Disposable {
 		try {
 			const installed: IStringDictionary<boolean> = Object.create(null);
 			const metaData: ILanguagePackFile = JSON.parse(await Promises.readFile(join(this.environmentService.userDataPath, 'languagepacks.json'), 'utf8'));
-			for (let locale of Object.keys(metaData)) {
+			for (const locale of Object.keys(metaData)) {
 				const entry = metaData[locale];
 				installed[`${entry.hash}.${locale}`] = true;
 			}

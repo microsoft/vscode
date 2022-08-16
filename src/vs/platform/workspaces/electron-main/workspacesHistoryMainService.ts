@@ -19,10 +19,9 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IGlobalStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
-import { ICodeWindow } from 'vs/platform/window/electron-main/window';
+import { IApplicationStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { IRecent, IRecentFile, IRecentFolder, IRecentlyOpened, IRecentWorkspace, isRecentFile, isRecentFolder, isRecentWorkspace, restoreRecentlyOpened, toStoreData } from 'vs/platform/workspaces/common/workspaces';
-import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 
 export const IWorkspacesHistoryMainService = createDecorator<IWorkspacesHistoryMainService>('workspacesHistoryMainService');
@@ -34,7 +33,7 @@ export interface IWorkspacesHistoryMainService {
 	readonly onDidChangeRecentlyOpened: CommonEvent<void>;
 
 	addRecentlyOpened(recents: IRecent[]): Promise<void>;
-	getRecentlyOpened(include?: ICodeWindow): Promise<IRecentlyOpened>;
+	getRecentlyOpened(): Promise<IRecentlyOpened>;
 	removeRecentlyOpened(paths: URI[]): Promise<void>;
 	clearRecentlyOpened(): Promise<void>;
 }
@@ -54,7 +53,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		@ILogService private readonly logService: ILogService,
 		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		@IGlobalStorageMainService private readonly globalStorageMainService: IGlobalStorageMainService
+		@IApplicationStorageMainService private readonly applicationStorageMainService: IApplicationStorageMainService
 	) {
 		super();
 
@@ -63,8 +62,9 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 
 	private registerListeners(): void {
 
-		// Install window jump list after opening window
-		this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen).then(() => this.handleWindowsJumpList());
+		// Install window jump list delayed after opening window
+		// because perf measurements have shown this to be slow
+		this.lifecycleMainService.when(LifecycleMainPhase.Eventually).then(() => this.handleWindowsJumpList());
 
 		// Add to history when entering workspace
 		this._register(this.workspacesManagementMainService.onDidEnterWorkspace(event => this.addRecentlyOpened([{ workspace: event.workspace, remoteAuthority: event.window.remoteAuthority }])));
@@ -76,7 +76,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		const workspaces: Array<IRecentFolder | IRecentWorkspace> = [];
 		const files: IRecentFile[] = [];
 
-		for (let recent of recentToAdd) {
+		for (const recent of recentToAdd) {
 
 			// Workspace
 			if (isRecentWorkspace(recent)) {
@@ -162,30 +162,9 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		this._onDidChangeRecentlyOpened.fire();
 	}
 
-	async getRecentlyOpened(include?: ICodeWindow): Promise<IRecentlyOpened> {
+	async getRecentlyOpened(): Promise<IRecentlyOpened> {
 		const workspaces: Array<IRecentFolder | IRecentWorkspace> = [];
 		const files: IRecentFile[] = [];
-
-		// Add current workspace to beginning if set
-		if (include) {
-			const currentWorkspace = include.config?.workspace;
-			if (isWorkspaceIdentifier(currentWorkspace) && !this.workspacesManagementMainService.isUntitledWorkspace(currentWorkspace)) {
-				workspaces.push({ workspace: currentWorkspace, remoteAuthority: include.remoteAuthority });
-			} else if (isSingleFolderWorkspaceIdentifier(currentWorkspace)) {
-				workspaces.push({ folderUri: currentWorkspace.uri, remoteAuthority: include.remoteAuthority });
-			}
-		}
-
-		// Add currently files to open to the beginning if any
-		const currentFiles = include?.config?.filesToOpenOrCreate;
-		if (currentFiles) {
-			for (let currentFile of currentFiles) {
-				const fileUri = currentFile.fileUri;
-				if (fileUri && this.indexOfFile(files, fileUri) === -1) {
-					files.push({ fileUri });
-				}
-			}
-		}
 
 		await this.addEntriesFromStorage(workspaces, files);
 
@@ -195,9 +174,9 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 	private async addEntriesFromStorage(workspaces: Array<IRecentFolder | IRecentWorkspace>, files: IRecentFile[]): Promise<void> {
 
 		// Get from storage
-		let recents = await this.getRecentlyOpenedFromStorage();
-		for (let recent of recents.workspaces) {
-			let index = isRecentFolder(recent) ? this.indexOfFolder(workspaces, recent.folderUri) : this.indexOfWorkspace(workspaces, recent.workspace);
+		const recents = await this.getRecentlyOpenedFromStorage();
+		for (const recent of recents.workspaces) {
+			const index = isRecentFolder(recent) ? this.indexOfFolder(workspaces, recent.folderUri) : this.indexOfWorkspace(workspaces, recent.workspace);
 			if (index >= 0) {
 				workspaces[index].label = workspaces[index].label || recent.label;
 			} else {
@@ -205,8 +184,8 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 			}
 		}
 
-		for (let recent of recents.files) {
-			let index = this.indexOfFile(files, recent.fileUri);
+		for (const recent of recents.files) {
+			const index = this.indexOfFile(files, recent.fileUri);
 			if (index >= 0) {
 				files[index].label = files[index].label || recent.label;
 			} else {
@@ -218,12 +197,12 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 	private async getRecentlyOpenedFromStorage(): Promise<IRecentlyOpened> {
 
 		// Wait for global storage to be ready
-		await this.globalStorageMainService.whenReady;
+		await this.applicationStorageMainService.whenReady;
 
 		let storedRecentlyOpened: object | undefined = undefined;
 
 		// First try with storage service
-		const storedRecentlyOpenedRaw = this.globalStorageMainService.get(WorkspacesHistoryMainService.RECENTLY_OPENED_STORAGE_KEY, StorageScope.GLOBAL);
+		const storedRecentlyOpenedRaw = this.applicationStorageMainService.get(WorkspacesHistoryMainService.RECENTLY_OPENED_STORAGE_KEY, StorageScope.APPLICATION);
 		if (typeof storedRecentlyOpenedRaw === 'string') {
 			try {
 				storedRecentlyOpened = JSON.parse(storedRecentlyOpenedRaw);
@@ -238,10 +217,10 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 	private async saveRecentlyOpened(recent: IRecentlyOpened): Promise<void> {
 
 		// Wait for global storage to be ready
-		await this.globalStorageMainService.whenReady;
+		await this.applicationStorageMainService.whenReady;
 
 		// Store in global storage (but do not sync since this is mainly local paths)
-		this.globalStorageMainService.store(WorkspacesHistoryMainService.RECENTLY_OPENED_STORAGE_KEY, JSON.stringify(toStoreData(recent)), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this.applicationStorageMainService.store(WorkspacesHistoryMainService.RECENTLY_OPENED_STORAGE_KEY, JSON.stringify(toStoreData(recent)), StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
 	private location(recent: IRecent): URI {
@@ -325,8 +304,8 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 			// so we need to update our list of recent paths with the choice of the user to not add them again
 			// Also: Windows will not show our custom category at all if there is any entry which was removed
 			// by the user! See https://github.com/microsoft/vscode/issues/15052
-			let toRemove: URI[] = [];
-			for (let item of app.getJumpListSettings().removedItems) {
+			const toRemove: URI[] = [];
+			for (const item of app.getJumpListSettings().removedItems) {
 				const args = item.args;
 				if (args) {
 					const match = /^--(folder|file)-uri\s+"([^"]+)"$/.exec(args);
@@ -377,7 +356,10 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		});
 
 		try {
-			app.setJumpList(jumpList);
+			const res = app.setJumpList(jumpList);
+			if (res && res !== 'ok') {
+				this.logService.warn(`updateWindowsJumpList#setJumpList unexpected result: ${res}`);
+			}
 		} catch (error) {
 			this.logService.warn('updateWindowsJumpList#setJumpList', error); // since setJumpList is relatively new API, make sure to guard for errors
 		}

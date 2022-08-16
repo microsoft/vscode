@@ -8,7 +8,7 @@ import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import * as platform from 'vs/base/common/platform';
 import { IVisibleLine } from 'vs/editor/browser/view/viewLayer';
 import { RangeUtil } from 'vs/editor/browser/viewParts/lines/rangeUtil';
-import { IStringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { FloatHorizontalRange, VisibleRanges } from 'vs/editor/browser/view/renderingContext';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
@@ -186,7 +186,7 @@ export class ViewLine implements IVisibleLine {
 		return false;
 	}
 
-	public renderLine(lineNumber: number, deltaTop: number, viewportData: ViewportData, sb: IStringBuilder): boolean {
+	public renderLine(lineNumber: number, deltaTop: number, viewportData: ViewportData, sb: StringBuilder): boolean {
 		if (this._isMaybeInvalid === false) {
 			// it appears that nothing relevant has changed
 			return false;
@@ -446,8 +446,8 @@ class FastRenderedViewLine implements IRenderedViewLine {
 	}
 
 	private _getCharPosition(column: number): number {
-		const charOffset = this._characterMapping.getAbsoluteOffset(column);
-		return this._charWidth * charOffset;
+		const horizontalOffset = this._characterMapping.getHorizontalOffset(column);
+		return this._charWidth * horizontalOffset;
 	}
 
 	public getColumnOfNodeOffset(lineNumber: number, spanNode: HTMLElement, offset: number): number {
@@ -625,8 +625,8 @@ class RenderedViewLine implements IRenderedViewLine {
 		}
 		const result = r[0].left;
 		if (this.input.isBasicASCII) {
-			const charOffset = this._characterMapping.getAbsoluteOffset(column);
-			const expectedResult = Math.round(this.input.spaceWidth * charOffset);
+			const horizontalOffset = this._characterMapping.getHorizontalOffset(column);
+			const expectedResult = Math.round(this.input.spaceWidth * horizontalOffset);
 			if (Math.abs(expectedResult - result) <= 1) {
 				return expectedResult;
 			}

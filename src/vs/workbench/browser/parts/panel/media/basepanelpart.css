@@ -176,13 +176,13 @@
 }
 
 .monaco-workbench .part.basepanel > .composite.title > .panel-switcher-container > .monaco-action-bar .action-item .active-item-indicator {
-	top: -6px;
+	top: -4px;
 	left: 10px;
 	width: calc(100% - 20px);
 }
 
 .monaco-workbench .part.basepanel > .composite.title > .panel-switcher-container > .monaco-action-bar .action-item.icon .active-item-indicator {
-	top: -1px;
+	top: 1px;
 	left: 2px;
 	width: calc(100% - 4px);
 }

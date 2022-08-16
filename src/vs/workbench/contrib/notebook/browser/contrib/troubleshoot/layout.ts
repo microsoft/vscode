@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { localize } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { CATEGORIES } from 'vs/workbench/common/actions';
-import { getNotebookEditorFromEditorPane, ICellViewModel, ICommonCellViewModelLayoutChangeInfo, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { getNotebookEditorFromEditorPane, ICellViewModel, ICommonCellViewModelLayoutChangeInfo, INotebookDeltaCellStatusBarItems, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
+import { CellStatusbarAlignment, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -18,31 +20,37 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 
 	private readonly _localStore = this._register(new DisposableStore());
 	private _cellStateListeners: IDisposable[] = [];
-	private _logging: boolean = false;
+	private _enabled: boolean = false;
+	private _cellStatusItems: string[] = [];
 
 	constructor(private readonly _notebookEditor: INotebookEditor) {
 		super();
 
 		this._register(this._notebookEditor.onDidChangeModel(() => {
-			this._localStore.clear();
-			this._cellStateListeners.forEach(listener => listener.dispose());
-
-			if (!this._notebookEditor.hasModel()) {
-				return;
-			}
-
-			this._updateListener();
+			this._update();
 		}));
+
+		this._update();
+	}
+
+	toggle(): void {
+		this._enabled = !this._enabled;
+		this._update();
+	}
+
+	private _update() {
+		this._localStore.clear();
+		this._cellStateListeners.forEach(listener => listener.dispose());
+
+		if (!this._notebookEditor.hasModel()) {
+			return;
+		}
 
 		this._updateListener();
 	}
 
-	toggleLogging(): void {
-		this._logging = !this._logging;
-	}
-
 	private _log(cell: ICellViewModel, e: any) {
-		if (this._logging) {
+		if (this._enabled) {
 			const oldHeight = (this._notebookEditor as NotebookEditorWidget).getViewHeight(cell);
 			console.log(`cell#${cell.handle}`, e, `${oldHeight} -> ${cell.layoutInfo.totalHeight}`);
 		}
@@ -73,6 +81,33 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 				dispose(deletedCells);
 			});
 		}));
+
+		const vm = this._notebookEditor._getViewModel();
+		let items: INotebookDeltaCellStatusBarItems[] = [];
+
+		if (this._enabled) {
+			items = this._getItemsForCells();
+		}
+
+		this._cellStatusItems = vm.deltaCellStatusBarItems(this._cellStatusItems, items);
+	}
+
+	private _getItemsForCells(): INotebookDeltaCellStatusBarItems[] {
+		const items: INotebookDeltaCellStatusBarItems[] = [];
+		for (let i = 0; i < this._notebookEditor.getLength(); i++) {
+			items.push({
+				handle: i,
+				items: [
+					<INotebookCellStatusBarItem>{
+						text: `index: ${i}`,
+						alignment: CellStatusbarAlignment.Left,
+						priority: Number.MAX_SAFE_INTEGER
+					}
+				]
+			});
+		}
+
+		return items;
 	}
 
 	override dispose() {
@@ -87,7 +122,10 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.toggleLayoutTroubleshoot',
-			title: 'Toggle Notebook Layout Troubleshoot',
+			title: {
+				value: localize('workbench.notebook.toggleLayoutTroubleshoot', "Toggle Layout Troubleshoot"),
+				original: 'Toggle Notebook Layout Troubleshoot'
+			},
 			category: CATEGORIES.Developer,
 			f1: true
 		});
@@ -102,7 +140,7 @@ registerAction2(class extends Action2 {
 		}
 
 		const controller = editor.getContribution<TroubleshootController>(TroubleshootController.id);
-		controller?.toggleLogging();
+		controller?.toggle();
 	}
 });
 
@@ -110,7 +148,10 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.inspectLayout',
-			title: 'Inspect Notebook Layout',
+			title: {
+				value: localize('workbench.notebook.inspectLayout', "Inspect Notebook Layout"),
+				original: 'Inspect Notebook Layout'
+			},
 			category: CATEGORIES.Developer,
 			f1: true
 		});
@@ -135,7 +176,10 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.clearNotebookEdtitorTypeCache',
-			title: 'Clear Notebook Editor Cache',
+			title: {
+				value: localize('workbench.notebook.clearNotebookEdtitorTypeCache', "Clear Notebook Editor Type Cache"),
+				original: 'Clear Notebook Editor Cache'
+			},
 			category: CATEGORIES.Developer,
 			f1: true
 		});
