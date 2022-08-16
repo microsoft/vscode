@@ -257,3 +257,16 @@
 .extension-list-item .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .monaco-dropdown .extension-action.label {
 	border-left-width: 0;
 }
+
+/* single install */
+.extension-list-item .monaco-action-bar > .actions-container > .action-item.action-dropdown-item.empty > .extension-action {
+	border-radius: 2px;
+}
+
+/* split install */
+.extension-list-item .monaco-action-bar > .actions-container > .action-item.action-dropdown-item:not(.empty) > .extension-action.label:not(.dropdown) {
+	border-radius: 2px 0 0 2px;
+}
+.extension-list-item .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .monaco-dropdown .extension-action {
+	border-radius: 0 2px 2px 0;
+}
