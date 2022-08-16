@@ -322,19 +322,30 @@ export class PtyService extends Disposable implements IPtyService {
 		return { ...process.env };
 	}
 
-	async getWslPath(original: string): Promise<string> {
+	async getWslPath(original: string, reverse?: boolean): Promise<string> {
 		if (!isWindows) {
 			return original;
 		}
 		if (getWindowsBuildNumber() < 17063) {
-			return original.replace(/\\/g, '/');
+			return !reverse ? original.replace(/\\/g, '/') : path.win32.resolve(original).substring(1);
 		}
-		return new Promise<string>(c => {
-			const proc = execFile('bash.exe', ['-c', `wslpath ${escapeNonWindowsPath(original)}`], {}, (error, stdout, stderr) => {
-				c(escapeNonWindowsPath(stdout.trim()));
+
+		if (!reverse) {
+			return new Promise<string>(c => {
+				const proc = execFile('bash.exe', ['-c', `wslpath ${escapeNonWindowsPath(original)}`], {}, (error, stdout, stderr) => {
+					c(escapeNonWindowsPath(stdout.trim()));
+				});
+				proc.stdin!.end();
 			});
-			proc.stdin!.end();
-		});
+		}
+		else {
+			return new Promise<string>(c => {
+				const proc = execFile('bash.exe', ['-c', `wslpath -w ${escapeNonWindowsPath(original)}`], {}, (error, stdout, stderr) => {
+					c(stdout.trim());
+				});
+				proc.stdin!.end();
+			});
+		}
 	}
 
 	async getRevivedPtyNewId(id: number): Promise<number | undefined> {

@@ -202,8 +202,8 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		return this._shellEnvironmentService.getShellEnv();
 	}
 
-	async getWslPath(original: string): Promise<string> {
-		return this._localPtyService.getWslPath(original);
+	async getWslPath(original: string, reverse?: boolean): Promise<string> {
+		return this._localPtyService.getWslPath(original, reverse);
 	}
 
 	async setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void> {

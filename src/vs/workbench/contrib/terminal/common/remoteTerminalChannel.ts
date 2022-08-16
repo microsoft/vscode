@@ -258,8 +258,8 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 		return this._channel.call('$getEnvironment');
 	}
 
-	getWslPath(original: string): Promise<string> {
-		return this._channel.call('$getWslPath', [original]);
+	getWslPath(original: string, reverse?: boolean): Promise<string> {
+		return this._channel.call('$getWslPath', [original, reverse]);
 	}
 
 	setTerminalLayoutInfo(layout?: ITerminalsLayoutInfoById): Promise<void> {
