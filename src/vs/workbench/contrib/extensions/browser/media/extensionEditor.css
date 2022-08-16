@@ -269,7 +269,7 @@
 
 .extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .monaco-dropdown .extension-action.label {
 	border-left-width: 0;
-	border-radius: 0 3px 3px 0;
+	border-radius: 0 2px 2px 0;
 }
 
 .extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item > .action-label.extension-status {
