@@ -236,6 +236,7 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 			id,
 			uri: resource.toString(),
 			options,
+			watchParentDirs: true,
 		});
 
 		return {

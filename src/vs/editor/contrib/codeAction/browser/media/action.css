@@ -3,24 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.codeActionMenuWidget {
-	padding: 0px 1px 3px 0px;
-	overflow: auto;
-	font-size: 13px;
-	border-radius: 0px;
-	min-width: 160px;
-	z-index: 40;
-	display: block;
-	/* flex-direction: column;
-	flex: 0 1 auto; */
-	width: 100%;
-	border: 1px solid var(--vscode-menu-separatorBackground);
-	border-color: none;
-	background-color: var(--vscode-menu-background);
-	color: var(--vscode-menu-foreground);
-	box-shadow: rgb(0,0,0, 16%) 0px 2px 8px;
-}
-
 .codeActionMenuWidget .monaco-list:not(.element-focused):focus:before {
 	position: absolute;
 	top: 0;
@@ -35,6 +17,25 @@
 	outline-style: none;
 	outline-offset: 0px;
 }
+
+.codeActionMenuWidget {
+	padding: 0px 1px 3px 0px;
+	overflow: auto;
+	font-size: 13px;
+	border-radius: 0px;
+	min-width: 160px;
+	z-index: 40;
+	display: block;
+	/* flex-direction: column;
+	flex: 0 1 auto; */
+	width: 100%;
+	border: 1px solid var(--vscode-menu-separatorBackground) !important;
+	border-color: none;
+	background-color: var(--vscode-menu-background);
+	color: var(--vscode-menu-foreground);
+	box-shadow: rgb(0,0,0, 16%) 0px 2px 8px;
+}
+
 
 .codeActionMenuWidget .monaco-list {
 	user-select: none;
