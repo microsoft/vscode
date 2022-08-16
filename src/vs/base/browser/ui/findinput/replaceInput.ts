@@ -353,9 +353,7 @@ export class ReplaceInput extends Widget {
 	}
 
 	public validate(): void {
-		if (this.inputBox) {
-			this.inputBox.validate();
-		}
+		this.inputBox?.validate();
 	}
 
 	public showMessage(message: InputBoxMessage): void {
@@ -363,15 +361,11 @@ export class ReplaceInput extends Widget {
 	}
 
 	public clearMessage(): void {
-		if (this.inputBox) {
-			this.inputBox.hideMessage();
-		}
+		this.inputBox?.hideMessage();
 	}
 
 	private clearValidation(): void {
-		if (this.inputBox) {
-			this.inputBox.hideMessage();
-		}
+		this.inputBox?.hideMessage();
 	}
 
 	public set width(newWidth: number) {

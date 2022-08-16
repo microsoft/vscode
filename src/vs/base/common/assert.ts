@@ -11,3 +11,7 @@ export function ok(value?: unknown, message?: string) {
 		throw new Error(message ? `Assertion failed (${message})` : 'Assertion Failed');
 	}
 }
+
+export function assertNever(value: never, message = 'Unreachable'): never {
+	throw new Error(message);
+}

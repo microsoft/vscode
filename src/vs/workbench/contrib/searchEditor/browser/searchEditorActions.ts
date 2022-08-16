@@ -139,7 +139,12 @@ export const openNewSearchEditor =
 			}
 		}
 
-		telemetryService.publicLog2<{}, { owner: 'roblourens' }>('searchEditor/openNewSearchEditor');
+		telemetryService.publicLog2<{},
+			{
+				owner: 'roblourens';
+				comment: 'Fired when a search editor is opened';
+			}>
+			('searchEditor/openNewSearchEditor');
 
 		const seedSearchStringFromSelection = _args.location === 'new' || configurationService.getValue<IEditorOptions>('editor').find!.seedSearchStringFromSelection;
 		const args: OpenSearchEditorArgs = { query: seedSearchStringFromSelection ? selected : undefined };
@@ -188,8 +193,13 @@ export const createEditorFromSearchResult =
 		const configurationService = accessor.get(IConfigurationService);
 		const sortOrder = configurationService.getValue<ISearchConfigurationProperties>('search').sortOrder;
 
-
-		telemetryService.publicLog2<{}, { owner: 'roblourens' }>('searchEditor/createEditorFromSearchResult');
+		telemetryService.publicLog2<
+			{},
+			{
+				owner: 'roblourens';
+				comment: 'Fired when a search editor is opened from the search view';
+			}>
+			('searchEditor/createEditorFromSearchResult');
 
 		const labelFormatter = (uri: URI): string => labelService.getUriLabel(uri, { relative: true });
 

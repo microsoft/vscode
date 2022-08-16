@@ -27,7 +27,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
-import { count, removeAnsiEscapeCodes } from 'vs/base/common/strings';
+import { count } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor, IDiffEditorConstructionOptions, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
@@ -836,6 +836,7 @@ const diffEditorOptions: IDiffEditorConstructionOptions = {
 	renderSideBySide: true,
 	originalAriaLabel: localize('testingOutputExpected', 'Expected result'),
 	modifiedAriaLabel: localize('testingOutputActual', 'Actual result'),
+	diffAlgorithm: 'smart',
 };
 
 const isDiffable = (message: ITestMessage): message is ITestErrorMessage & { actualOutput: string; expectedOutput: string } =>
@@ -1165,7 +1166,7 @@ class TestMessageElement implements ITreeElement {
 		public readonly taskIndex: number,
 		public readonly messageIndex: number,
 	) {
-		const { type, message, location } = test.tasks[taskIndex].messages[messageIndex];
+		const { message, location } = test.tasks[taskIndex].messages[messageIndex];
 
 		this.location = location;
 		this.uri = this.context = buildTestUri({
@@ -1178,9 +1179,7 @@ class TestMessageElement implements ITreeElement {
 
 		this.id = this.uri.toString();
 
-		const asPlaintext = type === TestMessageType.Output
-			? removeAnsiEscapeCodes(message)
-			: renderStringAsPlaintext(message);
+		const asPlaintext = renderStringAsPlaintext(message);
 		const lines = count(asPlaintext.trimRight(), '\n');
 		this.label = firstLine(asPlaintext);
 		if (lines > 0) {

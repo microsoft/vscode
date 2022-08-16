@@ -36,8 +36,8 @@ steps:
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
-          exec { node test/unit/browser/index.js --sequential --browser chromium --browser firefox --tfs "Browser Unit Tests" }
-        displayName: Run unit tests (Browser, Chromium & Firefox)
+          exec { node test/unit/browser/index.js --sequential --browser chromium --tfs "Browser Unit Tests" }
+        displayName: Run unit tests (Browser, Chromium)
         timeoutInMinutes: 20
 
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
@@ -59,8 +59,8 @@ steps:
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
-          exec { yarn test-browser-no-install --sequential --build --browser chromium --browser firefox --tfs "Browser Unit Tests" }
-        displayName: Run unit tests (Browser, Chromium & Firefox)
+          exec { yarn test-browser-no-install --sequential --build --browser chromium --tfs "Browser Unit Tests" }
+        displayName: Run unit tests (Browser, Chromium)
         timeoutInMinutes: 20
 
   - ${{ if eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true) }}:

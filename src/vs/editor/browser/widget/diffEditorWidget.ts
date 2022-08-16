@@ -53,10 +53,12 @@ import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ILineBreaksComputer } from 'vs/editor/common/modelLineProjectionData';
-import { IChange, ICharChange, IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/diffComputer';
+import { IChange, ICharChange, IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
+import { IDocumentDiffProvider } from 'vs/editor/common/diff/documentDiffProvider';
+import { WorkerBasedDocumentDiffProvider } from 'vs/editor/browser/widget/workerBasedDocumentDiffProvider';
 
 export interface IDiffCodeEditorWidgetOptions {
 	originalEditor?: ICodeEditorWidgetOptions;
@@ -221,7 +223,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	private readonly _updateDecorationsRunner: RunOnceScheduler;
 
-	private readonly _editorWorkerService: IEditorWorkerService;
+	private readonly _documentDiffProvider: IDocumentDiffProvider;
 	private readonly _contextKeyService: IContextKeyService;
 	private readonly _instantiationService: IInstantiationService;
 	private readonly _codeEditorService: ICodeEditorService;
@@ -246,7 +248,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	) {
 		super();
 
-		this._editorWorkerService = editorWorkerService;
+		this._documentDiffProvider = new WorkerBasedDocumentDiffProvider(editorWorkerService);
 		this._codeEditorService = codeEditorService;
 		this._contextKeyService = this._register(contextKeyService.createScoped(domElement));
 		this._instantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this._contextKeyService]));
@@ -272,7 +274,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			originalEditable: false,
 			diffCodeLens: false,
 			renderOverviewRuler: true,
-			diffWordWrap: 'inherit'
+			diffWordWrap: 'inherit',
+			diffAlgorithm: 'smart',
 		});
 
 		if (typeof options.isInEmbeddedEditor !== 'undefined') {
@@ -751,7 +754,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._options = newOptions;
 
 		const beginUpdateDecorations = (changed.ignoreTrimWhitespace || changed.renderIndicators || changed.renderMarginRevertIcon);
-		const beginUpdateDecorationsSoon = (this._isVisible && (changed.maxComputationTime || changed.maxFileSize));
+		const beginUpdateDecorationsSoon = (this._isVisible && (changed.maxComputationTime || changed.maxFileSize || changed.diffAlgorithm));
 
 		if (beginUpdateDecorations) {
 			this._beginUpdateDecorations();
@@ -1111,13 +1114,65 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		}
 
 		this._setState(editorBrowser.DiffEditorState.ComputingDiff);
-		this._editorWorkerService.computeDiff(currentOriginalModel.uri, currentModifiedModel.uri, this._options.ignoreTrimWhitespace, this._options.maxComputationTime).then((result) => {
+		this._documentDiffProvider.computeDiff(currentOriginalModel, currentModifiedModel, {
+			ignoreTrimWhitespace: this._options.ignoreTrimWhitespace,
+			maxComputationTime: this._options.maxComputationTime,
+			diffAlgorithm: this._options.diffAlgorithm,
+		}).then(result => {
 			if (currentToken === this._diffComputationToken
 				&& currentOriginalModel === this._originalEditor.getModel()
 				&& currentModifiedModel === this._modifiedEditor.getModel()
 			) {
 				this._setState(editorBrowser.DiffEditorState.DiffComputed);
-				this._diffComputationResult = result;
+				this._diffComputationResult = {
+					identical: result.identical,
+					quitEarly: result.quitEarly,
+					changes: result.changes.map(m => {
+						// TODO don't do this translation, but use the diff result directly
+						let originalStartLineNumber: number;
+						let originalEndLineNumber: number;
+						let modifiedStartLineNumber: number;
+						let modifiedEndLineNumber: number;
+						let innerChanges = m.innerChanges;
+
+						if (m.originalRange.isEmpty) {
+							// Insertion
+							originalStartLineNumber = m.originalRange.startLineNumber - 1;
+							originalEndLineNumber = 0;
+							innerChanges = undefined;
+						} else {
+							originalStartLineNumber = m.originalRange.startLineNumber;
+							originalEndLineNumber = m.originalRange.endLineNumberExclusive - 1;
+						}
+
+						if (m.modifiedRange.isEmpty) {
+							// Deletion
+							modifiedStartLineNumber = m.modifiedRange.startLineNumber - 1;
+							modifiedEndLineNumber = 0;
+							innerChanges = undefined;
+						} else {
+							modifiedStartLineNumber = m.modifiedRange.startLineNumber;
+							modifiedEndLineNumber = m.modifiedRange.endLineNumberExclusive - 1;
+						}
+
+						return {
+							originalStartLineNumber,
+							originalEndLineNumber,
+							modifiedStartLineNumber,
+							modifiedEndLineNumber,
+							charChanges: innerChanges?.map(m => ({
+								originalStartLineNumber: m.originalRange.startLineNumber,
+								originalStartColumn: m.originalRange.startColumn,
+								originalEndLineNumber: m.originalRange.endLineNumber,
+								originalEndColumn: m.originalRange.endColumn,
+								modifiedStartLineNumber: m.modifiedRange.startLineNumber,
+								modifiedStartColumn: m.modifiedRange.startColumn,
+								modifiedEndLineNumber: m.modifiedRange.endLineNumber,
+								modifiedEndColumn: m.modifiedRange.endColumn,
+							}))
+						};
+					})
+				};
 				this._updateDecorationsRunner.schedule();
 				this._onDidUpdateDiff.fire();
 			}
@@ -1189,7 +1244,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			result.ariaLabel = options.originalAriaLabel;
 		}
 		result.readOnly = !this._options.originalEditable;
-		result.enableDropIntoEditor = !result.readOnly;
+		result.dropIntoEditor = { enabled: !result.readOnly };
 		result.extraEditorClassName = 'original-in-monaco-diff-editor';
 		return {
 			...result,
@@ -1324,9 +1379,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	private _setStrategy(newStrategy: DiffEditorWidgetStyle): void {
-		if (this._strategy) {
-			this._strategy.dispose();
-		}
+		this._strategy?.dispose();
 
 		this._strategy = newStrategy;
 		newStrategy.applyColors(this._themeService.getColorTheme());
@@ -2657,6 +2710,7 @@ function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaul
 		diffCodeLens: validateBooleanOption(options.diffCodeLens, defaults.diffCodeLens),
 		renderOverviewRuler: validateBooleanOption(options.renderOverviewRuler, defaults.renderOverviewRuler),
 		diffWordWrap: validateDiffWordWrap(options.diffWordWrap, defaults.diffWordWrap),
+		diffAlgorithm: validateStringSetOption(options.diffAlgorithm, defaults.diffAlgorithm, ['smart', 'experimental']),
 	};
 }
 
@@ -2673,6 +2727,7 @@ function changedDiffEditorOptions(a: ValidDiffEditorBaseOptions, b: ValidDiffEdi
 		diffCodeLens: (a.diffCodeLens !== b.diffCodeLens),
 		renderOverviewRuler: (a.renderOverviewRuler !== b.renderOverviewRuler),
 		diffWordWrap: (a.diffWordWrap !== b.diffWordWrap),
+		diffAlgorithm: (a.diffAlgorithm !== b.diffAlgorithm),
 	};
 }
 

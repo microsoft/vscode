@@ -11,8 +11,8 @@ import { DetailedLineRangeMapping } from 'vs/workbench/contrib/mergeEditor/brows
 import { LineRangeEdit } from 'vs/workbench/contrib/mergeEditor/browser/model/editing';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 import { ReentrancyBarrier } from 'vs/workbench/contrib/mergeEditor/browser/utils';
-import { IDiffComputer } from './diffComputer';
-import { IObservable, IReader, ITransaction, observableValue, transaction } from 'vs/base/common/observable';
+import { IMergeDiffComputer } from './diffComputer';
+import { autorun, IObservable, IReader, ITransaction, observableValue, transaction } from 'vs/base/common/observable';
 
 export class TextModelDiffs extends Disposable {
 	private updateCount = 0;
@@ -25,13 +25,19 @@ export class TextModelDiffs extends Disposable {
 	constructor(
 		private readonly baseTextModel: ITextModel,
 		private readonly textModel: ITextModel,
-		private readonly diffComputer: IDiffComputer,
+		private readonly diffComputer: IMergeDiffComputer,
 	) {
 		super();
 
-		this.update(true);
-		this._register(baseTextModel.onDidChangeContent(this.barrier.makeExclusive(() => this.update())));
-		this._register(textModel.onDidChangeContent(this.barrier.makeExclusive(() => this.update())));
+		const counter = observableValue('invalidation counter', 0);
+
+		this._register(autorun('Update diff state', reader => {
+			counter.read(reader);
+			this.update(reader);
+		}));
+
+		this._register(baseTextModel.onDidChangeContent(this.barrier.makeExclusive(() => { counter.set(counter.get() + 1, undefined); })));
+		this._register(textModel.onDidChangeContent(this.barrier.makeExclusive(() => { counter.set(counter.get() + 1, undefined); })));
 		this._register(toDisposable(() => {
 			this.isDisposed = true;
 		}));
@@ -45,41 +51,47 @@ export class TextModelDiffs extends Disposable {
 		return this._diffs;
 	}
 
-	private async update(initializing: boolean = false): Promise<void> {
+	private isInitializing = true;
+
+	private update(reader: IReader): void {
 		this.updateCount++;
 		const currentUpdateCount = this.updateCount;
 
 		if (this._state.get() === TextModelDiffState.initializing) {
-			initializing = true;
+			this.isInitializing = true;
 		}
 
 		transaction(tx => {
 			/** @description Starting Diff Computation. */
 			this._state.set(
-				initializing ? TextModelDiffState.initializing : TextModelDiffState.updating,
+				this.isInitializing ? TextModelDiffState.initializing : TextModelDiffState.updating,
 				tx,
 				TextModelDiffChangeReason.other
 			);
 		});
 
-		const result = await this.diffComputer.computeDiff(this.baseTextModel, this.textModel);
-		if (this.isDisposed) {
-			return;
-		}
+		const result = this.diffComputer.computeDiff(this.baseTextModel, this.textModel, reader);
 
-		if (currentUpdateCount !== this.updateCount) {
-			// There is a newer update call
-			return;
-		}
-
-		transaction(tx => {
-			/** @description Completed Diff Computation */
-			if (result.diffs) {
-				this._state.set(TextModelDiffState.upToDate, tx, TextModelDiffChangeReason.textChange);
-				this._diffs.set(result.diffs, tx, TextModelDiffChangeReason.textChange);
-			} else {
-				this._state.set(TextModelDiffState.error, tx, TextModelDiffChangeReason.textChange);
+		result.then((result) => {
+			if (this.isDisposed) {
+				return;
 			}
+
+			if (currentUpdateCount !== this.updateCount) {
+				// There is a newer update call
+				return;
+			}
+
+			transaction(tx => {
+				/** @description Completed Diff Computation */
+				if (result.diffs) {
+					this._state.set(TextModelDiffState.upToDate, tx, TextModelDiffChangeReason.textChange);
+					this._diffs.set(result.diffs, tx, TextModelDiffChangeReason.textChange);
+				} else {
+					this._state.set(TextModelDiffState.error, tx, TextModelDiffChangeReason.textChange);
+				}
+				this.isInitializing = false;
+			});
 		});
 	}
 

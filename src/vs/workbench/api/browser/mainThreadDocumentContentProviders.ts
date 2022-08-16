@@ -71,9 +71,7 @@ export class MainThreadDocumentContentProviders implements MainThreadDocumentCon
 
 		// cancel and dispose an existing update
 		const pending = this._pendingUpdate.get(model.id);
-		if (pending) {
-			pending.cancel();
-		}
+		pending?.cancel();
 
 		// create and keep update token
 		const myToken = new CancellationTokenSource();

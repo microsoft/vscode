@@ -501,8 +501,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		// Resolve override unless disabled
-		if (options?.override !== EditorResolution.DISABLED) {
-			const resolvedEditor = await this.editorResolverService.resolveEditor(isEditorInput(editor) ? { editor, options } : editor, preferredGroup);
+		if (options?.override !== EditorResolution.DISABLED && !isEditorInput(editor)) {
+			const resolvedEditor = await this.editorResolverService.resolveEditor(editor, preferredGroup);
 
 			if (resolvedEditor === ResolvedStatus.ABORT) {
 				return; // skip editor if override is aborted
@@ -518,7 +518,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Override is disabled or did not apply: fallback to default
 		if (!typedEditor) {
-			typedEditor = isEditorInput(editor) ? editor : this.textEditorService.createTextEditor(editor);
+			typedEditor = isEditorInput(editor) ? editor : await this.textEditorService.resolveTextEditor(editor);
 		}
 
 		// If group still isn't defined because of a disabled override we resolve it
@@ -561,7 +561,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			let group: IEditorGroup | undefined = undefined;
 
 			// Resolve override unless disabled
-			if (editor.options?.override !== EditorResolution.DISABLED) {
+			if (editor.options?.override !== EditorResolution.DISABLED && !isEditorInputWithOptions(editor)) {
 				const resolvedEditor = await this.editorResolverService.resolveEditor(editor, preferredGroup);
 
 				if (resolvedEditor === ResolvedStatus.ABORT) {
@@ -577,7 +577,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 			// Override is disabled or did not apply: fallback to default
 			if (!typedEditor) {
-				typedEditor = isEditorInputWithOptions(editor) ? editor : { editor: this.textEditorService.createTextEditor(editor), options: editor.options };
+				typedEditor = isEditorInputWithOptions(editor) ? editor : { editor: await this.textEditorService.resolveTextEditor(editor), options: editor.options };
 			}
 
 			// If group still isn't defined because of a disabled override we resolve it
@@ -860,9 +860,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			}
 
 			// Resolve override unless disabled
-			if (override !== EditorResolution.DISABLED) {
+			if (override !== EditorResolution.DISABLED && !isEditorInput(replacement.replacement)) {
 				const resolvedEditor = await this.editorResolverService.resolveEditor(
-					isEditorReplacement(replacement) ? { editor: replacement.replacement, options: replacement.options } : replacement.replacement,
+					replacement.replacement,
 					targetGroup
 				);
 
@@ -885,7 +885,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			if (!typedReplacement) {
 				typedReplacement = {
 					editor: replacement.editor,
-					replacement: isEditorReplacement(replacement) ? replacement.replacement : this.textEditorService.createTextEditor(replacement.replacement),
+					replacement: isEditorReplacement(replacement) ? replacement.replacement : await this.textEditorService.resolveTextEditor(replacement.replacement),
 					options: isEditorReplacement(replacement) ? replacement.options : replacement.replacement.options,
 					forceReplaceDirty: replacement.forceReplaceDirty
 				};

@@ -19,7 +19,7 @@ import { OverviewRulerZone } from 'vs/editor/common/viewModel/overviewZoneManage
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorWhitespace, IViewModel } from 'vs/editor/common/viewModel';
 import { InjectedText } from 'vs/editor/common/modelLineProjectionData';
-import { IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/diffComputer';
+import { ILineChange, IDiffComputationResult } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import { IDimension } from 'vs/editor/common/core/dimension';
 
 /**
@@ -899,9 +899,14 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	getWhitespaces(): IEditorWhitespace[];
 
 	/**
-	 * Get the vertical position (top offset) for the line w.r.t. to the first line.
+	 * Get the vertical position (top offset) for the line's top w.r.t. to the first line.
 	 */
 	getTopForLineNumber(lineNumber: number): number;
+
+	/**
+	 * Get the vertical position (top offset) for the line's bottom w.r.t. to the first line.
+	 */
+	getBottomForLineNumber(lineNumber: number): number;
 
 	/**
 	 * Get the vertical position (top offset) for the position w.r.t. to the first line.

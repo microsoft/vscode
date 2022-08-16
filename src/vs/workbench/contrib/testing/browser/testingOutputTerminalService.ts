@@ -113,7 +113,7 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 				icon: testingViewIcon,
 				customPtyImplementation: () => output,
 				name: getTitle(result),
-			}
+			},
 		}), output, result);
 	}
 

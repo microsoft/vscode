@@ -101,7 +101,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 	async uninstall(extension: ILocalExtension, options: ServerUninstallOptions = {}): Promise<void> {
 		this.logService.trace('ExtensionManagementService#uninstall', extension.identifier.id);
-		return this.unininstallExtension(extension, options);
+		return this.uninstallExtension(extension, options);
 	}
 
 	async reinstallFromGallery(extension: ILocalExtension): Promise<void> {
@@ -423,8 +423,8 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		return compatibleExtension;
 	}
 
-	private async unininstallExtension(extension: ILocalExtension, options: ServerUninstallOptions): Promise<void> {
-		const getUninstallExtensionTaskKey = (identifier: IExtensionIdentifier) => `${identifier.id.toLowerCase()}${options.profileLocation ? `@${options.profileLocation.toString()}` : ''}`;
+	private async uninstallExtension(extension: ILocalExtension, options: ServerUninstallOptions): Promise<void> {
+		const getUninstallExtensionTaskKey = (identifier: IExtensionIdentifier) => `${identifier.id.toLowerCase()}${options.versionOnly ? `-${extension.manifest.version}` : ''}${options.profileLocation ? `@${options.profileLocation.toString()}` : ''}`;
 		const uninstallExtensionTask = this.uninstallingExtensions.get(getUninstallExtensionTaskKey(extension.identifier));
 		if (uninstallExtensionTask) {
 			this.logService.info('Extensions is already requested to uninstall', extension.identifier.id);

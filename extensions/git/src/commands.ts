@@ -1558,6 +1558,8 @@ export class CommandCenter {
 			// amend allows changing only the commit message
 			&& !opts.amend
 			&& !opts.empty
+			// rebase not in progress
+			&& repository.rebaseCommit === undefined
 		) {
 			const commitAnyway = localize('commit anyway', "Create Empty Commit");
 			const answer = await window.showInformationMessage(localize('no changes', "There are no changes to commit."), commitAnyway);
@@ -1632,11 +1634,18 @@ export class CommandCenter {
 
 		await repository.commit(message, opts);
 
-		// Execute post commit command
-		if (opts.postCommitCommand?.length) {
-			await commands.executeCommand(
-				opts.postCommitCommand,
-				new ApiRepository(repository));
+		// Execute post-commit command
+		let postCommitCommand = opts.postCommitCommand;
+
+		if (postCommitCommand === undefined) {
+			// Commit WAS NOT initiated using the action button (ex: keybinding, toolbar
+			// action, command palette) so we honour the `git.postCommitCommand` setting.
+			const postCommitCommandSetting = config.get<string>('postCommitCommand');
+			postCommitCommand = postCommitCommandSetting === 'push' || postCommitCommandSetting === 'sync' ? `git.${postCommitCommandSetting}` : '';
+		}
+
+		if (postCommitCommand.length) {
+			await commands.executeCommand(postCommitCommand, new ApiRepository(repository));
 		}
 
 		return true;
@@ -1770,7 +1779,7 @@ export class CommandCenter {
 		const shouldPrompt = config.get<boolean>('confirmEmptyCommits') === true;
 
 		if (shouldPrompt) {
-			const message = localize('confirm emtpy commit', "Are you sure you want to create an empty commit?");
+			const message = localize('confirm empty commit', "Are you sure you want to create an empty commit?");
 			const yes = localize('yes', "Yes");
 			const neverAgain = localize('yes never again', "Yes, Don't Show Again");
 			const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);

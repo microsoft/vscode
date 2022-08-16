@@ -259,6 +259,7 @@
 							"windows-process-tree",
 							"worker_threads",
 							"xterm",
+							"xterm-addon-canvas",
 							"xterm-addon-search",
 							"xterm-addon-serialize",
 							"xterm-addon-unicode11",

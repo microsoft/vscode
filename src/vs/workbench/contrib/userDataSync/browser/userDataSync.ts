@@ -57,10 +57,8 @@ import { IUserDataInitializationService } from 'vs/workbench/services/userData/b
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ctxIsMergeEditor, ctxMergeBaseUri } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
-import { EditorResolution } from 'vs/platform/editor/common/editor';
 
 const CONTEXT_CONFLICTS_SOURCES = new RawContextKey<string>('conflictsSources', '');
 
@@ -730,14 +728,12 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		for (const conflict of conflicts) {
 			const remoteResourceName = localize({ key: 'remoteResourceName', comment: ['remote as in file in cloud'] }, "{0} (Remote)", basename(conflict.remoteResource));
 			const localResourceName = localize('localResourceName', "{0} (Local)", basename(conflict.remoteResource));
-			const input = this.instantiationService.createInstance(
-				MergeEditorInput,
-				conflict.baseResource,
-				{ title: localize('Yours', 'Yours'), description: localResourceName, detail: undefined, uri: conflict.localResource },
-				{ title: localize('Theirs', 'Theirs'), description: remoteResourceName, detail: undefined, uri: conflict.remoteResource },
-				conflict.previewResource,
-			);
-			await this.editorService.openEditor(input, { override: EditorResolution.DISABLED });
+			await this.editorService.openEditor({
+				input1: { resource: conflict.remoteResource, label: localize('Theirs', 'Theirs'), description: remoteResourceName },
+				input2: { resource: conflict.localResource, label: localize('Yours', 'Yours'), description: localResourceName },
+				base: { resource: conflict.baseResource },
+				result: { resource: conflict.previewResource }
+			});
 		}
 	}
 

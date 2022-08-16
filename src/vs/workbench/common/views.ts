@@ -28,6 +28,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { VSDataTransfer } from 'vs/base/common/dataTransfer';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 
 export const defaultViewIcon = registerIcon('default-view-icon', Codicon.window, localize('defaultViewIcon', 'Default view icon.'));
 
@@ -54,7 +55,7 @@ export function ViewContainerLocationToString(viewContainerLocation: ViewContain
 
 type OpenCommandActionDescriptor = {
 	readonly id: string;
-	readonly title?: string;
+	readonly title?: ILocalizedString | string;
 	readonly mnemonicTitle?: string;
 	readonly order?: number;
 	readonly keybindings?: IKeybindings & { when?: ContextKeyExpression };
@@ -74,7 +75,7 @@ export interface IViewContainerDescriptor {
 	/**
 	 * The title of the view container
 	 */
-	readonly title: string;
+	readonly title: ILocalizedString | string;
 
 	/**
 	 * Icon representation of the View container
@@ -95,7 +96,7 @@ export interface IViewContainerDescriptor {
 	 * Descriptor for open view container command
 	 * If not provided, view container info (id, title) is used.
 	 *
-	 * Note: To prevent registering open command, use `donotRegisterOpenCommand` flag while registering the view container
+	 * Note: To prevent registering open command, use `doNotRegisterOpenCommand` flag while registering the view container
 	 */
 	readonly openCommandActionDescriptor?: OpenCommandActionDescriptor;
 
@@ -149,7 +150,7 @@ export interface IViewContainersRegistry {
 	 *
 	 * @returns the registered ViewContainer.
 	 */
-	registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, location: ViewContainerLocation, options?: { isDefault?: boolean; donotRegisterOpenCommand?: boolean }): ViewContainer;
+	registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, location: ViewContainerLocation, options?: { isDefault?: boolean; doNotRegisterOpenCommand?: boolean }): ViewContainer;
 
 	/**
 	 * Deregisters the given view container
@@ -206,14 +207,14 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 		return flatten([...this.viewContainers.values()]);
 	}
 
-	registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, viewContainerLocation: ViewContainerLocation, options?: { isDefault?: boolean; donotRegisterOpenCommand?: boolean }): ViewContainer {
+	registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, viewContainerLocation: ViewContainerLocation, options?: { isDefault?: boolean; doNotRegisterOpenCommand?: boolean }): ViewContainer {
 		const existing = this.get(viewContainerDescriptor.id);
 		if (existing) {
 			return existing;
 		}
 
 		const viewContainer: RelaxedViewContainer = viewContainerDescriptor;
-		viewContainer.openCommandActionDescriptor = options?.donotRegisterOpenCommand ? undefined : (viewContainer.openCommandActionDescriptor ?? { id: viewContainer.id });
+		viewContainer.openCommandActionDescriptor = options?.doNotRegisterOpenCommand ? undefined : (viewContainer.openCommandActionDescriptor ?? { id: viewContainer.id });
 		const viewContainers = getOrSet(this.viewContainers, viewContainerLocation, []);
 		viewContainers.push(viewContainer);
 		if (options?.isDefault) {
@@ -709,6 +710,11 @@ export interface ITreeViewDescriptor extends IViewDescriptor {
 	treeView: ITreeView;
 }
 
+export type TreeViewPaneHandleArg = {
+	$treeViewId: string;
+	$selectedTreeItems: boolean;
+};
+
 export type TreeViewItemHandleArg = {
 	$treeViewId: string;
 	$treeItemHandle: string;
@@ -729,6 +735,8 @@ export interface ITreeItemLabel {
 	strikethrough?: boolean;
 
 }
+
+export type TreeCommand = Command & { originalId?: string };
 
 export interface ITreeItem {
 
@@ -754,7 +762,7 @@ export interface ITreeItem {
 
 	contextValue?: string;
 
-	command?: Command;
+	command?: TreeCommand;
 
 	children?: ITreeItem[];
 
@@ -773,7 +781,7 @@ export class ResolvableTreeItem implements ITreeItem {
 	resourceUri?: UriComponents;
 	tooltip?: string | IMarkdownString;
 	contextValue?: string;
-	command?: Command;
+	command?: Command & { originalId?: string };
 	children?: ITreeItem[];
 	accessibilityInformation?: IAccessibilityInformation;
 	resolve: (token: CancellationToken) => Promise<void>;

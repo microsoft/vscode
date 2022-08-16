@@ -37,6 +37,11 @@ if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 	builtin return
 fi
 
+# Send the IsWindows property if the environment looks like Windows
+if [[ "$(uname -s)" =~ ^CYGWIN*|MINGW*|MSYS* ]]; then
+	builtin printf "\x1b]633;P;IsWindows=True\x07"
+fi
+
 __vsc_initialized=0
 __vsc_original_PS1="$PS1"
 __vsc_original_PS2="$PS2"
@@ -59,7 +64,7 @@ __vsc_update_cwd() {
 
 __vsc_command_output_start() {
 	builtin printf "\033]633;C\007"
-	builtin printf "\033]633;E;$__vsc_current_command\007"
+	builtin printf "\033]633;E;%s\007" "$__vsc_current_command"
 }
 
 __vsc_continuation_start() {
@@ -124,7 +129,16 @@ if [[ -n "${bash_preexec_imported:-}" ]]; then
 	precmd_functions+=(__vsc_prompt_cmd)
 	preexec_functions+=(__vsc_preexec_only)
 else
-	__vsc_dbg_trap="$(trap -p DEBUG | cut -d' ' -f3 | tr -d \')"
+	__vsc_dbg_trap="$(trap -p DEBUG)"
+	if [[ "$__vsc_dbg_trap" =~ .*\[\[.* ]]; then
+		#HACK - is there a better way to do this?
+		__vsc_dbg_trap=${__vsc_dbg_trap#'trap -- '*}
+		__vsc_dbg_trap=${__vsc_dbg_trap%' DEBUG'}
+		__vsc_dbg_trap=${__vsc_dbg_trap#"'"*}
+		__vsc_dbg_trap=${__vsc_dbg_trap%"'"}
+	else
+		__vsc_dbg_trap="$(trap -p DEBUG | cut -d' ' -f3 | tr -d \')"
+	fi
 	if [[ -z "$__vsc_dbg_trap" ]]; then
 		__vsc_preexec_only() {
 			if [ "$__vsc_in_command_execution" = "0" ]; then
@@ -147,6 +161,10 @@ fi
 
 __vsc_update_prompt
 
+__vsc_restore_exit_code() {
+	return $1
+}
+
 __vsc_prompt_cmd_original() {
 	__vsc_status="$?"
 	# Evaluate the original PROMPT_COMMAND similarly to how bash would normally
@@ -157,6 +175,7 @@ __vsc_prompt_cmd_original() {
 			eval "${cmd:-}"
 		done
 	else
+		__vsc_restore_exit_code "${__vsc_status}"
 		eval "${__vsc_original_prompt_command:-}"
 	fi
 	__vsc_precmd

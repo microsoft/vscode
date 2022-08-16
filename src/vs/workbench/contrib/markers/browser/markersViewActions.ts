@@ -284,15 +284,11 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 	}
 
 	override focus(): void {
-		if (this.filterInputBox) {
-			this.filterInputBox.focus();
-		}
+		this.filterInputBox?.focus();
 	}
 
 	override blur(): void {
-		if (this.filterInputBox) {
-			this.filterInputBox.blur();
-		}
+		this.filterInputBox?.blur();
 	}
 
 	override setFocusable(): void {
@@ -502,7 +498,7 @@ export class QuickFixActionViewItem extends ActionViewItem {
 			return;
 		}
 		const elementPosition = DOM.getDomNodePagePosition(this.element);
-		const quickFixes = (<QuickFixAction>this.getAction()).quickFixes;
+		const quickFixes = (<QuickFixAction>this.action).quickFixes;
 		if (quickFixes.length) {
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => ({ x: elementPosition.left + 10, y: elementPosition.top + elementPosition.height + 4 }),

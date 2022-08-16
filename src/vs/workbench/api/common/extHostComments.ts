@@ -620,9 +620,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		$deleteCommentThread(threadHandle: number): void {
 			const thread = this._threads.get(threadHandle);
 
-			if (thread) {
-				thread.dispose();
-			}
+			thread?.dispose();
 
 			this._threads.delete(threadHandle);
 		}

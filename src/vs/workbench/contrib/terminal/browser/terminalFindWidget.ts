@@ -87,9 +87,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		super.hide();
 		this._findWidgetVisible.reset();
 		const instance = this._terminalService.activeInstance;
-		if (instance) {
-			instance.focus();
-		}
+		instance?.focus();
 		// Terminals in a group currently share a find widget, so hide
 		// all decorations for terminals in this group
 		const activeGroup = this._terminalGroupService.activeGroup;

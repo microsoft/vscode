@@ -137,9 +137,7 @@ export class TerminalEditor extends EditorPane {
 				// Drop selection and focus terminal on Linux to enable middle button paste when click
 				// occurs on the selection itself.
 				const terminal = this._terminalEditorService.activeInstance;
-				if (terminal) {
-					terminal.focus();
-				}
+				terminal?.focus();
 			} else if (event.which === 3) {
 				const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
 				if (rightClickBehavior === 'nothing') {

@@ -259,9 +259,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 	override dispose(): void {
 		super.dispose();
 
-		if (this.$el) {
-			this.$el.remove();
-		}
+		this.$el?.remove();
 		if (this.disposeOnUpdate) {
 			dispose(this.disposeOnUpdate);
 		}

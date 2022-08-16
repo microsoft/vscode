@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
-import { IListEvent, IListRenderer } from 'vs/base/browser/ui/list/list';
+import { IListEvent, IListMouseEvent, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { canceled } from 'vs/base/common/errors';
@@ -30,6 +30,9 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
+import 'vs/editor/contrib/symbolIcons/browser/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
+import { Codicon } from 'vs/base/common/codicons';
 
 export const Context = {
 	Visible: new RawContextKey<boolean>('CodeActionMenuVisible', false, localize('CodeActionMenuVisible', "Whether the code action list widget is visible"))
@@ -63,12 +66,12 @@ export interface CodeActionShowOptions {
 	readonly fromLightbulb?: boolean;
 }
 export interface ICodeActionMenuItem {
-	title: string;
-	detail: string;
 	action: IAction;
-	decoratorRight?: string;
-	isSeparator?: boolean;
+	isSeparator: boolean;
 	isEnabled: boolean;
+	isDocumentation: boolean;
+	isHeader: boolean;
+	headerTitle: string;
 	index: number;
 	disposables?: IDisposable[];
 }
@@ -87,12 +90,20 @@ export interface ICodeActionMenuTemplateData {
 	detail: HTMLElement;
 	decoratorRight: HTMLElement;
 	disposables: IDisposable[];
+	icon: HTMLElement;
 }
 
 const TEMPLATE_ID = 'codeActionWidget';
-const codeActionLineHeight = 27;
+const codeActionLineHeight = 24;
+const headerLineHeight = 26;
 
 class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeActionMenuTemplateData> {
+
+	constructor(
+		private readonly acceptKeybindings: [string, string],
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+	) { }
+
 	get templateId(): string { return TEMPLATE_ID; }
 
 	renderTemplate(container: HTMLElement): ICodeActionMenuTemplateData {
@@ -100,36 +111,88 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 		data.disposables = [];
 		data.root = container;
 		data.text = document.createElement('span');
-		// data.detail = document.createElement('');
+
+		const iconContainer = document.createElement('div');
+		iconContainer.className = 'icon-container';
+
+		data.icon = document.createElement('div');
+
+		iconContainer.append(data.icon);
+		container.append(iconContainer);
 		container.append(data.text);
-		// container.append(data.detail);
 
 		return data;
 	}
 	renderElement(element: ICodeActionMenuItem, index: number, templateData: ICodeActionMenuTemplateData): void {
 		const data: ICodeActionMenuTemplateData = templateData;
 
-		const text = element.title;
-		// const detail = element.detail;
-
-		const isEnabled = element.isEnabled;
 		const isSeparator = element.isSeparator;
-
-		data.text.textContent = text;
-		// data.detail.textContent = detail;
-
-		if (!isEnabled) {
-			data.root.classList.add('option-disabled');
-			data.root.style.backgroundColor = 'transparent !important';
-		} else {
-			data.root.classList.remove('option-disabled');
-		}
+		const isHeader = element.isHeader;
 
 		if (isSeparator) {
 			data.root.classList.add('separator');
 			data.root.style.height = '10px';
+		} else if (isHeader) {
+			const text = element.headerTitle;
+			data.text.textContent = text;
+			element.isEnabled = false;
+			data.root.classList.add('group-header');
+		} else {
+			const text = element.action.label;
+			data.text.textContent = text;
+			element.isEnabled = element.action.enabled;
+
+			if (element.action instanceof CodeActionAction) {
+
+				// Check documentation type
+				element.isDocumentation = element.action.action.kind === CodeActionMenu.documentationID;
+
+				if (element.isDocumentation) {
+					data.text.textContent = text;
+					data.root.classList.add('documentation');
+				} else {
+					// Icons and Label modifaction based on group
+					const group = element.action.action.kind;
+
+					if (CodeActionKind.SurroundWith.contains(new CodeActionKind(String(group)))) {
+						data.icon.className = Codicon.symbolArray.classNames;
+					} else if (CodeActionKind.Extract.contains(new CodeActionKind(String(group)))) {
+						data.icon.className = Codicon.wrench.classNames;
+					} else if (CodeActionKind.Convert.contains(new CodeActionKind(String(group)))) {
+						data.icon.className = Codicon.zap.classNames;
+						data.icon.style.color = `var(--vscode-editorLightBulbAutoFix-foreground)`;
+					} else if (CodeActionKind.QuickFix.contains(new CodeActionKind(String(group)))) {
+						data.icon.className = Codicon.lightBulb.classNames;
+						data.icon.style.color = `var(--vscode-editorLightBulb-foreground)`;
+					} else {
+						data.icon.className = Codicon.lightBulb.classNames;
+						data.icon.style.color = `var(--vscode-editorLightBulb-foreground)`;
+					}
+
+					// Check if action has disabled reason
+					if (element.action.action.disabled) {
+						data.root.title = element.action.action.disabled;
+					} else {
+						const updateLabel = () => {
+							const [accept, preview] = this.acceptKeybindings;
+
+							data.root.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", this.keybindingService.lookupKeybinding(accept)?.getLabel(), this.keybindingService.lookupKeybinding(preview)?.getLabel());
+
+						};
+						updateLabel();
+					}
+				}
+			}
+
 		}
 
+		if (!element.isEnabled) {
+			data.root.classList.add('option-disabled');
+			data.root.style.backgroundColor = 'transparent !important';
+			data.icon.style.opacity = '0.4';
+		} else {
+			data.root.classList.remove('option-disabled');
+		}
 	}
 	disposeTemplate(templateData: ICodeActionMenuTemplateData): void {
 		templateData.disposables = dispose(templateData.disposables);
@@ -144,8 +207,12 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	private _ctxMenuWidgetVisible: IContextKey<boolean>;
 	private viewItems: ICodeActionMenuItem[] = [];
 	private focusedEnabledItem: number | undefined;
-	private currSelectedItem: number = 0;
-	private hasSeperator: boolean = false;
+	private currSelectedItem: number | undefined;
+	private hasSeparator: boolean = false;
+	private block?: HTMLElement;
+	private pointerBlock?: HTMLElement;
+
+	public static readonly documentationID: string = '_documentation';
 
 	public static readonly ID: string = 'editor.contrib.codeActionMenu';
 
@@ -154,7 +221,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	}
 
 	private readonly _keybindingResolver: CodeActionKeybindingResolver;
-	private listRenderer: CodeMenuRenderer = new CodeMenuRenderer();
+	private listRenderer: CodeMenuRenderer;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -175,6 +242,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		});
 
 		this._ctxMenuWidgetVisible = Context.Visible.bindTo(this._contextKeyService);
+		this.listRenderer = new CodeMenuRenderer([`onEnterSelectCodeAction`, `onEnterSelectCodeActionWithPreview`], keybindingService);
 	}
 
 	get isVisible(): boolean {
@@ -192,16 +260,54 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 			e.elements.forEach(element => {
 				if (element.isEnabled) {
 					element.action.run();
+					this.hideCodeActionWidget();
 				}
 			});
-			this.hideCodeActionWidget();
 		}
 	}
 
+	private _onListHover(e: IListMouseEvent<ICodeActionMenuItem>): void {
+		if (!e.element) {
+			this.currSelectedItem = undefined;
+			this.codeActionList.value?.setFocus([]);
+		} else {
+			if (e.element?.isEnabled) {
+				this.codeActionList.value?.setFocus([e.element.index]);
+				this.focusedEnabledItem = this.viewItems.indexOf(e.element);
+				this.currSelectedItem = e.element.index;
+			} else {
+				this.currSelectedItem = undefined;
+				this.codeActionList.value?.setFocus([e.element.index]);
+			}
+		}
+	}
+
+	private _onListClick(e: IListMouseEvent<ICodeActionMenuItem>): void {
+		if (e.element) {
+			if (!e.element.isEnabled) {
+				this.currSelectedItem = undefined;
+				this.codeActionList.value?.setFocus([]);
+			}
+		}
+	}
 
 	private renderCodeActionMenuList(element: HTMLElement, inputArray: IAction[]): IDisposable {
 		const renderDisposables = new DisposableStore();
 		const renderMenu = document.createElement('div');
+
+		// Render invisible div to block mouse interaction in the rest of the UI
+		const menuBlock = document.createElement('div');
+		this.block = element.appendChild(menuBlock);
+		this.block.classList.add('context-view-block');
+		this.block.style.position = 'fixed';
+		this.block.style.cursor = 'initial';
+		this.block.style.left = '0';
+		this.block.style.top = '0';
+		this.block.style.width = '100%';
+		this.block.style.height = '100%';
+		this.block.style.zIndex = '-1';
+
+		renderDisposables.add(dom.addDisposableListener(this.block, dom.EventType.MOUSE_DOWN, e => e.stopPropagation()));
 
 		renderMenu.id = 'codeActionMenuWidget';
 		renderMenu.classList.add('codeActionMenuWidget');
@@ -212,36 +318,146 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 			getHeight(element) {
 				if (element.isSeparator) {
 					return 10;
+				} else if (element.isHeader) {
+					return headerLineHeight;
 				}
 				return codeActionLineHeight;
 			},
 			getTemplateId(element) {
 				return 'codeActionWidget';
 			}
-		}, [this.listRenderer], { keyboardSupport: false }
+		}, [this.listRenderer],
+			{
+				keyboardSupport: false,
+
+			}
 		);
 
+		const pointerBlockDiv = document.createElement('div');
+		this.pointerBlock = element.appendChild(pointerBlockDiv);
+		this.pointerBlock.classList.add('context-view-pointerBlock');
+		this.pointerBlock.style.position = 'fixed';
+		this.pointerBlock.style.cursor = 'initial';
+		this.pointerBlock.style.left = '0';
+		this.pointerBlock.style.top = '0';
+		this.pointerBlock.style.width = '100%';
+		this.pointerBlock.style.height = '100%';
+		this.pointerBlock.style.zIndex = '2';
+
+		// Removes block on click INSIDE widget or ANY mouse movement
+		renderDisposables.add(dom.addDisposableListener(this.pointerBlock, dom.EventType.POINTER_MOVE, () => this.pointerBlock?.remove()));
+		renderDisposables.add(dom.addDisposableListener(this.pointerBlock, dom.EventType.MOUSE_DOWN, () => this.pointerBlock?.remove()));
+
+		renderDisposables.add(this.codeActionList.value.onMouseClick(e => this._onListClick(e)));
+		renderDisposables.add(this.codeActionList.value.onMouseOver(e => this._onListHover(e)));
+		renderDisposables.add(this.codeActionList.value.onDidChangeFocus(e => this.codeActionList.value?.domFocus()));
 		renderDisposables.add(this.codeActionList.value.onDidChangeSelection(e => this._onListSelection(e)));
+		renderDisposables.add(this._editor.onDidLayoutChange(e => this.hideCodeActionWidget()));
+
+		// Filters and groups code actions by their group
+		const menuEntries: IAction[][] = [];
+
+		// Code Action Groups
+		const quickfixGroup: IAction[] = [];
+		const extractGroup: IAction[] = [];
+		const convertGroup: IAction[] = [];
+		const surroundGroup: IAction[] = [];
+		const sourceGroup: IAction[] = [];
+		const separatorGroup: IAction[] = [];
+		const documentationGroup: IAction[] = [];
+		const otherGroup: IAction[] = [];
+
+		inputArray.forEach((item, index) => {
+			if (item instanceof CodeActionAction) {
+				const optionKind = item.action.kind;
+
+				if (CodeActionKind.SurroundWith.contains(new CodeActionKind(String(optionKind)))) {
+					surroundGroup.push(item);
+				} else if (CodeActionKind.QuickFix.contains(new CodeActionKind(String(optionKind)))) {
+					quickfixGroup.push(item);
+				} else if (CodeActionKind.Extract.contains(new CodeActionKind(String(optionKind)))) {
+					extractGroup.push(item);
+				} else if (CodeActionKind.Convert.contains(new CodeActionKind(String(optionKind)))) {
+					convertGroup.push(item);
+				} else if (CodeActionKind.Source.contains(new CodeActionKind(String(optionKind)))) {
+					sourceGroup.push(item);
+				} else if (optionKind === CodeActionMenu.documentationID) {
+					documentationGroup.push(item);
+				} else {
+					// Pushes all the other actions to the "Other" group
+					otherGroup.push(item);
+				}
+
+			} else if (item.id === `vs.actions.separator`) {
+				separatorGroup.push(item);
+			}
+		});
+
+		menuEntries.push(quickfixGroup, extractGroup, convertGroup, surroundGroup, sourceGroup, otherGroup, separatorGroup, documentationGroup);
+
+		const menuEntriesToPush = (menuID: string, entry: IAction[]) => {
+			totalActionEntries.push(menuID);
+			totalActionEntries.push(...entry);
+			numHeaders++;
+		};
+		// Creates flat list of all menu entries with headers as separators
+		let numHeaders = 0;
+		const totalActionEntries: (IAction | string)[] = [];
+		menuEntries.forEach(entry => {
+			if (entry.length > 0 && entry[0] instanceof CodeActionAction) {
+				const firstAction = entry[0].action.kind;
+				if (CodeActionKind.SurroundWith.contains(new CodeActionKind(String(firstAction)))) {
+					menuEntriesToPush(localize('codeAction.widget.id.surround', 'Surround With...'), entry);
+				} else if (CodeActionKind.QuickFix.contains(new CodeActionKind(String(firstAction)))) {
+					menuEntriesToPush(localize('codeAction.widget.id.quickfix', 'Quick Fix...'), entry);
+				} else if (CodeActionKind.Extract.contains(new CodeActionKind(String(firstAction)))) {
+					menuEntriesToPush(localize('codeAction.widget.id.extract', 'Extract...'), entry);
+				} else if (CodeActionKind.Convert.contains(new CodeActionKind(String(firstAction)))) {
+					menuEntriesToPush(localize('codeAction.widget.id.convert', 'Convert...'), entry);
+				} else if (CodeActionKind.Source.contains(new CodeActionKind(String(firstAction)))) {
+					menuEntriesToPush(localize('codeAction.widget.id.source', 'Source Action...'), entry);
+
+				} else if (firstAction === CodeActionMenu.documentationID) {
+					totalActionEntries.push(...entry);
+				} else {
+					// Takes and flattens all the `other` actions
+					menuEntriesToPush(localize('codeAction.widget.id.more', 'More Actions...'), entry);
+				}
+			} else {
+				// case for separator - not a code action action
+				totalActionEntries.push(...entry);
+			}
+
+		});
 
 		// Populating the list widget and tracking enabled options.
-		inputArray.forEach((item, index) => {
-			const currIsSeparator = item.class === 'separator';
-			if (currIsSeparator) {
-				// set to true forever
-				this.hasSeperator = true;
+		totalActionEntries.forEach((item, index) => {
+			if (typeof item === `string`) {
+				const menuItem = <ICodeActionMenuItem>{ isEnabled: false, isSeparator: false, index, isHeader: true, headerTitle: item };
+				this.options.push(menuItem);
+			} else {
+				const currIsSeparator = item.class === 'separator';
+
+				if (currIsSeparator) {
+					// set to true forever because there is a separator
+					this.hasSeparator = true;
+				}
+
+				const menuItem = <ICodeActionMenuItem>{ action: item, isEnabled: item.enabled, isSeparator: currIsSeparator, index };
+				if (item.enabled) {
+					this.viewItems.push(menuItem);
+				}
+				this.options.push(menuItem);
 			}
-			const menuItem = <ICodeActionMenuItem>{ title: item.label, detail: item.tooltip, action: inputArray[index], isEnabled: item.enabled, isSeparator: currIsSeparator, index };
-			if (item.enabled) {
-				this.viewItems.push(menuItem);
-			}
-			this.options.push(menuItem);
 		});
 
 		this.codeActionList.value.splice(0, this.codeActionList.value.length, this.options);
 
-		const height = this.hasSeperator ? (inputArray.length - 1) * codeActionLineHeight + 10 : inputArray.length * codeActionLineHeight;
-		renderMenu.style.height = String(height) + 'px';
-		this.codeActionList.value.layout(height);
+		// Updating list height, depending on how many separators and headers there are.
+		const height = this.hasSeparator ? (totalActionEntries.length - 1) * codeActionLineHeight + 10 : totalActionEntries.length * codeActionLineHeight;
+		const heightWithHeaders = height + numHeaders * headerLineHeight - numHeaders * codeActionLineHeight;
+		renderMenu.style.height = String(heightWithHeaders) + 'px';
+		this.codeActionList.value.layout(heightWithHeaders);
 
 		// For finding width dynamically (not using resize observer)
 		const arr: number[] = [];
@@ -256,21 +472,24 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		// resize observer - can be used in the future since list widget supports dynamic height but not width
 		const maxWidth = Math.max(...arr);
 
-		// 40 is the additional padding for the list widget (20 left, 20 right)
-		renderMenu.style.width = maxWidth + 40 + 'px';
-		this.codeActionList.value?.layout(height, maxWidth);
+		// 52 is the additional padding for the list widget (26 left, 26 right)
+		renderMenu.style.width = maxWidth + 52 + 5 + 'px';
+		this.codeActionList.value?.layout(heightWithHeaders, maxWidth);
 
 		// List selection
-		this.focusedEnabledItem = 0;
-		this.currSelectedItem = this.viewItems[0].index;
-		this.codeActionList.value.setFocus([this.currSelectedItem]);
+		if (this.viewItems.length < 1 || this.viewItems.every(item => item.isDocumentation)) {
+			this.currSelectedItem = undefined;
+		} else {
+			this.focusedEnabledItem = 0;
+			this.currSelectedItem = this.viewItems[0].index;
+			this.codeActionList.value.setFocus([this.currSelectedItem]);
+		}
 
 		// List Focus
 		this.codeActionList.value.domFocus();
 		const focusTracker = dom.trackFocus(element);
 		const blurListener = focusTracker.onDidBlur(() => {
 			this.hideCodeActionWidget();
-			// this._contextViewService.hideContextView({ source: this });
 		});
 		renderDisposables.add(blurListener);
 		renderDisposables.add(focusTracker);
@@ -282,7 +501,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	protected focusPrevious() {
 		if (typeof this.focusedEnabledItem === 'undefined') {
 			this.focusedEnabledItem = this.viewItems[0].index;
-		} else if (this.viewItems.length <= 1) {
+		} else if (this.viewItems.length < 1) {
 			return false;
 		}
 
@@ -305,7 +524,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	protected focusNext() {
 		if (typeof this.focusedEnabledItem === 'undefined') {
 			this.focusedEnabledItem = this.viewItems.length - 1;
-		} else if (this.viewItems.length <= 1) {
+		} else if (this.viewItems.length < 1) {
 			return false;
 		}
 
@@ -331,7 +550,9 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	}
 
 	public onEnterSet() {
-		this.codeActionList.value?.setSelection([this.currSelectedItem]);
+		if (typeof this.currSelectedItem === 'number') {
+			this.codeActionList.value?.setSelection([this.currSelectedItem]);
+		}
 	}
 
 	override dispose() {
@@ -343,8 +564,8 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		this.options = [];
 		this.viewItems = [];
 		this.focusedEnabledItem = 0;
-		this.currSelectedItem = 0;
-		this.hasSeperator = false;
+		this.currSelectedItem = undefined;
+		this.hasSeparator = false;
 		this._contextViewService.hideContextView({ source: this });
 	}
 
@@ -377,6 +598,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 			return;
 		}
 		const actionsToShow = options.includeDisabledActions ? codeActions.allActions : codeActions.validActions;
+
 		if (!actionsToShow.length) {
 			this._visible = false;
 			return;
@@ -453,6 +675,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 			result.push(new Separator(), ...allDocumentation.map(command => toCodeActionAction(new CodeActionItem({
 				title: command.title,
 				command: command,
+				kind: CodeActionMenu.documentationID
 			}, undefined))));
 		}
 

@@ -38,7 +38,7 @@ const previewStrings = {
 
 export interface MarkdownContentProviderOutput {
 	html: string;
-	containingImages: { src: string }[];
+	containingImages: Set<string>;
 }
 
 
@@ -88,7 +88,7 @@ export class MdDocumentRenderer {
 
 		const body = await this.renderBody(markdownDocument, resourceProvider);
 		if (token.isCancellationRequested) {
-			return { html: '', containingImages: [] };
+			return { html: '', containingImages: new Set() };
 		}
 
 		const html = `<!DOCTYPE html>

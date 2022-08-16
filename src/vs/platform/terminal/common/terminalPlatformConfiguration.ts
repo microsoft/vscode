@@ -138,7 +138,7 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.AutomationProfileLinux]: {
 			restricted: true,
-			markdownDescription: localize('terminal.integrated.automationProfile.linux', "The terminal profile to use on Linux for automation-related terminal usage like tasks and debug. This setting will currently be ignored if {0} is set.", '`#terminal.integrated.automationShell.linux#`'),
+			markdownDescription: localize('terminal.integrated.automationProfile.linux', "The terminal profile to use on Linux for automation-related terminal usage like tasks and debug. This setting will currently be ignored if {0} (now deprecated) is set.", '`terminal.integrated.automationShell.linux`'),
 			type: ['object', 'null'],
 			default: null,
 			'anyOf': [
@@ -156,7 +156,7 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.AutomationProfileMacOs]: {
 			restricted: true,
-			markdownDescription: localize('terminal.integrated.automationProfile.osx', "The terminal profile to use on macOS for automation-related terminal usage like tasks and debug. This setting will currently be ignored if {0} is set.", '`#terminal.integrated.automationShell.osx#`'),
+			markdownDescription: localize('terminal.integrated.automationProfile.osx', "The terminal profile to use on macOS for automation-related terminal usage like tasks and debug. This setting will currently be ignored if {0} (now deprecated) is set.", '`terminal.integrated.automationShell.osx`'),
 			type: ['object', 'null'],
 			default: null,
 			'anyOf': [
@@ -174,7 +174,7 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.AutomationProfileWindows]: {
 			restricted: true,
-			markdownDescription: localize('terminal.integrated.automationProfile.windows', "The terminal profile to use for automation-related terminal usage like tasks and debug. This setting will currently be ignored if {0} is set.", '`#terminal.integrated.automationShell.windows#`'),
+			markdownDescription: localize('terminal.integrated.automationProfile.windows', "The terminal profile to use for automation-related terminal usage like tasks and debug. This setting will currently be ignored if {0} (now deprecated) is set.", '`terminal.integrated.automationShell.windows`'),
 			type: ['object', 'null'],
 			default: null,
 			'anyOf': [

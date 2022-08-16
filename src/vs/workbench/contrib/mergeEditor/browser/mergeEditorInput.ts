@@ -13,14 +13,15 @@ import { ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialog
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { EditorInputCapabilities, IEditorIdentifier, IResourceMergeEditorInput, isResourceMergeEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, IEditorIdentifier, IResourceMergeEditorInput, isResourceMergeEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput, IEditorCloseHandler } from 'vs/workbench/common/editor/editorInput';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { EditorWorkerServiceDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
+import { MergeDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ILanguageSupport, ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { autorun } from 'vs/base/common/observable';
+import { WorkerBasedDocumentDiffProvider } from 'vs/editor/browser/widget/workerBasedDocumentDiffProvider';
 
 export class MergeEditorInputData {
 	constructor(
@@ -84,6 +85,10 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 		return MergeEditorInput.ID;
 	}
 
+	override get editorId(): string {
+		return DEFAULT_EDITOR_ASSOCIATION.id;
+	}
+
 	override get capabilities(): EditorInputCapabilities {
 		return super.capabilities | EditorInputCapabilities.MultipleEditors;
 	}
@@ -113,7 +118,7 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 				this.input2.detail,
 				this.input2.description,
 				result.object.textEditorModel,
-				this._instaService.createInstance(EditorWorkerServiceDiffComputer),
+				this._instaService.createInstance(MergeDiffComputer, this._instaService.createInstance(WorkerBasedDocumentDiffProvider)),
 				{
 					resetUnknownOnInitialization: true
 				},
@@ -140,8 +145,8 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 
 	override toUntyped(): IResourceMergeEditorInput {
 		return {
-			input1: { resource: this.input1.uri, label: this.input1.title, description: this.input1.description },
-			input2: { resource: this.input2.uri, label: this.input2.title, description: this.input2.description },
+			input1: { resource: this.input1.uri, label: this.input1.title, description: this.input1.description, detail: this.input1.detail },
+			input2: { resource: this.input2.uri, label: this.input2.title, description: this.input2.description, detail: this.input2.detail },
 			base: { resource: this.base },
 			result: { resource: this.result },
 			options: {
@@ -254,7 +259,7 @@ class MergeEditorCloseHandler implements IEditorCloseHandler {
 		} else if (choice === 1) {
 			// discard: undo all changes and save original (pre-merge) state
 			for (const input of handler) {
-				input._discardMergeChanges();
+				input._model.discardMergeChanges();
 			}
 			return ConfirmResult.SAVE;
 
@@ -262,17 +267,5 @@ class MergeEditorCloseHandler implements IEditorCloseHandler {
 			// don't save
 			return ConfirmResult.DONT_SAVE;
 		}
-	}
-
-	private _discardMergeChanges(): void {
-		const chunks: string[] = [];
-		while (true) {
-			const chunk = this._model.resultSnapshot.read();
-			if (chunk === null) {
-				break;
-			}
-			chunks.push(chunk);
-		}
-		this._model.result.setValue(chunks.join());
 	}
 }

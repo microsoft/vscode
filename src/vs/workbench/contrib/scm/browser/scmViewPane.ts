@@ -56,7 +56,7 @@ import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEdito
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/contextmenu';
 import * as platform from 'vs/base/common/platform';
 import { compare, format } from 'vs/base/common/strings';
-import { inputPlaceholderForeground, inputValidationInfoBorder, inputValidationWarningBorder, inputValidationErrorBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationErrorBackground, inputValidationErrorForeground, inputBackground, inputForeground, inputBorder, focusBorder, registerColor, contrastBorder, editorSelectionBackground, selectionBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { inputPlaceholderForeground, inputValidationInfoBorder, inputValidationWarningBorder, inputValidationErrorBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationErrorBackground, inputValidationErrorForeground, inputBackground, inputForeground, inputBorder, focusBorder, registerColor, contrastBorder, editorSelectionBackground, selectionBackground, textLinkActiveForeground, textLinkForeground, buttonBorder } from 'vs/platform/theme/common/colorRegistry';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { Schemas } from 'vs/base/common/network';
@@ -1788,9 +1788,8 @@ class SCMInputWidget {
 		}
 
 		const uri = URI.from({
-			scheme: Schemas.vscode,
-			authority: 'scm',
-			path: `/${input.repository.provider.contextValue}/${input.repository.provider.id}/input`,
+			scheme: Schemas.vscodeSourceControl,
+			path: `${input.repository.provider.contextValue}/${input.repository.provider.id}/input`,
 			query
 		});
 
@@ -1964,7 +1963,7 @@ class SCMInputWidget {
 			scrollbar: { alwaysConsumeMouseWheel: false },
 			overflowWidgetsDomNode,
 			renderWhitespace: 'none',
-			enableDropIntoEditor: true,
+			dropIntoEditor: { enabled: true },
 			accessibilitySupport
 		};
 
@@ -2556,6 +2555,9 @@ registerThemingParticipant((theme, collector) => {
 	if (panelInputBorder) {
 		collector.addRule(`.monaco-workbench .part.panel .scm-view .scm-editor-container { outline: 1px solid ${panelInputBorder}; }`);
 	}
+
+	const buttonBorderColor = theme.getColor(buttonBorder);
+	collector.addRule(`.scm-view .button-container > .monaco-description-button { height: ${buttonBorderColor ? '32px' : '30px'}; }`);
 
 	const focusBorderColor = theme.getColor(focusBorder);
 	if (focusBorderColor) {
