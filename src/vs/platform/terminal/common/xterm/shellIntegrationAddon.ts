@@ -367,7 +367,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				}
 			}
 			case VSCodeOscPt.SetMark: {
-				const [id, hidden] = args[0].split('=');
+				const [id, hidden] = args;
 				if (id === undefined) {
 					return true;
 				}
