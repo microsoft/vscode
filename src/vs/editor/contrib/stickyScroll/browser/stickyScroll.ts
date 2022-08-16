@@ -103,10 +103,10 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._stickyScrollWidget.setState(this._widgetState);
 	}
 
-public getScrollWidgetState(): StickyScrollWidgetState {
-		const lineHeight: number = this.editor.getOption(EditorOption.lineHeight);
-		const maxNumberStickyLines = this.editor.getOption(EditorOption.experimental).stickyScroll.maxLineCount;
-		const scrollTop: number = this.editor.getScrollTop();
+	public getScrollWidgetState(): StickyScrollWidgetState {
+		const lineHeight: number = this._editor.getOption(EditorOption.lineHeight);
+		const maxNumberStickyLines = this._editor.getOption(EditorOption.experimental).stickyScroll.maxLineCount;
+		const scrollTop: number = this._editor.getScrollTop();
 		let lastLineRelativePosition: number = 0;
 		const lineNumbers: number[] = [];
 		const arrayVisibleRanges = this._editor.getVisibleRanges();
