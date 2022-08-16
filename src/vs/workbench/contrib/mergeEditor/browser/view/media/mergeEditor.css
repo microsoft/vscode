@@ -117,3 +117,14 @@
 .merge-accept-gutter-marker .checkbox-background {
 	background: var(--vscode-editor-background);
 }
+
+.conflict-zone-root {
+	display: flex;
+}
+
+.conflict-zone-button {
+	border: 1px solid red;
+	background: #ec010147;
+	padding: 0px 10px;
+	border-radius: 4px;
+}
