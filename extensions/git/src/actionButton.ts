@@ -64,6 +64,7 @@ export class ActionButtonCommand {
 			if (e.affectsConfiguration('git.branchProtection', root) ||
 				e.affectsConfiguration('git.branchProtectionPrompt', root) ||
 				e.affectsConfiguration('git.postCommitCommand', root) ||
+				e.affectsConfiguration('git.rememberPostCommitCommand', root) ||
 				e.affectsConfiguration('git.showActionButton', root)) {
 				this._onDidChange.fire();
 			}
@@ -104,7 +105,7 @@ export class ActionButtonCommand {
 			return {
 				command: 'git.commit',
 				title: localize('scm button continue title', "{0} Continue", '$(check)'),
-				tooltip: localize('scm button continue tooltip', "Continue Rebase"),
+				tooltip: this.state.isCommitInProgress ? localize('scm button continuing tooltip', "Continuing Rebase...") : localize('scm button continue tooltip', "Continue Rebase"),
 				arguments: [this.repository.sourceControl, '']
 			};
 		}

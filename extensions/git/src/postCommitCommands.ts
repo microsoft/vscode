@@ -6,7 +6,7 @@
 import * as nls from 'vscode-nls';
 import { Command, commands, Disposable, Event, EventEmitter, Memento, Uri, workspace } from 'vscode';
 import { PostCommitCommandsProvider } from './api/git';
-import { Repository } from './repository';
+import { Operation, Repository } from './repository';
 import { ApiRepository } from './api/api1';
 import { dispose } from './util';
 
@@ -122,14 +122,19 @@ export class CommitCommandsCenter {
 		// Icon
 		const icon = alwaysPrompt ? '$(lock)' : alwaysCommitToNewBranch ? '$(git-branch)' : undefined;
 
-		return {
-			command: 'git.commit',
-			title: localize('scm button commit title', "{0} Commit", icon ?? '$(check)'),
-			tooltip: alwaysCommitToNewBranch ?
-				localize('scm button commit to new branch tooltip', "Commit Changes to New Branch") :
-				localize('scm button commit tooltip', "Commit Changes"),
-			arguments: [this.repository.sourceControl, '']
-		};
+		// Tooltip
+		let tooltip = !alwaysCommitToNewBranch ?
+			localize('scm button commit tooltip', "Commit Changes") :
+			localize('scm button commit to new branch tooltip', "Commit Changes to New Branch");
+
+		// Commit in progress
+		if (this.repository.operations.isRunning(Operation.Commit) || this.repository.operations.isRunning(Operation.RebaseContinue)) {
+			tooltip = !alwaysCommitToNewBranch ?
+				localize('scm button committing tooltip', "Committing Changes...") :
+				localize('scm button committing to new branch tooltip', "Committing Changes to New Branch...");
+		}
+
+		return { command: 'git.commit', title: localize('scm button commit title', "{0} Commit", icon ?? '$(check)'), tooltip, arguments: [this.repository.sourceControl, ''] };
 	}
 
 	private getPostCommitCommandStringFromSetting(): string | undefined {
