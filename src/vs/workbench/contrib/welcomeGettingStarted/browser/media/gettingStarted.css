@@ -66,7 +66,7 @@
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer h2 {
-	font-weight: 200;
+	font-weight: 400;
 	margin-top: 0;
 	margin-bottom: 5px;
 	font-size: 1.5em;
@@ -188,6 +188,10 @@
 	font-size: 14px;
 	font-weight: 500;
 	text-align: left;
+	display: inline-block;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories .category-progress {
@@ -223,11 +227,23 @@
 	padding-left: 1em;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories .codicon {
+.monaco-workbench .part.editor>.content .gettingStartedContainer .icon-widget,
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories .icon-widget,
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories .featured-icon {
+	font-size: 20px;
 	padding-right: 8px;
 	position: relative;
 	top: 3px;
 }
+
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories .codicon:not(.icon-widget, .featured-icon, .hide-category-button) {
+	margin: 0 2px;
+}
+
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories .codicon:first-child {
+	margin-left: 0;
+}
+
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories .start-container img {
 	padding-right: 8px;
@@ -267,10 +283,6 @@
 	overflow: hidden;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .codicon {
-	font-size: 20px;
-}
-
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .main-content {
 	display: flex;
@@ -282,6 +294,11 @@
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .description-content {
 	text-align: left;
 	margin-left: 28px;
+}
+
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .description-content > .codicon {
+	padding-right: 1px;
+	font-size: 16px;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .description-content:not(:empty){
@@ -316,16 +333,13 @@
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .featured .featured-icon {
 	top: -30px;
 	left: 4px;
-	font-size: 12pt;
+	font-size: 14px;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .codicon.hide-category-button {
-	position: relative;
-	top: 0px;
-	align-self: start;
-	left: 8px;
-	font-size: 16px;
 	margin-left: auto;
+	top: 4px;
+	right: 8px;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category.featured .icon-widget {
@@ -368,7 +382,7 @@
 	flex: 150px 1 1000
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-category .codicon {
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent>.getting-started-category>.codicon-getting-started-setup {
 	margin-right: 8px;
 	font-size: 28px;
 }
@@ -413,6 +427,11 @@
 	width: inherit;
 }
 
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .step-title .codicon {
+	position: relative;
+	top: 2px;
+}
+
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-detail-columns .getting-started-detail-left>div {
 	width: 100%;
 }
@@ -454,7 +473,8 @@
 	display: none;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .codicon {
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .codicon-getting-started-step-unchecked,
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .codicon-getting-started-step-checked {
 	margin-right: 8px;
 }
 
@@ -669,6 +689,10 @@
 	margin: 0 0 4px 0;
 }
 
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails h2 .codicon {
+	font-size: 20px;
+}
+
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails h3 {
 	font-size: 13px;
 	font-weight: 700;
@@ -727,6 +751,8 @@
 	text-align: center;
 	display: flex;
 	justify-content: center;
+	align-items: center;
+	gap: 8px;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox {
@@ -780,4 +806,155 @@
 	display: -webkit-box;
 	-webkit-box-orient: vertical;
 	overflow: hidden;
+}
+
+.monaco-workbench .part.editor>.content .gettingStartedContainer .hide-category-button {
+	padding: 3px;
+	border-radius: 5px;
+}
+
+.monaco-workbench .part.editor>.content .gettingStartedContainer .hide-category-button::before {
+	vertical-align: unset;
+}
+
+.monaco-workbench .part.editor>.content .gettingStartedContainer .hide-category-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer {
+	background: var(--vscode-welcomePage-background);
+	color: var(--vscode-foreground);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .description {
+	color: var(--vscode-descriptionForeground);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .category-progress .message {
+	color: var(--vscode-descriptionForeground);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent > .getting-started-footer {
+	color: var(--vscode-descriptionForeground);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .icon-widget {
+	color: var(--vscode-textLink-foreground);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .codicon-getting-started-step-checked {
+	color: var(--vscode-textLink-foreground);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step.expanded .codicon-getting-started-step-unchecked {
+	color: var(--vscode-textLink-foreground);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer button {
+	background: var(--vscode-welcomePage-tileBackground);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .getting-started-category {
+	filter: drop-shadow(2px 2px 2px var(--vscode-welcomePage-tileShadow));
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer button:hover {
+	background: var(--vscode-welcomePage-tileHoverBackground);
+	outline-color: var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer button.expanded:hover  {
+	background: var(--vscode-welcomePage-tileBackground);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer button.emphasis {
+	color: var(--vscode-button-foreground);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer button.emphasis {
+	background: var(--vscode-button-background);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .codicon-getting-started-step-unchecked {
+	color: var(--vscode-descriptionForeground);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer button.emphasis:hover {
+	background: var(--vscode-button-hoverBackground);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer a:not(.hide-category-button) {
+	color: var(--vscode-textLink-foreground);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .button-link {
+	color: var(--vscode-textLink-foreground);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .button-link .codicon {
+	color: var(--vscode-textLink-foreground);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer a:not(.hide-category-button):hover {
+	color: var(--vscode-textLink-activeForeground);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer a:not(.hide-category-button):active  {
+	color: var(--vscode-textLink-activeForeground);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer button.button-link:hover {
+	color: var(--vscode-textLink-activeForeground);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer button.button-link:hover .codicon {
+	color: var(--vscode-textLink-activeForeground);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer a:not(.codicon-close):focus {
+	outline-color: var(--vscode-focusBorder);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer button {
+	border: 1px solid var(--vscode-contrastBorder);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer button.button-link  {
+	border: inherit;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .progress-bar-outer {
+	background-color: var(--vscode-welcomePage-progress-background);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .progress-bar-inner {
+	background-color: var(--vscode-welcomePage-progress-foreground);
+}
+
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .new-badge {
+	color: var(--vscode-activityBarBadge-foreground);
+}
+
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .featured .featured-icon {
+	color: var(--vscode-activityBarBadge-foreground);
+}
+
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .new-badge {
+	background-color: var(--vscode-activityBarBadge-background);
+}
+
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .featured {
+	border-top-color: var(--vscode-activityBarBadge-background);
+}
+
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox {
+	background-color: var(--vscode-checkbox-background) !important;
+}
+
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox {
+	color: var(--vscode-checkbox-foreground) !important;
+}
+
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox {
+	border-color: var(--vscode-checkbox-border) !important;
 }

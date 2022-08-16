@@ -336,7 +336,7 @@
 		}
 	},
 	{
-		"c": "gulp-tsb",
+		"c": "../../../../build/lib/tsb",
 		"t": "source.js meta.var.expr.js string.quoted.single.js",
 		"r": {
 			"dark_plus": "string: #CE9178",
@@ -1356,6 +1356,18 @@
 		}
 	},
 	{
+		"c": " ",
+		"t": "source.js meta.function.expression.js",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
 		"c": "(",
 		"t": "source.js meta.function.expression.js meta.parameters.js punctuation.definition.parameters.begin.js",
 		"r": {
@@ -2049,6 +2061,18 @@
 			"light_vs": "storage.type: #0000FF",
 			"hc_black": "storage.type: #569CD6",
 			"hc_light": "storage.type: #0F4A85"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.js meta.function.expression.js",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
 		}
 	},
 	{
@@ -3312,7 +3336,7 @@
 		}
 	},
 	{
-		"c": "    ",
+		"c": "\t",
 		"t": "source.js meta.function.js meta.block.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -3384,7 +3408,7 @@
 		}
 	},
 	{
-		"c": "    ",
+		"c": "\t",
 		"t": "source.js meta.function.js meta.block.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -3492,7 +3516,7 @@
 		}
 	},
 	{
-		"c": "    ",
+		"c": "\t",
 		"t": "source.js meta.function.js meta.block.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -3900,7 +3924,7 @@
 		}
 	},
 	{
-		"c": "        ",
+		"c": "\t\t",
 		"t": "source.js meta.function.js meta.block.js meta.block.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -4092,7 +4116,7 @@
 		}
 	},
 	{
-		"c": "    ",
+		"c": "\t",
 		"t": "source.js meta.function.js meta.block.js meta.block.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -4116,7 +4140,7 @@
 		}
 	},
 	{
-		"c": "    ",
+		"c": "\t",
 		"t": "source.js meta.function.js meta.block.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",

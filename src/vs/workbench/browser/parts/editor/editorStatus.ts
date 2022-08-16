@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { format, compare, splitLines } from 'vs/base/common/strings';
 import { extname, basename, isEqual } from 'vs/base/common/resources';
-import { areFunctions, withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
+import { areFunctions, assertIsDefined, withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
 import { Language } from 'vs/base/common/platform';
@@ -71,8 +71,8 @@ class SideBySideEditorLanguageSupport implements ILanguageSupport {
 
 	constructor(private primary: ILanguageSupport, private secondary: ILanguageSupport) { }
 
-	setLanguageId(languageId: string): void {
-		[this.primary, this.secondary].forEach(editor => editor.setLanguageId(languageId));
+	setLanguageId(languageId: string, source?: string): void {
+		[this.primary, this.secondary].forEach(editor => editor.setLanguageId(languageId, source));
 	}
 }
 
@@ -349,7 +349,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		if (!this.screenReaderNotification) {
 			this.screenReaderNotification = this.notificationService.prompt(
 				Severity.Info,
-				localize('screenReaderDetectedExplanation.question', "Are you using a screen reader to operate VS Code? (word wrap is disabled when using a screen reader)"),
+				localize('screenReaderDetectedExplanation.question', "Are you using a screen reader to operate VS Code?"),
 				[{
 					label: localize('screenReaderDetectedExplanation.answerYes', "Yes"),
 					run: () => {
@@ -379,12 +379,12 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		}
 
 		const picks: QuickPickInput<IQuickPickItem & { run(): void }>[] = [
-			activeTextEditorControl.getAction(IndentUsingSpaces.ID),
-			activeTextEditorControl.getAction(IndentUsingTabs.ID),
-			activeTextEditorControl.getAction(DetectIndentation.ID),
-			activeTextEditorControl.getAction(IndentationToSpacesAction.ID),
-			activeTextEditorControl.getAction(IndentationToTabsAction.ID),
-			activeTextEditorControl.getAction(TrimTrailingWhitespaceAction.ID)
+			assertIsDefined(activeTextEditorControl.getAction(IndentUsingSpaces.ID)),
+			assertIsDefined(activeTextEditorControl.getAction(IndentUsingTabs.ID)),
+			assertIsDefined(activeTextEditorControl.getAction(DetectIndentation.ID)),
+			assertIsDefined(activeTextEditorControl.getAction(IndentationToSpacesAction.ID)),
+			assertIsDefined(activeTextEditorControl.getAction(IndentationToTabsAction.ID)),
+			assertIsDefined(activeTextEditorControl.getAction(TrimTrailingWhitespaceAction.ID))
 		].map((a: IEditorAction) => {
 			return {
 				id: a.id,
@@ -671,7 +671,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			}));
 
 			// Hook Listener for Selection changes
-			this.activeEditorListeners.add(activeCodeEditor.onDidChangeCursorPosition(() => {
+			this.activeEditorListeners.add(Event.defer(activeCodeEditor.onDidChangeCursorPosition)(() => {
 				this.onSelectionChange(activeCodeEditor);
 				this.currentProblemStatus.update(activeCodeEditor);
 			}));
@@ -682,16 +682,18 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			}));
 
 			// Hook Listener for content changes
-			this.activeEditorListeners.add(activeCodeEditor.onDidChangeModelContent(e => {
+			this.activeEditorListeners.add(Event.accumulate(activeCodeEditor.onDidChangeModelContent)(e => {
 				this.onEOLChange(activeCodeEditor);
 				this.currentProblemStatus.update(activeCodeEditor);
 
 				const selections = activeCodeEditor.getSelections();
 				if (selections) {
-					for (const change of e.changes) {
-						if (selections.some(selection => Range.areIntersecting(selection, change.range))) {
-							this.onSelectionChange(activeCodeEditor);
-							break;
+					for (const inner of e) {
+						for (const change of inner.changes) {
+							if (selections.some(selection => Range.areIntersecting(selection, change.range))) {
+								this.onSelectionChange(activeCodeEditor);
+								break;
+							}
 						}
 					}
 				}
@@ -733,7 +735,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	}
 
 	private onLanguageChange(editorWidget: ICodeEditor | undefined, editorInput: EditorInput | undefined): void {
-		let info: StateDelta = { type: 'languageId', languageId: undefined };
+		const info: StateDelta = { type: 'languageId', languageId: undefined };
 
 		// We only support text based editors
 		if (editorWidget && editorInput && toEditorWithLanguageSupport(editorInput)) {
@@ -837,7 +839,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			if (info.selections.length === 1) {
 				const editorPosition = editorWidget.getPosition();
 
-				let selectionClone = new Selection(
+				const selectionClone = new Selection(
 					info.selections[0].selectionStartLineNumber,
 					info.selections[0].selectionStartColumn,
 					info.selections[0].positionLineNumber,
@@ -1237,27 +1239,29 @@ export class ChangeLanguageAction extends Action {
 
 				// Change language
 				if (typeof languageSelection !== 'undefined') {
-					languageSupport.setLanguageId(languageSelection.languageId);
+					languageSupport.setLanguageId(languageSelection.languageId, ChangeLanguageAction.ID);
 
 					if (resource?.scheme === Schemas.untitled) {
 						type SetUntitledDocumentLanguageEvent = { to: string; from: string; modelPreference: string };
 						type SetUntitledDocumentLanguageClassification = {
+							owner: 'TylerLeonhardt';
+							comment: 'Helps understand what the automatic language detection does for untitled files';
 							to: {
 								classification: 'SystemMetaData';
 								purpose: 'FeatureInsight';
-								owner: 'JacksonKearl';
+								owner: 'TylerLeonhardt';
 								comment: 'Help understand effectiveness of automatic language detection';
 							};
 							from: {
 								classification: 'SystemMetaData';
 								purpose: 'FeatureInsight';
-								owner: 'JacksonKearl';
+								owner: 'TylerLeonhardt';
 								comment: 'Help understand effectiveness of automatic language detection';
 							};
 							modelPreference: {
 								classification: 'SystemMetaData';
 								purpose: 'FeatureInsight';
-								owner: 'JacksonKearl';
+								owner: 'TylerLeonhardt';
 								comment: 'Help understand effectiveness of automatic language detection';
 							};
 						};
@@ -1318,7 +1322,7 @@ export class ChangeLanguageAction extends Action {
 	}
 }
 
-export interface IChangeEOLEntry extends IQuickPickItem {
+interface IChangeEOLEntry extends IQuickPickItem {
 	eol: EndOfLineSequence;
 }
 

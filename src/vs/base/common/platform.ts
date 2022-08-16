@@ -2,8 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import * as nls from 'vs/nls';
 
-const LANGUAGE_DEFAULT = 'en';
+export const LANGUAGE_DEFAULT = 'en';
 
 let _isWindows = false;
 let _isMacintosh = false;
@@ -14,6 +15,7 @@ let _isWeb = false;
 let _isElectron = false;
 let _isIOS = false;
 let _isCI = false;
+let _isMobile = false;
 let _locale: string | undefined = undefined;
 let _language: string = LANGUAGE_DEFAULT;
 let _translationsConfigFile: string | undefined = undefined;
@@ -67,7 +69,6 @@ const isElectronRenderer = isElectronProcess && nodeProcess?.type === 'renderer'
 
 interface INavigator {
 	userAgent: string;
-	language: string;
 	maxTouchPoints?: number;
 }
 declare const navigator: INavigator;
@@ -79,8 +80,19 @@ if (typeof navigator === 'object' && !isElectronRenderer) {
 	_isMacintosh = _userAgent.indexOf('Macintosh') >= 0;
 	_isIOS = (_userAgent.indexOf('Macintosh') >= 0 || _userAgent.indexOf('iPad') >= 0 || _userAgent.indexOf('iPhone') >= 0) && !!navigator.maxTouchPoints && navigator.maxTouchPoints > 0;
 	_isLinux = _userAgent.indexOf('Linux') >= 0;
+	_isMobile = _userAgent?.indexOf('Mobi') >= 0;
 	_isWeb = true;
-	_locale = navigator.language;
+
+	const configuredLocale = nls.getConfiguredDefaultLocale(
+		// This call _must_ be done in the file that calls `nls.getConfiguredDefaultLocale`
+		// to ensure that the NLS AMD Loader plugin has been loaded and configured.
+		// This is because the loader plugin decides what the default locale is based on
+		// how it's able to resolve the strings.
+		nls.localize({ key: 'ensureLoaderPluginIsLoaded', comment: ['{Locked}'] }, '_')
+	);
+
+	_locale = configuredLocale || LANGUAGE_DEFAULT;
+
 	_language = _locale;
 }
 
@@ -147,6 +159,7 @@ export const isElectron = _isElectron;
 export const isWeb = _isWeb;
 export const isWebWorker = (_isWeb && typeof globals.importScripts === 'function');
 export const isIOS = _isIOS;
+export const isMobile = _isMobile;
 /**
  * Whether we run inside a CI environment, such as
  * GH actions or Azure Pipelines.
@@ -195,6 +208,8 @@ export const locale = _locale;
  */
 export const translationsConfigFile = _translationsConfigFile;
 
+export const setTimeout0IsFaster = (typeof globals.postMessage === 'function' && !globals.importScripts);
+
 /**
  * See https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html#:~:text=than%204%2C%20then-,set%20timeout%20to%204,-.
  *
@@ -202,12 +217,12 @@ export const translationsConfigFile = _translationsConfigFile;
  * that browsers set when the nesting level is > 5.
  */
 export const setTimeout0 = (() => {
-	if (typeof globals.postMessage === 'function' && !globals.importScripts) {
+	if (setTimeout0IsFaster) {
 		interface IQueueElement {
 			id: number;
 			callback: () => void;
 		}
-		let pending: IQueueElement[] = [];
+		const pending: IQueueElement[] = [];
 		globals.addEventListener('message', (e: MessageEvent) => {
 			if (e.data && e.data.vscodeScheduleAsyncWork) {
 				for (let i = 0, len = pending.length; i < len; i++) {

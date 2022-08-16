@@ -6,23 +6,22 @@
 import 'vs/css!./notebookKernelActionViewItem';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Action, IAction } from 'vs/base/common/actions';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { INotebookKernelMatchResult, INotebookKernelService, NotebookKernelType, ProxyKernelState } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { executingStateIcon, selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
+import { INotebookKernel, INotebookKernelMatchResult, INotebookKernelService, ISourceAction } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { Event } from 'vs/base/common/event';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export class NotebooKernelActionViewItem extends ActionViewItem {
 
 	private _kernelLabel?: HTMLAnchorElement;
-	private _kernelDisposable: DisposableStore;
 
 	constructor(
 		actualAction: IAction,
-		private readonly _editor: { onDidChangeModel: Event<void>; textModel: NotebookTextModel | undefined } | INotebookEditor,
+		private readonly _editor: { onDidChangeModel: Event<void>; textModel: NotebookTextModel | undefined; scopedContextKeyService?: IContextKeyService } | INotebookEditor,
 		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
 	) {
 		super(
@@ -33,7 +32,7 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 		this._register(_editor.onDidChangeModel(this._update, this));
 		this._register(_notebookKernelService.onDidChangeNotebookAffinity(this._update, this));
 		this._register(_notebookKernelService.onDidChangeSelectedNotebooks(this._update, this));
-		this._kernelDisposable = this._register(new DisposableStore());
+		this._register(_notebookKernelService.onDidChangeSourceActions(this._update, this));
 	}
 
 	override render(container: HTMLElement): void {
@@ -61,44 +60,65 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 			return;
 		}
 
+		const runningActions = this._notebookKernelService.getRunningSourceActions(notebook);
+		if (runningActions.length) {
+			return this._updateActionFromSourceAction(runningActions[0] /** TODO handle multiple actions state */, true);
+		}
+
 		const info = this._notebookKernelService.getMatchingKernel(notebook);
+		if (info.all.length === 0) {
+			return this._updateActionsFromSourceActions();
+		}
+
 		this._updateActionFromKernelInfo(info);
 	}
 
-	private _updateActionFromKernelInfo(info: INotebookKernelMatchResult): void {
-		this._kernelDisposable.clear();
+	private _updateActionFromSourceAction(sourceAction: ISourceAction, running: boolean) {
+		const action = sourceAction.action;
+		this.action.class = running ? ThemeIcon.asClassName(ThemeIcon.modify(executingStateIcon, 'spin')) : ThemeIcon.asClassName(selectKernelIcon);
+		this.updateClass();
+		this._action.label = action.label;
 		this._action.enabled = true;
-		const selectedOrSuggested = info.selected ?? ((info.all.length === 1 && info.suggestions.length === 1 && info.suggestions[0].type === NotebookKernelType.Resolved) ? info.suggestions[0] : undefined);
+	}
+
+	private _updateActionsFromSourceActions() {
+		this._action.enabled = true;
+		const sourceActions = this._editor.textModel ? this._notebookKernelService.getSourceActions(this._editor.textModel, this._editor.scopedContextKeyService) : [];
+		if (sourceActions.length === 1) {
+			// exact one action
+			this._updateActionFromSourceAction(sourceActions[0], false);
+		} else if (sourceActions.filter(sourceAction => sourceAction.isPrimary).length === 1) {
+			// exact one primary action
+			this._updateActionFromSourceAction(sourceActions.filter(sourceAction => sourceAction.isPrimary)[0], false);
+		} else {
+			this._action.class = ThemeIcon.asClassName(selectKernelIcon);
+			this._action.label = localize('select', "Select Kernel");
+			this._action.tooltip = '';
+		}
+	}
+
+	private _updateActionFromKernelInfo(info: INotebookKernelMatchResult): void {
+		this._action.enabled = true;
+		this._action.class = ThemeIcon.asClassName(selectKernelIcon);
+		const selectedOrSuggested = info.selected
+			?? (info.suggestions.length === 1 ? info.suggestions[0] : undefined)
+			?? (info.all.length === 1 ? info.all[0] : undefined);
 		if (selectedOrSuggested) {
 			// selected or suggested kernel
-			this._action.label = selectedOrSuggested.label;
+			this._action.label = this._generateKenrelLabel(selectedOrSuggested);
 			this._action.tooltip = selectedOrSuggested.description ?? selectedOrSuggested.detail ?? '';
 			if (!info.selected) {
 				// special UI for selected kernel?
-			}
-
-			if (selectedOrSuggested.type === NotebookKernelType.Proxy) {
-				if (selectedOrSuggested.connectionState === ProxyKernelState.Initializing) {
-					this._action.label = localize('initializing', "Initializing...");
-				} else {
-					this._action.label = selectedOrSuggested.label;
-				}
-
-				this._kernelDisposable.add(selectedOrSuggested.onDidChange(e => {
-					if (e.connectionState) {
-						if (selectedOrSuggested.connectionState === ProxyKernelState.Initializing) {
-							this._action.label = localize('initializing', "Initializing...");
-						} else {
-							this._action.label = selectedOrSuggested.label;
-						}
-					}
-				}));
 			}
 		} else {
 			// many kernels or no kernels
 			this._action.label = localize('select', "Select Kernel");
 			this._action.tooltip = '';
 		}
+	}
+
+	private _generateKenrelLabel(kernel: INotebookKernel) {
+		return kernel.label;
 	}
 
 	private _resetAction(): void {

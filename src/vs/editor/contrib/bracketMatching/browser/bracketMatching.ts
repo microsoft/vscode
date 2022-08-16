@@ -13,7 +13,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IEditorContribution, IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
@@ -105,7 +105,7 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 
 	private _lastBracketsData: BracketsData[];
 	private _lastVersionId: number;
-	private _decorations: string[];
+	private readonly _decorations: IEditorDecorationsCollection;
 	private readonly _updateBracketsSoon: RunOnceScheduler;
 	private _matchBrackets: 'never' | 'near' | 'always';
 
@@ -116,7 +116,7 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 		this._editor = editor;
 		this._lastBracketsData = [];
 		this._lastVersionId = 0;
-		this._decorations = [];
+		this._decorations = this._editor.createDecorationsCollection();
 		this._updateBracketsSoon = this._register(new RunOnceScheduler(() => this._updateBrackets(), 50));
 		this._matchBrackets = this._editor.getOption(EditorOption.matchBrackets);
 
@@ -136,7 +136,6 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 		}));
 		this._register(editor.onDidChangeModel((e) => {
 			this._lastBracketsData = [];
-			this._decorations = [];
 			this._updateBracketsSoon.schedule();
 		}));
 		this._register(editor.onDidChangeModelLanguageConfiguration((e) => {
@@ -146,7 +145,7 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 		this._register(editor.onDidChangeConfiguration((e) => {
 			if (e.hasChanged(EditorOption.matchBrackets)) {
 				this._matchBrackets = this._editor.getOption(EditorOption.matchBrackets);
-				this._decorations = this._editor.deltaDecorations(this._decorations, []);
+				this._decorations.clear();
 				this._lastBracketsData = [];
 				this._lastVersionId = 0;
 				this._updateBracketsSoon.schedule();
@@ -276,16 +275,17 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 		}
 		this._recomputeBrackets();
 
-		let newDecorations: IModelDeltaDecoration[] = [], newDecorationsLen = 0;
+		const newDecorations: IModelDeltaDecoration[] = [];
+		let newDecorationsLen = 0;
 		for (const bracketData of this._lastBracketsData) {
-			let brackets = bracketData.brackets;
+			const brackets = bracketData.brackets;
 			if (brackets) {
 				newDecorations[newDecorationsLen++] = { range: brackets[0], options: bracketData.options };
 				newDecorations[newDecorationsLen++] = { range: brackets[1], options: bracketData.options };
 			}
 		}
 
-		this._decorations = this._editor.deltaDecorations(this._decorations, newDecorations);
+		this._decorations.set(newDecorations);
 	}
 
 	private _recomputeBrackets(): void {
@@ -312,9 +312,10 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 			previousData = this._lastBracketsData;
 		}
 
-		let positions: Position[] = [], positionsLen = 0;
+		const positions: Position[] = [];
+		let positionsLen = 0;
 		for (let i = 0, len = selections.length; i < len; i++) {
-			let selection = selections[i];
+			const selection = selections[i];
 
 			if (selection.isEmpty()) {
 				// will bracket match a cursor only if the selection is collapsed
@@ -327,10 +328,12 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 			positions.sort(Position.compare);
 		}
 
-		let newData: BracketsData[] = [], newDataLen = 0;
-		let previousIndex = 0, previousLen = previousData.length;
+		const newData: BracketsData[] = [];
+		let newDataLen = 0;
+		let previousIndex = 0;
+		const previousLen = previousData.length;
 		for (let i = 0, len = positions.length; i < len; i++) {
-			let position = positions[i];
+			const position = positions[i];
 
 			while (previousIndex < previousLen && previousData[previousIndex].position.isBefore(position)) {
 				previousIndex++;

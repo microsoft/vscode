@@ -26,7 +26,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
 import { IWebview } from 'vs/workbench/contrib/webview/browser/webview';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IOutputService } from 'vs/workbench/services/output/common/output';
 import { rendererLogChannelId } from 'vs/workbench/contrib/logs/common/logConstants';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -285,15 +285,15 @@ export class NotebookClipboardContribution extends Disposable {
 		}
 
 		if (PasteAction) {
-			PasteAction.addImplementation(PRIORITY, 'notebook-clipboard', accessor => {
+			this._register(PasteAction.addImplementation(PRIORITY, 'notebook-clipboard', accessor => {
 				return this.runPasteAction(accessor);
-			});
+			}));
 		}
 
 		if (CutAction) {
-			CutAction.addImplementation(PRIORITY, 'notebook-clipboard', accessor => {
+			this._register(CutAction.addImplementation(PRIORITY, 'notebook-clipboard', accessor => {
 				return this.runCutAction(accessor);
-			});
+			}));
 		}
 	}
 
@@ -550,7 +550,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.toggleNotebookClipboardLog',
 			title: { value: localize('toggleNotebookClipboardLog', "Toggle Notebook Clipboard Troubleshooting"), original: 'Toggle Notebook Clipboard Troubleshooting' },
-			category: CATEGORIES.Developer,
+			category: Categories.Developer,
 			f1: true
 		});
 	}

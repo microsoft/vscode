@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { compareIgnoreCase } from 'vs/base/common/strings';
-import { IExtensionIdentifier, IGalleryExtension, ILocalExtension, IExtensionsControlManifest, getTargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionIdentifier, IGalleryExtension, ILocalExtension, getTargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionIdentifier, IExtension, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { isLinux, platform } from 'vs/base/common/platform';
@@ -125,6 +125,7 @@ export function getLocalExtensionTelemetryData(extension: ILocalExtension): any 
 		"publisherDisplayName": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"isPreReleaseVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"dependencies": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+		"isSigned": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"${include}": [
 			"${GalleryExtensionTelemetryData2}"
 		]
@@ -140,23 +141,12 @@ export function getGalleryExtensionTelemetryData(extension: IGalleryExtension): 
 		publisherDisplayName: extension.publisherDisplayName,
 		isPreReleaseVersion: extension.properties.isPreReleaseVersion,
 		dependencies: !!(extension.properties.dependencies && extension.properties.dependencies.length > 0),
+		isSigned: extension.isSigned,
 		...extension.telemetryData
 	};
 }
 
 export const BetterMergeId = new ExtensionIdentifier('pprice.better-merge');
-
-export function getMaliciousExtensionsSet(manifest: IExtensionsControlManifest): Set<string> {
-	const result = new Set<string>();
-
-	if (manifest.malicious) {
-		for (const extension of manifest.malicious) {
-			result.add(extension.id);
-		}
-	}
-
-	return result;
-}
 
 export function getExtensionDependencies(installedExtensions: ReadonlyArray<IExtension>, extension: IExtension): IExtension[] {
 	const dependencies: IExtension[] = [];

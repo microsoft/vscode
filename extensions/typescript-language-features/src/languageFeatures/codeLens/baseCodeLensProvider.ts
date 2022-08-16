@@ -88,7 +88,7 @@ export function getSymbolRange(
 	}
 
 	// In older versions, we have to calculate this manually. See #23924
-	const span = item.spans && item.spans[0];
+	const span = item.spans?.[0];
 	if (!span) {
 		return undefined;
 	}

@@ -9,7 +9,7 @@ import { localize } from 'vs/nls';
 import { Action, IAction, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { CLEAR_NOTIFICATION, EXPAND_NOTIFICATION, COLLAPSE_NOTIFICATION, CLEAR_ALL_NOTIFICATIONS, HIDE_NOTIFICATIONS_CENTER } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
+import { CLEAR_NOTIFICATION, EXPAND_NOTIFICATION, COLLAPSE_NOTIFICATION, CLEAR_ALL_NOTIFICATIONS, HIDE_NOTIFICATIONS_CENTER, TOGGLE_DO_NOT_DISTURB_MODE } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { Codicon } from 'vs/base/common/codicons';
@@ -23,6 +23,7 @@ const hideIcon = registerIcon('notifications-hide', Codicon.chevronDown, localiz
 const expandIcon = registerIcon('notifications-expand', Codicon.chevronUp, localize('expandIcon', 'Icon for the expand action in notifications.'));
 const collapseIcon = registerIcon('notifications-collapse', Codicon.chevronDown, localize('collapseIcon', 'Icon for the collapse action in notifications.'));
 const configureIcon = registerIcon('notifications-configure', Codicon.gear, localize('configureIcon', 'Icon for the configure action in notifications.'));
+const doNotDisturbIcon = registerIcon('notifications-do-not-disturb', Codicon.bellSlash, localize('doNotDisturbIcon', 'Icon for the mute all action in notifications.'));
 
 export class ClearNotificationAction extends Action {
 
@@ -57,6 +58,24 @@ export class ClearAllNotificationsAction extends Action {
 
 	override async run(): Promise<void> {
 		this.commandService.executeCommand(CLEAR_ALL_NOTIFICATIONS);
+	}
+}
+
+export class ToggleDoNotDisturbAction extends Action {
+
+	static readonly ID = TOGGLE_DO_NOT_DISTURB_MODE;
+	static readonly LABEL = localize('toggleDoNotDisturbMode', "Toggle Do Not Disturb Mode");
+
+	constructor(
+		id: string,
+		label: string,
+		@ICommandService private readonly commandService: ICommandService
+	) {
+		super(id, label, ThemeIcon.asClassName(doNotDisturbIcon));
+	}
+
+	override async run(): Promise<void> {
+		this.commandService.executeCommand(TOGGLE_DO_NOT_DISTURB_MODE);
 	}
 }
 

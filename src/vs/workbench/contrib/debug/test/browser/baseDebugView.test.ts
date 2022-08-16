@@ -11,7 +11,7 @@ import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlighte
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { createMockSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
+import { createTestSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
 import { isStatusbarInDebugMode } from 'vs/workbench/contrib/debug/browser/statusbarColorProvider';
 import { State } from 'vs/workbench/contrib/debug/common/debug';
 import { isWindows } from 'vs/base/common/platform';
@@ -95,7 +95,7 @@ suite('Debug - Base Debug View', () => {
 		let name = $('.');
 		let value = $('.');
 		const label = new HighlightedLabel(name);
-		let lazyButton = $('.');
+		const lazyButton = $('.');
 		renderVariable(variable, { expression, name, value, label, lazyButton }, false, []);
 
 		assert.strictEqual(label.element.textContent, 'foo');
@@ -132,12 +132,18 @@ suite('Debug - Base Debug View', () => {
 
 	test('statusbar in debug mode', () => {
 		const model = createMockDebugModel();
-		const session = createMockSession(model);
-		assert.strictEqual(isStatusbarInDebugMode(State.Inactive, undefined), false);
-		assert.strictEqual(isStatusbarInDebugMode(State.Initializing, session), false);
-		assert.strictEqual(isStatusbarInDebugMode(State.Running, session), true);
-		assert.strictEqual(isStatusbarInDebugMode(State.Stopped, session), true);
+		const session = createTestSession(model);
+		const session2 = createTestSession(model, undefined, { suppressDebugStatusbar: true });
+		assert.strictEqual(isStatusbarInDebugMode(State.Inactive, []), false);
+		assert.strictEqual(isStatusbarInDebugMode(State.Initializing, [session]), false);
+		assert.strictEqual(isStatusbarInDebugMode(State.Running, [session]), true);
+		assert.strictEqual(isStatusbarInDebugMode(State.Stopped, [session]), true);
+
+		assert.strictEqual(isStatusbarInDebugMode(State.Running, [session2]), false);
+		assert.strictEqual(isStatusbarInDebugMode(State.Running, [session, session2]), true);
+
 		session.configuration.noDebug = true;
-		assert.strictEqual(isStatusbarInDebugMode(State.Running, session), false);
+		assert.strictEqual(isStatusbarInDebugMode(State.Running, [session]), false);
+		assert.strictEqual(isStatusbarInDebugMode(State.Running, [session, session2]), false);
 	});
 });

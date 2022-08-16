@@ -42,7 +42,7 @@ export interface IReplaceInputStyles extends IInputBoxStyles {
 const NLS_DEFAULT_LABEL = nls.localize('defaultLabel', "input");
 const NLS_PRESERVE_CASE_LABEL = nls.localize('label.preserveCaseToggle', "Preserve Case");
 
-export class PreserveCaseToggle extends Toggle {
+class PreserveCaseToggle extends Toggle {
 	constructor(opts: IFindInputToggleOpts) {
 		super({
 			// TODO: does this need its own icon?
@@ -189,10 +189,10 @@ export class ReplaceInput extends Widget {
 		}
 
 		// Arrow-Key support to navigate between options
-		let indexes = [this.preserveCase.domNode];
+		const indexes = [this.preserveCase.domNode];
 		this.onkeydown(this.domNode, (event: IKeyboardEvent) => {
 			if (event.equals(KeyCode.LeftArrow) || event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Escape)) {
-				let index = indexes.indexOf(<HTMLElement>document.activeElement);
+				const index = indexes.indexOf(<HTMLElement>document.activeElement);
 				if (index >= 0) {
 					let newIndex: number = -1;
 					if (event.equals(KeyCode.RightArrow)) {
@@ -218,16 +218,14 @@ export class ReplaceInput extends Widget {
 		});
 
 
-		let controls = document.createElement('div');
+		const controls = document.createElement('div');
 		controls.className = 'controls';
 		controls.style.display = this._showOptionButtons ? 'block' : 'none';
 		controls.appendChild(this.preserveCase.domNode);
 
 		this.domNode.appendChild(controls);
 
-		if (parent) {
-			parent.appendChild(this.domNode);
-		}
+		parent?.appendChild(this.domNode);
 
 		this.onkeydown(this.inputBox.inputElement, (e) => this._onKeyDown.fire(e));
 		this.onkeyup(this.inputBox.inputElement, (e) => this._onKeyUp.fire(e));
@@ -355,27 +353,19 @@ export class ReplaceInput extends Widget {
 	}
 
 	public validate(): void {
-		if (this.inputBox) {
-			this.inputBox.validate();
-		}
+		this.inputBox?.validate();
 	}
 
 	public showMessage(message: InputBoxMessage): void {
-		if (this.inputBox) {
-			this.inputBox.showMessage(message);
-		}
+		this.inputBox?.showMessage(message);
 	}
 
 	public clearMessage(): void {
-		if (this.inputBox) {
-			this.inputBox.hideMessage();
-		}
+		this.inputBox?.hideMessage();
 	}
 
 	private clearValidation(): void {
-		if (this.inputBox) {
-			this.inputBox.hideMessage();
-		}
+		this.inputBox?.hideMessage();
 	}
 
 	public set width(newWidth: number) {

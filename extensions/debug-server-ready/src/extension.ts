@@ -57,7 +57,7 @@ class ServerReadyDetector extends vscode.Disposable {
 	}
 
 	static stop(session: vscode.DebugSession): void {
-		let detector = ServerReadyDetector.detectors.get(session);
+		const detector = ServerReadyDetector.detectors.get(session);
 		if (detector) {
 			ServerReadyDetector.detectors.delete(session);
 			detector.dispose();
@@ -65,7 +65,7 @@ class ServerReadyDetector extends vscode.Disposable {
 	}
 
 	static rememberShellPid(session: vscode.DebugSession, pid: number) {
-		let detector = ServerReadyDetector.detectors.get(session);
+		const detector = ServerReadyDetector.detectors.get(session);
 		if (detector) {
 			detector.shellPid = pid;
 		}
@@ -77,7 +77,7 @@ class ServerReadyDetector extends vscode.Disposable {
 
 				// first find the detector with a matching pid
 				const pid = await e.terminal.processId;
-				for (let [, detector] of this.detectors) {
+				for (const [, detector] of this.detectors) {
 					if (detector.shellPid === pid) {
 						detector.detectPattern(e.data);
 						return;
@@ -85,7 +85,7 @@ class ServerReadyDetector extends vscode.Disposable {
 				}
 
 				// if none found, try all detectors until one matches
-				for (let [, detector] of this.detectors) {
+				for (const [, detector] of this.detectors) {
 					if (detector.detectPattern(e.data)) {
 						return;
 					}

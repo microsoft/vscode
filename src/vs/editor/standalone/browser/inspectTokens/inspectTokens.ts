@@ -14,7 +14,8 @@ import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorCon
 import { Position } from 'vs/editor/common/core/position';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { FontStyle, IState, ITokenizationSupport, StandardTokenType, TokenMetadata, TokenizationRegistry, ILanguageIdCodec, Token } from 'vs/editor/common/languages';
+import { IState, ITokenizationSupport, TokenizationRegistry, ILanguageIdCodec, Token } from 'vs/editor/common/languages';
+import { FontStyle, StandardTokenType, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
 import { NullState, nullTokenize, nullTokenizeEncoded } from 'vs/editor/common/languages/nullTokenize';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
@@ -88,9 +89,7 @@ class InspectTokens extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const controller = InspectTokensController.get(editor);
-		if (controller) {
-			controller.launch();
-		}
+		controller?.launch();
 	}
 }
 

@@ -35,7 +35,7 @@ import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 interface IExtensionProfileInformation {
@@ -95,26 +95,25 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 
 	protected async _updateExtensions(): Promise<void> {
 		this._elements = await this._resolveExtensions();
-		if (this._list) {
-			this._list.splice(0, this._list.length, this._elements);
-		}
+		this._list?.splice(0, this._list.length, this._elements);
 	}
 
 	private async _resolveExtensions(): Promise<IRuntimeExtension[]> {
 		// We only deal with extensions with source code!
-		const extensionsDescriptions = (await this._extensionService.getExtensions()).filter((extension) => {
+		await this._extensionService.whenInstalledExtensionsRegistered();
+		const extensionsDescriptions = this._extensionService.extensions.filter((extension) => {
 			return Boolean(extension.main) || Boolean(extension.browser);
 		});
-		let marketplaceMap: { [id: string]: IExtension } = Object.create(null);
+		const marketplaceMap: { [id: string]: IExtension } = Object.create(null);
 		const marketPlaceExtensions = await this._extensionsWorkbenchService.queryLocal();
-		for (let extension of marketPlaceExtensions) {
+		for (const extension of marketPlaceExtensions) {
 			marketplaceMap[ExtensionIdentifier.toKey(extension.identifier.id)] = extension;
 		}
 
-		let statusMap = this._extensionService.getExtensionsStatus();
+		const statusMap = this._extensionService.getExtensionsStatus();
 
 		// group profile segments by extension
-		let segments: { [id: string]: number[] } = Object.create(null);
+		const segments: { [id: string]: number[] } = Object.create(null);
 
 		const profileInfo = this._getProfileInfo();
 		if (profileInfo) {
@@ -141,7 +140,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 
 			let extProfileInfo: IExtensionProfileInformation | null = null;
 			if (profileInfo) {
-				let extensionSegments = segments[ExtensionIdentifier.toKey(extensionDescription.identifier)] || [];
+				const extensionSegments = segments[ExtensionIdentifier.toKey(extensionDescription.identifier)] || [];
 				let extensionTotalTime = 0;
 				for (let j = 0, lenJ = extensionSegments.length / 2; j < lenJ; j++) {
 					const startTime = extensionSegments[2 * j];
@@ -279,7 +278,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 				data.version.textContent = element.description.version;
 
 				const activationTimes = element.status.activationTimes!;
-				let syncTime = activationTimes.codeLoadingTime + activationTimes.activateCallTime;
+				const syncTime = activationTimes.codeLoadingTime + activationTimes.activateCallTime;
 				data.activationTime.textContent = activationTimes.activationReason.startup ? `Startup Activation: ${syncTime}ms` : `Activation: ${syncTime}ms`;
 
 				data.actionbar.clear();
@@ -305,7 +304,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 						]
 					}, "Activated by {0} on start-up", activationId);
 				} else if (/^workspaceContains:/.test(activationEvent)) {
-					let fileNameOrGlob = activationEvent.substr('workspaceContains:'.length);
+					const fileNameOrGlob = activationEvent.substr('workspaceContains:'.length);
 					if (fileNameOrGlob.indexOf('*') >= 0 || fileNameOrGlob.indexOf('?') >= 0) {
 						title = nls.localize({
 							key: 'workspaceContainsGlobActivation',
@@ -340,7 +339,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 						]
 					}, "Activated by {0} after start-up finished", activationId);
 				} else if (/^onLanguage:/.test(activationEvent)) {
-					let language = activationEvent.substr('onLanguage:'.length);
+					const language = activationEvent.substr('onLanguage:'.length);
 					title = nls.localize('languageActivation', "Activated by {1} because you opened a {0} file", language, activationId);
 				} else {
 					title = nls.localize({
@@ -372,7 +371,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 				}
 
 				let extraLabel: string | null = null;
-				if (element.status.runningLocation && element.status.runningLocation.equals(new LocalWebWorkerRunningLocation())) {
+				if (element.status.runningLocation && element.status.runningLocation.equals(new LocalWebWorkerRunningLocation(0))) {
 					extraLabel = `$(globe) web worker`;
 				} else if (element.description.extensionLocation.scheme === Schemas.vscodeRemote) {
 					const hostLabel = this._labelService.getHostLabel(Schemas.vscodeRemote, this._environmentService.remoteAuthority);
@@ -382,7 +381,9 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 						extraLabel = `$(remote) ${element.description.extensionLocation.authority}`;
 					}
 				} else if (element.status.runningLocation && element.status.runningLocation.affinity > 0) {
-					extraLabel = `$(server-process) local process ${element.status.runningLocation.affinity + 1}`;
+					extraLabel = element.status.runningLocation instanceof LocalWebWorkerRunningLocation
+						? `$(globe) web worker ${element.status.runningLocation.affinity + 1}`
+						: `$(server-process) local process ${element.status.runningLocation.affinity + 1}`;
 				}
 
 				if (extraLabel) {
@@ -475,9 +476,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 	}
 
 	public layout(dimension: Dimension): void {
-		if (this._list) {
-			this._list.layout(dimension.height);
-		}
+		this._list?.layout(dimension.height);
 	}
 
 	protected abstract _getProfileInfo(): IExtensionHostProfile | null;
@@ -494,7 +493,7 @@ export class ShowRuntimeExtensionsAction extends Action2 {
 		super({
 			id: 'workbench.action.showRuntimeExtensions',
 			title: { value: nls.localize('showRuntimeExtensions', "Show Running Extensions"), original: 'Show Running Extensions' },
-			category: CATEGORIES.Developer,
+			category: Categories.Developer,
 			f1: true,
 			menu: {
 				id: MenuId.ViewContainerTitle,

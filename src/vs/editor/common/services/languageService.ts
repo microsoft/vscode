@@ -165,7 +165,7 @@ class LanguageSelection implements ILanguageSelection {
 		}
 		if (!this._emitter) {
 			this._emitter = new Emitter<string>({
-				onLastListenerRemove: () => {
+				onDidRemoveLastListener: () => {
 					this._dispose();
 				}
 			});
@@ -180,8 +180,6 @@ class LanguageSelection implements ILanguageSelection {
 			return;
 		}
 		this.languageId = languageId;
-		if (this._emitter) {
-			this._emitter.fire(this.languageId);
-		}
+		this._emitter?.fire(this.languageId);
 	}
 }

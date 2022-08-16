@@ -61,7 +61,7 @@ export class Extensions extends Viewlet {
 		await this.code.waitAndClick(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[data-extension-id="${id}"] .extension-list-item .monaco-action-bar .action-item:not(.disabled) .extension-action.install`);
 		await this.code.waitForElement(`.extension-editor .monaco-action-bar .action-item:not(.disabled) .extension-action.uninstall`);
 		if (waitUntilEnabled) {
-			await this.code.waitForElement(`.extension-editor .monaco-action-bar .action-item:not(.disabled) .extension-action[title="Disable this extension"]`);
+			await this.code.waitForElement(`.extension-editor .monaco-action-bar .action-item:not(.disabled)[title="Disable this extension"]`);
 		}
 	}
 }

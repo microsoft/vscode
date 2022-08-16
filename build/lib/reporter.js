@@ -1,8 +1,8 @@
+"use strict";
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createReporter = void 0;
 const es = require("event-stream");
@@ -12,12 +12,13 @@ const ansiColors = require("ansi-colors");
 const fs = require("fs");
 const path = require("path");
 class ErrorLog {
+    id;
     constructor(id) {
         this.id = id;
-        this.allErrors = [];
-        this.startTime = null;
-        this.count = 0;
     }
+    allErrors = [];
+    startTime = null;
+    count = 0;
     onStart() {
         if (this.count++ > 0) {
             return;

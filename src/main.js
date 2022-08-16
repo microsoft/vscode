@@ -24,7 +24,7 @@ const { getUserDataPath } = require('./vs/platform/environment/node/userDataPath
 const { stripComments } = require('./vs/base/common/stripComments');
 /** @type {Partial<IProductConfiguration>} */
 const product = require('../product.json');
-const { app, protocol, crashReporter } = require('electron');
+const { app, protocol, crashReporter, Menu } = require('electron');
 
 // Enable portable support
 const portable = bootstrapNode.configurePortable(product);
@@ -34,7 +34,7 @@ bootstrap.enableASARSupport();
 
 // Set userData path before app 'ready' event
 const args = parseCLIArgs();
-const userDataPath = getUserDataPath(args);
+const userDataPath = getUserDataPath(args, product.nameShort ?? 'code-oss-dev');
 app.setPath('userData', userDataPath);
 
 // Resolve code cache path
@@ -42,6 +42,9 @@ const codeCachePath = getCodeCachePath();
 
 // Configure static command line arguments
 const argvConfig = configureCommandlineSwitchesSync(args);
+
+// Disable default menu (https://github.com/electron/electron/issues/35512)
+Menu.setApplicationMenu(null);
 
 // Configure crash reporter
 perf.mark('code/willStartCrashReporter');
@@ -53,8 +56,7 @@ perf.mark('code/willStartCrashReporter');
 // * --disable-crash-reporter command line parameter is not set
 //
 // Disable crash reporting in all other cases.
-if (args['crash-reporter-directory'] ||
-	(argvConfig['enable-crash-reporter'] && !args['disable-crash-reporter'])) {
+if (args['crash-reporter-directory'] || (argvConfig['enable-crash-reporter'] && !args['disable-crash-reporter'])) {
 	configureCrashReporter();
 }
 perf.mark('code/didStartCrashReporter');
@@ -153,9 +155,6 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		// alias from us for --disable-gpu
 		'disable-hardware-acceleration',
 
-		// provided by Electron
-		'disable-color-correct-rendering',
-
 		// override for the color profile to use
 		'force-color-profile'
 	];
@@ -221,6 +220,12 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		}
 	});
 
+	/* Following features are disabled from the runtime.
+	 * `CalculateNativeWinOcclusion` - Disable native window occlusion tracker,
+	 *	Refs https://groups.google.com/a/chromium.org/g/embedder-dev/c/ZF3uHHyWLKw/m/VDN2hDXMAAAJ
+	 */
+	app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+
 	// Support JS Flags
 	const jsFlags = getJSFlags(cliArgs);
 	if (jsFlags) {
@@ -247,9 +252,7 @@ function readArgvConfigSync() {
 
 	// Fallback to default
 	if (!argvConfig) {
-		argvConfig = {
-			'disable-color-correct-rendering': true // Force pre-Chrome-60 color profile handling (for https://github.com/microsoft/vscode/issues/51791)
-		};
+		argvConfig = {};
 	}
 
 	return argvConfig;
@@ -279,11 +282,7 @@ function createDefaultArgvConfigSync(argvConfigPath) {
 			'{',
 			'	// Use software rendering instead of hardware accelerated rendering.',
 			'	// This can help in cases where you see rendering issues in VS Code.',
-			'	// "disable-hardware-acceleration": true,',
-			'',
-			'	// Enabled by default by VS Code to resolve color issues in the renderer',
-			'	// See https://github.com/microsoft/vscode/issues/51791 for details',
-			'	"disable-color-correct-rendering": true',
+			'	// "disable-hardware-acceleration": true',
 			'}'
 		];
 
@@ -322,7 +321,7 @@ function configureCrashReporter() {
 
 		if (!fs.existsSync(crashReporterDirectory)) {
 			try {
-				fs.mkdirSync(crashReporterDirectory);
+				fs.mkdirSync(crashReporterDirectory, { recursive: true });
 			} catch (error) {
 				console.error(`The path '${crashReporterDirectory}' specified for --crash-reporter-directory does not seem to exist or cannot be created.`);
 				app.exit(1);
@@ -393,7 +392,7 @@ function configureCrashReporter() {
 	// Start crash reporter for all processes
 	const productName = (product.crashReporter ? product.crashReporter.productName : undefined) || product.nameShort;
 	const companyName = (product.crashReporter ? product.crashReporter.companyName : undefined) || 'Microsoft';
-	const uploadToServer = !process.env['VSCODE_DEV'] && submitURL && !crashReporterDirectory;
+	const uploadToServer = Boolean(!process.env['VSCODE_DEV'] && submitURL && !crashReporterDirectory);
 	crashReporter.start({
 		companyName,
 		productName: process.env['VSCODE_DEV'] ? `${productName} Dev` : productName,
@@ -416,7 +415,7 @@ function getJSFlags(cliArgs) {
 	}
 
 	// Support max-memory flag
-	if (cliArgs['max-memory'] && !/max_old_space_size=(\d+)/g.exec(cliArgs['js-flags'])) {
+	if (cliArgs['max-memory'] && !/max_old_space_size=(\d+)/g.exec(cliArgs['js-flags'] ?? '')) {
 		jsFlags.push(`--max_old_space_size=${cliArgs['max-memory']}`);
 	}
 

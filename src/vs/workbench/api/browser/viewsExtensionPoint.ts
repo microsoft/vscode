@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
-import { forEach } from 'vs/base/common/collections';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as resources from 'vs/base/common/resources';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
@@ -37,6 +35,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { ITreeViewsService } from 'vs/workbench/services/views/browser/treeViewsService';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export interface IUserFriendlyViewsContainerDescriptor {
 	id: string;
@@ -97,6 +96,8 @@ interface IUserFriendlyViewDescriptor {
 	icon?: string;
 	contextualTitle?: string;
 	visibility?: string;
+
+	initialSize?: number;
 
 	// From 'remoteViewDescriptor' type
 	group?: string;
@@ -160,6 +161,10 @@ const viewDescriptor: IJSONSchema = {
 				localize('vscode.extension.contributes.view.initialState.hidden', "The view will not be shown in the view container, but will be discoverable through the views menu and other view entry points and can be un-hidden by the user."),
 				localize('vscode.extension.contributes.view.initialState.collapsed', "The view will show in the view container, but will be collapsed.")
 			]
+		},
+		initialSize: {
+			type: 'number',
+			description: localize('vscode.extension.contributs.view.size', "The initial size of the view. The size will behave like the css 'flex' property, and will set the initial size when the view is first shown. In the side bar, this is the height of the view. This value is only respected when the same extension owns both the view and the view container."),
 		}
 	}
 };
@@ -257,7 +262,8 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 	private viewsRegistry: IViewsRegistry;
 
 	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ILogService private readonly logService: ILogService
 	) {
 		this.viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 		this.viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
@@ -321,17 +327,17 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 		let activityBarOrder = CUSTOM_VIEWS_START_ORDER + viewContainersRegistry.all.filter(v => !!v.extensionId && viewContainersRegistry.getViewContainerLocation(v) === ViewContainerLocation.Sidebar).length;
 		let panelOrder = 5 + viewContainersRegistry.all.filter(v => !!v.extensionId && viewContainersRegistry.getViewContainerLocation(v) === ViewContainerLocation.Panel).length + 1;
-		for (let { value, collector, description } of extensionPoints) {
-			forEach(value, entry => {
-				if (!this.isValidViewsContainer(entry.value, collector)) {
+		for (const { value, collector, description } of extensionPoints) {
+			Object.entries(value).forEach(([key, value]) => {
+				if (!this.isValidViewsContainer(value, collector)) {
 					return;
 				}
-				switch (entry.key) {
+				switch (key) {
 					case 'activitybar':
-						activityBarOrder = this.registerCustomViewContainers(entry.value, description, activityBarOrder, existingViewContainers, ViewContainerLocation.Sidebar);
+						activityBarOrder = this.registerCustomViewContainers(value, description, activityBarOrder, existingViewContainers, ViewContainerLocation.Sidebar);
 						break;
 					case 'panel':
-						panelOrder = this.registerCustomViewContainers(entry.value, description, panelOrder, existingViewContainers, ViewContainerLocation.Panel);
+						panelOrder = this.registerCustomViewContainers(value, description, panelOrder, existingViewContainers, ViewContainerLocation.Panel);
 						break;
 				}
 			});
@@ -359,7 +365,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 			return false;
 		}
 
-		for (let descriptor of viewsContainersDescriptors) {
+		for (const descriptor of viewsContainersDescriptors) {
 			if (typeof descriptor.id !== 'string' && isFalsyOrWhitespace(descriptor.id)) {
 				collector.error(localize('requireidstring', "property `{0}` is mandatory and must be of type `string` with non-empty value. Only alphanumeric characters, '_', and '-' are allowed.", 'id'));
 				return false;
@@ -455,30 +461,33 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		for (const extension of extensions) {
 			const { value, collector } = extension;
 
-			forEach(value, entry => {
-				if (!this.isValidViewDescriptors(entry.value, collector)) {
+			Object.entries(value).forEach(([key, value]) => {
+				if (!this.isValidViewDescriptors(value, collector)) {
 					return;
 				}
 
-				if (entry.key === 'remote' && !isProposedApiEnabled(extension.description, 'contribViewsRemote')) {
-					collector.warn(localize('ViewContainerRequiresProposedAPI', "View container '{0}' requires 'enabledApiProposals: [\"contribViewsRemote\"]' to be added to 'Remote'.", entry.key));
+				if (key === 'remote' && !isProposedApiEnabled(extension.description, 'contribViewsRemote')) {
+					collector.warn(localize('ViewContainerRequiresProposedAPI', "View container '{0}' requires 'enabledApiProposals: [\"contribViewsRemote\"]' to be added to 'Remote'.", key));
 					return;
 				}
 
-				const viewContainer = this.getViewContainer(entry.key);
+				const viewContainer = this.getViewContainer(key);
 				if (!viewContainer) {
-					collector.warn(localize('ViewContainerDoesnotExist', "View container '{0}' does not exist and all views registered to it will be added to 'Explorer'.", entry.key));
+					collector.warn(localize('ViewContainerDoesnotExist', "View container '{0}' does not exist and all views registered to it will be added to 'Explorer'.", key));
 				}
 				const container = viewContainer || this.getDefaultViewContainer();
-				const viewDescriptors = coalesce(entry.value.map((item, index) => {
+				const viewDescriptors: ICustomViewDescriptor[] = [];
+
+				for (let index = 0; index < value.length; index++) {
+					const item = value[index];
 					// validate
 					if (viewIds.has(item.id)) {
 						collector.error(localize('duplicateView1', "Cannot register multiple views with same id `{0}`", item.id));
-						return null;
+						continue;
 					}
 					if (this.viewsRegistry.getView(item.id) !== null) {
 						collector.error(localize('duplicateView2', "A view with id `{0}` is already registered.", item.id));
-						return null;
+						continue;
 					}
 
 					const order = ExtensionIdentifier.equals(extension.description.identifier, container.extensionId)
@@ -497,7 +506,16 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					const type = this.getViewType(item.type);
 					if (!type) {
 						collector.error(localize('unknownViewType', "Unknown view type `{0}`.", item.type));
-						return null;
+						continue;
+					}
+
+					let weight: number | undefined = undefined;
+					if (typeof item.initialSize === 'number') {
+						if (container.extensionId?.value === extension.description.identifier.value) {
+							weight = item.initialSize;
+						} else {
+							this.logService.warn(`${extension.description.identifier.value} tried to set the view size of ${item.id} but it was ignored because the view container does not belong to it.`);
+						}
 					}
 
 					const viewDescriptor = <ICustomTreeViewDescriptor>{
@@ -514,17 +532,18 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						collapsed: this.showCollapsed(container) || initialVisibility === InitialVisibility.Collapsed,
 						order: order,
 						extensionId: extension.description.identifier,
-						originalContainerId: entry.key,
+						originalContainerId: key,
 						group: item.group,
 						remoteAuthority: item.remoteName || (<any>item).remoteAuthority, // TODO@roblou - delete after remote extensions are updated
 						hideByDefault: initialVisibility === InitialVisibility.Hidden,
-						workspace: viewContainer?.id === REMOTE ? true : undefined
+						workspace: viewContainer?.id === REMOTE ? true : undefined,
+						weight
 					};
 
 
 					viewIds.add(viewDescriptor.id);
-					return viewDescriptor;
-				}));
+					viewDescriptors.push(viewDescriptor);
+				}
 
 				allViewDescriptors.push({ viewContainer: container, views: viewDescriptors });
 
@@ -554,6 +573,12 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 			const removedViews = this.viewsRegistry.getViews(viewContainer).filter(v => (v as ICustomViewDescriptor).extensionId && removedExtensions.has(ExtensionIdentifier.toKey((v as ICustomViewDescriptor).extensionId)));
 			if (removedViews.length) {
 				this.viewsRegistry.deregisterViews(removedViews, viewContainer);
+				for (const view of removedViews) {
+					const anyView = view as ICustomTreeViewDescriptor;
+					if (anyView.treeView) {
+						anyView.treeView.dispose();
+					}
+				}
 			}
 		}
 	}
@@ -571,7 +596,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 			return false;
 		}
 
-		for (let descriptor of viewDescriptors) {
+		for (const descriptor of viewDescriptors) {
 			if (typeof descriptor.id !== 'string') {
 				collector.error(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'id'));
 				return false;

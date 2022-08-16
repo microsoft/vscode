@@ -3,30 +3,46 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { LinkedList } from 'vs/base/common/linkedList';
+import { ResourceMap, ResourceSet } from 'vs/base/common/map';
+import { URI } from 'vs/base/common/uri';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IBulkEditOptions, IBulkEditResult, IBulkEditService, IBulkEditPreviewHandler, ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IBulkEditOptions, IBulkEditPreviewHandler, IBulkEditResult, IBulkEditService, ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { WorkspaceEdit } from 'vs/editor/common/languages';
+import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgress, IProgressStep, Progress } from 'vs/platform/progress/common/progress';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { BulkTextEdits } from 'vs/workbench/contrib/bulkEdit/browser/bulkTextEdits';
-import { BulkFileEdits } from 'vs/workbench/contrib/bulkEdit/browser/bulkFileEdits';
-import { BulkCellEdits, ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
-import { UndoRedoGroup, UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
-import { LinkedList } from 'vs/base/common/linkedList';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { ResourceMap, ResourceSet } from 'vs/base/common/map';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { URI } from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { UndoRedoGroup, UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
+import { BulkCellEdits, ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
+import { BulkFileEdits } from 'vs/workbench/contrib/bulkEdit/browser/bulkFileEdits';
+import { BulkTextEdits } from 'vs/workbench/contrib/bulkEdit/browser/bulkTextEdits';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+
+function liftEdits(edits: ResourceEdit[]): ResourceEdit[] {
+	return edits.map(edit => {
+		if (ResourceTextEdit.is(edit)) {
+			return ResourceTextEdit.lift(edit);
+		}
+		if (ResourceFileEdit.is(edit)) {
+			return ResourceFileEdit.lift(edit);
+		}
+		if (ResourceNotebookCellEdit.is(edit)) {
+			return ResourceNotebookCellEdit.lift(edit);
+		}
+		throw new Error('Unsupported edit');
+	});
+}
 
 class BulkEdit {
 
@@ -48,10 +64,10 @@ class BulkEdit {
 
 	ariaMessage(): string {
 
-		let otherResources = new ResourceMap<boolean>();
-		let textEditResources = new ResourceMap<boolean>();
+		const otherResources = new ResourceMap<boolean>();
+		const textEditResources = new ResourceMap<boolean>();
 		let textEditCount = 0;
-		for (let edit of this._edits) {
+		for (const edit of this._edits) {
 			if (edit instanceof ResourceTextEdit) {
 				textEditCount += 1;
 				textEditResources.set(edit.resource, true);
@@ -95,7 +111,7 @@ class BulkEdit {
 
 		const resources: (readonly URI[])[] = [];
 		let index = 0;
-		for (let range of ranges) {
+		for (const range of ranges) {
 			if (this._token.isCancellationRequested) {
 				break;
 			}
@@ -164,10 +180,11 @@ export class BulkEditService implements IBulkEditService {
 		return Boolean(this._previewHandler);
 	}
 
-	async apply(edits: ResourceEdit[], options?: IBulkEditOptions): Promise<IBulkEditResult> {
+	async apply(editsIn: ResourceEdit[] | WorkspaceEdit, options?: IBulkEditOptions): Promise<IBulkEditResult> {
+		let edits = liftEdits(Array.isArray(editsIn) ? editsIn : editsIn.edits);
 
 		if (edits.length === 0) {
-			return { ariaSummary: localize('nothing', "Made no edits") };
+			return { ariaSummary: localize('nothing', "Made no edits"), isApplied: false };
 		}
 
 		if (this._previewHandler && (options?.showPreview || edits.some(value => value.metadata?.needsConfirmation))) {
@@ -177,7 +194,7 @@ export class BulkEditService implements IBulkEditService {
 		let codeEditor = options?.editor;
 		// try to find code editor
 		if (!codeEditor) {
-			let candidate = this._editorService.activeTextEditorControl;
+			const candidate = this._editorService.activeTextEditorControl;
 			if (isCodeEditor(candidate)) {
 				codeEditor = candidate;
 			}
@@ -194,7 +211,7 @@ export class BulkEditService implements IBulkEditService {
 		let undoRedoGroup: UndoRedoGroup | undefined;
 		let undoRedoGroupRemove = () => { };
 		if (typeof options?.undoRedoGroupId === 'number') {
-			for (let candidate of this._activeUndoRedoGroups) {
+			for (const candidate of this._activeUndoRedoGroups) {
 				if (candidate.id === options.undoRedoGroupId) {
 					undoRedoGroup = candidate;
 					break;
@@ -227,11 +244,11 @@ export class BulkEditService implements IBulkEditService {
 
 			// when enabled (option AND setting) loop over all dirty working copies and trigger save
 			// for those that were involved in this bulk edit operation.
-			if (options?.respectAutoSaveConfig && this._configService.getValue(autoSaveSetting) === true && resources.length > 1) {
+			if (options?.respectAutoSaveConfig && this._configService.getValue(autoSaveSetting) === true) {
 				await this._saveAll(resources);
 			}
 
-			return { ariaSummary: bulkEdit.ariaMessage() };
+			return { ariaSummary: bulkEdit.ariaMessage(), isApplied: edits.length > 0 };
 		} catch (err) {
 			// console.log('apply FAILED');
 			// console.log(err);
@@ -272,7 +289,7 @@ export class BulkEditService implements IBulkEditService {
 	}
 }
 
-registerSingleton(IBulkEditService, BulkEditService, true);
+registerSingleton(IBulkEditService, BulkEditService, InstantiationType.Delayed);
 
 const autoSaveSetting = 'files.refactoring.autoSave';
 

@@ -66,7 +66,7 @@ suite('TextEditorService', () => {
 
 		// Untyped Input (file casing)
 		input = service.createTextEditor({ resource: toResource.call(this, '/index.html') });
-		let inputDifferentCase = service.createTextEditor({ resource: toResource.call(this, '/INDEX.html') });
+		const inputDifferentCase = service.createTextEditor({ resource: toResource.call(this, '/INDEX.html') });
 
 		if (!isLinux) {
 			assert.strictEqual(input, inputDifferentCase);

@@ -16,7 +16,7 @@ export function setup(logger: Logger) {
 		it('verifies presence of all default status bar elements', async function () {
 			const app = this.app as Application;
 			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.BRANCH_STATUS);
-			if (app.quality !== Quality.Dev) {
+			if (app.quality !== Quality.Dev && app.quality !== Quality.OSS) {
 				await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.FEEDBACK_ICON);
 			}
 			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.SYNC_STATUS);
@@ -69,7 +69,7 @@ export function setup(logger: Logger) {
 
 		it(`verifies that 'Tweet us feedback' pop-up appears when clicking on 'Feedback' icon`, async function () {
 			const app = this.app as Application;
-			if (app.quality === Quality.Dev) {
+			if (app.quality === Quality.Dev || app.quality === Quality.OSS) {
 				return this.skip();
 			}
 

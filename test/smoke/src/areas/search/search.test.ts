@@ -29,14 +29,16 @@ export function setup(logger: Logger) {
 
 		it('searches only for *.js files & checks for correct result number', async function () {
 			const app = this.app as Application;
-			await app.workbench.search.searchFor('body');
-			await app.workbench.search.showQueryDetails();
-			await app.workbench.search.setFilesToIncludeText('*.js');
-			await app.workbench.search.submitSearch();
+			try {
+				await app.workbench.search.setFilesToIncludeText('*.js');
+				await app.workbench.search.searchFor('body');
+				await app.workbench.search.showQueryDetails();
 
-			await app.workbench.search.waitForResultText('4 results in 1 file');
-			await app.workbench.search.setFilesToIncludeText('');
-			await app.workbench.search.hideQueryDetails();
+				await app.workbench.search.waitForResultText('4 results in 1 file');
+			} finally {
+				await app.workbench.search.setFilesToIncludeText('');
+				await app.workbench.search.hideQueryDetails();
+			}
 		});
 
 		it('dismisses result & checks for correct result number', async function () {
@@ -46,14 +48,14 @@ export function setup(logger: Logger) {
 			await app.workbench.search.removeFileMatch('app.js', '2 results in 2 files');
 		});
 
-		it.skip('replaces first search result with a replace term', async function () { // TODo@roblourens https://github.com/microsoft/vscode/issues/137195
+		it.skip('replaces first search result with a replace term', async function () { // TODO@roblourens https://github.com/microsoft/vscode/issues/137195
 			const app = this.app as Application;
 
 			await app.workbench.search.searchFor('body');
 			await app.workbench.search.waitForResultText('6 results in 3 files');
 			await app.workbench.search.expandReplace();
 			await app.workbench.search.setReplaceText('ydob');
-			await app.workbench.search.replaceFileMatch('app.js', '12 results in 4 files');
+			await app.workbench.search.replaceFileMatch('app.js', '2 results in 2 files');
 
 			await app.workbench.search.searchFor('ydob');
 			await app.workbench.search.waitForResultText('4 results in 1 file');

@@ -3,10 +3,15 @@
 #   Licensed under the MIT License. See License.txt in the project root for license information.
 # ---------------------------------------------------------------------------------------------
 
-param(
-	[Parameter(HelpMessage="Hides the shell integration welcome message")]
-	[switch] $HideWelcome = $False
-)
+# Prevent installing more than once per session
+if (Test-Path variable:global:__VSCodeOriginalPrompt) {
+	return;
+}
+
+# Disable shell integration when the language mode is restricted
+if ($ExecutionContext.SessionState.LanguageMode -ne "FullLanguage") {
+	return;
+}
 
 $Global:__VSCodeOriginalPrompt = $function:Prompt
 
@@ -36,8 +41,12 @@ function Global:Prompt() {
 			# Sanitize the command line to ensure it can get transferred to the terminal and can be parsed
 			# correctly. This isn't entirely safe but good for most cases, it's important for the Pt parameter
 			# to only be composed of _printable_ characters as per the spec.
-			$CommandLine = $LastHistoryEntry.CommandLine ?? ""
-			$Result += $CommandLine.Replace("`n", "<LF>").Replace(";", "<CL>")
+			if ($LastHistoryEntry.CommandLine) {
+				$CommandLine = $LastHistoryEntry.CommandLine
+			} else {
+				$CommandLine = ""
+			}
+			$Result += $CommandLine.Replace("\", "\\").Replace("`n", "\x0a").Replace(";", "\x3b")
 			$Result += "`a"
 			# Command finished exit code
 			# OSC 633 ; D [; <ExitCode>] ST
@@ -73,7 +82,18 @@ if (Get-Module -Name PSReadLine) {
 # Set IsWindows property
 [Console]::Write("`e]633;P;IsWindows=$($IsWindows)`a")
 
-# Show the welcome message
-if ($HideWelcome -eq $False) {
-	Write-Host "`e[1mShell integration activated`e[0m" -ForegroundColor Green
+# Set always on key handlers which map to default VS Code keybindings
+function Set-MappedKeyHandler {
+	param ([string[]] $Chord, [string[]]$Sequence)
+	$Handler = $(Get-PSReadLineKeyHandler -Chord $Chord | Select-Object -First 1)
+	if ($Handler) {
+		Set-PSReadLineKeyHandler -Chord $Sequence -Function $Handler.Function
+	}
 }
+function Set-MappedKeyHandlers {
+	Set-MappedKeyHandler -Chord Ctrl+Spacebar -Sequence 'F12,a'
+	Set-MappedKeyHandler -Chord Alt+Spacebar -Sequence 'F12,b'
+	Set-MappedKeyHandler -Chord Shift+Enter -Sequence 'F12,c'
+	Set-MappedKeyHandler -Chord Shift+End -Sequence 'F12,d'
+}
+Set-MappedKeyHandlers

@@ -64,8 +64,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 		} else if (isMacintosh) {
 			// high contrast is set if one of shouldUseInvertedColorScheme or shouldUseHighContrastColors is set, reflecting the 'Invert colours' and `Increase contrast` settings in MacOS
 			if (nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors) {
-				// when the colors are inverted, negate shouldUseDarkColors
-				return { dark: nativeTheme.shouldUseDarkColors !== nativeTheme.shouldUseInvertedColorScheme, highContrast: true };
+				return { dark: nativeTheme.shouldUseDarkColors, highContrast: true };
 			}
 		} else if (isLinux) {
 			// ubuntu gnome seems to have 3 states, light dark and high contrast

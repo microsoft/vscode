@@ -23,8 +23,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
 import { FindInFrameOptions, IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
-import { WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewElement, WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/webviewElement';
+import { WebviewInitInfo } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewElement } from 'vs/workbench/contrib/webview/browser/webviewElement';
 import { WindowIgnoreMenuShortcutsManager } from 'vs/workbench/contrib/webview/electron-sandbox/windowIgnoreMenuShortcutsManager';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
@@ -44,10 +44,7 @@ export class ElectronWebviewElement extends WebviewElement {
 	protected override get platform() { return 'electron'; }
 
 	constructor(
-		id: string,
-		options: WebviewOptions,
-		contentOptions: WebviewContentOptions,
-		extension: WebviewExtensionDescription | undefined,
+		initInfo: WebviewInitInfo,
 		webviewThemeDataProvider: WebviewThemeDataProvider,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@ITunnelService tunnelService: ITunnelService,
@@ -60,27 +57,19 @@ export class ElectronWebviewElement extends WebviewElement {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IMainProcessService mainProcessService: IMainProcessService,
 		@INotificationService notificationService: INotificationService,
-		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 	) {
-		super(id, options, contentOptions, extension, webviewThemeDataProvider,
+		super(initInfo, webviewThemeDataProvider,
 			configurationService, contextMenuService, menuService, notificationService, environmentService,
 			fileService, logService, remoteAuthorityResolverService, telemetryService, tunnelService, instantiationService, accessibilityService);
 
-		this._webviewKeyboardHandler = new WindowIgnoreMenuShortcutsManager(configurationService, mainProcessService, nativeHostService);
+		this._webviewKeyboardHandler = new WindowIgnoreMenuShortcutsManager(configurationService, mainProcessService, _nativeHostService);
 
 		this._webviewMainService = ProxyChannel.toService<IWebviewManagerService>(mainProcessService.getChannel('webview'));
 
-		this._register(this.on(WebviewMessageChannels.didFocus, () => {
-			this._webviewKeyboardHandler.didFocus();
-		}));
-
-		this._register(this.on(WebviewMessageChannels.didBlur, () => {
-			this._webviewKeyboardHandler.didBlur();
-		}));
-
-		if (options.enableFindWidget) {
+		if (initInfo.options.enableFindWidget) {
 			this._register(this.onDidHtmlChange((newContent) => {
 				if (this._findStarted && this._cachedHtmlContent !== newContent) {
 					this.stopFind(false);
@@ -92,6 +81,13 @@ export class ElectronWebviewElement extends WebviewElement {
 				this._hasFindResult.fire(result.matches > 0);
 			}));
 		}
+	}
+
+	override dispose(): void {
+		// Make sure keyboard handler knows it closed (#71800)
+		this._webviewKeyboardHandler.didBlur();
+
+		super.dispose();
 	}
 
 	protected override webviewContentEndpoint(iframeId: string): string {
@@ -131,7 +127,7 @@ export class ElectronWebviewElement extends WebviewElement {
 		} else {
 			// continuing the find, so set findNext to false
 			const options: FindInFrameOptions = { forward: !previous, findNext: false, matchCase: false };
-			this._webviewMainService.findInFrame({ windowId: this.nativeHostService.windowId }, this.id, value, options);
+			this._webviewMainService.findInFrame({ windowId: this._nativeHostService.windowId }, this.id, value, options);
 		}
 	}
 
@@ -149,7 +145,7 @@ export class ElectronWebviewElement extends WebviewElement {
 
 		this._iframeDelayer.trigger(() => {
 			this._findStarted = true;
-			this._webviewMainService.findInFrame({ windowId: this.nativeHostService.windowId }, this.id, value, options);
+			this._webviewMainService.findInFrame({ windowId: this._nativeHostService.windowId }, this.id, value, options);
 		});
 	}
 
@@ -159,9 +155,18 @@ export class ElectronWebviewElement extends WebviewElement {
 		}
 		this._iframeDelayer.cancel();
 		this._findStarted = false;
-		this._webviewMainService.stopFindInFrame({ windowId: this.nativeHostService.windowId }, this.id, {
+		this._webviewMainService.stopFindInFrame({ windowId: this._nativeHostService.windowId }, this.id, {
 			keepSelection
 		});
 		this._onDidStopFind.fire();
+	}
+
+	protected override handleFocusChange(isFocused: boolean): void {
+		super.handleFocusChange(isFocused);
+		if (isFocused) {
+			this._webviewKeyboardHandler.didFocus();
+		} else {
+			this._webviewKeyboardHandler.didBlur();
+		}
 	}
 }

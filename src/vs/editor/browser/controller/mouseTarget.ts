@@ -99,8 +99,8 @@ export class MouseTarget {
 	public static createOverlayWidget(element: Element | null, mouseColumn: number, detail: string): IMouseTargetOverlayWidget {
 		return { type: MouseTargetType.OVERLAY_WIDGET, element, mouseColumn, position: null, range: null, detail };
 	}
-	public static createOutsideEditor(mouseColumn: number, position: Position): IMouseTargetOutsideEditor {
-		return { type: MouseTargetType.OUTSIDE_EDITOR, element: null, mouseColumn, position, range: this._deduceRage(position) };
+	public static createOutsideEditor(mouseColumn: number, position: Position, outsidePosition: 'above' | 'below' | 'left' | 'right', outsideDistance: number): IMouseTargetOutsideEditor {
+		return { type: MouseTargetType.OUTSIDE_EDITOR, element: null, mouseColumn, position, range: this._deduceRage(position), outsidePosition, outsideDistance };
 	}
 
 	private static _typeToString(type: MouseTargetType): string {
@@ -823,7 +823,21 @@ export class MouseTargetFactory {
 			const curr = points[i];
 			if (prev.offset <= request.mouseContentHorizontalOffset && request.mouseContentHorizontalOffset <= curr.offset) {
 				const rng = new EditorRange(lineNumber, prev.column, lineNumber, curr.column);
-				return request.fulfillContentText(pos, rng, { mightBeForeignElement: !mouseIsOverSpanNode || !!injectedText, injectedText });
+
+				// See https://github.com/microsoft/vscode/issues/152819
+				// Due to the use of zwj, the browser's hit test result is skewed towards the left
+				// Here we try to correct that if the mouse horizontal offset is closer to the right than the left
+
+				const prevDelta = Math.abs(prev.offset - request.mouseContentHorizontalOffset);
+				const nextDelta = Math.abs(curr.offset - request.mouseContentHorizontalOffset);
+
+				const resultPos = (
+					prevDelta < nextDelta
+						? new Position(lineNumber, prev.column)
+						: new Position(lineNumber, curr.column)
+				);
+
+				return request.fulfillContentText(resultPos, rng, { mightBeForeignElement: !mouseIsOverSpanNode || !!injectedText, injectedText });
 			}
 		}
 		return request.fulfillContentText(pos, null, { mightBeForeignElement: !mouseIsOverSpanNode || !!injectedText, injectedText });
@@ -837,22 +851,31 @@ export class MouseTargetFactory {
 		// In Chrome, especially on Linux it is possible to click between lines,
 		// so try to adjust the `hity` below so that it lands in the center of a line
 		const lineNumber = ctx.getLineNumberAtVerticalOffset(request.mouseVerticalOffset);
-		const lineVerticalOffset = ctx.getVerticalOffsetForLineNumber(lineNumber);
-		const lineCenteredVerticalOffset = lineVerticalOffset + Math.floor(ctx.lineHeight / 2);
-		let adjustedPageY = request.pos.y + (lineCenteredVerticalOffset - request.mouseVerticalOffset);
+		const lineStartVerticalOffset = ctx.getVerticalOffsetForLineNumber(lineNumber);
+		const lineEndVerticalOffset = lineStartVerticalOffset + ctx.lineHeight;
 
-		if (adjustedPageY <= request.editorPos.y) {
-			adjustedPageY = request.editorPos.y + 1;
-		}
-		if (adjustedPageY >= request.editorPos.y + request.editorPos.height) {
-			adjustedPageY = request.editorPos.y + request.editorPos.height - 1;
-		}
+		const isBelowLastLine = (
+			lineNumber === ctx.viewModel.getLineCount()
+			&& request.mouseVerticalOffset > lineEndVerticalOffset
+		);
 
-		const adjustedPage = new PageCoordinates(request.pos.x, adjustedPageY);
+		if (!isBelowLastLine) {
+			const lineCenteredVerticalOffset = Math.floor((lineStartVerticalOffset + lineEndVerticalOffset) / 2);
+			let adjustedPageY = request.pos.y + (lineCenteredVerticalOffset - request.mouseVerticalOffset);
 
-		const r = this._actualDoHitTestWithCaretRangeFromPoint(ctx, adjustedPage.toClientCoordinates());
-		if (r.type === HitTestResultType.Content) {
-			return r;
+			if (adjustedPageY <= request.editorPos.y) {
+				adjustedPageY = request.editorPos.y + 1;
+			}
+			if (adjustedPageY >= request.editorPos.y + request.editorPos.height) {
+				adjustedPageY = request.editorPos.y + request.editorPos.height - 1;
+			}
+
+			const adjustedPage = new PageCoordinates(request.pos.x, adjustedPageY);
+
+			const r = this._actualDoHitTestWithCaretRangeFromPoint(ctx, adjustedPage.toClientCoordinates());
+			if (r.type === HitTestResultType.Content) {
+				return r;
+			}
 		}
 
 		// Also try to hit test without the adjustment (for the edge cases that we are near the top or bottom)
@@ -984,7 +1007,7 @@ export class MouseTargetFactory {
 	}
 }
 
-export function shadowCaretRangeFromPoint(shadowRoot: ShadowRoot, x: number, y: number): Range {
+function shadowCaretRangeFromPoint(shadowRoot: ShadowRoot, x: number, y: number): Range {
 	const range = document.createRange();
 
 	// Get the element under the point

@@ -24,6 +24,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellPartsCollection } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { CellComments } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellComments';
 import { CellContextKeyPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellContextKeys';
 import { CellDecorations } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellDecorations';
@@ -41,7 +42,7 @@ import { RunToolbar } from 'vs/workbench/contrib/notebook/browser/view/cellParts
 import { CollapsedCellInput } from 'vs/workbench/contrib/notebook/browser/view/cellParts/collapsedCellInput';
 import { CollapsedCellOutput } from 'vs/workbench/contrib/notebook/browser/view/cellParts/collapsedCellOutput';
 import { FoldedCellHint } from 'vs/workbench/contrib/notebook/browser/view/cellParts/foldedCellHint';
-import { StatefulMarkdownCell } from 'vs/workbench/contrib/notebook/browser/view/cellParts/markdownCell';
+import { MarkupCell } from 'vs/workbench/contrib/notebook/browser/view/cellParts/markupCell';
 import { CodeCellRenderTemplate, MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
@@ -160,10 +161,11 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 			titleToolbarContainer,
 			rootClassDelegate,
 			this.notebookEditor.creationOptions.menuIds.cellTitleToolbar,
+			this.notebookEditor.creationOptions.menuIds.cellDeleteToolbar,
 			this.notebookEditor));
 		const focusIndicatorBottom = new FastDomNode(DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-bottom')));
 
-		const cellParts = [
+		const cellParts = new CellPartsCollection([
 			titleToolbar,
 			templateDisposables.add(scopedInstaService.createInstance(BetweenCellToolbar, this.notebookEditor, titleToolbarContainer, bottomCellContainer)),
 			templateDisposables.add(scopedInstaService.createInstance(CellEditorStatusBar, this.notebookEditor, container, editorPart, undefined)),
@@ -175,7 +177,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 			templateDisposables.add(new CellFocusPart(container, undefined, this.notebookEditor)),
 			templateDisposables.add(new CellDragAndDropPart(container)),
 			templateDisposables.add(scopedInstaService.createInstance(CellContextKeyPart, this.notebookEditor)),
-		];
+		]);
 
 		const templateData: MarkdownCellRenderTemplate = {
 			rootContainer,
@@ -209,11 +211,12 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 			return;
 		}
 
-		templateData.elementDisposables.add(templateData.instantiationService.createInstance(StatefulMarkdownCell, this.notebookEditor, element, templateData, this.renderedEditors));
+		templateData.elementDisposables.add(templateData.instantiationService.createInstance(MarkupCell, this.notebookEditor, element, templateData, this.renderedEditors));
 	}
 
 	disposeTemplate(templateData: MarkdownCellRenderTemplate): void {
-		templateData.templateDisposables.clear();
+		templateData.elementDisposables.dispose();
+		templateData.templateDisposables.dispose();
 	}
 
 	disposeElement(_element: ICellViewModel, _index: number, templateData: MarkdownCellRenderTemplate): void {
@@ -274,7 +277,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 				width: 0,
 				height: 0
 			},
-			enableDropIntoEditor: true,
 		}, {
 			contributions: this.notebookEditor.creationOptions.cellEditorContributions
 		});
@@ -299,10 +301,11 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			titleToolbarContainer,
 			rootClassDelegate,
 			this.notebookEditor.creationOptions.menuIds.cellTitleToolbar,
+			this.notebookEditor.creationOptions.menuIds.cellDeleteToolbar,
 			this.notebookEditor));
 
 		const focusIndicatorPart = templateDisposables.add(new CellFocusIndicator(this.notebookEditor, titleToolbar, focusIndicatorTop, focusIndicatorLeft, focusIndicatorRight, focusIndicatorBottom));
-		const cellParts = [
+		const cellParts = new CellPartsCollection([
 			focusIndicatorPart,
 			titleToolbar,
 			templateDisposables.add(scopedInstaService.createInstance(BetweenCellToolbar, this.notebookEditor, titleToolbarContainer, bottomCellToolbarContainer)),
@@ -311,13 +314,13 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			templateDisposables.add(scopedInstaService.createInstance(RunToolbar, this.notebookEditor, contextKeyService, container, runButtonContainer)),
 			templateDisposables.add(new CellDecorations(rootContainer, decorationContainer)),
 			templateDisposables.add(scopedInstaService.createInstance(CellComments, this.notebookEditor, cellCommentPartContainer)),
-			templateDisposables.add(new CellExecutionPart(this.notebookEditor, executionOrderLabel)),
+			templateDisposables.add(scopedInstaService.createInstance(CellExecutionPart, this.notebookEditor, executionOrderLabel)),
 			templateDisposables.add(scopedInstaService.createInstance(CollapsedCellOutput, this.notebookEditor, cellOutputCollapsedContainer)),
 			templateDisposables.add(new CollapsedCellInput(this.notebookEditor, cellInputCollapsedContainer)),
 			templateDisposables.add(new CellFocusPart(container, focusSinkElement, this.notebookEditor)),
 			templateDisposables.add(new CellDragAndDropPart(container)),
 			templateDisposables.add(scopedInstaService.createInstance(CellContextKeyPart, this.notebookEditor)),
-		];
+		]);
 
 		const templateData: CodeCellRenderTemplate = {
 			rootContainer,

@@ -21,7 +21,9 @@ interface SerializedIconPath {
 
 export interface SerializedWebview {
 	readonly id: string;
+	readonly origin: string | undefined;
 	readonly viewType: string;
+	readonly providedId: string | undefined;
 	readonly title: string;
 	readonly options: SerializedWebviewOptions;
 	readonly extensionLocation: UriComponents | undefined;
@@ -33,7 +35,9 @@ export interface SerializedWebview {
 
 export interface DeserializedWebview {
 	readonly id: string;
+	readonly origin: string | undefined;
 	readonly viewType: string;
+	readonly providedId: string | undefined;
 	readonly title: string;
 	readonly webviewOptions: WebviewOptions;
 	readonly contentOptions: WebviewContentOptions;
@@ -73,15 +77,19 @@ export class WebviewEditorInputSerializer implements IEditorSerializer {
 		serializedEditorInput: string
 	): WebviewInput {
 		const data = this.fromJson(JSON.parse(serializedEditorInput));
-		return this._webviewWorkbenchService.reviveWebview({
-			id: data.id,
+		return this._webviewWorkbenchService.openRevivedWebview({
+			webviewInitInfo: {
+				id: data.id,
+				providedViewType: data.providedId,
+				origin: data.origin,
+				options: data.webviewOptions,
+				contentOptions: data.contentOptions,
+				extension: data.extension,
+			},
 			viewType: data.viewType,
 			title: data.title,
 			iconPath: data.iconPath,
 			state: data.state,
-			webviewOptions: data.webviewOptions,
-			contentOptions: data.contentOptions,
-			extension: data.extension,
 			group: data.group
 		});
 	}
@@ -100,11 +108,13 @@ export class WebviewEditorInputSerializer implements IEditorSerializer {
 	protected toJson(input: WebviewInput): SerializedWebview {
 		return {
 			id: input.id,
+			origin: input.webview.origin,
 			viewType: input.viewType,
+			providedId: input.providedId,
 			title: input.getName(),
 			options: { ...input.webview.options, ...input.webview.contentOptions },
-			extensionLocation: input.extension ? input.extension.location : undefined,
-			extensionId: input.extension && input.extension.id ? input.extension.id.value : undefined,
+			extensionLocation: input.extension?.location,
+			extensionId: input.extension?.id.value,
 			state: input.webview.state,
 			iconPath: input.iconPath ? { light: input.iconPath.light, dark: input.iconPath.dark, } : undefined,
 			group: input.group

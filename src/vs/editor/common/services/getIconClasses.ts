@@ -71,7 +71,6 @@ export function getIconClasses(modelService: IModelService, languageService: ILa
 	return classes;
 }
 
-
 export function getIconClassesForLanguageId(languageId: string): string[] {
 	return ['file-icon', `${cssEscape(languageId)}-lang-file-icon`];
 }

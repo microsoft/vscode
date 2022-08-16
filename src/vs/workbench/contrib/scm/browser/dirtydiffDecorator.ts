@@ -19,7 +19,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { URI } from 'vs/base/common/uri';
 import { ISCMService, ISCMRepository, ISCMProvider } from 'vs/workbench/contrib/scm/common/scm';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { registerThemingParticipant, IColorTheme, ICssStyleCollector, themeColorFromId, IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, themeColorFromId, IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { editorErrorForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
@@ -50,9 +50,9 @@ import { Codicon } from 'vs/base/common/codicons';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { TextCompareEditorActiveContext } from 'vs/workbench/common/contextkeys';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IChange } from 'vs/editor/common/diff/diffComputer';
+import { IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import { Color } from 'vs/base/common/color';
-import { editorGutter } from 'vs/editor/common/core/editorColorRegistry';
+import { Iterable } from 'vs/base/common/iterator';
 
 class DiffActionRunner extends ActionRunner {
 
@@ -180,16 +180,17 @@ class DirtyDiffWidget extends PeekViewWidget {
 		@IThemeService private readonly themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMenuService menuService: IMenuService,
-		@IContextKeyService _contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(editor, { isResizeable: true, frameWidth: 1, keepEditorSelection: true }, instantiationService);
 
 		this._disposables.add(themeService.onDidColorThemeChange(this._applyTheme, this));
 		this._applyTheme(themeService.getColorTheme());
 
-		const contextKeyService = _contextKeyService.createOverlay([
-			['originalResourceScheme', this.model.original!.uri.scheme]
-		]);
+		if (this.model.original) {
+			contextKeyService = contextKeyService.createOverlay([['originalResourceScheme', this.model.original.uri.scheme]]);
+		}
+
 		this.menu = menuService.createMenu(MenuId.SCMChangeContext, contextKeyService);
 		this._disposables.add(this.menu);
 
@@ -259,7 +260,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this._disposables.add(next);
 
 		const actions: IAction[] = [];
-		this._disposables.add(createAndFillInActionBarActions(this.menu, { shouldForwardArgs: true }, actions));
+		createAndFillInActionBarActions(this.menu, { shouldForwardArgs: true }, actions);
 		this._actionbarWidget!.push(actions.reverse(), { label: false, icon: true });
 		this._actionbarWidget!.push([next, previous], { label: false, icon: true });
 		this._actionbarWidget!.push(new Action('peekview.close', nls.localize('label.close', "Close"), Codicon.close.classNames, true, () => this.dispose()), { label: false, icon: true });
@@ -296,7 +297,8 @@ class DirtyDiffWidget extends PeekViewWidget {
 			minimap: { enabled: false },
 			renderSideBySide: false,
 			readOnly: false,
-			renderIndicators: false
+			renderIndicators: false,
+			diffAlgorithm: 'smart',
 		};
 
 		this.diffEditor = this.instantiationService.createInstance(EmbeddedDiffEditorWidget, container, options, this.editor);
@@ -609,7 +611,8 @@ export class DirtyDiffController extends Disposable implements IEditorContributi
 				}
 
 				.monaco-editor .margin-view-overlays .dirty-diff-glyph:hover::before {
-					width: 9px;
+					height: 100%;
+					width: 6px;
 					left: -6px;
 				}
 
@@ -1079,8 +1082,8 @@ export function createProviderComparer(uri: URI): (a: ISCMProvider, b: ISCMProvi
 }
 
 export async function getOriginalResource(scmService: ISCMService, uri: URI): Promise<URI | null> {
-	const providers = scmService.repositories.map(r => r.provider);
-	const rootedProviders = providers.filter(p => !!p.rootUri);
+	const providers = Iterable.map(scmService.repositories, r => r.provider);
+	const rootedProviders = Array.from(Iterable.filter(providers, p => !!p.rootUri));
 
 	rootedProviders.sort(createProviderComparer(uri));
 
@@ -1090,8 +1093,8 @@ export async function getOriginalResource(scmService: ISCMService, uri: URI): Pr
 		return result;
 	}
 
-	const nonRootedProviders = providers.filter(p => !p.rootUri);
-	return first(nonRootedProviders.map(p => () => p.getOriginalResource(uri)));
+	const nonRootedProviders = Iterable.filter(providers, p => !p.rootUri);
+	return first(Array.from(nonRootedProviders, p => () => p.getOriginalResource(uri)));
 }
 
 export class DirtyDiffModel extends Disposable {
@@ -1132,7 +1135,9 @@ export class DirtyDiffModel extends Disposable {
 			)(this.triggerDiff, this)
 		);
 		this._register(scmService.onDidAddRepository(this.onDidAddRepository, this));
-		scmService.repositories.forEach(r => this.onDidAddRepository(r));
+		for (const r of scmService.repositories) {
+			this.onDidAddRepository(r);
+		}
 
 		this._register(this._model.onDidChangeEncoding(() => {
 			this.diffDelayer.cancel();
@@ -1502,81 +1507,3 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 }
 
 registerEditorContribution(DirtyDiffController.ID, DirtyDiffController);
-
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-	const editorGutterBackgroundColor = theme.getColor(editorGutter);
-	const editorGutterModifiedBackgroundColor = theme.getColor(editorGutterModifiedBackground);
-
-	const getLinearGradient = (color: Color): string => {
-		return `-45deg, ${color} 25%, ${editorGutterBackgroundColor} 25%, ${editorGutterBackgroundColor} 50%, ${color} 50%, ${color} 75%, ${editorGutterBackgroundColor} 75%, ${editorGutterBackgroundColor}`;
-	};
-
-	if (editorGutterBackgroundColor && editorGutterModifiedBackgroundColor) {
-		collector.addRule(`
-			.monaco-editor .dirty-diff-modified {
-				border-left-color: ${editorGutterModifiedBackgroundColor};
-				border-left-style: solid;
-				transition: opacity 0.5s;
-			}
-			.monaco-editor .dirty-diff-modified:before {
-				background: ${editorGutterModifiedBackgroundColor};
-			}
-			.monaco-editor .dirty-diff-modified-pattern {
-				background-image: linear-gradient(${getLinearGradient(editorGutterModifiedBackgroundColor)});
-				background-repeat: repeat-y;
-				transition: opacity 0.5s;
-			}
-			.monaco-editor .dirty-diff-modified-pattern:before {
-				background-image: linear-gradient(${getLinearGradient(editorGutterModifiedBackgroundColor)});
-				transform: translateX(3px);
-			}
-			.monaco-editor .margin:hover .dirty-diff-modified,
-			.monaco-editor .margin:hover .dirty-diff-modified-pattern {
-				opacity: 1;
-			}
-		`);
-	}
-
-	const editorGutterAddedBackgroundColor = theme.getColor(editorGutterAddedBackground);
-	if (editorGutterBackgroundColor && editorGutterAddedBackgroundColor) {
-		collector.addRule(`
-			.monaco-editor .dirty-diff-added {
-				border-left-color: ${editorGutterAddedBackgroundColor};
-				border-left-style: solid;
-				transition: opacity 0.5s;
-			}
-			.monaco-editor .dirty-diff-added:before {
-				background: ${editorGutterAddedBackgroundColor};
-			}
-			.monaco-editor .dirty-diff-added-pattern {
-				background-image: linear-gradient(${getLinearGradient(editorGutterAddedBackgroundColor)});
-				background-repeat: repeat-y;
-				transition: opacity 0.5s;
-			}
-			.monaco-editor .dirty-diff-added-pattern:before {
-				background-image: linear-gradient(${getLinearGradient(editorGutterAddedBackgroundColor)});
-				transform: translateX(3px);
-			}
-			.monaco-editor .margin:hover .dirty-diff-added,
-			.monaco-editor .margin:hover .dirty-diff-added-pattern {
-				opacity: 1;
-			}
-		`);
-	}
-
-	const editorGutteDeletedBackgroundColor = theme.getColor(editorGutterDeletedBackground);
-	if (editorGutteDeletedBackgroundColor) {
-		collector.addRule(`
-			.monaco-editor .dirty-diff-deleted:after {
-				border-left: 4px solid ${editorGutteDeletedBackgroundColor};
-				transition: opacity 0.5s;
-			}
-			.monaco-editor .dirty-diff-deleted:before {
-				background: ${editorGutteDeletedBackgroundColor};
-			}
-			.monaco-editor .margin:hover .dirty-diff-added {
-				opacity: 1;
-			}
-		`);
-	}
-});

@@ -20,7 +20,7 @@ import { QuickInputService, IQuickInputControllerHost } from 'vs/platform/quicki
 import { once } from 'vs/base/common/functional';
 import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
 
-export class EditorScopedQuickInputService extends QuickInputService {
+class EditorScopedQuickInputService extends QuickInputService {
 
 	private host: IQuickInputControllerHost | undefined = undefined;
 
@@ -44,7 +44,8 @@ export class EditorScopedQuickInputService extends QuickInputService {
 				get container() { return widget.getDomNode(); },
 				get dimension() { return editor.getLayoutInfo(); },
 				get onDidLayout() { return editor.onDidLayoutChange; },
-				focus: () => editor.focus()
+				focus: () => editor.focus(),
+				offset: { top: 0, quickPickTop: 0 }
 			};
 		} else {
 			this.host = undefined;

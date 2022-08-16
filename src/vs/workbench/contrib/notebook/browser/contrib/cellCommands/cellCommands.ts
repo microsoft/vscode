@@ -31,7 +31,10 @@ registerAction2(class extends NotebookCellAction {
 		super(
 			{
 				id: MOVE_CELL_UP_COMMAND_ID,
-				title: localize('notebookActions.moveCellUp', "Move Cell Up"),
+				title: {
+					value: localize('notebookActions.moveCellUp', "Move Cell Up"),
+					original: 'Move Cell Up'
+				},
 				icon: icons.moveUpIcon,
 				keybinding: {
 					primary: KeyMod.Alt | KeyCode.UpArrow,
@@ -57,7 +60,10 @@ registerAction2(class extends NotebookCellAction {
 		super(
 			{
 				id: MOVE_CELL_DOWN_COMMAND_ID,
-				title: localize('notebookActions.moveCellDown', "Move Cell Down"),
+				title: {
+					value: localize('notebookActions.moveCellDown', "Move Cell Down"),
+					original: 'Move Cell Down'
+				},
 				icon: icons.moveDownIcon,
 				keybinding: {
 					primary: KeyMod.Alt | KeyCode.DownArrow,
@@ -83,7 +89,10 @@ registerAction2(class extends NotebookCellAction {
 		super(
 			{
 				id: COPY_CELL_UP_COMMAND_ID,
-				title: localize('notebookActions.copyCellUp', "Copy Cell Up"),
+				title: {
+					value: localize('notebookActions.copyCellUp', "Copy Cell Up"),
+					original: 'Copy Cell Up'
+				},
 				keybinding: {
 					primary: KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow,
 					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext.toNegated()),
@@ -102,7 +111,10 @@ registerAction2(class extends NotebookCellAction {
 		super(
 			{
 				id: COPY_CELL_DOWN_COMMAND_ID,
-				title: localize('notebookActions.copyCellDown', "Copy Cell Down"),
+				title: {
+					value: localize('notebookActions.copyCellDown', "Copy Cell Down"),
+					original: 'Copy Cell Down'
+				},
 				keybinding: {
 					primary: KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow,
 					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext.toNegated()),
@@ -137,7 +149,10 @@ registerAction2(class extends NotebookCellAction {
 		super(
 			{
 				id: SPLIT_CELL_COMMAND_ID,
-				title: localize('notebookActions.splitCell', "Split Cell"),
+				title: {
+					value: localize('notebookActions.splitCell', "Split Cell"),
+					original: 'Split Cell'
+				},
 				menu: {
 					id: MenuId.NotebookCellTitle,
 					when: ContextKeyExpr.and(
@@ -212,7 +227,10 @@ registerAction2(class extends NotebookCellAction {
 		super(
 			{
 				id: JOIN_CELL_ABOVE_COMMAND_ID,
-				title: localize('notebookActions.joinCellAbove', "Join With Previous Cell"),
+				title: {
+					value: localize('notebookActions.joinCellAbove', "Join With Previous Cell"),
+					original: 'Join With Previous Cell'
+				},
 				keybinding: {
 					when: NOTEBOOK_EDITOR_FOCUSED,
 					primary: KeyMod.WinCtrl | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyJ,
@@ -238,7 +256,10 @@ registerAction2(class extends NotebookCellAction {
 		super(
 			{
 				id: JOIN_CELL_BELOW_COMMAND_ID,
-				title: localize('notebookActions.joinCellBelow', "Join With Next Cell"),
+				title: {
+					value: localize('notebookActions.joinCellBelow', "Join With Next Cell"),
+					original: 'Join With Next Cell'
+				},
 				keybinding: {
 					when: NOTEBOOK_EDITOR_FOCUSED,
 					primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.KeyJ,
@@ -270,7 +291,10 @@ registerAction2(class ChangeCellToCodeAction extends NotebookMultiCellAction {
 	constructor() {
 		super({
 			id: CHANGE_CELL_TO_CODE_COMMAND_ID,
-			title: localize('notebookActions.changeCellToCode', "Change Cell to Code"),
+			title: {
+				value: localize('notebookActions.changeCellToCode', "Change Cell to Code"),
+				original: 'Change Cell to Code'
+			},
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
 				primary: KeyCode.KeyY,
@@ -294,7 +318,10 @@ registerAction2(class ChangeCellToMarkdownAction extends NotebookMultiCellAction
 	constructor() {
 		super({
 			id: CHANGE_CELL_TO_MARKDOWN_COMMAND_ID,
-			title: localize('notebookActions.changeCellToMarkdown', "Change Cell to Markdown"),
+			title: {
+				value: localize('notebookActions.changeCellToMarkdown', "Change Cell to Markdown"),
+				original: 'Change Cell to Markdown'
+			},
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
 				primary: KeyCode.KeyM,
@@ -330,7 +357,10 @@ registerAction2(class CollapseCellInputAction extends NotebookMultiCellAction {
 	constructor() {
 		super({
 			id: COLLAPSE_CELL_INPUT_COMMAND_ID,
-			title: localize('notebookActions.collapseCellInput', "Collapse Cell Input"),
+			title: {
+				value: localize('notebookActions.collapseCellInput', "Collapse Cell Input"),
+				original: 'Collapse Cell Input'
+			},
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_INPUT_COLLAPSED.toNegated(), InputFocusedContext.toNegated()),
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyC),
@@ -356,7 +386,10 @@ registerAction2(class ExpandCellInputAction extends NotebookMultiCellAction {
 	constructor() {
 		super({
 			id: EXPAND_CELL_INPUT_COMMAND_ID,
-			title: localize('notebookActions.expandCellInput', "Expand Cell Input"),
+			title: {
+				value: localize('notebookActions.expandCellInput', "Expand Cell Input"),
+				original: 'Expand Cell Input'
+			},
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_INPUT_COLLAPSED),
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyC),
@@ -382,7 +415,10 @@ registerAction2(class CollapseCellOutputAction extends NotebookMultiCellAction {
 	constructor() {
 		super({
 			id: COLLAPSE_CELL_OUTPUT_COMMAND_ID,
-			title: localize('notebookActions.collapseCellOutput', "Collapse Cell Output"),
+			title: {
+				value: localize('notebookActions.collapseCellOutput', "Collapse Cell Output"),
+				original: 'Collapse Cell Output'
+			},
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED.toNegated(), InputFocusedContext.toNegated(), NOTEBOOK_CELL_HAS_OUTPUTS),
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyT),
@@ -404,7 +440,10 @@ registerAction2(class ExpandCellOuputAction extends NotebookMultiCellAction {
 	constructor() {
 		super({
 			id: EXPAND_CELL_OUTPUT_COMMAND_ID,
-			title: localize('notebookActions.expandCellOutput', "Expand Cell Output"),
+			title: {
+				value: localize('notebookActions.expandCellOutput', "Expand Cell Output"),
+				original: 'Expand Cell Output'
+			},
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED),
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyT),
@@ -427,7 +466,10 @@ registerAction2(class extends NotebookMultiCellAction {
 		super({
 			id: TOGGLE_CELL_OUTPUTS_COMMAND_ID,
 			precondition: NOTEBOOK_CELL_LIST_FOCUSED,
-			title: localize('notebookActions.toggleOutputs', "Toggle Outputs"),
+			title: {
+				value: localize('notebookActions.toggleOutputs', "Toggle Outputs"),
+				original: 'Toggle Outputs'
+			},
 			description: {
 				description: localize('notebookActions.toggleOutputs', "Toggle Outputs"),
 				args: cellExecutionArgs
@@ -457,7 +499,10 @@ registerAction2(class CollapseAllCellInputsAction extends NotebookMultiCellActio
 	constructor() {
 		super({
 			id: COLLAPSE_ALL_CELL_INPUTS_COMMAND_ID,
-			title: localize('notebookActions.collapseAllCellInput', "Collapse All Cell Inputs"),
+			title: {
+				value: localize('notebookActions.collapseAllCellInput', "Collapse All Cell Inputs"),
+				original: 'Collapse All Cell Inputs'
+			},
 			f1: true,
 		});
 	}
@@ -471,7 +516,10 @@ registerAction2(class ExpandAllCellInputsAction extends NotebookMultiCellAction 
 	constructor() {
 		super({
 			id: EXPAND_ALL_CELL_INPUTS_COMMAND_ID,
-			title: localize('notebookActions.expandAllCellInput', "Expand All Cell Inputs"),
+			title: {
+				value: localize('notebookActions.expandAllCellInput', "Expand All Cell Inputs"),
+				original: 'Expand All Cell Inputs'
+			},
 			f1: true
 		});
 	}
@@ -485,7 +533,10 @@ registerAction2(class CollapseAllCellOutputsAction extends NotebookMultiCellActi
 	constructor() {
 		super({
 			id: COLLAPSE_ALL_CELL_OUTPUTS_COMMAND_ID,
-			title: localize('notebookActions.collapseAllCellOutput', "Collapse All Cell Outputs"),
+			title: {
+				value: localize('notebookActions.collapseAllCellOutput', "Collapse All Cell Outputs"),
+				original: 'Collapse All Cell Outputs'
+			},
 			f1: true,
 		});
 	}
@@ -499,7 +550,10 @@ registerAction2(class ExpandAllCellOutputsAction extends NotebookMultiCellAction
 	constructor() {
 		super({
 			id: EXPAND_ALL_CELL_OUTPUTS_COMMAND_ID,
-			title: localize('notebookActions.expandAllCellOutput', "Expand All Cell Outputs"),
+			title: {
+				value: localize('notebookActions.expandAllCellOutput', "Expand All Cell Outputs"),
+				original: 'Expand All Cell Outputs'
+			},
 			f1: true
 		});
 	}

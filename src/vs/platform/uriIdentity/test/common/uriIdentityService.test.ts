@@ -45,10 +45,10 @@ suite('URI Identity', function () {
 	}
 
 	test('extUri (isEqual)', function () {
-		let a = URI.parse('foo://bar/bang');
-		let a1 = URI.parse('foo://bar/BANG');
-		let b = URI.parse('bar://bar/bang');
-		let b1 = URI.parse('bar://bar/BANG');
+		const a = URI.parse('foo://bar/bang');
+		const a1 = URI.parse('foo://bar/BANG');
+		const b = URI.parse('bar://bar/bang');
+		const b1 = URI.parse('bar://bar/BANG');
 
 		assert.strictEqual(_service.extUri.isEqual(a, a1), true);
 		assert.strictEqual(_service.extUri.isEqual(a1, a), true);
@@ -59,10 +59,10 @@ suite('URI Identity', function () {
 
 	test('asCanonicalUri (casing)', function () {
 
-		let a = URI.parse('foo://bar/bang');
-		let a1 = URI.parse('foo://bar/BANG');
-		let b = URI.parse('bar://bar/bang');
-		let b1 = URI.parse('bar://bar/BANG');
+		const a = URI.parse('foo://bar/bang');
+		const a1 = URI.parse('foo://bar/BANG');
+		const b = URI.parse('bar://bar/bang');
+		const b1 = URI.parse('bar://bar/BANG');
 
 		assertCanonical(a, a);
 		assertCanonical(a1, a);
@@ -72,7 +72,7 @@ suite('URI Identity', function () {
 	});
 
 	test('asCanonicalUri (normalization)', function () {
-		let a = URI.parse('foo://bar/bang');
+		const a = URI.parse('foo://bar/bang');
 		assertCanonical(a, a);
 		assertCanonical(URI.parse('foo://bar/./bang'), a);
 		assertCanonical(URI.parse('foo://bar/./bang'), a);
@@ -81,7 +81,7 @@ suite('URI Identity', function () {
 
 	test('asCanonicalUri (keep fragement)', function () {
 
-		let a = URI.parse('foo://bar/bang');
+		const a = URI.parse('foo://bar/bang');
 
 		assertCanonical(a, a);
 		assertCanonical(URI.parse('foo://bar/./bang#frag'), a.with({ fragment: 'frag' }));
@@ -89,7 +89,7 @@ suite('URI Identity', function () {
 		assertCanonical(URI.parse('foo://bar/./bang#frag'), a.with({ fragment: 'frag' }));
 		assertCanonical(URI.parse('foo://bar/./foo/../bang#frag'), a.with({ fragment: 'frag' }));
 
-		let b = URI.parse('foo://bar/bazz#frag');
+		const b = URI.parse('foo://bar/bazz#frag');
 		assertCanonical(b, b);
 		assertCanonical(URI.parse('foo://bar/bazz'), b.with({ fragment: '' }));
 		assertCanonical(URI.parse('foo://bar/BAZZ#DDD'), b.with({ fragment: 'DDD' })); // lower-case path, but fragment is kept

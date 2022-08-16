@@ -23,26 +23,25 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { MenuRegistry, MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ShowCurrentReleaseNotesActionId, CheckForVSCodeUpdateActionId } from 'vs/workbench/contrib/update/common/update';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IProductService } from 'vs/platform/product/common/productService';
-import product from 'vs/platform/product/common/product';
 import { IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, SyncStatus, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { Promises } from 'vs/base/common/async';
 import { IUserDataSyncWorkbenchService } from 'vs/workbench/services/userDataSync/common/userDataSync';
 import { Event } from 'vs/base/common/event';
 
-export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Idle);
+export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Uninitialized);
+export const RELEASE_NOTES_URL = new RawContextKey<string>('releaseNotesUrl', '');
 
 let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
 
-function showReleaseNotes(instantiationService: IInstantiationService, version: string) {
+export function showReleaseNotes(instantiationService: IInstantiationService, version: string) {
 	if (!releaseNotesManager) {
 		releaseNotesManager = instantiationService.createInstance(ReleaseNotesManager);
 	}
 
-	return instantiationService.invokeFunction(accessor => releaseNotesManager!.show(accessor, version));
+	return releaseNotesManager.show(version);
 }
 
 export class OpenLatestReleaseNotesInBrowserAction extends Action {
@@ -104,22 +103,6 @@ export class ShowReleaseNotesAction extends AbstractShowReleaseNotesAction {
 	}
 }
 
-export class ShowCurrentReleaseNotesAction extends AbstractShowReleaseNotesAction {
-
-	static readonly ID = ShowCurrentReleaseNotesActionId;
-	static readonly LABEL = nls.localize('showReleaseNotes', "Show Release Notes");
-	static readonly AVAILABE = !!product.releaseNotesUrl;
-
-	constructor(
-		id = ShowCurrentReleaseNotesAction.ID,
-		label = ShowCurrentReleaseNotesAction.LABEL,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IProductService productService: IProductService
-	) {
-		super(id, label, productService.version, instantiationService);
-	}
-}
-
 interface IVersion {
 	major: number;
 	minor: number;
@@ -156,14 +139,20 @@ export class ProductContribution implements IWorkbenchContribution {
 		@IOpenerService openerService: IOpenerService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHostService hostService: IHostService,
-		@IProductService productService: IProductService
+		@IProductService productService: IProductService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
+		if (productService.releaseNotesUrl) {
+			const releaseNotesUrlKey = RELEASE_NOTES_URL.bindTo(contextKeyService);
+			releaseNotesUrlKey.set(productService.releaseNotesUrl);
+		}
+
 		hostService.hadLastFocus().then(async hadLastFocus => {
 			if (!hadLastFocus) {
 				return;
 			}
 
-			const lastVersion = parseVersion(storageService.get(ProductContribution.KEY, StorageScope.GLOBAL, ''));
+			const lastVersion = parseVersion(storageService.get(ProductContribution.KEY, StorageScope.APPLICATION, ''));
 			const currentVersion = parseVersion(productService.version);
 			const shouldShowReleaseNotes = configurationService.getValue<boolean>('update.showReleaseNotes');
 			const releaseNotesUrl = productService.releaseNotesUrl;
@@ -186,7 +175,7 @@ export class ProductContribution implements IWorkbenchContribution {
 					});
 			}
 
-			storageService.store(ProductContribution.KEY, productService.version, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			storageService.store(ProductContribution.KEY, productService.version, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		});
 	}
 }
@@ -224,12 +213,12 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		*/
 
 		const currentVersion = this.productService.commit;
-		const lastKnownVersion = this.storageService.get('update/lastKnownVersion', StorageScope.GLOBAL);
+		const lastKnownVersion = this.storageService.get('update/lastKnownVersion', StorageScope.APPLICATION);
 
 		// if current version != stored version, clear both fields
 		if (currentVersion !== lastKnownVersion) {
-			this.storageService.remove('update/lastKnownVersion', StorageScope.GLOBAL);
-			this.storageService.remove('update/updateNotificationTime', StorageScope.GLOBAL);
+			this.storageService.remove('update/lastKnownVersion', StorageScope.APPLICATION);
+			this.storageService.remove('update/updateNotificationTime', StorageScope.APPLICATION);
 		}
 
 		this.registerGlobalActivityActions();
@@ -400,15 +389,15 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	private shouldShowNotification(): boolean {
 		const currentVersion = this.productService.commit;
 		const currentMillis = new Date().getTime();
-		const lastKnownVersion = this.storageService.get('update/lastKnownVersion', StorageScope.GLOBAL);
+		const lastKnownVersion = this.storageService.get('update/lastKnownVersion', StorageScope.APPLICATION);
 
 		// if version != stored version, save version and date
 		if (currentVersion !== lastKnownVersion) {
-			this.storageService.store('update/lastKnownVersion', currentVersion!, StorageScope.GLOBAL, StorageTarget.MACHINE);
-			this.storageService.store('update/updateNotificationTime', currentMillis, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.storageService.store('update/lastKnownVersion', currentVersion!, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			this.storageService.store('update/updateNotificationTime', currentMillis, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		}
 
-		const updateNotificationMillis = this.storageService.getNumber('update/updateNotificationTime', StorageScope.GLOBAL, currentMillis);
+		const updateNotificationMillis = this.storageService.getNumber('update/updateNotificationTime', StorageScope.APPLICATION, currentMillis);
 		const diffDays = (currentMillis - updateNotificationMillis) / (1000 * 60 * 60 * 24);
 
 		return diffDays > 5;
@@ -536,12 +525,12 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 						const userDataSyncStore = userDataSyncStoreManagementService.userDataSyncStore;
 						let userDataSyncStoreType: UserDataSyncStoreType | undefined;
 						if (userDataSyncStore && isSwitchingToInsiders && userDataSyncEnablementService.isEnabled()
-							&& !storageService.getBoolean(selectSettingsSyncServiceDialogShownKey, StorageScope.GLOBAL, false)) {
+							&& !storageService.getBoolean(selectSettingsSyncServiceDialogShownKey, StorageScope.APPLICATION, false)) {
 							userDataSyncStoreType = await this.selectSettingsSyncService(dialogService);
 							if (!userDataSyncStoreType) {
 								return;
 							}
-							storageService.store(selectSettingsSyncServiceDialogShownKey, true, StorageScope.GLOBAL, StorageTarget.USER);
+							storageService.store(selectSettingsSyncServiceDialogShownKey, true, StorageScope.APPLICATION, StorageTarget.USER);
 							if (userDataSyncStoreType === 'stable') {
 								// Update the stable service type in the current window, so that it uses stable service after switched to insiders version (after reload).
 								await userDataSyncStoreManagementService.switch(userDataSyncStoreType);
@@ -576,7 +565,7 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 						} else {
 							// Reset
 							if (userDataSyncStoreType) {
-								storageService.remove(selectSettingsSyncServiceDialogShownKey, StorageScope.GLOBAL);
+								storageService.remove(selectSettingsSyncServiceDialogShownKey, StorageScope.APPLICATION);
 							}
 						}
 					} catch (error) {
@@ -602,23 +591,5 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 				}
 			});
 		}
-	}
-}
-
-export class CheckForVSCodeUpdateAction extends Action {
-
-	static readonly ID = CheckForVSCodeUpdateActionId;
-	static LABEL = nls.localize('checkForUpdates', "Check for Updates...");
-
-	constructor(
-		id: string,
-		label: string,
-		@IUpdateService private readonly updateService: IUpdateService,
-	) {
-		super(id, label, undefined, true);
-	}
-
-	override run(): Promise<void> {
-		return this.updateService.checkForUpdates(true);
 	}
 }

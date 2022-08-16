@@ -5,9 +5,9 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { Match, FileMatch, SearchResult, SearchModel } from 'vs/workbench/contrib/search/common/searchModel';
+import { Match, FileMatch, SearchResult, SearchModel, FolderMatch } from 'vs/workbench/contrib/search/common/searchModel';
 import { URI } from 'vs/base/common/uri';
-import { IFileMatch, TextSearchMatch, OneLineRange, ITextSearchMatch } from 'vs/workbench/services/search/common/search';
+import { IFileMatch, TextSearchMatch, OneLineRange, ITextSearchMatch, QueryType } from 'vs/workbench/services/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { Range } from 'vs/editor/common/core/range';
@@ -21,7 +21,10 @@ import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { FileService } from 'vs/platform/files/common/fileService';
-import { NullLogService } from 'vs/platform/log/common/log';
+import { ILogService, NullLogService } from 'vs/platform/log/common/log';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { MockLabelService } from 'vs/workbench/services/label/test/common/mockLabelService';
+import { isWindows } from 'vs/base/common/platform';
 
 const lineOneRange = new OneLineRange(1, 0, 1);
 
@@ -35,7 +38,9 @@ suite('SearchResult', () => {
 		instantiationService.stub(IModelService, stubModelService(instantiationService));
 		instantiationService.stub(IUriIdentityService, new UriIdentityService(new FileService(new NullLogService())));
 		instantiationService.stubPromise(IReplaceService, {});
-		instantiationService.stubPromise(IReplaceService, 'replace', null);
+		instantiationService.stub(IReplaceService, 'replace', () => Promise.resolve(null));
+		instantiationService.stub(ILabelService, new MockLabelService());
+		instantiationService.stub(ILogService, new NullLogService());
 	});
 
 	test('Line Match', function () {
@@ -141,7 +146,7 @@ suite('SearchResult', () => {
 		assert.strictEqual(null, testObject.getSelectedMatch());
 	});
 
-	test('Alle Drei Zusammen', function () {
+	test('Match -> FileMatch -> SearchResult hierarchy exists', function () {
 		const searchResult = instantiationService.createInstance(SearchResult, null);
 		const fileMatch = aFileMatch('far/boo', searchResult);
 		const lineMatch = new Match(fileMatch, ['foo bar'], new OneLineRange(0, 0, 3), new OneLineRange(1, 0, 3));
@@ -152,7 +157,7 @@ suite('SearchResult', () => {
 
 	test('Adding a raw match will add a file match with line matches', function () {
 		const testObject = aSearchResult();
-		const target = [aRawMatch('file://c:/',
+		const target = [aRawMatch('/1',
 			new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
 			new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11)),
 			new TextSearchMatch('preview 2', lineOneRange))];
@@ -163,7 +168,7 @@ suite('SearchResult', () => {
 
 		const actual = testObject.matches();
 		assert.strictEqual(1, actual.length);
-		assert.strictEqual('file://c:/', actual[0].resource.toString());
+		assert.strictEqual(URI.file(`${getRootName()}/1`).toString(), actual[0].resource.toString());
 
 		const actuaMatches = actual[0].matches();
 		assert.strictEqual(3, actuaMatches.length);
@@ -181,10 +186,10 @@ suite('SearchResult', () => {
 	test('Adding multiple raw matches', function () {
 		const testObject = aSearchResult();
 		const target = [
-			aRawMatch('file://c:/1',
+			aRawMatch('/1',
 				new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
 				new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11))),
-			aRawMatch('file://c:/2',
+			aRawMatch('/2',
 				new TextSearchMatch('preview 2', lineOneRange))];
 
 		testObject.add(target);
@@ -193,7 +198,7 @@ suite('SearchResult', () => {
 
 		const actual = testObject.matches();
 		assert.strictEqual(2, actual.length);
-		assert.strictEqual('file://c:/1', actual[0].resource.toString());
+		assert.strictEqual(URI.file(`${getRootName()}/1`).toString(), actual[0].resource.toString());
 
 		let actuaMatches = actual[0].matches();
 		assert.strictEqual(2, actuaMatches.length);
@@ -214,9 +219,9 @@ suite('SearchResult', () => {
 
 		const testObject = aSearchResult();
 		testObject.add([
-			aRawMatch('file://c:/1',
+			aRawMatch('/1',
 				new TextSearchMatch('preview 1', lineOneRange)),
-			aRawMatch('file://c:/2',
+			aRawMatch('/2',
 				new TextSearchMatch('preview 2', lineOneRange))]);
 
 		testObject.matches()[0].onDispose(target1);
@@ -233,7 +238,7 @@ suite('SearchResult', () => {
 		const target = sinon.spy();
 		const testObject = aSearchResult();
 		testObject.add([
-			aRawMatch('file://c:/1',
+			aRawMatch('/1',
 				new TextSearchMatch('preview 1', lineOneRange))]);
 		const objectToRemove = testObject.matches()[0];
 		testObject.onChange(target);
@@ -248,9 +253,9 @@ suite('SearchResult', () => {
 		const target = sinon.spy();
 		const testObject = aSearchResult();
 		testObject.add([
-			aRawMatch('file://c:/1',
+			aRawMatch('/1',
 				new TextSearchMatch('preview 1', lineOneRange)),
-			aRawMatch('file://c:/2',
+			aRawMatch('/2',
 				new TextSearchMatch('preview 2', lineOneRange))]);
 		const arrayToRemove = testObject.matches();
 		testObject.onChange(target);
@@ -265,7 +270,7 @@ suite('SearchResult', () => {
 		const target = sinon.spy();
 		const testObject = aSearchResult();
 		testObject.add([
-			aRawMatch('file://c:/1',
+			aRawMatch('/1',
 				new TextSearchMatch('preview 1', lineOneRange))]);
 		const objectToRemove = testObject.matches()[0];
 		testObject.onChange(target);
@@ -279,7 +284,7 @@ suite('SearchResult', () => {
 	test('Removing all line matches and adding back will add file back to result', function () {
 		const testObject = aSearchResult();
 		testObject.add([
-			aRawMatch('file://c:/1',
+			aRawMatch('/1',
 				new TextSearchMatch('preview 1', lineOneRange))]);
 		const target = testObject.matches()[0];
 		const matchToRemove = target.matches()[0];
@@ -297,7 +302,7 @@ suite('SearchResult', () => {
 		instantiationService.stub(IReplaceService, 'replace', voidPromise);
 		const testObject = aSearchResult();
 		testObject.add([
-			aRawMatch('file://c:/1',
+			aRawMatch('/1',
 				new TextSearchMatch('preview 1', lineOneRange))]);
 
 		testObject.replace(testObject.matches()[0]);
@@ -311,7 +316,7 @@ suite('SearchResult', () => {
 		instantiationService.stub(IReplaceService, 'replace', voidPromise);
 		const testObject = aSearchResult();
 		testObject.add([
-			aRawMatch('file://c:/1',
+			aRawMatch('/1',
 				new TextSearchMatch('preview 1', lineOneRange))]);
 		testObject.onChange(target);
 		const objectToRemove = testObject.matches()[0];
@@ -329,9 +334,9 @@ suite('SearchResult', () => {
 		instantiationService.stubPromise(IReplaceService, 'replace', voidPromise);
 		const testObject = aSearchResult();
 		testObject.add([
-			aRawMatch('file://c:/1',
+			aRawMatch('/1',
 				new TextSearchMatch('preview 1', lineOneRange)),
-			aRawMatch('file://c:/2',
+			aRawMatch('/2',
 				new TextSearchMatch('preview 2', lineOneRange))]);
 
 		testObject.replaceAll(null!);
@@ -339,27 +344,269 @@ suite('SearchResult', () => {
 		return voidPromise.then(() => assert.ok(testObject.isEmpty()));
 	});
 
+	test('batchRemove should trigger the onChange event correctly', function () {
+		const target = sinon.spy();
+		const testObject = getPopulatedSearchResult();
+
+		const folderMatch = testObject.folderMatches()[0];
+		const fileMatch = testObject.folderMatches()[1].allDownstreamFileMatches()[0];
+		const match = testObject.folderMatches()[1].allDownstreamFileMatches()[1].matches()[0];
+
+		const arrayToRemove = [folderMatch, fileMatch, match];
+		const expectedArrayResult = folderMatch.allDownstreamFileMatches().concat([fileMatch, match.parent()]);
+
+		testObject.onChange(target);
+		testObject.batchRemove(arrayToRemove);
+
+		assert.ok(target.calledOnce);
+		assert.deepStrictEqual([{ elements: expectedArrayResult, removed: true, added: false }], target.args[0]);
+	});
+
+	test('batchReplace should trigger the onChange event correctly', async function () {
+		const replaceSpy = sinon.spy();
+		instantiationService.stub(IReplaceService, 'replace', (arg: any) => {
+			if (Array.isArray(arg)) {
+				replaceSpy(arg[0]);
+			} else {
+				replaceSpy(arg);
+			}
+			return Promise.resolve();
+		});
+
+		const target = sinon.spy();
+		const testObject = getPopulatedSearchResult();
+
+		const folderMatch = testObject.folderMatches()[0];
+		const fileMatch = testObject.folderMatches()[1].allDownstreamFileMatches()[0];
+		const match = testObject.folderMatches()[1].allDownstreamFileMatches()[1].matches()[0];
+
+		const firstExpectedMatch = folderMatch.allDownstreamFileMatches()[0];
+
+		const arrayToRemove = [folderMatch, fileMatch, match];
+
+		testObject.onChange(target);
+		await testObject.batchReplace(arrayToRemove);
+
+		assert.ok(target.calledOnce);
+		sinon.assert.calledThrice(replaceSpy);
+		sinon.assert.calledWith(replaceSpy.firstCall, firstExpectedMatch);
+		sinon.assert.calledWith(replaceSpy.secondCall, fileMatch);
+		sinon.assert.calledWith(replaceSpy.thirdCall, match);
+	});
+
+	test('Creating a model with nested folders should create the correct structure', function () {
+		const testObject = getPopulatedSearchResultForTreeTesting();
+
+		const root0 = testObject.folderMatches()[0];
+		const root1 = testObject.folderMatches()[1];
+		const root2 = testObject.folderMatches()[2];
+		const root3 = testObject.folderMatches()[3];
+
+		const root0DownstreamFiles = root0.allDownstreamFileMatches();
+		assert.deepStrictEqual(root0DownstreamFiles, [...root0.fileMatchesIterator(), ...getFolderMatchAtIndex(root0, 0).fileMatchesIterator()]);
+		assert.deepStrictEqual(getFolderMatchAtIndex(root0, 0).allDownstreamFileMatches(), Array.from(getFolderMatchAtIndex(root0, 0).fileMatchesIterator()));
+		assert.deepStrictEqual(getFileMatchAtIndex(getFolderMatchAtIndex(root0, 0), 0).parent(), getFolderMatchAtIndex(root0, 0));
+		assert.deepStrictEqual(getFolderMatchAtIndex(root0, 0).parent(), root0);
+		assert.deepStrictEqual(getFolderMatchAtIndex(root0, 0).closestRoot, root0);
+		root0DownstreamFiles.forEach((e) => {
+			assert.deepStrictEqual(e.closestRoot, root0);
+		});
+
+		const root1DownstreamFiles = root1.allDownstreamFileMatches();
+		assert.deepStrictEqual(root1.allDownstreamFileMatches(), [...root1.fileMatchesIterator(), ...getFolderMatchAtIndex(root1, 0).fileMatchesIterator()]); // excludes the matches from nested root
+		assert.deepStrictEqual(getFileMatchAtIndex(getFolderMatchAtIndex(root1, 0), 0).parent(), getFolderMatchAtIndex(root1, 0));
+		root1DownstreamFiles.forEach((e) => {
+			assert.deepStrictEqual(e.closestRoot, root1);
+		});
+
+		const root2DownstreamFiles = root2.allDownstreamFileMatches();
+		assert.deepStrictEqual(root2DownstreamFiles, Array.from(root2.fileMatchesIterator()));
+		assert.deepStrictEqual(getFileMatchAtIndex(root2, 0).parent(), root2);
+		assert.deepStrictEqual(getFileMatchAtIndex(root2, 0).closestRoot, root2);
+
+
+		const root3DownstreamFiles = root3.allDownstreamFileMatches();
+		const root3Level3Folder = getFolderMatchAtIndex(getFolderMatchAtIndex(root3, 0), 0);
+		assert.deepStrictEqual(root3DownstreamFiles, [...root3.fileMatchesIterator(), ...getFolderMatchAtIndex(root3Level3Folder, 0).fileMatchesIterator(), ...getFolderMatchAtIndex(root3Level3Folder, 1).fileMatchesIterator()].flat());
+		assert.deepStrictEqual(root3Level3Folder.allDownstreamFileMatches(), getFolderMatchAtIndex(root3, 0).allDownstreamFileMatches());
+
+		assert.deepStrictEqual(getFileMatchAtIndex(getFolderMatchAtIndex(root3Level3Folder, 1), 0).parent(), getFolderMatchAtIndex(root3Level3Folder, 1));
+		assert.deepStrictEqual(getFolderMatchAtIndex(root3Level3Folder, 1).parent(), root3Level3Folder);
+		assert.deepStrictEqual(root3Level3Folder.parent(), getFolderMatchAtIndex(root3, 0));
+
+		root3DownstreamFiles.forEach((e) => {
+			assert.deepStrictEqual(e.closestRoot, root3);
+		});
+	});
+
+	test('Removing an intermediate folder should call OnChange() on all downstream file matches', function () {
+		const target = sinon.spy();
+		const testObject = getPopulatedSearchResultForTreeTesting();
+
+		const folderMatch = getFolderMatchAtIndex(getFolderMatchAtIndex(getFolderMatchAtIndex(testObject.folderMatches()[3], 0), 0), 0);
+
+		const expectedArrayResult = folderMatch.allDownstreamFileMatches();
+
+		testObject.onChange(target);
+		testObject.remove(folderMatch);
+		assert.ok(target.calledOnce);
+		assert.deepStrictEqual([{ elements: expectedArrayResult, removed: true, added: false, clearingAll: false }], target.args[0]);
+	});
+
+	test('Replacing an intermediate folder should remove all downstream folders and file matches', async function () {
+		const target = sinon.spy();
+		const testObject = getPopulatedSearchResultForTreeTesting();
+
+		const folderMatch = getFolderMatchAtIndex(testObject.folderMatches()[3], 0);
+
+		const expectedArrayResult = folderMatch.allDownstreamFileMatches();
+
+		testObject.onChange(target);
+		await testObject.batchReplace([folderMatch]);
+		assert.deepStrictEqual([{ elements: expectedArrayResult, removed: true, added: false }], target.args[0]);
+
+	});
+
 	function aFileMatch(path: string, searchResult?: SearchResult, ...lineMatches: ITextSearchMatch[]): FileMatch {
 		const rawMatch: IFileMatch = {
 			resource: URI.file('/' + path),
 			results: lineMatches
 		};
-		return instantiationService.createInstance(FileMatch, null, null, null, searchResult, rawMatch);
+		return instantiationService.createInstance(FileMatch, null, null, null, searchResult, rawMatch, searchResult);
 	}
 
 	function aSearchResult(): SearchResult {
 		const searchModel = instantiationService.createInstance(SearchModel);
-		searchModel.searchResult.query = { type: 1, folderQueries: [{ folder: URI.parse('file://c:/') }] };
+		searchModel.searchResult.query = { type: 1, folderQueries: [{ folder: createFileUriFromPathFromRoot() }] };
 		return searchModel.searchResult;
 	}
 
+	function createFileUriFromPathFromRoot(path?: string): URI {
+		const rootName = getRootName();
+		if (path) {
+			return URI.file(`${rootName}${path}`);
+		} else {
+			if (isWindows) {
+				return URI.file(`${rootName}/`);
+			} else {
+				return URI.file(rootName);
+			}
+		}
+	}
+
+	function getRootName(): string {
+		if (isWindows) {
+			return 'c:';
+		} else {
+			return '';
+		}
+	}
+
 	function aRawMatch(resource: string, ...results: ITextSearchMatch[]): IFileMatch {
-		return { resource: URI.parse(resource), results };
+		return { resource: createFileUriFromPathFromRoot(resource), results };
 	}
 
 	function stubModelService(instantiationService: TestInstantiationService): IModelService {
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IThemeService, new TestThemeService());
 		return instantiationService.createInstance(ModelService);
+	}
+
+	function getPopulatedSearchResult() {
+		const testObject = aSearchResult();
+
+		testObject.query = {
+			type: QueryType.Text,
+			contentPattern: { pattern: 'foo' },
+			folderQueries: [{
+				folder: createFileUriFromPathFromRoot('/voo')
+			},
+			{ folder: createFileUriFromPathFromRoot('/with') },
+			]
+		};
+
+		testObject.add([
+			aRawMatch('/voo/foo.a',
+				new TextSearchMatch('preview 1', lineOneRange), new TextSearchMatch('preview 2', lineOneRange)),
+			aRawMatch('/with/path/bar.b',
+				new TextSearchMatch('preview 3', lineOneRange)),
+			aRawMatch('/with/path.c',
+				new TextSearchMatch('preview 4', lineOneRange), new TextSearchMatch('preview 5', lineOneRange)),
+		]);
+		return testObject;
+	}
+
+	function getPopulatedSearchResultForTreeTesting() {
+		const testObject = aSearchResult();
+
+		testObject.query = {
+			type: QueryType.Text,
+			contentPattern: { pattern: 'foo' },
+			folderQueries: [{
+				folder: createFileUriFromPathFromRoot('/voo')
+			},
+			{
+				folder: createFileUriFromPathFromRoot('/with')
+			},
+			{
+				folder: createFileUriFromPathFromRoot('/with/test')
+			},
+			{
+				folder: createFileUriFromPathFromRoot('/eep')
+			},
+			]
+		};
+		/***
+		 * file structure looks like:
+		 * *voo/
+		 * |- foo.a
+		 * |- beep
+		 *    |- foo.c
+		 * 	  |- boop.c
+		 * *with/
+		 * |- path
+		 *    |- bar.b
+		 * |- path.c
+		 * |- *test/
+		 *    |- woo.c
+		 * eep/
+		 *    |- bar
+		 *       |- goo
+		 *           |- foo
+		 *              |- here.txt
+		 * 			 |- ooo
+		 *              |- there.txt
+		 *    |- eyy.y
+		 */
+
+		testObject.add([
+			aRawMatch('/voo/foo.a',
+				new TextSearchMatch('preview 1', lineOneRange), new TextSearchMatch('preview 2', lineOneRange)),
+			aRawMatch('/voo/beep/foo.c',
+				new TextSearchMatch('preview 1', lineOneRange), new TextSearchMatch('preview 2', lineOneRange)),
+			aRawMatch('/voo/beep/boop.c',
+				new TextSearchMatch('preview 3', lineOneRange)),
+			aRawMatch('/with/path.c',
+				new TextSearchMatch('preview 4', lineOneRange), new TextSearchMatch('preview 5', lineOneRange)),
+			aRawMatch('/with/path/bar.b',
+				new TextSearchMatch('preview 3', lineOneRange)),
+			aRawMatch('/with/test/woo.c',
+				new TextSearchMatch('preview 3', lineOneRange)),
+			aRawMatch('/eep/bar/goo/foo/here.txt',
+				new TextSearchMatch('preview 6', lineOneRange), new TextSearchMatch('preview 7', lineOneRange)),
+			aRawMatch('/eep/bar/goo/ooo/there.txt',
+				new TextSearchMatch('preview 6', lineOneRange), new TextSearchMatch('preview 7', lineOneRange)),
+			aRawMatch('/eep/eyy.y',
+				new TextSearchMatch('preview 6', lineOneRange), new TextSearchMatch('preview 7', lineOneRange))
+		]);
+		return testObject;
+	}
+
+	function getFolderMatchAtIndex(parent: FolderMatch, index: number) {
+		return Array.from(parent.folderMatchesIterator())[index];
+	}
+
+	function getFileMatchAtIndex(parent: FolderMatch, index: number) {
+		return Array.from(parent.fileMatchesIterator())[index];
 	}
 });

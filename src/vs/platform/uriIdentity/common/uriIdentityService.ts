@@ -5,7 +5,7 @@
 
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { URI } from 'vs/base/common/uri';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService, FileSystemProviderCapabilities, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent } from 'vs/platform/files/common/files';
 import { ExtUri, IExtUri, normalizePath } from 'vs/base/common/resources';
 import { SkipList } from 'vs/base/common/skipList';
@@ -75,7 +75,7 @@ export class UriIdentityService implements IUriIdentityService {
 		}
 
 		// (2) find the uri in its canonical form or use this uri to define it
-		let item = this._canonicalUris.get(uri);
+		const item = this._canonicalUris.get(uri);
 		if (item) {
 			return item.touch().uri.with({ fragment: uri.fragment });
 		}
@@ -114,4 +114,4 @@ export class UriIdentityService implements IUriIdentityService {
 	}
 }
 
-registerSingleton(IUriIdentityService, UriIdentityService, true);
+registerSingleton(IUriIdentityService, UriIdentityService, InstantiationType.Delayed);

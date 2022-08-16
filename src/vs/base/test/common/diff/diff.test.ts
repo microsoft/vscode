@@ -25,8 +25,8 @@ function maskBasedSubstring(str: string, mask: boolean[]): string {
 }
 
 function assertAnswer(originalStr: string, modifiedStr: string, changes: IDiffChange[], answerStr: string, onlyLength: boolean = false): void {
-	let originalMask = createArray(originalStr.length, true);
-	let modifiedMask = createArray(modifiedStr.length, true);
+	const originalMask = createArray(originalStr.length, true);
+	const modifiedMask = createArray(modifiedStr.length, true);
 
 	let i, j, change;
 	for (i = 0; i < changes.length; i++) {
@@ -45,8 +45,8 @@ function assertAnswer(originalStr: string, modifiedStr: string, changes: IDiffCh
 		}
 	}
 
-	let originalAnswer = maskBasedSubstring(originalStr, originalMask);
-	let modifiedAnswer = maskBasedSubstring(modifiedStr, modifiedMask);
+	const originalAnswer = maskBasedSubstring(originalStr, originalMask);
+	const modifiedAnswer = maskBasedSubstring(modifiedStr, modifiedMask);
 
 	if (onlyLength) {
 		assert.strictEqual(originalAnswer.length, answerStr.length);
@@ -58,8 +58,8 @@ function assertAnswer(originalStr: string, modifiedStr: string, changes: IDiffCh
 }
 
 function lcsInnerTest(originalStr: string, modifiedStr: string, answerStr: string, onlyLength: boolean = false): void {
-	let diff = new LcsDiff(new StringDiffSequence(originalStr), new StringDiffSequence(modifiedStr));
-	let changes = diff.ComputeDiff(false).changes;
+	const diff = new LcsDiff(new StringDiffSequence(originalStr), new StringDiffSequence(modifiedStr));
+	const changes = diff.ComputeDiff(false).changes;
 	assertAnswer(originalStr, modifiedStr, changes, answerStr, onlyLength);
 }
 
@@ -98,8 +98,8 @@ suite('Diff', () => {
 
 suite('Diff - Ported from VS', () => {
 	test('using continue processing predicate to quit early', function () {
-		let left = 'abcdef';
-		let right = 'abxxcyyydzzzzezzzzzzzzzzzzzzzzzzzzf';
+		const left = 'abcdef';
+		const right = 'abxxcyyydzzzzezzzzzzzzzzzzzzzzzzzzf';
 
 		// We use a long non-matching portion at the end of the right-side string, so the backwards tracking logic
 		// doesn't get there first.
@@ -155,7 +155,7 @@ suite('Diff - Ported from VS', () => {
 		diff = new LcsDiff(new StringDiffSequence(left), new StringDiffSequence(right), function (leftIndex, longestMatchSoFar) {
 			assert(longestMatchSoFar <= 2); // We never see a match of length > 2
 
-			let hitYet = hitSecondMatch;
+			const hitYet = hitSecondMatch;
 			hitSecondMatch = longestMatchSoFar > 1;
 			// Continue processing as long as there hasn't been a match made.
 			return !hitYet;

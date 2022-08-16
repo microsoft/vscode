@@ -10,6 +10,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import * as languages from 'vs/editor/common/languages';
+import { ColorId } from 'vs/editor/common/encodedTokenAttributes';
 import { tokenizeLineToHTML } from 'vs/editor/common/languages/textToHtmlTokenizer';
 import { ITextModel } from 'vs/editor/common/model';
 import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
@@ -33,8 +34,8 @@ class EditorTextRenderer {
 		const fontWeightVar = '--notebook-editor-font-weight';
 
 		const style = ``
-			+ `color: ${colorMap[languages.ColorId.DefaultForeground]};`
-			+ `background-color: ${colorMap[languages.ColorId.DefaultBackground]};`
+			+ `color: ${colorMap[ColorId.DefaultForeground]};`
+			+ `background-color: ${colorMap[ColorId.DefaultBackground]};`
 			+ `font-family: var(${fontFamilyVar});`
 			+ `font-weight: var(${fontWeightVar});`
 			+ `font-size: var(${fontSizeVar});`

@@ -70,10 +70,14 @@ export interface IProductConfiguration {
 
 	readonly extensionsGallery?: {
 		readonly serviceUrl: string;
+		readonly servicePPEUrl?: string;
+		readonly searchUrl?: string;
 		readonly itemUrl: string;
+		readonly publisherUrl: string;
 		readonly resourceUrlTemplate: string;
 		readonly controlUrl: string;
 		readonly recommendationsUrl: string;
+		readonly nlsBaseUrl: string;
 	};
 
 	readonly extensionTips?: { [id: string]: string };
@@ -97,7 +101,7 @@ export interface IProductConfiguration {
 	readonly enableTelemetry?: boolean;
 	readonly openToWelcomeMainPage?: boolean;
 	readonly aiConfig?: {
-		readonly asimovKey: string;
+		readonly ariaKey: string;
 	};
 
 	readonly sendASmile?: {
@@ -127,6 +131,9 @@ export interface IProductConfiguration {
 	readonly serverApplicationName: string;
 	readonly serverDataFolderName?: string;
 
+	readonly tunnelApplicationName?: string;
+	readonly tunnelApplicationConfig?: { authenticationProviders: IStringDictionary<{ scopes: string[] }> };
+
 	readonly npsSurveyUrl?: string;
 	readonly cesSurveyUrl?: string;
 	readonly surveys?: readonly ISurveyData[];
@@ -151,7 +158,11 @@ export interface IProductConfiguration {
 
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
 
+	readonly 'editSessions.store'?: Omit<ConfigurationSyncStore, 'insidersUrl' | 'stableUrl'>;
 	readonly darwinUniversalAssetId?: string;
+
+	// experimental
+	readonly enableSyncingProfiles?: boolean;
 }
 
 export type ImportantExtensionTip = { name: string; languages?: string[]; pattern?: string; isExtensionPack?: boolean; whenNotInstalled?: string[] };

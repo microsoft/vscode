@@ -5,7 +5,7 @@
 
 import { PixelRatio } from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
-import { GlobalPointerMoveMonitor, standardPointerMoveMerger } from 'vs/base/browser/globalPointerMoveMonitor';
+import { GlobalPointerMoveMonitor } from 'vs/base/browser/globalPointerMoveMonitor';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Color, HSVA, RGBA } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -174,7 +174,7 @@ class SaturationBox extends Disposable {
 			this.onDidChangePosition(e.offsetX, e.offsetY);
 		}
 
-		this.monitor.startMonitoring(e.target, e.pointerId, e.buttons, standardPointerMoveMerger, event => this.onDidChangePosition(event.pageX - origin.left, event.pageY - origin.top), () => null);
+		this.monitor.startMonitoring(e.target, e.pointerId, e.buttons, event => this.onDidChangePosition(event.pageX - origin.left, event.pageY - origin.top), () => null);
 
 		const pointerUpListener = dom.addDisposableListener(document, dom.EventType.POINTER_UP, () => {
 			this._onColorFlushed.fire();
@@ -284,7 +284,7 @@ abstract class Strip extends Disposable {
 			this.onDidChangeTop(e.offsetY);
 		}
 
-		monitor.startMonitoring(e.target, e.pointerId, e.buttons, standardPointerMoveMerger, event => this.onDidChangeTop(event.pageY - origin.top), () => null);
+		monitor.startMonitoring(e.target, e.pointerId, e.buttons, event => this.onDidChangeTop(event.pageY - origin.top), () => null);
 
 		const pointerUpListener = dom.addDisposableListener(document, dom.EventType.POINTER_UP, () => {
 			this._onColorFlushed.fire();

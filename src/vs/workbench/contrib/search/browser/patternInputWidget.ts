@@ -70,9 +70,7 @@ export class PatternInputWidget extends Widget implements IThemable {
 
 	override dispose(): void {
 		super.dispose();
-		if (this.inputFocusTracker) {
-			this.inputFocusTracker.dispose();
-		}
+		this.inputFocusTracker?.dispose();
 	}
 
 	setWidth(newWidth: number): void {

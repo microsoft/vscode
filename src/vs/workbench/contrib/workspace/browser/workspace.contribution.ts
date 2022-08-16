@@ -45,6 +45,8 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { MANAGE_TRUST_COMMAND_ID, WorkspaceTrustContext } from 'vs/workbench/contrib/workspace/common/workspace';
+import { isWeb } from 'vs/base/common/platform';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 const BANNER_RESTRICTED_MODE = 'workbench.banner.restrictedMode';
 const STARTUP_PROMPT_SHOWN_KEY = 'workspace.trust.startupPrompt.shown';
@@ -220,7 +222,8 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 		@IBannerService private readonly bannerService: IBannerService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IHostService private readonly hostService: IHostService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 	) {
 		super();
 
@@ -271,7 +274,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 							localize('addWorkspaceFolderMessage', "Do you trust the authors of the files in this folder?"),
 							[localize('yes', 'Yes'), localize('no', 'No')],
 							{
-								detail: localize('addWorkspaceFolderDetail', "You are adding files to a trusted workspace that are not currently trusted. Do you trust the authors of these new files?"),
+								detail: localize('addWorkspaceFolderDetail', "You are adding files that are not currently trusted to a trusted workspace. Do you trust the authors of these new files?"),
 								cancelId: 1,
 								custom: { icon: Codicon.shield }
 							}
@@ -490,7 +493,14 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 
 
 	private get bannerSetting(): 'always' | 'untilDismissed' | 'never' {
-		return this.configurationService.getValue(WORKSPACE_TRUST_BANNER);
+		const result = this.configurationService.getValue<'always' | 'untilDismissed' | 'never'>(WORKSPACE_TRUST_BANNER);
+
+		// In serverless environments, we don't need to aggressively show the banner
+		if (result !== 'always' && isWeb && !this.remoteAgentService.getConnection()?.remoteAuthority) {
+			return 'never';
+		}
+
+		return result;
 	}
 
 	//#endregion
@@ -622,6 +632,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 // Configure Workspace Trust
 
 const CONFIGURE_TRUST_COMMAND_ID = 'workbench.trust.configure';
+const WORKSPACES_CATEGORY = { value: localize('workspacesCategory', "Workspaces"), original: 'Workspaces' };
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -629,7 +640,7 @@ registerAction2(class extends Action2 {
 			id: CONFIGURE_TRUST_COMMAND_ID,
 			title: { original: 'Configure Workspace Trust', value: localize('configureWorkspaceTrust', "Configure Workspace Trust") },
 			precondition: ContextKeyExpr.and(WorkspaceTrustContext.IsEnabled, ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true)),
-			category: localize('workspacesCategory', "Workspaces"),
+			category: WORKSPACES_CATEGORY,
 			f1: true
 		});
 	}
@@ -647,7 +658,7 @@ registerAction2(class extends Action2 {
 			id: MANAGE_TRUST_COMMAND_ID,
 			title: { original: 'Manage Workspace Trust', value: localize('manageWorkspaceTrust', "Manage Workspace Trust") },
 			precondition: ContextKeyExpr.and(WorkspaceTrustContext.IsEnabled, ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true)),
-			category: localize('workspacesCategory', "Workspaces"),
+			category: WORKSPACES_CATEGORY,
 			f1: true,
 			menu: {
 				id: MenuId.GlobalActivity,
@@ -761,7 +772,9 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 			const disabledByCliFlag = this.environmentService.disableWorkspaceTrust;
 
 			type WorkspaceTrustDisabledEventClassification = {
-				reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+				owner: 'sbatten';
+				comment: 'Logged when workspace trust is disabled';
+				reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason workspace trust is disabled. e.g. cli or setting' };
 			};
 
 			type WorkspaceTrustDisabledEvent = {
@@ -775,7 +788,9 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 		}
 
 		type WorkspaceTrustInfoEventClassification = {
-			trustedFoldersCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+			owner: 'sbatten';
+			comment: 'Information about the workspaces trusted on the machine';
+			trustedFoldersCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of trusted folders on the machine' };
 		};
 
 		type WorkspaceTrustInfoEvent = {
@@ -798,8 +813,10 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 		};
 
 		type WorkspaceTrustStateChangedEventClassification = {
-			workspaceId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			isTrusted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+			owner: 'sbatten';
+			comment: 'Logged when the workspace transitions between trusted and restricted modes';
+			workspaceId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'An id of the workspace' };
+			isTrusted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'true if the workspace is trusted' };
 		};
 
 		this.telemetryService.publicLog2<WorkspaceTrustStateChangedEvent, WorkspaceTrustStateChangedEventClassification>('workspaceTrustStateChanged', {
@@ -809,9 +826,11 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 
 		if (isTrusted) {
 			type WorkspaceTrustFolderInfoEventClassification = {
-				trustedFolderDepth: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-				workspaceFolderDepth: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-				delta: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+				owner: 'sbatten';
+				comment: 'Some metrics on the trusted workspaces folder structure';
+				trustedFolderDepth: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of directories deep of the trusted path' };
+				workspaceFolderDepth: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of directories deep of the workspace path' };
+				delta: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The difference between the trusted path and the workspace path directories depth' };
 			};
 
 			type WorkspaceTrustFolderInfoEvent = {

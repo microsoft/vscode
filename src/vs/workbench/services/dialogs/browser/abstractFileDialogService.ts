@@ -6,13 +6,13 @@
 import * as nls from 'vs/nls';
 import { IWindowOpenable, isWorkspaceToOpen, isFileToOpen } from 'vs/platform/window/common/window';
 import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, FileFilter, IFileDialogService, IDialogService, ConfirmResult, getFileNamesMessage } from 'vs/platform/dialogs/common/dialogs';
-import { isSavedWorkspace, IWorkspaceContextService, WorkbenchState, WORKSPACE_EXTENSION } from 'vs/platform/workspace/common/workspace';
+import { isSavedWorkspace, isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState, WORKSPACE_EXTENSION } from 'vs/platform/workspace/common/workspace';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { IInstantiationService, } from 'vs/platform/instantiation/common/instantiation';
-import { SimpleFileDialog } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
+import { ISimpleFileDialog, SimpleFileDialog } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -65,7 +65,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		if (!candidate) {
 			candidate = this.historyService.getLastActiveWorkspaceRoot(schemeFilter);
 		} else {
-			candidate = candidate && resources.dirname(candidate);
+			candidate = resources.dirname(candidate);
 		}
 
 		if (!candidate) {
@@ -92,24 +92,20 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		return resources.dirname(candidate);
 	}
 
-	async defaultWorkspacePath(schemeFilter = this.getSchemeFilterForWindow(), filename?: string): Promise<URI> {
+	async defaultWorkspacePath(schemeFilter = this.getSchemeFilterForWindow()): Promise<URI> {
 		let defaultWorkspacePath: URI | undefined;
 
 		// Check for current workspace config file first...
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			const configuration = this.contextService.getWorkspace().configuration;
-			if (configuration?.scheme === schemeFilter && isSavedWorkspace(configuration, this.environmentService)) {
-				defaultWorkspacePath = resources.dirname(configuration) || undefined;
+			if (configuration?.scheme === schemeFilter && isSavedWorkspace(configuration, this.environmentService) && !isTemporaryWorkspace(configuration)) {
+				defaultWorkspacePath = resources.dirname(configuration);
 			}
 		}
 
 		// ...then fallback to default file path
 		if (!defaultWorkspacePath) {
 			defaultWorkspacePath = await this.defaultFilePath(schemeFilter);
-		}
-
-		if (defaultWorkspacePath && filename) {
-			defaultWorkspacePath = resources.joinPath(defaultWorkspacePath, filename);
 		}
 
 		return defaultWorkspacePath;
@@ -171,7 +167,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	}
 
 	protected async pickFileFolderAndOpenSimplified(schema: string, options: IPickAndOpenOptions, preferNewWindow: boolean): Promise<void> {
-		const title = nls.localize('openFileOrFolder.title', 'Open File Or Folder');
+		const title = nls.localize('openFileOrFolder.title', 'Open File or Folder');
 		const availableFileSystems = this.addFileSchemaIfNeeded(schema);
 
 		const uri = await this.pickResource({ canSelectFiles: true, canSelectFolders: true, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems });
@@ -209,13 +205,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	}
 
 	protected addFileToRecentlyOpened(uri: URI): void {
-
-		// add the picked file into the list of recently opened
-		// only if it is outside the currently opened workspace
-
-		if (!this.contextService.isInsideWorkspace(uri)) {
-			this.workspacesService.addRecentlyOpened([{ fileUri: uri, label: this.labelService.getUriLabel(uri) }]);
-		}
+		this.workspacesService.addRecentlyOpened([{ fileUri: uri, label: this.labelService.getUriLabel(uri) }]);
 	}
 
 	protected async pickFolderAndOpenSimplified(schema: string, options: IPickAndOpenOptions): Promise<void> {
@@ -245,7 +235,13 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		}
 
 		options.title = nls.localize('saveFileAs.title', 'Save As');
-		return this.saveRemoteResource(options);
+		const uri = await this.saveRemoteResource(options);
+
+		if (uri) {
+			this.addFileToRecentlyOpened(uri);
+		}
+
+		return uri;
 	}
 
 	protected async showSaveDialogSimplified(schema: string, options: ISaveDialogOptions): Promise<URI | undefined> {
@@ -266,7 +262,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		return uri ? [uri] : undefined;
 	}
 
-	protected getSimpleFileDialog(): SimpleFileDialog {
+	protected getSimpleFileDialog(): ISimpleFileDialog {
 		return this.instantiationService.createInstance(SimpleFileDialog);
 	}
 
@@ -327,8 +323,17 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 
 			const filter: IFilter = { name: languageName, extensions: distinct(extensions).slice(0, 10).map(e => trim(e, '.')) };
 
-			if (!matchingFilter && extensions.indexOf(ext || PLAINTEXT_EXTENSION /* https://github.com/microsoft/vscode/issues/115860 */) >= 0) {
+			// https://github.com/microsoft/vscode/issues/115860
+			const extOrPlaintext = ext || PLAINTEXT_EXTENSION;
+			if (!matchingFilter && extensions.includes(extOrPlaintext)) {
 				matchingFilter = filter;
+
+				// The selected extension must be in the set of extensions that are in the filter list that is sent to the save dialog.
+				// If it isn't, add it manually. https://github.com/microsoft/vscode/issues/147657
+				const trimmedExt = trim(extOrPlaintext, '.');
+				if (!filter.extensions.includes(trimmedExt)) {
+					filter.extensions.unshift(trimmedExt);
+				}
 
 				return null; // first matching filter will be added to the top
 			}

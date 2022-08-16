@@ -16,7 +16,7 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { MarkdownRenderer, openLinkFromMarkdown } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { isMarkdownString } from 'vs/base/common/htmlContent';
 
 const $ = dom.$;
@@ -38,7 +38,7 @@ const enum Constants {
 
 export class HoverWidget extends Widget {
 	private readonly _messageListeners = new DisposableStore();
-	private readonly _mouseTracker: CompositeMouseTracker;
+	private readonly _lockMouseTracker: CompositeMouseTracker;
 
 	private readonly _hover: BaseHoverWidget;
 	private readonly _hoverPointer: HTMLElement | undefined;
@@ -51,8 +51,10 @@ export class HoverWidget extends Widget {
 	private _forcePosition: boolean = false;
 	private _x: number = 0;
 	private _y: number = 0;
+	private _isLocked: boolean = false;
 
 	get isDisposed(): boolean { return this._isDisposed; }
+	get isMouseIn(): boolean { return this._lockMouseTracker.isMouseIn; }
 	get domNode(): HTMLElement { return this._hover.containerDomNode; }
 
 	private readonly _onDispose = this._register(new Emitter<void>());
@@ -64,6 +66,19 @@ export class HoverWidget extends Widget {
 	get x(): number { return this._x; }
 	get y(): number { return this._y; }
 
+	/**
+	 * Whether the hover is "locked" by holding the alt/option key. When locked, the hover will not
+	 * hide and can be hovered regardless of whether the `hideOnHover` hover option is set.
+	 */
+	get isLocked(): boolean { return this._isLocked; }
+	set isLocked(value: boolean) {
+		if (this._isLocked === value) {
+			return;
+		}
+		this._isLocked = value;
+		this._hoverContainer.classList.toggle('locked', this._isLocked);
+	}
+
 	constructor(
 		options: IHoverOptions,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
@@ -73,7 +88,9 @@ export class HoverWidget extends Widget {
 	) {
 		super();
 
-		this._linkHandler = options.linkHandler || (url => this._openerService.open(url, { allowCommands: (isMarkdownString(options.content) && options.content.isTrusted) }));
+		this._linkHandler = options.linkHandler || (url => {
+			return openLinkFromMarkdown(this._openerService, url, isMarkdownString(options.content) ? options.content.isTrusted : undefined);
+		});
 
 		this._target = 'targetElements' in options.target ? options.target : new ElementHoverTarget(options.target);
 
@@ -165,7 +182,6 @@ export class HoverWidget extends Widget {
 		}
 		this._hoverContainer.appendChild(this._hover.containerDomNode);
 
-		const mouseTrackerTargets = [...this._target.targetElements];
 		let hideOnHover: boolean;
 		if (options.actions && options.actions.length > 0) {
 			// If there are actions, require hover so they can be accessed
@@ -179,12 +195,31 @@ export class HoverWidget extends Widget {
 				hideOnHover = options.hideOnHover;
 			}
 		}
+		const mouseTrackerTargets = [...this._target.targetElements];
 		if (!hideOnHover) {
 			mouseTrackerTargets.push(this._hoverContainer);
 		}
-		this._mouseTracker = new CompositeMouseTracker(mouseTrackerTargets);
-		this._register(this._mouseTracker.onMouseOut(() => this.dispose()));
-		this._register(this._mouseTracker);
+		const mouseTracker = this._register(new CompositeMouseTracker(mouseTrackerTargets));
+		this._register(mouseTracker.onMouseOut(() => {
+			if (!this._isLocked) {
+				this.dispose();
+			}
+		}));
+
+		// Setup another mouse tracker when hideOnHover is set in order to track the hover as well
+		// when it is locked. This ensures the hover will hide on mouseout after alt has been
+		// released to unlock the element.
+		if (hideOnHover) {
+			const mouseTracker2Targets = [...this._target.targetElements, this._hoverContainer];
+			this._lockMouseTracker = this._register(new CompositeMouseTracker(mouseTracker2Targets));
+			this._register(this._lockMouseTracker.onMouseOut(() => {
+				if (!this._isLocked) {
+					this.dispose();
+				}
+			}));
+		} else {
+			this._lockMouseTracker = mouseTracker;
+		}
 	}
 
 	public render(container: HTMLElement): void {
@@ -197,7 +232,19 @@ export class HoverWidget extends Widget {
 		this._hover.containerDomNode.classList.remove('right-aligned');
 		this._hover.contentsDomNode.style.maxHeight = '';
 
-		const targetBounds = this._target.targetElements.map(e => e.getBoundingClientRect());
+		const getZoomAccountedBoundingClientRect = (e: HTMLElement) => {
+			const zoom = dom.getDomNodeZoomLevel(e);
+
+			const boundingRect = e.getBoundingClientRect();
+			return {
+				top: boundingRect.top * zoom,
+				bottom: boundingRect.bottom * zoom,
+				right: boundingRect.right * zoom,
+				left: boundingRect.left * zoom,
+			};
+		};
+
+		const targetBounds = this._target.targetElements.map(e => getZoomAccountedBoundingClientRect(e));
 		const top = Math.min(...targetBounds.map(e => e.top));
 		const right = Math.max(...targetBounds.map(e => e.right));
 		const bottom = Math.max(...targetBounds.map(e => e.bottom));
@@ -213,8 +260,11 @@ export class HoverWidget extends Widget {
 			}
 		};
 
+		// These calls adjust the position depending on spacing.
 		this.adjustHorizontalHoverPosition(targetRect);
 		this.adjustVerticalHoverPosition(targetRect);
+		// This call limits the maximum height of the hover.
+		this.adjustHoverMaxHeight(targetRect);
 
 		// Offset the hover position if there is a pointer so it aligns with the target element
 		this._hoverContainer.style.padding = '';
@@ -365,19 +415,9 @@ export class HoverWidget extends Widget {
 	}
 
 	private adjustVerticalHoverPosition(target: TargetRect): void {
-		// Do not adjust vertical hover position if y cordiante is provided
-		if (this._target.y !== undefined) {
-			return;
-		}
-
-		// When force position is enabled, restrict max height
-		if (this._forcePosition) {
-			const padding = (this._hoverPointer ? Constants.PointerSize : 0) + Constants.HoverBorderWidth;
-			if (this._hoverPosition === HoverPosition.ABOVE) {
-				this._hover.containerDomNode.style.maxHeight = `${target.top - padding}px`;
-			} else if (this._hoverPosition === HoverPosition.BELOW) {
-				this._hover.containerDomNode.style.maxHeight = `${window.innerHeight - target.bottom - padding}px`;
-			}
+		// Do not adjust vertical hover position if the y coordinate is provided
+		// or the position is forced
+		if (this._target.y !== undefined || this._forcePosition) {
 			return;
 		}
 
@@ -396,6 +436,25 @@ export class HoverWidget extends Widget {
 				this._hoverPosition = HoverPosition.ABOVE;
 			}
 		}
+	}
+
+	private adjustHoverMaxHeight(target: TargetRect): void {
+		let maxHeight = window.innerHeight / 2;
+
+		// When force position is enabled, restrict max height
+		if (this._forcePosition) {
+			const padding = (this._hoverPointer ? Constants.PointerSize : 0) + Constants.HoverBorderWidth;
+			if (this._hoverPosition === HoverPosition.ABOVE) {
+				maxHeight = Math.min(maxHeight, target.top - padding);
+			} else if (this._hoverPosition === HoverPosition.BELOW) {
+				maxHeight = Math.min(maxHeight, window.innerHeight - target.bottom - padding);
+			}
+		}
+
+		// Make sure not to accidentally enlarge the hover when setting a maxHeight for it
+		maxHeight = Math.min(maxHeight, this._hover.containerDomNode.clientHeight);
+
+		this._hover.containerDomNode.style.maxHeight = `${maxHeight}px`;
 	}
 
 	private setHoverPointerPosition(target: TargetRect): void {
@@ -462,18 +521,20 @@ export class HoverWidget extends Widget {
 }
 
 class CompositeMouseTracker extends Widget {
-	private _isMouseIn: boolean = false;
+	private _isMouseIn: boolean = true;
 	private _mouseTimeout: number | undefined;
 
 	private readonly _onMouseOut = this._register(new Emitter<void>());
 	get onMouseOut(): Event<void> { return this._onMouseOut.event; }
+
+	get isMouseIn(): boolean { return this._isMouseIn; }
 
 	constructor(
 		private _elements: HTMLElement[]
 	) {
 		super();
 		this._elements.forEach(n => this.onmouseover(n, () => this._onTargetMouseOver()));
-		this._elements.forEach(n => this.onnonbubblingmouseout(n, () => this._onTargetMouseOut()));
+		this._elements.forEach(n => this.onmouseleave(n, () => this._onTargetMouseLeave()));
 	}
 
 	private _onTargetMouseOver(): void {
@@ -481,7 +542,7 @@ class CompositeMouseTracker extends Widget {
 		this._clearEvaluateMouseStateTimeout();
 	}
 
-	private _onTargetMouseOut(): void {
+	private _onTargetMouseLeave(): void {
 		this._isMouseIn = false;
 		this._evaluateMouseState();
 	}

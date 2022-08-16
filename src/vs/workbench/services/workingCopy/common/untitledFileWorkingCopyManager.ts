@@ -236,7 +236,7 @@ export class UntitledFileWorkingCopyManager<M extends IUntitledFileWorkingCopyMo
 	protected override remove(resource: URI): boolean {
 		const removed = super.remove(resource);
 
-		// Dispose any exsting working copy listeners
+		// Dispose any existing working copy listeners
 		const workingCopyListener = this.mapResourceToWorkingCopyListeners.get(resource);
 		if (workingCopyListener) {
 			dispose(workingCopyListener);

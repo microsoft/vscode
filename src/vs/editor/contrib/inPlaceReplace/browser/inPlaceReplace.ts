@@ -11,7 +11,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IEditorContribution, IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IInplaceReplaceSupportResult } from 'vs/editor/common/languages';
@@ -37,7 +37,7 @@ class InPlaceReplaceController implements IEditorContribution {
 
 	private readonly editor: ICodeEditor;
 	private readonly editorWorkerService: IEditorWorkerService;
-	private decorationIds: string[] = [];
+	private readonly decorations: IEditorDecorationsCollection;
 	private currentRequest?: CancelablePromise<IInplaceReplaceSupportResult | null>;
 	private decorationRemover?: CancelablePromise<void>;
 
@@ -47,6 +47,7 @@ class InPlaceReplaceController implements IEditorContribution {
 	) {
 		this.editor = editor;
 		this.editorWorkerService = editorWorkerService;
+		this.decorations = this.editor.createDecorationsCollection();
 	}
 
 	public dispose(): void {
@@ -55,9 +56,7 @@ class InPlaceReplaceController implements IEditorContribution {
 	public run(source: string, up: boolean): Promise<void> | undefined {
 
 		// cancel any pending request
-		if (this.currentRequest) {
-			this.currentRequest.cancel();
-		}
+		this.currentRequest?.cancel();
 
 		const editorSelection = this.editor.getSelection();
 		const model = this.editor.getModel();
@@ -91,9 +90,9 @@ class InPlaceReplaceController implements IEditorContribution {
 			}
 
 			// Selection
-			let editRange = Range.lift(result.range);
+			const editRange = Range.lift(result.range);
 			let highlightRange = result.range;
-			let diff = result.value.length - (selection!.endColumn - selection!.startColumn);
+			const diff = result.value.length - (selection!.endColumn - selection!.startColumn);
 
 			// highlight
 			highlightRange = {
@@ -114,17 +113,15 @@ class InPlaceReplaceController implements IEditorContribution {
 			this.editor.pushUndoStop();
 
 			// add decoration
-			this.decorationIds = this.editor.deltaDecorations(this.decorationIds, [{
+			this.decorations.set([{
 				range: highlightRange,
 				options: InPlaceReplaceController.DECORATION
 			}]);
 
 			// remove decoration after delay
-			if (this.decorationRemover) {
-				this.decorationRemover.cancel();
-			}
+			this.decorationRemover?.cancel();
 			this.decorationRemover = timeout(350);
-			this.decorationRemover.then(() => this.decorationIds = this.editor.deltaDecorations(this.decorationIds, [])).catch(onUnexpectedError);
+			this.decorationRemover.then(() => this.decorations.clear()).catch(onUnexpectedError);
 
 		}).catch(onUnexpectedError);
 	}

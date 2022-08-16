@@ -42,9 +42,7 @@ export class ExtHostProgress implements ExtHostProgressShape {
 		const progressEnd = (handle: number): void => {
 			this._proxy.$progressEnd(handle);
 			this._mapHandleToCancellationSource.delete(handle);
-			if (source) {
-				source.dispose();
-			}
+			source?.dispose();
 		};
 
 		let p: Thenable<R>;

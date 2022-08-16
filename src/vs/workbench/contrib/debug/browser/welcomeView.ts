@@ -65,7 +65,7 @@ export class WelcomeView extends ViewPane {
 			if (isCodeEditor(editorControl)) {
 				const model = editorControl.getModel();
 				const language = model ? model.getLanguageId() : undefined;
-				if (language && this.debugService.getAdapterManager().isDebuggerInterestedInLanguage(language)) {
+				if (language && this.debugService.getAdapterManager().someDebuggerInterestedInLanguage(language)) {
 					this.debugStartLanguageContext.set(language);
 					this.debuggerInterestedContext.set(true);
 					storageSevice.store(debugStartLanguageKey, language, StorageScope.WORKSPACE, StorageTarget.MACHINE);

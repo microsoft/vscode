@@ -353,7 +353,6 @@ class WorkspaceTrustedUrisTable extends Disposable {
 				canSelectMany: false,
 				defaultUri: item.uri,
 				openLabel: localize('trustUri', "Trust Folder"),
-
 				title: localize('selectTrustedUri', "Select Folder To Trust")
 			});
 

@@ -10,7 +10,8 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { InternalModelContentChangeEvent, ModelRawContentChangedEvent, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/textModelEvents';
-import { EncodedTokenizationResult, IState, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/languages';
+import { EncodedTokenizationResult, IState, TokenizationRegistry } from 'vs/editor/common/languages';
+import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { NullState } from 'vs/editor/common/languages/nullTokenize';
 import { createModelServices, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
@@ -326,7 +327,7 @@ suite('Editor Model - Model', () => {
 	});
 
 	test('issue #46342: Maintain edit operation order in applyEdits', () => {
-		let res = thisModel.applyEdits([
+		const res = thisModel.applyEdits([
 			{ range: new Range(2, 1, 2, 1), text: 'a' },
 			{ range: new Range(1, 1, 1, 1), text: 'b' },
 		], true);
@@ -365,7 +366,7 @@ suite('Editor Model - Model Line Separators', () => {
 	});
 
 	test('Bug 13333:Model should line break on lonely CR too', () => {
-		let model = createTextModel('Hello\rWorld!\r\nAnother line');
+		const model = createTextModel('Hello\rWorld!\r\nAnother line');
 		assert.strictEqual(model.getLineCount(), 3);
 		assert.strictEqual(model.getValue(), 'Hello\r\nWorld!\r\nAnother line');
 		model.dispose();
