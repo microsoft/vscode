@@ -416,7 +416,6 @@ interface IBaseBreakpointTemplateData {
 	context: BreakpointItem;
 	actionBar: ActionBar;
 	toDispose: IDisposable[];
-	elementDisposable: IDisposable[];
 }
 
 interface IBaseBreakpointWithIconTemplateData extends IBaseBreakpointTemplateData {
@@ -487,7 +486,6 @@ class BreakpointsRenderer implements IListRenderer<IBreakpoint, IBreakpointTempl
 		data.icon = $('.icon');
 		data.checkbox = createCheckbox();
 		data.toDispose = [];
-		data.elementDisposable = [];
 		data.toDispose.push(dom.addStandardDisposableListener(data.checkbox, 'change', (e) => {
 			this.debugService.enableOrDisableBreakpoints(!data.context.enabled, data.context);
 		}));
@@ -537,10 +535,6 @@ class BreakpointsRenderer implements IListRenderer<IBreakpoint, IBreakpointTempl
 		breakpointIdToActionBarDomeNode.set(breakpoint.getId(), data.actionBar.domNode);
 	}
 
-	disposeElement(_element: IBreakpoint, _index: number, templateData: IBreakpointTemplateData): void {
-		dispose(templateData.elementDisposable);
-	}
-
 	disposeTemplate(templateData: IBreakpointTemplateData): void {
 		dispose(templateData.toDispose);
 	}
@@ -569,7 +563,6 @@ class ExceptionBreakpointsRenderer implements IListRenderer<IExceptionBreakpoint
 
 		data.checkbox = createCheckbox();
 		data.toDispose = [];
-		data.elementDisposable = [];
 		data.toDispose.push(dom.addStandardDisposableListener(data.checkbox, 'change', (e) => {
 			this.debugService.enableOrDisableBreakpoints(!data.context.enabled, data.context);
 		}));
@@ -603,10 +596,6 @@ class ExceptionBreakpointsRenderer implements IListRenderer<IExceptionBreakpoint
 		breakpointIdToActionBarDomeNode.set(exceptionBreakpoint.getId(), data.actionBar.domNode);
 	}
 
-	disposeElement(_element: IExceptionBreakpoint, _index: number, templateData: IExceptionBreakpointTemplateData): void {
-		dispose(templateData.elementDisposable);
-	}
-
 	disposeTemplate(templateData: IExceptionBreakpointTemplateData): void {
 		dispose(templateData.toDispose);
 	}
@@ -637,7 +626,6 @@ class FunctionBreakpointsRenderer implements IListRenderer<FunctionBreakpoint, I
 		data.icon = $('.icon');
 		data.checkbox = createCheckbox();
 		data.toDispose = [];
-		data.elementDisposable = [];
 		data.toDispose.push(dom.addStandardDisposableListener(data.checkbox, 'change', (e) => {
 			this.debugService.enableOrDisableBreakpoints(!data.context.enabled, data.context);
 		}));
@@ -682,10 +670,6 @@ class FunctionBreakpointsRenderer implements IListRenderer<FunctionBreakpoint, I
 		data.actionBar.clear();
 		data.actionBar.push(primary, { icon: true, label: false });
 		breakpointIdToActionBarDomeNode.set(functionBreakpoint.getId(), data.actionBar.domNode);
-	}
-
-	disposeElement(_element: IFunctionBreakpoint, _index: number, templateData: IFunctionBreakpointTemplateData): void {
-		dispose(templateData.elementDisposable);
 	}
 
 	disposeTemplate(templateData: IFunctionBreakpointTemplateData): void {
@@ -778,7 +762,6 @@ class InstructionBreakpointsRenderer implements IListRenderer<IInstructionBreakp
 		data.icon = $('.icon');
 		data.checkbox = createCheckbox();
 		data.toDispose = [];
-		data.elementDisposable = [];
 		data.toDispose.push(dom.addStandardDisposableListener(data.checkbox, 'change', (e) => {
 			this.debugService.enableOrDisableBreakpoints(!data.context.enabled, data.context);
 		}));
@@ -810,10 +793,6 @@ class InstructionBreakpointsRenderer implements IListRenderer<IInstructionBreakp
 		if (debugActive && !breakpoint.verified) {
 			data.breakpoint.classList.add('disabled');
 		}
-	}
-
-	disposeElement(_element: IInstructionBreakpoint, _index: number, templateData: IInstructionBreakpointTemplateData): void {
-		dispose(templateData.elementDisposable);
 	}
 
 	disposeTemplate(templateData: IInstructionBreakpointTemplateData): void {
