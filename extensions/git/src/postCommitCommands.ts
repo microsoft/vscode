@@ -32,21 +32,29 @@ export class GitPostCommitCommandsProvider implements PostCommitCommandsProvider
 		// Icon
 		const icon = alwaysPrompt ? '$(lock)' : alwaysCommitToNewBranch ? '$(git-branch)' : undefined;
 
+		// Tooltip (default)
+		let pushCommandTooltip = !alwaysCommitToNewBranch ?
+			localize('scm button commit and push tooltip', "Commit & Push Changes") :
+			localize('scm button commit to new branch and push tooltip', "Commit to New Branch & Push Changes");
+
+		let syncCommandTooltip = !alwaysCommitToNewBranch ?
+			localize('scm button commit and sync tooltip', "Commit & Sync Changes") :
+			localize('scm button commit to new branch and sync tooltip', "Commit to New Branch & Synchronize Changes");
+
+		// Tooltip (in progress)
+		if (apiRepository.repository.operations.isRunning(Operation.Commit)) {
+			pushCommandTooltip = !alwaysCommitToNewBranch ?
+				localize('scm button committing and pushing tooltip', "Committing & Pushing Changes...") :
+				localize('scm button committing to new branch and pushing tooltip', "Committing to New Branch & Pushing Changes...");
+
+			syncCommandTooltip = !alwaysCommitToNewBranch ?
+				localize('scm button committing and syncing tooltip', "Committing & Synchronizing Changes...") :
+				localize('scm button committing to new branch and syncing tooltip', "Committing to New Branch & Synchronizing Changes...");
+		}
+
 		return [
-			{
-				command: 'git.push',
-				title: localize('scm button commit and push title', "{0} Commit & Push", icon ?? '$(arrow-up)'),
-				tooltip: alwaysCommitToNewBranch ?
-					localize('scm button commit to new branch and push tooltip', "Commit to New Branch & Push Changes") :
-					localize('scm button commit and push tooltip', "Commit & Push Changes")
-			},
-			{
-				command: 'git.sync',
-				title: localize('scm button commit and sync title', "{0} Commit & Sync", icon ?? '$(sync)'),
-				tooltip: alwaysCommitToNewBranch ?
-					localize('scm button commit to new branch and sync tooltip', "Commit to New Branch & Sync Changes") :
-					localize('scm button commit and sync tooltip', "Commit & Sync Changes")
-			},
+			{ command: 'git.push', title: localize('scm button commit and push title', "{0} Commit & Push", icon ?? '$(arrow-up)'), tooltip: pushCommandTooltip },
+			{ command: 'git.sync', title: localize('scm button commit and sync title', "{0} Commit & Sync", icon ?? '$(sync)'), tooltip: syncCommandTooltip },
 		];
 	}
 }
@@ -80,12 +88,7 @@ export class CommitCommandsCenter {
 		for (const provider of this.postCommitCommandsProviderRegistry.getPostCommitCommandsProviders()) {
 			const commands = provider.getCommands(new ApiRepository(this.repository));
 			commandGroups.push((commands ?? []).map(c => {
-				return {
-					command: 'git.commit',
-					title: c.title,
-					tooltip: c.tooltip,
-					arguments: [this.repository.sourceControl, c.command]
-				};
+				return { command: 'git.commit', title: c.title, tooltip: c.tooltip, arguments: [this.repository.sourceControl, c.command] };
 			}));
 		}
 
@@ -122,13 +125,13 @@ export class CommitCommandsCenter {
 		// Icon
 		const icon = alwaysPrompt ? '$(lock)' : alwaysCommitToNewBranch ? '$(git-branch)' : undefined;
 
-		// Tooltip
+		// Tooltip (default)
 		let tooltip = !alwaysCommitToNewBranch ?
 			localize('scm button commit tooltip', "Commit Changes") :
 			localize('scm button commit to new branch tooltip', "Commit Changes to New Branch");
 
-		// Commit in progress
-		if (this.repository.operations.isRunning(Operation.Commit) || this.repository.operations.isRunning(Operation.RebaseContinue)) {
+		// Tooltip (in progress)
+		if (this.repository.operations.isRunning(Operation.Commit)) {
 			tooltip = !alwaysCommitToNewBranch ?
 				localize('scm button committing tooltip', "Committing Changes...") :
 				localize('scm button committing to new branch tooltip', "Committing Changes to New Branch...");
