@@ -23,9 +23,9 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Memento } from 'vs/workbench/common/memento';
-import { INotebookEditorContribution, notebookRendererExtensionPoint, notebooksExtensionPoint } from 'vs/workbench/contrib/notebook/browser/extensionPoint';
+import { INotebookEditorContribution, notebookRendererExtensionPoint, notebooksExtensionPoint } from 'vs/workbench/contrib/notebook/browser/notebookExtensionPoint';
 import { INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookDiffEditorInput';
+import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/common/notebookDiffEditorInput';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellUri, NotebookSetting, INotebookContributionData, INotebookExclusiveDocumentFilter, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, MimeTypeDisplayOrder, NotebookData, NotebookEditorPriority, NotebookRendererMatch, NOTEBOOK_DISPLAY_ORDER, RENDERER_EQUIVALENT_EXTENSIONS, RENDERER_NOT_AVAILABLE, TransientOptions, NotebookExtensionDescription } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -416,6 +416,8 @@ export class NotebookService extends Disposable implements INotebookService {
 		return this._notebookProviderInfoStore;
 	}
 	private readonly _notebookRenderersInfoStore = this._instantiationService.createInstance(NotebookOutputRendererInfoStore);
+	private readonly _onDidChangeOutputRenderers = this._register(new Emitter<void>());
+	readonly onDidChangeOutputRenderers = this._onDidChangeOutputRenderers.event;
 	private readonly _models = new ResourceMap<ModelData>();
 
 	private readonly _onWillAddNotebookDocument = this._register(new Emitter<NotebookTextModel>());
@@ -480,6 +482,8 @@ export class NotebookService extends Disposable implements INotebookService {
 					}));
 				}
 			}
+
+			this._onDidChangeOutputRenderers.fire();
 		});
 
 		const updateOrder = () => {

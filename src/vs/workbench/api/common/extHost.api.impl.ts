@@ -78,7 +78,7 @@ import { ExtHostBulkEdits } from 'vs/workbench/api/common/extHostBulkEdits';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { ExtHostTesting } from 'vs/workbench/api/common/extHostTesting';
 import { ExtHostUriOpeners } from 'vs/workbench/api/common/extHostUriOpener';
-import { IExtHostSecretState } from 'vs/workbench/api/common/exHostSecretState';
+import { IExtHostSecretState } from 'vs/workbench/api/common/extHostSecretState';
 import { IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
 import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
 import { ExtHostNotebookKernels } from 'vs/workbench/api/common/extHostNotebookKernels';
@@ -93,6 +93,7 @@ import { combinedDisposable } from 'vs/base/common/lifecycle';
 import { checkProposedApiEnabled, ExtensionIdentifierSet, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/contrib/debug/common/debug';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
+import { IExtHostTelemetryLogService } from 'vs/workbench/api/common/extHostTelemetryLogService';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
@@ -123,6 +124,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostLoggerService = accessor.get(ILoggerService);
 	const extHostLogService = accessor.get(ILogService);
 	const extHostTunnelService = accessor.get(IExtHostTunnelService);
+	const extHostTelemetryLogService = accessor.get(IExtHostTelemetryLogService);
 	const extHostApiDeprecation = accessor.get(IExtHostApiDeprecationService);
 	const extHostWindow = accessor.get(IExtHostWindow);
 	const extHostSecretState = accessor.get(IExtHostSecretState);
@@ -795,6 +797,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get tabGroups(): vscode.TabGroups {
 				return extHostEditorTabs.tabGroups;
 			},
+			logTelemetryToOutputChannel(eventName: string, data: Record<string, any>): void {
+				checkProposedApiEnabled(extension, 'telemetryLog');
+				extHostTelemetryLogService.logToTelemetryOutputChannel(extension, eventName, data);
+			}
 		};
 
 		// namespace: workspace

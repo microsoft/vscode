@@ -278,6 +278,9 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffE
 	}
 
 	disposeElement(element: SideBySideDiffElementViewModel, index: number, templateData: CellDiffSideBySideRenderTemplate): void {
+		if (templateData.toolbar) {
+			templateData.toolbar.context = undefined;
+		}
 		templateData.elementDisposables.clear();
 	}
 }

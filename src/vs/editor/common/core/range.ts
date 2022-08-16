@@ -334,6 +334,13 @@ export class Range {
 	}
 
 	/**
+	 * Moves the range by the given amount of lines.
+	 */
+	public delta(lineCount: number): Range {
+		return new Range(this.startLineNumber + lineCount, this.startColumn, this.endLineNumber + lineCount, this.endColumn);
+	}
+
+	/**
 	 * Create a new empty range using this range's start position.
 	 */
 	public static collapseToStart(range: IRange): Range {

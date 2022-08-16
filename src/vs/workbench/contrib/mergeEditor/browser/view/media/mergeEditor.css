@@ -97,12 +97,8 @@
 }
 
 .merge-accept-gutter-marker .checkbox {
-	height: 100%;
 	width: 100%;
 	position: absolute;
-	display: flex;
-	flex-direction: column;
-	justify-content: center;
 }
 
 .accept-conflict-group.monaco-custom-toggle {
@@ -120,4 +116,15 @@
 
 .merge-accept-gutter-marker .checkbox-background {
 	background: var(--vscode-editor-background);
+}
+
+.conflict-zone-root {
+	display: flex;
+}
+
+.conflict-zone-button {
+	border: 1px solid red;
+	background: #ec010147;
+	padding: 0px 10px;
+	border-radius: 4px;
 }

@@ -1716,13 +1716,14 @@ export namespace NotebookDocumentContentOptions {
 }
 
 export namespace NotebookRendererScript {
-	export function from(preload: vscode.NotebookRendererScript): { uri: UriComponents; provides: string[] } {
+	export function from(preload: vscode.NotebookRendererScript): { uri: UriComponents; provides: readonly string[] } {
 		return {
 			uri: preload.uri,
 			provides: preload.provides
 		};
 	}
-	export function to(preload: { uri: UriComponents; provides: string[] }): vscode.NotebookRendererScript {
+
+	export function to(preload: { uri: UriComponents; provides: readonly string[] }): vscode.NotebookRendererScript {
 		return new types.NotebookRendererScript(URI.revive(preload.uri), preload.provides);
 	}
 }

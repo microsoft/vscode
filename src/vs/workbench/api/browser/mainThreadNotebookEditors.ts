@@ -5,7 +5,7 @@
 
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { getNotebookEditorFromEditorPane, INotebookEditor, INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
+import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { ExtHostContext, ExtHostNotebookEditorsShape, ICellEditOperationDto, INotebookDocumentShowOptions, INotebookEditorViewColumnInfo, MainThreadNotebookEditorsShape, NotebookEditorRevealType } from '../common/extHost.protocol';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -17,6 +17,7 @@ import { columnToEditorGroup, editorGroupToColumn } from 'vs/workbench/services/
 import { equals } from 'vs/base/common/objects';
 import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
 import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 class MainThreadNotebook {
 
@@ -44,7 +45,8 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 		@IEditorService private readonly _editorService: IEditorService,
 		@ILogService private readonly _logService: ILogService,
 		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService,
-		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService
+		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebookEditors);
 
@@ -126,7 +128,7 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 			override: viewType
 		};
 
-		const editorPane = await this._editorService.openEditor({ resource: URI.revive(resource), options: editorOptions }, columnToEditorGroup(this._editorGroupService, options.position));
+		const editorPane = await this._editorService.openEditor({ resource: URI.revive(resource), options: editorOptions }, columnToEditorGroup(this._editorGroupService, this._configurationService, options.position));
 		const notebookEditor = getNotebookEditorFromEditorPane(editorPane);
 
 		if (notebookEditor) {
