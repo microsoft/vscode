@@ -120,7 +120,8 @@ export interface IViewLayout {
 	isInTopPadding(verticalOffset: number): boolean;
 	isInBottomPadding(verticalOffset: number): boolean;
 	getLineNumberAtVerticalOffset(verticalOffset: number): number;
-	getVerticalOffsetForLineNumber(lineNumber: number): number;
+	getVerticalOffsetForLineNumber(lineNumber: number, includeViewZones?: boolean): number;
+	getVerticalOffsetAfterLineNumber(lineNumber: number, includeViewZones?: boolean): number;
 	getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData | null;
 
 	/**
