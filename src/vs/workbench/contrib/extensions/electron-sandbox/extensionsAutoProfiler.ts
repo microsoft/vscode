@@ -158,6 +158,7 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 		type UnresponsiveData = {
 			duration: number;
 			data: NamedSlice[];
+			id: string;
 		};
 		type UnresponsiveDataClassification = {
 			owner: 'jrieken';
