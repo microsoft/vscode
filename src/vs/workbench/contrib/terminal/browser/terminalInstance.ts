@@ -449,11 +449,30 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._register(this.capabilities.onDidAddCapability(e => {
 			this._logService.debug('terminalInstance added capability', e);
 			if (e === TerminalCapability.CwdDetection) {
-				this.capabilities.get(TerminalCapability.CwdDetection)?.onDidChangeCwd(e => {
+				this.capabilities.get(TerminalCapability.CwdDetection)?.onDidChangeCwd(async (e) => {
 					this._cwd = e;
 					this._xtermOnKey?.dispose();
 					this.refreshTabLabels(this.title, TitleEventSource.Config);
-					this._instantiationService.invokeFunction(getDirectoryHistory)?.add(e, { remoteAuthority: this.remoteAuthority });
+
+					let platformNativePath: string | undefined;
+					// We need to explicitly check for Windows operating system, because PowerShell can be run under
+					// UNIX-compatible environment.
+					if (this._processManager.os === OperatingSystem.Windows) {
+						if (this.shellType === WindowsShellType.CommandPrompt || this.shellType === WindowsShellType.PowerShell) {
+							platformNativePath = e;
+						} else if (this.shellType === WindowsShellType.GitBash) {
+							platformNativePath = await this._processManager.backend?.getCygPath(e, /*reverse*/ true);
+						} else if (this.shellType === WindowsShellType.Wsl) {
+							platformNativePath = await this._processManager.backend?.getWslPath(e, /*reverse*/ true);
+						}
+					}
+					platformNativePath = platformNativePath ?? e;
+					this._instantiationService.invokeFunction(getDirectoryHistory)?.add(e,
+						{
+							remoteAuthority: this.remoteAuthority,
+							shellType: platformNativePath !== e ? this.shellType : undefined,
+							platformNativePath: platformNativePath !== e ? platformNativePath : undefined
+						});
 				});
 			} else if (e === TerminalCapability.CommandDetection) {
 				this.capabilities.get(TerminalCapability.CommandDetection)?.onCommandFinished(e => {
@@ -982,13 +1001,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 			// Gather previous session history
 			const history = this._instantiationService.invokeFunction(getDirectoryHistory);
-			const previousSessionItems: (IQuickPickItem & { rawLabel: string })[] = [];
+			const previousSessionItems: CwdItem[] = [];
 			// Only add previous session item if it's not in this session and it matches the remote authority
-			for (const [label, info] of history.entries) {
+			for (const [key, info] of history.entries) {
+				const label = info.platformNativePath ?? key;
 				if ((info === null || info.remoteAuthority === this.remoteAuthority) && !cwds.includes(label)) {
 					previousSessionItems.unshift({
 						label,
 						rawLabel: label,
+						shellType: info.shellType,
 						buttons: [removeFromCommandHistoryButton]
 					});
 				}
@@ -2935,7 +2956,7 @@ async function preparePathForShell(originalPath: string, executable: string | un
 			// Update Windows uriPath to be executed in WSL.
 			if (shellType !== undefined) {
 				if (shellType === WindowsShellType.GitBash) {
-					c(originalPath.replace(/\\/g, '/'));
+					c(backend?.getCygPath(originalPath) || originalPath.replace(/\\/g, '/'));
 				}
 				else if (shellType === WindowsShellType.Wsl) {
 					c(backend?.getWslPath(originalPath) || originalPath);
