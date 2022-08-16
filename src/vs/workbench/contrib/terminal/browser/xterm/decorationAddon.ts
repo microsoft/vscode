@@ -8,7 +8,7 @@ import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal'
 import { IDecoration, ITerminalAddon, Terminal } from 'xterm';
 import * as dom from 'vs/base/browser/dom';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { CommandInvalidationReason, ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { CommandInvalidationReason, IBufferMark, ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
@@ -51,6 +51,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	protected _terminal: Terminal | undefined;
 	private _hoverDelayer: Delayer<void>;
 	private _commandDetectionListeners: IDisposable[] | undefined;
+	private _bufferMarkListeners: IDisposable[] | undefined;
 	private _contextMenuVisible: boolean = false;
 	private _decorations: Map<number, IDisposableDecoration> = new Map();
 	private _placeholderDecoration: IDecoration | undefined;
@@ -95,6 +96,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		this._register(this._capabilities.onDidAddCapability(c => {
 			if (c === TerminalCapability.CommandDetection) {
 				this._addCommandDetectionListeners();
+			} else if (c === TerminalCapability.BufferMarkDetection) {
+				this._addBufferMarkListeners();
 			}
 		}));
 		this._register(this._capabilities.onDidRemoveCapability(c => {
@@ -200,6 +203,18 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 	}
 
+	private _addBufferMarkListeners(): void {
+		if (this._bufferMarkListeners) {
+			return;
+		}
+		const capability = this._capabilities.get(TerminalCapability.BufferMarkDetection);
+		if (!capability) {
+			return;
+		}
+		this._bufferMarkListeners = [];
+		this._bufferMarkListeners.push(capability.onMarkAdded(mark => this.registerMarkDecoration(mark)));
+	}
+
 	private _addCommandDetectionListeners(): void {
 		if (this._commandDetectionListeners) {
 			return;
@@ -248,8 +263,21 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		this._attachToCommandCapability();
 	}
 
+	registerMarkDecoration(mark: IBufferMark): IDecoration | undefined {
+		if (!this._terminal || mark.hidden || mark.marker.isDisposed || !defaultColor) {
+			return undefined;
+		}
+
+		const decoration = this._terminal.registerDecoration({ marker: mark.marker, overviewRulerOptions: { position: 'center', color: defaultColor.toString() } });
+		if (!decoration) {
+			return undefined;
+		}
+		decoration.onRender(element => this._onRender(element, mark, decoration));
+		return decoration;
+	}
+
 	registerCommandDecoration(command: ITerminalCommand, beforeCommandExecution?: boolean): IDecoration | undefined {
-		if (!this._terminal || (beforeCommandExecution && command.markProperties) || (!this._showGutterDecorations && !this._showOverviewRulerDecorations)) {
+		if (!this._terminal || (!this._showGutterDecorations && !this._showOverviewRulerDecorations)) {
 			return undefined;
 		}
 		if (!command.marker) {
@@ -274,36 +302,39 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (beforeCommandExecution) {
 			this._placeholderDecoration = decoration;
 		}
-		decoration.onRender(element => {
-			if (element.classList.contains(DecorationSelector.OverviewRuler)) {
-				return;
-			}
-			if (!this._decorations.get(decoration.marker.id)) {
-				decoration.onDispose(() => this._decorations.delete(decoration.marker.id));
-				this._decorations.set(decoration.marker.id,
-					{
-						decoration,
-						disposables: this._createDisposables(element, command),
-						exitCode: command.exitCode,
-						markProperties: command.markProperties
-					});
-			}
-			if (!element.classList.contains(DecorationSelector.Codicon) || command.marker?.line === 0) {
-				// first render or buffer was cleared
-				this._updateLayout(element);
-				this._updateClasses(element, command.exitCode, command.markProperties);
-			}
-		});
+		decoration.onRender(element => this._onRender(element, command, decoration));
 		return decoration;
 	}
 
-	private _createDisposables(element: HTMLElement, command: ITerminalCommand): IDisposable[] {
-		if (command.exitCode === undefined && !command.markProperties) {
-			return [];
-		} else if (command.markProperties) {
-			return [...this._createHover(element, command)];
+	private _onRender(element: HTMLElement, item: ITerminalCommand | IBufferMark, decoration: IDecoration): void {
+		if (element.classList.contains(DecorationSelector.OverviewRuler) || !item.marker) {
+			return;
 		}
-		return [this._createContextMenu(element, command), ...this._createHover(element, command)];
+		const exitCode = 'exitCode' in item ? item.exitCode : undefined;
+		if (!this._decorations.get(item.marker.id)) {
+			decoration.onDispose(() => this._decorations.delete(decoration.marker.id));
+			this._decorations.set(decoration.marker.id,
+				{
+					decoration,
+					disposables: this._createDisposables(element, item),
+					exitCode
+				});
+		}
+		if (!element.classList.contains(DecorationSelector.Codicon) || item.marker?.line === 0) {
+			// first render or buffer was cleared
+			this._updateLayout(element);
+			this._updateClasses(element, exitCode);
+		}
+	}
+
+	private _createDisposables(element: HTMLElement, item: ITerminalCommand | IBufferMark): IDisposable[] {
+		if (!('command' in item)) {
+			return [...this._createHover(element, item)];
+		}
+		if (item.exitCode === undefined) {
+			return [];
+		}
+		return [this._createContextMenu(element, item), ...this._createHover(element, item)];
 	}
 
 	private _updateLayout(element?: HTMLElement): void {
@@ -363,7 +394,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		});
 	}
 
-	private _createHover(element: HTMLElement, command: ITerminalCommand): IDisposable[] {
+	private _createHover(element: HTMLElement, item: ITerminalCommand | IBufferMark): IDisposable[] {
 		return [
 			dom.addDisposableListener(element, dom.EventType.MOUSE_ENTER, () => {
 				if (this._contextMenuVisible) {
@@ -372,20 +403,20 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				this._hoverDelayer.trigger(() => {
 					let hoverContent = `${localize('terminalPromptContextMenu', "Show Command Actions")}`;
 					hoverContent += '\n\n---\n\n';
-					if (command.markProperties) {
-						if (command.markProperties.hoverMessage) {
-							hoverContent = command.markProperties.hoverMessage;
+					if (!('command' in item)) {
+						if (item.hoverMessage) {
+							hoverContent = item.hoverMessage;
 						} else {
 							return;
 						}
-					} else if (command.exitCode) {
-						if (command.exitCode === -1) {
-							hoverContent += localize('terminalPromptCommandFailed', 'Command executed {0} and failed', fromNow(command.timestamp, true));
+					} else if (item.exitCode) {
+						if (item.exitCode === -1) {
+							hoverContent += localize('terminalPromptCommandFailed', 'Command executed {0} and failed', fromNow(item.timestamp, true));
 						} else {
-							hoverContent += localize('terminalPromptCommandFailedWithExitCode', 'Command executed {0} and failed (Exit Code {1})', fromNow(command.timestamp, true), command.exitCode);
+							hoverContent += localize('terminalPromptCommandFailedWithExitCode', 'Command executed {0} and failed (Exit Code {1})', fromNow(item.timestamp, true), item.exitCode);
 						}
 					} else {
-						hoverContent += localize('terminalPromptCommandSuccess', 'Command executed {0}', fromNow(command.timestamp, true));
+						hoverContent += localize('terminalPromptCommandSuccess', 'Command executed {0}', fromNow(item.timestamp, true));
 					}
 					this._hoverService.showHover({ content: new MarkdownString(hoverContent), target: element });
 				});

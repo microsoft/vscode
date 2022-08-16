@@ -129,10 +129,13 @@ export interface ICommandInvalidationRequest {
 	reason: CommandInvalidationReason;
 }
 
+export interface IBufferMark { id: string; marker: IMarker; hoverMessage?: string; hidden?: boolean }
+
 export interface IBufferMarkCapability {
 	type: TerminalCapability.BufferMarkDetection;
+	onMarkAdded: Event<IBufferMark>;
 	addMark(id: string, marker?: IMarker, hidden?: boolean): void;
-	scrollToMark(startMarkId: string, endMarkId?: string, highlight?: boolean): void;
+	getMarker(id: string): IMarker | undefined;
 }
 
 export interface ICommandDetectionCapability {
