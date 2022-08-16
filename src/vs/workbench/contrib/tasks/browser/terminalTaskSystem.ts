@@ -270,6 +270,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	}
 
 	public reconnect(task: Task, resolver: ITaskResolver): ITaskExecuteResult {
+		if (!this._reconnectedTerminals?.length) {
+			throw new Error('Persistent tasks were not updated correctly - no terminals for reconnection');
+		}
 		return this.run(task, resolver, Triggers.reconnect);
 	}
 
@@ -1296,7 +1299,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			if ('command' in task && task.command.presentation) {
 				reconnectedTerminal.waitOnExit = getWaitOnExitValue(task.command.presentation, task.configurationProperties);
 			}
-			reconnectedTerminal.onDisposed((terminal) => this._fireTaskEvent({ kind: TaskEventKind.Terminated, exitReason: terminal.exitReason, taskId: task.getMapKey() }));
+			reconnectedTerminal.onDisposed((terminal) => this._fireTaskEvent({ kind: TaskEventKind.Terminated, exitReason: terminal.exitReason, taskId: task.getRecentlyUsedKey() }));
 			return reconnectedTerminal;
 		}
 		if (group) {
@@ -1307,6 +1310,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					this._logService.trace(`Found terminal to split for group ${group}`);
 					const originalInstance = terminal.terminal;
 					const result = await this._terminalService.createTerminal({ location: { parentTerminal: originalInstance }, config: launchConfigs });
+					result.onDisposed((terminal) => this._fireTaskEvent({ kind: TaskEventKind.Terminated, exitReason: terminal.exitReason, taskId: task.getRecentlyUsedKey() }));
 					if (result) {
 						return result;
 					}
@@ -1317,7 +1321,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		// Either no group is used, no terminal with the group exists or splitting an existing terminal failed.
 		const createdTerminal = await this._terminalService.createTerminal({ location: TerminalLocation.Panel, config: launchConfigs });
 		this._logService.trace('Created a new task terminal');
-		createdTerminal.onDisposed((terminal) => this._fireTaskEvent({ kind: TaskEventKind.Terminated, exitReason: terminal.exitReason, taskId: task.getMapKey() }));
+		createdTerminal.onDisposed((terminal) => this._fireTaskEvent({ kind: TaskEventKind.Terminated, exitReason: terminal.exitReason, taskId: task.getRecentlyUsedKey() }));
 		return createdTerminal;
 	}
 
