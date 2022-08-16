@@ -89,6 +89,7 @@ export interface IMarkTracker {
 	selectToPreviousLine(): void;
 	selectToNextLine(): void;
 	clearMarker(): void;
+	scrollToClosestMark(startMarker: IMarker, endMarker?: IMarker, highlight?: boolean): void;
 }
 
 export interface ITerminalGroup {
@@ -670,6 +671,16 @@ export interface ITerminalInstance {
 	 * @param markProperties
 	 */
 	addBufferMark(id: string, marker?: IMarker, hidden?: boolean): void;
+
+	/**
+	 *
+	 * @param startMarkId The ID for the start marker
+	 * @param endMarkId The ID for the end marker
+	 * @param highlight Whether the buffer from startMarker to endMarker
+	 * should be selected - will select just the line unless
+	 * endMarkId is provided
+	 */
+	scrollToMark(startMarkId: string, endMarkId?: string, highlight?: boolean): void;
 
 	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.

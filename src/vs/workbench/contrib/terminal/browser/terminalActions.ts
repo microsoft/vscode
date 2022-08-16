@@ -1168,7 +1168,6 @@ export function registerTerminalActions() {
 		run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalService).doWithActiveInstance(t => {
 				t.xterm?.markTracker.scrollToPreviousMark();
-				t.focus();
 			});
 		}
 	});

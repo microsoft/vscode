@@ -321,6 +321,13 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		this._scrollToMarker(this._currentMarker, scrollPosition);
 	}
 
+	scrollToClosestMark(startMarker: IMarker, endMarker?: IMarker | undefined, highlight?: boolean | undefined): void {
+		this._scrollToMarker(startMarker, ScrollPosition.Top);
+		if (highlight && endMarker) {
+			this._terminal?.selectLines(startMarker.line, endMarker.line);
+		}
+	}
+
 	private _registerMarkerOrThrow(xterm: Terminal, cursorYOffset: number): IMarker {
 		const marker = xterm.registerMarker(cursorYOffset);
 		if (!marker) {

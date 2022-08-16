@@ -1749,15 +1749,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!bufferMarkCapability || !this.xterm) {
 			return;
 		}
-		const startLine = bufferMarkCapability.getMarker(startMarkId)?.line;
-		const endLine = endMarkId ? bufferMarkCapability.getMarker(endMarkId)?.line : startLine;
-		if (!startLine || !endLine) {
+		const startMarker = bufferMarkCapability.getMarker(startMarkId);
+		const endMarker = endMarkId ? bufferMarkCapability.getMarker(endMarkId) : undefined;
+		if (!startMarker) {
 			return;
 		}
-		this.xterm.raw.scrollToLine(Math.round((startLine + endLine) / 2));
-		if (highlight) {
-			this.xterm.raw.selectLines(startLine, endLine);
-		}
+		this.xterm.markTracker.scrollToClosestMark(startMarker, endMarker, highlight);
 	}
 
 	private _onProcessData(ev: IProcessDataEvent): void {
