@@ -11,9 +11,10 @@ import { AbstractExtHostLocalizationService } from 'vs/workbench/api/common/extH
 export class ExtHostLocalizationService extends AbstractExtHostLocalizationService {
 
 	private getBundleLocation(extension: IExtensionDescription): URI | undefined {
-		if (extension.isBuiltin && this.initData.nlsBaseUrl) {
-			return URI.joinPath(this.initData.nlsBaseUrl, extension.identifier.value, 'main');
-		}
+		// TODO: support builtin extensions
+		// if (extension.isBuiltin && this.initData.nlsBaseUrl) {
+		// 	return URI.joinPath(this.initData.nlsBaseUrl, extension.identifier.value, 'main');
+		// }
 
 		if (extension.i18nBundleLocation) {
 			return URI.joinPath(extension.extensionLocation, extension.i18nBundleLocation);
@@ -23,7 +24,8 @@ export class ExtHostLocalizationService extends AbstractExtHostLocalizationServi
 
 	async initializeLocalizedMessages(extension: IExtensionDescription): Promise<void> {
 		if (Language.isDefault()
-			|| (!extension.isBuiltin && !extension.i18nBundleLocation)
+			// TODO: support builtin extensions
+			|| !extension.i18nBundleLocation
 		) {
 			return;
 		}
