@@ -37,12 +37,6 @@ if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 	builtin return
 fi
 
-# Return for complex debug traps to avoid
-# issues like https://github.com/microsoft/vscode/issues/157851
-if [[ "$(trap -p DEBUG)" =~ .*\[\[.* ]]; then
-	builtin return;
-fi
-
 # Send the IsWindows property if the environment looks like Windows
 if [[ "$(uname -s)" =~ ^CYGWIN*|MINGW*|MSYS* ]]; then
 	builtin printf "\x1b]633;P;IsWindows=True\x07"
@@ -135,7 +129,16 @@ if [[ -n "${bash_preexec_imported:-}" ]]; then
 	precmd_functions+=(__vsc_prompt_cmd)
 	preexec_functions+=(__vsc_preexec_only)
 else
-	__vsc_dbg_trap="$(trap -p DEBUG | cut -d' ' -f3 | tr -d \')"
+	__vsc_dbg_trap="$(trap -p DEBUG)"
+	if [[ "$__vsc_dbg_trap" =~ .*\[\[.* ]]; then
+		#HACK - is there a better way to do this?
+		__vsc_dbg_trap=${__vsc_dbg_trap#'trap -- '*}
+		__vsc_dbg_trap=${__vsc_dbg_trap%' DEBUG'}
+		__vsc_dbg_trap=${__vsc_dbg_trap#"'"*}
+		__vsc_dbg_trap=${__vsc_dbg_trap%"'"}
+	else
+		__vsc_dbg_trap="$(trap -p DEBUG | cut -d' ' -f3 | tr -d \')"
+	fi
 	if [[ -z "$__vsc_dbg_trap" ]]; then
 		__vsc_preexec_only() {
 			if [ "$__vsc_in_command_execution" = "0" ]; then
