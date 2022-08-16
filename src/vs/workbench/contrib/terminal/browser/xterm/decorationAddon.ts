@@ -155,7 +155,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 	}
 
-	private _refreshStyles(refreshOverviewRulerColors?: boolean): void {
+	private _refreshStyles(refreshOverviewRulerColors?: boolean, bufferMark?: IBufferMark): void {
 		if (refreshOverviewRulerColors) {
 			for (const decoration of this._decorations.values()) {
 				let color = decoration.exitCode === undefined ? defaultColor : decoration.exitCode ? errorColor : successColor;
@@ -171,9 +171,9 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				}
 			}
 		}
-		this._updateClasses(this._placeholderDecoration?.element);
+		this._updateClasses(this._placeholderDecoration?.element, undefined, bufferMark);
 		for (const decoration of this._decorations.values()) {
-			this._updateClasses(decoration.decoration.element, decoration.exitCode);
+			this._updateClasses(decoration.decoration.element, decoration.exitCode, bufferMark);
 		}
 	}
 
@@ -321,7 +321,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (!element.classList.contains(DecorationSelector.Codicon) || item.marker?.line === 0) {
 			// first render or buffer was cleared
 			this._updateLayout(element);
-			this._updateClasses(element, exitCode);
+			this._updateClasses(element, exitCode, !('command' in item) ? item : undefined);
 		}
 	}
 
