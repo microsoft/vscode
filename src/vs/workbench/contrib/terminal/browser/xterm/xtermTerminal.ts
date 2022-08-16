@@ -22,7 +22,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
-import { CommandNavigationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/commandNavigationAddon';
+import { MarkNavigationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/commandNavigationAddon';
 import { localize } from 'vs/nls';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
@@ -88,7 +88,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	private _container?: HTMLElement;
 
 	// Always on addons
-	private _commandNavigationAddon: CommandNavigationAddon;
+	private _commandNavigationAddon: MarkNavigationAddon;
 	private _shellIntegrationAddon: ShellIntegrationAddon;
 	private _decorationAddon: DecorationAddon;
 
@@ -200,7 +200,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 
 		// Load addons
 		this._updateUnicodeVersion();
-		this._commandNavigationAddon = this._instantiationService.createInstance(CommandNavigationAddon, _capabilities);
+		this._commandNavigationAddon = this._instantiationService.createInstance(MarkNavigationAddon, _capabilities);
 		this.raw.loadAddon(this._commandNavigationAddon);
 		this._decorationAddon = this._instantiationService.createInstance(DecorationAddon, this._capabilities);
 		this._decorationAddon.onDidRequestRunCommand(e => this._onDidRequestRunCommand.fire(e));

@@ -5,14 +5,14 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IBufferMarkCapability, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IBufferMarkDetectionCapability, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 // Importing types is safe in any layer
 // eslint-disable-next-line code-import-patterns
 import type { IMarker, Terminal } from 'xterm-headless';
 
-export class BufferMarkCapability implements IBufferMarkCapability {
+export class BufferMarkCapability implements IBufferMarkDetectionCapability {
 	readonly type = TerminalCapability.BufferMarkDetection;
-	protected _marks: Map<string, IMarker> = new Map();
+	readonly marks: Map<string, IMarker> = new Map();
 	private readonly _onMarkAdded = new Emitter<{ id: string; marker: IMarker; hidden?: boolean }>();
 	readonly onMarkAdded = this._onMarkAdded.event;
 	constructor(
@@ -23,13 +23,13 @@ export class BufferMarkCapability implements IBufferMarkCapability {
 	addMark(id: string, marker?: IMarker, hidden?: boolean): void {
 		marker = marker || this._terminal.registerMarker();
 		if (marker) {
-			this._marks.set(id, marker);
+			this.marks.set(id, marker);
 		} else {
 			this._logService.warn('No marker registered for ID:', id);
 		}
 	}
 
 	getMarker(id: string): IMarker | undefined {
-		return this._marks.get(id);
+		return this.marks.get(id);
 	}
 }

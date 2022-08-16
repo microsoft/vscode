@@ -6,7 +6,7 @@
 import { coalesce } from 'vs/base/common/arrays';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICommandTracker } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ICommandDetectionCapability, IPartialCommandDetectionCapability, ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IBufferMarkDetectionCapability, ICommandDetectionCapability, IPartialCommandDetectionCapability, ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import type { Terminal, IMarker, ITerminalAddon, IDecoration } from 'xterm';
 import { timeout } from 'vs/base/common/async';
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -23,14 +23,14 @@ export const enum ScrollPosition {
 	Middle
 }
 
-export class CommandNavigationAddon extends Disposable implements ICommandTracker, ITerminalAddon {
+export class MarkNavigationAddon extends Disposable implements ICommandTracker, ITerminalAddon {
 	private _currentMarker: IMarker | Boundary = Boundary.Bottom;
 	private _selectionStart: IMarker | Boundary | null = null;
 	private _isDisposable: boolean = false;
 	protected _terminal: Terminal | undefined;
 	private _navigationDecoration: IDecoration | undefined;
 
-	private _commandDetection?: ICommandDetectionCapability | IPartialCommandDetectionCapability;
+	private _detectionCapability?: ICommandDetectionCapability | IPartialCommandDetectionCapability | IBufferMarkDetectionCapability;
 
 	activate(terminal: Terminal): void {
 		this._terminal = terminal;
@@ -50,23 +50,29 @@ export class CommandNavigationAddon extends Disposable implements ICommandTracke
 	}
 
 	private _refreshActiveCapability(store: ITerminalCapabilityStore) {
-		const activeCommandDetection = store.get(TerminalCapability.CommandDetection) || store.get(TerminalCapability.PartialCommandDetection);
-		if (activeCommandDetection !== this._commandDetection) {
-			this._commandDetection = activeCommandDetection;
+		const activeDetection = store.get(TerminalCapability.CommandDetection) || store.get(TerminalCapability.PartialCommandDetection) || store.get(TerminalCapability.BufferMarkDetection);
+		if (activeDetection !== this._detectionCapability) {
+			this._detectionCapability = activeDetection;
 		}
 	}
 
-	private _getCommandMarkers(): readonly IMarker[] {
-		if (!this._commandDetection) {
+	private _getMarkers(): readonly IMarker[] {
+		if (!this._detectionCapability) {
 			return [];
 		}
-		let commands: readonly IMarker[];
-		if (this._commandDetection.type === TerminalCapability.PartialCommandDetection) {
-			commands = this._commandDetection.commands;
-		} else {
-			commands = coalesce(this._commandDetection.commands.map(e => e.marker));
+		let markers: readonly IMarker[] = [];
+		switch (this._detectionCapability.type) {
+			case TerminalCapability.PartialCommandDetection:
+				markers = this._detectionCapability.commands;
+				break;
+			case TerminalCapability.CommandDetection:
+				coalesce(this._detectionCapability.commands.map(e => e.marker));
+				break;
+			case TerminalCapability.BufferMarkDetection:
+				Array.from(this._detectionCapability.marks.values());
+				break;
 		}
-		return commands;
+		return markers;
 	}
 
 	clearMarker(): void {
@@ -82,7 +88,7 @@ export class CommandNavigationAddon extends Disposable implements ICommandTracke
 		this._navigationDecoration = undefined;
 	}
 
-	scrollToPreviousCommand(scrollPosition: ScrollPosition = ScrollPosition.Middle, retainSelection: boolean = false): void {
+	scrollToPreviousMark(scrollPosition: ScrollPosition = ScrollPosition.Middle, retainSelection: boolean = false): void {
 		if (!this._terminal) {
 			return;
 		}
@@ -98,19 +104,19 @@ export class CommandNavigationAddon extends Disposable implements ICommandTracke
 		if (typeof this._currentMarker === 'object' ? !this._isMarkerInViewport(this._terminal, this._currentMarker) : currentLineY !== viewportY) {
 			// The user has scrolled, find the line based on the current scroll position. This only
 			// works when not retaining selection
-			const markersBelowViewport = this._getCommandMarkers().filter(e => e.line >= viewportY).length;
+			const markersBelowViewport = this._getMarkers().filter(e => e.line >= viewportY).length;
 			// -1 will scroll to the top
-			markerIndex = this._getCommandMarkers().length - markersBelowViewport - 1;
+			markerIndex = this._getMarkers().length - markersBelowViewport - 1;
 		} else if (this._currentMarker === Boundary.Bottom) {
-			markerIndex = this._getCommandMarkers().length - 1;
+			markerIndex = this._getMarkers().length - 1;
 		} else if (this._currentMarker === Boundary.Top) {
 			markerIndex = -1;
 		} else if (this._isDisposable) {
-			markerIndex = this._findPreviousCommand(this._terminal);
+			markerIndex = this._findPreviousMark(this._terminal);
 			this._currentMarker.dispose();
 			this._isDisposable = false;
 		} else {
-			markerIndex = this._getCommandMarkers().indexOf(this._currentMarker) - 1;
+			markerIndex = this._getMarkers().indexOf(this._currentMarker) - 1;
 		}
 
 		if (markerIndex < 0) {
@@ -120,11 +126,11 @@ export class CommandNavigationAddon extends Disposable implements ICommandTracke
 			return;
 		}
 
-		this._currentMarker = this._getCommandMarkers()[markerIndex];
+		this._currentMarker = this._getMarkers()[markerIndex];
 		this._scrollToMarker(this._currentMarker, scrollPosition);
 	}
 
-	scrollToNextCommand(scrollPosition: ScrollPosition = ScrollPosition.Middle, retainSelection: boolean = false): void {
+	scrollToNextMark(scrollPosition: ScrollPosition = ScrollPosition.Middle, retainSelection: boolean = false): void {
 		if (!this._terminal) {
 			return;
 		}
@@ -140,29 +146,29 @@ export class CommandNavigationAddon extends Disposable implements ICommandTracke
 		if (typeof this._currentMarker === 'object' ? !this._isMarkerInViewport(this._terminal, this._currentMarker) : currentLineY !== viewportY) {
 			// The user has scrolled, find the line based on the current scroll position. This only
 			// works when not retaining selection
-			const markersAboveViewport = this._getCommandMarkers().filter(e => e.line <= viewportY).length;
+			const markersAboveViewport = this._getMarkers().filter(e => e.line <= viewportY).length;
 			// markers.length will scroll to the bottom
 			markerIndex = markersAboveViewport;
 		} else if (this._currentMarker === Boundary.Bottom) {
-			markerIndex = this._getCommandMarkers().length;
+			markerIndex = this._getMarkers().length;
 		} else if (this._currentMarker === Boundary.Top) {
 			markerIndex = 0;
 		} else if (this._isDisposable) {
-			markerIndex = this._findNextCommand(this._terminal);
+			markerIndex = this._findNextMark(this._terminal);
 			this._currentMarker.dispose();
 			this._isDisposable = false;
 		} else {
-			markerIndex = this._getCommandMarkers().indexOf(this._currentMarker) + 1;
+			markerIndex = this._getMarkers().indexOf(this._currentMarker) + 1;
 		}
 
-		if (markerIndex >= this._getCommandMarkers().length) {
+		if (markerIndex >= this._getMarkers().length) {
 			this._currentMarker = Boundary.Bottom;
 			this._terminal.scrollToBottom();
 			this._resetNavigationDecoration();
 			return;
 		}
 
-		this._currentMarker = this._getCommandMarkers()[markerIndex];
+		this._currentMarker = this._getMarkers()[markerIndex];
 		this._scrollToMarker(this._currentMarker, scrollPosition);
 	}
 
@@ -225,25 +231,25 @@ export class CommandNavigationAddon extends Disposable implements ICommandTracke
 		return marker.line >= viewportY && marker.line < viewportY + terminal.rows;
 	}
 
-	selectToPreviousCommand(): void {
+	selectToPreviousMark(): void {
 		if (!this._terminal) {
 			return;
 		}
 		if (this._selectionStart === null) {
 			this._selectionStart = this._currentMarker;
 		}
-		this.scrollToPreviousCommand(ScrollPosition.Middle, true);
+		this.scrollToPreviousMark(ScrollPosition.Middle, true);
 		selectLines(this._terminal, this._currentMarker, this._selectionStart);
 	}
 
-	selectToNextCommand(): void {
+	selectToNextMark(): void {
 		if (!this._terminal) {
 			return;
 		}
 		if (this._selectionStart === null) {
 			this._selectionStart = this._currentMarker;
 		}
-		this.scrollToNextCommand(ScrollPosition.Middle, true);
+		this.scrollToNextMark(ScrollPosition.Middle, true);
 		selectLines(this._terminal, this._currentMarker, this._selectionStart);
 	}
 
@@ -335,16 +341,16 @@ export class CommandNavigationAddon extends Disposable implements ICommandTracke
 		}
 	}
 
-	private _findPreviousCommand(xterm: Terminal): number {
+	private _findPreviousMark(xterm: Terminal): number {
 		if (this._currentMarker === Boundary.Top) {
 			return 0;
 		} else if (this._currentMarker === Boundary.Bottom) {
-			return this._getCommandMarkers().length - 1;
+			return this._getMarkers().length - 1;
 		}
 
 		let i;
-		for (i = this._getCommandMarkers().length - 1; i >= 0; i--) {
-			if (this._getCommandMarkers()[i].line < this._currentMarker.line) {
+		for (i = this._getMarkers().length - 1; i >= 0; i--) {
+			if (this._getMarkers()[i].line < this._currentMarker.line) {
 				return i;
 			}
 		}
@@ -352,21 +358,21 @@ export class CommandNavigationAddon extends Disposable implements ICommandTracke
 		return -1;
 	}
 
-	private _findNextCommand(xterm: Terminal): number {
+	private _findNextMark(xterm: Terminal): number {
 		if (this._currentMarker === Boundary.Top) {
 			return 0;
 		} else if (this._currentMarker === Boundary.Bottom) {
-			return this._getCommandMarkers().length - 1;
+			return this._getMarkers().length - 1;
 		}
 
 		let i;
-		for (i = 0; i < this._getCommandMarkers().length; i++) {
-			if (this._getCommandMarkers()[i].line > this._currentMarker.line) {
+		for (i = 0; i < this._getMarkers().length; i++) {
+			if (this._getMarkers()[i].line > this._currentMarker.line) {
 				return i;
 			}
 		}
 
-		return this._getCommandMarkers().length;
+		return this._getMarkers().length;
 	}
 }
 

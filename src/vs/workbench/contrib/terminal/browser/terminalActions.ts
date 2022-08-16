@@ -1167,7 +1167,7 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalService).doWithActiveInstance(t => {
-				t.xterm?.commandTracker.scrollToPreviousCommand();
+				t.xterm?.commandTracker.scrollToPreviousMark();
 				t.focus();
 			});
 		}
@@ -1189,7 +1189,7 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalService).doWithActiveInstance(t => {
-				t.xterm?.commandTracker.scrollToNextCommand();
+				t.xterm?.commandTracker.scrollToNextMark();
 				t.focus();
 			});
 		}
@@ -1211,7 +1211,7 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalService).doWithActiveInstance(t => {
-				t.xterm?.commandTracker.selectToPreviousCommand();
+				t.xterm?.commandTracker.selectToPreviousMark();
 				t.focus();
 			});
 		}
@@ -1233,7 +1233,7 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalService).doWithActiveInstance(t => {
-				t.xterm?.commandTracker.selectToNextCommand();
+				t.xterm?.commandTracker.selectToNextMark();
 				t.focus();
 			});
 		}

@@ -82,10 +82,10 @@ export interface IQuickPickTerminalObject {
 }
 
 export interface ICommandTracker {
-	scrollToPreviousCommand(): void;
-	scrollToNextCommand(): void;
-	selectToPreviousCommand(): void;
-	selectToNextCommand(): void;
+	scrollToPreviousMark(): void;
+	scrollToNextMark(): void;
+	selectToPreviousMark(): void;
+	selectToNextMark(): void;
 	selectToPreviousLine(): void;
 	selectToNextLine(): void;
 	clearMarker(): void;

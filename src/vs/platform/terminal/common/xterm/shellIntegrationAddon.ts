@@ -8,7 +8,7 @@ import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/l
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { CwdDetectionCapability } from 'vs/platform/terminal/common/capabilities/cwdDetectionCapability';
-import { IBufferMarkCapability, ICommandDetectionCapability, ICwdDetectionCapability, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IBufferMarkDetectionCapability, ICommandDetectionCapability, ICwdDetectionCapability, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { PartialCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/partialCommandDetectionCapability';
 import { ILogService } from 'vs/platform/log/common/log';
 // Importing types is safe in any layer
@@ -426,7 +426,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		return commandDetection;
 	}
 
-	protected _createOrGetBufferMarkDetection(terminal: Terminal): IBufferMarkCapability {
+	protected _createOrGetBufferMarkDetection(terminal: Terminal): IBufferMarkDetectionCapability {
 		let bufferMarkDetection = this.capabilities.get(TerminalCapability.BufferMarkDetection);
 		if (!bufferMarkDetection) {
 			bufferMarkDetection = new BufferMarkCapability(terminal, this._logService);
