@@ -12,27 +12,33 @@ import type { IMarker, Terminal } from 'xterm-headless';
 
 export class BufferMarkCapability implements IBufferMarkDetectionCapability {
 	readonly type = TerminalCapability.BufferMarkDetection;
-	readonly marks: Map<string, IMarker> = new Map();
-	private readonly _onMarkAdded = new Emitter<{ id: string; marker: IMarker; hidden?: boolean }>();
+	private _customMarks: Map<string, IMarker> = new Map();
+	private _genericMarks: IMarker[] = [];
+	private readonly _onMarkAdded = new Emitter<{ id?: string; marker: IMarker; hidden?: boolean }>();
 	readonly onMarkAdded = this._onMarkAdded.event;
 	constructor(
 		private readonly _terminal: Terminal,
 		@ILogService private readonly _logService: ILogService
 	) {
 	}
-	addMark(id: string, marker?: IMarker, hidden?: boolean): void {
+
+	getMarks(): IMarker[] { return this._customMarks.size ? Array.from(this._customMarks.values()) : this._genericMarks; }
+	addMark(id?: string, marker?: IMarker, hidden?: boolean): void {
 		marker = marker || this._terminal.registerMarker();
-		if (marker) {
-			this.marks.set(id, marker);
+		if (marker && id) {
+			this._customMarks.set(id, marker);
+			marker.onDispose(() => this._customMarks.delete(id));
+		} else if (marker) {
+			this._genericMarks.push(marker);
+			marker.onDispose(() => this._genericMarks.filter(m => m !== marker));
 		} else {
 			this._logService.warn('No marker registered for ID:', id);
 			return;
 		}
-		marker.onDispose(() => this.marks.delete(id));
 		this._onMarkAdded.fire({ id, marker, hidden });
 	}
 
 	getMarker(id: string): IMarker | undefined {
-		return this.marks.get(id);
+		return this._customMarks.get(id);
 	}
 }

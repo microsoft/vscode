@@ -133,13 +133,13 @@ export interface ICommandInvalidationRequest {
 	reason: CommandInvalidationReason;
 }
 
-export interface IBufferMark { id: string; marker: IMarker; hoverMessage?: string; hidden?: boolean }
+export interface IBufferMark { id?: string; marker: IMarker; hoverMessage?: string; hidden?: boolean }
 
 export interface IBufferMarkDetectionCapability {
 	type: TerminalCapability.BufferMarkDetection;
-	readonly marks: Map<string, IMarker>;
+	getMarks(): IMarker[];
 	onMarkAdded: Event<IBufferMark>;
-	addMark(id: string, marker?: IMarker, hidden?: boolean): void;
+	addMark(id?: string, marker?: IMarker, hidden?: boolean): void;
 	getMarker(id: string): IMarker | undefined;
 }
 
