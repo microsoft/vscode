@@ -1951,6 +1951,7 @@ export class Repository implements Disposable {
 				"statusSlow" : {
 					"owner": "digitarald",
 					"comment": "Reports when git status is slower than 5s",
+					"expiration": "1.73",
 					"ignoreSubmodules": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Setting indicating whether submodules are ignored" },
 					"didHitLimit": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Total number of status entries" },
 					"didWarnAboutLimit": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "True when the user was warned about slow git status" },
