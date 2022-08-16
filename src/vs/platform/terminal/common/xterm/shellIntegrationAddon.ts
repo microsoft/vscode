@@ -385,10 +385,10 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			return false;
 		}
 
-		const [command, id, hidden] = data.split(';');
+		const [command] = data.split(';');
 		switch (command) {
 			case ITermOscPt.SetMark: {
-				this._createOrGetBufferMarkDetection(this._terminal).addMark(id, undefined, !!hidden);
+				this._terminal.registerMarker();
 			}
 		}
 		// Unrecognized sequence
