@@ -156,6 +156,14 @@ export function dispose<T extends IDisposable>(arg: T | IterableIterator<T> | un
 	}
 }
 
+export function disposeIfDisposable<T extends IDisposable | object>(disposables: Array<T>): Array<T> {
+	for (const d of disposables) {
+		if (isDisposable(d)) {
+			d.dispose();
+		}
+	}
+	return [];
+}
 
 export function combinedDisposable(...disposables: IDisposable[]): IDisposable {
 	const parent = toDisposable(() => dispose(disposables));

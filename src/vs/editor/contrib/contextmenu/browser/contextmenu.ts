@@ -274,8 +274,7 @@ export class ContextMenuController implements IEditorContribution {
 				class: undefined,
 				enabled: (typeof opts.enabled === 'undefined' ? true : opts.enabled),
 				checked: opts.checked,
-				run: opts.run,
-				dispose: () => null
+				run: opts.run
 			};
 		};
 		const createSubmenuAction = (label: string, actions: IAction[]): SubmenuAction => {

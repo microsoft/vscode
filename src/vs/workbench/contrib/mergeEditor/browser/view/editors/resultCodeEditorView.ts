@@ -6,9 +6,11 @@
 import { CompareResult } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { autorun, derived } from 'vs/base/common/observable';
+import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { MergeMarkersController } from 'vs/workbench/contrib/mergeEditor/browser/mergeMarkers/mergeMarkersController';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 import { applyObservableDecorations, join } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from 'vs/workbench/contrib/mergeEditor/browser/view/colors';
@@ -140,5 +142,12 @@ export class ResultCodeEditorView extends CodeEditorView {
 				);
 
 		}));
+	}
+
+	protected override getEditorContributions(): IEditorContributionDescription[] | undefined {
+		return [
+			...EditorExtensionsRegistry.getEditorContributions(),
+			{ id: MergeMarkersController.ID, ctor: MergeMarkersController }
+		] as IEditorContributionDescription[];
 	}
 }
