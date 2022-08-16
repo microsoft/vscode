@@ -148,7 +148,7 @@ suite('ShellIntegrationAddon', () => {
 			await writeP(xterm, '\x1b]633;SetMark;1;true\x07');
 			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), true);
 		});
-		test('SetMark throws when no ID is provided', async () => {
+		test('SetMark no ID is provided', async () => {
 			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), false);
 			await writeP(xterm, 'foo');
 			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), false);
