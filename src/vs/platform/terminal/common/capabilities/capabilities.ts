@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IMarkProperties, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
+import { ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
 
 interface IEvent<T, U = void> {
 	(listener: (arg1: T, arg2: U) => any): IDisposable;
@@ -209,7 +209,6 @@ export interface ITerminalCommand {
 	commandStartLineContent?: string;
 	getOutput(): string | undefined;
 	hasOutput(): boolean;
-	markProperties?: IMarkProperties;
 }
 
 /**

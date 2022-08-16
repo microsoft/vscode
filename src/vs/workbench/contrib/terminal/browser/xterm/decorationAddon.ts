@@ -24,7 +24,6 @@ import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { Color } from 'vs/base/common/color';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IMarkProperties } from 'vs/platform/terminal/common/terminalProcess';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { Codicon } from 'vs/base/common/codicons';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -45,7 +44,7 @@ const enum DecorationStyles {
 	MarginLeft = -17,
 }
 
-interface IDisposableDecoration { decoration: IDecoration; disposables: IDisposable[]; exitCode?: number; markProperties?: IMarkProperties }
+interface IDisposableDecoration { decoration: IDecoration; disposables: IDisposable[]; exitCode?: number }
 
 export class DecorationAddon extends Disposable implements ITerminalAddon {
 	protected _terminal: Terminal | undefined;
@@ -174,7 +173,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 		this._updateClasses(this._placeholderDecoration?.element);
 		for (const decoration of this._decorations.values()) {
-			this._updateClasses(decoration.decoration.element, decoration.exitCode, decoration.markProperties);
+			this._updateClasses(decoration.decoration.element, decoration.exitCode);
 		}
 	}
 
@@ -354,7 +353,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 	}
 
-	private _updateClasses(element?: HTMLElement, exitCode?: number, markProperties?: IMarkProperties): void {
+	private _updateClasses(element?: HTMLElement, exitCode?: number, bufferMark?: IBufferMark): void {
 		if (!element) {
 			return;
 		}
@@ -363,9 +362,9 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 		element.classList.add(DecorationSelector.CommandDecoration, DecorationSelector.Codicon, DecorationSelector.XtermDecoration);
 
-		if (markProperties) {
+		if (bufferMark) {
 			element.classList.add(DecorationSelector.DefaultColor, ...Codicon.terminalDecorationMark.classNamesArray);
-			if (!markProperties.hoverMessage) {
+			if (!bufferMark.hoverMessage) {
 				//disable the mouse pointer
 				element.classList.add(DecorationSelector.Default);
 			}
