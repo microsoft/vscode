@@ -176,11 +176,6 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 
 					this.element = dom.append(container, dom.$('.codeActionWidget-action-bar'));
 
-					// const actionViewItemProvider = <IActionViewItemProvider>(action => {
-					// 	console.log(action instanceof MenuItemAction ? element.action : undefined);
-					// 	return action instanceof MenuItemAction ? element.action : undefined;
-					// });
-
 					const reRenderAction = <IAction>{
 						id: 'folderSettingsTarget' + index,
 						label: 'Show/Hide More',
@@ -381,7 +376,23 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		}, [this.listRenderer],
 			{
 				keyboardSupport: false,
-
+				accessibilityProvider: {
+					getAriaLabel: element => {
+						if (element.action instanceof CodeActionAction) {
+							let label = element.action.label;
+							if (!element.action.enabled) {
+								if (element.action instanceof CodeActionAction) {
+									label += `Disabled Reason: ${element.action.action.disabled}`;
+								}
+							}
+							return label;
+						}
+						return null;
+					},
+					getWidgetAriaLabel: () => localize({ key: 'customCodeActionWidget', comment: ['A Code Action Option'] }, "Code Action Widget"),
+					getRole: () => 'option',
+					getWidgetRole: () => 'code-action-widget'
+				}
 			}
 		);
 
