@@ -1626,6 +1626,8 @@ export interface IWorkspaceEditDto {
 	edits: Array<IWorkspaceFileEditDto | IWorkspaceTextEditDto | IWorkspaceCellEditDto>;
 }
 
+export function reviveWorkspaceEditDto(data: IWorkspaceEditDto): languages.WorkspaceEdit;
+export function reviveWorkspaceEditDto(data: IWorkspaceEditDto | undefined): languages.WorkspaceEdit | undefined;
 export function reviveWorkspaceEditDto(data: IWorkspaceEditDto | undefined): languages.WorkspaceEdit | undefined {
 	if (data && data.edits) {
 		revive<languages.WorkspaceEdit>(data);

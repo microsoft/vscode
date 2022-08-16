@@ -143,7 +143,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	if (options.codeBlockRenderer) {
 		renderer.code = (code, lang) => {
 			const id = defaultGenerator.nextId();
-			const value = options.codeBlockRenderer!(lang ?? '', code);
+			const value = options.codeBlockRenderer!(postProcessCodeBlockLanguageId(lang), code);
 			codeBlocks.push(value.then(element => [id, element]));
 			return `<div class="code" data-code="${id}">${escape(code)}</div>`;
 		};
@@ -292,6 +292,18 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			disposables.dispose();
 		}
 	};
+}
+
+function postProcessCodeBlockLanguageId(lang: string | undefined): string {
+	if (!lang) {
+		return '';
+	}
+
+	const parts = lang.split(/[\s+|:|,|\{|\?]/, 1);
+	if (parts.length) {
+		return parts[0];
+	}
+	return lang;
 }
 
 function resolveWithBaseUri(baseUri: URI, href: string): string {

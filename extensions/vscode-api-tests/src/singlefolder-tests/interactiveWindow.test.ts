@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { disposeAll } from '../utils';
+import { asPromise, disposeAll } from '../utils';
 import { Kernel, saveAllFilesAndCloseAll } from './notebook.api.test';
 
 export type INativeInteractiveWindow = { notebookUri: vscode.Uri; inputUri: vscode.Uri; notebookEditor: vscode.NotebookEditor };
@@ -35,7 +35,9 @@ async function addCell(code: string, notebook: vscode.NotebookDocument) {
 
 async function addCellAndRun(code: string, notebook: vscode.NotebookDocument, i: number) {
 	const cell = await addCell(code, notebook);
+	const event = asPromise(vscode.workspace.onDidChangeNotebookDocument);
 	await vscode.commands.executeCommand('notebook.cell.execute', { start: i, end: i + 1 });
+	await event;
 	assert.strictEqual(cell.outputs.length, 1, 'execute failed');
 	return cell;
 }
