@@ -332,10 +332,10 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 				accessibilityProvider: {
 					getAriaLabel: element => {
 						if (element.action instanceof CodeActionAction) {
-							let label = element.action.label;
+							const label = element.action.label;
 							if (!element.action.enabled) {
 								if (element.action instanceof CodeActionAction) {
-									label += `Disabled Reason: ${element.action.action.disabled}`;
+									localize({ key: 'customCodeActionWidget.labels', comment: ['Code action labels for accessibility.'] }, "{0}, Disabled Reason: {1}", label, element.action.action.disabled);
 								}
 							}
 							return label;
