@@ -27,6 +27,7 @@ import { TerminalAutoResponder } from 'vs/platform/terminal/common/terminalAutoR
 import { ErrorNoTelemetry } from 'vs/base/common/errors';
 import { ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
+import * as path from 'vs/base/common/path';
 
 type WorkspaceId = string;
 
@@ -341,6 +342,29 @@ export class PtyService extends Disposable implements IPtyService {
 		else {
 			return new Promise<string>(c => {
 				const proc = execFile('bash.exe', ['-c', `wslpath -w ${escapeNonWindowsPath(original)}`], {}, (error, stdout, stderr) => {
+					c(stdout.trim());
+				});
+				proc.stdin!.end();
+			});
+		}
+	}
+
+	async getCygPath(original: string, reverse?: boolean): Promise<string> {
+		if (!isWindows) {
+			return original;
+		}
+
+		if (!reverse) {
+			return new Promise<string>(c => {
+				const proc = execFile('git-bash.exe', ['-c', `cygpath -u ${escapeNonWindowsPath(original)}`], {}, (error, stdout, stderr) => {
+					c(escapeNonWindowsPath(stdout.trim()));
+				});
+				proc.stdin!.end();
+			});
+		}
+		else {
+			return new Promise<string>(c => {
+				const proc = execFile('git-bash.exe', ['-c', `cygpath -w ${escapeNonWindowsPath(original)}`], {}, (error, stdout, stderr) => {
 					c(stdout.trim());
 				});
 				proc.stdin!.end();

@@ -313,6 +313,14 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 		return this._remoteTerminalChannel?.getWslPath(original, reverse) || original;
 	}
 
+	async getCygPath(original: string, reverse?: boolean): Promise<string> {
+		const env = await this._remoteAgentService.getEnvironment();
+		if (env?.os !== OperatingSystem.Windows) {
+			return original;
+		}
+		return this._remoteTerminalChannel?.getCygPath(original, reverse) || original;
+	}
+
 	async setTerminalLayoutInfo(layout?: ITerminalsLayoutInfoById): Promise<void> {
 		if (!this._remoteTerminalChannel) {
 			throw new Error(`Cannot call setActiveInstanceId when there is no remote`);

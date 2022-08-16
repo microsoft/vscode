@@ -134,6 +134,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			case '$getProfiles': return this._getProfiles.apply(this, args);
 			case '$getEnvironment': return this._getEnvironment();
 			case '$getWslPath': return this._getWslPath(args[0], args[1]);
+			case '$getCygPath': return this._getCygPath(args[0], args[1]);
 			case '$getTerminalLayoutInfo': return this._ptyService.getTerminalLayoutInfo(<IGetTerminalLayoutInfoArgs>args);
 			case '$setTerminalLayoutInfo': return this._ptyService.setTerminalLayoutInfo(<ISetTerminalLayoutInfoArgs>args);
 			case '$serializeTerminalState': return this._ptyService.serializeTerminalState.apply(this._ptyService, args);
@@ -320,6 +321,9 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		return this._ptyService.getWslPath(original, reverse);
 	}
 
+	private _getCygPath(original: string, reverse?: boolean): Promise<string> {
+		return this._ptyService.getCygPath(original, reverse);
+	}
 
 	private _reduceConnectionGraceTime(): Promise<void> {
 		return this._ptyService.reduceConnectionGraceTime();

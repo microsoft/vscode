@@ -206,6 +206,10 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		return this._localPtyService.getWslPath(original, reverse);
 	}
 
+	async getCygPath(original: string, reverse?: boolean): Promise<string> {
+		return this._localPtyService.getCygPath(original, reverse);
+	}
+
 	async setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void> {
 		const args: ISetTerminalLayoutInfoArgs = {
 			workspaceId: this._getWorkspaceId(),

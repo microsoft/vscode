@@ -262,6 +262,10 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 		return this._channel.call('$getWslPath', [original, reverse]);
 	}
 
+	getCygPath(original: string, reverse?: boolean): Promise<string> {
+		return this._channel.call('$getCygPath', [original, reverse]);
+	}
+
 	setTerminalLayoutInfo(layout?: ITerminalsLayoutInfoById): Promise<void> {
 		const workspace = this._workspaceContextService.getWorkspace();
 		const args: ISetTerminalLayoutInfoArgs = {
