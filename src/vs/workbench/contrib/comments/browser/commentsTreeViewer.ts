@@ -396,4 +396,19 @@ export class CommentsList extends WorkbenchAsyncDataTree<CommentsModel | Resourc
 	filterComments(): void {
 		this.refilter();
 	}
+
+	getVisibleItemCount(): number {
+		let filtered = 0;
+		const root = this.getNode();
+
+		for (const resourceNode of root.children) {
+			for (const commentNode of resourceNode.children) {
+				if (commentNode.visible && resourceNode.visible) {
+					filtered++;
+				}
+			}
+		}
+
+		return filtered;
+	}
 }

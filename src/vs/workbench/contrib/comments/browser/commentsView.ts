@@ -134,7 +134,7 @@ export class CommentsPanel extends ViewPane implements ICommentsView {
 		if (!this.cachedFilterStats) {
 			this.cachedFilterStats = {
 				total: this.totalComments,
-				filtered: 0 // todo: add
+				filtered: this.tree?.getVisibleItemCount() ?? 0
 			};
 		}
 
@@ -171,6 +171,7 @@ export class CommentsPanel extends ViewPane implements ICommentsView {
 		this.treeContainer.classList.add('file-icon-themable-tree', 'show-file-icons');
 		this.commentsModel = new CommentsModel();
 
+		this.cachedFilterStats = undefined;
 		this.createTree();
 		this.createMessageBox(domContainer);
 
@@ -385,6 +386,7 @@ export class CommentsPanel extends ViewPane implements ICommentsView {
 			this.hasCommentsContextKey.set(this.commentsModel.hasCommentThreads());
 
 			this.treeContainer.classList.toggle('hidden', !this.commentsModel.hasCommentThreads());
+			this.cachedFilterStats = undefined;
 			this.renderMessage();
 			await this.tree.updateChildren();
 
