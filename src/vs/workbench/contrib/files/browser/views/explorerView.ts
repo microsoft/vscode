@@ -911,7 +911,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.files.action.createFileFromExplorer',
-			title: nls.localize('createNewFile', "New File"),
+			title: nls.localize('createNewFile', "New File..."),
 			f1: false,
 			icon: Codicon.newFile,
 			precondition: ExplorerResourceNotReadonlyContext,
@@ -934,7 +934,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.files.action.createFolderFromExplorer',
-			title: nls.localize('createNewFolder', "New Folder"),
+			title: nls.localize('createNewFolder', "New Folder..."),
 			f1: false,
 			icon: Codicon.newFolder,
 			precondition: ExplorerResourceNotReadonlyContext,
