@@ -1253,10 +1253,10 @@ export class Repository implements Disposable {
 
 				await this.repository.commit(message, opts);
 				this.closeDiffEditors(indexResources, workingGroupResources);
-
-				// Execute post-commit command
-				await this.commitCommandCenter.executePostCommitCommand(opts.postCommitCommand);
 			});
+
+			// Execute post-commit command
+			await this.commitCommandCenter.executePostCommitCommand(opts.postCommitCommand);
 		}
 	}
 

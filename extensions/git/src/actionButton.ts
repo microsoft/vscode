@@ -5,7 +5,7 @@
 
 import * as nls from 'vscode-nls';
 import { Command, Disposable, Event, EventEmitter, SourceControlActionButton, Uri, workspace } from 'vscode';
-import { Branch, Status } from './api/git';
+import { Branch, CommitCommand, Status } from './api/git';
 import { CommitCommandsCenter } from './postCommitCommands';
 import { Repository, Operation } from './repository';
 import { dispose } from './util';
@@ -92,14 +92,17 @@ export class ActionButtonCommand {
 		// The button is disabled
 		if (!showActionButton.commit) { return undefined; }
 
+		const primaryCommand = this.getCommitActionButtonPrimaryCommand();
+
 		return {
-			command: this.getCommitActionButtonPrimaryCommand(),
+			command: primaryCommand,
 			secondaryCommands: this.getCommitActionButtonSecondaryCommands(),
+			description: primaryCommand.description ?? primaryCommand.title,
 			enabled: (this.state.repositoryHasChangesToCommit || this.state.isRebaseInProgress) && !this.state.isCommitInProgress && !this.state.isMergeInProgress
 		};
 	}
 
-	private getCommitActionButtonPrimaryCommand(): Command {
+	private getCommitActionButtonPrimaryCommand(): CommitCommand {
 		// Rebase Continue
 		if (this.state.isRebaseInProgress) {
 			return {
@@ -115,7 +118,21 @@ export class ActionButtonCommand {
 	}
 
 	private getCommitActionButtonSecondaryCommands(): Command[][] {
-		return this.state.isRebaseInProgress ? [] : this.postCommitCommandCenter.getSecondaryCommands();
+		// Rebase Continue
+		if (this.state.isRebaseInProgress) {
+			return [];
+		}
+
+		// Commit
+		const commandGroups: Command[][] = [];
+		for (const commands of this.postCommitCommandCenter.getSecondaryCommands()) {
+			commandGroups.push(commands.map(c => {
+				// Use the description as title if present
+				return { command: 'git.commit', title: c.description ?? c.title, tooltip: c.tooltip, arguments: c.arguments };
+			}));
+		}
+
+		return commandGroups;
 	}
 
 	private getPublishBranchActionButton(): SourceControlActionButton | undefined {
