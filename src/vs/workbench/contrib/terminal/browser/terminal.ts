@@ -668,7 +668,6 @@ export interface ITerminalInstance {
 	/**
 	 * Registers a marker and maps it to an ID
 	 * When not hidden, adds a decoration to the buffer
-	 * @param markProperties
 	 */
 	addBufferMark(id: string, marker?: IMarker, hidden?: boolean): void;
 
