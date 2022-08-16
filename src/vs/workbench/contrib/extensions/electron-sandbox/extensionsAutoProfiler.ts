@@ -200,6 +200,7 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 		type UnresponsivePromptDataClassification = {
 			owner: 'digitarald';
 			comment: 'Users got a warning about an extension hanging the extension process';
+			expiration: '1.73';
 			id: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Extension id that froze the extension process' };
 		};
 		this._telemetryService.publicLog2<UnresponsivePromptData, UnresponsivePromptDataClassification>('exthostunresponsiveprompt', {
