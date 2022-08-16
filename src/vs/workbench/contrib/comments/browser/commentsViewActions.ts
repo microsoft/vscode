@@ -7,7 +7,7 @@ import { Delayer } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
 import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
 import { HistoryInputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService, registerThemingParticipant, ICssStyleCollector, IColorTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -16,9 +16,9 @@ import { toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { badgeBackground, badgeForeground, contrastBorder, inputActiveOptionBorder, inputActiveOptionBackground, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ContextScopedHistoryInputBox } from 'vs/platform/history/browser/contextScopedHistoryWidget';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Event, Emitter } from 'vs/base/common/event';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { Codicon } from 'vs/base/common/codicons';
@@ -27,7 +27,12 @@ import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdown
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { showHistoryKeybindingHint } from 'vs/platform/history/browser/historyWidgetKeybindingHint';
-import { CommentsViewFilterFocusContextKey, ICommentsView } from 'vs/workbench/contrib/comments/browser/comments';
+import { CommentsViewFilterFocusContextKey, CommentsViewSmallLayoutContextKey, ICommentsView } from 'vs/workbench/contrib/comments/browser/comments';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { COMMENTS_VIEW_ID } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
+import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
 
 export interface CommentsFiltersChangeEvent {
 	filterText?: boolean;
@@ -369,6 +374,76 @@ export class CommentsFilterActionViewItem extends BaseActionViewItem {
 		}
 	}
 }
+
+registerAction2(class extends ViewAction<ICommentsView> {
+	constructor() {
+		super({
+			id: 'commentsFocusViewFromFilter',
+			title: localize('focusCommentsList', "Focus Comments view"),
+			keybinding: {
+				when: CommentsViewFilterFocusContextKey,
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.DownArrow
+			},
+			viewId: COMMENTS_VIEW_ID
+		});
+	}
+	async runInView(serviceAccessor: ServicesAccessor, commentsView: ICommentsView): Promise<void> {
+		commentsView.focus();
+	}
+});
+
+registerAction2(class extends ViewAction<ICommentsView> {
+	constructor() {
+		super({
+			id: 'commentsClearFilterText',
+			title: localize('commentsClearFilterText', "Clear filter text"),
+			keybinding: {
+				when: CommentsViewFilterFocusContextKey,
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyCode.Escape
+			},
+			viewId: COMMENTS_VIEW_ID
+		});
+	}
+	async runInView(serviceAccessor: ServicesAccessor, commentsView: ICommentsView): Promise<void> {
+		commentsView.clearFilterText();
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: `workbench.actions.treeView.${COMMENTS_VIEW_ID}.filter`,
+			title: localize('filter', "Filter"),
+			menu: {
+				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', COMMENTS_VIEW_ID), CommentsViewSmallLayoutContextKey.negate()),
+				group: 'navigation',
+				order: 1,
+			},
+		});
+	}
+	async run(): Promise<void> { }
+});
+
+registerAction2(class extends ViewAction<ICommentsView> {
+	constructor() {
+		super({
+			id: 'commentsFocusFilter',
+			title: localize('focusCommentsFilter', "Focus comments filter"),
+			keybinding: {
+				when: FocusedViewContext.isEqualTo(COMMENTS_VIEW_ID),
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyF
+			},
+			viewId: COMMENTS_VIEW_ID
+		});
+	}
+	async runInView(serviceAccessor: ServicesAccessor, commentsView: ICommentsView): Promise<void> {
+		commentsView.focusFilter();
+	}
+});
 
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 	const inputActiveOptionBorderColor = theme.getColor(inputActiveOptionBorder);

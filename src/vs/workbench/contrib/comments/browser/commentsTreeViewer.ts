@@ -383,7 +383,8 @@ export class CommentsList extends WorkbenchAsyncDataTree<CommentsModel | Resourc
 					return false;
 				},
 				overrideStyles: options.overrideStyles,
-				filter: options.filter
+				filter: options.filter,
+				findWidgetEnabled: false
 			},
 			instantiationService,
 			contextKeyService,

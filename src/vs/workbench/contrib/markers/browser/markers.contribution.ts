@@ -295,7 +295,6 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	}
 });
 
-// todo: do for comments
 registerAction2(class extends ViewAction<IMarkersView> {
 	constructor() {
 		super({
@@ -368,7 +367,6 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	}
 });
 
-// todo: do for comments
 registerAction2(class extends ViewAction<IMarkersView> {
 	constructor() {
 		super({

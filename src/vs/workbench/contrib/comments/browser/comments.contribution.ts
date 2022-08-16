@@ -9,26 +9,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import 'vs/workbench/contrib/comments/browser/commentsEditorContribution';
 import { ICommentService, CommentService } from 'vs/workbench/contrib/comments/browser/commentService';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { COMMENTS_VIEW_ID } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { CommentsViewSmallLayoutContextKey } from 'vs/workbench/contrib/comments/browser/comments';
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: `workbench.actions.treeView.${COMMENTS_VIEW_ID}.filter`,
-			title: nls.localize('filter', "Filter"),
-			menu: {
-				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', COMMENTS_VIEW_ID), CommentsViewSmallLayoutContextKey.negate()),
-				group: 'navigation',
-				order: 1,
-			},
-		});
-	}
-	async run(): Promise<void> { }
-});
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'comments',
