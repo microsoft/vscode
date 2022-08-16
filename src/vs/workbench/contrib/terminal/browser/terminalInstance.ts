@@ -1056,6 +1056,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						});
 					}
 				}
+			} else {
+				await this.runRecent(type, filterMode, value);
+			}
+		});
+		quickPick.onDidChangeValue(async value => {
+			if (!value) {
+				await this.runRecent(type, filterMode, value);
 			}
 		});
 		quickPick.onDidAccept(async () => {
@@ -1074,7 +1081,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		return new Promise<void>(r => {
 			this._terminalInRunCommandPicker.set(true);
-			this._instantiationService.invokeFunction(formatPinnedItems, runRecentStorageKey, quickPick, async () => await this.runRecent(type, filterMode, value));
+			this._instantiationService.invokeFunction(formatPinnedItems, runRecentStorageKey, quickPick);
 			quickPick.onDidHide(() => {
 				this._terminalInRunCommandPicker.set(false);
 				r();
