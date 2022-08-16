@@ -309,3 +309,10 @@
 .monaco-workbench .part.titlebar>.titlebar-container>.layout-controls-container .codicon {
 	color: inherit;
 }
+
+.monaco-workbench.windows:not(.web) .part.titlebar>.titlebar-container>.layout-controls-container .codicon:not(.seperator) {
+	width: 35px;
+	height: 100%;
+	justify-content: center;
+	border-radius: 0;
+}
