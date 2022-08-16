@@ -12,6 +12,8 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IMarker, IMarkerData, IMarkerService, IResourceMarker, MarkerSeverity, MarkerStatistics } from './markers';
 
+export const unsupportedSchemas = new Set([Schemas.inMemory, Schemas.vscodeSourceControl, Schemas.walkThrough, Schemas.walkThroughSnippet]);
+
 class DoubleResourceMap<V>{
 
 	private _byResource = new ResourceMap<Map<string, V>>();
@@ -103,7 +105,7 @@ class MarkerStats implements MarkerStatistics {
 		const result: MarkerStatistics = { errors: 0, warnings: 0, infos: 0, unknowns: 0 };
 
 		// TODO this is a hack
-		if (resource.scheme === Schemas.inMemory || resource.scheme === Schemas.walkThrough || resource.scheme === Schemas.walkThroughSnippet || resource.scheme === Schemas.vscodeSourceControl) {
+		if (unsupportedSchemas.has(resource.scheme)) {
 			return result;
 		}
 
@@ -197,6 +199,10 @@ export class MarkerService implements IMarkerService {
 			relatedInformation,
 			tags,
 		} = data;
+
+		if (unsupportedSchemas.has(resource.scheme)) {
+			return undefined;
+		}
 
 		if (!message) {
 			return undefined;

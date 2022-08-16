@@ -50,6 +50,7 @@ import { Link } from 'vs/platform/opener/browser/link';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MarkersContextKeys, MarkersViewMode } from 'vs/workbench/contrib/markers/common/markers';
+import { unsupportedSchemas } from 'vs/platform/markers/common/markerService';
 
 interface IResourceMarkersTemplateData {
 	resourceLabel: IResourceLabel;
@@ -456,7 +457,7 @@ export class Filter implements ITreeFilter<MarkerElement, FilterData> {
 	}
 
 	private filterResourceMarkers(resourceMarkers: ResourceMarkers): TreeFilterResult<FilterData> {
-		if (resourceMarkers.resource.scheme === network.Schemas.walkThrough || resourceMarkers.resource.scheme === network.Schemas.walkThroughSnippet || resourceMarkers.resource.scheme === network.Schemas.vscodeSourceControl) {
+		if (unsupportedSchemas.has(resourceMarkers.resource.scheme)) {
 			return false;
 		}
 
