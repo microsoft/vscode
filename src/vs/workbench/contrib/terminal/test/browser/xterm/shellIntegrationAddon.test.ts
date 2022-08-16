@@ -11,6 +11,7 @@ import { ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIn
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
+import assert = require('assert');
 
 async function writeP(terminal: Terminal, data: string): Promise<void> {
 	return new Promise<void>((resolve, reject) => {
@@ -131,6 +132,29 @@ suite('ShellIntegrationAddon', () => {
 			mock.expects('setCwd').once().withExactArgs('/foo');
 			await writeP(xterm, '\x1b]633;P;Cwd=/foo\x07');
 			mock.verify();
+		});
+	});
+	suite('BufferMarkCapability', async () => {
+		test('SetMark', async () => {
+			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), false);
+			await writeP(xterm, 'foo');
+			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), false);
+			await writeP(xterm, '\x1b]633;SetMark;1;\x07');
+			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), true);
+		});
+		test('SetMark hidden', async () => {
+			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), false);
+			await writeP(xterm, 'foo');
+			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), false);
+			await writeP(xterm, '\x1b]633;SetMark;1;true\x07');
+			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), true);
+		});
+		test('SetMark throws when no ID is provided', async () => {
+			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), false);
+			await writeP(xterm, 'foo');
+			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), false);
+			await writeP(xterm, '\x1b]633;SetMark;;true\x07');
+			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), false);
 		});
 	});
 });
