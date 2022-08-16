@@ -62,9 +62,13 @@ class CopyPasteEditProvider implements vscode.DocumentPasteEditProvider {
 
 		// create updated metadata for cell (prep for WorkspaceEdit)
 		const b64string = encodeBase64(fileDataAsUint8);
-		const startingAttachments = currentCell.metadata?.custom?.attachments;
+		const startingAttachments = currentCell.metadata.custom?.attachments;
 		if (!startingAttachments) {
-			currentCell.metadata.custom['attachments'] = { [pasteFilename]: { 'image/png': b64string } };
+			if (!currentCell.metadata?.custom) {
+				currentCell.metadata['custom'] = { 'attachments': { [pasteFilename]: { 'image/png': b64string } } };
+			} else {
+				currentCell.metadata.custom['attachments'] = { [pasteFilename]: { 'image/png': b64string } };
+			}
 		} else {
 			for (let appendValue = 2; pasteFilename in startingAttachments; appendValue++) {
 				const objEntries = Object.entries(startingAttachments[pasteFilename]);
