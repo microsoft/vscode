@@ -349,8 +349,9 @@ export class SettingsEditor2 extends EditorPane {
 		this.defaultSettingsEditorModel = model;
 
 		options = options || validateSettingsEditorOptions({});
-		if (!this.viewState.settingsTarget) {
-			if (!options.target) {
+		if (!this.viewState.settingsTarget || !this.settingsTargetsWidget.settingsTarget) {
+			const optionsHasViewStateTarget = options.viewState && (options.viewState as ISettingsEditorViewState).settingsTarget;
+			if (!options.target && !optionsHasViewStateTarget) {
 				options.target = ConfigurationTarget.USER_LOCAL;
 			}
 		}
@@ -387,6 +388,10 @@ export class SettingsEditor2 extends EditorPane {
 		return withUndefinedAsNull(cachedState);
 	}
 
+	override getViewState(): object | undefined {
+		return this.viewState;
+	}
+
 	override setOptions(options: ISettingsEditorOptions | undefined): void {
 		super.setOptions(options);
 
@@ -401,11 +406,16 @@ export class SettingsEditor2 extends EditorPane {
 			this.focusSearch();
 		}
 
-		if (options.query) {
-			this.searchWidget.setValue(options.query);
+		const recoveredViewState = options.viewState ?
+			options.viewState as ISettingsEditorViewState : undefined;
+
+		const query: string | undefined = recoveredViewState?.query ?? options.query;
+		if (query !== undefined) {
+			this.searchWidget.setValue(query);
+			this.viewState.query = query;
 		}
 
-		const target: SettingsTarget = options.folderUri || <SettingsTarget>options.target;
+		const target: SettingsTarget | undefined = options.folderUri ?? recoveredViewState?.settingsTarget ?? <SettingsTarget | undefined>options.target;
 		if (target) {
 			this.settingsTargetsWidget.settingsTarget = target;
 			this.viewState.settingsTarget = target;
@@ -1237,8 +1247,9 @@ export class SettingsEditor2 extends EditorPane {
 			this.settingsTreeModel.update(resolvedSettingsRoot);
 			this.tocTreeModel.settingsTreeRoot = this.settingsTreeModel.root as SettingsTreeGroupElement;
 
-			const cachedState = this.restoreCachedState();
-			if (cachedState && cachedState.searchQuery || !!this.searchWidget.getValue()) {
+			// Don't restore the cached state if we already have a query value from calling _setOptions().
+			const cachedState = !this.viewState.query ? this.restoreCachedState() : undefined;
+			if (cachedState?.searchQuery || this.searchWidget.getValue()) {
 				await this.onSearchInputChanged();
 			} else {
 				this.refreshTOCTree();
@@ -1358,6 +1369,7 @@ export class SettingsEditor2 extends EditorPane {
 		}
 
 		const query = this.searchWidget.getValue().trim();
+		this.viewState.query = query;
 		this.delayedFilterLogging.cancel();
 		await this.triggerSearch(query.replace(/\u203A/g, ' '));
 

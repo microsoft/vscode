@@ -135,7 +135,7 @@ export class MergeEditorModel extends EditorModel {
 	}
 
 	public discardMergeChanges(): void {
-		this.result.setValue(this.getInitialResultValue());
+		this.result.setValue(this.resultSnapshot);
 	}
 
 	constructor(
