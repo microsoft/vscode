@@ -522,10 +522,6 @@ export class FileService extends Disposable implements IFileService {
 		let fileStream: VSBufferReadableStream | undefined = undefined;
 		try {
 
-			if ('foo'.length === 3) {
-				throw new Error();
-			}
-
 			// if the etag is provided, we await the result of the validation
 			// due to the likelihood of hitting a NOT_MODIFIED_SINCE result.
 			// otherwise, we let it run in parallel to the file reading for
