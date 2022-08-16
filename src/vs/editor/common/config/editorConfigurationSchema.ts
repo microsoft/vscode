@@ -24,7 +24,7 @@ const editorConfiguration: IConfigurationNode = {
 			type: 'number',
 			default: EDITOR_MODEL_DEFAULTS.tabSize,
 			minimum: 1,
-			markdownDescription: nls.localize('tabSize', "The number of spaces a tab is equal to. This setting is overridden based on the file contents when `#editor.detectIndentation#` is on.")
+			markdownDescription: nls.localize('tabSize', "The number of spaces a tab is equal to. This setting is overridden based on the file contents when {0} is on.", '`#editor.detectIndentation#`')
 		},
 		// 'editor.indentSize': {
 		// 	'anyOf': [
@@ -43,12 +43,12 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.insertSpaces': {
 			type: 'boolean',
 			default: EDITOR_MODEL_DEFAULTS.insertSpaces,
-			markdownDescription: nls.localize('insertSpaces', "Insert spaces when pressing `Tab`. This setting is overridden based on the file contents when `#editor.detectIndentation#` is on.")
+			markdownDescription: nls.localize('insertSpaces', "Insert spaces when pressing `Tab`. This setting is overridden based on the file contents when {0} is on.", '`#editor.detectIndentation#`')
 		},
 		'editor.detectIndentation': {
 			type: 'boolean',
 			default: EDITOR_MODEL_DEFAULTS.detectIndentation,
-			markdownDescription: nls.localize('detectIndentation', "Controls whether `#editor.tabSize#` and `#editor.insertSpaces#` will be automatically detected when a file is opened based on the file contents.")
+			markdownDescription: nls.localize('detectIndentation', "Controls whether {0} and {1} will be automatically detected when a file is opened based on the file contents.", '`#editor.tabSize#`', '`#editor.insertSpaces#`')
 		},
 		'editor.trimAutoWhitespace': {
 			type: 'boolean',
@@ -173,7 +173,7 @@ const editorConfiguration: IConfigurationNode = {
 			markdownEnumDescriptions: [
 				nls.localize('wordWrap.off', "Lines will never wrap."),
 				nls.localize('wordWrap.on', "Lines will wrap at the viewport width."),
-				nls.localize('wordWrap.inherit', "Lines will wrap according to the `#editor.wordWrap#` setting."),
+				nls.localize('wordWrap.inherit', "Lines will wrap according to the {0} setting.", '`#editor.wordWrap#`'),
 			]
 		},
 		'diffEditor.diffAlgorithm': {
