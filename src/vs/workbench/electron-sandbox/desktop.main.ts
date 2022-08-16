@@ -247,6 +247,7 @@ export class DesktopMain extends Disposable {
 		const payload = this.resolveWorkspaceInitializationPayload(environmentService);
 		if (this.configuration.profiles.profileOptions?.name) {
 			await userDataProfileService.initProfileWithName(this.configuration.profiles.profileOptions.name, payload);
+			// Reload profiles if the current profile does not exist.
 			if (!userDataProfilesService.profiles.some(p => p.id === userDataProfileService.currentProfile.id)) {
 				await userDataProfilesService.reload();
 			}
