@@ -60,10 +60,10 @@ export function getCommandHistory(accessor: ServicesAccessor): ITerminalPersiste
 	return commandHistory;
 }
 
-let directoryHistory: ITerminalPersistedHistory<{ remoteAuthority?: string }> | undefined = undefined;
-export function getDirectoryHistory(accessor: ServicesAccessor): ITerminalPersistedHistory<{ remoteAuthority?: string }> {
+let directoryHistory: ITerminalPersistedHistory<{ remoteAuthority?: string; shellType?: TerminalShellType; platformNativePath?: string }> | undefined = undefined;
+export function getDirectoryHistory(accessor: ServicesAccessor): ITerminalPersistedHistory<{ remoteAuthority?: string; shellType?: TerminalShellType; platformNativePath?: string }> {
 	if (!directoryHistory) {
-		directoryHistory = accessor.get(IInstantiationService).createInstance(TerminalPersistedHistory, 'dirs') as TerminalPersistedHistory<{ remoteAuthority?: string }>;
+		directoryHistory = accessor.get(IInstantiationService).createInstance(TerminalPersistedHistory, 'dirs') as TerminalPersistedHistory<{ remoteAuthority?: string; shellType?: TerminalShellType; platformNativePath?: string }>;
 	}
 	return directoryHistory;
 }
