@@ -2197,6 +2197,13 @@ export interface ExtHostTestingShape {
 	$refreshTests(controllerId: string, token: CancellationToken): Promise<void>;
 }
 
+export interface ExtHostLocalizationShape {
+	getMessage(extensionId: string, key: string, ...args: string[]): string;
+	getBundleContents(extensionId: string): { [key: string]: string };
+	getBundleUri(extensionId: string): URI;
+	initializeLocalizedMessages(extension: IExtensionDescription): Promise<void>;
+}
+
 export interface ITestControllerPatch {
 	label?: string;
 	canRefresh?: boolean;
@@ -2368,4 +2375,5 @@ export const ExtHostContext = {
 	ExtHostTimeline: createProxyIdentifier<ExtHostTimelineShape>('ExtHostTimeline'),
 	ExtHostTesting: createProxyIdentifier<ExtHostTestingShape>('ExtHostTesting'),
 	ExtHostTelemetry: createProxyIdentifier<ExtHostTelemetryShape>('ExtHostTelemetry'),
+	ExtHostLocalization: createProxyIdentifier<ExtHostLocalizationShape>('ExtHostLocalization'),
 };

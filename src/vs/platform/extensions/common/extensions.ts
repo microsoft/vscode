@@ -268,6 +268,7 @@ export interface IRelaxedExtensionManifest {
 	description?: string;
 	main?: string;
 	browser?: string;
+	i18nBundleLocation?: string;
 	icon?: string;
 	categories?: string[];
 	keywords?: string[];

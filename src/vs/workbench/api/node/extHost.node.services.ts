@@ -22,6 +22,8 @@ import { ExtHostLoggerService } from 'vs/workbench/api/node/extHostLoggerService
 import { ILoggerService } from 'vs/platform/log/common/log';
 import { NodeExtHostVariableResolverProviderService } from 'vs/workbench/api/node/extHostVariableResolverService';
 import { IExtHostVariableResolverProvider } from 'vs/workbench/api/common/extHostVariableResolverService';
+import { IExtHostLocalizationService } from 'vs/workbench/api/common/extHostLocalizationService';
+import { ExtHostLocalizationService } from 'vs/workbench/api/node/extHostLocalizationService';
 
 // #########################################################################
 // ###                                                                   ###
@@ -29,6 +31,7 @@ import { IExtHostVariableResolverProvider } from 'vs/workbench/api/common/extHos
 // ###                                                                   ###
 // #########################################################################
 
+registerSingleton(IExtHostLocalizationService, ExtHostLocalizationService, false);
 registerSingleton(IExtHostExtensionService, ExtHostExtensionService, false);
 registerSingleton(ILoggerService, ExtHostLoggerService, true);
 registerSingleton(IExtensionStoragePaths, ExtensionStoragePaths, false);

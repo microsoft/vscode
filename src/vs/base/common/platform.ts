@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as nls from 'vs/nls';
 
-const LANGUAGE_DEFAULT = 'en';
+const LANGUAGE_DEFAULT = 'de';
 
 let _isWindows = false;
 let _isMacintosh = false;
