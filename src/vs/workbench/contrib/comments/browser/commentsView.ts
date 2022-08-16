@@ -60,7 +60,6 @@ export class CommentsPanel extends ViewPane implements ICommentsView {
 	private readonly viewState: MementoObject;
 	private readonly stateMemento: Memento;
 	private cachedFilterStats: { total: number; filtered: number } | undefined = undefined;
-	private totalComments: number = 0;
 
 	readonly onDidChangeVisibility = this.onDidChangeBodyVisibility;
 
@@ -106,11 +105,26 @@ export class CommentsPanel extends ViewPane implements ICommentsView {
 			this.totalComments = e.commentThreads.length;
 		}));
 
+		this._register(this.commentService.onDidUpdateCommentThreads(e => {
+			this.totalComments += e.added.length;
+			this.totalComments -= e.removed.length;
+		}));
+
 		this._register(this.filters.onDidChange((event: CommentsFiltersChangeEvent) => {
 			if (event.filterText || event.showResolved || event.showUnresolved) {
 				this.updateFilter();
 			}
 		}));
+	}
+
+	private _totalComments: number = 0;
+	set totalComments(totalComments: number) {
+		this._totalComments = totalComments;
+		this.updateFilter();
+	}
+
+	get totalComments(): number {
+		return this._totalComments;
 	}
 
 	override saveState(): void {

@@ -297,9 +297,9 @@ export class Filter implements ITreeFilter<ResourceWithCommentThreads | CommentN
 		return TreeVisibility.Recurse;
 	}
 
-	private filterCommentNode(marker: CommentNode, parentVisibility: TreeVisibility): TreeFilterResult<FilterData> {
-		const matchesResolvedState = this.options.showResolved && CommentThreadState.Resolved === marker.threadState ||
-			this.options.showUnresolved && CommentThreadState.Unresolved === marker.threadState;
+	private filterCommentNode(comment: CommentNode, parentVisibility: TreeVisibility): TreeFilterResult<FilterData> {
+		const matchesResolvedState = (comment.threadState === undefined) || (this.options.showResolved && CommentThreadState.Resolved === comment.threadState) ||
+			(this.options.showUnresolved && CommentThreadState.Unresolved === comment.threadState);
 
 		if (!matchesResolvedState) {
 			return false;
@@ -309,7 +309,7 @@ export class Filter implements ITreeFilter<ResourceWithCommentThreads | CommentN
 			return true;
 		}
 
-		const textMatches = FilterOptions._messageFilter(this.options.textFilter.text, typeof marker.comment.body === 'string' ? marker.comment.body : marker.comment.body.value);
+		const textMatches = FilterOptions._messageFilter(this.options.textFilter.text, typeof comment.comment.body === 'string' ? comment.comment.body : comment.comment.body.value);
 
 		// Matched and not negated
 		if (textMatches && !this.options.textFilter.negate) {
@@ -329,7 +329,6 @@ export class Filter implements ITreeFilter<ResourceWithCommentThreads | CommentN
 		return parentVisibility;
 	}
 }
-
 
 export class CommentsList extends WorkbenchAsyncDataTree<CommentsModel | ResourceWithCommentThreads | CommentNode, any> {
 	constructor(
