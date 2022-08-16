@@ -11,7 +11,6 @@ import { ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIn
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import assert = require('assert');
 
 async function writeP(terminal: Terminal, data: string): Promise<void> {
 	return new Promise<void>((resolve, reject) => {
