@@ -371,7 +371,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				if (!id) {
 					return false;
 				}
-				this._createOrGetBufferMarkDetection(this._terminal).addMark(id, undefined, !!hidden);
+				this._createOrGetBufferMarkDetection(this._terminal).addMark(id, undefined, hidden === 'Hidden');
 				return true;
 			}
 		}
