@@ -134,3 +134,16 @@
 	color: var(--vscode-editorLightBulb-foreground);
 }
 
+.codeActionWidget-action-bar .action-label {
+	color: var(--vscode-textLink-activeForeground);
+	pointer-events: all;
+}
+
+.codeActionWidget-action-bar .action-item {
+	margin-right: 10px;
+	pointer-events: none;
+}
+
+.codeActionWidget-action-bar .action-label:hover {
+	background-color: transparent !important;
+}

@@ -191,7 +191,7 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 
 
 					this.actionbar = new ActionBar(this.element);
-					if (openedFromString === 'refactor') {
+					if (openedFromString === 'refactor' && element.params.codeActions.validActions.length > 0) {
 						this.actionbar.push([element.action, reRenderAction], { icon: false, label: true });
 					} else {
 						this.actionbar.push([element.action], { icon: false, label: true });
@@ -645,8 +645,6 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	}
 
 	public static toggleDisabledOptions(params: ICodeActionMenuParameters): void {
-		console.log('this got called from the renderer');
-
 		params.menuObj.hideCodeActionWidget();
 
 		params.showDisabled = !params.showDisabled;
