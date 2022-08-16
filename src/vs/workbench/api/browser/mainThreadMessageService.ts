@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import Severity from 'vs/base/common/severity';
-import { Action, IAction } from 'vs/base/common/actions';
+import { Action } from 'vs/base/common/actions';
 import { MainThreadMessageServiceShape, MainContext, MainThreadMessageOptions } from '../common/extHost.protocol';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -78,7 +78,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 				source = nls.localize('defaultSource', "Extension");
 			}
 
-			const secondaryActions: IAction[] = [];
+			const secondaryActions: Action[] = [];
 			if (options.source) {
 				secondaryActions.push(new ManageExtensionAction(options.source.identifier, nls.localize('manageExtension', "Manage Extension"), this._commandService));
 			}
