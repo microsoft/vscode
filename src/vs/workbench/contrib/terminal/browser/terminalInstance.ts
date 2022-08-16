@@ -1038,7 +1038,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				} else {
 					this._instantiationService.invokeFunction(getDirectoryHistory)?.remove(e.item.label);
 				}
-				await this.runRecent(type, filterMode, value);
 			} else if (e.button === commandOutputButton) {
 				const selectedCommand = (e.item as Item).command;
 				const output = selectedCommand?.getOutput();
@@ -1056,10 +1055,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						});
 					}
 				}
-			} else {
-				await this.runRecent(type, filterMode, value);
 			}
-		});
+			await this.runRecent(type, filterMode, value);
+		}
+		);
 		quickPick.onDidChangeValue(async value => {
 			if (!value) {
 				await this.runRecent(type, filterMode, value);
