@@ -1415,7 +1415,7 @@ export interface ExtHostWorkspaceShape {
 	$acceptWorkspaceData(workspace: IWorkspaceData | null): void;
 	$handleTextSearchResult(result: search.IRawFileMatch2, requestId: number): void;
 	$onDidGrantWorkspaceTrust(): void;
-	$getCanonicalWorkspaceIdentity(folder: UriComponents, token: CancellationToken): Promise<string | null>;
+	$getCanonicalWorkspaceIdentity(folder: UriComponents, token: CancellationToken): Promise<string | undefined>;
 }
 
 export interface ExtHostFileSystemInfoShape {

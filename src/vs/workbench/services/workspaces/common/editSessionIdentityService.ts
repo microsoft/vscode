@@ -13,7 +13,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 export class EditSessionIdentityService implements IEditSessionIdentityService {
 	readonly _serviceBrand: undefined;
 
-	private _canonicalWorkspaceIdentifierProviders = new Map<string, IEditSessionIdentityProvider>();
+	private _editSessionIdentifierProviders = new Map<string, IEditSessionIdentityProvider>();
 
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
@@ -21,30 +21,30 @@ export class EditSessionIdentityService implements IEditSessionIdentityService {
 	) { }
 
 	registerEditSessionIdentityProvider(provider: IEditSessionIdentityProvider): void {
-		if (this._canonicalWorkspaceIdentifierProviders.get(provider.scheme)) {
+		if (this._editSessionIdentifierProviders.get(provider.scheme)) {
 			throw new Error(`A provider has already been registered for scheme ${provider.scheme}`);
 		}
 
-		this._canonicalWorkspaceIdentifierProviders.set(provider.scheme, provider);
+		this._editSessionIdentifierProviders.set(provider.scheme, provider);
 	}
 
-	async getEditSessionIdentifier(workspaceFolder: IWorkspaceFolder, cancellationTokenSource: CancellationTokenSource): Promise<string | null> {
+	async getEditSessionIdentifier(workspaceFolder: IWorkspaceFolder, cancellationTokenSource: CancellationTokenSource): Promise<string | undefined> {
 		const { scheme } = workspaceFolder.uri;
 
 		const provider = await this.activateProvider(scheme);
 		this._logService.info(`EditSessionIdentityProvider for scheme ${scheme} available: ${!!provider}`);
 
-		return provider?.getEditSessionIdentifier(workspaceFolder, cancellationTokenSource.token) ?? null;
+		return provider?.getEditSessionIdentifier(workspaceFolder, cancellationTokenSource.token);
 	}
 
 	private async activateProvider(scheme: string) {
-		const provider = this._canonicalWorkspaceIdentifierProviders.get(scheme);
+		const provider = this._editSessionIdentifierProviders.get(scheme);
 		if (provider) {
 			return provider;
 		}
 
 		await this._extensionService.activateByEvent(`onEditSession:${scheme}`);
-		return this._canonicalWorkspaceIdentifierProviders.get(scheme);
+		return this._editSessionIdentifierProviders.get(scheme);
 	}
 }
 

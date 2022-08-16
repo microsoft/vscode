@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { delta as arrayDelta, mapArrayOrNot } from 'vs/base/common/arrays';
-import { asPromise, Barrier } from 'vs/base/common/async';
+import { Barrier } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { toDisposable } from 'vs/base/common/lifecycle';
@@ -188,7 +188,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 	private _trusted: boolean = false;
 
-	private readonly _EditSessionIdentityProviders: { [scheme: string]: vscode.EditSessionIdentityProvider } = Object.create(null);
+	private readonly _editSessionIdentityProviders = new Map<string, vscode.EditSessionIdentityProvider>();
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
@@ -581,28 +581,32 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 	// called by ext host
 	registerEditSessionIdentityProvider(scheme: string, provider: vscode.EditSessionIdentityProvider) {
-		this._EditSessionIdentityProviders[scheme] = provider;
+		if (this._editSessionIdentityProviders.has(scheme)) {
+			throw new Error(`A provider has already been registered for scheme ${scheme}`);
+		}
+
+		this._editSessionIdentityProviders.set(scheme, provider);
 		this._proxy.$registerEditSessionIdentityProvider(scheme);
 		return toDisposable(() => {
-			delete this._EditSessionIdentityProviders[scheme];
+			this._editSessionIdentityProviders.delete(scheme);
 		});
 	}
 
 	// called by main thread
-	async $getCanonicalWorkspaceIdentity(workspaceFolder: UriComponents, cancellationToken: CancellationToken): Promise<string | null> {
+	async $getCanonicalWorkspaceIdentity(workspaceFolder: UriComponents, cancellationToken: CancellationToken): Promise<string | undefined> {
 		const folder = await this.resolveWorkspaceFolder(URI.revive(workspaceFolder));
 		if (!folder) {
-			return null;
+			return undefined;
 		}
 
-		const provider = this._EditSessionIdentityProviders[folder.uri.scheme];
+		const provider = this._editSessionIdentityProviders.get(folder.uri.scheme);
 		if (!provider) {
-			return null;
+			return undefined;
 		}
 
-		const result = await asPromise(() => provider.provideEditSessionIdentity(folder, cancellationToken));
+		const result = await provider.provideEditSessionIdentity(folder, cancellationToken);
 		if (!result) {
-			return null;
+			return undefined;
 		}
 
 		return result;
