@@ -50,7 +50,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 	}
 
 	private _refreshActiveCapability(store: ITerminalCapabilityStore) {
-		const activeDetection = store.get(TerminalCapability.CommandDetection) || store.get(TerminalCapability.PartialCommandDetection) || store.get(TerminalCapability.BufferMarkDetection);
+		const activeDetection = store.get(TerminalCapability.BufferMarkDetection) || store.get(TerminalCapability.CommandDetection) || store.get(TerminalCapability.PartialCommandDetection);
 		if (activeDetection !== this._detectionCapability) {
 			this._detectionCapability = activeDetection;
 		}
@@ -66,10 +66,10 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 				markers = this._detectionCapability.commands;
 				break;
 			case TerminalCapability.CommandDetection:
-				coalesce(this._detectionCapability.commands.map(e => e.marker));
+				markers = coalesce(this._detectionCapability.commands.map(e => e.marker));
 				break;
 			case TerminalCapability.BufferMarkDetection:
-				Array.from(this._detectionCapability.marks.values());
+				markers = Array.from(this._detectionCapability.marks.values());
 				break;
 		}
 		return markers;

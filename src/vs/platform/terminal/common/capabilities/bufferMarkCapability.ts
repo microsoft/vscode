@@ -28,6 +28,7 @@ export class BufferMarkCapability implements IBufferMarkDetectionCapability {
 			this._logService.warn('No marker registered for ID:', id);
 			return;
 		}
+		marker.onDispose(() => this.marks.delete(id));
 		this._onMarkAdded.fire({ id, marker, hidden });
 	}
 

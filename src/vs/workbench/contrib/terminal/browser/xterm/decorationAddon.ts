@@ -266,7 +266,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (!this._terminal || mark.hidden || mark.marker.isDisposed || !defaultColor) {
 			return undefined;
 		}
-
 		const decoration = this._terminal.registerDecoration({ marker: mark.marker, overviewRulerOptions: { position: 'center', color: defaultColor.toString() } });
 		if (!decoration) {
 			return undefined;

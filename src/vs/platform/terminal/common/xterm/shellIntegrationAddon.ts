@@ -209,7 +209,6 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	activate(xterm: Terminal) {
 		this._terminal = xterm;
 		this.capabilities.add(TerminalCapability.PartialCommandDetection, new PartialCommandDetectionCapability(this._terminal));
-		this.capabilities.add(TerminalCapability.BufferMarkDetection, new BufferMarkCapability(this._terminal, this._logService));
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.VSCode, data => this._handleVSCodeSequence(data)));
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.ITerm, data => this._doHandleITermSequence(data)));
 		this._commonProtocolDisposables.push(
@@ -359,6 +358,10 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 					}
 					case 'IsWindows': {
 						this._createOrGetCommandDetection(this._terminal).setIsWindowsPty(value === 'True' ? true : false);
+						return true;
+					}
+					case 'Task': {
+						this._createOrGetBufferMarkDetection(this._terminal);
 						return true;
 					}
 				}
