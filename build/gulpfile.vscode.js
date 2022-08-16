@@ -6,6 +6,7 @@
 'use strict';
 
 const gulp = require('gulp');
+const merge = require('gulp-merge-json');
 const fs = require('fs');
 const os = require('os');
 const cp = require('child_process');
@@ -393,6 +394,8 @@ BUILD_TARGETS.forEach(buildTarget => {
 	}
 });
 
+// #region nls
+
 const innoSetupConfig = {
 	'zh-cn': { codePage: 'CP936', defaultInfo: { name: 'Simplified Chinese', id: '$0804', } },
 	'zh-tw': { codePage: 'CP950', defaultInfo: { name: 'Traditional Chinese', id: '$0404' } },
@@ -408,59 +411,29 @@ const innoSetupConfig = {
 	'tr': { codePage: 'CP1254' }
 };
 
-// Transifex Localizations
-
-const apiHostname = process.env.TRANSIFEX_API_URL;
-const apiName = process.env.TRANSIFEX_API_NAME;
-const apiToken = process.env.TRANSIFEX_API_TOKEN;
-
-gulp.task(task.define(
-	'vscode-translations-push',
-	task.series(
-		compileBuildTask,
-		compileExtensionsBuildTask,
-		optimizeVSCodeTask,
-		function () {
-			const pathToMetadata = './out-vscode/nls.metadata.json';
-			const pathToExtensions = '.build/extensions/*';
-			const pathToSetup = 'build/win32/**/{Default.isl,messages.en.isl}';
-
-			return es.merge(
-				gulp.src(pathToMetadata).pipe(i18n.createXlfFilesForCoreBundle()),
-				gulp.src(pathToSetup).pipe(i18n.createXlfFilesForIsl()),
-				gulp.src(pathToExtensions).pipe(i18n.createXlfFilesForExtensions())
-			).pipe(i18n.findObsoleteResources(apiHostname, apiName, apiToken)
-			).pipe(i18n.pushXlfFiles(apiHostname, apiName, apiToken));
-		}
-	)
-));
-
 gulp.task(task.define(
 	'vscode-translations-export',
 	task.series(
-		compileBuildTask,
+		core,
 		compileExtensionsBuildTask,
-		optimizeVSCodeTask,
 		function () {
 			const pathToMetadata = './out-vscode/nls.metadata.json';
+			const pathToRehWebMetadata = './out-vscode-reh-web/nls.metadata.json';
 			const pathToExtensions = '.build/extensions/*';
 			const pathToSetup = 'build/win32/i18n/messages.en.isl';
 
 			return es.merge(
-				gulp.src(pathToMetadata).pipe(i18n.createXlfFilesForCoreBundle()),
+				gulp.src([pathToRehWebMetadata]).pipe(merge({
+					fileName: 'nls.metadata.json',
+					jsonSpace: '',
+					concatArrays: true
+				})).pipe(i18n.createXlfFilesForCoreBundle()),
 				gulp.src(pathToSetup).pipe(i18n.createXlfFilesForIsl()),
 				gulp.src(pathToExtensions).pipe(i18n.createXlfFilesForExtensions())
 			).pipe(vfs.dest('../vscode-translations-export'));
 		}
 	)
 ));
-
-gulp.task('vscode-translations-pull', function () {
-	return es.merge([...i18n.defaultLanguages, ...i18n.extraLanguages].map(language => {
-		const includeDefault = !!innoSetupConfig[language.id].defaultInfo;
-		return i18n.pullSetupXlfFiles(apiHostname, apiName, apiToken, language, includeDefault).pipe(vfs.dest(`../vscode-translations-import/${language.id}/setup`));
-	}));
-});
 
 gulp.task('vscode-translations-import', function () {
 	const options = minimist(process.argv.slice(2), {
@@ -476,3 +449,5 @@ gulp.task('vscode-translations-import', function () {
 			.pipe(vfs.dest(`./build/win32/i18n`));
 	}));
 });
+
+// #endregion

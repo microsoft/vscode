@@ -752,10 +752,10 @@ declare module 'vscode' {
 	export interface TextDocumentShowOptions {
 		/**
 		 * An optional view column in which the {@link TextEditor editor} should be shown.
-		 * The default is the {@link ViewColumn.Active active}, other values are adjusted to
-		 * be `Min(column, columnCount + 1)`, the {@link ViewColumn.Active active}-column is
-		 * not adjusted. Use {@linkcode ViewColumn.Beside} to open the
-		 * editor to the side of the currently active one.
+		 * The default is the {@link ViewColumn.Active active}. Columns that do not exist
+		 * will be created as needed up to the maximum of {@linkcode ViewColumn.Nine}.
+		 * Use {@linkcode ViewColumn.Beside} to open the editor to the side of the currently
+		 * active one.
 		 */
 		viewColumn?: ViewColumn;
 
@@ -814,10 +814,10 @@ declare module 'vscode' {
 	export interface NotebookDocumentShowOptions {
 		/**
 		 * An optional view column in which the {@link NotebookEditor notebook editor} should be shown.
-		 * The default is the {@link ViewColumn.Active active}, other values are adjusted to
-		 * be `Min(column, columnCount + 1)`, the {@link ViewColumn.Active active}-column is
-		 * not adjusted. Use {@linkcode ViewColumn.Beside} to open the
-		 * editor to the side of the currently active one.
+		 * The default is the {@link ViewColumn.Active active}. Columns that do not exist
+		 * will be created as needed up to the maximum of {@linkcode ViewColumn.Nine}.
+		 * Use {@linkcode ViewColumn.Beside} to open the editor to the side of the currently
+		 * active one.
 		 */
 		readonly viewColumn?: ViewColumn;
 
@@ -6178,8 +6178,6 @@ declare module 'vscode' {
 	 * Denotes a location of an editor in the window. Editors can be arranged in a grid
 	 * and each column represents one editor location in that grid by counting the editors
 	 * in order of their appearance.
-	 *
-	 * Columns that do not exists will be created as needed up to the maximum of `ViewColumn.Nine`.
 	 */
 	export enum ViewColumn {
 		/**
@@ -6537,10 +6535,10 @@ declare module 'vscode' {
 	export interface TerminalEditorLocationOptions {
 		/**
 		 * A view column in which the {@link Terminal terminal} should be shown in the editor area.
-		 * Use {@link ViewColumn.Active active} to open in the active editor group, other values are
-		 * adjusted to be `Min(column, columnCount + 1)`, the
-		 * {@link ViewColumn.Active active}-column is not adjusted. Use
-		 * {@linkcode ViewColumn.Beside} to open the editor to the side of the currently active one.
+		 * The default is the {@link ViewColumn.Active active}. Columns that do not exist
+		 * will be created as needed up to the maximum of {@linkcode ViewColumn.Nine}.
+		 * Use {@linkcode ViewColumn.Beside} to open the editor to the side of the currently
+		 * active one.
 		 */
 		viewColumn: ViewColumn;
 		/**
@@ -9451,8 +9449,8 @@ declare module 'vscode' {
 		 * to control where the editor is being shown. Might change the {@link window.activeTextEditor active editor}.
 		 *
 		 * @param document A text document to be shown.
-		 * @param column A view column in which the {@link TextEditor editor} should be shown. The default is the {@link ViewColumn.Active active}, other values
-		 * are adjusted to be `Min(column, columnCount + 1)`, the {@link ViewColumn.Active active}-column is not adjusted. Use {@linkcode ViewColumn.Beside}
+		 * @param column A view column in which the {@link TextEditor editor} should be shown. The default is the {@link ViewColumn.Active active}.
+		 * Columns that do not exist will be created as needed up to the maximum of {@linkcode ViewColumn.Nine}. Use {@linkcode ViewColumn.Beside}
 		 * to open the editor to the side of the currently active one.
 		 * @param preserveFocus When `true` the editor will not take focus.
 		 * @return A promise that resolves to an {@link TextEditor editor}.
