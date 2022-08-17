@@ -219,6 +219,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	protected _outputChannel: IOutputChannel;
 	protected readonly _onDidStateChange: Emitter<ITaskEvent>;
+	protected readonly _onDidReconnectToTerminals: Emitter<void> = new Emitter();
 	private _waitForSupportedExecutions: Promise<void>;
 	private _onDidRegisterSupportedExecutions: Emitter<void> = new Emitter();
 	private _onDidChangeTaskSystemInfo: Emitter<void> = new Emitter();
@@ -318,15 +319,17 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._lifecycleService.onBeforeShutdown(e => {
 			this._willRestart = e.reason !== ShutdownReason.RELOAD;
 		});
-		this._register(this.onDidStateChange(e => {
+		this._register(this.onDidStateChange(async e => {
 			if ((this._willRestart || e.exitReason === TerminalExitReason.User) && e.taskId) {
 				this.removePersistentTask(e.taskId);
 			} else if (e.kind === TaskEventKind.Start && e.__task) {
 				this._setPersistentTask(e.__task);
 			}
 		}));
+		this._register(this.onDidReconnectToTerminals(async () => await this._attemptTaskReconnection()));
 		this._waitForSupportedExecutions = new Promise(resolve => {
 			once(this._onDidRegisterSupportedExecutions.event)(() => resolve());
+			this._attemptTaskReconnection();
 		});
 		this._upgrade();
 	}
@@ -346,8 +349,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			processContext.set(process && !isVirtual);
 		}
 		this._onDidRegisterSupportedExecutions.fire();
+	}
+
+	private async _attemptTaskReconnection(): Promise<void> {
 		if (this._configurationService.getValue(TaskSettingId.Reconnection) === true && this._jsonTasksSupported && !this._tasksReconnected) {
-			this._reconnectTasks();
+			await this._reconnectTasks();
 		}
 	}
 
@@ -381,6 +387,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	public get onDidStateChange(): Event<ITaskEvent> {
 		return this._onDidStateChange.event;
+	}
+
+	public get onDidReconnectToTerminals(): Event<void> {
+		return this._onDidReconnectToTerminals.event;
 	}
 
 	public get supportsMultipleTaskExecutions(): boolean {

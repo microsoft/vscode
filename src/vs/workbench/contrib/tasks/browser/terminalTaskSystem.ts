@@ -210,6 +210,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private _terminalCreationQueue: Promise<ITerminalInstance | void> = Promise.resolve();
 	private _hasReconnected: boolean = false;
 	private readonly _onDidStateChange: Emitter<ITaskEvent>;
+	private readonly _onDidReconnectToTerminals: Emitter<void> = new Emitter();
 	private _reconnectedTerminals: ITerminalInstance[] | undefined;
 
 	get taskShellIntegrationStartSequence(): string {
@@ -259,6 +260,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	public get onDidStateChange(): Event<ITaskEvent> {
 		return this._onDidStateChange.event;
+	}
+
+	public get onDidReconnectToTerminals(): Event<void> {
+		return this._onDidReconnectToTerminals.event;
 	}
 
 	private _log(value: string): void {
@@ -1342,6 +1347,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			this._terminals[terminal.instanceId] = terminalData;
 		}
 		this._hasReconnected = true;
+		this._onDidReconnectToTerminals.fire();
 	}
 
 	private _deleteTaskAndTerminal(terminal: ITerminalInstance, terminalData: ITerminalData): void {
