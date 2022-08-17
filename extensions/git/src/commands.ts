@@ -408,7 +408,7 @@ export class CommandCenter {
 		}
 	}
 
-	@command('_git.openMergeEditor')
+	@command('git.openMergeEditor')
 	async openMergeEditor(uri: unknown) {
 		if (!(uri instanceof Uri)) {
 			return;
