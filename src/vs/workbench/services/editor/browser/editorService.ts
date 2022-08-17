@@ -855,7 +855,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			if (!isEditorInput(replacement.replacement)) {
 				const resolvedEditor = await this.editorResolverService.resolveEditor(
 					replacement.replacement,
-					targetGroup,
+					targetGroup
 				);
 
 				if (resolvedEditor === ResolvedStatus.ABORT) {
