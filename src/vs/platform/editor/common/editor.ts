@@ -159,7 +159,6 @@ export enum EditorActivation {
 	PRESERVE
 }
 
-
 export enum EditorResolution {
 
 	/**
@@ -170,7 +169,7 @@ export enum EditorResolution {
 	/**
 	 * Only exclusive editors are considered.
 	 */
-	EXCLUSIVE_ONLY,
+	EXCLUSIVE_ONLY
 }
 
 export enum EditorOpenSource {
