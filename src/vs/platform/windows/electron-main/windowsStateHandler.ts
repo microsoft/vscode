@@ -182,7 +182,7 @@ export class WindowsStateHandler extends Disposable {
 
 			if (lastPluginDevelopmentHostWindowState.uiState.mode === WindowMode.Fullscreen) {
 				if (displaysWithFullScreenWindow.has(lastPluginDevelopmentHostWindowState.uiState.display)) {
-					this.convertToDefaultMaximizeState(lastPluginDevelopmentHostWindowState.uiState);
+					this.convertToDefaultMaximizedState(lastPluginDevelopmentHostWindowState.uiState);
 				} else {
 					displaysWithFullScreenWindow.add(lastPluginDevelopmentHostWindowState.uiState.display);
 				}
@@ -205,7 +205,7 @@ export class WindowsStateHandler extends Disposable {
 
 				if (windowState.uiState.mode === WindowMode.Fullscreen) {
 					if (displaysWithFullScreenWindow.has(windowState.uiState.display)) {
-						this.convertToDefaultMaximizeState(windowState.uiState);
+						this.convertToDefaultMaximizedState(windowState.uiState);
 					} else {
 						displaysWithFullScreenWindow.add(windowState.uiState.display);
 					}
@@ -288,21 +288,21 @@ export class WindowsStateHandler extends Disposable {
 			// Window state should resort to maximized when fullscreen is not
 			// allowed to get as close as possible to the fullscreen equivalent
 			if (!allowFullscreen) {
-				this.convertToDefaultMaximizeState(state);
+				this.convertToDefaultMaximizedState(state);
 			}
 		}
 
 		return state;
 	}
 
-	private convertToDefaultMaximizeState(state: INewWindowState): void {
+	private convertToDefaultMaximizedState(state: INewWindowState): void {
 		const defaultMaximizedState = defaultWindowState(WindowMode.Maximized);
 
 		state.mode = defaultMaximizedState.mode;
-		state.x = defaultMaximizedState.x;
-		state.y = defaultMaximizedState.y;
-		state.width = defaultMaximizedState.width;
-		state.height = defaultMaximizedState.height;
+		state.x = undefined;
+		state.y = undefined;
+		state.width = undefined;
+		state.height = undefined;
 	}
 
 	private doGetNewWindowState(configuration: INativeWindowConfiguration): INewWindowState {
