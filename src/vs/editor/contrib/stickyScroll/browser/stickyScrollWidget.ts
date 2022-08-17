@@ -13,6 +13,8 @@ import { Position } from 'vs/editor/common/core/position';
 import 'vs/css!./stickyScroll';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/gotoSymbol/browser/link/goToDefinitionAtPosition';
 
 export class StickyScrollWidgetState {
 	constructor(
@@ -154,32 +156,90 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			child.style.zIndex = '-1';
 			child.style.top = this.lastLineRelativePosition + 'px';
 		}
+
+		let controlKeyDisposableListener: IDisposable | undefined;
 		let controlClickDisposableListener: IDisposable | undefined;
-		this.disposableStore.add(dom.addDisposableListener(child, 'click', e => {
-			e.stopPropagation();
-			e.preventDefault();
-			let controlClick: boolean = false;
-			controlClickDisposableListener = dom.addDisposableListener(window, dom.EventType.KEY_DOWN, (keyDown: KeyboardEvent) => {
+		let normalClickDisposableListener: IDisposable | undefined;
+
+		this.disposableStore.add(
+			normalClickDisposableListener = dom.addDisposableListener(child, 'click', click => {
+				click.stopPropagation();
+				click.preventDefault();
+				this._editor.revealPosition({ lineNumber: line - index, column: 1 });
+			})
+		);
+
+		this.disposableStore.add(
+			controlKeyDisposableListener = dom.addDisposableListener(window, dom.EventType.KEY_DOWN, (keyDown: KeyboardEvent) => {
+
 				const keyDownEvent = new StandardKeyboardEvent(keyDown);
 				if (keyDownEvent.keyCode === KeyCode.Ctrl) {
-					controlClick = true;
 
-					// TODO: Place in a separate file after
-					// const goto = GotoDefinitionAtPositionEditorContribution.get(editor);
+					if (normalClickDisposableListener) {
+						normalClickDisposableListener.dispose();
+						normalClickDisposableListener = undefined;
+					}
 
-					dom.EventHelper.stop(keyDown);
+					controlClickDisposableListener = dom.addDisposableListener(child, 'click', click => {
+						click.stopPropagation();
+						click.preventDefault();
+						const clickEvent = new StandardMouseEvent(click);
+						if (clickEvent.target.innerText === clickEvent.target.innerHTML) {
+							const text = clickEvent.target.innerText;
+							const lineNumber = line;
+							const column = this._editor.getModel()?.getLineContent(lineNumber).indexOf(text);
+							if (column) {
+								const position = new Position(lineNumber, column + 1);
+								const goto = GotoDefinitionAtPositionEditorContribution.get(this._editor);
+								if (goto) {
+									// TODO: startFindDefinition should not be public in the end
+									const promise = goto.startFindDefinition(position);
+									promise.then((n) => {
+										console.log('line number of the definition : ', n);
+									});
+								}
+							}
+						}
+					});
 				}
-			});
-			if (!controlClick) {
-				this._editor.revealPosition({ lineNumber: line - index, column: 1 });
+				dom.EventHelper.stop(keyDown);
+			})
+		);
+
+		this.disposableStore.add(dom.addDisposableListener(window, dom.EventType.KEY_UP, (keyDown: KeyboardEvent) => {
+
+			if (controlClickDisposableListener) {
+				controlClickDisposableListener.dispose();
+				controlClickDisposableListener = undefined;
 			}
+
+			normalClickDisposableListener = dom.addDisposableListener(child, 'click', click => {
+				click.stopPropagation();
+				click.preventDefault();
+				this._editor.revealPosition({ lineNumber: line - index, column: 1 });
+			});
 		}));
+
+		this.disposableStore.add(dom.addDisposableListener(child, dom.EventType.MOUSE_OUT, () => {
+			if (controlClickDisposableListener) {
+				controlClickDisposableListener.dispose();
+				controlClickDisposableListener = undefined;
+			}
+
+			normalClickDisposableListener = dom.addDisposableListener(child, 'click', click => {
+				click.stopPropagation();
+				click.preventDefault();
+				this._editor.revealPosition({ lineNumber: line - index, column: 1 });
+			});
+		}));
+
 		/* RIGHT CLICK
 		this.disposableStore.add(dom.addDisposableListener(child, dom.EventType.AUXCLICK, e => {
 			console.log('auxilliary/right click');
 			// const lineNumber = line - index;
 		}));
 		*/
+
 		/* HOVER
 		this.disposableStore.add(dom.addDisposableListener(child, dom.EventType.MOUSE_OVER, hoverEvent => {
 			console.log('hover event : ', hoverEvent);
@@ -194,12 +254,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			});
 			this.disposableStore.add(controlClickDisposableListener);
 		}));
-		this.disposableStore.add(dom.addDisposableListener(child, dom.EventType.MOUSE_OUT, () => {
-			if (controlClickDisposableListener) {
-				controlClickDisposableListener.dispose();
-				controlClickDisposableListener = undefined;
-			}
-		}));
+
 		*/
 
 		return child;
