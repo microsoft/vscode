@@ -6,7 +6,7 @@
 import { Codicon } from 'vs/base/common/codicons';
 import { localize } from 'vs/nls';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IQuickPick, IQuickPickItem, IQuickPickItemButtonEvent, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickPick, IQuickPickItem, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
@@ -20,7 +20,7 @@ export async function showWithPinnedItems(accessor: ServicesAccessor, storageKey
 	const storageService = accessor.get(IStorageService);
 	quickPick.onDidTriggerItemButton(async (e) => {
 		if (e.button.iconClass === ThemeIcon.asClassName(Codicon.pin) || e.button.iconClass === ThemeIcon.asClassName(Codicon.pinned)) {
-			quickPick.items = await _formatPinnedItems(storageKey, quickPick, storageService, e);
+			quickPick.items = await _formatPinnedItems(storageKey, quickPick, storageService, e.item);
 		}
 	});
 	quickPick.onDidChangeValue(async value => {
@@ -34,7 +34,7 @@ export async function showWithPinnedItems(accessor: ServicesAccessor, storageKey
 function _formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, storageService: IStorageService, changedItem?: IQuickPickItem): QuickPickItem[] {
 	const formattedItems: QuickPickItem[] = [];
 	const labels = getPinnedItems(storageKey, storageService).map(item => item.label);
-	const updatedLabels = !!event?.item.label ? updatePinnedItems(storageKey, event.item, storageService, new Set(labels).has(event.item.label)) : labels.filter(l => l !== 'Pinned');
+	const updatedLabels = !!changedItem?.label ? updatePinnedItems(storageKey, changedItem, storageService, new Set(labels).has(changedItem.label)) : labels.filter(l => l !== 'Pinned');
 	if (updatedLabels.length) {
 		formattedItems.push({ type: 'separator', label: localize("terminal.commands.pinned", 'Pinned') });
 	}
