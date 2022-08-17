@@ -7,14 +7,14 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileDeleteOptions, IFileOverwriteOptions, IFileSystemProviderWithFileReadCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
-import { ChangeType, decodeEditSessionFileContent, EDIT_SESSIONS_SCHEME, IEditSessionsWorkbenchService } from 'vs/workbench/contrib/editSessions/common/editSessions';
+import { ChangeType, decodeEditSessionFileContent, EDIT_SESSIONS_SCHEME, IEditSessionsStorageService } from 'vs/workbench/contrib/editSessions/common/editSessions';
 
 export class EditSessionsFileSystemProvider implements IFileSystemProviderWithFileReadCapability {
 
 	static readonly SCHEMA = EDIT_SESSIONS_SCHEME;
 
 	constructor(
-		@IEditSessionsWorkbenchService private editSessionsWorkbenchService: IEditSessionsWorkbenchService,
+		@IEditSessionsStorageService private editSessionsWorkbenchService: IEditSessionsWorkbenchService,
 	) { }
 
 	readonly capabilities: FileSystemProviderCapabilities = FileSystemProviderCapabilities.Readonly;
