@@ -155,8 +155,10 @@ const enum VSCodeOscPt {
 
 	/**
 	 * Sets a mark/point-of-interest in the buffer. `OSC 633 ; SetMark [; Id=<string>] [; Hidden]`
-	 * `Id` - Indicates the source of the mark
-	 * `Hidden` - When set, a generic decoration will not be added
+	 * `Id` - The identifier of the mark that can be used to reference it
+	 * `Hidden` - When set, the mark will be available to reference internally but will not visible
+	 *
+	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
 	 */
 	SetMark = 'SetMark',
 }
