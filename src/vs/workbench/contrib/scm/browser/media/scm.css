@@ -272,6 +272,7 @@
 	border-width: 1px;
 	border-style: solid;
 	border-top: none;
+	padding: 2px;
 }
 
 .scm-editor-validation {
@@ -295,10 +296,7 @@
 
 .scm-editor-validation-actions {
 	align-self: start;
-}
-
-.scm-editor-validation-actions .action-label {
-	border-radius: 0px;
+	margin-top: 1px;
 }
 
 .scm-view .scm-editor-placeholder {
