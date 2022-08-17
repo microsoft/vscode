@@ -17,7 +17,6 @@ import { localize } from 'vs/nls';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { StickyScrollConfig } from './stickyScrollConfig';
 
 class StickyScrollController extends Disposable implements IEditorContribution {
 
@@ -149,15 +148,16 @@ registerAction2(class ToggleStickyScroll extends Action2 {
 
 	constructor() {
 		super({
-			id: 'stickyScroll.toggle',
+			id: 'editor.action.toggleStickyScroll',
 			title: {
-				value: localize('cmd.toggle', "Toggle Sticky Scroll"),
+				value: localize('toggleStickyScroll', "Toggle Sticky Scroll"),
 				mnemonicTitle: localize('miStickyScroll', "&&Sticky Scroll"),
 				original: 'Toggle Sticky Scroll',
 			},
 			// Hardcoding due to import violation
 			category: { value: localize('view', "View"), original: 'View' },
-			toggled: ContextKeyExpr.equals('config.stickyScroll.enabled', true),
+			f1: true,
+			toggled: ContextKeyExpr.equals('config.editor.stickyScroll.enabled', true),
 			menu: [
 				{ id: MenuId.CommandPalette },
 				{ id: MenuId.MenubarViewMenu, group: '5_editor', order: 6 },
@@ -165,10 +165,10 @@ registerAction2(class ToggleStickyScroll extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		const config = accessor.get(IConfigurationService);
-		const value = StickyScrollConfig.IsEnabled.bindTo(config).getValue();
-		StickyScrollConfig.IsEnabled.bindTo(config).updateValue(!value);
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		const newValue = !configurationService.getValue('editor.experimental.stickyScroll.enabled');
+		return configurationService.updateValue('editor.experimental.stickyScroll.enabled', newValue);
 	}
 });
 
