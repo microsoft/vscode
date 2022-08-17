@@ -49,6 +49,7 @@ export class CommentsPanel extends ViewPane implements ICommentsView {
 	private treeContainer!: HTMLElement;
 	private messageBoxContainer!: HTMLElement;
 	private commentsModel!: CommentsModel;
+	private totalComments: number = 0;
 	private readonly hasCommentsContextKey: IContextKey<boolean>;
 	private readonly smallLayoutContextKey: IContextKey<boolean>;
 	private readonly filter: Filter;
@@ -115,16 +116,6 @@ export class CommentsPanel extends ViewPane implements ICommentsView {
 				this.updateFilter();
 			}
 		}));
-	}
-
-	private _totalComments: number = 0;
-	set totalComments(totalComments: number) {
-		this._totalComments = totalComments;
-		this.updateFilter();
-	}
-
-	get totalComments(): number {
-		return this._totalComments;
 	}
 
 	override saveState(): void {
@@ -331,6 +322,10 @@ export class CommentsPanel extends ViewPane implements ICommentsView {
 
 		this._register(this.tree.onDidOpen(e => {
 			this.openFile(e.element, e.editorOptions.pinned, e.editorOptions.preserveFocus, e.sideBySide);
+		}));
+		this._register(this.tree?.onDidChangeModel(() => {
+			this.cachedFilterStats = undefined;
+			this.updateFilter();
 		}));
 	}
 
