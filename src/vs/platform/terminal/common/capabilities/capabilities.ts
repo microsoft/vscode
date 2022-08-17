@@ -130,14 +130,16 @@ export interface ICommandInvalidationRequest {
 	reason: CommandInvalidationReason;
 }
 
-export interface IBufferMark { id?: string; marker: IMarker; hoverMessage?: string; hidden?: boolean; height?: number }
+export interface IBufferMark { id?: string; marker: IMarker; hoverMessage?: string; hidden?: boolean; endMarker?: IMarker }
 
 export interface IBufferMarkDetectionCapability {
 	type: TerminalCapability.BufferMarkDetection;
 	marks(): IMarker[];
 	onMarkAdded: Event<IBufferMark>;
+	onDidRequestMarkDecoration: Event<IBufferMark>;
 	addMark(id?: string, marker?: IMarker, hidden?: boolean): void;
 	getMark(id: string): IMarker | undefined;
+	scrollToMarkAndDecorate(startMarkId: string, endMarkId?: string, highlight?: boolean): void;
 }
 
 export interface ICommandDetectionCapability {

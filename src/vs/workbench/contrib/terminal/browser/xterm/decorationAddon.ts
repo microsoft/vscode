@@ -212,6 +212,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 		this._bufferMarkListeners = [];
 		this._bufferMarkListeners.push(capability.onMarkAdded(mark => this.registerMarkDecoration(mark)));
+		this._bufferMarkListeners.push(capability.onDidRequestMarkDecoration(mark => this.registerMarkDecoration(mark)));
 	}
 
 	private _addCommandDetectionListeners(): void {
@@ -266,7 +267,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (!this._terminal || mark.hidden || mark.marker.isDisposed || !defaultColor) {
 			return undefined;
 		}
-		const decoration = this._terminal.registerDecoration({ marker: mark.marker, overviewRulerOptions: { position: 'left', color: defaultColor.toString() }, height: mark.height });
+		const height = mark.endMarker ? mark.endMarker.line - mark.marker.line + 1 : 1;
+		const decoration = this._terminal.registerDecoration({ marker: mark.marker, anchor: 'left', foregroundColor: Color.cyan.toString(), height });
 		if (!decoration) {
 			return undefined;
 		}
@@ -362,7 +364,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		element.classList.add(DecorationSelector.CommandDecoration, DecorationSelector.Codicon, DecorationSelector.XtermDecoration);
 
 		if (bufferMark) {
-			element.classList.add(DecorationSelector.DefaultColor, ...Codicon.terminalDecorationMark.classNamesArray);
+			element.classList.add(DecorationSelector.DefaultColor);
 			if (!bufferMark.hoverMessage) {
 				//disable the mouse pointer
 				element.classList.add(DecorationSelector.Default);
