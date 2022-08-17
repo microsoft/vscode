@@ -180,7 +180,7 @@ export class WindowsStateHandler extends Disposable {
 			if (currentWindowsState.lastPluginDevelopmentHostWindow.uiState.mode === WindowMode.Fullscreen) {
 				if (displaysWithFullScreenWindow.has(currentWindowsState.lastPluginDevelopmentHostWindow.uiState.display)) {
 					if (isMacintosh) {
-						this.convertToDefaultMaximizedState(currentWindowsState.lastPluginDevelopmentHostWindow.uiState);
+						currentWindowsState.lastPluginDevelopmentHostWindow.uiState.mode = WindowMode.Normal;
 					}
 				} else {
 					displaysWithFullScreenWindow.add(currentWindowsState.lastPluginDevelopmentHostWindow.uiState.display);
@@ -200,7 +200,7 @@ export class WindowsStateHandler extends Disposable {
 				if (windowState.uiState.mode === WindowMode.Fullscreen) {
 					if (displaysWithFullScreenWindow.has(windowState.uiState.display)) {
 						if (isMacintosh && windowState.windowId !== currentWindowsState.lastActiveWindow?.windowId) {
-							this.convertToDefaultMaximizedState(windowState.uiState);
+							windowState.uiState.mode = WindowMode.Normal;
 						}
 					} else {
 						displaysWithFullScreenWindow.add(windowState.uiState.display);
@@ -282,24 +282,12 @@ export class WindowsStateHandler extends Disposable {
 				allowFullscreen = !!(this.lifecycleMainService.wasRestarted || windowConfig?.restoreFullscreen);
 			}
 
-			// Window state should resort to maximized when fullscreen is not
-			// allowed to get as close as possible to the fullscreen equivalent
 			if (!allowFullscreen) {
-				this.convertToDefaultMaximizedState(state);
+				state.mode = WindowMode.Normal;
 			}
 		}
 
 		return state;
-	}
-
-	private convertToDefaultMaximizedState(state: INewWindowState): void {
-		const defaultMaximizedState = defaultWindowState(WindowMode.Maximized);
-
-		state.mode = defaultMaximizedState.mode;
-		state.x = undefined;
-		state.y = undefined;
-		state.width = undefined;
-		state.height = undefined;
 	}
 
 	private doGetNewWindowState(configuration: INativeWindowConfiguration): INewWindowState {
