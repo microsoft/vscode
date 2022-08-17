@@ -62,9 +62,17 @@ class CopyPasteEditProvider implements vscode.DocumentPasteEditProvider {
 
 		// create updated metadata for cell (prep for WorkspaceEdit)
 		const b64string = encodeBase64(fileDataAsUint8);
-		const startingAttachments = currentCell.metadata?.custom?.attachments;
+		const startingAttachments = currentCell.metadata.custom?.attachments;
+		let metadataNotebookEdit;
 		if (!startingAttachments) {
-			currentCell.metadata.custom['attachments'] = { [pasteFilename]: { 'image/png': b64string } };
+			if (!currentCell.metadata.custom) {
+				const initMetadata = { 'custom': { 'attachments': { [pasteFilename]: { 'image/png': b64string } } } };
+				metadataNotebookEdit = vscode.NotebookEdit.updateCellMetadata(currentCell.index, initMetadata);
+			} else {
+				currentCell.metadata.custom['attachments'] = { [pasteFilename]: { 'image/png': b64string } };
+				metadataNotebookEdit = vscode.NotebookEdit.updateCellMetadata(currentCell.index, currentCell.metadata);
+			}
+
 		} else {
 			for (let appendValue = 2; pasteFilename in startingAttachments; appendValue++) {
 				const objEntries = Object.entries(startingAttachments[pasteFilename]);
@@ -76,9 +84,9 @@ class CopyPasteEditProvider implements vscode.DocumentPasteEditProvider {
 				}
 			}
 			currentCell.metadata.custom.attachments[pasteFilename] = { 'image/png': b64string };
+			metadataNotebookEdit = vscode.NotebookEdit.updateCellMetadata(currentCell.index, currentCell.metadata);
 		}
 
-		const metadataNotebookEdit = vscode.NotebookEdit.updateCellMetadata(currentCell.index, currentCell.metadata);
 		const workspaceEdit = new vscode.WorkspaceEdit();
 		if (metadataNotebookEdit) {
 			workspaceEdit.set(notebookUri, [metadataNotebookEdit]);
