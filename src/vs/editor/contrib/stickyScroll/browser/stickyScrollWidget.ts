@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import * as dom from 'vs/base/browser/dom';
 import { EditorLayoutInfo, EditorOption, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
@@ -11,6 +11,8 @@ import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/vie
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { Position } from 'vs/editor/common/core/position';
 import 'vs/css!./stickyScroll';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 export class StickyScrollWidgetState {
 	constructor(
@@ -152,11 +154,53 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			child.style.zIndex = '-1';
 			child.style.top = this.lastLineRelativePosition + 'px';
 		}
+		let controlClickDisposableListener: IDisposable | undefined;
 		this.disposableStore.add(dom.addDisposableListener(child, 'click', e => {
 			e.stopPropagation();
 			e.preventDefault();
-			this._editor.revealPosition({ lineNumber: line - index, column: 1 });
+			let controlClick: boolean = false;
+			controlClickDisposableListener = dom.addDisposableListener(window, dom.EventType.KEY_DOWN, (keyDown: KeyboardEvent) => {
+				const keyDownEvent = new StandardKeyboardEvent(keyDown);
+				if (keyDownEvent.keyCode === KeyCode.Ctrl) {
+					controlClick = true;
+
+					// TODO: Place in a separate file after
+					// const goto = GotoDefinitionAtPositionEditorContribution.get(editor);
+
+					dom.EventHelper.stop(keyDown);
+				}
+			});
+			if (!controlClick) {
+				this._editor.revealPosition({ lineNumber: line - index, column: 1 });
+			}
 		}));
+		/* RIGHT CLICK
+		this.disposableStore.add(dom.addDisposableListener(child, dom.EventType.AUXCLICK, e => {
+			console.log('auxilliary/right click');
+			// const lineNumber = line - index;
+		}));
+		*/
+		/* HOVER
+		this.disposableStore.add(dom.addDisposableListener(child, dom.EventType.MOUSE_OVER, hoverEvent => {
+			console.log('hover event : ', hoverEvent);
+			controlClickDisposableListener = dom.addDisposableListener(window, dom.EventType.KEY_DOWN, (keyDown: KeyboardEvent) => {
+				console.log('some key is pressed');
+				const keyDownEvent = new StandardKeyboardEvent(keyDown);
+				console.log('event : ', keyDownEvent);
+				if (keyDownEvent.keyCode === KeyCode.Ctrl) {
+					console.log('ctrl key down and hover');
+					dom.EventHelper.stop(keyDown);
+				}
+			});
+			this.disposableStore.add(controlClickDisposableListener);
+		}));
+		this.disposableStore.add(dom.addDisposableListener(child, dom.EventType.MOUSE_OUT, () => {
+			if (controlClickDisposableListener) {
+				controlClickDisposableListener.dispose();
+				controlClickDisposableListener = undefined;
+			}
+		}));
+		*/
 
 		return child;
 	}
