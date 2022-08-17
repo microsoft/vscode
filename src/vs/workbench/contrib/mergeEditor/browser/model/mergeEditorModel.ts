@@ -5,7 +5,7 @@
 
 import { CompareResult, equals } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
-import { ISettableObservable, derived, waitForState, observableValue, keepAlive, autorunHandleChanges, transaction, IReader, ITransaction, IObservable } from 'vs/base/common/observable';
+import { autorunHandleChanges, derived, IObservable, IReader, ISettableObservable, ITransaction, keepAlive, observableValue, transaction, waitForState } from 'vs/base/common/observable';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModel, ITextSnapshot } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -20,7 +20,7 @@ import { ModifiedBaseRange, ModifiedBaseRangeState } from './modifiedBaseRange';
 export class MergeEditorModel extends EditorModel {
 	private readonly input1TextModelDiffs = this._register(new TextModelDiffs(this.base, this.input1.textModel, this.diffComputer));
 	private readonly input2TextModelDiffs = this._register(new TextModelDiffs(this.base, this.input2.textModel, this.diffComputer));
-	private readonly resultTextModelDiffs = this._register(new TextModelDiffs(this.base, this.resultTextModel, this.diffComputer));
+	private readonly resultTextModelDiffs = this._register(new TextModelDiffs(this.base, this.resultTextModel, this.diffComputerConflictProjection));
 
 	public readonly state = derived('state', reader => {
 		const states = [
@@ -138,9 +138,10 @@ export class MergeEditorModel extends EditorModel {
 		readonly input2: InputData,
 		readonly resultTextModel: ITextModel,
 		private readonly diffComputer: IMergeDiffComputer,
+		private readonly diffComputerConflictProjection: IMergeDiffComputer,
 		options: { resetUnknownOnInitialization: boolean },
 		@IModelService private readonly modelService: IModelService,
-		@ILanguageService private readonly languageService: ILanguageService,
+		@ILanguageService private readonly languageService: ILanguageService
 	) {
 		super();
 

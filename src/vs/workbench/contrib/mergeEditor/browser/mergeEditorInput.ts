@@ -22,6 +22,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ILanguageSupport, ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { autorun } from 'vs/base/common/observable';
 import { WorkerBasedDocumentDiffProvider } from 'vs/editor/browser/widget/workerBasedDocumentDiffProvider';
+import { ProjectedDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/projectedDocumentDiffProvider';
 
 export class MergeEditorInputData {
 	constructor(
@@ -125,13 +126,15 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 			this._store.add(base);
 			this._store.add(result);
 
+			const diffProvider = this._instaService.createInstance(WorkerBasedDocumentDiffProvider);
 			this._model = this._instaService.createInstance(
 				MergeEditorModel,
 				base.object.textEditorModel,
 				input1Data,
 				input2Data,
 				result.object.textEditorModel,
-				this._instaService.createInstance(MergeDiffComputer, this._instaService.createInstance(WorkerBasedDocumentDiffProvider)),
+				this._instaService.createInstance(MergeDiffComputer, diffProvider),
+				this._instaService.createInstance(MergeDiffComputer, this._instaService.createInstance(ProjectedDiffComputer, diffProvider)),
 				{
 					resetUnknownOnInitialization: false
 				},

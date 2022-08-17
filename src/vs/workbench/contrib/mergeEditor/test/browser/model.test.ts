@@ -257,6 +257,25 @@ class MergeModelInterface extends Disposable {
 		const input2TextModel = this._register(createTextModel(options.input2, options.languageId));
 		const baseTextModel = this._register(createTextModel(options.base, options.languageId));
 		const resultTextModel = this._register(createTextModel(options.result, options.languageId));
+
+		const diffComputer = instantiationService.createInstance(MergeDiffComputer,
+			{
+				// Don't go through the webworker to improve unit test performance & reduce dependencies
+				async computeDiff(textModel1, textModel2) {
+					const result = linesDiffComputers.smart.computeDiff(
+						textModel1.getLinesContent(),
+						textModel2.getLinesContent(),
+						{ ignoreTrimWhitespace: false, maxComputationTime: 10000 }
+					);
+					return {
+						changes: result.changes,
+						quitEarly: result.quitEarly,
+						identical: result.changes.length === 0
+					};
+				},
+			}
+		);
+
 		this.mergeModel = this._register(instantiationService.createInstance(MergeEditorModel,
 			baseTextModel,
 			{
@@ -272,24 +291,9 @@ class MergeModelInterface extends Disposable {
 				title: '',
 			},
 			resultTextModel,
-			instantiationService.createInstance(MergeDiffComputer,
-				{
-					// Don't go through the webworker to improve unit test performance & reduce dependencies
-					async computeDiff(textModel1, textModel2) {
-						const result = linesDiffComputers.smart.computeDiff(
-							textModel1.getLinesContent(),
-							textModel2.getLinesContent(),
-							{ ignoreTrimWhitespace: false, maxComputationTime: 10000 }
-						);
-						return {
-							changes: result.changes,
-							quitEarly: result.quitEarly,
-							identical: result.changes.length === 0
-						};
-					},
-				}), {
-			resetUnknownOnInitialization: false
-		}
+			diffComputer,
+			diffComputer,
+			{ resetUnknownOnInitialization: false }
 		));
 	}
 
