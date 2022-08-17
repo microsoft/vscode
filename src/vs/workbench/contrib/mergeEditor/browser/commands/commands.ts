@@ -48,7 +48,6 @@ export class OpenMergeEditor extends Action2 {
 	run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const validatedArgs = IRelaxedOpenArgs.validate(args[0]);
 
-		// TODO@lramos15 this doesn't seem to work
 		const input: IResourceMergeEditorInput = {
 			base: { resource: validatedArgs.base },
 			input1: { resource: validatedArgs.input1.uri, label: validatedArgs.input1.title, description: validatedArgs.input1.description, detail: validatedArgs.input1.detail },
