@@ -39,7 +39,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		extHostContext: IExtHostContext,
 		@ISearchService private readonly _searchService: ISearchService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
-		@IEditSessionIdentityService private readonly _canonicalWorkspaceService: IEditSessionIdentityService,
+		@IEditSessionIdentityService private readonly _editSessionIdentityService: IEditSessionIdentityService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IWorkspaceEditingService private readonly _workspaceEditingService: IWorkspaceEditingService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -225,11 +225,15 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- edit sessions ---
 	$registerEditSessionIdentityProvider(scheme: string) {
-		this._canonicalWorkspaceService.registerEditSessionIdentityProvider({
+		this._editSessionIdentityService.registerEditSessionIdentityProvider({
 			scheme: scheme,
 			getEditSessionIdentifier: async (workspaceFolder: WorkspaceFolder, token: CancellationToken) => {
 				return this._proxy.$getCanonicalWorkspaceIdentity(workspaceFolder.uri, token);
 			}
 		});
+	}
+
+	$unregisterEditSessionIdentityProvider(scheme: string) {
+		this._editSessionIdentityService.unregisterEditSessionIdentityProvider(scheme);
 	}
 }

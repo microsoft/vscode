@@ -28,6 +28,10 @@ export class EditSessionIdentityService implements IEditSessionIdentityService {
 		this._editSessionIdentifierProviders.set(provider.scheme, provider);
 	}
 
+	unregisterEditSessionIdentityProvider(scheme: string): void {
+		this._editSessionIdentifierProviders.delete(scheme);
+	}
+
 	async getEditSessionIdentifier(workspaceFolder: IWorkspaceFolder, cancellationTokenSource: CancellationTokenSource): Promise<string | undefined> {
 		const { scheme } = workspaceFolder.uri;
 

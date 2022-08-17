@@ -1087,6 +1087,7 @@ export interface MainThreadWorkspaceShape extends IDisposable {
 	$resolveProxy(url: string): Promise<string | undefined>;
 	$requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined>;
 	$registerEditSessionIdentityProvider(scheme: string): void;
+	$unregisterEditSessionIdentityProvider(scheme: string): void;
 }
 
 export interface IFileChangeDto {
