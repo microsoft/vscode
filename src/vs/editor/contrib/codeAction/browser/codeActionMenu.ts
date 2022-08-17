@@ -113,7 +113,7 @@ const TEMPLATE_ID = 'codeActionWidget';
 const codeActionLineHeight = 24;
 const headerLineHeight = 26;
 
-let showDisabled = true;
+let showDisabled = false;
 
 class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeActionMenuTemplateData> {
 	private element!: HTMLElement;
@@ -178,12 +178,20 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 
 					this.element = dom.append(container, dom.$('.codeActionWidget-action-bar'));
 
-					const reRenderAction = <IAction>{
-						id: 'folderSettingsTarget' + index,
-						label: 'Show/Hide More',
-						enabled: true,
-						run: () => CodeActionMenu.toggleDisabledOptions(element.params)
-					};
+
+					const reRenderAction = showDisabled ?
+						<IAction>{
+							id: 'hideMoreCodeActions',
+							label: 'Hide More',
+							enabled: true,
+							run: () => CodeActionMenu.toggleDisabledOptions(element.params)
+						} :
+						<IAction>{
+							id: 'showMoreCodeActions',
+							label: 'Show More',
+							enabled: true,
+							run: () => CodeActionMenu.toggleDisabledOptions(element.params)
+						};
 
 
 
