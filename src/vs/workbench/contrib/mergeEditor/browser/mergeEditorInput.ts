@@ -120,7 +120,7 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 				result.object.textEditorModel,
 				this._instaService.createInstance(MergeDiffComputer, this._instaService.createInstance(WorkerBasedDocumentDiffProvider)),
 				{
-					resetUnknownOnInitialization: true
+					resetUnknownOnInitialization: false
 				},
 			);
 
