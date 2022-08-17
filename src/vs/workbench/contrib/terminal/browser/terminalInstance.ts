@@ -89,7 +89,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
-import { formatPinnedItems } from 'vs/platform/quickinput/browser/quickPickPin';
+import { showWithPinnedItems } from 'vs/platform/quickinput/browser/quickPickPin';
 
 const enum Constants {
 	/**
@@ -1080,7 +1080,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		return new Promise<void>(r => {
 			this._terminalInRunCommandPicker.set(true);
-			this._instantiationService.invokeFunction(formatPinnedItems, runRecentStorageKey, quickPick);
+			this._instantiationService.invokeFunction(showWithPinnedItems, runRecentStorageKey, quickPick);
 			quickPick.onDidHide(() => {
 				this._terminalInRunCommandPicker.set(false);
 				r();

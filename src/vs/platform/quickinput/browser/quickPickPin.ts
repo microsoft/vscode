@@ -14,8 +14,9 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
  * Initially, adds pin buttons to all @param quickPick items.
  * When pinned, a copy of the item will be moved to the end of the pinned list and any duplicate within the pinned list will
  * be removed. Pin and pinned button events trigger updates to the underlying storage.
+ * Shows the quickpick once formatted.
  */
-export async function formatPinnedItems(accessor: ServicesAccessor, storageKey: string, quickPick: IQuickPick<IQuickPickItem>): Promise<void> {
+export async function showWithPinnedItems(accessor: ServicesAccessor, storageKey: string, quickPick: IQuickPick<IQuickPickItem>): Promise<void> {
 	const storageService = accessor.get(IStorageService);
 	quickPick.onDidTriggerItemButton(async (e) => {
 		if (e.button.iconClass === ThemeIcon.asClassName(Codicon.pin) || e.button.iconClass === ThemeIcon.asClassName(Codicon.pinned)) {
@@ -30,7 +31,7 @@ export async function formatPinnedItems(accessor: ServicesAccessor, storageKey: 
 	await quickPick.show();
 }
 
-async function _formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, storageService: IStorageService, event?: IQuickPickItemButtonEvent<IQuickPickItem>): Promise<QuickPickItem[]> {
+function _formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, storageService: IStorageService, event?: IQuickPickItemButtonEvent<IQuickPickItem>): QuickPickItem[] {
 	const formattedItems: QuickPickItem[] = [];
 	const labels = getPinnedItems(storageKey, storageService).map(item => item.label);
 	const updatedLabels = !!event?.item.label ? updatePinnedItems(storageKey, event.item, storageService, new Set(labels).has(event.item.label)) : labels.filter(l => l !== 'Pinned');
