@@ -166,10 +166,8 @@ export class WindowsStateHandler extends Disposable {
 			if (activeWindow) {
 				currentWindowsState.lastActiveWindow = this.toWindowState(activeWindow);
 
-				if (isMacintosh) {
-					if (currentWindowsState.lastActiveWindow.uiState.mode === WindowMode.Fullscreen) {
-						displaysWithFullScreenWindow.add(currentWindowsState.lastActiveWindow.uiState.display);
-					}
+				if (currentWindowsState.lastActiveWindow.uiState.mode === WindowMode.Fullscreen) {
+					displaysWithFullScreenWindow.add(currentWindowsState.lastActiveWindow.uiState.display); // always allow fullscreen for active window
 				}
 			}
 		}
@@ -179,13 +177,13 @@ export class WindowsStateHandler extends Disposable {
 		if (extensionHostWindow) {
 			currentWindowsState.lastPluginDevelopmentHostWindow = this.toWindowState(extensionHostWindow);
 
-			if (isMacintosh) {
-				if (currentWindowsState.lastPluginDevelopmentHostWindow.uiState.mode === WindowMode.Fullscreen) {
-					if (displaysWithFullScreenWindow.has(currentWindowsState.lastPluginDevelopmentHostWindow.uiState.display)) {
+			if (currentWindowsState.lastPluginDevelopmentHostWindow.uiState.mode === WindowMode.Fullscreen) {
+				if (displaysWithFullScreenWindow.has(currentWindowsState.lastPluginDevelopmentHostWindow.uiState.display)) {
+					if (isMacintosh) {
 						this.convertToDefaultMaximizedState(currentWindowsState.lastPluginDevelopmentHostWindow.uiState);
-					} else {
-						displaysWithFullScreenWindow.add(currentWindowsState.lastPluginDevelopmentHostWindow.uiState.display);
 					}
+				} else {
+					displaysWithFullScreenWindow.add(currentWindowsState.lastPluginDevelopmentHostWindow.uiState.display);
 				}
 			}
 		}
@@ -199,13 +197,13 @@ export class WindowsStateHandler extends Disposable {
 			currentWindowsState.openedWindows = this.windowsMainService.getWindows().filter(window => !window.isExtensionDevelopmentHost).map(window => {
 				const windowState = this.toWindowState(window);
 
-				if (isMacintosh && windowState.windowId !== currentWindowsState.lastActiveWindow?.windowId) {
-					if (windowState.uiState.mode === WindowMode.Fullscreen) {
-						if (displaysWithFullScreenWindow.has(windowState.uiState.display)) {
+				if (windowState.uiState.mode === WindowMode.Fullscreen) {
+					if (displaysWithFullScreenWindow.has(windowState.uiState.display)) {
+						if (isMacintosh && windowState.windowId !== currentWindowsState.lastActiveWindow?.windowId) {
 							this.convertToDefaultMaximizedState(windowState.uiState);
-						} else {
-							displaysWithFullScreenWindow.add(windowState.uiState.display);
 						}
+					} else {
+						displaysWithFullScreenWindow.add(windowState.uiState.display);
 					}
 				}
 
