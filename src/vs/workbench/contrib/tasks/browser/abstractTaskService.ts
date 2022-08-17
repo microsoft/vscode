@@ -196,6 +196,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private static _nextHandle: number = 0;
 
 	private _tasksReconnected: boolean = false;
+	private _terminalsReconnected: boolean = false;
 	private _schemaVersion: JsonSchemaVersion | undefined;
 	private _executionEngine: ExecutionEngine | undefined;
 	private _workspaceFolders: IWorkspaceFolder[] | undefined;
@@ -284,6 +285,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			if (!this._taskSystem && !this._workspaceTasksPromise) {
 				return;
 			}
+
 			if (!this._taskSystem || this._taskSystem instanceof TerminalTaskSystem) {
 				this._outputChannel.clear();
 			}
@@ -326,7 +328,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				this._setPersistentTask(e.__task);
 			}
 		}));
-		this._register(this._onDidReconnectToTerminals.event(async () => await this._attemptTaskReconnection()));
+		this._register(this._onDidReconnectToTerminals.event(async () => {
+			this._terminalsReconnected = true;
+			await this._attemptTaskReconnection();
+		}));
 		this._waitForSupportedExecutions = new Promise(resolve => {
 			once(this._onDidRegisterSupportedExecutions.event)(() => resolve());
 		});
@@ -352,7 +357,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _attemptTaskReconnection(): Promise<void> {
-		if (this._configurationService.getValue(TaskSettingId.Reconnection) === true && this._jsonTasksSupported && !this._tasksReconnected) {
+		if (this._configurationService.getValue(TaskSettingId.Reconnection) === true && this._jsonTasksSupported && !this._tasksReconnected && this._terminalsReconnected) {
 			await this._reconnectTasks();
 		}
 	}
