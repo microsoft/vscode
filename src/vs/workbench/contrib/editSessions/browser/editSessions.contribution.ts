@@ -13,7 +13,7 @@ import { localize } from 'vs/nls';
 import { IEditSessionsWorkbenchService, Change, ChangeType, Folder, EditSession, FileType, EDIT_SESSION_SYNC_CATEGORY, EDIT_SESSIONS_CONTAINER_ID, EditSessionSchemaVersion, IEditSessionsLogService, EDIT_SESSIONS_VIEW_ICON, EDIT_SESSIONS_TITLE, EDIT_SESSIONS_SHOW_VIEW, EDIT_SESSIONS_SIGNED_IN, EDIT_SESSIONS_DATA_VIEW_ID, decodeEditSessionFileContent } from 'vs/workbench/contrib/editSessions/common/editSessions';
 import { ISCMRepository, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { URI } from 'vs/base/common/uri';
 import { joinPath, relativePath } from 'vs/base/common/resources';
 import { encodeBase64 } from 'vs/base/common/buffer';
@@ -502,7 +502,10 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 	private async pickContinueEditSessionDestination(): Promise<URI | undefined> {
 		const quickPick = this.quickInputService.createQuickPick<ContinueEditSessionItem>();
 
-		quickPick.title = localize('continueEditSessionPick.title', 'Continue Edit Session...');
+		const workspaceContext = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER
+			? this.contextService.getWorkspace().folders[0].name
+			: this.contextService.getWorkspace().folders.map((folder) => folder.name).join(', ');
+		quickPick.title = localize('continueEditSessionPick.title', "Continue {0} on", `'${workspaceContext}'`);
 		quickPick.placeholder = localize('continueEditSessionPick.placeholder', 'Choose how you would like to continue working');
 		quickPick.items = this.createPickItems();
 
