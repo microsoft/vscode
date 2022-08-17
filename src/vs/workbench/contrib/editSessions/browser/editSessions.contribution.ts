@@ -543,7 +543,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 		if (getVirtualWorkspaceLocation(this.contextService.getWorkspace()) !== undefined && isNative) {
 			items.push(new ContinueEditSessionItem(
-				'$(folder) ' + localize('continueEditSessionItem..v2', 'Open in Local Folder'),
+				'$(folder) ' + localize('continueEditSessionItem.openInLocalFolder.v2', 'Open in Local Folder'),
 				openLocalFolderCommand.id,
 				localize('continueEditSessionItem.builtin', 'Built-in')
 			));
