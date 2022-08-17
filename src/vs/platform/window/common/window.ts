@@ -270,7 +270,7 @@ export interface IOSConfiguration {
 }
 
 export interface IProfileOptions {
-	name?: string;
+	readonly name?: string;
 }
 
 export interface INativeWindowConfiguration extends IWindowConfiguration, NativeParsedArgs, ISandboxConfiguration {

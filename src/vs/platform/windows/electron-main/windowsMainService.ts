@@ -38,7 +38,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
-import { IAddFoldersRequest, INativeOpenFileRequest, INativeWindowConfiguration, IOpenEmptyWindowOptions, IPath, IPathsToWaitFor, isFileToOpen, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable, IWindowSettings, ProfileOptions as ProfileOptions } from 'vs/platform/window/common/window';
+import { IAddFoldersRequest, INativeOpenFileRequest, INativeWindowConfiguration, IOpenEmptyWindowOptions, IPath, IPathsToWaitFor, isFileToOpen, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable, IWindowSettings, IProfileOptions } from 'vs/platform/window/common/window';
 import { CodeWindow } from 'vs/platform/windows/electron-main/windowImpl';
 import { IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { findWindowOnExtensionDevelopmentPath, findWindowOnFile, findWindowOnWorkspaceOrFolder } from 'vs/platform/windows/electron-main/windowsFinder';
@@ -76,7 +76,7 @@ interface IOpenBrowserWindowOptions {
 
 	readonly emptyWindowBackupInfo?: IEmptyWindowBackupInfo;
 
-	readonly profile?: ProfileOptions;
+	readonly profile?: IProfileOptions;
 }
 
 interface IPathResolveOptions {
@@ -157,7 +157,7 @@ interface IPathToOpen<T = IEditorOptions> extends IPath<T> {
 	/**
 	 * Options for the profile to use
 	 */
-	readonly profileOptions?: ProfileOptions;
+	profileOptions?: IProfileOptions;
 }
 
 interface IWorkspacePathToOpen extends IPathToOpen {
@@ -855,8 +855,16 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				pathsToOpen.push(path);
 			}
 		}
+
+		// Apply profile if any
 		const profileName = cli['settings-profile'];
-		return profileName ? pathsToOpen.map<IPathToOpen>(p => ({ ...p, profileOptions: { name: profileName } })) : pathsToOpen;
+		if (profileName) {
+			for (const path of pathsToOpen) {
+				path.profileOptions = { name: profileName };
+			}
+		}
+
+		return pathsToOpen;
 	}
 
 	private cliArgToUri(arg: string): URI | undefined {

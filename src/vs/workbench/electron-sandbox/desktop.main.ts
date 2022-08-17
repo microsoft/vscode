@@ -245,11 +245,12 @@ export class DesktopMain extends Disposable {
 		serviceCollection.set(IUserDataProfileService, userDataProfileService);
 
 		const payload = this.resolveWorkspaceInitializationPayload(environmentService);
+
 		if (this.configuration.profiles.profileOptions?.name) {
 			await userDataProfileService.initProfileWithName(this.configuration.profiles.profileOptions.name, payload);
-			// Reload profiles if the current profile does not exist.
-			if (!userDataProfilesService.profiles.some(p => p.id === userDataProfileService.currentProfile.id)) {
-				await userDataProfilesService.reload();
+
+			if (!userDataProfilesService.profiles.some(profile => profile.id === userDataProfileService.currentProfile.id)) {
+				await userDataProfilesService.reload(); // reload profiles if the current profile does not exist
 			}
 		}
 
@@ -262,6 +263,7 @@ export class DesktopMain extends Disposable {
 		//
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+		// Create services that require resolving in parallel
 		const [configurationService, storageService] = await Promise.all([
 			this.createWorkspaceService(payload, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, logService, policyService).then(service => {
 
