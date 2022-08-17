@@ -116,9 +116,6 @@ const headerLineHeight = 26;
 let showDisabled = false;
 
 class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeActionMenuTemplateData> {
-	private element!: HTMLElement;
-	private actionbar!: ActionBar;
-
 	constructor(
 		private readonly acceptKeybindings: [string, string],
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
@@ -174,7 +171,7 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 
 					const container = data.root;
 
-					this.element = dom.append(container, dom.$('.codeActionWidget-action-bar'));
+					const actionbarContainer = dom.append(container, dom.$('.codeActionWidget-action-bar'));
 
 					const reRenderAction = showDisabled ?
 						<IAction>{
@@ -190,14 +187,14 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 							run: () => CodeActionMenu.toggleDisabledOptions(element.params)
 						};
 
-					this.actionbar = new ActionBar(this.element);
+					const actionbar = new ActionBar(actionbarContainer);
 					if (openedFromString === CodeActionTriggerSource.Refactor && element.params.codeActions.validActions.length > 0) {
-						this.actionbar.push([element.action, reRenderAction], { icon: false, label: true });
+						actionbar.push([element.action, reRenderAction], { icon: false, label: true });
 					} else {
-						this.actionbar.push([element.action], { icon: false, label: true });
+						actionbar.push([element.action], { icon: false, label: true });
 					}
 
-					this.actionbar.domNode.classList.add('left');
+					actionbar.domNode.classList.add('left');
 
 
 				} else {
