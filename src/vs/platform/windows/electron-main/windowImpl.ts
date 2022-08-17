@@ -86,6 +86,12 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private static readonly windowControlHeightStateStorageKey = 'windowControlHeight';
 
+	// TODO@electron this is a major hack to reduce the number of issues from
+	// trying to restore more than one fullscreen window on the same display
+	// at the same time.
+	// https://github.com/electron/electron/issues/34367
+	private static macOSPreventFullScreenWindow = false;
+
 	//#region Events
 
 	private readonly _onWillLoad = this._register(new Emitter<ILoadEvent>());
@@ -1112,17 +1118,20 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private validateWindowState(state: IWindowState, displays: Display[]): IWindowState | undefined {
 		this.logService.trace(`window#validateWindowState: validating window state on ${displays.length} display(s)`, state);
 
-		if (typeof state.x !== 'number'
-			|| typeof state.y !== 'number'
-			|| typeof state.width !== 'number'
-			|| typeof state.height !== 'number'
+		if (
+			typeof state.x !== 'number' ||
+			typeof state.y !== 'number' ||
+			typeof state.width !== 'number' ||
+			typeof state.height !== 'number'
 		) {
 			this.logService.trace('window#validateWindowState: unexpected type of state values');
+
 			return undefined;
 		}
 
 		if (state.width <= 0 || state.height <= 0) {
 			this.logService.trace('window#validateWindowState: unexpected negative values');
+
 			return undefined;
 		}
 
@@ -1183,6 +1192,23 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				// again ensure state is not outside display working area
 				// (it may have changed from the previous validation step)
 				ensureStateInDisplayWorkingArea();
+			}
+
+			// macOS does not allow us to open more than one window in fullscreen at once
+			// https://github.com/electron/electron/issues/34367
+			if (isMacintosh && state.mode === WindowMode.Fullscreen) {
+				if (!CodeWindow.macOSPreventFullScreenWindow) {
+					CodeWindow.macOSPreventFullScreenWindow = true; // block other fullscreen windows briefly
+					setTimeout(() => CodeWindow.macOSPreventFullScreenWindow = false);
+				} else {
+					const defaultMaximizedState = defaultWindowState(WindowMode.Maximized);
+
+					state.mode = defaultMaximizedState.mode;
+					state.x = defaultMaximizedState.x;
+					state.y = defaultMaximizedState.y;
+					state.width = defaultMaximizedState.width;
+					state.height = defaultMaximizedState.height;
+				}
 			}
 
 			return state;

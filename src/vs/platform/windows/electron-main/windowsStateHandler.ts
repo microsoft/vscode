@@ -232,28 +232,31 @@ export class WindowsStateHandler extends Disposable {
 		const state = this.doGetNewWindowState(configuration);
 		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
 
-		// Window state is not from a previous session: only allow fullscreen if we inherit it or user wants fullscreen
-		let allowFullscreen: boolean;
-		if (state.hasDefaultState) {
-			allowFullscreen = !!(windowConfig?.newWindowDimensions && ['fullscreen', 'inherit', 'offset'].indexOf(windowConfig.newWindowDimensions) >= 0);
-		}
+		// Fullscreen state gets special treatment
+		if (state.mode === WindowMode.Fullscreen) {
 
-		// Window state is from a previous session: only allow fullscreen when we got updated or user wants to restore
-		else {
-			allowFullscreen = !!(this.lifecycleMainService.wasRestarted || windowConfig?.restoreFullscreen);
-
-			if (allowFullscreen && isMacintosh && this.windowsMainService.getWindows().some(window => window.isFullScreen)) {
-				// macOS: Electron does not allow to restore multiple windows in
-				// fullscreen. As such, if we already restored a window in that
-				// state, we cannot allow more fullscreen windows. See
-				// https://github.com/microsoft/vscode/issues/41691 and
-				// https://github.com/electron/electron/issues/13077
-				allowFullscreen = false;
+			// Window state is not from a previous session: only allow fullscreen if we inherit it or user wants fullscreen
+			let allowFullscreen: boolean;
+			if (state.hasDefaultState) {
+				allowFullscreen = !!(windowConfig?.newWindowDimensions && ['fullscreen', 'inherit', 'offset'].indexOf(windowConfig.newWindowDimensions) >= 0);
 			}
-		}
 
-		if (state.mode === WindowMode.Fullscreen && !allowFullscreen) {
-			state.mode = WindowMode.Normal;
+			// Window state is from a previous session: only allow fullscreen when we got updated or user wants to restore
+			else {
+				allowFullscreen = !!(this.lifecycleMainService.wasRestarted || windowConfig?.restoreFullscreen);
+			}
+
+			// Window state should resort to maximized when fullscreen is not
+			// allowed to get as close as possible to the fullscreen equivalent
+			if (!allowFullscreen) {
+				const defaultMaximizedState = defaultWindowState(WindowMode.Maximized);
+
+				state.mode = defaultMaximizedState.mode;
+				state.x = defaultMaximizedState.x;
+				state.y = defaultMaximizedState.y;
+				state.width = defaultMaximizedState.width;
+				state.height = defaultMaximizedState.height;
+			}
 		}
 
 		return state;
