@@ -14,8 +14,10 @@ export class BufferMarkCapability implements IBufferMarkDetectionCapability {
 	readonly type = TerminalCapability.BufferMarkDetection;
 	private _customMarks: Map<string, IMarker> = new Map();
 	private _genericMarks: IMarker[] = [];
+
 	private readonly _onMarkAdded = new Emitter<{ id?: string; marker: IMarker; hidden?: boolean }>();
 	readonly onMarkAdded = this._onMarkAdded.event;
+
 	constructor(
 		private readonly _terminal: Terminal,
 		@ILogService private readonly _logService: ILogService
