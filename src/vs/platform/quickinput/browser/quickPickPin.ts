@@ -31,7 +31,7 @@ export async function showWithPinnedItems(accessor: ServicesAccessor, storageKey
 	await quickPick.show();
 }
 
-function _formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, storageService: IStorageService, event?: IQuickPickItemButtonEvent<IQuickPickItem>): QuickPickItem[] {
+function _formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, storageService: IStorageService, changedItem?: IQuickPickItem): QuickPickItem[] {
 	const formattedItems: QuickPickItem[] = [];
 	const labels = getPinnedItems(storageKey, storageService).map(item => item.label);
 	const updatedLabels = !!event?.item.label ? updatePinnedItems(storageKey, event.item, storageService, new Set(labels).has(event.item.label)) : labels.filter(l => l !== 'Pinned');
