@@ -7,7 +7,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Action2, IAction2Options, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, IAction2Options, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { IEditSessionsWorkbenchService, Change, ChangeType, Folder, EditSession, FileType, EDIT_SESSION_SYNC_CATEGORY, EDIT_SESSIONS_CONTAINER_ID, EditSessionSchemaVersion, IEditSessionsLogService, EDIT_SESSIONS_VIEW_ICON, EDIT_SESSIONS_TITLE, EDIT_SESSIONS_SHOW_VIEW, EDIT_SESSIONS_SIGNED_IN, EDIT_SESSIONS_DATA_VIEW_ID, decodeEditSessionFileContent } from 'vs/workbench/contrib/editSessions/common/editSessions';
@@ -48,6 +48,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { EditSessionsFileSystemProvider } from 'vs/workbench/contrib/editSessions/browser/editSessionsFileSystemProvider';
 import { isNative } from 'vs/base/common/platform';
 import { WorkspaceFolderCountContext } from 'vs/workbench/common/contextkeys';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 registerSingleton(IEditSessionsLogService, EditSessionsLogService);
 registerSingleton(IEditSessionsWorkbenchService, EditSessionsWorkbenchService);
@@ -128,17 +129,19 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				if (!Array.isArray(extension.value)) {
 					continue;
 				}
-				const commands = new Map((extension.description.contributes?.commands ?? []).map(c => [c.command, c]));
 				for (const contribution of extension.value) {
-					if (!contribution.command || !contribution.when) {
-						continue;
+					const command = MenuRegistry.getCommand(contribution.command);
+					if (!command) {
+						return;
 					}
-					const fullCommand = commands.get(contribution.command);
-					if (!fullCommand) { return; }
+
+					const icon = command.icon;
+					const title = typeof command.title === 'string' ? command.title : command.title.value;
 
 					continueEditSessionOptions.push(new ContinueEditSessionItem(
-						fullCommand.title,
-						fullCommand.command,
+						ThemeIcon.isThemeIcon(icon) ? `$(${icon.id}) ${title}` : title,
+						command.id,
+						command.source,
 						ContextKeyExpr.deserialize(contribution.when)
 					));
 				}
@@ -540,8 +543,9 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 		if (getVirtualWorkspaceLocation(this.contextService.getWorkspace()) !== undefined && isNative) {
 			items.push(new ContinueEditSessionItem(
-				localize('continueEditSessionItem.openInLocalFolder', 'Open In Local Folder'),
+				'$(folder) ' + localize('continueEditSessionItem..v2', 'Open in Local Folder'),
 				openLocalFolderCommand.id,
+				localize('continueEditSessionItem.builtin', 'Built-in')
 			));
 		}
 
@@ -553,6 +557,7 @@ class ContinueEditSessionItem implements IQuickPickItem {
 	constructor(
 		public readonly label: string,
 		public readonly command: string,
+		public readonly description?: string,
 		public readonly when?: ContextKeyExpression,
 	) { }
 }
