@@ -159,7 +159,6 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 			data.root.classList.add('group-header');
 		} else {
 			const text = element.action.label;
-
 			element.isEnabled = element.action.enabled;
 
 			if (element.action instanceof CodeActionAction) {
@@ -170,14 +169,12 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 				element.isDocumentation = element.action.action.kind === CodeActionMenu.documentationID;
 
 				if (element.isDocumentation) {
-					// data.text.textContent = text;
 					element.isEnabled = false;
 					data.root.classList.add('documentation');
 
 					const container = data.root;
 
 					this.element = dom.append(container, dom.$('.codeActionWidget-action-bar'));
-
 
 					const reRenderAction = showDisabled ?
 						<IAction>{
@@ -193,10 +190,8 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 							run: () => CodeActionMenu.toggleDisabledOptions(element.params)
 						};
 
-
-
 					this.actionbar = new ActionBar(this.element);
-					if (openedFromString === 'refactor' && element.params.codeActions.validActions.length > 0) {
+					if (openedFromString === CodeActionTriggerSource.Refactor && element.params.codeActions.validActions.length > 0) {
 						this.actionbar.push([element.action, reRenderAction], { icon: false, label: true });
 					} else {
 						this.actionbar.push([element.action], { icon: false, label: true });
@@ -271,7 +266,6 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	public static readonly documentationID: string = '_documentation';
 
 	public static readonly ID: string = 'editor.contrib.codeActionMenu';
-
 
 	public static get(editor: ICodeEditor): CodeActionMenu | null {
 		return editor.getContribution<CodeActionMenu>(CodeActionMenu.ID);
@@ -348,7 +342,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		}
 	}
 
-	public renderCodeActionMenuList(element: HTMLElement, inputArray: IAction[], params: ICodeActionMenuParameters): IDisposable {
+	private renderCodeActionMenuList(element: HTMLElement, inputArray: IAction[], params: ICodeActionMenuParameters): IDisposable {
 		const renderDisposables = new DisposableStore();
 		const renderMenu = document.createElement('div');
 
@@ -665,15 +659,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		});
 	}
 
-	public static toggleDisabledOptions(params: ICodeActionMenuParameters): void {
-		params.menuObj.hideCodeActionWidget();
-
-		showDisabled = !showDisabled;
-
-		const actionsToShow = showDisabled ? params.codeActions.allActions : params.codeActions.validActions;
-
-		const menuActions = params.menuObj.getMenuActions(params.trigger, actionsToShow, params.codeActions.documentation);
-
+	private showContextViewHelper(menu: CodeActionMenu, params: ICodeActionMenuParameters, menuActions: IAction[]) {
 		params.menuObj._contextViewService.showContextView({
 			getAnchor: () => params.anchor,
 			render: (container: HTMLElement) => params.menuObj.renderCodeActionMenuList(container, menuActions, params),
@@ -689,6 +675,18 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 
 	}
 
+	public static toggleDisabledOptions(params: ICodeActionMenuParameters): void {
+		params.menuObj.hideCodeActionWidget();
+
+		showDisabled = !showDisabled;
+
+		const actionsToShow = showDisabled ? params.codeActions.allActions : params.codeActions.validActions;
+
+		const menuActions = params.menuObj.getMenuActions(params.trigger, actionsToShow, params.codeActions.documentation);
+
+		params.menuObj.showContextViewHelper(params.menuObj, params, menuActions);
+	}
+
 	public async show(trigger: CodeActionTrigger, codeActions: CodeActionSet, at: IAnchor | IPosition, options: CodeActionShowOptions): Promise<void> {
 		const model = this._editor.getModel();
 		if (!model) {
@@ -697,7 +695,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 
 		let actionsToShow = options.includeDisabledActions ? codeActions.allActions : codeActions.validActions;
 
-		if (trigger.triggerAction === 'refactor') {
+		if (trigger.triggerAction === CodeActionTriggerSource.Refactor) {
 			actionsToShow = showDisabled ? codeActions.allActions : codeActions.validActions;
 		}
 
@@ -727,18 +725,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 
 
 		if (this.isCodeActionWidgetEnabled(model)) {
-			this._contextViewService.showContextView({
-				getAnchor: () => anchor,
-				render: (container: HTMLElement) => this.renderCodeActionMenuList(container, menuActions, params),
-				onHide: (didCancel) => {
-					const openedFromString = (options.fromLightbulb) ? CodeActionTriggerSource.Lightbulb : trigger.triggerAction;
-					this.codeActionTelemetry(openedFromString, didCancel, codeActions);
-					this._visible = false;
-					this._editor.focus();
-				},
-			},
-				this._editor.getDomNode()!, false,
-			);
+			this.showContextViewHelper(this, params, menuActions);
 		} else {
 			this._contextMenuService.showContextMenu({
 				domForShadowRoot: useShadowDOM ? this._editor.getDomNode()! : undefined,
