@@ -34,14 +34,16 @@ export async function showWithPinnedItems(accessor: ServicesAccessor, storageKey
 function _formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, storageService: IStorageService, changedItem?: IQuickPickItem): QuickPickItem[] {
 	const formattedItems: QuickPickItem[] = [];
 	const labels = getPinnedItems(storageKey, storageService).map(item => item.label);
-	const updatedLabels = !!changedItem?.label ? updatePinnedItems(storageKey, changedItem, storageService, new Set(labels).has(changedItem.label)) : labels.filter(l => l !== 'Pinned');
+	const updatedLabels = !!changedItem?.label ? updatePinnedItems(storageKey, changedItem, storageService, new Set(labels).has(changedItem.label)) : labels;
 	if (updatedLabels.length) {
 		formattedItems.push({ type: 'separator', label: localize("terminal.commands.pinned", 'Pinned') });
 	}
 	for (const label of updatedLabels) {
-		const item = quickPick.items.find(i => i.label === label && i.type !== 'separator');
+		const item: IQuickPickItem = quickPick.items.find(i => i.label === label && i.type !== 'separator') as IQuickPickItem;
 		if (item) {
-			const pinnedItem = Object.assign({}, item);
+			const pinnedItemId = 'pinned-' + (item.id || `${item.label}${item.description}${item.detail}}`);
+			const pinnedItem: IQuickPickItem = Object.assign({ id: pinnedItemId } as IQuickPickItem, item);
+			pinnedItem.id = pinnedItemId;
 			updateButtons(pinnedItem, false);
 			formattedItems.push(pinnedItem);
 		}
@@ -67,8 +69,10 @@ function updateButtons(item: QuickPickItem, removePin: boolean): void {
 }
 
 function updatePinnedItems(storageKey: string, item: IQuickPickItem, storageService: IStorageService, removePin: boolean): IQuickPickItem[] {
-	const items = getPinnedItems(storageKey, storageService).filter(l => l.label !== item.label);
-	if (!removePin) {
+	let items = getPinnedItems(storageKey, storageService);
+	if (removePin) {
+		items = items.filter(l => l.label !== item.label);
+	} else {
 		items.push(item);
 	}
 	storageService.store(storageKey, JSON.stringify(items), StorageScope.WORKSPACE, StorageTarget.USER);
