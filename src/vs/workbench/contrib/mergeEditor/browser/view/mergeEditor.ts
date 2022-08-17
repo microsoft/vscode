@@ -306,7 +306,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		const viewModel = new MergeEditorViewModel(model, this.input1View, this.input2View, this.inputResultView);
 
 		this.input1View.setModel(viewModel, { ...model.input1, title: model.input1.title || localize('input1', 'Input 1') });
-		this.input1View.setModel(viewModel, { ...model.input2, title: model.input2.title || localize('input2', 'Input 2') });
+		this.input2View.setModel(viewModel, { ...model.input2, title: model.input2.title || localize('input2', 'Input 2') });
 		this.inputResultView.setModel(viewModel,
 			{
 				textModel: model.resultTextModel,
