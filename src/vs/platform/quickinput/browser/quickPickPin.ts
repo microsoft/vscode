@@ -10,22 +10,26 @@ import { IQuickPick, IQuickPickItem, QuickPickItem } from 'vs/platform/quickinpu
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
+const pinButtonClass = ThemeIcon.asClassName(Codicon.pin);
+const pinnedButtonClass = ThemeIcon.asClassName(Codicon.pinned);
+const buttonClasses = [pinButtonClass, pinnedButtonClass];
 /**
  * Initially, adds pin buttons to all @param quickPick items.
  * When pinned, a copy of the item will be moved to the end of the pinned list and any duplicate within the pinned list will
- * be removed. Pin and pinned button events trigger updates to the underlying storage.
+ * be removed if @param filterDupliates has been provided. Pin and pinned button events trigger updates to the underlying storage.
  * Shows the quickpick once formatted.
  */
 export async function showWithPinnedItems(accessor: ServicesAccessor, storageKey: string, quickPick: IQuickPick<IQuickPickItem>, filterDuplicates?: boolean): Promise<void> {
 	const storageService = accessor.get(IStorageService);
-	quickPick.onDidTriggerItemButton(async (e) => {
-		if (e.button.iconClass === ThemeIcon.asClassName(Codicon.pin) || e.button.iconClass === ThemeIcon.asClassName(Codicon.pinned)) {
-			quickPick.items = await _formatPinnedItems(storageKey, quickPick, storageService, e.item, filterDuplicates);
+	quickPick.onDidTriggerItemButton(async buttonEvent => {
+		const expectedButton = buttonEvent.button.iconClass && buttonClasses.includes(buttonEvent.button.iconClass);
+		if (expectedButton) {
+			quickPick.items = await _formatPinnedItems(storageKey, quickPick, storageService, buttonEvent.item, filterDuplicates);
 		}
 	});
 	quickPick.onDidChangeValue(async value => {
 		// don't show pinned items in the search results
-		quickPick.items = value ? quickPick.items.filter(i => i.type !== 'separator' && !i.buttons?.find(b => b.iconClass === ThemeIcon.asClassName(Codicon.pinned))) : quickPick.items;
+		quickPick.items = value ? quickPick.items.filter(i => i.type !== 'separator' && !i.buttons?.find(b => b.iconClass === pinnedButtonClass)) : quickPick.items;
 	});
 	quickPick.items = await _formatPinnedItems(storageKey, quickPick, storageService, undefined, filterDuplicates);
 	await quickPick.show();
@@ -33,16 +37,21 @@ export async function showWithPinnedItems(accessor: ServicesAccessor, storageKey
 
 function _formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, storageService: IStorageService, changedItem?: IQuickPickItem, filterDuplicates?: boolean): QuickPickItem[] {
 	const formattedItems: QuickPickItem[] = [];
-	const updatedItems = !!changedItem?.label ? updatePinnedItems(storageKey, changedItem, storageService) : getPinnedItems(storageKey, storageService);
-	if (updatedItems.length) {
+	let pinnedItems;
+	if (changedItem) {
+		pinnedItems = updatePinnedItems(storageKey, changedItem, storageService);
+	} else {
+		pinnedItems = getPinnedItems(storageKey, storageService);
+	}
+	if (pinnedItems.length) {
 		formattedItems.push({ type: 'separator', label: localize("terminal.commands.pinned", 'Pinned') });
 	}
 	const pinnedIds = new Set();
-	for (const updatedItem of updatedItems) {
-		const item = quickPick.items.find(i => i.label === updatedItem.label && i.type !== 'separator') as IQuickPickItem;
-		if (item) {
-			const pinnedItemId = 'pinned-' + (item.id || `${item.label}${item.description}${item.detail}}`);
-			const pinnedItem: IQuickPickItem = Object.assign({} as IQuickPickItem, item);
+	for (const itemToFind of pinnedItems) {
+		const itemToPin = quickPick.items.find(item => itemsMatch(item, itemToFind));
+		if (itemToPin) {
+			const pinnedItemId = getItemIdentifier(itemToPin);
+			const pinnedItem: IQuickPickItem = Object.assign({} as IQuickPickItem, itemToPin);
 			if (!filterDuplicates || !pinnedIds.has(pinnedItemId)) {
 				pinnedItem.id = pinnedItemId;
 				pinnedIds.add(pinnedItem.id);
@@ -52,30 +61,39 @@ function _formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPick
 		}
 	}
 
-	for (const item of quickPick.items.filter(i => !!i.label)) {
+	for (const item of quickPick.items) {
 		updateButtons(item, true);
 		formattedItems.push(item);
 	}
 	return formattedItems;
 }
 
+function getItemIdentifier(item: QuickPickItem): string {
+	return item.type === 'separator' ? '' : item.id || `${item.label}${item.description}${item.detail}}`;
+}
+
 function updateButtons(item: QuickPickItem, removePin: boolean): void {
 	if (item.type === 'separator') {
 		return;
 	}
-	item.buttons = item.buttons ? item.buttons?.filter(b => b.iconClass !== ThemeIcon.asClassName(Codicon.pin) && b.iconClass !== ThemeIcon.asClassName(Codicon.pinned)) : [];
+	// remove button classes before adding the new one
+	item.buttons = item.buttons ? item.buttons?.filter(button => button.iconClass && !buttonClasses.includes(button.iconClass)) : [];
 	item.buttons.unshift({
-		iconClass: removePin ? ThemeIcon.asClassName(Codicon.pin) : ThemeIcon.asClassName(Codicon.pinned),
+		iconClass: removePin ? pinButtonClass : pinnedButtonClass,
 		tooltip: removePin ? localize('pinCommand', "Pin command") : localize('pinnedCommand', "Pinned command"),
 		alwaysVisible: false
 	});
 }
 
+function itemsMatch(itemA: QuickPickItem, itemB: QuickPickItem): boolean {
+	return getItemIdentifier(itemA) === getItemIdentifier(itemB);
+}
+
 function updatePinnedItems(storageKey: string, changedItem: IQuickPickItem, storageService: IStorageService): IQuickPickItem[] {
-	const removePin = changedItem.buttons?.find(b => b.iconClass === ThemeIcon.asClassName(Codicon.pinned));
+	const removePin = changedItem.buttons?.find(b => b.iconClass === pinnedButtonClass);
 	let items = getPinnedItems(storageKey, storageService);
 	if (removePin) {
-		items = items.filter(l => l.label !== changedItem.label);
+		items = items.filter(item => getItemIdentifier(item) !== getItemIdentifier(changedItem));
 	} else {
 		items.push(changedItem);
 	}
