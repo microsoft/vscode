@@ -13,8 +13,9 @@ export class ExtHostTelemetry implements ExtHostTelemetryShape {
 	private readonly _onDidChangeTelemetryEnabled = new Emitter<boolean>();
 	readonly onDidChangeTelemetryEnabled: Event<boolean> = this._onDidChangeTelemetryEnabled.event;
 
-	private readonly _onDidChangeTelemetryConfiguration = new Emitter<TelemetryConfiguration>();
-	readonly onDidChangeTelemetryConfiguration: Event<TelemetryConfiguration> = this._onDidChangeTelemetryConfiguration.event;
+	// TODO @lramos15 remove this one API is finalized as it's the same as `onDidChangeTelemetryEnabled` just fires more
+	private readonly _onDidChangeTelemetryConfiguration = new Emitter<boolean>();
+	readonly onDidChangeTelemetryConfiguration: Event<boolean> = this._onDidChangeTelemetryConfiguration.event;
 
 	private _productConfig: { usage: boolean; error: boolean } = { usage: true, error: true };
 	private _level: TelemetryLevel = TelemetryLevel.NONE;
@@ -43,7 +44,7 @@ export class ExtHostTelemetry implements ExtHostTelemetryShape {
 		if (this._oldTelemetryEnablement !== this.getTelemetryConfiguration()) {
 			this._onDidChangeTelemetryEnabled.fire(this.getTelemetryConfiguration());
 		}
-		this._onDidChangeTelemetryConfiguration.fire(this.getTelemetryDetails());
+		this._onDidChangeTelemetryConfiguration.fire(this.getTelemetryConfiguration());
 	}
 }
 

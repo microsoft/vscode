@@ -26,11 +26,5 @@ declare module 'vscode' {
 		 * Can be observed to determine what telemetry the extension is allowed to send
 		 */
 		export const telemetryConfiguration: TelemetryConfiguration;
-
-		/**
-		 * An {@link Event} which fires when the collectable state of telemetry changes
-		 * Returns a {@link TelemetryConfiguration} object
-		 */
-		export const onDidChangeTelemetryConfiguration: Event<TelemetryConfiguration | undefined>;
 	}
 }

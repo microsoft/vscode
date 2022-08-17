@@ -314,15 +314,15 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostTelemetry.getTelemetryConfiguration();
 			},
 			get onDidChangeTelemetryEnabled(): Event<boolean> {
-				return extHostTelemetry.onDidChangeTelemetryEnabled;
+				if (isProposedApiEnabled(extension, 'telemetry')) {
+					return extHostTelemetry.onDidChangeTelemetryConfiguration;
+				} else {
+					return extHostTelemetry.onDidChangeTelemetryEnabled;
+				}
 			},
 			get telemetryConfiguration(): vscode.TelemetryConfiguration {
 				checkProposedApiEnabled(extension, 'telemetry');
 				return extHostTelemetry.getTelemetryDetails();
-			},
-			get onDidChangeTelemetryConfiguration(): Event<vscode.TelemetryConfiguration> {
-				checkProposedApiEnabled(extension, 'telemetry');
-				return extHostTelemetry.onDidChangeTelemetryConfiguration;
 			},
 			get isNewAppInstall() {
 				const installAge = Date.now() - new Date(initData.telemetryInfo.firstSessionDate).getTime();
