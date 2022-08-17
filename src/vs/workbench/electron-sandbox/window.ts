@@ -36,7 +36,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { WorkbenchState, IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { coalesce } from 'vs/base/common/arrays';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -65,6 +65,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { registerWindowDriver } from 'vs/platform/driver/electron-sandbox/driver';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { dirname } from 'vs/base/common/resources';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 export class NativeWindow extends Disposable {
 
@@ -115,12 +116,14 @@ export class NativeWindow extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ISharedProcessService private readonly sharedProcessService: ISharedProcessService,
 		@IProgressService private readonly progressService: IProgressService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super();
 
 		this.registerListeners();
 		this.create();
+		this.checkIfWorkspaceUsesAppRootFolder(contextService.getWorkspace().folders);
 	}
 
 	private registerListeners(): void {
@@ -130,6 +133,14 @@ export class NativeWindow extends Disposable {
 
 		// React to editor input changes
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateTouchbarMenu()));
+
+		// Spot workspace beinng updated to use appRoot folder or a subfolder of it
+		this._register(this.contextService.onDidChangeWorkspaceFolders(e => {
+			if (e.added.length > 0 || e.changed.length > 0) {
+				this.checkIfWorkspaceUsesAppRootFolder([...e.added, ...e.changed]);
+			}
+		}));
+
 
 		// prevent opening a real URL inside the window
 		for (const event of [EventType.DRAG_OVER, EventType.DROP]) {
@@ -796,6 +807,26 @@ export class NativeWindow extends Disposable {
 		if (!equals(this.lastInstalledTouchedBar, items)) {
 			this.lastInstalledTouchedBar = items;
 			this.nativeHostService.updateTouchBar(items);
+		}
+	}
+
+	private checkIfWorkspaceUsesAppRootFolder(workspaceFolders: IWorkspaceFolder[]): void {
+		const appRootUri = URI.file(this.environmentService.appRoot);
+		if (workspaceFolders.filter(folder => this.uriIdentityService.extUri.isEqualOrParent(folder.uri, appRootUri)).length > 0) {
+			this.notificationService.prompt(
+				Severity.Warning,
+				localize('notifyOnAppRootWorkspace', "{0} is treating all files and folders within the installation folder ({1}) as read-only to prevent you from putting your own files there, then having them OVERWRITTEN or DELETED IRREVERSIBLY without warning during a future update.", this.productService.nameShort, this.environmentService.appRoot),
+				[{
+					label: localize('understood', 'Understood'),
+					run: async () => {
+						// Nothing to do
+					}
+				}],
+				{
+					neverShowAgain: { id: 'window.notifyOnAppRootWorkspace', isSecondary: true },
+					sticky: true
+				}
+			);
 		}
 	}
 
