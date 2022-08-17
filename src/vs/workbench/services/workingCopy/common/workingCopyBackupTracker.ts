@@ -16,7 +16,6 @@ import { Promises } from 'vs/base/common/async';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorsOrder } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorResolution } from 'vs/platform/editor/common/editor';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 /**
@@ -374,8 +373,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 				options: {
 					pinned: true,
 					preserveFocus: true,
-					inactive: true,
-					override: EditorResolution.DISABLED // very important to disable overrides because the editor input we got is proper
+					inactive: true
 				}
 			})));
 
