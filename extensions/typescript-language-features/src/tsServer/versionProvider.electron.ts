@@ -6,10 +6,13 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import * as nls from 'vscode-nls';
 import API from '../utils/api';
 import { TypeScriptServiceConfiguration } from '../utils/configuration';
 import { RelativeWorkspacePathResolver } from '../utils/relativePathResolver';
-import { ITypeScriptVersionProvider, localize, TypeScriptVersion, TypeScriptVersionSource } from './versionProvider';
+import { ITypeScriptVersionProvider, TypeScriptVersion, TypeScriptVersionSource } from './versionProvider';
+
+const localize = nls.loadMessageBundle();
 
 export class DiskTypeScriptVersionProvider implements ITypeScriptVersionProvider {
 

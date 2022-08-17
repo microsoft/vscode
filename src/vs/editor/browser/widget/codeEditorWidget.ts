@@ -608,8 +608,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return CodeEditorWidget._getVerticalOffsetAfterPosition(this._modelData, lineNumber, 1, includeViewZones);
 	}
 
-	public setHiddenAreas(ranges: IRange[]): void {
-		this._modelData?.viewModel.setHiddenAreas(ranges.map(r => Range.lift(r)));
+	public setHiddenAreas(ranges: IRange[], source?: unknown): void {
+		this._modelData?.viewModel.setHiddenAreas(ranges.map(r => Range.lift(r)), source);
 	}
 
 	public getVisibleColumnFromPosition(rawPosition: IPosition): number {

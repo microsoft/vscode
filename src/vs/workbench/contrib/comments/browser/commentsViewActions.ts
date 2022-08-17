@@ -142,8 +142,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 				id: 'showResolved',
 				label: localize('showResolved', "Show Resolved"),
 				run: async () => this.filters.showResolved = !this.filters.showResolved,
-				tooltip: '',
-				dispose: () => null
+				tooltip: ''
 			},
 			{
 				checked: this.filters.showUnresolved,
@@ -152,8 +151,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 				id: 'showUnresolved',
 				label: localize('showUnresolved', "Show Unresolved"),
 				run: async () => this.filters.showUnresolved = !this.filters.showUnresolved,
-				tooltip: '',
-				dispose: () => null
+				tooltip: ''
 			}
 		];
 	}

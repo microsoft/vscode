@@ -59,6 +59,13 @@ export class LineRangeMapping {
 		);
 	}
 
+	public addInputLineDelta(delta: number): LineRangeMapping {
+		return new LineRangeMapping(
+			this.inputRange.delta(delta),
+			this.outputRange
+		);
+	}
+
 	public getRange(direction: MappingDirection): LineRange {
 		return direction === MappingDirection.input ? this.inputRange : this.outputRange;
 	}
@@ -215,6 +222,16 @@ export class DetailedLineRangeMapping extends LineRangeMapping {
 		);
 	}
 
+	public override addInputLineDelta(delta: number): DetailedLineRangeMapping {
+		return new DetailedLineRangeMapping(
+			this.inputRange.delta(delta),
+			this.inputTextModel,
+			this.outputRange,
+			this.outputTextModel,
+			this.rangeMappings.map(d => d.addInputLineDelta(delta))
+		);
+	}
+
 	public override join(other: DetailedLineRangeMapping): DetailedLineRangeMapping {
 		return new DetailedLineRangeMapping(
 			this.inputRange.join(other.inputRange),
@@ -263,6 +280,18 @@ export class RangeMapping {
 				this.outputRange.endLineNumber + deltaLines,
 				this.outputRange.endColumn
 			)
+		);
+	}
+
+	addInputLineDelta(deltaLines: number): RangeMapping {
+		return new RangeMapping(
+			new Range(
+				this.inputRange.startLineNumber + deltaLines,
+				this.inputRange.startColumn,
+				this.inputRange.endLineNumber + deltaLines,
+				this.inputRange.endColumn
+			),
+			this.outputRange,
 		);
 	}
 }

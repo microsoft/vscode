@@ -10,7 +10,7 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { IBulkEditService, ResourceEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
+import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { FindMatch, IModelDecorationOptions, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
@@ -937,7 +937,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return Promise.all(matches.map(match => {
 			return match.cell.resolveTextModel();
 		})).then(async () => {
-			this._bulkEditService.apply(ResourceEdit.convert({ edits: textEdits }), { quotableLabel: 'Notebook Replace All' });
+			this._bulkEditService.apply({ edits: textEdits }, { quotableLabel: 'Notebook Replace All' });
 			return;
 		});
 	}
