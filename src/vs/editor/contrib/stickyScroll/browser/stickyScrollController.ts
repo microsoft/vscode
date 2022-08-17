@@ -156,8 +156,7 @@ registerAction2(class ToggleStickyScroll extends Action2 {
 			},
 			// Hardcoding due to import violation
 			category: { value: localize('view', "View"), original: 'View' },
-			f1: true,
-			toggled: ContextKeyExpr.equals('config.editor.stickyScroll.enabled', true),
+			toggled: ContextKeyExpr.equals('config.editor.experimental.stickyScroll.enabled', true),
 			menu: [
 				{ id: MenuId.CommandPalette },
 				{ id: MenuId.MenubarViewMenu, group: '5_editor', order: 6 },
