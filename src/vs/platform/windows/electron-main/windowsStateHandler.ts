@@ -143,6 +143,12 @@ export class WindowsStateHandler extends Disposable {
 	}
 
 	private saveWindowsState(): void {
+
+		// TODO@electron workaround for Electron not being able to restore
+		// multiple fullscreen windows on the same display at once.
+		// https://github.com/electron/electron/issues/34367
+		const displaysWithFullScreenWindow = new Set<number | undefined>();
+
 		const currentWindowsState: IWindowsState = {
 			openedWindows: [],
 			lastPluginDevelopmentHostWindow: this._state.lastPluginDevelopmentHostWindow,
@@ -158,15 +164,29 @@ export class WindowsStateHandler extends Disposable {
 			}
 
 			if (activeWindow) {
-				currentWindowsState.lastActiveWindow = this.toWindowState(activeWindow);
+				const lastActiveWindowState = this.toWindowState(activeWindow);
+				currentWindowsState.lastActiveWindow = lastActiveWindowState;
 				lastActiveWindowStateOwner = activeWindow;
+
+				if (lastActiveWindowState.uiState.mode === WindowMode.Fullscreen) {
+					displaysWithFullScreenWindow.add(lastActiveWindowState.uiState.display);
+				}
 			}
 		}
 
 		// 2.) Find extension host window
 		const extensionHostWindow = this.windowsMainService.getWindows().find(window => window.isExtensionDevelopmentHost && !window.isExtensionTestHost);
 		if (extensionHostWindow) {
-			currentWindowsState.lastPluginDevelopmentHostWindow = this.toWindowState(extensionHostWindow);
+			const lastPluginDevelopmentHostWindowState = this.toWindowState(extensionHostWindow);
+			currentWindowsState.lastPluginDevelopmentHostWindow = lastPluginDevelopmentHostWindowState;
+
+			if (lastPluginDevelopmentHostWindowState.uiState.mode === WindowMode.Fullscreen) {
+				if (displaysWithFullScreenWindow.has(lastPluginDevelopmentHostWindowState.uiState.display)) {
+					this.convertToDefaultMaximizeState(lastPluginDevelopmentHostWindowState.uiState);
+				} else {
+					displaysWithFullScreenWindow.add(lastPluginDevelopmentHostWindowState.uiState.display);
+				}
+			}
 		}
 
 		// 3.) All windows (except extension host) for N >= 2 to support `restoreWindows: all` or for auto update
@@ -180,7 +200,18 @@ export class WindowsStateHandler extends Disposable {
 					return currentWindowsState.lastActiveWindow; // return same state when reaching last active window
 				}
 
-				return this.toWindowState(window);
+				const windowState = this.toWindowState(window);
+				currentWindowsState.lastPluginDevelopmentHostWindow = windowState;
+
+				if (windowState.uiState.mode === WindowMode.Fullscreen) {
+					if (displaysWithFullScreenWindow.has(windowState.uiState.display)) {
+						this.convertToDefaultMaximizeState(windowState.uiState);
+					} else {
+						displaysWithFullScreenWindow.add(windowState.uiState.display);
+					}
+				}
+
+				return windowState;
 			});
 		}
 
@@ -257,17 +288,21 @@ export class WindowsStateHandler extends Disposable {
 			// Window state should resort to maximized when fullscreen is not
 			// allowed to get as close as possible to the fullscreen equivalent
 			if (!allowFullscreen) {
-				const defaultMaximizedState = defaultWindowState(WindowMode.Maximized);
-
-				state.mode = defaultMaximizedState.mode;
-				state.x = defaultMaximizedState.x;
-				state.y = defaultMaximizedState.y;
-				state.width = defaultMaximizedState.width;
-				state.height = defaultMaximizedState.height;
+				this.convertToDefaultMaximizeState(state);
 			}
 		}
 
 		return state;
+	}
+
+	private convertToDefaultMaximizeState(state: INewWindowState): void {
+		const defaultMaximizedState = defaultWindowState(WindowMode.Maximized);
+
+		state.mode = defaultMaximizedState.mode;
+		state.x = defaultMaximizedState.x;
+		state.y = defaultMaximizedState.y;
+		state.width = defaultMaximizedState.width;
+		state.height = defaultMaximizedState.height;
 	}
 
 	private doGetNewWindowState(configuration: INativeWindowConfiguration): INewWindowState {
@@ -443,56 +478,19 @@ function restoreWindowState(windowState: ISerializedWindowState): IWindowState {
 }
 
 export function getWindowsStateStoreData(windowsState: IWindowsState): IWindowsState {
-
-	// Count how many fullscreen windows per display we have
-	// to limit the number of fullscreen windows per display
-	// on macOS due to Electron not being able to properly
-	// restore multiple fullscreen windows per display.
-	// https://github.com/electron/electron/issues/34367
-	const mapDisplayToFullScreenCount = new Map<number | undefined, boolean>();
-
-	// Last active window
-	const lastActiveWindow = windowsState.lastActiveWindow ? serializeWindowState(windowsState.lastActiveWindow, true) : undefined;
-	if (lastActiveWindow?.uiState.mode === WindowMode.Fullscreen) {
-		mapDisplayToFullScreenCount.set(lastActiveWindow.uiState.display, true);
-	}
-
-	// Last extension development window
-	let lastPluginDevelopmentHostWindow: IWindowState | undefined = undefined;
-	if (windowsState.lastPluginDevelopmentHostWindow) {
-		const allowFullScreen = !isMacintosh || !mapDisplayToFullScreenCount.has(windowsState.lastPluginDevelopmentHostWindow.uiState.display);
-
-		lastPluginDevelopmentHostWindow = serializeWindowState(windowsState.lastPluginDevelopmentHostWindow, allowFullScreen);
-	}
-
-	// All opened windows
-	const openedWindows = windowsState.openedWindows.map(window => {
-		const allowFullScreen = !isMacintosh || window === lastActiveWindow || !mapDisplayToFullScreenCount.has(window.uiState.display);
-
-		return serializeWindowState(window, allowFullScreen);
-	});
-
-	return { lastActiveWindow, lastPluginDevelopmentHostWindow, openedWindows };
+	return {
+		lastActiveWindow: windowsState.lastActiveWindow && serializeWindowState(windowsState.lastActiveWindow),
+		lastPluginDevelopmentHostWindow: windowsState.lastPluginDevelopmentHostWindow && serializeWindowState(windowsState.lastPluginDevelopmentHostWindow),
+		openedWindows: windowsState.openedWindows.map(ws => serializeWindowState(ws))
+	};
 }
 
-function serializeWindowState(windowState: IWindowState, allowFullScreen: boolean): ISerializedWindowState {
-	const state: ISerializedWindowState = {
-		workspaceIdentifier: windowState.workspace ? { id: windowState.workspace.id, configURIPath: windowState.workspace.configPath.toString() } : undefined,
-		folder: windowState.folderUri ? windowState.folderUri.toString() : undefined,
+function serializeWindowState(windowState: IWindowState): ISerializedWindowState {
+	return {
+		workspaceIdentifier: windowState.workspace && { id: windowState.workspace.id, configURIPath: windowState.workspace.configPath.toString() },
+		folder: windowState.folderUri && windowState.folderUri.toString(),
 		backupPath: windowState.backupPath,
 		remoteAuthority: windowState.remoteAuthority,
 		uiState: windowState.uiState
 	};
-
-	if (!allowFullScreen && state.uiState.mode === WindowMode.Fullscreen) {
-		const defaultMaximizedState = defaultWindowState(WindowMode.Maximized);
-
-		state.uiState.mode = defaultMaximizedState.mode;
-		state.uiState.x = defaultMaximizedState.x;
-		state.uiState.y = defaultMaximizedState.y;
-		state.uiState.width = defaultMaximizedState.width;
-		state.uiState.height = defaultMaximizedState.height;
-	}
-
-	return state;
 }
