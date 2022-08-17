@@ -938,7 +938,8 @@ export class Repository implements Disposable {
 
 		workspace.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('git.mergeEditor')) {
-				this.mergeGroup.resourceStates = this.mergeGroup.resourceStates.map(r => r.clone());
+				// this.mergeGroup.resourceStates = this.mergeGroup.resourceStates.map(r => r.clone());
+				this.status();
 			}
 		}, undefined, this.disposables);
 
