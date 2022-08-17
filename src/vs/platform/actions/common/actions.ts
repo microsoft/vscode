@@ -442,12 +442,6 @@ export class MenuItemAction implements IAction {
 		}
 	}
 
-	dispose(): void {
-		// there is NOTHING to dispose and the MenuItemAction should
-		// never have anything to dispose as it is a convenience type
-		// to bridge into the rendering world.
-	}
-
 	run(...args: any[]): Promise<void> {
 		let runArgs: any[] = [];
 

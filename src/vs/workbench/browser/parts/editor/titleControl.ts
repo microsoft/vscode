@@ -269,14 +269,14 @@ export abstract class TitleControl extends Themable {
 
 			const shouldInlineGroup = (action: SubmenuAction, group: string) => group === 'navigation' && action.actions.length <= 1;
 
-			this.editorToolBarMenuDisposables.add(createAndFillInActionBarActions(
+			createAndFillInActionBarActions(
 				titleBarMenu,
 				{ arg: this.resourceContext.get(), shouldForwardArgs: true },
 				{ primary, secondary },
 				'navigation',
 				9,
 				shouldInlineGroup
-			));
+			);
 		}
 
 		return { primary, secondary };
@@ -374,7 +374,7 @@ export abstract class TitleControl extends Themable {
 
 		// Fill in contributed actions
 		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this.contextMenu, { shouldForwardArgs: true, arg: this.resourceContext.get() }, actions);
+		createAndFillInContextMenuActions(this.contextMenu, { shouldForwardArgs: true, arg: this.resourceContext.get() }, actions);
 
 		// Show it
 		this.contextMenuService.showContextMenu({
@@ -396,9 +396,6 @@ export abstract class TitleControl extends Themable {
 
 				// restore focus to active group
 				this.accessor.activeGroup.focus();
-
-				// Cleanup
-				dispose(actionsDisposable);
 			}
 		});
 	}
