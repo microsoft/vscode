@@ -146,7 +146,8 @@ export class WindowsStateHandler extends Disposable {
 	private saveWindowsState(): void {
 
 		// TODO@electron workaround for Electron not being able to restore
-		// multiple fullscreen windows on the same display at once on macOS.
+		// multiple (native) fullscreen windows on the same display at once
+		// on macOS.
 		// https://github.com/electron/electron/issues/34367
 		const displaysWithFullScreenWindow = new Set<number | undefined>();
 
@@ -179,7 +180,7 @@ export class WindowsStateHandler extends Disposable {
 
 			if (currentWindowsState.lastPluginDevelopmentHostWindow.uiState.mode === WindowMode.Fullscreen) {
 				if (displaysWithFullScreenWindow.has(currentWindowsState.lastPluginDevelopmentHostWindow.uiState.display)) {
-					if (isMacintosh) {
+					if (isMacintosh && !extensionHostWindow.win?.isSimpleFullScreen()) {
 						currentWindowsState.lastPluginDevelopmentHostWindow.uiState.mode = WindowMode.Normal;
 					}
 				} else {
@@ -199,7 +200,7 @@ export class WindowsStateHandler extends Disposable {
 
 				if (windowState.uiState.mode === WindowMode.Fullscreen) {
 					if (displaysWithFullScreenWindow.has(windowState.uiState.display)) {
-						if (isMacintosh && windowState.windowId !== currentWindowsState.lastActiveWindow?.windowId) {
+						if (isMacintosh && windowState.windowId !== currentWindowsState.lastActiveWindow?.windowId && !window.win?.isSimpleFullScreen()) {
 							windowState.uiState.mode = WindowMode.Normal;
 						}
 					} else {
