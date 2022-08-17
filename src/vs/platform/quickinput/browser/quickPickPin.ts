@@ -34,7 +34,7 @@ export async function showWithPinnedItems(accessor: ServicesAccessor, storageKey
 function _formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, storageService: IStorageService, changedItem?: IQuickPickItem): QuickPickItem[] {
 	const formattedItems: QuickPickItem[] = [];
 	const labels = getPinnedItems(storageKey, storageService).map(item => item.label);
-	const updatedLabels = !!changedItem?.label ? updatePinnedItems(storageKey, changedItem, storageService, new Set(labels).has(changedItem.label)) : labels;
+	const updatedLabels = !!changedItem?.label ? updatePinnedItems(storageKey, changedItem, storageService) : labels;
 	if (updatedLabels.length) {
 		formattedItems.push({ type: 'separator', label: localize("terminal.commands.pinned", 'Pinned') });
 	}
@@ -44,6 +44,7 @@ function _formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPick
 			const pinnedItemId = 'pinned-' + (item.id || `${item.label}${item.description}${item.detail}}`);
 			const pinnedItem: IQuickPickItem = Object.assign({ id: pinnedItemId } as IQuickPickItem, item);
 			pinnedItem.id = pinnedItemId;
+			pinnedItem.iconClasses?.push('pinned');
 			updateButtons(pinnedItem, false);
 			formattedItems.push(pinnedItem);
 		}
@@ -68,12 +69,15 @@ function updateButtons(item: QuickPickItem, removePin: boolean): void {
 	});
 }
 
-function updatePinnedItems(storageKey: string, item: IQuickPickItem, storageService: IStorageService, removePin: boolean): IQuickPickItem[] {
+function updatePinnedItems(storageKey: string, changedItem: IQuickPickItem, storageService: IStorageService): IQuickPickItem[] {
+	const removePin = changedItem.iconClasses?.includes('pinned') || false;
 	let items = getPinnedItems(storageKey, storageService);
 	if (removePin) {
-		items = items.filter(l => l.label !== item.label);
+		items = items.filter(l => l.label !== changedItem.label);
 	} else {
-		items.push(item);
+		changedItem.iconClasses = changedItem.iconClasses || [];
+		changedItem.iconClasses.push('pinned');
+		items.push(changedItem);
 	}
 	storageService.store(storageKey, JSON.stringify(items), StorageScope.WORKSPACE, StorageTarget.USER);
 	return items;
