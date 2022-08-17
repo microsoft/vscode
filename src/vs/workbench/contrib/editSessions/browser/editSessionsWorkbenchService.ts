@@ -14,13 +14,15 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { createSyncHeaders, IAuthenticationProvider, IResourceRefHandle } from 'vs/platform/userDataSync/common/userDataSync';
+import { createSyncHeaders, IAuthenticationProvider, IResourceRefHandle, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { EDIT_SESSIONS_SIGNED_IN, EditSession, EDIT_SESSION_SYNC_CATEGORY, IEditSessionsWorkbenchService, EDIT_SESSIONS_SIGNED_IN_KEY, IEditSessionsLogService } from 'vs/workbench/contrib/editSessions/common/editSessions';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { generateUuid } from 'vs/base/common/uuid';
+import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
+import { getCurrentAuthenticationSessionInfo } from 'vs/workbench/services/authentication/browser/authenticationService';
 
 type ExistingSession = IQuickPickItem & { session: AuthenticationSession & { providerId: string } };
 type AuthenticationProviderOption = IQuickPickItem & { provider: IAuthenticationProvider };
@@ -50,6 +52,8 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IRequestService private readonly requestService: IRequestService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@ICredentialsService private readonly credentialsService: ICredentialsService,
+		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 	) {
 		super();
 
@@ -181,6 +185,18 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			if (existing !== undefined) {
 				this.logService.trace(`Found existing authentication session with ID ${existingSessionId}`);
 				this.#authenticationInfo = { sessionId: existing.session.id, token: existing.session.idToken ?? existing.session.accessToken, providerId: existing.session.providerId };
+				this.storeClient.setAuthToken(this.#authenticationInfo.token, this.#authenticationInfo.providerId);
+				return true;
+			}
+		}
+
+		// If settings sync is already enabled, avoid asking again to authenticate
+		if (this.userDataSyncEnablementService.isEnabled()) {
+			this.logService.trace(`Reusing settings sync authentication preference`);
+			const authenticationSession = await getCurrentAuthenticationSessionInfo(this.credentialsService, this.productService);
+			if (authenticationSession !== undefined) {
+				this.logService.trace(`Using current authentication session with ID ${authenticationSession.id}`);
+				this.#authenticationInfo = { sessionId: authenticationSession.id, token: authenticationSession.accessToken, providerId: authenticationSession.providerId };
 				this.storeClient.setAuthToken(this.#authenticationInfo.token, this.#authenticationInfo.providerId);
 				return true;
 			}
