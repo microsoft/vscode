@@ -134,7 +134,7 @@ registerAction2(class DeleteCellAction extends NotebookCellAction {
 					mac: {
 						primary: KeyMod.CtrlCmd | KeyCode.Backspace
 					},
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, ContextKeyExpr.not(InputFocusedContextKey)),
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
 				menu: [
@@ -145,7 +145,6 @@ registerAction2(class DeleteCellAction extends NotebookCellAction {
 					},
 					{
 						id: MenuId.InteractiveCellDelete,
-						when: NOTEBOOK_EDITOR_EDITABLE,
 						group: CELL_TITLE_CELL_GROUP_ID
 					}
 				],
@@ -154,7 +153,7 @@ registerAction2(class DeleteCellAction extends NotebookCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		if (!context.notebookEditor.hasModel() || context.notebookEditor.isReadOnly) {
+		if (!context.notebookEditor.hasModel()) {
 			return;
 		}
 

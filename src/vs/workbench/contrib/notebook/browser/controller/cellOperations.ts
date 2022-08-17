@@ -649,6 +649,6 @@ export function insertCellAtIndex(viewModel: NotebookViewModel, index: number, s
 				}
 			]
 		}
-	], synchronous, { kind: SelectionStateType.Index, focus: viewModel.getFocus(), selections: viewModel.getSelections() }, () => endSelections, undefined, pushUndoStop);
+	], synchronous, { kind: SelectionStateType.Index, focus: viewModel.getFocus(), selections: viewModel.getSelections() }, () => endSelections, undefined, pushUndoStop && !viewModel.options.isReadOnly);
 	return viewModel.cellAt(index)!;
 }
