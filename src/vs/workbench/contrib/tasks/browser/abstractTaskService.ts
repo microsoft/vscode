@@ -329,7 +329,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._register(this.onDidReconnectToTerminals(async () => await this._attemptTaskReconnection()));
 		this._waitForSupportedExecutions = new Promise(resolve => {
 			once(this._onDidRegisterSupportedExecutions.event)(() => resolve());
-			this._attemptTaskReconnection();
 		});
 		this._upgrade();
 	}
@@ -349,6 +348,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			processContext.set(process && !isVirtual);
 		}
 		this._onDidRegisterSupportedExecutions.fire();
+		this._attemptTaskReconnection();
 	}
 
 	private async _attemptTaskReconnection(): Promise<void> {
