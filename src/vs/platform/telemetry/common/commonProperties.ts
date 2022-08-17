@@ -49,8 +49,6 @@ export async function resolveCommonProperties(
 	result['common.nodeArch'] = arch;
 	// __GDPR__COMMON__ "common.product" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 	result['common.product'] = product || 'desktop';
-	// __GDPR__COMMON__ "common.cli" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-	result['common.cli'] = !!env['VSCODE_CLI'];
 
 	if (isInternalTelemetry) {
 		// __GDPR__COMMON__ "common.msftInternal" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }

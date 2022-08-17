@@ -44,7 +44,6 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditSessionsDataViews } from 'vs/workbench/contrib/editSessions/browser/editSessionsViews';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { EditSessionsFileSystemProvider } from 'vs/workbench/contrib/editSessions/browser/editSessionsFileSystemProvider';
 import { isNative } from 'vs/base/common/platform';
 import { WorkspaceFolderCountContext } from 'vs/workbench/common/contextkeys';
@@ -94,7 +93,6 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IEditSessionIdentityService private readonly editSessionIdentityService: IEditSessionIdentityService,
-		@ITextModelService textModelResolverService: ITextModelService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ICommandService private commandService: ICommandService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,

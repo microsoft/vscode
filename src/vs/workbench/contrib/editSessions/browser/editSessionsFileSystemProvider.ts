@@ -14,7 +14,7 @@ export class EditSessionsFileSystemProvider implements IFileSystemProviderWithFi
 	static readonly SCHEMA = EDIT_SESSIONS_SCHEME;
 
 	constructor(
-		@IEditSessionsStorageService private editSessionsWorkbenchService: IEditSessionsWorkbenchService,
+		@IEditSessionsStorageService private editSessionsStorageService: IEditSessionsStorageService,
 	) { }
 
 	readonly capabilities: FileSystemProviderCapabilities = FileSystemProviderCapabilities.Readonly;
@@ -25,7 +25,7 @@ export class EditSessionsFileSystemProvider implements IFileSystemProviderWithFi
 			throw FileSystemProviderErrorCode.FileNotFound;
 		}
 		const { ref, folderName, filePath } = match.groups;
-		const data = await this.editSessionsWorkbenchService.read(ref);
+		const data = await this.editSessionsStorageService.read(ref);
 		if (!data) {
 			throw FileSystemProviderErrorCode.FileNotFound;
 		}
