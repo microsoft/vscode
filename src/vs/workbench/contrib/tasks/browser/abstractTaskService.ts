@@ -319,7 +319,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._lifecycleService.onBeforeShutdown(e => {
 			this._willRestart = e.reason !== ShutdownReason.RELOAD;
 		});
-		this._register(this.onDidStateChange(async e => {
+		this._register(this.onDidStateChange(e => {
 			if ((this._willRestart || e.exitReason === TerminalExitReason.User) && e.taskId) {
 				this.removePersistentTask(e.taskId);
 			} else if (e.kind === TaskEventKind.Start && e.__task) {
