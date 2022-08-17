@@ -69,7 +69,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 				markers = coalesce(this._detectionCapability.commands.map(e => e.marker));
 				break;
 			case TerminalCapability.BufferMarkDetection:
-				markers = this._detectionCapability.getMarks();
+				markers = this._detectionCapability.marks();
 				break;
 		}
 		return markers;

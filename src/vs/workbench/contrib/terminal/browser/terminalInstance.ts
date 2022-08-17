@@ -1740,7 +1740,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this.xterm?.raw.registerMarker();
 	}
 
-	public addBufferMark(id?: string, marker?: IMarker, hidden?: boolean): void {
+	public addBufferMarker(id?: string, marker?: IMarker, hidden?: boolean): void {
 		this.capabilities.get(TerminalCapability.BufferMarkDetection)?.addMark(id, marker, hidden);
 	}
 
@@ -1749,8 +1749,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!bufferMarkCapability || !this.xterm) {
 			return;
 		}
-		const startMarker = bufferMarkCapability.getMarker(startMarkId);
-		const endMarker = endMarkId ? bufferMarkCapability.getMarker(endMarkId) : undefined;
+		const startMarker = bufferMarkCapability.getMark(startMarkId);
+		const endMarker = endMarkId ? bufferMarkCapability.getMark(endMarkId) : undefined;
 		if (!startMarker) {
 			return;
 		}

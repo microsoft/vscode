@@ -669,7 +669,7 @@ export interface ITerminalInstance {
 	 * Registers a provided @param marker or new one and maps it to an @param ID
 	 * When not @param hidden, adds a decoration to the buffer
 	 */
-	addBufferMark(id?: string, marker?: IMarker, hidden?: boolean): void;
+	addBufferMarker(id?: string, marker?: IMarker, hidden?: boolean): void;
 
 	/**
 	 *

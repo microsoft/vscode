@@ -390,7 +390,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		const [command] = data.split(';');
 		switch (command) {
 			case ITermOscPt.SetMark: {
-				this._terminal.registerMarker();
+				this._createOrGetBufferMarkDetection(this._terminal).addMark();
 			}
 		}
 		// Unrecognized sequence

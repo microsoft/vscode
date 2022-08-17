@@ -63,12 +63,9 @@ export const enum TerminalCapability {
 	PartialCommandDetection,
 
 	/**
-	 * Adds custom marks to the buffer
-	 * that can be used for terminal navigation and selection.
-	 * The source of the request (task, debug, etc)
-	 * provides an ID, optional marker, and hidden property.
-	 * When hidden is not provided, a generic
-	 * decoration is added to the buffer and overview ruler.
+	 * Manages buffer marks that can be used for terminal navigation and selection. The source of
+	 * thee request (task, debug, etc) provides an ID, optional marker, and hidden property. When
+	 * hidden is not provided, a generic decoration is added to the buffer and overview ruler.
 	 */
 	BufferMarkDetection
 }
@@ -133,14 +130,14 @@ export interface ICommandInvalidationRequest {
 	reason: CommandInvalidationReason;
 }
 
-export interface IBufferMark { id?: string; marker: IMarker; hoverMessage?: string; hidden?: boolean }
+export interface IBufferMark { id?: string; marker: IMarker; hoverMessage?: string; hidden?: boolean; height?: number }
 
 export interface IBufferMarkDetectionCapability {
 	type: TerminalCapability.BufferMarkDetection;
-	getMarks(): IMarker[];
+	marks(): IMarker[];
 	onMarkAdded: Event<IBufferMark>;
 	addMark(id?: string, marker?: IMarker, hidden?: boolean): void;
-	getMarker(id: string): IMarker | undefined;
+	getMark(id: string): IMarker | undefined;
 }
 
 export interface ICommandDetectionCapability {

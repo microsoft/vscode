@@ -11,11 +11,13 @@ import { IBufferMarkDetectionCapability, TerminalCapability } from 'vs/platform/
 import type { IMarker, Terminal } from 'xterm-headless';
 
 export class BufferMarkCapability implements IBufferMarkDetectionCapability {
-	readonly type = TerminalCapability.BufferMarkDetection;
-	private _customMarks: Map<string, IMarker> = new Map();
-	private _genericMarks: IMarker[] = [];
 
-	private readonly _onMarkAdded = new Emitter<{ id?: string; marker: IMarker; hidden?: boolean }>();
+	readonly type = TerminalCapability.BufferMarkDetection;
+
+	private _marks: Map<string, IMarker> = new Map();
+
+	private _anonymousMarks: IMarker[] = [];
+	private readonly _onMarkAdded = new Emitter<{ id?: string; marker: IMarker; hidden?: boolean; height?: number }>();
 	readonly onMarkAdded = this._onMarkAdded.event;
 
 	constructor(
@@ -24,23 +26,25 @@ export class BufferMarkCapability implements IBufferMarkDetectionCapability {
 	) {
 	}
 
-	getMarks(): IMarker[] { return this._customMarks.size ? Array.from(this._customMarks.values()) : this._genericMarks; }
+	marks(): IMarker[] { return Array.from(this._marks.values()).concat(this._anonymousMarks); }
 	addMark(id?: string, marker?: IMarker, hidden?: boolean): void {
 		marker = marker || this._terminal.registerMarker();
-		if (marker && id) {
-			this._customMarks.set(id, marker);
-			marker.onDispose(() => this._customMarks.delete(id));
-		} else if (marker) {
-			this._genericMarks.push(marker);
-			marker.onDispose(() => this._genericMarks.filter(m => m !== marker));
-		} else {
-			this._logService.warn('No marker registered for ID:', id);
+		if (!marker) {
 			return;
 		}
+		if (id) {
+			this._marks.set(id, marker);
+			marker.onDispose(() => this._marks.delete(id));
+		} else {
+			this._anonymousMarks.push(marker);
+			marker.onDispose(() => this._anonymousMarks.filter(m => m !== marker));
+		}
 		this._onMarkAdded.fire({ id, marker, hidden });
+		this._logService.trace('Added mark', id, marker.line);
 	}
 
-	getMarker(id: string): IMarker | undefined {
-		return this._customMarks.get(id);
+	getMark(id: string): IMarker | undefined {
+		this._logService.trace('Got mark', id, this._marks.get(id));
+		return this._marks.get(id);
 	}
 }
