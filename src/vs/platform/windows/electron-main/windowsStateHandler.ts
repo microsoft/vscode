@@ -18,6 +18,7 @@ import { defaultWindowState, ICodeWindow, IWindowState as IWindowUIState, Window
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export interface IWindowState {
+	windowId?: number;
 	workspace?: IWorkspaceIdentifier;
 	folderUri?: URI;
 	backupPath?: string;
@@ -145,7 +146,7 @@ export class WindowsStateHandler extends Disposable {
 	private saveWindowsState(): void {
 
 		// TODO@electron workaround for Electron not being able to restore
-		// multiple fullscreen windows on the same display at once.
+		// multiple fullscreen windows on the same display at once on macOS.
 		// https://github.com/electron/electron/issues/34367
 		const displaysWithFullScreenWindow = new Set<number | undefined>();
 
@@ -156,7 +157,6 @@ export class WindowsStateHandler extends Disposable {
 		};
 
 		// 1.) Find a last active window (pick any other first window otherwise)
-		let lastActiveWindowStateOwner: ICodeWindow | undefined = undefined;
 		if (!currentWindowsState.lastActiveWindow) {
 			let activeWindow = this.windowsMainService.getLastActiveWindow();
 			if (!activeWindow || activeWindow.isExtensionDevelopmentHost) {
@@ -164,12 +164,12 @@ export class WindowsStateHandler extends Disposable {
 			}
 
 			if (activeWindow) {
-				const lastActiveWindowState = this.toWindowState(activeWindow);
-				currentWindowsState.lastActiveWindow = lastActiveWindowState;
-				lastActiveWindowStateOwner = activeWindow;
+				currentWindowsState.lastActiveWindow = this.toWindowState(activeWindow);
 
-				if (lastActiveWindowState.uiState.mode === WindowMode.Fullscreen) {
-					displaysWithFullScreenWindow.add(lastActiveWindowState.uiState.display);
+				if (isMacintosh) {
+					if (currentWindowsState.lastActiveWindow.uiState.mode === WindowMode.Fullscreen) {
+						displaysWithFullScreenWindow.add(currentWindowsState.lastActiveWindow.uiState.display);
+					}
 				}
 			}
 		}
@@ -177,14 +177,15 @@ export class WindowsStateHandler extends Disposable {
 		// 2.) Find extension host window
 		const extensionHostWindow = this.windowsMainService.getWindows().find(window => window.isExtensionDevelopmentHost && !window.isExtensionTestHost);
 		if (extensionHostWindow) {
-			const lastPluginDevelopmentHostWindowState = this.toWindowState(extensionHostWindow);
-			currentWindowsState.lastPluginDevelopmentHostWindow = lastPluginDevelopmentHostWindowState;
+			currentWindowsState.lastPluginDevelopmentHostWindow = this.toWindowState(extensionHostWindow);
 
-			if (lastPluginDevelopmentHostWindowState.uiState.mode === WindowMode.Fullscreen) {
-				if (displaysWithFullScreenWindow.has(lastPluginDevelopmentHostWindowState.uiState.display)) {
-					this.convertToDefaultMaximizedState(lastPluginDevelopmentHostWindowState.uiState);
-				} else {
-					displaysWithFullScreenWindow.add(lastPluginDevelopmentHostWindowState.uiState.display);
+			if (isMacintosh) {
+				if (currentWindowsState.lastPluginDevelopmentHostWindow.uiState.mode === WindowMode.Fullscreen) {
+					if (displaysWithFullScreenWindow.has(currentWindowsState.lastPluginDevelopmentHostWindow.uiState.display)) {
+						this.convertToDefaultMaximizedState(currentWindowsState.lastPluginDevelopmentHostWindow.uiState);
+					} else {
+						displaysWithFullScreenWindow.add(currentWindowsState.lastPluginDevelopmentHostWindow.uiState.display);
+					}
 				}
 			}
 		}
@@ -196,18 +197,15 @@ export class WindowsStateHandler extends Disposable {
 		// to come from the stored lastClosedWindowState on Win/Linux at least
 		if (this.windowsMainService.getWindowCount() > 1) {
 			currentWindowsState.openedWindows = this.windowsMainService.getWindows().filter(window => !window.isExtensionDevelopmentHost).map(window => {
-				if (window === lastActiveWindowStateOwner && currentWindowsState.lastActiveWindow) {
-					return currentWindowsState.lastActiveWindow; // return same state when reaching last active window
-				}
-
 				const windowState = this.toWindowState(window);
-				currentWindowsState.lastPluginDevelopmentHostWindow = windowState;
 
-				if (windowState.uiState.mode === WindowMode.Fullscreen) {
-					if (displaysWithFullScreenWindow.has(windowState.uiState.display)) {
-						this.convertToDefaultMaximizedState(windowState.uiState);
-					} else {
-						displaysWithFullScreenWindow.add(windowState.uiState.display);
+				if (isMacintosh && windowState.windowId !== currentWindowsState.lastActiveWindow?.windowId) {
+					if (windowState.uiState.mode === WindowMode.Fullscreen) {
+						if (displaysWithFullScreenWindow.has(windowState.uiState.display)) {
+							this.convertToDefaultMaximizedState(windowState.uiState);
+						} else {
+							displaysWithFullScreenWindow.add(windowState.uiState.display);
+						}
 					}
 				}
 
@@ -259,6 +257,7 @@ export class WindowsStateHandler extends Disposable {
 
 	private toWindowState(window: ICodeWindow): IWindowState {
 		return {
+			windowId: window.id,
 			workspace: isWorkspaceIdentifier(window.openedWorkspace) ? window.openedWorkspace : undefined,
 			folderUri: isSingleFolderWorkspaceIdentifier(window.openedWorkspace) ? window.openedWorkspace.uri : undefined,
 			backupPath: window.backupPath,
