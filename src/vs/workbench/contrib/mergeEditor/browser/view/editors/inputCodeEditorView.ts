@@ -176,7 +176,7 @@ export class InputCodeEditorView extends CodeEditorView {
 						baseRange.input1Diffs.length > 0
 							? action(
 								'mergeEditor.acceptInput1',
-								localize('mergeEditor.accept', 'Accept {0}', model.input1Title),
+								localize('mergeEditor.accept', 'Accept {0}', model.input1.title),
 								state.toggle(1),
 								state.input1
 							)
@@ -184,7 +184,7 @@ export class InputCodeEditorView extends CodeEditorView {
 						baseRange.input2Diffs.length > 0
 							? action(
 								'mergeEditor.acceptInput2',
-								localize('mergeEditor.accept', 'Accept {0}', model.input2Title),
+								localize('mergeEditor.accept', 'Accept {0}', model.input2.title),
 								state.toggle(2),
 								state.input2
 							)
@@ -374,10 +374,27 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 		const margin = checkboxHeight;
 
 		const effectiveCheckboxTop = top + middleHeight;
-		const clamped1 = clamp(effectiveCheckboxTop, margin, viewTop + viewHeight - margin - checkboxHeight);
-		const clamped2 = clamp(clamped1, top + margin, top + height - checkboxHeight - margin);
 
-		this.checkboxDiv.style.top = `${clamped2 - top}px`;
+		const preferredViewPortRange = [
+			margin,
+			viewTop + viewHeight - margin - checkboxHeight
+		];
+
+		const preferredParentRange = [
+			top + margin,
+			top + height - checkboxHeight - margin
+		];
+
+		const parentRange = [
+			top,
+			top + height - checkboxHeight
+		];
+
+		const clamped1 = clampIfIntervalIsNonEmpty(effectiveCheckboxTop, preferredViewPortRange[0], preferredViewPortRange[1]);
+		const clamped2 = clampIfIntervalIsNonEmpty(clamped1, preferredParentRange[0], preferredParentRange[1]);
+		const clamped3 = clamp(clamped2, parentRange[0], parentRange[1]);
+
+		this.checkboxDiv.style.top = `${clamped3 - top}px`;
 
 		this.target.classList.remove('multi-line');
 		this.target.classList.remove('single-line');
@@ -390,4 +407,11 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 			this.item.set(baseRange, tx);
 		});
 	}
+}
+
+function clampIfIntervalIsNonEmpty(value: number, min: number, max: number): number {
+	if (min >= max) {
+		return value;
+	}
+	return Math.min(Math.max(value, min), max);
 }

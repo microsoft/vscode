@@ -76,7 +76,7 @@ import { dirname, joinPath } from 'vs/base/common/resources';
 import { IUserDataProfilesService, PROFILES_ENABLEMENT_CONFIG } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { NullPolicyService } from 'vs/platform/policy/common/policy';
 import { IRemoteExplorerService, TunnelSource } from 'vs/workbench/services/remote/common/remoteExplorerService';
-import { DisposableTunnel } from 'vs/platform/tunnel/common/tunnel';
+import { DisposableTunnel, TunnelProtocol } from 'vs/platform/tunnel/common/tunnel';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
@@ -181,7 +181,15 @@ export class BrowserMain extends Disposable {
 								source: TunnelSource.Extension,
 								description: labelService.getHostLabel(Schemas.vscodeRemote, this.configuration.remoteAuthority)
 							},
-							elevateIfNeeded: false
+							elevateIfNeeded: false,
+							privacy: tunnelOptions.privacy
+						}, {
+							label: tunnelOptions.label,
+							elevateIfNeeded: undefined,
+							onAutoForward: undefined,
+							requireLocalPort: undefined,
+							protocol: tunnelOptions.protocol === TunnelProtocol.Https ? tunnelOptions.protocol : TunnelProtocol.Http,
+
 						});
 						if (!tunnel) {
 							throw new Error('cannot open tunnel');

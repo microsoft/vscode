@@ -42,27 +42,9 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 		);
 
 		const alignments: RangeMapping[] = [];
-		for (let diff of lineAlignments) {
-			// Move line diffs up to improve the case of
-			// AxBAzB -> AxBA(yBA)zB to
-			// AxBAzB -> AxB(AyB)AzB
-			if (
-				(diff.seq1Range.start > 0 &&
-					diff.seq1Range.length > 0 &&
-					srcDocLines[diff.seq1Range.start - 1] ===
-					srcDocLines[diff.seq1Range.endExclusive - 1]) ||
-				(diff.seq2Range.start > 0 &&
-					diff.seq2Range.length > 0 &&
-					tgtDocLines[diff.seq2Range.start - 1] ===
-					tgtDocLines[diff.seq2Range.endExclusive - 1])
-			) {
-				diff = new SequenceDiff(
-					diff.seq1Range.delta(-1),
-					diff.seq2Range.delta(-1),
-				);
-			}
-
-			for (const a of this.refineDiff(originalLines, modifiedLines, diff)) {
+		for (const diff of lineAlignments) {
+			const characterDiffs = this.refineDiff(originalLines, modifiedLines, diff);
+			for (const a of characterDiffs) {
 				alignments.push(a);
 			}
 		}

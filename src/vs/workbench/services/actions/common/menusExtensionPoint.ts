@@ -707,20 +707,20 @@ submenusExtensionPoint.setHandler(extensions => {
 		for (const [, submenuInfo] of Object.entries(value)) {
 
 			if (!schema.isValidSubmenu(submenuInfo, collector)) {
-				return;
+				continue;
 			}
 
 			if (!submenuInfo.id) {
 				collector.warn(localize('submenuId.invalid.id', "`{0}` is not a valid submenu identifier", submenuInfo.id));
-				return;
+				continue;
 			}
 			if (_submenus.has(submenuInfo.id)) {
 				collector.info(localize('submenuId.duplicate.id', "The `{0}` submenu was already previously registered.", submenuInfo.id));
-				return;
+				continue;
 			}
 			if (!submenuInfo.label) {
 				collector.warn(localize('submenuId.invalid.label', "`{0}` is not a valid submenu label", submenuInfo.label));
-				return;
+				continue;
 			}
 
 			let absoluteIcon: { dark: URI; light?: URI } | ThemeIcon | undefined;

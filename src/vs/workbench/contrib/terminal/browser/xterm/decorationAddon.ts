@@ -405,12 +405,12 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (command.command !== '') {
 			const labelRun = localize("terminal.rerunCommand", 'Rerun Command');
 			actions.push({
-				class: undefined, tooltip: labelRun, dispose: () => { }, id: 'terminal.rerunCommand', label: labelRun, enabled: true,
+				class: undefined, tooltip: labelRun, id: 'terminal.rerunCommand', label: labelRun, enabled: true,
 				run: () => this._onDidRequestRunCommand.fire({ command })
 			});
 			const labelCopy = localize("terminal.copyCommand", 'Copy Command');
 			actions.push({
-				class: undefined, tooltip: labelCopy, dispose: () => { }, id: 'terminal.copyCommand', label: labelCopy, enabled: true,
+				class: undefined, tooltip: labelCopy, id: 'terminal.copyCommand', label: labelCopy, enabled: true,
 				run: () => this._clipboardService.writeText(command.command)
 			});
 		}
@@ -420,12 +420,12 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			}
 			const labelText = localize("terminal.copyOutput", 'Copy Output');
 			actions.push({
-				class: undefined, tooltip: labelText, dispose: () => { }, id: 'terminal.copyOutput', label: labelText, enabled: true,
+				class: undefined, tooltip: labelText, id: 'terminal.copyOutput', label: labelText, enabled: true,
 				run: () => this._clipboardService.writeText(command.getOutput()!)
 			});
 			const labelHtml = localize("terminal.copyOutputAsHtml", 'Copy Output as HTML');
 			actions.push({
-				class: undefined, tooltip: labelHtml, dispose: () => { }, id: 'terminal.copyOutputAsHtml', label: labelHtml, enabled: true,
+				class: undefined, tooltip: labelHtml, id: 'terminal.copyOutputAsHtml', label: labelHtml, enabled: true,
 				run: () => this._onDidRequestRunCommand.fire({ command, copyAsHtml: true })
 			});
 		}
@@ -434,12 +434,12 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 		const labelConfigure = localize("terminal.configureCommandDecorations", 'Configure Command Decorations');
 		actions.push({
-			class: undefined, tooltip: labelConfigure, dispose: () => { }, id: 'terminal.configureCommandDecorations', label: labelConfigure, enabled: true,
+			class: undefined, tooltip: labelConfigure, id: 'terminal.configureCommandDecorations', label: labelConfigure, enabled: true,
 			run: () => this._showConfigureCommandDecorationsQuickPick()
 		});
 		const labelAbout = localize("terminal.learnShellIntegration", 'Learn About Shell Integration');
 		actions.push({
-			class: undefined, tooltip: labelAbout, dispose: () => { }, id: 'terminal.learnShellIntegration', label: labelAbout, enabled: true,
+			class: undefined, tooltip: labelAbout, id: 'terminal.learnShellIntegration', label: labelAbout, enabled: true,
 			run: () => this._openerService.open('https://code.visualstudio.com/docs/terminal/shell-integration')
 		});
 		return actions;
