@@ -176,7 +176,7 @@ export class InputCodeEditorView extends CodeEditorView {
 						baseRange.input1Diffs.length > 0
 							? action(
 								'mergeEditor.acceptInput1',
-								localize('mergeEditor.accept', 'Accept {0}', model.input1Title),
+								localize('mergeEditor.accept', 'Accept {0}', model.input1.title),
 								state.toggle(1),
 								state.input1
 							)
@@ -184,7 +184,7 @@ export class InputCodeEditorView extends CodeEditorView {
 						baseRange.input2Diffs.length > 0
 							? action(
 								'mergeEditor.acceptInput2',
-								localize('mergeEditor.accept', 'Accept {0}', model.input2Title),
+								localize('mergeEditor.accept', 'Accept {0}', model.input2.title),
 								state.toggle(2),
 								state.input2
 							)

@@ -259,14 +259,18 @@ class MergeModelInterface extends Disposable {
 		const resultTextModel = this._register(createTextModel(options.result, options.languageId));
 		this.mergeModel = this._register(instantiationService.createInstance(MergeEditorModel,
 			baseTextModel,
-			input1TextModel,
-			'',
-			'',
-			'',
-			input2TextModel,
-			'',
-			'',
-			'',
+			{
+				textModel: input1TextModel,
+				description: '',
+				detail: '',
+				title: '',
+			},
+			{
+				textModel: input2TextModel,
+				description: '',
+				detail: '',
+				title: '',
+			},
 			resultTextModel,
 			instantiationService.createInstance(MergeDiffComputer,
 				{
@@ -311,7 +315,7 @@ class MergeModelInterface extends Disposable {
 			}))
 		);
 
-		const input1TextModel = createTextModel(this.mergeModel.input1.getValue());
+		const input1TextModel = createTextModel(this.mergeModel.input1.textModel.getValue());
 		applyRanges(
 			input1TextModel,
 			baseRanges.map<LabeledRange>((r, idx) => ({
@@ -320,7 +324,7 @@ class MergeModelInterface extends Disposable {
 			}))
 		);
 
-		const input2TextModel = createTextModel(this.mergeModel.input2.getValue());
+		const input2TextModel = createTextModel(this.mergeModel.input2.textModel.getValue());
 		applyRanges(
 			input2TextModel,
 			baseRanges.map<LabeledRange>((r, idx) => ({
@@ -329,7 +333,7 @@ class MergeModelInterface extends Disposable {
 			}))
 		);
 
-		const resultTextModel = createTextModel(this.mergeModel.result.getValue());
+		const resultTextModel = createTextModel(this.mergeModel.resultTextModel.getValue());
 		applyRanges(
 			resultTextModel,
 			baseRanges.map<LabeledRange>((r, idx) => ({
@@ -363,6 +367,6 @@ class MergeModelInterface extends Disposable {
 	}
 
 	getResult(): string {
-		return this.mergeModel.result.getValue();
+		return this.mergeModel.resultTextModel.getValue();
 	}
 }
