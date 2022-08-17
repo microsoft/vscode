@@ -86,12 +86,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private static readonly windowControlHeightStateStorageKey = 'windowControlHeight';
 
-	// TODO@electron this is a major hack to reduce the number of issues from
-	// trying to restore more than one fullscreen window on the same display
-	// at the same time.
-	// https://github.com/electron/electron/issues/34367
-	private static macOSPreventFullScreenWindow = false;
-
 	//#region Events
 
 	private readonly _onWillLoad = this._register(new Emitter<ILoadEvent>());
@@ -1192,23 +1186,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				// again ensure state is not outside display working area
 				// (it may have changed from the previous validation step)
 				ensureStateInDisplayWorkingArea();
-			}
-
-			// macOS does not allow us to open more than one window in fullscreen at once
-			// https://github.com/electron/electron/issues/34367
-			if (isMacintosh && state.mode === WindowMode.Fullscreen) {
-				if (!CodeWindow.macOSPreventFullScreenWindow) {
-					CodeWindow.macOSPreventFullScreenWindow = true; // block other fullscreen windows briefly
-					setTimeout(() => CodeWindow.macOSPreventFullScreenWindow = false);
-				} else {
-					const defaultMaximizedState = defaultWindowState(WindowMode.Maximized);
-
-					state.mode = defaultMaximizedState.mode;
-					state.x = defaultMaximizedState.x;
-					state.y = defaultMaximizedState.y;
-					state.width = defaultMaximizedState.width;
-					state.height = defaultMaximizedState.height;
-				}
 			}
 
 			return state;

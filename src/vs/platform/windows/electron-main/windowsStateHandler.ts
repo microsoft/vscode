@@ -150,6 +150,7 @@ export class WindowsStateHandler extends Disposable {
 		};
 
 		// 1.) Find a last active window (pick any other first window otherwise)
+		let lastActiveWindowStateOwner: ICodeWindow | undefined = undefined;
 		if (!currentWindowsState.lastActiveWindow) {
 			let activeWindow = this.windowsMainService.getLastActiveWindow();
 			if (!activeWindow || activeWindow.isExtensionDevelopmentHost) {
@@ -158,6 +159,7 @@ export class WindowsStateHandler extends Disposable {
 
 			if (activeWindow) {
 				currentWindowsState.lastActiveWindow = this.toWindowState(activeWindow);
+				lastActiveWindowStateOwner = activeWindow;
 			}
 		}
 
@@ -173,7 +175,13 @@ export class WindowsStateHandler extends Disposable {
 		// so if we ever want to persist the UI state of the last closed window (window count === 1), it has
 		// to come from the stored lastClosedWindowState on Win/Linux at least
 		if (this.windowsMainService.getWindowCount() > 1) {
-			currentWindowsState.openedWindows = this.windowsMainService.getWindows().filter(window => !window.isExtensionDevelopmentHost).map(window => this.toWindowState(window));
+			currentWindowsState.openedWindows = this.windowsMainService.getWindows().filter(window => !window.isExtensionDevelopmentHost).map(window => {
+				if (window === lastActiveWindowStateOwner && currentWindowsState.lastActiveWindow) {
+					return currentWindowsState.lastActiveWindow; // return same state when reaching last active window
+				}
+
+				return this.toWindowState(window);
+			});
 		}
 
 		// Persist
@@ -435,19 +443,56 @@ function restoreWindowState(windowState: ISerializedWindowState): IWindowState {
 }
 
 export function getWindowsStateStoreData(windowsState: IWindowsState): IWindowsState {
-	return {
-		lastActiveWindow: windowsState.lastActiveWindow && serializeWindowState(windowsState.lastActiveWindow),
-		lastPluginDevelopmentHostWindow: windowsState.lastPluginDevelopmentHostWindow && serializeWindowState(windowsState.lastPluginDevelopmentHostWindow),
-		openedWindows: windowsState.openedWindows.map(ws => serializeWindowState(ws))
-	};
+
+	// Count how many fullscreen windows per display we have
+	// to limit the number of fullscreen windows per display
+	// on macOS due to Electron not being able to properly
+	// restore multiple fullscreen windows per display.
+	// https://github.com/electron/electron/issues/34367
+	const mapDisplayToFullScreenCount = new Map<number | undefined, boolean>();
+
+	// Last active window
+	const lastActiveWindow = windowsState.lastActiveWindow ? serializeWindowState(windowsState.lastActiveWindow, true) : undefined;
+	if (lastActiveWindow?.uiState.mode === WindowMode.Fullscreen) {
+		mapDisplayToFullScreenCount.set(lastActiveWindow.uiState.display, true);
+	}
+
+	// Last extension development window
+	let lastPluginDevelopmentHostWindow: IWindowState | undefined = undefined;
+	if (windowsState.lastPluginDevelopmentHostWindow) {
+		const allowFullScreen = !isMacintosh || !mapDisplayToFullScreenCount.has(windowsState.lastPluginDevelopmentHostWindow.uiState.display);
+
+		lastPluginDevelopmentHostWindow = serializeWindowState(windowsState.lastPluginDevelopmentHostWindow, allowFullScreen);
+	}
+
+	// All opened windows
+	const openedWindows = windowsState.openedWindows.map(window => {
+		const allowFullScreen = !isMacintosh || window === lastActiveWindow || !mapDisplayToFullScreenCount.has(window.uiState.display);
+
+		return serializeWindowState(window, allowFullScreen);
+	});
+
+	return { lastActiveWindow, lastPluginDevelopmentHostWindow, openedWindows };
 }
 
-function serializeWindowState(windowState: IWindowState): ISerializedWindowState {
-	return {
-		workspaceIdentifier: windowState.workspace && { id: windowState.workspace.id, configURIPath: windowState.workspace.configPath.toString() },
-		folder: windowState.folderUri && windowState.folderUri.toString(),
+function serializeWindowState(windowState: IWindowState, allowFullScreen: boolean): ISerializedWindowState {
+	const state: ISerializedWindowState = {
+		workspaceIdentifier: windowState.workspace ? { id: windowState.workspace.id, configURIPath: windowState.workspace.configPath.toString() } : undefined,
+		folder: windowState.folderUri ? windowState.folderUri.toString() : undefined,
 		backupPath: windowState.backupPath,
 		remoteAuthority: windowState.remoteAuthority,
 		uiState: windowState.uiState
 	};
+
+	if (!allowFullScreen && state.uiState.mode === WindowMode.Fullscreen) {
+		const defaultMaximizedState = defaultWindowState(WindowMode.Maximized);
+
+		state.uiState.mode = defaultMaximizedState.mode;
+		state.uiState.x = defaultMaximizedState.x;
+		state.uiState.y = defaultMaximizedState.y;
+		state.uiState.width = defaultMaximizedState.width;
+		state.uiState.height = defaultMaximizedState.height;
+	}
+
+	return state;
 }
