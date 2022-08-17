@@ -8,7 +8,7 @@ import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/com
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { memoize } from 'vs/base/common/decorators';
-import * as errors from 'vs/base/common/errors';
+import { CancellationError } from 'vs/base/common/errors';
 import { Emitter, Event, EventMultiplexer, Relay } from 'vs/base/common/event';
 import { combinedDisposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
@@ -516,7 +516,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		return {
 			call(command: string, arg?: any, cancellationToken?: CancellationToken) {
 				if (that.isDisposed) {
-					return Promise.reject(errors.canceled());
+					return Promise.reject(new CancellationError());
 				}
 				return that.requestPromise(channelName, command, arg, cancellationToken);
 			},
@@ -535,14 +535,14 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		const request: IRawRequest = { id, type, channelName, name, arg };
 
 		if (cancellationToken.isCancellationRequested) {
-			return Promise.reject(errors.canceled());
+			return Promise.reject(new CancellationError());
 		}
 
 		let disposable: IDisposable;
 
 		const result = new Promise((c, e) => {
 			if (cancellationToken.isCancellationRequested) {
-				return e(errors.canceled());
+				return e(new CancellationError());
 			}
 
 			const doRequest = () => {
@@ -591,7 +591,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 					this.sendRequest({ id, type: RequestType.PromiseCancel });
 				}
 
-				e(errors.canceled());
+				e(new CancellationError());
 			};
 
 			const cancellationTokenListener = cancellationToken.onCancellationRequested(cancel);
