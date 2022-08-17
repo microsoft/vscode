@@ -284,11 +284,10 @@ export class MangeSettingsProfileAction extends Action2 {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const commandService = accessor.get(ICommandService);
 
-		const disposables = new DisposableStore();
-		const menu = disposables.add(menuService.createMenu(ManageProfilesSubMenu, contextKeyService));
+		const menu = menuService.createMenu(ManageProfilesSubMenu, contextKeyService);
 		const actions: IAction[] = [];
-		disposables.add(createAndFillInActionBarActions(menu, undefined, actions));
-		disposables.dispose();
+		createAndFillInActionBarActions(menu, undefined, actions);
+		menu.dispose();
 
 		if (actions.length) {
 			const picks: (IQuickPickItem | IQuickPickSeparator)[] = actions.map(action => {
