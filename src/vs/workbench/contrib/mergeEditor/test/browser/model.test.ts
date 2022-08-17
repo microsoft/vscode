@@ -257,35 +257,43 @@ class MergeModelInterface extends Disposable {
 		const input2TextModel = this._register(createTextModel(options.input2, options.languageId));
 		const baseTextModel = this._register(createTextModel(options.base, options.languageId));
 		const resultTextModel = this._register(createTextModel(options.result, options.languageId));
+
+		const diffComputer = instantiationService.createInstance(MergeDiffComputer,
+			{
+				// Don't go through the webworker to improve unit test performance & reduce dependencies
+				async computeDiff(textModel1, textModel2) {
+					const result = linesDiffComputers.smart.computeDiff(
+						textModel1.getLinesContent(),
+						textModel2.getLinesContent(),
+						{ ignoreTrimWhitespace: false, maxComputationTime: 10000 }
+					);
+					return {
+						changes: result.changes,
+						quitEarly: result.quitEarly,
+						identical: result.changes.length === 0
+					};
+				},
+			}
+		);
+
 		this.mergeModel = this._register(instantiationService.createInstance(MergeEditorModel,
 			baseTextModel,
-			input1TextModel,
-			'',
-			'',
-			'',
-			input2TextModel,
-			'',
-			'',
-			'',
+			{
+				textModel: input1TextModel,
+				description: '',
+				detail: '',
+				title: '',
+			},
+			{
+				textModel: input2TextModel,
+				description: '',
+				detail: '',
+				title: '',
+			},
 			resultTextModel,
-			instantiationService.createInstance(MergeDiffComputer,
-				{
-					// Don't go through the webworker to improve unit test performance & reduce dependencies
-					async computeDiff(textModel1, textModel2) {
-						const result = linesDiffComputers.smart.computeDiff(
-							textModel1.getLinesContent(),
-							textModel2.getLinesContent(),
-							{ ignoreTrimWhitespace: false, maxComputationTime: 10000 }
-						);
-						return {
-							changes: result.changes,
-							quitEarly: result.quitEarly,
-							identical: result.changes.length === 0
-						};
-					},
-				}), {
-			resetUnknownOnInitialization: false
-		}
+			diffComputer,
+			diffComputer,
+			{ resetUnknownOnInitialization: false }
 		));
 	}
 
@@ -311,7 +319,7 @@ class MergeModelInterface extends Disposable {
 			}))
 		);
 
-		const input1TextModel = createTextModel(this.mergeModel.input1.getValue());
+		const input1TextModel = createTextModel(this.mergeModel.input1.textModel.getValue());
 		applyRanges(
 			input1TextModel,
 			baseRanges.map<LabeledRange>((r, idx) => ({
@@ -320,7 +328,7 @@ class MergeModelInterface extends Disposable {
 			}))
 		);
 
-		const input2TextModel = createTextModel(this.mergeModel.input2.getValue());
+		const input2TextModel = createTextModel(this.mergeModel.input2.textModel.getValue());
 		applyRanges(
 			input2TextModel,
 			baseRanges.map<LabeledRange>((r, idx) => ({
@@ -329,7 +337,7 @@ class MergeModelInterface extends Disposable {
 			}))
 		);
 
-		const resultTextModel = createTextModel(this.mergeModel.result.getValue());
+		const resultTextModel = createTextModel(this.mergeModel.resultTextModel.getValue());
 		applyRanges(
 			resultTextModel,
 			baseRanges.map<LabeledRange>((r, idx) => ({
@@ -363,6 +371,6 @@ class MergeModelInterface extends Disposable {
 	}
 
 	getResult(): string {
-		return this.mergeModel.result.getValue();
+		return this.mergeModel.resultTextModel.getValue();
 	}
 }

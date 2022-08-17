@@ -309,20 +309,31 @@ export class Filter implements ITreeFilter<ResourceWithCommentThreads | CommentN
 			return true;
 		}
 
-		const textMatches = FilterOptions._messageFilter(this.options.textFilter.text, typeof comment.comment.body === 'string' ? comment.comment.body : comment.comment.body.value);
+		const textMatches =
+			// Check body of comment for value
+			FilterOptions._messageFilter(this.options.textFilter.text, typeof comment.comment.body === 'string' ? comment.comment.body : comment.comment.body.value)
+			// Check first user for value
+			|| FilterOptions._messageFilter(this.options.textFilter.text, comment.comment.userName)
+			// Check all replies for value
+			|| (comment.replies.map(reply => {
+				// Check user for value
+				return FilterOptions._messageFilter(this.options.textFilter.text, reply.comment.userName)
+					// Check body of reply for value
+					|| FilterOptions._messageFilter(this.options.textFilter.text, typeof reply.comment.body === 'string' ? reply.comment.body : reply.comment.body.value);
+			}).filter(value => !!value) as IMatch[][]).flat();
 
 		// Matched and not negated
-		if (textMatches && !this.options.textFilter.negate) {
+		if (textMatches.length && !this.options.textFilter.negate) {
 			return { visibility: true, data: { type: FilterDataType.Comment, textMatches } };
 		}
 
 		// Matched and negated - exclude it only if parent visibility is not set
-		if (textMatches && this.options.textFilter.negate && parentVisibility === TreeVisibility.Recurse) {
+		if (textMatches.length && this.options.textFilter.negate && parentVisibility === TreeVisibility.Recurse) {
 			return false;
 		}
 
 		// Not matched and negated - include it only if parent visibility is not set
-		if (!textMatches && this.options.textFilter.negate && parentVisibility === TreeVisibility.Recurse) {
+		if ((textMatches.length === 0) && this.options.textFilter.negate && parentVisibility === TreeVisibility.Recurse) {
 			return true;
 		}
 

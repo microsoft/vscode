@@ -123,6 +123,10 @@ export class ResultCodeEditorView extends CodeEditorView {
 		);
 
 		this._register(autorun('update remainingConflicts label', reader => {
+			// this is a bit of a hack, but it's the easiest way to get the label to update
+			// when the view model updates, as the the base class resets the label in the setModel call.
+			this.viewModel.read(reader);
+
 			const model = this.model.read(reader);
 			if (!model) {
 				return;
