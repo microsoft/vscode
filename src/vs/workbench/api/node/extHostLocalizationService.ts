@@ -14,6 +14,19 @@ import { AbstractExtHostLocalizationService } from 'vs/workbench/api/common/extH
 export class ExtHostLocalizationService extends AbstractExtHostLocalizationService {
 	private getBundleLocation(extension: IExtensionDescription): string | undefined {
 		// TODO: support builtin extensions
+		// if (extension.isBuiltin) {
+		// 	const languagePacks = this.initData.allExtensions.filter(e => e.contributes?.localizations);
+		// 	for (const languagePack of languagePacks) {
+		// 		const firstTranslationOfExtension = languagePack.contributes!.localizations!
+		// 			.filter(l => l.languageId === Language.value() && l.translations.some(t => t.id === extension.identifier.value))
+		// 			.map(l => l.translations)
+		// 			.flat()
+		// 			.find(t => t.id === extension.identifier.value);
+		// 		if (firstTranslationOfExtension) {
+		// 			return path.join(originalFSPath(languagePack.extensionLocation), firstTranslationOfExtension.path);
+		// 		}
+		// 	}
+		// }
 
 		if (extension.i18nBundleLocation) {
 			return path.join(originalFSPath(extension.extensionLocation), extension.i18nBundleLocation);
