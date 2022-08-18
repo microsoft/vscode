@@ -625,6 +625,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	protected _disposeTaskSystemListeners(): void {
 		if (this._taskSystemListeners) {
 			dispose(this._taskSystemListeners);
+			this._taskSystemListeners = undefined;
 		}
 	}
 
