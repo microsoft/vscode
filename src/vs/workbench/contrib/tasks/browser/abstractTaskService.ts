@@ -337,7 +337,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._waitForSupportedExecutions = new Promise(resolve => {
 			once(this._onDidRegisterSupportedExecutions.event)(() => resolve());
 		});
-		this._register(this.onDidReconnectToTerminals(async () => await this._attemptTaskReconnection()));
+		this._register(this.onDidReconnectToTerminals(async () => {
+			await this._waitForSupportedExecutions;
+			await this._attemptTaskReconnection();
+		}));
+
 		this._register(this._onDidRegisterSupportedExecutions.event(async () => await this._attemptTaskReconnection()));
 		this._upgrade();
 	}

@@ -6,7 +6,7 @@
 import { EventType } from 'vs/base/browser/dom';
 import { Emitter } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { QuickPickItem, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IDetectedLinks } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILink } from 'xterm';
@@ -80,4 +80,4 @@ export interface ITerminalLinkQuickPickItem extends IQuickPickItem {
 	link: ILink;
 }
 
-type LinkQuickPickItem = ITerminalLinkQuickPickItem | IQuickPickSeparator | IQuickPickItem;
+type LinkQuickPickItem = ITerminalLinkQuickPickItem | QuickPickItem;
