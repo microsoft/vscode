@@ -599,6 +599,7 @@ export interface MainThreadStorageShape extends IDisposable {
 export interface MainThreadTelemetryShape extends IDisposable {
 	$publicLog(eventName: string, data?: any): void;
 	$publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void;
+	$logTelemetryToOutputChannel(eventName: string, data: Record<string, any>): void;
 }
 
 export interface MainThreadEditorInsetsShape extends IDisposable {
@@ -1625,6 +1626,8 @@ export interface IWorkspaceEditDto {
 	edits: Array<IWorkspaceFileEditDto | IWorkspaceTextEditDto | IWorkspaceCellEditDto>;
 }
 
+export function reviveWorkspaceEditDto(data: IWorkspaceEditDto): languages.WorkspaceEdit;
+export function reviveWorkspaceEditDto(data: IWorkspaceEditDto | undefined): languages.WorkspaceEdit | undefined;
 export function reviveWorkspaceEditDto(data: IWorkspaceEditDto | undefined): languages.WorkspaceEdit | undefined {
 	if (data && data.edits) {
 		revive<languages.WorkspaceEdit>(data);

@@ -133,7 +133,9 @@ else
 	if [[ "$__vsc_dbg_trap" =~ .*\[\[.* ]]; then
 		#HACK - is there a better way to do this?
 		__vsc_dbg_trap=${__vsc_dbg_trap#'trap -- '*}
-		__vsc_dbg_trap=${__vsc_dbg_trap%'DEBUG'}
+		__vsc_dbg_trap=${__vsc_dbg_trap%' DEBUG'}
+		__vsc_dbg_trap=${__vsc_dbg_trap#"'"*}
+		__vsc_dbg_trap=${__vsc_dbg_trap%"'"}
 	else
 		__vsc_dbg_trap="$(trap -p DEBUG | cut -d' ' -f3 | tr -d \')"
 	fi
@@ -159,6 +161,10 @@ fi
 
 __vsc_update_prompt
 
+__vsc_restore_exit_code() {
+	return $1
+}
+
 __vsc_prompt_cmd_original() {
 	__vsc_status="$?"
 	# Evaluate the original PROMPT_COMMAND similarly to how bash would normally
@@ -169,6 +175,7 @@ __vsc_prompt_cmd_original() {
 			eval "${cmd:-}"
 		done
 	else
+		__vsc_restore_exit_code "${__vsc_status}"
 		eval "${__vsc_original_prompt_command:-}"
 	fi
 	__vsc_precmd

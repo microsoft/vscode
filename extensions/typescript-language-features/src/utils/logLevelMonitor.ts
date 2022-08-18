@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { localize } from '../tsServer/versionProvider';
+import * as nls from 'vscode-nls';
 import { TsServerLogLevel } from './configuration';
 import { Disposable } from './dispose';
+
+const localize = nls.loadMessageBundle();
 
 export class LogLevelMonitor extends Disposable {
 

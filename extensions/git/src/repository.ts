@@ -619,7 +619,7 @@ class ResourceCommandResolver {
 			const bothModified = resource.type === Status.BOTH_MODIFIED;
 			if (resource.rightUri && workspace.getConfiguration('git').get<boolean>('mergeEditor', false) && (bothModified || resource.type === Status.BOTH_ADDED)) {
 				return {
-					command: '_git.openMergeEditor',
+					command: 'git.openMergeEditor',
 					title: localize('open.merge', "Open Merge"),
 					arguments: [resource.rightUri]
 				};
@@ -914,6 +914,7 @@ export class Repository implements Disposable {
 		const root = Uri.file(repository.root);
 		this._sourceControl = scm.createSourceControl('git', 'Git', root);
 
+		this._sourceControl.acceptInputCommand = { command: 'git.commit', title: localize('commit', "Commit"), arguments: [this._sourceControl] };
 		this._sourceControl.quickDiffProvider = this;
 		this._sourceControl.inputBox.validateInput = this.validateInput.bind(this);
 		this.disposables.push(this._sourceControl);
@@ -937,7 +938,8 @@ export class Repository implements Disposable {
 
 		workspace.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('git.mergeEditor')) {
-				this.mergeGroup.resourceStates = this.mergeGroup.resourceStates.map(r => r.clone());
+				// this.mergeGroup.resourceStates = this.mergeGroup.resourceStates.map(r => r.clone());
+				this.status();
 			}
 		}, undefined, this.disposables);
 
@@ -949,17 +951,6 @@ export class Repository implements Disposable {
 			|| e.affectsConfiguration('git.openDiffOnClick', root)
 			|| e.affectsConfiguration('git.showActionButton', root)
 		)(this.updateModelState, this, this.disposables);
-
-		const updateInputBoxAcceptInputCommand = () => {
-			const config = workspace.getConfiguration('git', root);
-			const postCommitCommand = config.get<string>('postCommitCommand');
-			const postCommitCommandArg = postCommitCommand === 'push' || postCommitCommand === 'sync' ? `git.${postCommitCommand}` : '';
-			this._sourceControl.acceptInputCommand = { command: 'git.commit', title: localize('commit', "Commit"), arguments: [this._sourceControl, postCommitCommandArg] };
-		};
-
-		const onConfigListenerForPostCommitCommand = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.postCommitCommand', root));
-		onConfigListenerForPostCommitCommand(updateInputBoxAcceptInputCommand, this, this.disposables);
-		updateInputBoxAcceptInputCommand();
 
 		const updateInputBoxVisibility = () => {
 			const config = workspace.getConfiguration('git', root);

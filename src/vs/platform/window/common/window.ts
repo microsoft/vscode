@@ -165,16 +165,20 @@ export function getTitleBarStyle(configurationService: IConfigurationService): '
 }
 
 export function useWindowControlsOverlay(configurationService: IConfigurationService, environmentService: IEnvironmentService): boolean {
-	// Window Controls Overlay are only configurable on Windows
 	if (!isWindows || isWeb || !environmentService.isBuilt) {
-		return false;
+		return false; // only supported on a built desktop windows instance
 	}
 
 	if (getTitleBarStyle(configurationService) === 'native') {
-		return false;
+		return false; // only supported when title bar is custom
 	}
 
-	return configurationService.getValue<boolean>('window.experimental.windowControlsOverlay.enabled');
+	const configuredUseWindowControlsOverlay = configurationService.getValue<boolean | undefined>('window.experimental.windowControlsOverlay.enabled');
+	if (typeof configuredUseWindowControlsOverlay === 'boolean') {
+		return configuredUseWindowControlsOverlay;
+	}
+
+	return true; // enabled by default
 }
 
 export interface IPath<T = IEditorOptions> extends IPathData<T> {
@@ -269,6 +273,18 @@ export interface IOSConfiguration {
 	readonly hostname: string;
 }
 
+export interface IUserDataProfileInfo {
+	readonly name?: string;
+}
+
+export function isUserDataProfileInfo(thing: unknown): thing is IUserDataProfileInfo {
+	const candidate = thing as IUserDataProfileInfo | undefined;
+
+	return !!(candidate && typeof candidate === 'object'
+		&& typeof candidate.name === 'string'
+	);
+}
+
 export interface INativeWindowConfiguration extends IWindowConfiguration, NativeParsedArgs, ISandboxConfiguration {
 	mainPid: number;
 
@@ -279,7 +295,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 
 	profiles: {
 		all: readonly UriDto<IUserDataProfile>[];
-		current: UriDto<IUserDataProfile>;
+		workspace: UriDto<IUserDataProfile> | IUserDataProfileInfo;
 	};
 
 	homeDir: string;

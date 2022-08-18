@@ -6,7 +6,8 @@
 import { Promises } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, IUserDataProfilesService, WorkspaceIdentifier } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IAnyWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export class UserDataProfileService extends Disposable implements IUserDataProfileService {
@@ -24,7 +25,7 @@ export class UserDataProfileService extends Disposable implements IUserDataProfi
 
 	constructor(
 		currentProfile: IUserDataProfile,
-		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService
 	) {
 		super();
 		this._currentProfile = currentProfile;
@@ -63,4 +64,23 @@ export class UserDataProfileService extends Disposable implements IUserDataProfi
 		});
 		await Promises.settled(joiners);
 	}
+
+	async initProfileWithName(profileName: string, anyWorkspaceIdentifier: IAnyWorkspaceIdentifier): Promise<void> {
+		if (this.currentProfile.name === profileName) {
+			return;
+		}
+		const workspaceIdentifier = this.getWorkspaceIdentifier(anyWorkspaceIdentifier);
+		let profile = this.userDataProfilesService.profiles.find(p => p.name === profileName);
+		if (profile) {
+			await this.userDataProfilesService.setProfileForWorkspace(profile, workspaceIdentifier);
+		} else {
+			profile = await this.userDataProfilesService.createProfile(profileName, undefined, workspaceIdentifier);
+		}
+		await this.updateCurrentProfile(profile, false);
+	}
+
+	private getWorkspaceIdentifier(anyWorkspaceIdentifier: IAnyWorkspaceIdentifier): WorkspaceIdentifier {
+		return isSingleFolderWorkspaceIdentifier(anyWorkspaceIdentifier) || isWorkspaceIdentifier(anyWorkspaceIdentifier) ? anyWorkspaceIdentifier : 'empty-window';
+	}
+
 }
