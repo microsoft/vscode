@@ -13,7 +13,7 @@ import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticip
 import { focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 
-export enum Boundary {
+enum Boundary {
 	Top,
 	Bottom
 }
