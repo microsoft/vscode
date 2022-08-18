@@ -144,7 +144,6 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			void this.progressService.withProgress({ location: ProgressLocation.Window, type: 'syncing', title: localize('resuming edit session window', 'Resuming edit session...') }, async () => {
 				await this.resumeEditSession(undefined, true);
 			});
-			this._register(this.fileService.registerProvider(EditSessionsFileSystemProvider.SCHEMA, new EditSessionsFileSystemProvider(this.editSessionsStorageService)));
 		}
 	}
 
