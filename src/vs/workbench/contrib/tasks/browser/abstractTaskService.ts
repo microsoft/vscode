@@ -357,6 +357,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _attemptTaskReconnection(): Promise<void> {
+		if (!this._taskSystem) {
+			this._logService.info('getting task system');
+			await this._getTaskSystem();
+		}
 		this._logService.info('attempting task reconnection', this._jsonTasksSupported, !this._tasksReconnected, this._terminalsReconnected);
 		if (this._configurationService.getValue(TaskSettingId.Reconnection) === true && this._jsonTasksSupported && !this._tasksReconnected && this._terminalsReconnected) {
 			await this._reconnectTasks();
@@ -370,9 +374,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return;
 		}
 		const tasks = await this.getSavedTasks('persistent');
-		if (!this._taskSystem) {
-			await this._getTaskSystem();
-		}
 		if (!tasks.length) {
 			this._tasksReconnected = true;
 			return;
