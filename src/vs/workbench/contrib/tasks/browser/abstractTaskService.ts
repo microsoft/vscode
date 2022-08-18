@@ -53,7 +53,7 @@ import { ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSyst
 import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/common/taskTemplates';
 
 import * as TaskConfig from '../common/taskConfiguration';
-import { TerminalTaskSystem } from './terminalTaskSystem';
+import { terminalsNotReconnectedExitCode, TerminalTaskSystem } from './terminalTaskSystem';
 
 import { IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickSeparator, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 
@@ -388,7 +388,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		const tasks = await this.getSavedTasks('persistent');
 		if (!tasks.length) {
-			this._tasksReconnected = true;
 			return true;
 		}
 		for (const task of tasks) {
@@ -401,11 +400,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			} else {
 				result = await this.run(task, undefined, TaskRunSource.Reconnect);
 			}
-			if (result?.exitCode === 7) {
-				this._logService.info('result.exitCode');
+			if (result?.exitCode === terminalsNotReconnectedExitCode) {
+				this._logService.trace('Terminals were not reconnected');
 				return false;
-			} else {
-				this._tasksReconnected = true;
 			}
 		}
 		return true;
