@@ -177,42 +177,45 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			return true;
 		}
 
+		const authenticationSession = await this.getAuthenticationSession();
+		if (authenticationSession !== undefined) {
+			this.#authenticationInfo = authenticationSession;
+			this.storeClient.setAuthToken(authenticationSession.token, authenticationSession.providerId);
+		}
+
+		return authenticationSession !== undefined;
+	}
+
+	private async getAuthenticationSession() {
 		// If the user signed in previously and the session is still available, reuse that without prompting the user again
-		const existingSessionId = this.existingSessionId;
-		if (existingSessionId) {
-			this.logService.trace(`Searching for existing authentication session with ID ${existingSessionId}`);
-			const existing = await this.getExistingSession();
-			if (existing !== undefined) {
-				this.logService.trace(`Found existing authentication session with ID ${existingSessionId}`);
-				this.#authenticationInfo = { sessionId: existing.session.id, token: existing.session.idToken ?? existing.session.accessToken, providerId: existing.session.providerId };
-				this.storeClient.setAuthToken(this.#authenticationInfo.token, this.#authenticationInfo.providerId);
-				return true;
+		if (this.existingSessionId) {
+			this.logService.trace(`Searching for existing authentication session with ID ${this.existingSessionId}`);
+			const existingSession = await this.getExistingSession();
+			if (existingSession) {
+				this.logService.trace(`Found existing authentication session with ID ${existingSession.session.id}`);
+				return { sessionId: existingSession.session.id, token: existingSession.session.idToken ?? existingSession.session.accessToken, providerId: existingSession.session.providerId };
 			}
 		}
 
 		// If settings sync is already enabled, avoid asking again to authenticate
 		if (this.userDataSyncEnablementService.isEnabled()) {
-			this.logService.trace(`Reusing settings sync authentication preference`);
-			const authenticationSession = await getCurrentAuthenticationSessionInfo(this.credentialsService, this.productService);
-			if (authenticationSession !== undefined) {
-				this.logService.trace(`Using current authentication session with ID ${authenticationSession.id}`);
-				this.#authenticationInfo = { sessionId: authenticationSession.id, token: authenticationSession.accessToken, providerId: authenticationSession.providerId };
-				this.storeClient.setAuthToken(this.#authenticationInfo.token, this.#authenticationInfo.providerId);
-				return true;
+			this.logService.trace(`Reusing user data sync enablement`);
+			const authenticationSessionInfo = await getCurrentAuthenticationSessionInfo(this.credentialsService, this.productService);
+			if (authenticationSessionInfo !== undefined) {
+				this.logService.trace(`Using current authentication session with ID ${authenticationSessionInfo.id}`);
+				this.existingSessionId = authenticationSessionInfo.id;
+				return { sessionId: authenticationSessionInfo.id, token: authenticationSessionInfo.accessToken, providerId: authenticationSessionInfo.providerId };
 			}
 		}
 
 		// Ask the user to pick a preferred account
-		const session = await this.getAccountPreference();
-		if (session !== undefined) {
-			this.#authenticationInfo = { sessionId: session.id, token: session.idToken ?? session.accessToken, providerId: session.providerId };
-			this.storeClient.setAuthToken(this.#authenticationInfo.token, this.#authenticationInfo.providerId);
-			this.existingSessionId = session.id;
-			this.logService.trace(`Saving authentication session preference for ID ${session.id}.`);
-			return true;
+		const authenticationSession = await this.getAccountPreference();
+		if (authenticationSession !== undefined) {
+			this.existingSessionId = authenticationSession.id;
+			return { sessionId: authenticationSession.id, token: authenticationSession.idToken ?? authenticationSession.accessToken, providerId: authenticationSession.providerId };
 		}
 
-		return false;
+		return undefined;
 	}
 
 	/**
@@ -326,6 +329,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	}
 
 	private set existingSessionId(sessionId: string | undefined) {
+		this.logService.trace(`Saving authentication session preference for ID ${sessionId}.`);
 		if (sessionId === undefined) {
 			this.storageService.remove(EditSessionsWorkbenchService.CACHED_SESSION_STORAGE_KEY, StorageScope.APPLICATION);
 		} else {
