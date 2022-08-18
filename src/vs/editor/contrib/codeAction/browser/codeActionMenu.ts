@@ -692,7 +692,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 
 		let actionsToShow = options.includeDisabledActions ? codeActions.allActions : codeActions.validActions;
 
-		if (trigger.triggerAction === CodeActionTriggerSource.Refactor) {
+		if (trigger.triggerAction === CodeActionTriggerSource.Refactor && codeActions.validActions.length > 0) {
 			actionsToShow = showDisabled ? codeActions.allActions : codeActions.validActions;
 		}
 
