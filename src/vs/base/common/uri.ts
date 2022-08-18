@@ -643,13 +643,18 @@ function _asFormatted(uri: URI, skipEncoding: boolean): string {
 			res += '@';
 		}
 		authority = authority.toLowerCase();
-		idx = authority.indexOf(':');
-		if (idx === -1) {
-			res += encoder(authority, false);
+		if (authority.charCodeAt(0) === CharCode.OpenSquareBracket && authority.indexOf(']') !== -1) {
+			// [<ipv6>] or [<ipv6>]:<port>
+			res += authority;
 		} else {
-			// <auth>:<port>
-			res += encoder(authority.substr(0, idx), false);
-			res += authority.substr(idx);
+			idx = authority.indexOf(':');
+			if (idx === -1) {
+				res += encoder(authority, false);
+			} else {
+				// <auth>:<port>
+				res += encoder(authority.substr(0, idx), false);
+				res += authority.substr(idx);
+			}
 		}
 	}
 	if (path) {

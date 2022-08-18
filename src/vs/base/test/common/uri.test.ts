@@ -488,6 +488,20 @@ suite('URI', () => {
 		assert.strictEqual(strIn, strOut); // fails here!!
 	});
 
+	test('IPV6 literal #154048', function () {
+		assert.strictEqual(
+			URI.parse('http://[FEDC:BA98:7654:3210:FEDC:BA98:7654:3210]/index.html').toString(),
+			'http://[fedc:ba98:7654:3210:fedc:ba98:7654:3210]/index.html');
+
+		assert.strictEqual(
+			URI.parse('http://[fedc:ba98:7654:3210:fedc:ba98:7654:3210]:80/index.html').toString(),
+			'http://[fedc:ba98:7654:3210:fedc:ba98:7654:3210]:80/index.html');
+
+		assert.strictEqual(
+			URI.parse('http://user:password@[fedc:ba98:7654:3210:fedc:ba98:7654:3210]:80/index.html').toString(),
+			'http://user:password@[fedc:ba98:7654:3210:fedc:ba98:7654:3210]:80/index.html');
+	});
+
 	test.skip('Uri#parse can break path-component #45515', function () {
 		const strIn = 'https://firebasestorage.googleapis.com/v0/b/brewlangerie.appspot.com/o/products%2FzVNZkudXJyq8bPGTXUxx%2FBetterave-Sesame.jpg?alt=media&token=0b2310c4-3ea6-4207-bbde-9c3710ba0437';
 		const uri1 = URI.parse(strIn);
