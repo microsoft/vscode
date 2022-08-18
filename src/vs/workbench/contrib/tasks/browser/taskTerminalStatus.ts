@@ -59,7 +59,7 @@ export class TaskTerminalStatus extends Disposable {
 		});
 		problemMatcher.onDidFindErrors(() => {
 			if (this._marker) {
-				terminal.addBufferMarker(undefined, this._marker, false);
+				terminal.addBufferMarker(undefined, this._marker);
 			}
 		});
 		problemMatcher.onDidRequestInvalidateLastMarker(() => {
