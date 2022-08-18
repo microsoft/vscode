@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import product from 'vs/platform/product/common/product';
-import { INativeWindowConfiguration, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
+import { INativeWindowConfiguration, IUserDataProfileInfo, isUserDataProfileInfo, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
 import { Workbench } from 'vs/workbench/browser/workbench';
 import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
 import { setZoomLevel, setZoomFactor, setFullscreen } from 'vs/base/browser/browser';
@@ -50,7 +50,7 @@ import { isCI, isMacintosh } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/workbench/services/files/electron-sandbox/diskFileSystemProvider';
 import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
-import { IUserDataProfilesService, reviveProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, IUserDataProfilesService, reviveProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { UserDataProfilesNativeService } from 'vs/platform/userDataProfile/electron-sandbox/userDataProfile';
 import { PolicyChannelClient } from 'vs/platform/policy/common/policyIpc';
 import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
@@ -241,13 +241,19 @@ export class DesktopMain extends Disposable {
 		// User Data Profiles
 		const userDataProfilesService = new UserDataProfilesNativeService(this.configuration.profiles.all, mainProcessService, environmentService);
 		serviceCollection.set(IUserDataProfilesService, userDataProfilesService);
-		const userDataProfileService = new UserDataProfileService(this.configuration.profiles.profile ? reviveProfile(this.configuration.profiles.profile, userDataProfilesService.profilesHome.scheme) : userDataProfilesService.defaultProfile, userDataProfilesService);
+
+		// User Data profile
+		let profile: IUserDataProfile | undefined, profileInfo: IUserDataProfileInfo | undefined;
+		if (isUserDataProfileInfo(this.configuration.profiles.workspaceProfile)) {
+			profileInfo = this.configuration.profiles.workspaceProfile;
+		} else {
+			profile = reviveProfile(this.configuration.profiles.workspaceProfile, userDataProfilesService.profilesHome.scheme);
+		}
+		const userDataProfileService = new UserDataProfileService(profile ?? userDataProfilesService.defaultProfile, userDataProfilesService);
 		serviceCollection.set(IUserDataProfileService, userDataProfileService);
-
 		const payload = this.resolveWorkspaceInitializationPayload(environmentService);
-
-		if (this.configuration.profiles.profileOptions?.name) {
-			await userDataProfileService.initProfileWithName(this.configuration.profiles.profileOptions.name, payload);
+		if (profileInfo?.name) {
+			await userDataProfileService.initProfileWithName(profileInfo.name, payload);
 
 			if (!userDataProfilesService.profiles.some(profile => profile.id === userDataProfileService.currentProfile.id)) {
 				await userDataProfilesService.reload(); // reload profiles if the current profile does not exist
