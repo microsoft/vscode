@@ -283,9 +283,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	}
 
 	public run(task: Task, resolver: ITaskResolver, trigger: string = Triggers.command): ITaskExecuteResult {
-		if (trigger === Triggers.reconnect && !this._reconnectedTerminals?.length) {
-			throw new Error('Trying to reconnect to task when there are no terminals');
-		}
 		task = task.clone(); // A small amount of task state is stored in the task (instance) and tasks passed in to run may have that set already.
 		const recentTaskKey = task.getRecentlyUsedKey() ?? '';
 		const validInstance = task.runOptions && task.runOptions.instanceLimit && this._instances[recentTaskKey] && this._instances[recentTaskKey].instances < task.runOptions.instanceLimit;

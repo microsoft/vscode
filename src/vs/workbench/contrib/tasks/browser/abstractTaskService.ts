@@ -328,7 +328,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				this._setPersistentTask(e.__task);
 			}
 		}));
-		this._register(this.onDidReconnectToTerminals(async () => await this._attemptTaskReconnection()));
+		this._register(this.onDidReconnectToTerminals(async () => {
+			this._terminalsReconnected = true;
+			await this._attemptTaskReconnection();
+		}));
 		this._waitForSupportedExecutions = new Promise(resolve => {
 			once(this._onDidRegisterSupportedExecutions.event)(() => resolve());
 		});
@@ -373,22 +376,17 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._tasksReconnected = true;
 			return;
 		}
-
-		try {
-			for (const task of tasks) {
-				if (ConfiguringTask.is(task)) {
-					const resolved = await this.tryResolveTask(task);
-					if (resolved) {
-						this.run(resolved, undefined, TaskRunSource.Reconnect);
-					}
-				} else {
-					this.run(task, undefined, TaskRunSource.Reconnect);
+		for (const task of tasks) {
+			if (ConfiguringTask.is(task)) {
+				const resolved = await this.tryResolveTask(task);
+				if (resolved) {
+					this.run(resolved, undefined, TaskRunSource.Reconnect);
 				}
+			} else {
+				this.run(task, undefined, TaskRunSource.Reconnect);
 			}
-			this._tasksReconnected = true;
-		} catch (e) {
-			this._logService.warn('Tasks were not reconnected on this attempt');
 		}
+		this._tasksReconnected = true;
 	}
 
 	public get onDidStateChange(): Event<ITaskEvent> {
