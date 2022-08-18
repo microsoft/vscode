@@ -11,7 +11,7 @@ import { refineServiceDecorator } from 'vs/platform/instantiation/common/instant
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IUserDataProfilesService, WorkspaceIdentifier, StoredUserDataProfile, StoredProfileAssociations, WillCreateProfileEvent, WillRemoveProfileEvent } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfilesService, WorkspaceIdentifier, StoredUserDataProfile, StoredProfileAssociations, WillCreateProfileEvent, WillRemoveProfileEvent, IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { UserDataProfilesService } from 'vs/platform/userDataProfile/node/userDataProfile';
 import { IStringDictionary } from 'vs/base/common/collections';
 
@@ -19,6 +19,7 @@ export const IUserDataProfilesMainService = refineServiceDecorator<IUserDataProf
 export interface IUserDataProfilesMainService extends IUserDataProfilesService {
 	isEnabled(): boolean;
 	unsetWorkspace(workspaceIdentifier: WorkspaceIdentifier): Promise<void>;
+	reload(): Promise<IUserDataProfile[]>;
 	readonly onWillCreateProfile: Event<WillCreateProfileEvent>;
 	readonly onWillRemoveProfile: Event<WillRemoveProfileEvent>;
 }

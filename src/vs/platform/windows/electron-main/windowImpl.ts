@@ -121,7 +121,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	get openedWorkspace(): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined { return this._config?.workspace; }
 
-	get profile(): IUserDataProfile | undefined { return this.config ? this.userDataProfilesService.getProfile(this.config.workspace ?? 'empty-window', revive(this.config.profiles.current)) : undefined; }
+	get profile(): IUserDataProfile | undefined { return this.config ? this.userDataProfilesService.getProfile(this.config.workspace ?? 'empty-window', revive(this.config.profiles.workspace)) : undefined; }
 
 	get remoteAuthority(): string | undefined { return this._config?.remoteAuthority; }
 
@@ -972,7 +972,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		configuration.policiesData = this.policyService.serialize(); // set policies data again
 		configuration.profiles = {
 			all: this.userDataProfilesService.profiles,
-			current: this.profile || this.userDataProfilesService.defaultProfile,
+			workspace: this.profile || this.userDataProfilesService.defaultProfile
 		};
 
 		// Load config

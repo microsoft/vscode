@@ -177,6 +177,8 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 	private readonly _onDidResetWorkspaces = this._register(new Emitter<void>());
 	readonly onDidResetWorkspaces = this._onDidResetWorkspaces.event;
 
+	private profileCreationPromises = new Map<string, Promise<IUserDataProfile>>();
+
 	constructor(
 		@IEnvironmentService protected readonly environmentService: IEnvironmentService,
 		@IFileService protected readonly fileService: IFileService,
@@ -224,6 +226,11 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		return this._profilesObject;
 	}
 
+	async reload(): Promise<IUserDataProfile[]> {
+		this._profilesObject = undefined;
+		return this.profiles;
+	}
+
 	getProfile(workspaceIdentifier: WorkspaceIdentifier, profileToUseIfNotSet: IUserDataProfile): IUserDataProfile {
 		if (!this.enabled) {
 			return this.defaultProfile;
@@ -256,29 +263,47 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		if (!this.enabled) {
 			throw new Error(`Settings Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
 		}
-		if (this.getStoredProfiles().some(p => p.name === name)) {
-			throw new Error(`Profile with name ${name} already exists`);
-		}
 
-		const profile = toUserDataProfile(name, joinPath(this.profilesHome, hash(generateUuid()).toString(16)), useDefaultFlags);
-		await this.fileService.createFolder(profile.location);
-
-		const joiners: Promise<void>[] = [];
-		this._onWillCreateProfile.fire({
-			profile,
-			join(promise) {
-				joiners.push(promise);
-			}
-		});
-		await Promises.settled(joiners);
-
-		this.updateProfiles([profile], [], []);
+		const profile = await this.doCreateProfile(name, useDefaultFlags);
 
 		if (workspaceIdentifier) {
 			await this.setProfileForWorkspace(profile, workspaceIdentifier);
 		}
 
 		return profile;
+	}
+
+	private async doCreateProfile(name: string, useDefaultFlags: UseDefaultProfileFlags | undefined): Promise<IUserDataProfile> {
+		let profileCreationPromise = this.profileCreationPromises.get(name);
+		if (!profileCreationPromise) {
+			profileCreationPromise = (async () => {
+				try {
+					const existing = this.profiles.find(p => p.name === name);
+					if (existing) {
+						return existing;
+					}
+
+					const profile = toUserDataProfile(name, joinPath(this.profilesHome, hash(generateUuid()).toString(16)), useDefaultFlags);
+					await this.fileService.createFolder(profile.location);
+
+					const joiners: Promise<void>[] = [];
+					this._onWillCreateProfile.fire({
+						profile,
+						join(promise) {
+							joiners.push(promise);
+						}
+					});
+					await Promises.settled(joiners);
+
+					this.updateProfiles([profile], [], []);
+					return profile;
+				} finally {
+					this.profileCreationPromises.delete(name);
+				}
+			})();
+			this.profileCreationPromises.set(name, profileCreationPromise);
+		}
+		return profileCreationPromise;
 	}
 
 	async updateProfile(profileToUpdate: IUserDataProfile, name: string, useDefaultFlags?: UseDefaultProfileFlags): Promise<IUserDataProfile> {
