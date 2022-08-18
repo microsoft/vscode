@@ -123,4 +123,14 @@ export class NotebookDiffEditorInput extends DiffEditorInput {
 
 		return false;
 	}
+
+	override dispose() {
+		super.dispose();
+		this._cachedModel?.dispose();
+		this._cachedModel = undefined;
+		this.original.dispose();
+		this.modified.dispose();
+		this._originalTextModel = null;
+		this._modifiedTextModel = null;
+	}
 }

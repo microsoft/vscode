@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { addExternalEditorsDropData, toVSDataTransfer, UriList } from 'vs/editor/browser/dnd';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { IBulkEditService, ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
@@ -99,7 +99,7 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 				performSnippetEdit(editor, typeof edit.insertText === 'string' ? SnippetParser.escape(edit.insertText) : edit.insertText.snippet, [Selection.fromRange(range, SelectionDirection.LTR)]);
 
 				if (edit.additionalEdit) {
-					await this._bulkEditService.apply(ResourceEdit.convert(edit.additionalEdit), { editor });
+					await this._bulkEditService.apply(edit.additionalEdit, { editor });
 				}
 				return;
 			}

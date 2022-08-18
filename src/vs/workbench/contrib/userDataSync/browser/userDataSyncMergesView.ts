@@ -38,7 +38,7 @@ import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { EditorResolution } from 'vs/platform/editor/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 
 export class UserDataSyncMergesViewPane extends TreeViewPane {
 
@@ -324,7 +324,7 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 					preserveFocus: true,
 					revealIfVisible: true,
 					pinned: true,
-					override: EditorResolution.DISABLED
+					override: DEFAULT_EDITOR_ASSOCIATION.id
 				},
 			});
 		}

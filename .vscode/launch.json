@@ -24,7 +24,7 @@
 			]
 		},
 		{
-			"type": "pwa-chrome",
+			"type": "chrome",
 			"request": "attach",
 			"name": "Attach to Shared Process",
 			"timeout": 30000,
@@ -202,7 +202,7 @@
 			}
 		},
 		{
-			"type": "pwa-chrome",
+			"type": "chrome",
 			"request": "attach",
 			"name": "Attach to VS Code",
 			"browserAttachLocation": "workspace",
@@ -216,7 +216,7 @@
 			"perScriptSourcemaps": "yes"
 		},
 		{
-			"type": "pwa-chrome",
+			"type": "chrome",
 			"request": "launch",
 			"name": "Launch VS Code Internal",
 			"windows": {
@@ -258,7 +258,7 @@
 			}
 		},
 		{
-			"type": "pwa-node",
+			"type": "node",
 			"request": "launch",
 			"name": "VS Code Server (Web)",
 			"runtimeExecutable": "${workspaceFolder}/scripts/code-server.sh",
@@ -274,7 +274,7 @@
 			}
 		},
 		{
-			"type": "pwa-node",
+			"type": "node",
 			"request": "launch",
 			"name": "Main Process",
 			"attachSimplePort": 5875,
@@ -295,7 +295,7 @@
 			}
 		},
 		{
-			"type": "pwa-chrome",
+			"type": "chrome",
 			"request": "launch",
 			"outFiles": [],
 			"perScriptSourcemaps": "yes",
@@ -308,7 +308,7 @@
 			}
 		},
 		{
-			"type": "pwa-msedge",
+			"type": "msedge",
 			"request": "launch",
 			"outFiles": [],
 			"perScriptSourcemaps": "yes",
@@ -403,7 +403,7 @@
 			}
 		},
 		{
-			"type": "pwa-node",
+			"type": "node",
 			"request": "launch",
 			"name": "Run Unit Tests",
 			"program": "${workspaceFolder}/test/unit/electron/index.js",
@@ -433,7 +433,7 @@
 			}
 		},
 		{
-			"type": "pwa-node",
+			"type": "node",
 			"request": "launch",
 			"name": "Run Unit Tests For Current File",
 			"program": "${workspaceFolder}/test/unit/electron/index.js",

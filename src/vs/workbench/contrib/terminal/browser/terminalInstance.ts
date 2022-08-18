@@ -869,7 +869,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				commandMap.add(executingCommand);
 			}
 			function formatLabel(label: string) {
-				return label.replace(/\r?\n/g, '\u23CE');
+				return label
+					// Replace new lines with "enter" symbol
+					.replace(/\r?\n/g, '\u23CE')
+					// Replace 3 or more spaces with midline horizontal ellipsis which looks similar
+					// to whitespace in the editor
+					.replace(/\s\s\s+/g, '\u22EF');
 			}
 			if (commands && commands.length > 0) {
 				for (const entry of commands) {
@@ -1049,9 +1054,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 			quickPick.hide();
 		});
-		quickPick.onDidAccept(() => {
+		quickPick.onDidAccept(async () => {
 			const result = quickPick.activeItems[0];
-			this.sendText(type === 'cwd' ? `cd ${result.rawLabel}` : result.rawLabel, !quickPick.keyMods.alt, true);
+			let text: string;
+			if (type === 'cwd') {
+				text = `cd ${await preparePathForShell(result.rawLabel, this._shellLaunchConfig.executable, this.title, this._shellType, this._processManager.backend, this._processManager.os)}`;
+			} else { // command
+				text = result.rawLabel;
+			}
+			this.sendText(text, !quickPick.keyMods.alt, true);
 			quickPick.hide();
 		});
 		if (value) {

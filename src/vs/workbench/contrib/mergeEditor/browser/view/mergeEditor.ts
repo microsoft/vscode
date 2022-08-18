@@ -305,12 +305,19 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 
 		const viewModel = new MergeEditorViewModel(model, this.input1View, this.input2View, this.inputResultView);
 
-		this.input1View.setModel(viewModel, model.input1, model.input1Title || localize('input1', 'Input 1'), model.input1Detail, model.input1Description);
-		this.input2View.setModel(viewModel, model.input2, model.input2Title || localize('input2', 'Input 2',), model.input2Detail, model.input2Description);
-		this.inputResultView.setModel(viewModel, model.result, localize('result', 'Result',), this._labelService.getUriLabel(model.result.uri, { relative: true }), undefined);
+		this.input1View.setModel(viewModel, { ...model.input1, title: model.input1.title || localize('input1', 'Input 1') });
+		this.input2View.setModel(viewModel, { ...model.input2, title: model.input2.title || localize('input2', 'Input 2') });
+		this.inputResultView.setModel(viewModel,
+			{
+				textModel: model.resultTextModel,
+				title: localize('result', 'Result'),
+				description: this._labelService.getUriLabel(model.resultTextModel.uri, { relative: true }),
+				detail: undefined,
+			},
+		);
 
 		// Set/unset context keys based on input
-		this._ctxResultUri.set(model.result.uri.toString());
+		this._ctxResultUri.set(model.resultTextModel.uri.toString());
 		this._ctxBaseUri.set(model.base.uri.toString());
 		this._sessionDisposables.add(toDisposable(() => {
 			this._ctxBaseUri.reset();
@@ -391,8 +398,8 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 
 			private *baseInput1Input2() {
 				yield model.base;
-				yield model.input1;
-				yield model.input2;
+				yield model.input1.textModel;
+				yield model.input2.textModel;
 			}
 
 			private _checkBaseInput1Input2AllEmpty() {
@@ -501,7 +508,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 	}
 
 	protected computeEditorViewState(resource: URI): IMergeEditorViewState | undefined {
-		if (!isEqual(this.model?.result.uri, resource)) {
+		if (!isEqual(this.model?.resultTextModel.uri, resource)) {
 			return undefined;
 		}
 		const result = this.inputResultView.editor.saveViewState();

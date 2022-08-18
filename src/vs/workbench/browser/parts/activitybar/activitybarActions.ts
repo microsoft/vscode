@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/activityaction';
 import { localize } from 'vs/nls';
-import { EventType, addDisposableListener, EventHelper } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, EventHelper, getDomNodePagePosition } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { Action, IAction, Separator, SubmenuAction, toAction } from 'vs/base/common/actions';
@@ -157,30 +157,43 @@ class MenuActivityActionViewItem extends ActivityActionViewItem {
 	private async showContextMenu(e?: MouseEvent): Promise<void> {
 		const disposables = new DisposableStore();
 
-		let actions: IAction[];
-		if (e?.button !== 2) {
+		const isLeftClick = e?.button !== 2;
+
+		// Left-click main menu
+		if (isLeftClick) {
 			const menu = disposables.add(this.menuService.createMenu(this.menuId, this.contextKeyService));
-			actions = await this.resolveMainMenuActions(menu, disposables);
-		} else {
-			actions = await this.resolveContextMenuActions(disposables);
+			const actions = await this.resolveMainMenuActions(menu, disposables);
+
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => this.container,
+				anchorAlignment: this.configurationService.getValue('workbench.sideBar.location') === 'left' ? AnchorAlignment.RIGHT : AnchorAlignment.LEFT,
+				anchorAxisAlignment: AnchorAxisAlignment.HORIZONTAL,
+				getActions: () => actions,
+				onHide: () => disposables.dispose()
+			});
 		}
 
-		const position = this.configurationService.getValue('workbench.sideBar.location');
+		// Right-click context menu
+		else {
+			const actions = await this.resolveContextMenuActions(disposables);
 
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => this.container,
-			anchorAlignment: position === 'left' ? AnchorAlignment.RIGHT : AnchorAlignment.LEFT,
-			anchorAxisAlignment: AnchorAxisAlignment.HORIZONTAL,
-			getActions: () => actions,
-			onHide: () => disposables.dispose()
-		});
+			const elementPosition = getDomNodePagePosition(this.container);
+			const anchor = {
+				x: Math.floor(elementPosition.left + (elementPosition.width / 2)),
+				y: elementPosition.top + elementPosition.height
+			};
+
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => anchor,
+				getActions: () => actions,
+				onHide: () => disposables.dispose()
+			});
+		}
 	}
 
-	protected async resolveMainMenuActions(menu: IMenu, disposables: DisposableStore): Promise<IAction[]> {
+	protected async resolveMainMenuActions(menu: IMenu, _disposable: DisposableStore): Promise<IAction[]> {
 		const actions: IAction[] = [];
-
-		disposables.add(createAndFillInActionBarActions(menu, undefined, { primary: [], secondary: actions }));
-
+		createAndFillInActionBarActions(menu, undefined, { primary: [], secondary: actions });
 		return actions;
 	}
 
@@ -261,7 +274,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 						providerSubMenuActions.push(signOutAction);
 					}
 
-					const providerSubMenu = disposables.add(new SubmenuAction('activitybar.submenu', `${accountName} (${providerDisplayName})`, providerSubMenuActions));
+					const providerSubMenu = new SubmenuAction('activitybar.submenu', `${accountName} (${providerDisplayName})`, providerSubMenuActions);
 					menus.push(providerSubMenu);
 				});
 			} else {

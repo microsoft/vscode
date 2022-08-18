@@ -119,5 +119,5 @@ export interface IBulkEditService {
 
 	setPreviewHandler(handler: IBulkEditPreviewHandler): IDisposable;
 
-	apply(edit: ResourceEdit[], options?: IBulkEditOptions): Promise<IBulkEditResult>;
+	apply(edit: ResourceEdit[] | WorkspaceEdit, options?: IBulkEditOptions): Promise<IBulkEditResult>;
 }

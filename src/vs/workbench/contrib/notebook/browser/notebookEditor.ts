@@ -121,10 +121,6 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 		this._rootElement.id = `notebook-editor-element-${generateUuid()}`;
 	}
 
-	getDomNode() {
-		return this._rootElement;
-	}
-
 	override getActionViewItem(action: IAction): IActionViewItem | undefined {
 		if (action.id === SELECT_KERNEL_ID) {
 			// this is being disposed by the consumer
@@ -421,20 +417,6 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 	}
 
 	//#endregion
-
-	//#region Editor Features
-
-	//#endregion
-
-	override dispose() {
-		super.dispose();
-	}
-
-	// toJSON(): object {
-	// 	return {
-	// 		notebookHandle: this.viewModel?.handle
-	// 	};
-	// }
 }
 
 class NotebookEditorSelection implements IEditorPaneSelection {
