@@ -18,8 +18,8 @@ import { openAsTextIcon, renderOutputIcon, revertIcon } from 'vs/workbench/contr
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { EditorResolution } from 'vs/platform/editor/common/editor';
 import { ICommandActionTitle } from 'vs/platform/action/common/action';
+import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 
 // ActiveEditorContext.isEqualTo(SearchEditorConstants.SearchEditorID)
 
@@ -52,7 +52,7 @@ registerAction2(class extends Action2 {
 					label: diffEditorInput.getName(),
 					options: {
 						preserveFocus: false,
-						override: EditorResolution.DISABLED
+						override: DEFAULT_EDITOR_ASSOCIATION.id
 					}
 				});
 		}

@@ -6,14 +6,14 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Action2, IAction2Options, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { Action2, IAction2Options, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { IEditSessionsStorageService, Change, ChangeType, Folder, EditSession, FileType, EDIT_SESSION_SYNC_CATEGORY, EDIT_SESSIONS_CONTAINER_ID, EditSessionSchemaVersion, IEditSessionsLogService, EDIT_SESSIONS_VIEW_ICON, EDIT_SESSIONS_TITLE, EDIT_SESSIONS_SHOW_VIEW, EDIT_SESSIONS_SIGNED_IN, EDIT_SESSIONS_DATA_VIEW_ID, decodeEditSessionFileContent } from 'vs/workbench/contrib/editSessions/common/editSessions';
 import { ISCMRepository, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { URI } from 'vs/base/common/uri';
 import { joinPath, relativePath } from 'vs/base/common/resources';
 import { encodeBase64 } from 'vs/base/common/buffer';
@@ -50,6 +50,7 @@ import { WorkspaceFolderCountContext } from 'vs/workbench/common/contextkeys';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { equals } from 'vs/base/common/objects';
 import { IEditSessionIdentityService } from 'vs/platform/workspace/common/editSessions';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 registerSingleton(IEditSessionsLogService, EditSessionsLogService);
 registerSingleton(IEditSessionsStorageService, EditSessionsWorkbenchService);
@@ -96,7 +97,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ICommandService private commandService: ICommandService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IFileDialogService private readonly fileDialogService: IFileDialogService
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService
 	) {
 		super();
 
@@ -115,6 +117,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		this.shouldShowViewsContext = EDIT_SESSIONS_SHOW_VIEW.bindTo(this.contextKeyService);
 
 		this._register(this.fileService.registerProvider(EditSessionsFileSystemProvider.SCHEMA, new EditSessionsFileSystemProvider(this.editSessionsStorageService)));
+		this.lifecycleService.onWillShutdown((e) => e.join(this.autoStoreEditSession(), { id: 'autoStoreEditSession', label: localize('autoStoreEditSession', 'Storing current edit session...') }));
 	}
 
 	private async autoResumeEditSession() {
@@ -141,6 +144,17 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			void this.progressService.withProgress({ location: ProgressLocation.Window, type: 'syncing', title: localize('resuming edit session window', 'Resuming edit session...') }, async () => {
 				await this.resumeEditSession(undefined, true);
 			});
+			this._register(this.fileService.registerProvider(EditSessionsFileSystemProvider.SCHEMA, new EditSessionsFileSystemProvider(this.editSessionsStorageService)));
+		}
+	}
+
+	private async autoStoreEditSession() {
+		if (this.configurationService.getValue('workbench.experimental.editSessions.autoStore') === 'onShutdown') {
+			await this.progressService.withProgress({
+				location: ProgressLocation.Window,
+				type: 'syncing',
+				title: localize('store edit session', 'Storing edit session...')
+			}, async () => this.storeEditSession(false));
 		}
 	}
 
@@ -499,17 +513,19 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				if (!Array.isArray(extension.value)) {
 					continue;
 				}
-				const commands = new Map((extension.description.contributes?.commands ?? []).map(c => [c.command, c]));
 				for (const contribution of extension.value) {
-					if (!contribution.command || !contribution.when) {
-						continue;
+					const command = MenuRegistry.getCommand(contribution.command);
+					if (!command) {
+						return;
 					}
-					const fullCommand = commands.get(contribution.command);
-					if (!fullCommand) { return; }
+
+					const icon = command.icon;
+					const title = typeof command.title === 'string' ? command.title : command.title.value;
 
 					continueEditSessionOptions.push(new ContinueEditSessionItem(
-						fullCommand.title,
-						fullCommand.command,
+						ThemeIcon.isThemeIcon(icon) ? `$(${icon.id}) ${title}` : title,
+						command.id,
+						command.source,
 						ContextKeyExpr.deserialize(contribution.when)
 					));
 				}
@@ -546,7 +562,10 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 	private async pickContinueEditSessionDestination(): Promise<URI | undefined> {
 		const quickPick = this.quickInputService.createQuickPick<ContinueEditSessionItem>();
 
-		quickPick.title = localize('continueEditSessionPick.title', 'Continue Edit Session...');
+		const workspaceContext = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER
+			? this.contextService.getWorkspace().folders[0].name
+			: this.contextService.getWorkspace().folders.map((folder) => folder.name).join(', ');
+		quickPick.title = localize('continueEditSessionPick.title', "Continue {0} on", `'${workspaceContext}'`);
 		quickPick.placeholder = localize('continueEditSessionPick.placeholder', 'Choose how you would like to continue working');
 		quickPick.items = this.createPickItems();
 
@@ -581,8 +600,9 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 		if (getVirtualWorkspaceLocation(this.contextService.getWorkspace()) !== undefined && isNative) {
 			items.push(new ContinueEditSessionItem(
-				localize('continueEditSessionItem.openInLocalFolder', 'Open In Local Folder'),
+				'$(folder) ' + localize('continueEditSessionItem.openInLocalFolder.v2', 'Open in Local Folder'),
 				openLocalFolderCommand.id,
+				localize('continueEditSessionItem.builtin', 'Built-in')
 			));
 		}
 
@@ -594,6 +614,7 @@ class ContinueEditSessionItem implements IQuickPickItem {
 	constructor(
 		public readonly label: string,
 		public readonly command: string,
+		public readonly description?: string,
 		public readonly when?: ContextKeyExpression,
 	) { }
 }
@@ -638,6 +659,17 @@ workbenchRegistry.registerWorkbenchContribution(EditSessionsContribution, Lifecy
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 	...workbenchConfigurationNodeBase,
 	'properties': {
+		'workbench.experimental.editSessions.autoStore': {
+			enum: ['onShutdown', 'off'],
+			enumDescriptions: [
+				localize('autoStore.onShutdown', "Automatically store current edit session on window close."),
+				localize('autoStore.off', "Never attempt to automatically store an edit session.")
+			],
+			'type': 'string',
+			'tags': ['experimental', 'usesOnlineServices'],
+			'default': 'off',
+			'markdownDescription': localize('autoStore', "Controls whether to automatically store an available edit session for the current workspace."),
+		},
 		'workbench.experimental.editSessions.enabled': {
 			'type': 'boolean',
 			'tags': ['experimental', 'usesOnlineServices'],

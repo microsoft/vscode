@@ -12,9 +12,9 @@ import { IObservable, observableFromEvent, observableValue, transaction } from '
 import { IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { ITextModel } from 'vs/editor/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DEFAULT_EDITOR_MAX_DIMENSIONS, DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
+import { InputData } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
 import { setStyle } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
 
@@ -96,16 +96,13 @@ export abstract class CodeEditorView extends Disposable {
 
 	public setModel(
 		viewModel: MergeEditorViewModel,
-		textModel: ITextModel,
-		title: string,
-		description: string | undefined,
-		detail: string | undefined
+		inputData: InputData
 	): void {
-		this.editor.setModel(textModel);
+		this.editor.setModel(inputData.textModel);
 
-		reset(this.htmlElements.title, ...renderLabelWithIcons(title));
-		reset(this.htmlElements.description, ...(description ? renderLabelWithIcons(description) : []));
-		reset(this.htmlElements.detail, ...(detail ? renderLabelWithIcons(detail) : []));
+		reset(this.htmlElements.title, ...renderLabelWithIcons(inputData.title || ''));
+		reset(this.htmlElements.description, ...(inputData.description ? renderLabelWithIcons(inputData.description) : []));
+		reset(this.htmlElements.detail, ...(inputData.detail ? renderLabelWithIcons(inputData.detail) : []));
 
 		transaction(tx => {
 			/** @description CodeEditorView: Set Model */

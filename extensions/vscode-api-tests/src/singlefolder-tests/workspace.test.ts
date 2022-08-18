@@ -140,6 +140,7 @@ suite('vscode API - workspace', () => {
 					assert.strictEqual(didSave, true, `FAILED to save${doc.uri.toString()}`);
 
 					assert.ok(closed);
+					assert.ok(closed.uri.toString() === doc.uri.toString(), `closed.uri = ${closed.uri.toString()} but doc.uri = ${doc.uri.toString()}`);
 					assert.ok(closed === doc);
 					assert.ok(!doc.isDirty);
 					assert.ok(fs.existsSync(path));
