@@ -273,6 +273,18 @@ export interface IOSConfiguration {
 	readonly hostname: string;
 }
 
+export interface IUserDataProfileInfo {
+	readonly name?: string;
+}
+
+export function isUserDataProfileInfo(thing: unknown): thing is IUserDataProfileInfo {
+	const candidate = thing as IUserDataProfileInfo | undefined;
+
+	return !!(candidate && typeof candidate === 'object'
+		&& typeof candidate.name === 'string'
+	);
+}
+
 export interface INativeWindowConfiguration extends IWindowConfiguration, NativeParsedArgs, ISandboxConfiguration {
 	mainPid: number;
 
@@ -283,7 +295,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 
 	profiles: {
 		all: readonly UriDto<IUserDataProfile>[];
-		current: UriDto<IUserDataProfile>;
+		workspace: UriDto<IUserDataProfile> | IUserDataProfileInfo;
 	};
 
 	homeDir: string;

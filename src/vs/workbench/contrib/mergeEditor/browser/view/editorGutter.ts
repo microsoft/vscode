@@ -79,7 +79,6 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 				let view = this.views.get(gutterItem.id);
 				if (!view) {
 					const viewDomNode = document.createElement('div');
-					viewDomNode.className = 'gutter-item';
 					this._domNode.appendChild(viewDomNode);
 					const itemView = this.itemProvider.createView(
 						gutterItem,

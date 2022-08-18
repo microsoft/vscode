@@ -416,7 +416,9 @@ class CellExecution extends Disposable implements INotebookCellExecution {
 			this._applyExecutionEdits(edits);
 		}
 
-		this._onDidUpdate.fire();
+		if (updates.some(u => u.editType === CellExecutionUpdateType.ExecutionState)) {
+			this._onDidUpdate.fire();
+		}
 	}
 
 	complete(completionData: ICellExecutionComplete): void {
