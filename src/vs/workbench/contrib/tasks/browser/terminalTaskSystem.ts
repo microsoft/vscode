@@ -256,6 +256,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		// connection state changes before this is created sometimes
 		this._reconnectToTerminals();
 		this._register(this._terminalService.onDidChangeConnectionState(() => this._reconnectToTerminals()));
+		this._logService.info('added ondid terminals reconnect listener in terminal task system');
 	}
 
 	public get onDidStateChange(): Event<ITaskEvent> {
@@ -1333,9 +1334,11 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	private _reconnectToTerminals(): void {
 		if (this._hasReconnected) {
+			this._logService.info('returning, already reconnected');
 			return;
 		}
 		this._reconnectedTerminals = this._terminalService.getReconnectedTerminals(ReconnectionType)?.filter(t => !t.isDisposed);
+		this._logService.info('attempting reconnection', this._hasReconnected, this._reconnectedTerminals);
 		if (!this._reconnectedTerminals?.length) {
 			return;
 		}
