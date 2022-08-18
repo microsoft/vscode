@@ -256,7 +256,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		// connection state changes before this is created sometimes
 		this._reconnectToTerminals();
 		this._register(this._terminalService.onDidChangeConnectionState(() => this._reconnectToTerminals()));
-		this._logService.info('added ondid terminals reconnect listener in terminal task system');
 	}
 
 	public get onDidStateChange(): Event<ITaskEvent> {
@@ -277,7 +276,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	public reconnect(task: Task, resolver: ITaskResolver): ITaskExecuteResult {
 		if (!this._reconnectedTerminals?.length) {
-			this._logService.warn('Reconnecting to terminals before running');
+			this._logService.trace('Reconnecting to terminals before running');
 			this._reconnectToTerminals();
 		}
 		return this.run(task, resolver, Triggers.reconnect);
@@ -1334,16 +1333,18 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	private _reconnectToTerminals(): void {
 		if (this._hasReconnected) {
-			this._logService.info('returning, already reconnected');
+			this._logService.trace(`Already reconnected, to ${this._reconnectedTerminals?.length} terminals so returning`);
 			return;
 		}
 		this._reconnectedTerminals = this._terminalService.getReconnectedTerminals(ReconnectionType)?.filter(t => !t.isDisposed);
-		this._logService.info('attempting reconnection', this._hasReconnected, this._reconnectedTerminals);
+		this._logService.trace(`Attempting reconnection of ${this._reconnectedTerminals?.length} terminals`);
 		if (!this._reconnectedTerminals?.length) {
+			this._logService.trace(`No terminals to reconnect to so returning`);
 			return;
 		}
 		for (const terminal of this._reconnectedTerminals) {
 			const task = terminal.shellLaunchConfig.attachPersistentProcess?.reconnectionProperties?.data as IReconnectionTaskData;
+			this._logService.trace(`Reconnecting to task: ${JSON.stringify(task)}`);
 			if (!task) {
 				continue;
 			}
