@@ -714,7 +714,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 
 		const anchor = Position.isIPosition(at) ? this._toCoords(at) : at || { x: 0, y: 0 };
 
-		const params = <ICodeActionMenuParameters>{ options, trigger, codeActions, anchor, menuActions, context: this._contextViewService, editor: this._editor, showDisabled: true, visible: this._visible, menuObj: this };
+		const params = <ICodeActionMenuParameters>{ options, trigger, codeActions, anchor, menuActions, showDisabled: true, visible: this._visible, menuObj: this };
 
 		const resolver = this._keybindingResolver.getResolver();
 
