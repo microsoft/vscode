@@ -128,10 +128,6 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			return ResolvedStatus.NONE;
 		}
 
-		if (untypedEditor.options?.override === EditorResolution.DISABLED) {
-			throw new Error(`Calling resolve editor when resolution is explicitly disabled!`);
-		}
-
 		if (untypedEditor.options?.override === EditorResolution.PICK) {
 			const picked = await this.doPickEditor(untypedEditor);
 			// If the picker was cancelled we will stop resolving the editor

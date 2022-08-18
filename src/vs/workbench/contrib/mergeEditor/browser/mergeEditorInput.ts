@@ -17,11 +17,12 @@ import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, IEditorIdentifier,
 import { EditorInput, IEditorCloseHandler } from 'vs/workbench/common/editor/editorInput';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { MergeDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
-import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
+import { InputData, MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ILanguageSupport, ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { autorun } from 'vs/base/common/observable';
 import { WorkerBasedDocumentDiffProvider } from 'vs/editor/browser/widget/workerBasedDocumentDiffProvider';
+import { ProjectedDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/projectedDocumentDiffProvider';
 
 export class MergeEditorInputData {
 	constructor(
@@ -98,31 +99,47 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 	}
 
 	override async resolve(): Promise<MergeEditorModel> {
-
 		if (!this._model) {
+			const toInputData = async (data: MergeEditorInputData): Promise<InputData> => {
+				const ref = await this._textModelService.createModelReference(data.uri);
+				this._store.add(ref);
+				return {
+					textModel: ref.object.textEditorModel,
+					title: data.title,
+					description: data.description,
+					detail: data.detail,
+				};
+			};
 
-			const base = await this._textModelService.createModelReference(this.base);
-			const input1 = await this._textModelService.createModelReference(this.input1.uri);
-			const input2 = await this._textModelService.createModelReference(this.input2.uri);
-			const result = await this._textModelService.createModelReference(this.result);
+			const [
+				base,
+				result,
+				input1Data,
+				input2Data,
+			] = await Promise.all([
+				this._textModelService.createModelReference(this.base),
+				this._textModelService.createModelReference(this.result),
+				toInputData(this.input1),
+				toInputData(this.input2),
+			]);
 
+			this._store.add(base);
+			this._store.add(result);
+
+			const diffProvider = this._instaService.createInstance(WorkerBasedDocumentDiffProvider);
 			this._model = this._instaService.createInstance(
 				MergeEditorModel,
 				base.object.textEditorModel,
-				input1.object.textEditorModel,
-				this.input1.title,
-				this.input1.detail,
-				this.input1.description,
-				input2.object.textEditorModel,
-				this.input2.title,
-				this.input2.detail,
-				this.input2.description,
+				input1Data,
+				input2Data,
 				result.object.textEditorModel,
-				this._instaService.createInstance(MergeDiffComputer, this._instaService.createInstance(WorkerBasedDocumentDiffProvider)),
+				this._instaService.createInstance(MergeDiffComputer, diffProvider),
+				this._instaService.createInstance(MergeDiffComputer, this._instaService.createInstance(ProjectedDiffComputer, diffProvider)),
 				{
-					resetUnknownOnInitialization: true
+					resetUnknownOnInitialization: false
 				},
 			);
+			this._store.add(this._model);
 
 			// set/unset the closeHandler whenever unhandled conflicts are detected
 			const closeHandler = this._instaService.createInstance(MergeEditorCloseHandler, this._model);
@@ -133,11 +150,6 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 
 			await this._model.onInitialized;
 
-			this._store.add(this._model);
-			this._store.add(base);
-			this._store.add(input1);
-			this._store.add(input2);
-			this._store.add(result);
 		}
 
 		return this._model;
