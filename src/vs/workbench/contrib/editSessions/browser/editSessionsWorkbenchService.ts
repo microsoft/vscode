@@ -189,20 +189,20 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	private async getAuthenticationSession() {
 		// If the user signed in previously and the session is still available, reuse that without prompting the user again
 		if (this.existingSessionId) {
-			this.logService.trace(`Searching for existing authentication session with ID ${this.existingSessionId}`);
+			this.logService.info(`Searching for existing authentication session with ID ${this.existingSessionId}`);
 			const existingSession = await this.getExistingSession();
 			if (existingSession) {
-				this.logService.trace(`Found existing authentication session with ID ${existingSession.session.id}`);
+				this.logService.info(`Found existing authentication session with ID ${existingSession.session.id}`);
 				return { sessionId: existingSession.session.id, token: existingSession.session.idToken ?? existingSession.session.accessToken, providerId: existingSession.session.providerId };
 			}
 		}
 
 		// If settings sync is already enabled, avoid asking again to authenticate
 		if (this.userDataSyncEnablementService.isEnabled()) {
-			this.logService.trace(`Reusing user data sync enablement`);
+			this.logService.info(`Reusing user data sync enablement`);
 			const authenticationSessionInfo = await getCurrentAuthenticationSessionInfo(this.credentialsService, this.productService);
 			if (authenticationSessionInfo !== undefined) {
-				this.logService.trace(`Using current authentication session with ID ${authenticationSessionInfo.id}`);
+				this.logService.info(`Using current authentication session with ID ${authenticationSessionInfo.id}`);
 				this.existingSessionId = authenticationSessionInfo.id;
 				return { sessionId: authenticationSessionInfo.id, token: authenticationSessionInfo.accessToken, providerId: authenticationSessionInfo.providerId };
 			}
