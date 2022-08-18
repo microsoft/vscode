@@ -324,7 +324,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._register(this.onDidStateChange(e => {
 			if ((this._willRestart || e.exitReason === TerminalExitReason.User) && e.taskId) {
 				this.removePersistentTask(e.taskId);
-			} else if (e.kind === TaskEventKind.Start && e.__task) {
+			} else if (e.kind === TaskEventKind.Active && e.__task) {
 				this._setPersistentTask(e.__task);
 			}
 		}));
