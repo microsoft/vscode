@@ -961,7 +961,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		configuration.policiesData = this.policyService.serialize(); // set policies data again
 		configuration.profiles = {
 			all: this.userDataProfilesService.profiles,
-			workspace: this.profile || this.userDataProfilesService.defaultProfile,
+			workspace: this.profile || this.userDataProfilesService.defaultProfile
 		};
 
 		// Load config
