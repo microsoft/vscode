@@ -6,7 +6,7 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Action2, IAction2Options, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
@@ -92,7 +92,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ICommandService private commandService: ICommandService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IFileDialogService private readonly fileDialogService: IFileDialogService
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService
 	) {
 		super();
 
@@ -147,6 +148,17 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		this.shouldShowViewsContext = EDIT_SESSIONS_SHOW_VIEW.bindTo(this.contextKeyService);
 
 		this._register(this.fileService.registerProvider(EditSessionsFileSystemProvider.SCHEMA, new EditSessionsFileSystemProvider(this.editSessionsWorkbenchService)));
+		this.lifecycleService.onWillShutdown((e) => e.join(this.autoStoreEditSession(), { id: 'autoStoreEditSession', label: localize('autoStoreEditSession', 'Storing current edit session...') }));
+	}
+
+	private async autoStoreEditSession() {
+		if (this.configurationService.getValue('workbench.experimental.editSessions.autoStore') === 'onShutdown') {
+			await this.progressService.withProgress({
+				location: ProgressLocation.Window,
+				type: 'syncing',
+				title: localize('store edit session', 'Storing edit session...')
+			}, async () => this.storeEditSession(false));
+		}
 	}
 
 	private registerViews() {
@@ -592,6 +604,17 @@ workbenchRegistry.registerWorkbenchContribution(EditSessionsContribution, Lifecy
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 	...workbenchConfigurationNodeBase,
 	'properties': {
+		'workbench.experimental.editSessions.autoStore': {
+			enum: ['onShutdown', 'off'],
+			enumDescriptions: [
+				localize('autoStore.onShutdown', "Automatically store current edit session on window close."),
+				localize('autoStore.off', "Never attempt to automatically store an edit session.")
+			],
+			'type': 'string',
+			'tags': ['experimental', 'usesOnlineServices'],
+			'default': 'off',
+			'markdownDescription': localize('autoStore', "Controls whether to automatically store an available edit session for the current workspace."),
+		},
 		'workbench.experimental.editSessions.enabled': {
 			'type': 'boolean',
 			'tags': ['experimental', 'usesOnlineServices'],
