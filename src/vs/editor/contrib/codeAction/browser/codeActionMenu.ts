@@ -145,6 +145,7 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 		const isSeparator = element.isSeparator;
 		const isHeader = element.isHeader;
 
+		// Renders differently based on element type.
 		if (isSeparator) {
 			data.root.classList.add('separator');
 			data.root.style.height = '10px';
@@ -194,9 +195,9 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 					}
 				} else {
 					data.text.textContent = text;
+
 					// Icons and Label modifaction based on group
 					const group = element.action.action.kind;
-
 					if (CodeActionKind.SurroundWith.contains(new CodeActionKind(String(group)))) {
 						data.icon.className = Codicon.symbolArray.classNames;
 					} else if (CodeActionKind.Extract.contains(new CodeActionKind(String(group)))) {
@@ -292,6 +293,9 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		return this._visible;
 	}
 
+	/**
+	 * Checks if the settings have enabled the new code action widget.
+	 */
 	private isCodeActionWidgetEnabled(model: ITextModel): boolean {
 		return this._configurationService.getValue('editor.experimental.useCustomCodeActionMenu', {
 			resource: model.uri
@@ -334,6 +338,9 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		}
 	}
 
+	/**
+	 * Renders the code action widget given the provided actions.
+	 */
 	private renderCodeActionMenuList(element: HTMLElement, inputArray: IAction[], params: ICodeActionMenuParameters): IDisposable {
 		const renderDisposables = new DisposableStore();
 		const renderMenu = document.createElement('div');
@@ -483,7 +490,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 					menuEntriesToPush(localize('codeAction.widget.id.more', 'More Actions...'), entry);
 				}
 			} else {
-				// case for separator - not a code action action
+				// case for separator - separators are not codeActionAction typed
 				totalActionEntries.push(...entry);
 			}
 
@@ -531,9 +538,9 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		// resize observer - can be used in the future since list widget supports dynamic height but not width
 		let maxWidth = Math.max(...arr);
 
+		// If there are no actions, the minimum width is the width of the list widget's action bar.
 		if (params.trigger.triggerAction === CodeActionTriggerSource.Refactor && maxWidth < 230) {
 			maxWidth = 230;
-
 		}
 
 		// 52 is the additional padding for the list widget (26 left, 26 right)
@@ -562,6 +569,9 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		return renderDisposables;
 	}
 
+	/**
+	 * Focuses on the previous item in the list using the list widget.
+	 */
 	protected focusPrevious() {
 		if (typeof this.focusedEnabledItem === 'undefined') {
 			this.focusedEnabledItem = this.viewItems[0].index;
@@ -585,6 +595,9 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		return true;
 	}
 
+	/**
+	 * Focuses on the next item in the list using the list widget.
+	 */
 	protected focusNext() {
 		if (typeof this.focusedEnabledItem === 'undefined') {
 			this.focusedEnabledItem = this.viewItems.length - 1;
@@ -656,6 +669,9 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		});
 	}
 
+	/**
+	 * Helper function to create a context view item using code action `params`.
+	 */
 	private showContextViewHelper(params: ICodeActionMenuParameters, menuActions: IAction[]) {
 		this._contextViewService.showContextView({
 			getAnchor: () => params.anchor,
@@ -672,6 +688,9 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 
 	}
 
+	/**
+	 * Toggles whether the disabled actions in the code action widget are visible or not.
+	 */
 	public static toggleDisabledOptions(params: ICodeActionMenuParameters): void {
 		params.menuObj.hideCodeActionWidget();
 
@@ -692,6 +711,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 
 		let actionsToShow = options.includeDisabledActions ? codeActions.allActions : codeActions.validActions;
 
+		// If there are no refactorings, we should still show the menu and only displayed disabled actions without `enable` button.
 		if (trigger.triggerAction === CodeActionTriggerSource.Refactor && codeActions.validActions.length > 0) {
 			actionsToShow = showDisabled ? codeActions.allActions : codeActions.validActions;
 		}
