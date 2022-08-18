@@ -86,8 +86,6 @@ export interface ICodeActionMenuParameters {
 	codeActions: CodeActionSet;
 	visible: boolean;
 	showDisabled: boolean;
-	context: IContextViewService;
-	editor: ICodeEditor;
 	menuObj: CodeActionMenu;
 
 }
@@ -113,6 +111,7 @@ const TEMPLATE_ID = 'codeActionWidget';
 const codeActionLineHeight = 24;
 const headerLineHeight = 26;
 
+// TODO: Take a look at user storage for this so it is preserved across windows and on reload.
 let showDisabled = false;
 
 class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeActionMenuTemplateData> {
@@ -176,27 +175,23 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 					const reRenderAction = showDisabled ?
 						<IAction>{
 							id: 'hideMoreCodeActions',
-							label: 'Hide More',
+							label: localize('hideMoreCodeActions', 'Hide Disabled'),
 							enabled: true,
 							run: () => CodeActionMenu.toggleDisabledOptions(element.params)
 						} :
 						<IAction>{
 							id: 'showMoreCodeActions',
-							label: 'Show More',
+							label: localize('showMoreCodeActions', 'Show Disabled'),
 							enabled: true,
 							run: () => CodeActionMenu.toggleDisabledOptions(element.params)
 						};
 
 					const actionbar = new ActionBar(actionbarContainer);
-					if (openedFromString === CodeActionTriggerSource.Refactor && element.params.codeActions.validActions.length > 0) {
+					if (openedFromString === CodeActionTriggerSource.Refactor && (element.params.codeActions.validActions.length > 0 || element.params.codeActions.allActions.length - element.params.codeActions.validActions.length === 0)) {
 						actionbar.push([element.action, reRenderAction], { icon: false, label: true });
 					} else {
 						actionbar.push([element.action], { icon: false, label: true });
 					}
-
-					actionbar.domNode.classList.add('left');
-
-
 				} else {
 					data.text.textContent = text;
 					// Icons and Label modifaction based on group
@@ -534,7 +529,12 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		});
 
 		// resize observer - can be used in the future since list widget supports dynamic height but not width
-		const maxWidth = Math.max(...arr);
+		let maxWidth = Math.max(...arr);
+
+		if (params.trigger.triggerAction === CodeActionTriggerSource.Refactor && maxWidth < 230) {
+			maxWidth = 230;
+
+		}
 
 		// 52 is the additional padding for the list widget (26 left, 26 right)
 		renderMenu.style.width = maxWidth + 52 + 5 + 'px';
@@ -630,7 +630,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		this.focusedEnabledItem = 0;
 		this.currSelectedItem = undefined;
 		this.hasSeparator = false;
-		this._contextViewService.hideContextView({ source: this });
+		this._contextViewService.hideContextView();
 	}
 
 	codeActionTelemetry(openedFromString: CodeActionTriggerSource, didCancel: boolean, CodeActions: CodeActionSet) {
@@ -656,18 +656,18 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		});
 	}
 
-	private showContextViewHelper(menu: CodeActionMenu, params: ICodeActionMenuParameters, menuActions: IAction[]) {
-		params.menuObj._contextViewService.showContextView({
+	private showContextViewHelper(params: ICodeActionMenuParameters, menuActions: IAction[]) {
+		this._contextViewService.showContextView({
 			getAnchor: () => params.anchor,
-			render: (container: HTMLElement) => params.menuObj.renderCodeActionMenuList(container, menuActions, params),
+			render: (container: HTMLElement) => this.renderCodeActionMenuList(container, menuActions, params),
 			onHide: (didCancel: boolean) => {
 				const openedFromString = (params.options.fromLightbulb) ? CodeActionTriggerSource.Lightbulb : params.trigger.triggerAction;
-				params.menuObj.codeActionTelemetry(openedFromString, didCancel, params.codeActions);
-				params.menuObj._visible = false;
-				params.menuObj._editor.focus();
+				this.codeActionTelemetry(openedFromString, didCancel, params.codeActions);
+				this._visible = false;
+				this._editor.focus();
 			},
 		},
-			params.menuObj._editor.getDomNode()!, false,
+			this._editor.getDomNode()!, false,
 		);
 
 	}
@@ -681,7 +681,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 
 		const menuActions = params.menuObj.getMenuActions(params.trigger, actionsToShow, params.codeActions.documentation);
 
-		params.menuObj.showContextViewHelper(params.menuObj, params, menuActions);
+		params.menuObj.showContextViewHelper(params, menuActions);
 	}
 
 	public async show(trigger: CodeActionTrigger, codeActions: CodeActionSet, at: IAnchor | IPosition, options: CodeActionShowOptions): Promise<void> {
@@ -722,7 +722,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 
 
 		if (this.isCodeActionWidgetEnabled(model)) {
-			this.showContextViewHelper(this, params, menuActions);
+			this.showContextViewHelper(params, menuActions);
 		} else {
 			this._contextMenuService.showContextMenu({
 				domForShadowRoot: useShadowDOM ? this._editor.getDomNode()! : undefined,
