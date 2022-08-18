@@ -128,7 +128,8 @@ export class CodeApplication extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStateMainService private readonly stateMainService: IStateMainService,
 		@IFileService private readonly fileService: IFileService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IUserDataProfilesMainService private readonly userDataProfilesMainService: IUserDataProfilesMainService,
 	) {
 		super();
 
@@ -533,6 +534,8 @@ export class CodeApplication extends Disposable {
 
 		// Setup Handlers
 		this.setUpHandlers(appInstantiationService);
+
+		await this.userDataProfilesMainService.checkAndCreateProfileFromEnv(this.environmentMainService.args);
 
 		// Init Channels
 		appInstantiationService.invokeFunction(accessor => this.initChannels(accessor, mainProcessElectronServer, sharedProcessClient));

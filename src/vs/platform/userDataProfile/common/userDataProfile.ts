@@ -226,11 +226,6 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		return this._profilesObject;
 	}
 
-	async reload(): Promise<IUserDataProfile[]> {
-		this._profilesObject = undefined;
-		return this.profiles;
-	}
-
 	getProfile(workspaceIdentifier: WorkspaceIdentifier, profileToUseIfNotSet: IUserDataProfile): IUserDataProfile {
 		if (!this.enabled) {
 			return this.defaultProfile;
@@ -323,6 +318,10 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 	}
 
 	async setProfileForWorkspace(profileToSet: IUserDataProfile, workspaceIdentifier: WorkspaceIdentifier): Promise<void> {
+		this.setProfileForWorkspaceSync(profileToSet, workspaceIdentifier);
+	}
+
+	setProfileForWorkspaceSync(profileToSet: IUserDataProfile, workspaceIdentifier: WorkspaceIdentifier): void {
 		if (!this.enabled) {
 			throw new Error(`Settings Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
 		}

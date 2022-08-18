@@ -14,12 +14,14 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { IUserDataProfilesService, WorkspaceIdentifier, StoredUserDataProfile, StoredProfileAssociations, WillCreateProfileEvent, WillRemoveProfileEvent, IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { UserDataProfilesService } from 'vs/platform/userDataProfile/node/userDataProfile';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 
 export const IUserDataProfilesMainService = refineServiceDecorator<IUserDataProfilesService, IUserDataProfilesMainService>(IUserDataProfilesService);
 export interface IUserDataProfilesMainService extends IUserDataProfilesService {
 	isEnabled(): boolean;
 	unsetWorkspace(workspaceIdentifier: WorkspaceIdentifier): Promise<void>;
-	reload(): Promise<IUserDataProfile[]>;
+	setProfileForWorkspaceSync(profileToSet: IUserDataProfile, workspaceIdentifier: WorkspaceIdentifier): void;
+	checkAndCreateProfileFromEnv(args: NativeParsedArgs): Promise<void>;
 	readonly onWillCreateProfile: Event<WillCreateProfileEvent>;
 	readonly onWillRemoveProfile: Event<WillRemoveProfileEvent>;
 }
@@ -38,6 +40,23 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 
 	isEnabled(): boolean {
 		return this.enabled;
+	}
+
+	async checkAndCreateProfileFromEnv(args: NativeParsedArgs): Promise<void> {
+		if (!this.isEnabled()) {
+			return;
+		}
+		if (!args.profile) {
+			return;
+		}
+		// Do not create the profile if folder/file arguments are not provided
+		if (!args._.length && !args['folder-uri'] && !args['file-uri']) {
+			return;
+		}
+		if (this.profiles.some(p => p.name === args.profile)) {
+			return;
+		}
+		await this.createProfile(args.profile);
 	}
 
 	protected override saveStoredProfiles(storedProfiles: StoredUserDataProfile[]): void {
