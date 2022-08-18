@@ -23,19 +23,21 @@ export class TaskService extends AbstractTaskService {
 		} else {
 			throw new Error(TaskService.ProcessTaskSystemSupportMessage);
 		}
-		this._taskSystemListeners = [this._taskSystem!.onDidStateChange((event) => {
-			if (this._taskSystem) {
-				this._taskRunningState.set(this._taskSystem.isActiveSync());
-			}
-			this._onDidStateChange.fire(event);
-		}),
-			this._taskSystem!.onDidReconnectToTerminals((event) => {
-				if (this._taskSystem) {
-					this._taskRunningState.set(this._taskSystem.isActiveSync());
-				}
-				this._onDidReconnectToTerminals.fire(event);
-			})
-		];
+		this._taskSystemListeners =
+			[
+				this._taskSystem!.onDidStateChange((event) => {
+					if (this._taskSystem) {
+						this._taskRunningState.set(this._taskSystem.isActiveSync());
+					}
+					this._onDidStateChange.fire(event);
+				}),
+				this._taskSystem!.onDidReconnectToTerminals((event) => {
+					if (this._taskSystem) {
+						this._taskRunningState.set(this._taskSystem.isActiveSync());
+					}
+					this._onDidReconnectToTerminals.fire(event);
+				})
+			];
 		return this._taskSystem!;
 	}
 
