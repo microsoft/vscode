@@ -28,7 +28,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IShellLaunchConfig, TerminalLocation, TerminalSettingId, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
@@ -253,8 +253,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		this._onDidStateChange = new Emitter();
 		this._taskSystemInfoResolver = taskSystemInfoResolver;
 		this._register(this._terminalStatusManager = new TaskTerminalStatus(taskService));
-		// connection state changes before this is created sometimes
-		this._reconnectToTerminals();
 		this._register(this._terminalService.onDidChangeConnectionState(() => this._reconnectToTerminals()));
 	}
 
@@ -275,9 +273,15 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	}
 
 	public reconnect(task: Task, resolver: ITaskResolver): ITaskExecuteResult {
-		if (!this._reconnectedTerminals?.length) {
+		if (!this._reconnectedTerminals) {
+			// terminalService.onDidChangeConnectionState might have already fired
+			// before this gets created
 			this._logService.trace('Reconnecting to terminals before running');
 			this._reconnectToTerminals();
+			if (!this._reconnectedTerminals) {
+				this._logService.trace('Returning, terminals have not been reconnected yet');
+				return { kind: TaskExecuteKind.Started, promise: Promise.resolve({ exitCode: 7 }), task } as ITaskExecuteResult;
+			}
 		}
 		return this.run(task, resolver, Triggers.reconnect);
 	}
@@ -1338,23 +1342,27 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 		this._reconnectedTerminals = this._terminalService.getReconnectedTerminals(ReconnectionType)?.filter(t => !t.isDisposed);
 		this._logService.trace(`Attempting reconnection of ${this._reconnectedTerminals?.length} terminals`);
-		if (!this._reconnectedTerminals?.length) {
+		if (!this._reconnectedTerminals) {
+			this._hasReconnected = false;
+		} else if (!this._reconnectedTerminals?.length) {
 			this._logService.trace(`No terminals to reconnect to so returning`);
+			this._hasReconnected = true;
 			return;
-		}
-		for (const terminal of this._reconnectedTerminals) {
-			const task = terminal.shellLaunchConfig.attachPersistentProcess?.reconnectionProperties?.data as IReconnectionTaskData;
-			if (getLevel() <= LogLevel.Trace) {
-				this._logService.trace(`Reconnecting to task: ${JSON.stringify(task)}`);
+		} else {
+			for (const terminal of this._reconnectedTerminals) {
+				const task = terminal.shellLaunchConfig.attachPersistentProcess?.reconnectionProperties?.data as IReconnectionTaskData;
+				if (this._logService.getLevel() <= LogLevel.Trace) {
+					this._logService.trace(`Reconnecting to task: ${JSON.stringify(task)}`);
+				}
+				if (!task) {
+					continue;
+				}
+				const terminalData = { lastTask: task.lastTask, group: task.group, terminal };
+				this._terminals[terminal.instanceId] = terminalData;
 			}
-			if (!task) {
-				continue;
-			}
-			const terminalData = { lastTask: task.lastTask, group: task.group, terminal };
-			this._terminals[terminal.instanceId] = terminalData;
+			this._hasReconnected = true;
+			this._onDidReconnectToTerminals.fire();
 		}
-		this._hasReconnected = true;
-		this._onDidReconnectToTerminals.fire();
 	}
 
 	private _deleteTaskAndTerminal(terminal: ITerminalInstance, terminalData: ITerminalData): void {
