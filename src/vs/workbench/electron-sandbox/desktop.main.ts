@@ -244,10 +244,10 @@ export class DesktopMain extends Disposable {
 
 		// User Data profile
 		let profile: IUserDataProfile | undefined, profileInfo: IUserDataProfileInfo | undefined;
-		if (isUserDataProfileInfo(this.configuration.profiles.workspaceProfile)) {
-			profileInfo = this.configuration.profiles.workspaceProfile;
+		if (isUserDataProfileInfo(this.configuration.profiles.workspace)) {
+			profileInfo = this.configuration.profiles.workspace;
 		} else {
-			profile = reviveProfile(this.configuration.profiles.workspaceProfile, userDataProfilesService.profilesHome.scheme);
+			profile = reviveProfile(this.configuration.profiles.workspace, userDataProfilesService.profilesHome.scheme);
 		}
 		const userDataProfileService = new UserDataProfileService(profile ?? userDataProfilesService.defaultProfile, userDataProfilesService);
 		serviceCollection.set(IUserDataProfileService, userDataProfileService);
