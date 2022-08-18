@@ -1147,12 +1147,12 @@ registerThemingParticipant((theme, collector) => {
 	const commentingRangeForeground = theme.getColor(overviewRulerCommentingRangeForeground);
 	if (commentingRangeForeground) {
 		collector.addRule(`
-			.monaco-editor .comment-diff-added {
+			.monaco-editor .comment-diff-added,
+			.monaco-editor .comment-range-glyph.multiline-add {
 				border-left-color: ${commentingRangeForeground};
 			}
 			.monaco-editor .comment-diff-added:before,
-			.monaco-editor .comment-range-glyph.line-hover:before,
-			.monaco-editor .comment-range-glyph.multiline-add:before {
+			.monaco-editor .comment-range-glyph.line-hover:before {
 				background: ${commentingRangeForeground};
 			}
 			.monaco-editor .comment-thread:before {
