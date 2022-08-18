@@ -5,13 +5,17 @@
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { EditorOption, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { StickyScrollWidget, StickyScrollWidgetState } from './stickyScrollWidget';
 import { StickyLineCandidateProvider, StickyRange } from './stickyScrollProvider';
 import { IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 class StickyScrollController extends Disposable implements IEditorContribution {
 
@@ -138,4 +142,31 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 }
 
 registerEditorContribution(StickyScrollController.ID, StickyScrollController);
+
+registerAction2(class ToggleStickyScroll extends Action2 {
+
+	constructor() {
+		super({
+			id: 'editor.action.toggleStickyScroll',
+			title: {
+				value: localize('toggleStickyScroll', "Toggle Sticky Scroll"),
+				mnemonicTitle: localize('miStickyScroll', "&&Sticky Scroll"),
+				original: 'Toggle Sticky Scroll',
+			},
+			// Hardcoding due to import violation
+			category: { value: localize('view', "View"), original: 'View' },
+			toggled: ContextKeyExpr.equals('config.editor.experimental.stickyScroll.enabled', true),
+			menu: [
+				{ id: MenuId.CommandPalette },
+				{ id: MenuId.MenubarViewMenu, group: '5_editor', order: 6 },
+			]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		const newValue = !configurationService.getValue('editor.experimental.stickyScroll.enabled');
+		return configurationService.updateValue('editor.experimental.stickyScroll.enabled', newValue);
+	}
+});
 

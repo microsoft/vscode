@@ -19,7 +19,6 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Extensions, getDefaultValue, IConfigurationRegistry, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
-import { EditorResolution } from 'vs/platform/editor/common/editor';
 import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -28,7 +27,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IEditorPane } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, IEditorPane } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
@@ -323,7 +322,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				const activeEditorGroup = this.editorGroupService.activeGroup;
 				const sideEditorGroup = this.editorGroupService.addGroup(activeEditorGroup.id, GroupDirection.RIGHT);
 				await Promise.all([
-					this.editorService.openEditor({ resource: this.defaultKeybindingsResource, options: { pinned: true, preserveFocus: true, revealIfOpened: true, override: EditorResolution.DISABLED }, label: nls.localize('defaultKeybindings', "Default Keybindings"), description: '' }),
+					this.editorService.openEditor({ resource: this.defaultKeybindingsResource, options: { pinned: true, preserveFocus: true, revealIfOpened: true, override: DEFAULT_EDITOR_ASSOCIATION.id }, label: nls.localize('defaultKeybindings', "Default Keybindings"), description: '' }),
 					this.editorService.openEditor({ resource: editableKeybindings, options }, sideEditorGroup.id)
 				]);
 			} else {
@@ -331,7 +330,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			}
 
 		} else {
-			const editor = (await this.editorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), { ...options, override: EditorResolution.DISABLED })) as IKeybindingsEditorPane;
+			const editor = (await this.editorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), { ...options })) as IKeybindingsEditorPane;
 			if (options.query) {
 				editor.search(options.query);
 			}
