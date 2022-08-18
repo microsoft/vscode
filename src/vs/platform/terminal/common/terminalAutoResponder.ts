@@ -45,7 +45,7 @@ export class TerminalAutoResponder extends Disposable {
 				}
 				// Auto reply and reset
 				if (this._pointer === matchWord.length) {
-					logService.debug(`Auto reply sent "${response}"`);
+					logService.debug(`Auto reply match: "${matchWord}", response: "${response}"`);
 					proc.input(response);
 					this._throttled = true;
 					timeout(1000).then(() => this._throttled = false);
