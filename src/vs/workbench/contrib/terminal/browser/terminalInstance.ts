@@ -1080,7 +1080,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		return new Promise<void>(r => {
 			this._terminalInRunCommandPicker.set(true);
-			this._instantiationService.invokeFunction(showWithPinnedItems, runRecentStorageKey, quickPick, true);
+			showWithPinnedItems(this._storageService, runRecentStorageKey, quickPick, true);
 			quickPick.onDidHide(() => {
 				this._terminalInRunCommandPicker.set(false);
 				r();

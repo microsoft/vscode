@@ -5,7 +5,6 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { localize } from 'vs/nls';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickPick, IQuickPickItem, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -19,8 +18,7 @@ const buttonClasses = [pinButtonClass, pinnedButtonClass];
  * be removed if @param filterDupliates has been provided. Pin and pinned button events trigger updates to the underlying storage.
  * Shows the quickpick once formatted.
  */
-export async function showWithPinnedItems(accessor: ServicesAccessor, storageKey: string, quickPick: IQuickPick<IQuickPickItem>, filterDuplicates?: boolean): Promise<void> {
-	const storageService = accessor.get(IStorageService);
+export async function showWithPinnedItems(storageService: IStorageService, storageKey: string, quickPick: IQuickPick<IQuickPickItem>, filterDuplicates?: boolean): Promise<void> {
 	quickPick.onDidTriggerItemButton(async buttonEvent => {
 		const expectedButton = buttonEvent.button.iconClass && buttonClasses.includes(buttonEvent.button.iconClass);
 		if (expectedButton) {
