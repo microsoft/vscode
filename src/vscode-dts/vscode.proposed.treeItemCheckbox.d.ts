@@ -34,13 +34,13 @@ declare module 'vscode' {
 		/**
 		* An optional event to signal that an element or root has either been checked or unchecked.
 		*/
-		onDidChangeTreeCheckbox?: Event<ChangeTreeCheckboxEvent>;
+		onDidChangeTreeCheckbox?: Event<ChangeTreeCheckboxEvent<T>>;
 	}
 
-	export interface ChangeTreeCheckboxEvent {
+	export interface ChangeTreeCheckboxEvent<T> {
 		/**
 		* The item that was checked or unchecked.
 		*/
-		readonly items: TreeItem2[];
+		readonly items: [T, TreeItemCheckboxState][];
 	}
 }
