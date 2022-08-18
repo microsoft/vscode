@@ -857,7 +857,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}
 
 		// Apply profile if any
-		const profileName = cli['settings-profile'];
+		const profileName = cli['profile'];
 		if (profileName) {
 			for (const path of pathsToOpen) {
 				path.profileOptions = { name: profileName };
