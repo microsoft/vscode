@@ -342,25 +342,25 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		this._sessionDisposables.add(autorunWithStore((reader, store) => {
 			const input1ViewZoneIds: string[] = [];
 			const input2ViewZoneIds: string[] = [];
-			for (const m of model.modifiedBaseRanges.read(reader)) {
-				const max = Math.max(m.input1Range.lineCount, m.input2Range.lineCount, 1);
+			this.input1View.editor.changeViewZones(a1 => {
+				this.input2View.editor.changeViewZones(a2 => {
+					for (const m of model.modifiedBaseRanges.read(reader)) {
+						const max = Math.max(m.input1Range.lineCount, m.input2Range.lineCount, 1);
 
-				this.input1View.editor.changeViewZones(a => {
-					input1ViewZoneIds.push(a.addZone({
-						afterLineNumber: m.input1Range.endLineNumberExclusive - 1,
-						heightInLines: max - m.input1Range.lineCount,
-						domNode: $('div.diagonal-fill'),
-					}));
-				});
+						input1ViewZoneIds.push(a1.addZone({
+							afterLineNumber: m.input1Range.endLineNumberExclusive - 1,
+							heightInLines: max - m.input1Range.lineCount,
+							domNode: $('div.diagonal-fill'),
+						}));
 
-				this.input2View.editor.changeViewZones(a => {
-					input2ViewZoneIds.push(a.addZone({
-						afterLineNumber: m.input2Range.endLineNumberExclusive - 1,
-						heightInLines: max - m.input2Range.lineCount,
-						domNode: $('div.diagonal-fill'),
-					}));
+						input2ViewZoneIds.push(a2.addZone({
+							afterLineNumber: m.input2Range.endLineNumberExclusive - 1,
+							heightInLines: max - m.input2Range.lineCount,
+							domNode: $('div.diagonal-fill'),
+						}));
+					}
 				});
-			}
+			});
 
 			store.add({
 				dispose: () => {
