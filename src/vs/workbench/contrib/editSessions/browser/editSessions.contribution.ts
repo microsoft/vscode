@@ -124,7 +124,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		if (this.environmentService.editSessionId !== undefined) {
 			// In web, resume edit session based on an edit session GUID that
 			// was explicitly passed into the workbench construction options
-			void this.progressService.withProgress({ location: ProgressLocation.Dialog, type: 'syncing', title: localize('resuming edit session dialog', 'Resuming your latest edit session...') }, async () => {
+			void this.progressService.withProgress({ location: ProgressLocation.Window, type: 'syncing', title: localize('resuming edit session dialog', 'Resuming your latest edit session...') }, async () => {
 				performance.mark('code/willResumeEditSessionFromIdentifier');
 
 				type ResumeEvent = {};
