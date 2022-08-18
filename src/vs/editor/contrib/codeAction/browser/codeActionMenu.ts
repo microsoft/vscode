@@ -188,7 +188,9 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 						};
 
 					const actionbar = new ActionBar(actionbarContainer);
-					if (openedFromString === CodeActionTriggerSource.Refactor && (element.params.codeActions.validActions.length > 0 || element.params.codeActions.allActions.length - element.params.codeActions.validActions.length === 0)) {
+					data.disposables.push(actionbar);
+
+					if (openedFromString === CodeActionTriggerSource.Refactor && (element.params.codeActions.validActions.length > 0 || element.params.codeActions.allActions.length === element.params.codeActions.validActions.length)) {
 						actionbar.push([element.action, reRenderAction], { icon: false, label: true });
 					} else {
 						actionbar.push([element.action], { icon: false, label: true });
