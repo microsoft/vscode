@@ -15,6 +15,7 @@
 	text-overflow: ellipsis;
 	overflow: hidden;
 	padding-right: 6px;
+	white-space: nowrap;
 }
 
 .monaco-workbench .merge-editor .code-view > .title>SPAN.title {

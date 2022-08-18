@@ -602,6 +602,11 @@
         "title": "%command.git.acceptMerge%",
         "category": "Git",
         "enablement": "isMergeEditor && mergeEditorResultUri in git.mergeChanges"
+      },
+      {
+        "command": "git.openMergeEditor",
+        "title": "%command.git.openMergeEditor%",
+        "category": "Git"
       }
     ],
     "keybindings": [
@@ -1024,6 +1029,10 @@
         },
         {
           "command": "git.api.getRemoteSources",
+          "when": "false"
+        },
+        {
+          "command": "git.openMergeEditor",
           "when": "false"
         }
       ],
@@ -1502,6 +1511,11 @@
           "command": "git.openChange",
           "group": "navigation",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && !isMergeEditor && resourceScheme == file && scmActiveResourceHasChanges"
+        },
+        {
+          "command": "git.openMergeEditor",
+          "group": "navigation@-10",
+          "when": "config.git.enabled && !git.missing && !isInDiffEditor && !isMergeEditor && resource in git.mergeChanges"
         },
         {
           "command": "git.commitMessageAccept",
