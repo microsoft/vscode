@@ -8,9 +8,9 @@ declare module 'vscode' {
 	// https://github.com/microsoft/vscode/issues/106744
 
 	export interface NotebookRegistrationData {
-		displayName: string;
-		filenamePattern: (GlobPattern | { include: GlobPattern; exclude: GlobPattern })[];
-		exclusive?: boolean;
+		readonly displayName: string;
+		readonly filenamePattern: ReadonlyArray<(GlobPattern | { readonly include: GlobPattern; readonly exclude: GlobPattern })>;
+		readonly exclusive?: boolean;
 	}
 
 	export namespace workspace {

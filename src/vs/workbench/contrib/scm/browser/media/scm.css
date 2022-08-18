@@ -254,6 +254,15 @@
 	padding: 0 4px;
 }
 
+/* split commit button */
+.scm-view .button-container > .monaco-button-dropdown > .monaco-dropdown-button.codicon-drop-down-button {
+	border-radius: 0 2px 2px 0;
+}
+
+.scm-view .button-container > .monaco-button-dropdown > .monaco-button.monaco-text-button {
+	border-radius: 2px 0 0 2px;
+}
+
 .scm-view .scm-editor.hidden {
 	display: none;
 }
@@ -265,14 +274,22 @@
 	outline-offset: -1px;
 }
 
+.scm-editor-validation-container {
+	display: flex;
+	box-sizing: border-box;
+	border-width: 1px;
+	border-style: solid;
+	border-top: none;
+	padding: 2px;
+}
+
 .scm-editor-validation {
 	box-sizing: border-box;
 	font-size: 0.9em;
 	padding: 1px 3px;
 	display: block;
-	border-width: 1px;
-	border-style: solid;
-	border-top: none;
+	border-style: none;
+	flex: auto;
 }
 
 .scm-editor-validation p {
@@ -283,6 +300,11 @@
 .scm-editor-validation a {
 	-webkit-user-select: none;
 	user-select: none;
+}
+
+.scm-editor-validation-actions {
+	align-self: start;
+	margin-top: 1px;
 }
 
 .scm-view .scm-editor-placeholder {
