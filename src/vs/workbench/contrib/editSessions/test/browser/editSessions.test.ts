@@ -34,6 +34,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Event } from 'vs/base/common/event';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 const folderName = 'test-folder';
 const folderUri = URI.file(`/${folderName}`);
@@ -60,6 +61,9 @@ suite('Edit session sync', () => {
 		// Stub out all services
 		instantiationService.stub(IEditSessionsLogService, logService);
 		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(ILifecycleService, new class extends mock<ILifecycleService>() {
+			override onWillShutdown = Event.None;
+		});
 		instantiationService.stub(INotificationService, new TestNotificationService());
 		instantiationService.stub(IEditSessionsWorkbenchService, new class extends mock<IEditSessionsWorkbenchService>() { });
 		instantiationService.stub(IProgressService, ProgressService);

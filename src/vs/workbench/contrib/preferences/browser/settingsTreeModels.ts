@@ -26,6 +26,7 @@ export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
 export interface ISettingsEditorViewState {
 	settingsTarget: SettingsTarget;
+	query?: string; // used to keep track of loading from setInput vs loading from cache
 	tagFilters?: Set<string>;
 	extensionFilters?: Set<string>;
 	featureFilters?: Set<string>;

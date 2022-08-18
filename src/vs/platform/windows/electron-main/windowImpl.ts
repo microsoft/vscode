@@ -143,6 +143,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private representedFilename: string | undefined;
 	private documentEdited: boolean | undefined;
 
+	private readonly hasWindowControlOverlay: boolean = false;
+
 	private readonly whenReadyCallbacks: { (window: ICodeWindow): void }[] = [];
 
 	private readonly touchBarGroups: TouchBarSegmentedControl[] = [];
@@ -280,6 +282,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 						color: titleBarColor,
 						symbolColor
 					};
+
+					this.hasWindowControlOverlay = true;
 				}
 			}
 
@@ -955,7 +959,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		configuration.isInitialStartup = false; // since this is a reload
 		configuration.policiesData = this.policyService.serialize(); // set policies data again
-		configuration.editSessionId = this.environmentMainService.editSessionId; // set latest edit session id
 		configuration.profiles = {
 			all: this.userDataProfilesService.profiles,
 			workspace: this.profile || this.userDataProfilesService.defaultProfile,
@@ -1072,7 +1075,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 
 		// Windows: window control overlay (WCO)
-		if (isWindows) {
+		if (isWindows && this.hasWindowControlOverlay) {
 			this._win.setTitleBarOverlay({
 				color: options.backgroundColor?.trim() === '' ? undefined : options.backgroundColor,
 				symbolColor: options.foregroundColor?.trim() === '' ? undefined : options.foregroundColor,
@@ -1109,17 +1112,20 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private validateWindowState(state: IWindowState, displays: Display[]): IWindowState | undefined {
 		this.logService.trace(`window#validateWindowState: validating window state on ${displays.length} display(s)`, state);
 
-		if (typeof state.x !== 'number'
-			|| typeof state.y !== 'number'
-			|| typeof state.width !== 'number'
-			|| typeof state.height !== 'number'
+		if (
+			typeof state.x !== 'number' ||
+			typeof state.y !== 'number' ||
+			typeof state.width !== 'number' ||
+			typeof state.height !== 'number'
 		) {
 			this.logService.trace('window#validateWindowState: unexpected type of state values');
+
 			return undefined;
 		}
 
 		if (state.width <= 0 || state.height <= 0) {
 			this.logService.trace('window#validateWindowState: unexpected negative values');
+
 			return undefined;
 		}
 

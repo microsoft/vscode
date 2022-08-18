@@ -382,13 +382,12 @@ export class BulkEditPane extends ViewPane {
 	private _onContextMenu(e: ITreeContextMenuEvent<any>): void {
 		const menu = this._menuService.createMenu(MenuId.BulkEditContext, this._contextKeyService);
 		const actions: IAction[] = [];
-		const disposable = createAndFillInContextMenuActions(menu, undefined, actions);
+		createAndFillInContextMenuActions(menu, undefined, actions);
 
 		this._contextMenuService.showContextMenu({
 			getActions: () => actions,
 			getAnchor: () => e.anchor,
 			onHide: () => {
-				disposable.dispose();
 				menu.dispose();
 			}
 		});
