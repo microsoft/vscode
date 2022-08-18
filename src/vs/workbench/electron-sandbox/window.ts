@@ -660,6 +660,8 @@ export class NativeWindow extends Disposable {
 		const that = this;
 		registerWindowDriver({
 			async exitApplication(): Promise<void> {
+				that.logService.info('[driver] handling exitApplication()');
+
 				return that.nativeHostService.quit();
 			}
 		});
