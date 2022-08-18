@@ -51,6 +51,7 @@ const CORE_TYPES = [
     'BigInt64Array',
     'btoa',
     'atob',
+    'AbortController',
     'AbortSignal',
     'MessageChannel',
     'MessagePort',
@@ -228,7 +229,7 @@ function checkFile(program, sourceFile, rule) {
         }
         if (rule.disallowedTypes?.some(disallowed => disallowed === text)) {
             const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
-            console.log(`[build/lib/layersChecker.ts]: Reference to type '${text}' violates layer '${rule.target}' (${sourceFile.fileName} (${line + 1},${character + 1})`);
+            console.log(`[build/lib/layersChecker.ts]: Reference to type '${text}' violates layer '${rule.target}' (${sourceFile.fileName} (${line + 1},${character + 1}). Learn more about our source code organization at https://github.com/microsoft/vscode/wiki/Source-Code-Organization.`);
             hasErrors = true;
             return;
         }
@@ -252,7 +253,7 @@ function checkFile(program, sourceFile, rule) {
                                 for (const disallowedDefinition of rule.disallowedDefinitions) {
                                     if (definitionFileName.indexOf(disallowedDefinition) >= 0) {
                                         const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
-                                        console.log(`[build/lib/layersChecker.ts]: Reference to symbol '${text}' from '${disallowedDefinition}' violates layer '${rule.target}' (${sourceFile.fileName} (${line + 1},${character + 1})`);
+                                        console.log(`[build/lib/layersChecker.ts]: Reference to symbol '${text}' from '${disallowedDefinition}' violates layer '${rule.target}' (${sourceFile.fileName} (${line + 1},${character + 1}) Learn more about our source code organization at https://github.com/microsoft/vscode/wiki/Source-Code-Organization.`);
                                         hasErrors = true;
                                         return;
                                     }

@@ -143,4 +143,17 @@ export class MergeEditorViewModel {
 			);
 		});
 	}
+
+	public acceptAll(inputNumber: 1 | 2): void {
+		transaction(tx => {
+			/** @description Toggle Active Conflict */
+			for (const range of this.model.modifiedBaseRanges.get()) {
+				this.setState(
+					range,
+					this.model.getState(range).get().withInputValue(inputNumber, true),
+					tx
+				);
+			}
+		});
+	}
 }

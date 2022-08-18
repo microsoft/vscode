@@ -28,6 +28,13 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { Event } from 'vs/base/common/event';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 const folderName = 'test-folder';
 const folderUri = URI.file(`/${folderName}`);
@@ -54,6 +61,9 @@ suite('Edit session sync', () => {
 		// Stub out all services
 		instantiationService.stub(IEditSessionsLogService, logService);
 		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(ILifecycleService, new class extends mock<ILifecycleService>() {
+			override onWillShutdown = Event.None;
+		});
 		instantiationService.stub(INotificationService, new TestNotificationService());
 		instantiationService.stub(IEditSessionsWorkbenchService, new class extends mock<IEditSessionsWorkbenchService>() { });
 		instantiationService.stub(IProgressService, ProgressService);
@@ -76,6 +86,17 @@ suite('Edit session sync', () => {
 
 		// Stub repositories
 		instantiationService.stub(ISCMService, '_repositories', new Map());
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		instantiationService.stub(IThemeService, new class extends mock<IThemeService>() {
+			override onDidColorThemeChange = Event.None;
+			override onDidFileIconThemeChange = Event.None;
+		});
+		instantiationService.stub(IViewDescriptorService, {
+			onDidChangeLocation: Event.None
+		});
+		instantiationService.stub(ITextModelService, new class extends mock<ITextModelService>() {
+			override registerTextModelContentProvider = () => ({ dispose: () => { } });
+		});
 
 		editSessionsContribution = instantiationService.createInstance(EditSessionsContribution);
 	});

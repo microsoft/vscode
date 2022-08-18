@@ -11,6 +11,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/browser/types';
 import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ApplyFileSnippetAction } from 'vs/workbench/contrib/snippets/browser/commands/fileTemplateSnippets';
@@ -23,7 +24,7 @@ class SurroundWithSnippetCodeActionProvider implements CodeActionProvider {
 	private static readonly _MAX_CODE_ACTIONS = 4;
 
 	private static readonly _overflowCommandCodeAction: CodeAction = {
-		kind: CodeActionKind.Refactor.value,
+		kind: CodeActionKind.SurroundWith.value,
 		title: SurroundWithSnippetEditorAction.options.title.value,
 		command: {
 			id: SurroundWithSnippetEditorAction.options.id,
@@ -53,7 +54,7 @@ class SurroundWithSnippetCodeActionProvider implements CodeActionProvider {
 			}
 			actions.push({
 				title: localize('codeAction', "Surround With: {0}", snippet.name),
-				kind: CodeActionKind.Refactor.value,
+				kind: CodeActionKind.SurroundWith.value,
 				edit: asWorkspaceEdit(model, range, snippet)
 			});
 		}
@@ -71,14 +72,14 @@ class FileTemplateCodeActionProvider implements CodeActionProvider {
 
 	private static readonly _overflowCommandCodeAction: CodeAction = {
 		title: localize('overflow.start.title', 'Start with Snippet'),
-		kind: CodeActionKind.Refactor.value,
+		kind: CodeActionKind.SurroundWith.value,
 		command: {
 			id: ApplyFileSnippetAction.Id,
 			title: ''
 		}
 	};
 
-	readonly providedCodeActionKinds?: readonly string[] = [CodeActionKind.Refactor.value];
+	readonly providedCodeActionKinds?: readonly string[] = [CodeActionKind.SurroundWith.value];
 
 	constructor(@ISnippetsService private readonly _snippetService: ISnippetsService) { }
 
@@ -96,7 +97,7 @@ class FileTemplateCodeActionProvider implements CodeActionProvider {
 			}
 			actions.push({
 				title: localize('title', 'Start with: {0}', snippet.name),
-				kind: CodeActionKind.Refactor.value,
+				kind: CodeActionKind.SurroundWith.value,
 				edit: asWorkspaceEdit(model, model.getFullModelRange(), snippet)
 			});
 		}
@@ -128,9 +129,22 @@ export class SnippetCodeActions implements IWorkbenchContribution {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+		@IConfigurationService configService: IConfigurationService,
 	) {
-		this._store.add(languageFeaturesService.codeActionProvider.register('*', instantiationService.createInstance(SurroundWithSnippetCodeActionProvider)));
-		this._store.add(languageFeaturesService.codeActionProvider.register('*', instantiationService.createInstance(FileTemplateCodeActionProvider)));
+
+		const setting = 'editor.snippets.codeActions.enabled';
+		const sessionStore = new DisposableStore();
+		const update = () => {
+			sessionStore.clear();
+			if (configService.getValue(setting)) {
+				sessionStore.add(languageFeaturesService.codeActionProvider.register('*', instantiationService.createInstance(SurroundWithSnippetCodeActionProvider)));
+				sessionStore.add(languageFeaturesService.codeActionProvider.register('*', instantiationService.createInstance(FileTemplateCodeActionProvider)));
+			}
+		};
+
+		update();
+		this._store.add(configService.onDidChangeConfiguration(e => e.affectsConfiguration(setting) && update()));
+		this._store.add(sessionStore);
 	}
 
 	dispose(): void {

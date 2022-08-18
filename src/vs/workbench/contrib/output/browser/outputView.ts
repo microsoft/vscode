@@ -149,9 +149,7 @@ export class OutputViewPane extends ViewPane {
 
 		const input = this.createInput(channel);
 		if (!this.editor.input || !input.matches(this.editor.input)) {
-			if (this.editorPromise) {
-				this.editorPromise.cancel();
-			}
+			this.editorPromise?.cancel();
 			this.editorPromise = createCancelablePromise(token => this.editor.setInput(this.createInput(channel), { preserveFocus: true }, Object.create(null), token)
 				.then(() => this.editor));
 		}

@@ -15,6 +15,7 @@ export interface ITelemetryData {
 
 export type WorkbenchActionExecutedClassification = {
 	owner: 'bpasero';
+	comment: 'TODO @bpasero';
 	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the action that was run.' };
 	from: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the component the action was run from.' };
 };
@@ -24,7 +25,7 @@ export type WorkbenchActionExecutedEvent = {
 	from: string;
 };
 
-export interface IAction extends IDisposable {
+export interface IAction {
 	readonly id: string;
 	label: string;
 	tooltip: string;
@@ -241,12 +242,6 @@ export class SubmenuAction implements IAction {
 		this._actions = actions;
 	}
 
-	dispose(): void {
-		// there is NOTHING to dispose and the SubmenuAction should
-		// never have anything to dispose as it is a convenience type
-		// to bridge into the rendering world.
-	}
-
 	async run(): Promise<void> { }
 }
 
@@ -267,7 +262,6 @@ export function toAction(props: { id: string; label: string; enabled?: boolean; 
 		enabled: props.enabled ?? true,
 		checked: props.checked ?? false,
 		run: async () => props.run(),
-		tooltip: props.label,
-		dispose: () => { }
+		tooltip: props.label
 	};
 }

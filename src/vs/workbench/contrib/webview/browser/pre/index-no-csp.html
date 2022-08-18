@@ -1070,8 +1070,10 @@
 							}
 
 							try {
-								context = { ...JSON.parse(el.getAttribute('data-vscode-context')), ...context };
-							} catch {}
+								context = { ...JSON.parse(el.dataset.vscodeContext), ...context };
+							} catch (e) {
+								console.error(`Error parsing 'data-vscode-context' as json`, el, e)
+							}
 
 							el = el.parentElement;
 						}

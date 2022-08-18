@@ -22,7 +22,7 @@ import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
 import { TestRunProfileKind, TestRunRequest } from 'vs/workbench/api/common/extHostTypes';
 import { TestId, TestIdPathParts, TestPosition } from 'vs/workbench/contrib/testing/common/testId';
 import { InvalidTestItemError } from 'vs/workbench/contrib/testing/common/testItemCollection';
-import { AbstractIncrementalTestCollection, CoverageDetails, IFileCoverage, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, ISerializedTestResults, ITestItem, RunTestForControllerRequest, TestResultState, TestRunProfileBitset, TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
+import { AbstractIncrementalTestCollection, CoverageDetails, IFileCoverage, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, ISerializedTestResults, ITestItem, RunTestForControllerRequest, RunTestForControllerResult, TestResultState, TestRunProfileBitset, TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
 import type * as vscode from 'vscode';
 
 interface ControllerInfo {
@@ -227,16 +227,20 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	 * providers to be run.
 	 * @override
 	 */
-	public async $runControllerTests(req: RunTestForControllerRequest, token: CancellationToken): Promise<void> {
+	public async $runControllerTests(reqs: RunTestForControllerRequest[], token: CancellationToken): Promise<RunTestForControllerResult[]> {
+		return Promise.all(reqs.map(req => this.runControllerTestRequest(req, token)));
+	}
+
+	public async runControllerTestRequest(req: RunTestForControllerRequest, token: CancellationToken): Promise<RunTestForControllerResult> {
 		const lookup = this.controllers.get(req.controllerId);
 		if (!lookup) {
-			return;
+			return {};
 		}
 
 		const { collection, profiles } = lookup;
 		const profile = profiles.get(req.profileId);
 		if (!profile) {
-			return;
+			return {};
 		}
 
 		const includeTests = req.testIds
@@ -251,7 +255,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			));
 
 		if (!includeTests.length) {
-			return;
+			return {};
 		}
 
 		const publicReq = new TestRunRequest(
@@ -268,6 +272,9 @@ export class ExtHostTesting implements ExtHostTestingShape {
 
 		try {
 			await profile.runHandler(publicReq, token);
+			return {};
+		} catch (e) {
+			return { error: String(e) };
 		} finally {
 			if (tracker.isRunning && !token.isCancellationRequested) {
 				await Event.toPromise(tracker.onEnd);

@@ -540,7 +540,8 @@ class ResourceLabelWidget extends IconLabel {
 			descriptionMatches: this.options?.descriptionMatches,
 			extraClasses: [],
 			separator: this.options?.separator,
-			domId: this.options?.domId
+			domId: this.options?.domId,
+			disabledCommand: this.options?.disabledCommand,
 		};
 
 		const resource = toResource(this.label);

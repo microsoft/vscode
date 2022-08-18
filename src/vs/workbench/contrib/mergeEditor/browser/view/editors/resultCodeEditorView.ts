@@ -4,13 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CompareResult } from 'vs/base/common/arrays';
+import { BugIndicatingError } from 'vs/base/common/errors';
 import { autorun, derived } from 'vs/base/common/observable';
+import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { MergeMarkersController } from 'vs/workbench/contrib/mergeEditor/browser/mergeMarkers/mergeMarkersController';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 import { applyObservableDecorations, join } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from 'vs/workbench/contrib/mergeEditor/browser/view/colors';
+import { EditorGutter } from 'vs/workbench/contrib/mergeEditor/browser/view/editorGutter';
 import { CodeEditorView } from './codeEditorView';
 
 export class ResultCodeEditorView extends CodeEditorView {
@@ -61,37 +65,40 @@ export class ResultCodeEditorView extends CodeEditorView {
 								position: MinimapPosition.Gutter,
 								color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
 							},
-							overviewRuler: {
+							overviewRuler: modifiedBaseRange.isConflicting ? {
 								position: OverviewRulerLane.Center,
 								color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
-							}
+							} : undefined
 						}
 					});
 				}
 			}
 
-			for (const diff of m.rights) {
-				const range = diff.outputRange.toInclusiveRange();
-				if (range) {
-					result.push({
-						range,
-						options: {
-							className: `merge-editor-diff result`,
-							description: 'Merge Editor',
-							isWholeLine: true,
-						}
-					});
-				}
 
-				if (diff.rangeMappings) {
-					for (const d of diff.rangeMappings) {
+			if (!modifiedBaseRange || modifiedBaseRange.isConflicting) {
+				for (const diff of m.rights) {
+					const range = diff.outputRange.toInclusiveRange();
+					if (range) {
 						result.push({
-							range: d.outputRange,
+							range,
 							options: {
-								className: `merge-editor-diff-word result`,
-								description: 'Merge Editor'
+								className: `merge-editor-diff result`,
+								description: 'Merge Editor',
+								isWholeLine: true,
 							}
 						});
+					}
+
+					if (diff.rangeMappings) {
+						for (const d of diff.rangeMappings) {
+							result.push({
+								range: d.outputRange,
+								options: {
+									className: `merge-editor-diff-word result`,
+									description: 'Merge Editor'
+								}
+							});
+						}
 					}
 				}
 			}
@@ -106,8 +113,20 @@ export class ResultCodeEditorView extends CodeEditorView {
 
 		this._register(applyObservableDecorations(this.editor, this.decorations));
 
+		this.htmlElements.gutterDiv.style.width = '5px';
+
+		this._register(
+			new EditorGutter(this.editor, this.htmlElements.gutterDiv, {
+				getIntersectingGutterItems: (range, reader) => [],
+				createView: (item, target) => { throw new BugIndicatingError(); },
+			})
+		);
 
 		this._register(autorun('update remainingConflicts label', reader => {
+			// this is a bit of a hack, but it's the easiest way to get the label to update
+			// when the view model updates, as the the base class resets the label in the setModel call.
+			this.viewModel.read(reader);
+
 			const model = this.model.read(reader);
 			if (!model) {
 				return;
@@ -127,5 +146,12 @@ export class ResultCodeEditorView extends CodeEditorView {
 				);
 
 		}));
+	}
+
+	protected override getEditorContributions(): IEditorContributionDescription[] | undefined {
+		return [
+			...EditorExtensionsRegistry.getEditorContributions(),
+			{ id: MergeMarkersController.ID, ctor: MergeMarkersController }
+		] as IEditorContributionDescription[];
 	}
 }

@@ -121,9 +121,7 @@ export class ExplorerService implements IExplorerService {
 			}
 		}));
 		this.disposables.add(this.model.onDidChangeRoots(() => {
-			if (this.view) {
-				this.view.setTreeInput();
-			}
+			this.view?.setTreeInput();
 		}));
 
 		// Refresh explorer when window gets focus to compensate for missing file events #126817
@@ -156,10 +154,16 @@ export class ExplorerService implements IExplorerService {
 
 		const items = new Set<ExplorerItem>(this.view.getContext(respectMultiSelection));
 		items.forEach(item => {
-			if (respectMultiSelection && this.view?.isItemCollapsed(item) && item.nestedChildren) {
-				for (const child of item.nestedChildren) {
-					items.add(child);
+			try {
+				if (respectMultiSelection && this.view?.isItemCollapsed(item) && item.nestedChildren) {
+					for (const child of item.nestedChildren) {
+						items.add(child);
+					}
 				}
+			} catch {
+				// We will error out trying to resolve collapsed nodes that have not yet been resolved.
+				// So we catch and ignore them in the multiSelect context
+				return;
 			}
 		});
 

@@ -63,12 +63,18 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 		});
 
 		documents.onDidClose(e => {
-			this._documentCache.delete(URI.parse(e.document.uri));
+			const uri = URI.parse(e.document.uri);
+			this._documentCache.delete(uri);
+
+			if (this.isRelevantMarkdownDocument(e.document)) {
+				this._onDidDeleteMarkdownDocument.fire(uri);
+			}
 		});
 
 		connection.onDidChangeWatchedFiles(async ({ changes }) => {
 			for (const change of changes) {
 				const resource = URI.parse(change.uri);
+				this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace: onDidChangeWatchedFiles', `${change.type}: ${resource}`);
 				switch (change.type) {
 					case FileChangeType.Changed: {
 						this._documentCache.delete(resource);
@@ -95,10 +101,13 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 		});
 
 		connection.onRequest(protocol.fs_watcher_onChange, params => {
+			this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace: fs_watcher_onChange', `${params.kind}: ${params.uri}`);
+
 			const watcher = this._watchers.get(params.id);
 			if (!watcher) {
 				return;
 			}
+
 			switch (params.kind) {
 				case 'create': watcher.onDidCreate.fire(URI.parse(params.uri)); return;
 				case 'change': watcher.onDidChange.fire(URI.parse(params.uri)); return;
@@ -211,6 +220,9 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 	}
 
 	watchFile(resource: URI, options: FileWatcherOptions): IFileSystemWatcher {
+		const id = this._watcherPool++;
+		this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace: watchFile', `(${id}) ${resource}`);
+
 		const entry = {
 			resource,
 			options,
@@ -218,13 +230,13 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 			onDidChange: new Emitter<URI>(),
 			onDidDelete: new Emitter<URI>(),
 		};
-		const id = this._watcherPool++;
 		this._watchers.set(id, entry);
 
 		this.connection.sendRequest(protocol.fs_watcher_create, {
 			id,
 			uri: resource.toString(),
 			options,
+			watchParentDirs: true,
 		});
 
 		return {
@@ -232,6 +244,7 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 			onDidChange: entry.onDidChange.event,
 			onDidDelete: entry.onDidDelete.event,
 			dispose: () => {
+				this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace: disposeWatcher', `(${id}) ${resource}`);
 				this.connection.sendRequest(protocol.fs_watcher_delete, { id });
 				this._watchers.delete(id);
 			}

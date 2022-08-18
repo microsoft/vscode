@@ -84,7 +84,7 @@ export namespace EditorScroll_ {
 						\`\`\`
 					* 'by': Unit to move. Default is computed based on 'to' value.
 						\`\`\`
-						'line', 'wrappedLine', 'page', 'halfPage'
+						'line', 'wrappedLine', 'page', 'halfPage', 'editor'
 						\`\`\`
 					* 'value': Number of units to move. Default is '1'.
 					* 'revealCursor': If 'true' reveals the cursor if it is outside view port.
@@ -100,7 +100,7 @@ export namespace EditorScroll_ {
 						},
 						'by': {
 							'type': 'string',
-							'enum': ['line', 'wrappedLine', 'page', 'halfPage']
+							'enum': ['line', 'wrappedLine', 'page', 'halfPage', 'editor']
 						},
 						'value': {
 							'type': 'number',
@@ -130,7 +130,8 @@ export namespace EditorScroll_ {
 		Line: 'line',
 		WrappedLine: 'wrappedLine',
 		Page: 'page',
-		HalfPage: 'halfPage'
+		HalfPage: 'halfPage',
+		Editor: 'editor'
 	};
 
 	/**
@@ -172,6 +173,9 @@ export namespace EditorScroll_ {
 			case RawUnit.HalfPage:
 				unit = Unit.HalfPage;
 				break;
+			case RawUnit.Editor:
+				unit = Unit.Editor;
+				break;
 			default:
 				unit = Unit.WrappedLine;
 		}
@@ -205,7 +209,8 @@ export namespace EditorScroll_ {
 		Line = 1,
 		WrappedLine = 2,
 		Page = 3,
-		HalfPage = 4
+		HalfPage = 4,
+		Editor = 5
 	}
 }
 
@@ -1279,6 +1284,14 @@ export namespace CoreNavigationCommands {
 				return viewModel.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
 			}
 
+			if (args.unit === EditorScroll_.Unit.Editor) {
+				let desiredTopModelLineNumber = 0;
+				if (args.direction === EditorScroll_.Direction.Down) {
+					desiredTopModelLineNumber = viewModel.model.getLineCount() - viewModel.cursorConfig.pageSize;
+				}
+				return viewModel.viewLayout.getVerticalOffsetForLineNumber(desiredTopModelLineNumber);
+			}
+
 			let noOfLines: number;
 			if (args.unit === EditorScroll_.Unit.Page) {
 				noOfLines = viewModel.cursorConfig.pageSize * args.value;
@@ -1345,6 +1358,29 @@ export namespace CoreNavigationCommands {
 		}
 	});
 
+	export const ScrollEditorTop: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
+		constructor() {
+			super({
+				id: 'scrollEditorTop',
+				precondition: undefined,
+				kbOpts: {
+					weight: CORE_WEIGHT,
+					kbExpr: EditorContextKeys.textInputFocus,
+				}
+			});
+		}
+
+		runCoreEditorCommand(viewModel: IViewModel, args: any): void {
+			EditorScroll._runEditorScroll(viewModel, args.source, {
+				direction: EditorScroll_.Direction.Up,
+				unit: EditorScroll_.Unit.Editor,
+				value: 1,
+				revealCursor: false,
+				select: false
+			});
+		}
+	});
+
 	export const ScrollLineDown: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
 		constructor() {
 			super({
@@ -1389,6 +1425,29 @@ export namespace CoreNavigationCommands {
 			EditorScroll._runEditorScroll(viewModel, args.source, {
 				direction: EditorScroll_.Direction.Down,
 				unit: EditorScroll_.Unit.Page,
+				value: 1,
+				revealCursor: false,
+				select: false
+			});
+		}
+	});
+
+	export const ScrollEditorBottom: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
+		constructor() {
+			super({
+				id: 'scrollEditorBottom',
+				precondition: undefined,
+				kbOpts: {
+					weight: CORE_WEIGHT,
+					kbExpr: EditorContextKeys.textInputFocus,
+				}
+			});
+		}
+
+		runCoreEditorCommand(viewModel: IViewModel, args: any): void {
+			EditorScroll._runEditorScroll(viewModel, args.source, {
+				direction: EditorScroll_.Direction.Down,
+				unit: EditorScroll_.Unit.Editor,
 				value: 1,
 				revealCursor: false,
 				select: false

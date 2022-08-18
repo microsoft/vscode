@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/4ef954d31faccf96545d736a5ccc0e09d8109f12",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/968325a4021b61832f0c46e12625319f3a884e58",
 	"name": "Markdown",
 	"scopeName": "text.tex.markdown_latex_combined",
 	"patterns": [
@@ -960,7 +960,7 @@
 			]
 		},
 		"fenced_code_block_js": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(js|jsx|javascript|es6|mjs|cjs|\\{\\.js.+?\\})((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(js|jsx|javascript|es6|mjs|cjs|dataviewjs|\\{\\.js.+?\\})((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -1317,6 +1317,39 @@
 					"patterns": [
 						{
 							"include": "source.python"
+						}
+					]
+				}
+			]
+		},
+		"fenced_code_block_julia": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(julia|\\{\\.julia.+?\\})((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
+			"name": "markup.fenced_code.block.markdown",
+			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
+			"beginCaptures": {
+				"3": {
+					"name": "punctuation.definition.markdown"
+				},
+				"4": {
+					"name": "fenced_code.block.language.markdown"
+				},
+				"5": {
+					"name": "fenced_code.block.language.attributes.markdown"
+				}
+			},
+			"endCaptures": {
+				"3": {
+					"name": "punctuation.definition.markdown"
+				}
+			},
+			"patterns": [
+				{
+					"begin": "(^|\\G)(\\s*)(.*)",
+					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.block.julia",
+					"patterns": [
+						{
+							"include": "source.julia"
 						}
 					]
 				}
@@ -1965,6 +1998,9 @@
 				},
 				{
 					"include": "#fenced_code_block_python"
+				},
+				{
+					"include": "#fenced_code_block_julia"
 				},
 				{
 					"include": "#fenced_code_block_regexp_python"
@@ -2744,47 +2780,50 @@
 				"5": {
 					"name": "punctuation.definition.metadata.markdown"
 				},
-				"6": {
+				"7": {
 					"name": "punctuation.definition.link.markdown"
 				},
-				"7": {
+				"8": {
 					"name": "markup.underline.link.markdown"
 				},
 				"9": {
 					"name": "punctuation.definition.link.markdown"
 				},
 				"10": {
-					"name": "string.other.link.description.title.markdown"
-				},
-				"11": {
-					"name": "punctuation.definition.string.begin.markdown"
+					"name": "markup.underline.link.markdown"
 				},
 				"12": {
-					"name": "punctuation.definition.string.end.markdown"
+					"name": "string.other.link.description.title.markdown"
 				},
 				"13": {
-					"name": "string.other.link.description.title.markdown"
+					"name": "punctuation.definition.string.begin.markdown"
 				},
 				"14": {
-					"name": "punctuation.definition.string.begin.markdown"
+					"name": "punctuation.definition.string.end.markdown"
 				},
 				"15": {
-					"name": "punctuation.definition.string.end.markdown"
-				},
-				"16": {
 					"name": "string.other.link.description.title.markdown"
 				},
-				"17": {
+				"16": {
 					"name": "punctuation.definition.string.begin.markdown"
 				},
-				"18": {
+				"17": {
 					"name": "punctuation.definition.string.end.markdown"
 				},
+				"18": {
+					"name": "string.other.link.description.title.markdown"
+				},
 				"19": {
+					"name": "punctuation.definition.string.begin.markdown"
+				},
+				"20": {
+					"name": "punctuation.definition.string.end.markdown"
+				},
+				"21": {
 					"name": "punctuation.definition.metadata.markdown"
 				}
 			},
-			"match": "(?x)\n  (\\[)((?<square>[^\\[\\]\\\\]|\\\\.|\\[\\g<square>*+\\])*+)(\\])\n                # Match the link text.\n  (\\()            # Opening paren for url\n    (<?)((?<url>(?>[^\\s()]+)|\\(\\g<url>*\\))*)(>?)      # The url\n    [ \\t]*          # Optional whitespace\n    (?:\n        ((\\().+?(\\)))    # Match title in parens…\n      | ((\").+?(\"))    # or in double quotes…\n      | ((').+?('))    # or in single quotes.\n    )?            # Title is optional\n    \\s*            # Optional whitespace\n  (\\))\n",
+			"match": "(?x)\n  (\\[)((?<square>[^\\[\\]\\\\]|\\\\.|\\[\\g<square>*+\\])*+)(\\])\n                # Match the link text.\n  (\\()            # Opening paren for url\n    # The url\n      [ \\t]*\n      (\n         (<)([^<>\\n]*)(>)\n         | ((?<url>(?>[^\\s()]+)|\\(\\g<url>*\\))*)\n      )\n      [ \\t]*\n    # The title  \n    (?:\n        ((\\()[^()]*(\\)))    # Match title in parens…\n      | ((\")[^\"]*(\"))    # or in double quotes…\n      | ((')[^']*('))    # or in single quotes.\n    )?            # Title is optional\n    \\s*            # Optional whitespace\n  (\\))\n",
 			"name": "meta.link.inline.markdown"
 		},
 		"link-ref": {
@@ -2808,7 +2847,7 @@
 					"name": "punctuation.definition.constant.end.markdown"
 				}
 			},
-			"match": "(\\[)((?<square>[^\\[\\]\\\\]|\\\\.|\\[\\g<square>*+\\])*+)(\\])(\\[)([^\\]]*+)(\\])",
+			"match": "(?<![\\]\\\\])(\\[)((?<square>[^\\[\\]\\\\]|\\\\.|\\[\\g<square>*+\\])*+)(\\])(\\[)([^\\]]*+)(\\])",
 			"name": "meta.link.reference.markdown"
 		},
 		"link-ref-literal": {
@@ -2829,7 +2868,7 @@
 					"name": "punctuation.definition.constant.end.markdown"
 				}
 			},
-			"match": "(\\[)((?<square>[^\\[\\]\\\\]|\\\\.|\\[\\g<square>*+\\])*+)(\\])[ ]?(\\[)(\\])",
+			"match": "(?<![\\]\\\\])(\\[)((?<square>[^\\[\\]\\\\]|\\\\.|\\[\\g<square>*+\\])*+)(\\])[ ]?(\\[)(\\])",
 			"name": "meta.link.reference.literal.markdown"
 		},
 		"link-ref-shortcut": {
@@ -2844,7 +2883,7 @@
 					"name": "punctuation.definition.link.title.end.markdown"
 				}
 			},
-			"match": "(\\[)(\\S+?)(\\])",
+			"match": "(?<![\\]\\\\])(\\[)(\\S+?)(\\])",
 			"name": "meta.link.reference.markdown"
 		},
 		"raw": {
@@ -2924,7 +2963,7 @@
 					"name": "punctuation.definition.strikethrough.markdown"
 				}
 			},
-			"match": "(~+)((?:[^~]|(?!(?<!~)\\1(?!~))~)*+)(\\1)",
+			"match": "(~{2,})((?:[^~]|(?!(?<!~)\\1(?!~))~)*+)(\\1)",
 			"name": "markup.strikethrough.markdown"
 		}
 	}

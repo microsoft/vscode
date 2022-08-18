@@ -14,13 +14,15 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { createSyncHeaders, IAuthenticationProvider } from 'vs/platform/userDataSync/common/userDataSync';
+import { createSyncHeaders, IAuthenticationProvider, IResourceRefHandle, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { EDIT_SESSIONS_SIGNED_IN, EditSession, EDIT_SESSION_SYNC_CATEGORY, IEditSessionsWorkbenchService, EDIT_SESSIONS_SIGNED_IN_KEY, IEditSessionsLogService } from 'vs/workbench/contrib/editSessions/common/editSessions';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { generateUuid } from 'vs/base/common/uuid';
+import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
+import { getCurrentAuthenticationSessionInfo } from 'vs/workbench/services/authentication/browser/authenticationService';
 
 type ExistingSession = IQuickPickItem & { session: AuthenticationSession & { providerId: string } };
 type AuthenticationProviderOption = IQuickPickItem & { provider: IAuthenticationProvider };
@@ -50,6 +52,8 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IRequestService private readonly requestService: IRequestService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@ICredentialsService private readonly credentialsService: ICredentialsService,
+		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 	) {
 		super();
 
@@ -59,6 +63,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		// If another window changes the preferred session storage, reset our cached auth state in memory
 		this._register(this.storageService.onDidChangeValue(e => this.onDidChangeStorage(e)));
 
+		this.registerSignInAction();
 		this.registerResetAuthenticationAction();
 
 		this.signedInContext = EDIT_SESSIONS_SIGNED_IN.bindTo(this.contextKeyService);
@@ -76,7 +81,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			throw new Error('Please sign in to store your edit session.');
 		}
 
-		return this.storeClient!.write('editSessions', JSON.stringify(editSession), null, createSyncHeaders(generateUuid()));
+		return this.storeClient!.writeResource('editSessions', JSON.stringify(editSession), null, createSyncHeaders(generateUuid()));
 	}
 
 	/**
@@ -95,9 +100,9 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		const headers = createSyncHeaders(generateUuid());
 		try {
 			if (ref !== undefined) {
-				content = await this.storeClient?.resolveContent('editSessions', ref, headers);
+				content = await this.storeClient?.resolveResourceContent('editSessions', ref, headers);
 			} else {
-				const result = await this.storeClient?.read('editSessions', null, headers);
+				const result = await this.storeClient?.readResource('editSessions', null, headers);
 				content = result?.content;
 				ref = result?.ref;
 			}
@@ -109,17 +114,32 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		return (content !== undefined && content !== null && ref !== undefined) ? { ref: ref, editSession: JSON.parse(content) } : undefined;
 	}
 
-	async delete(ref: string) {
+	async delete(ref: string | null) {
 		await this.initialize();
 		if (!this.initialized) {
 			throw new Error(`Unable to delete edit session with ref ${ref}.`);
 		}
 
 		try {
-			await this.storeClient?.delete('editSessions', ref);
+			await this.storeClient?.deleteResource('editSessions', ref);
 		} catch (ex) {
 			this.logService.error(ex);
 		}
+	}
+
+	async list(): Promise<IResourceRefHandle[]> {
+		await this.initialize();
+		if (!this.initialized) {
+			throw new Error(`Unable to list edit sessions.`);
+		}
+
+		try {
+			return this.storeClient?.getAllResourceRefs('editSessions') ?? [];
+		} catch (ex) {
+			this.logService.error(ex);
+		}
+
+		return [];
 	}
 
 	private async initialize() {
@@ -157,30 +177,45 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			return true;
 		}
 
+		const authenticationSession = await this.getAuthenticationSession();
+		if (authenticationSession !== undefined) {
+			this.#authenticationInfo = authenticationSession;
+			this.storeClient.setAuthToken(authenticationSession.token, authenticationSession.providerId);
+		}
+
+		return authenticationSession !== undefined;
+	}
+
+	private async getAuthenticationSession() {
 		// If the user signed in previously and the session is still available, reuse that without prompting the user again
-		const existingSessionId = this.existingSessionId;
-		if (existingSessionId) {
-			this.logService.trace(`Searching for existing authentication session with ID ${existingSessionId}`);
-			const existing = await this.getExistingSession();
-			if (existing !== undefined) {
-				this.logService.trace(`Found existing authentication session with ID ${existingSessionId}`);
-				this.#authenticationInfo = { sessionId: existing.session.id, token: existing.session.idToken ?? existing.session.accessToken, providerId: existing.session.providerId };
-				this.storeClient.setAuthToken(this.#authenticationInfo.token, this.#authenticationInfo.providerId);
-				return true;
+		if (this.existingSessionId) {
+			this.logService.trace(`Searching for existing authentication session with ID ${this.existingSessionId}`);
+			const existingSession = await this.getExistingSession();
+			if (existingSession) {
+				this.logService.trace(`Found existing authentication session with ID ${existingSession.session.id}`);
+				return { sessionId: existingSession.session.id, token: existingSession.session.idToken ?? existingSession.session.accessToken, providerId: existingSession.session.providerId };
+			}
+		}
+
+		// If settings sync is already enabled, avoid asking again to authenticate
+		if (this.userDataSyncEnablementService.isEnabled()) {
+			this.logService.trace(`Reusing user data sync enablement`);
+			const authenticationSessionInfo = await getCurrentAuthenticationSessionInfo(this.credentialsService, this.productService);
+			if (authenticationSessionInfo !== undefined) {
+				this.logService.trace(`Using current authentication session with ID ${authenticationSessionInfo.id}`);
+				this.existingSessionId = authenticationSessionInfo.id;
+				return { sessionId: authenticationSessionInfo.id, token: authenticationSessionInfo.accessToken, providerId: authenticationSessionInfo.providerId };
 			}
 		}
 
 		// Ask the user to pick a preferred account
-		const session = await this.getAccountPreference();
-		if (session !== undefined) {
-			this.#authenticationInfo = { sessionId: session.id, token: session.idToken ?? session.accessToken, providerId: session.providerId };
-			this.storeClient.setAuthToken(this.#authenticationInfo.token, this.#authenticationInfo.providerId);
-			this.existingSessionId = session.id;
-			this.logService.trace(`Saving authentication session preference for ID ${session.id}.`);
-			return true;
+		const authenticationSession = await this.getAccountPreference();
+		if (authenticationSession !== undefined) {
+			this.existingSessionId = authenticationSession.id;
+			return { sessionId: authenticationSession.id, token: authenticationSession.idToken ?? authenticationSession.accessToken, providerId: authenticationSession.providerId };
 		}
 
-		return false;
+		return undefined;
 	}
 
 	/**
@@ -294,6 +329,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	}
 
 	private set existingSessionId(sessionId: string | undefined) {
+		this.logService.trace(`Saving authentication session preference for ID ${sessionId}.`);
 		if (sessionId === undefined) {
 			this.storageService.remove(EditSessionsWorkbenchService.CACHED_SESSION_STORAGE_KEY, StorageScope.APPLICATION);
 		} else {
@@ -334,13 +370,34 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		}
 	}
 
+	private registerSignInAction() {
+		const that = this;
+		this._register(registerAction2(class ResetEditSessionAuthenticationAction extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.editSessions.actions.signIn',
+					title: localize('sign in', 'Sign In'),
+					category: EDIT_SESSION_SYNC_CATEGORY,
+					precondition: ContextKeyExpr.equals(EDIT_SESSIONS_SIGNED_IN_KEY, false),
+					menu: [{
+						id: MenuId.CommandPalette,
+					}]
+				});
+			}
+
+			async run() {
+				await that.initialize();
+			}
+		}));
+	}
+
 	private registerResetAuthenticationAction() {
 		const that = this;
 		this._register(registerAction2(class ResetEditSessionAuthenticationAction extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.editSessions.actions.resetAuth',
-					title: localize('reset auth', 'Sign Out'),
+					title: localize('reset auth.v2', 'Sign Out of Edit Sessions'),
 					category: EDIT_SESSION_SYNC_CATEGORY,
 					precondition: ContextKeyExpr.equals(EDIT_SESSIONS_SIGNED_IN_KEY, true),
 					menu: [{
@@ -363,7 +420,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 				});
 				if (result.confirmed) {
 					if (result.checkboxChecked) {
-						that.storeClient?.delete('editSessions', null);
+						that.storeClient?.deleteResource('editSessions', null);
 					}
 					that.clearAuthenticationPreference();
 				}

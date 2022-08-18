@@ -28,6 +28,7 @@ import { AmbiguousRunTestsRequest, IMainThreadTestController, ITestService } fro
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
+import { isDefined } from 'vs/base/common/types';
 
 export class TestService extends Disposable implements ITestService {
 	declare readonly _serviceBrand: undefined;
@@ -194,18 +195,22 @@ export class TestService extends Disposable implements ITestService {
 			const cancelSource = new CancellationTokenSource(token);
 			this.uiRunningTests.set(result.id, cancelSource);
 
-			const requests = req.targets.map(
-				group => this.testControllers.get(group.controllerId)?.runTests(
-					{
+			const byController = groupBy(req.targets, (a, b) => a.controllerId.localeCompare(b.controllerId));
+			const requests = byController.map(
+				group => this.testControllers.get(group[0].controllerId)?.runTests(
+					group.map(controlReq => ({
 						runId: result.id,
-						excludeExtIds: req.exclude!.filter(t => !group.testIds.includes(t)),
-						profileId: group.profileId,
-						controllerId: group.controllerId,
-						testIds: group.testIds,
-					},
+						excludeExtIds: req.exclude!.filter(t => !controlReq.testIds.includes(t)),
+						profileId: controlReq.profileId,
+						controllerId: controlReq.controllerId,
+						testIds: controlReq.testIds,
+					})),
 					cancelSource.token,
-				).catch(err => {
-					this.notificationService.error(localize('testError', 'An error occurred attempting to run tests: {0}', err.message));
+				).then(result => {
+					const errs = result.map(r => r.error).filter(isDefined);
+					if (errs.length) {
+						this.notificationService.error(localize('testError', 'An error occurred attempting to run tests: {0}', errs.join(' ')));
+					}
 				})
 			);
 			await this.saveAllBeforeTest(req);

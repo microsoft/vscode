@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { deepClone } from 'vs/base/common/objects';
-import { isObject, isArray, assertIsDefined, withUndefinedAsNull, withNullAsUndefined } from 'vs/base/common/types';
+import { isObject, assertIsDefined, withUndefinedAsNull, withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditorOptions, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { AbstractTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
@@ -240,7 +240,6 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		return {
 			...super.getConfigurationOverrides(),
 			readOnly,
-			enableDropIntoEditor: !readOnly,
 			originalEditable: this.input instanceof DiffEditorInput && !this.input.original.hasCapability(EditorInputCapabilities.Readonly),
 			lineDecorationsWidth: '2ch'
 		};
@@ -251,7 +250,6 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 			this.diffEditorControl?.updateOptions({
 				readOnly: input.hasCapability(EditorInputCapabilities.Readonly),
 				originalEditable: !input.original.hasCapability(EditorInputCapabilities.Readonly),
-				enableDropIntoEditor: !input.hasCapability(EditorInputCapabilities.Readonly)
 			});
 		} else {
 			super.updateReadonly(input);
@@ -261,7 +259,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 	private isFileBinaryError(error: Error[]): boolean;
 	private isFileBinaryError(error: Error): boolean;
 	private isFileBinaryError(error: Error | Error[]): boolean {
-		if (isArray(error)) {
+		if (Array.isArray(error)) {
 			const errors = <Error[]>error;
 
 			return errors.some(error => this.isFileBinaryError(error));

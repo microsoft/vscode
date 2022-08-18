@@ -17,7 +17,6 @@ import { CellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/viewM
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, INotebookSearchOptions, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookKeymapService } from 'vs/workbench/contrib/notebook/common/notebookKeymapService';
 import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { BaseCellViewModel } from './baseCellViewModel';
@@ -117,7 +116,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		@INotebookService private readonly _notebookService: INotebookService,
 		@ITextModelService modelService: ITextModelService,
 		@IUndoRedoService undoRedoService: IUndoRedoService,
-		@INotebookKeymapService keymapService: INotebookKeymapService,
 		@ICodeEditorService codeEditorService: ICodeEditorService
 	) {
 		super(viewType, model, UUID.generateUuid(), viewContext, configurationService, modelService, undoRedoService, codeEditorService);
@@ -125,13 +123,22 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 
 		this._register(this.model.onDidChangeOutputs((splice) => {
 			const removedOutputs: ICellOutputViewModel[] = [];
+			let outputLayoutChange = false;
+			for (let i = splice.start; i < splice.start + splice.deleteCount; i++) {
+				if (this._outputCollection[i] !== undefined && this._outputCollection[i] !== 0) {
+					outputLayoutChange = true;
+				}
+			}
+
 			this._outputCollection.splice(splice.start, splice.deleteCount, ...splice.newOutputs.map(() => 0));
 			removedOutputs.push(...this._outputViewModels.splice(splice.start, splice.deleteCount, ...splice.newOutputs.map(output => new CellOutputViewModel(this, output, this._notebookService))));
 
 			this._outputsTop = null;
 			this._onDidChangeOutputs.fire(splice);
 			this._onDidRemoveOutputs.fire(removedOutputs);
-			this.layoutChange({ outputHeight: true }, 'CodeCellViewModel#model.onDidChangeOutputs');
+			if (outputLayoutChange) {
+				this.layoutChange({ outputHeight: true }, 'CodeCellViewModel#model.onDidChangeOutputs');
+			}
 			dispose(removedOutputs);
 		}));
 
@@ -314,10 +321,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		return this._layoutInfo.totalHeight;
 	}
 
-	firstLine(): string {
-		return this.getText().split('\n')[0];
-	}
-
 	getHeight(lineHeight: number) {
 		if (this._layoutInfo.layoutState === CellLayoutState.Uninitialized) {
 			const editorHeight = this.estimateEditorHeight(lineHeight);
@@ -400,15 +403,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		if (this._outputsTop!.setValue(index, height)) {
 			this.layoutChange({ outputHeight: true }, source);
 		}
-	}
-
-	getOutputHeight(index: number) {
-		if (index >= this._outputCollection.length) {
-			return -1;
-		}
-
-		this._ensureOutputsTop();
-		return this._outputCollection[index];
 	}
 
 	getOutputOffsetInContainer(index: number) {

@@ -622,8 +622,18 @@ async function getNLS(resourceUrlTemplate: string, languageId: string, version: 
 		return await getSpecificNLS(resourceUrlTemplate, languageId, version);
 	} catch (err) {
 		if (/\[404\]/.test(err.message)) {
-			console.warn(`Language pack ${languageId}@${version} is missing. Downloading previous version...`);
-			return await getSpecificNLS(resourceUrlTemplate, languageId, previousVersion(version));
+			const thePreviousVersion = previousVersion(version);
+			console.warn(`Language pack ${languageId}@${version} is missing. Downloading previous version ${thePreviousVersion}...`);
+			try {
+				return await getSpecificNLS(resourceUrlTemplate, languageId, thePreviousVersion);
+			} catch (err) {
+				if (/\[404\]/.test(err.message)) {
+					console.warn(`Language pack ${languageId}@${thePreviousVersion} is missing. Downloading previous version...`);
+					return await getSpecificNLS(resourceUrlTemplate, languageId, previousVersion(thePreviousVersion));
+				} else {
+					throw err;
+				}
+			}
 		} else {
 			throw err;
 		}

@@ -985,9 +985,7 @@ export class MenuBar extends Disposable {
 				this.focusedMenu.holder.remove();
 			}
 
-			if (this.focusedMenu.widget) {
-				this.focusedMenu.widget.dispose();
-			}
+			this.focusedMenu.widget?.dispose();
 
 			this.focusedMenu = { index: this.focusedMenu.index };
 		}

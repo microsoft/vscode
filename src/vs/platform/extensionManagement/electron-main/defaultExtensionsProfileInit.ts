@@ -4,24 +4,48 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IDefaultExtensionsProfileInitService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { joinPath } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
+import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
+import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
+import { IFileService } from 'vs/platform/files/common/files';
+import { EXTENSIONS_RESOURCE_NAME } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 
 export class DefaultExtensionsProfileInitHandler extends Disposable {
 	constructor(
-		@IDefaultExtensionsProfileInitService private readonly defaultExtensionsProfileInitService: IDefaultExtensionsProfileInitService,
-		@IUserDataProfilesMainService userDataProfilesService: IUserDataProfilesMainService,
+		@IUserDataProfilesMainService private readonly userDataProfilesService: IUserDataProfilesMainService,
+		@IFileService private readonly fileService: IFileService,
+		@IExtensionsScannerService private readonly extensionsScannerService: IExtensionsScannerService,
+		@IExtensionsProfileScannerService private readonly extensionsProfileScannerService: IExtensionsProfileScannerService,
 	) {
 		super();
 		this._register(userDataProfilesService.onWillCreateProfile(e => {
 			if (userDataProfilesService.profiles.length === 1) {
-				e.join(this.defaultExtensionsProfileInitService.initialize());
+				e.join(this.initialize());
 			}
 		}));
 		this._register(userDataProfilesService.onDidChangeProfiles(e => {
 			if (userDataProfilesService.profiles.length === 1) {
-				this.defaultExtensionsProfileInitService.uninitialize();
+				this.uninitialize();
 			}
 		}));
+	}
+
+	private async initialize(): Promise<void> {
+		/* Create and populate the default extensions profile resource */
+		const extensionsProfileResource = this.getDefaultExtensionsProfileResource();
+		try { await this.fileService.del(extensionsProfileResource); } catch (error) { /* ignore */ }
+		const userExtensions = await this.extensionsScannerService.scanUserExtensions({ includeInvalid: true });
+		await this.extensionsProfileScannerService.addExtensionsToProfile(userExtensions.map(e => [e, e.metadata]), extensionsProfileResource);
+	}
+
+	private async uninitialize(): Promise<void> {
+		/* Remove the default extensions profile resource */
+		try { await this.fileService.del(this.getDefaultExtensionsProfileResource()); } catch (error) { /* ignore */ }
+	}
+
+	private getDefaultExtensionsProfileResource(): URI {
+		return this.userDataProfilesService.defaultProfile.extensionsResource ?? joinPath(this.userDataProfilesService.defaultProfile.location, EXTENSIONS_RESOURCE_NAME);
 	}
 }

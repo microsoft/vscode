@@ -11,7 +11,6 @@ import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { dirname, join } from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
 import { basename, extUriBiasedIgnorePathCase, joinPath, originalFSPath } from 'vs/base/common/resources';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -180,7 +179,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		const storedWorkspaceFolder: IStoredWorkspaceFolder[] = [];
 
 		for (const folder of folders) {
-			storedWorkspaceFolder.push(getStoredWorkspaceFolder(folder.uri, true, folder.name, untitledWorkspaceConfigFolder, !isWindows, extUriBiasedIgnorePathCase));
+			storedWorkspaceFolder.push(getStoredWorkspaceFolder(folder.uri, true, folder.name, untitledWorkspaceConfigFolder, extUriBiasedIgnorePathCase));
 		}
 
 		return {
@@ -205,8 +204,10 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		// Delete from disk
 		this.doDeleteUntitledWorkspaceSync(workspace);
 
-		// unset workspace from profiles
-		this.userDataProfilesMainService.unsetWorkspace(workspace);
+		if (this.userDataProfilesMainService.isEnabled()) {
+			// unset workspace from profiles
+			this.userDataProfilesMainService.unsetWorkspace(workspace);
+		}
 
 		// Event
 		this._onDidDeleteUntitledWorkspace.fire(workspace);

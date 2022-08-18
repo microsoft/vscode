@@ -177,7 +177,7 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 	private getConfiguredOpenerForUri(openers: Map<string, IExternalUriOpener>, targetUri: URI): IExternalUriOpener | 'default' | undefined {
 		const config = this.configurationService.getValue<ExternalUriOpenersConfiguration>(externalUriOpenersSettingId) || {};
 		for (const [uriGlob, id] of Object.entries(config)) {
-			if (testUrlMatchesGlob(targetUri.toString(), uriGlob)) {
+			if (testUrlMatchesGlob(targetUri, uriGlob)) {
 				if (id === defaultExternalUriOpenerId) {
 					return 'default';
 				}

@@ -41,6 +41,7 @@ export class StatusbarEntryItem extends Disposable {
 	private hover: ICustomHover | undefined = undefined;
 
 	readonly labelContainer: HTMLElement;
+	readonly beakContainer: HTMLElement;
 
 	get name(): string {
 		return assertIsDefined(this.entry).name;
@@ -69,9 +70,12 @@ export class StatusbarEntryItem extends Disposable {
 
 		// Label (with support for progress)
 		this.label = new StatusBarCodiconLabel(this.labelContainer);
-
-		// Add to parent
 		this.container.appendChild(this.labelContainer);
+
+		// Beak Container
+		this.beakContainer = document.createElement('div');
+		this.beakContainer.className = 'status-bar-item-beak-container';
+		this.container.appendChild(this.beakContainer);
 
 		this.update(entry);
 	}
@@ -244,7 +248,7 @@ class StatusBarCodiconLabel extends SimpleIconLabel {
 	private progressCodicon = renderIcon(syncing);
 
 	private currentText = '';
-	private currentShowProgress = false;
+	private currentShowProgress: boolean | 'syncing' | 'loading' = false;
 
 	constructor(
 		private readonly container: HTMLElement
@@ -254,7 +258,7 @@ class StatusBarCodiconLabel extends SimpleIconLabel {
 
 	set showProgress(showProgress: boolean | 'syncing' | 'loading') {
 		if (this.currentShowProgress !== showProgress) {
-			this.currentShowProgress = !!showProgress;
+			this.currentShowProgress = showProgress;
 			this.progressCodicon = renderIcon(showProgress === 'loading' ? spinningLoading : syncing);
 			this.text = this.currentText;
 		}
