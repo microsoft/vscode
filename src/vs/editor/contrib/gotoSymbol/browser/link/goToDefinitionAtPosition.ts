@@ -130,8 +130,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 		this.startFindDefinition(position);
 	}
 
-	// TODO: Set to private after
-	public startFindDefinition(position: Position): Promise<number | undefined> {
+	private startFindDefinition(position: Position): Promise<number | undefined> {
 
 		// Dispose listeners for updating decorations when using keyboard to show definition hover
 		this.toUnhookForKeyboard.clear();

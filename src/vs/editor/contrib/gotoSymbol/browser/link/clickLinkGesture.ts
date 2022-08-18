@@ -175,7 +175,8 @@ export class ClickLinkGesture extends Disposable {
 
 	private _onEditorMouseUp(mouseEvent: ClickLinkMouseEvent): void {
 		const currentLineNumber = mouseEvent.target.position ? mouseEvent.target.position.lineNumber : 0;
-		if (this._hasTriggerKeyOnMouseDown && this._lineNumberOnMouseDown && this._lineNumberOnMouseDown === currentLineNumber) {
+		const stickyScrollWidgetEnabled = this._editor.getOption(EditorOption.experimental);
+		if (this._hasTriggerKeyOnMouseDown && this._lineNumberOnMouseDown && this._lineNumberOnMouseDown === currentLineNumber || stickyScrollWidgetEnabled) {
 			this._onExecute.fire(mouseEvent);
 		}
 	}

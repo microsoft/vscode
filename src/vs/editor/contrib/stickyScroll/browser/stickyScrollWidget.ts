@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { IActiveCodeEditor, ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import * as dom from 'vs/base/browser/dom';
 import { EditorLayoutInfo, EditorOption, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
@@ -11,10 +11,14 @@ import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/vie
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { Position } from 'vs/editor/common/core/position';
 import 'vs/css!./stickyScroll';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/gotoSymbol/browser/link/goToDefinitionAtPosition';
+import { ClickLinkGesture } from 'vs/editor/contrib/gotoSymbol/browser/link/clickLinkGesture';
+import { getDefinitionsAtPosition } from 'vs/editor/contrib/gotoSymbol/browser/goToSymbol';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { Location } from 'vs/editor/common/languages';
+import { goToDefinitionWithLocation } from 'vs/editor/contrib/inlayHints/browser/inlayHintsLocations';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { CancellationTokenSource, } from 'vs/base/common/cancellation';
+import { IRange } from 'vs/editor/common/core/range';
 
 export class StickyScrollWidgetState {
 	constructor(
@@ -30,11 +34,20 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private readonly layoutInfo: EditorLayoutInfo;
 	private readonly rootDomNode: HTMLElement = document.createElement('div');
 	private readonly disposableStore = this._register(new DisposableStore());
+	private readonly linkGestureStore = this._register(new DisposableStore());
 	private lineHeight: number;
 	private lineNumbers: number[];
 	private lastLineRelativePosition: number;
+	private hoverOnLine: number;
+	private positionOfDefinitionToJumpTo: Location;
+	private lastChildDecorated: HTMLElement | undefined;
+	private stickyPositionProjectedOnEditor: Position;
 
-	constructor(private readonly _editor: ICodeEditor) {
+	constructor(
+		private readonly _editor: ICodeEditor,
+		private readonly _languageFeatureService: ILanguageFeaturesService,
+		@IInstantiationService private readonly _instaService: IInstantiationService
+	) {
 		super();
 		this.layoutInfo = this._editor.getLayoutInfo();
 		this.rootDomNode = document.createElement('div');
@@ -44,13 +57,107 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this.lineNumbers = [];
 		this.lastLineRelativePosition = 0;
 
+		this.hoverOnLine = -1;
+		this.positionOfDefinitionToJumpTo = { uri: {}, range: {} } as Location;
+		this.lastChildDecorated = undefined;
+		this.stickyPositionProjectedOnEditor = new Position(-1, -1);
+
 		this.lineHeight = this._editor.getOption(EditorOption.lineHeight);
 		this._register(this._editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.lineHeight)) {
 				this.lineHeight = this._editor.getOption(EditorOption.lineHeight);
 			}
 		}));
+		this._register(this.updateLinkGesture());
+	}
 
+	private updateLinkGesture(): IDisposable {
+		const gesture = this.linkGestureStore.add(new ClickLinkGesture(this._editor));
+		const cancellationToken = new CancellationTokenSource();
+		const sessionStore = new DisposableStore();
+		sessionStore.add(cancellationToken);
+		this.linkGestureStore.add(sessionStore);
+		this.linkGestureStore.add(gesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, _keyboardEvent]) => {
+			if (!this._editor.hasModel()) {
+				return;
+			}
+			if (!mouseEvent.hasTriggerModifier) {
+				if (this.lastChildDecorated) {
+					this.lastChildDecorated.style.textDecoration = 'none';
+					this.lastChildDecorated = undefined;
+				}
+				return;
+			}
+			const targetMouseEvent = mouseEvent.target as any;
+			if (targetMouseEvent.detail === 'editor.contrib.stickyScrollWidget' && this.hoverOnLine !== -1 && targetMouseEvent.element.innerText === targetMouseEvent.element.innerHTML) {
+				const text = targetMouseEvent.element.innerText;
+				const lineNumber = this.hoverOnLine;
+				const column = this._editor.getModel()?.getLineContent(lineNumber).indexOf(text);
+				if (!column || column === -1) {
+					return;
+				}
+				const stickyPositionProjectedOnEditor = new Position(lineNumber, column + 1);
+				if (this.stickyPositionProjectedOnEditor !== stickyPositionProjectedOnEditor) {
+					this.stickyPositionProjectedOnEditor = stickyPositionProjectedOnEditor;
+					cancellationToken.cancel();
+				}
+				getDefinitionsAtPosition(this._languageFeatureService.definitionProvider, this._editor.getModel(), stickyPositionProjectedOnEditor, cancellationToken.token).then((candidateDefinitions => {
+					if (cancellationToken.token.isCancellationRequested) {
+						return;
+					}
+					if (candidateDefinitions.length !== 0) {
+						// TODO: Currently only taking the first definition but there could be other ones of interest
+						this.positionOfDefinitionToJumpTo.uri = candidateDefinitions[0]?.uri;
+						this.positionOfDefinitionToJumpTo.range = candidateDefinitions[0]?.targetSelectionRange as IRange;
+
+						const lineToDecorate = this.getDomNode().getElementsByClassName(`stickyLine${lineNumber}`)[0].children[0] as HTMLElement;
+						let currentHTMLChild: HTMLElement | undefined = undefined;
+
+						for (const childElement of lineToDecorate.children) {
+							const childAsHTMLElement = childElement as HTMLElement;
+							if (childAsHTMLElement.innerText === text) {
+								currentHTMLChild = childAsHTMLElement;
+								break;
+							}
+						}
+						if (!currentHTMLChild) {
+							return;
+						}
+						if (this.lastChildDecorated && this.lastChildDecorated !== currentHTMLChild) {
+							this.lastChildDecorated.style.textDecoration = 'none';
+							this.lastChildDecorated = currentHTMLChild;
+							this.lastChildDecorated.style.textDecoration = 'underline';
+						} else if (!this.lastChildDecorated) {
+							this.lastChildDecorated = currentHTMLChild;
+							this.lastChildDecorated.style.textDecoration = 'underline';
+						}
+					} else if (this.lastChildDecorated) {
+						this.lastChildDecorated.style.textDecoration = 'none';
+						this.lastChildDecorated = undefined;
+					}
+					console.log('this.lastChildDecorated at the end of getDefinitionsAtPosition : ', this.lastChildDecorated);
+				}));
+			} else if (this.lastChildDecorated) {
+				this.lastChildDecorated.style.textDecoration = 'none';
+				this.lastChildDecorated = undefined;
+			}
+		}));
+		this.linkGestureStore.add(gesture.onCancel(() => {
+			sessionStore.clear();
+		}));
+		this.linkGestureStore.add(gesture.onExecute(async e => {
+			if (this.hoverOnLine !== -1) {
+				if (e.hasTriggerModifier) {
+					// Control click
+					this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, this.positionOfDefinitionToJumpTo);
+				} else {
+					// Normal click
+					this._editor.revealPosition({ lineNumber: this.hoverOnLine, column: 1 });
+				}
+			}
+
+		}));
+		return this.linkGestureStore;
 	}
 
 	public get codeLineCount(): number {
@@ -110,6 +217,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 		const lineHTMLNode = document.createElement('span');
 		lineHTMLNode.className = 'sticky-line';
+		lineHTMLNode.classList.add(`stickyLine${line}`);
 		lineHTMLNode.style.lineHeight = `${lineHeight}px`;
 		lineHTMLNode.innerHTML = newLine as string;
 
@@ -157,105 +265,9 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			child.style.top = this.lastLineRelativePosition + 'px';
 		}
 
-		let controlKeyDisposableListener: IDisposable | undefined;
-		let controlClickDisposableListener: IDisposable | undefined;
-		let normalClickDisposableListener: IDisposable | undefined;
-
-		this.disposableStore.add(
-			normalClickDisposableListener = dom.addDisposableListener(child, 'click', click => {
-				click.stopPropagation();
-				click.preventDefault();
-				this._editor.revealPosition({ lineNumber: line - index, column: 1 });
-			})
-		);
-
-		this.disposableStore.add(
-			controlKeyDisposableListener = dom.addDisposableListener(window, dom.EventType.KEY_DOWN, (keyDown: KeyboardEvent) => {
-
-				const keyDownEvent = new StandardKeyboardEvent(keyDown);
-				if (keyDownEvent.keyCode === KeyCode.Ctrl) {
-
-					if (normalClickDisposableListener) {
-						normalClickDisposableListener.dispose();
-						normalClickDisposableListener = undefined;
-					}
-
-					controlClickDisposableListener = dom.addDisposableListener(child, 'click', click => {
-						click.stopPropagation();
-						click.preventDefault();
-						const clickEvent = new StandardMouseEvent(click);
-						if (clickEvent.target.innerText === clickEvent.target.innerHTML) {
-							const text = clickEvent.target.innerText;
-							const lineNumber = line;
-							const column = this._editor.getModel()?.getLineContent(lineNumber).indexOf(text);
-							if (column) {
-								const position = new Position(lineNumber, column + 1);
-								const goto = GotoDefinitionAtPositionEditorContribution.get(this._editor);
-								if (goto) {
-									// TODO: startFindDefinition should not be public in the end
-									const promise = goto.startFindDefinition(position);
-									promise.then((n) => {
-										console.log('line number of the definition : ', n);
-									});
-								}
-							}
-						}
-					});
-				}
-				dom.EventHelper.stop(keyDown);
-			})
-		);
-
-		this.disposableStore.add(dom.addDisposableListener(window, dom.EventType.KEY_UP, (keyDown: KeyboardEvent) => {
-
-			if (controlClickDisposableListener) {
-				controlClickDisposableListener.dispose();
-				controlClickDisposableListener = undefined;
-			}
-
-			normalClickDisposableListener = dom.addDisposableListener(child, 'click', click => {
-				click.stopPropagation();
-				click.preventDefault();
-				this._editor.revealPosition({ lineNumber: line - index, column: 1 });
-			});
+		this.disposableStore.add(dom.addDisposableListener(child, 'mouseover', () => {
+			this.hoverOnLine = line;
 		}));
-
-		this.disposableStore.add(dom.addDisposableListener(child, dom.EventType.MOUSE_OUT, () => {
-			if (controlClickDisposableListener) {
-				controlClickDisposableListener.dispose();
-				controlClickDisposableListener = undefined;
-			}
-
-			normalClickDisposableListener = dom.addDisposableListener(child, 'click', click => {
-				click.stopPropagation();
-				click.preventDefault();
-				this._editor.revealPosition({ lineNumber: line - index, column: 1 });
-			});
-		}));
-
-		/* RIGHT CLICK
-		this.disposableStore.add(dom.addDisposableListener(child, dom.EventType.AUXCLICK, e => {
-			console.log('auxilliary/right click');
-			// const lineNumber = line - index;
-		}));
-		*/
-
-		/* HOVER
-		this.disposableStore.add(dom.addDisposableListener(child, dom.EventType.MOUSE_OVER, hoverEvent => {
-			console.log('hover event : ', hoverEvent);
-			controlClickDisposableListener = dom.addDisposableListener(window, dom.EventType.KEY_DOWN, (keyDown: KeyboardEvent) => {
-				console.log('some key is pressed');
-				const keyDownEvent = new StandardKeyboardEvent(keyDown);
-				console.log('event : ', keyDownEvent);
-				if (keyDownEvent.keyCode === KeyCode.Ctrl) {
-					console.log('ctrl key down and hover');
-					dom.EventHelper.stop(keyDown);
-				}
-			});
-			this.disposableStore.add(controlClickDisposableListener);
-		}));
-
-		*/
 
 		return child;
 	}
@@ -277,6 +289,10 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		} else if (minimapSide === 'right') {
 			this.rootDomNode.style.marginLeft = '0px';
 		}
+
+		this.disposableStore.add(dom.addDisposableListener(this.rootDomNode, 'mouseout', () => {
+			this.hoverOnLine = -1;
+		}));
 	}
 
 	public getId(): string {
@@ -295,6 +311,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 	override dispose(): void {
 		super.dispose();
+		this.linkGestureStore.dispose();
 		this.disposableStore.dispose();
 	}
 }

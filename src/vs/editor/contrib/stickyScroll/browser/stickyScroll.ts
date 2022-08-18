@@ -16,6 +16,7 @@ import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/act
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 class StickyScrollController extends Disposable implements IEditorContribution {
 
@@ -28,10 +29,11 @@ class StickyScrollController extends Disposable implements IEditorContribution {
 	constructor(
 		editor: ICodeEditor,
 		@ILanguageFeaturesService _languageFeaturesService: ILanguageFeaturesService,
+		@IInstantiationService _instaService: IInstantiationService,
 	) {
 		super();
 		this.editor = editor;
-		this.stickyScrollWidget = new StickyScrollWidget(this.editor);
+		this.stickyScrollWidget = new StickyScrollWidget(this.editor, _languageFeaturesService, _instaService);
 		this.stickyLineCandidateProvider = new StickyLineCandidateProvider(this.editor, _languageFeaturesService);
 
 		this._register(this.editor.onDidChangeConfiguration(e => {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { OutlineModel, OutlineElement, OutlineGroup } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
@@ -12,7 +12,6 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Range } from 'vs/editor/common/core/range';
 import { Emitter } from 'vs/base/common/event';
-import { ClickLinkGesture } from 'vs/editor/contrib/gotoSymbol/browser/link/clickLinkGesture';
 
 export class StickyRange {
 	constructor(
@@ -69,28 +68,8 @@ export class StickyLineCandidateProvider extends Disposable {
 			this.sessionStore.add(this.editor.onDidChangeHiddenAreas(() => this.update()));
 			this.sessionStore.add(this.editor.onDidChangeModelContent(() => this.updateSoon.schedule()));
 			this.sessionStore.add(this.languageFeaturesService.documentSymbolProvider.onDidChange(() => this.update()));
-			this.sessionStore.add(this.updateLinkGesture());
 			this.update();
 		}
-	}
-
-	// TODO Not sure how to use this yet actually?
-	private updateLinkGesture(): IDisposable {
-
-		const store = new DisposableStore();
-		const gesture = store.add(new ClickLinkGesture(this.editor));
-
-		const sessionStore = new DisposableStore();
-		store.add(sessionStore);
-
-		store.add(gesture.onMouseMoveOrRelevantKeyDown(e => {
-			// console.log('event from onMouseMoveOrRelevantKeyDown : ', e);
-		}));
-		store.add(gesture.onCancel(() => sessionStore.clear()));
-		store.add(gesture.onExecute(async e => {
-			console.log('event in onExecute : ', e);
-		}));
-		return store;
 	}
 
 	public getVersionId() {
