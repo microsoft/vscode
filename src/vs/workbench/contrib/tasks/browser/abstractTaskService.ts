@@ -196,7 +196,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private static _nextHandle: number = 0;
 
 	private _tasksReconnected: boolean = false;
-	private _terminalsReconnected: boolean = false;
 	private _schemaVersion: JsonSchemaVersion | undefined;
 	private _executionEngine: ExecutionEngine | undefined;
 	private _workspaceFolders: IWorkspaceFolder[] | undefined;
@@ -328,10 +327,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				this._setPersistentTask(e.__task);
 			}
 		}));
-		this._register(this.onDidReconnectToTerminals(async () => {
-			this._terminalsReconnected = true;
-			await this._attemptTaskReconnection();
-		}));
+		this._register(this.onDidReconnectToTerminals(async () => await this._attemptTaskReconnection()));
+		this._register(this._onDidRegisterSupportedExecutions.event(async () => await this._attemptTaskReconnection()));
 		this._waitForSupportedExecutions = new Promise(resolve => {
 			once(this._onDidRegisterSupportedExecutions.event)(() => resolve());
 		});
@@ -353,42 +350,48 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			processContext.set(process && !isVirtual);
 		}
 		this._onDidRegisterSupportedExecutions.fire();
-		this._attemptTaskReconnection();
 	}
 
 	private async _attemptTaskReconnection(): Promise<void> {
 		if (!this._taskSystem) {
-			this._logService.trace('getting task system before reconnection');
+			this._logService.info('getting task system before reconnection');
 			await this._getTaskSystem();
 		}
-		this._logService.trace(`attempting task reconnection, jsonTasksSupported: ${this._jsonTasksSupported}, reconnection pending ${!this._tasksReconnected}, terminals: ${this._terminalsReconnected}`);
-		if (this._configurationService.getValue(TaskSettingId.Reconnection) === true && this._jsonTasksSupported && !this._tasksReconnected && this._terminalsReconnected) {
-			await this._reconnectTasks();
+		this._logService.info(`attempting task reconnection, jsonTasksSupported: ${this._jsonTasksSupported}, reconnection pending ${!this._tasksReconnected}`);
+		if (this._configurationService.getValue(TaskSettingId.Reconnection) === true && this._jsonTasksSupported && !this._tasksReconnected) {
+			this._tasksReconnected = await this._reconnectTasks();
 		}
 	}
 
-	private async _reconnectTasks(): Promise<void> {
+	private async _reconnectTasks(): Promise<boolean> {
 		if (this._lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
 			this._tasksReconnected = true;
 			this._storageService.remove(AbstractTaskService.PersistentTasks_Key, StorageScope.WORKSPACE);
-			return;
+			return true;
 		}
 		const tasks = await this.getSavedTasks('persistent');
 		if (!tasks.length) {
 			this._tasksReconnected = true;
-			return;
+			return true;
 		}
 		for (const task of tasks) {
+			let result;
 			if (ConfiguringTask.is(task)) {
 				const resolved = await this.tryResolveTask(task);
 				if (resolved) {
-					this.run(resolved, undefined, TaskRunSource.Reconnect);
+					result = await this.run(resolved, undefined, TaskRunSource.Reconnect);
 				}
 			} else {
-				this.run(task, undefined, TaskRunSource.Reconnect);
+				result = await this.run(task, undefined, TaskRunSource.Reconnect);
+			}
+			if (result?.exitCode === 7) {
+				this._logService.info('result.exitCode');
+				return false;
+			} else {
+				this._tasksReconnected = true;
 			}
 		}
-		this._tasksReconnected = true;
+		return true;
 	}
 
 	public get onDidStateChange(): Event<ITaskEvent> {
