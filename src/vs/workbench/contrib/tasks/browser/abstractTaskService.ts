@@ -357,6 +357,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _attemptTaskReconnection(): Promise<void> {
+		this._logService.info('attempting task reconnection', this._jsonTasksSupported, !this._tasksReconnected, this._terminalsReconnected);
 		if (this._configurationService.getValue(TaskSettingId.Reconnection) === true && this._jsonTasksSupported && !this._tasksReconnected && this._terminalsReconnected) {
 			await this._reconnectTasks();
 		}
