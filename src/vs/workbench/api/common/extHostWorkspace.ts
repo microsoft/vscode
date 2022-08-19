@@ -27,6 +27,7 @@ import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitData
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { GlobPattern } from 'vs/workbench/api/common/extHostTypeConverters';
 import { Range } from 'vs/workbench/api/common/extHostTypes';
+import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 import { ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
 import { IRawFileMatch2, resultIsMatch } from 'vs/workbench/services/search/common/search';
 import * as vscode from 'vscode';
@@ -183,6 +184,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	private readonly _proxy: MainThreadWorkspaceShape;
 	private readonly _messageService: MainThreadMessageServiceShape;
 	private readonly _extHostFileSystemInfo: IExtHostFileSystemInfo;
+	private readonly _uriTransformerService: IURITransformerService;
 
 	private readonly _activeSearchCallbacks: ((match: IRawFileMatch2) => any)[] = [];
 
@@ -195,9 +197,11 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		@IExtHostInitDataService initData: IExtHostInitDataService,
 		@IExtHostFileSystemInfo extHostFileSystemInfo: IExtHostFileSystemInfo,
 		@ILogService logService: ILogService,
+		@IURITransformerService uriTransformerService: IURITransformerService,
 	) {
 		this._logService = logService;
 		this._extHostFileSystemInfo = extHostFileSystemInfo;
+		this._uriTransformerService = uriTransformerService;
 		this._requestIdProvider = new Counter();
 		this._barrier = new Barrier();
 
@@ -586,26 +590,34 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		}
 
 		this._editSessionIdentityProviders.set(scheme, provider);
-		this._proxy.$registerEditSessionIdentityProvider(scheme);
+		const outgoingScheme = this._uriTransformerService.transformOutgoingScheme(scheme);
+		this._proxy.$registerEditSessionIdentityProvider(outgoingScheme);
+
 		return toDisposable(() => {
 			this._editSessionIdentityProviders.delete(scheme);
-			this._proxy.$unregisterEditSessionIdentityProvider(scheme);
+			this._proxy.$unregisterEditSessionIdentityProvider(outgoingScheme);
 		});
 	}
 
 	// called by main thread
-	async $getCanonicalWorkspaceIdentity(workspaceFolder: UriComponents, cancellationToken: CancellationToken): Promise<string | undefined> {
+	async $getEditSessionIdentifier(workspaceFolder: UriComponents, cancellationToken: CancellationToken): Promise<string | undefined> {
+		this._logService.info('Getting edit session identifier for workspaceFolder', workspaceFolder);
 		const folder = await this.resolveWorkspaceFolder(URI.revive(workspaceFolder));
 		if (!folder) {
+			this._logService.warn('Unable to resolve workspace folder');
 			return undefined;
 		}
 
+		this._logService.info('Invoking #provideEditSessionIdentity for workspaceFolder', folder);
+
 		const provider = this._editSessionIdentityProviders.get(folder.uri.scheme);
+		this._logService.info(`Provider for scheme ${folder.uri.scheme} is defined: `, !!provider);
 		if (!provider) {
 			return undefined;
 		}
 
 		const result = await provider.provideEditSessionIdentity(folder, cancellationToken);
+		this._logService.info('Provider returned edit session identifier: ', result);
 		if (!result) {
 			return undefined;
 		}
