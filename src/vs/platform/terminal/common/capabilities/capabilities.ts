@@ -139,7 +139,6 @@ export interface IBufferMarkDetectionCapability {
 	onDidRequestMarkDecoration: Event<IBufferMark>;
 	addMark(id?: string, marker?: IMarker, hidden?: boolean): void;
 	getMark(id: string): IMarker | undefined;
-	scrollToMarkAndDecorate(startMarkId: string, endMarkId?: string, highlight?: boolean): void;
 }
 
 export interface ICommandDetectionCapability {

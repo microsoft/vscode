@@ -1755,11 +1755,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	public scrollToMark(startMarkId: string, endMarkId?: string, highlight?: boolean): void {
-		const bufferMarkCapability = this.capabilities.get(TerminalCapability.BufferMarkDetection);
-		if (!bufferMarkCapability || !this.xterm) {
-			return;
-		}
-		bufferMarkCapability.scrollToMarkAndDecorate(startMarkId, endMarkId, highlight);
+		this.xterm?.markTracker.scrollToClosestMarker(startMarkId, endMarkId, highlight);
 	}
 
 	private _onProcessData(ev: IProcessDataEvent): void {

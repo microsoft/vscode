@@ -89,6 +89,7 @@ export interface IMarkTracker {
 	selectToPreviousLine(): void;
 	selectToNextLine(): void;
 	clearMarker(): void;
+	scrollToClosestMarker(startMarkerId: string, endMarkerId?: string, highlight?: boolean | undefined): void;
 }
 
 export interface ITerminalGroup {

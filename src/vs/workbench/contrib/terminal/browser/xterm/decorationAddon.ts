@@ -155,7 +155,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 	}
 
-	private _refreshStyles(refreshOverviewRulerColors?: boolean): void {
+	private _refreshStyles(refreshOverviewRulerColors?: boolean, bufferMark?: IBufferMark): void {
 		if (refreshOverviewRulerColors) {
 			for (const decoration of this._decorations.values()) {
 				let color = decoration.exitCode === undefined ? defaultColor : decoration.exitCode ? errorColor : successColor;
@@ -171,9 +171,9 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				}
 			}
 		}
-		this._updateClasses(this._placeholderDecoration?.element);
+		this._updateClasses(this._placeholderDecoration?.element, undefined, bufferMark);
 		for (const decoration of this._decorations.values()) {
-			this._updateClasses(decoration.decoration.element, decoration.exitCode);
+			this._updateClasses(decoration.decoration.element, decoration.exitCode, bufferMark);
 		}
 	}
 
@@ -264,11 +264,17 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	}
 
 	registerMarkDecoration(mark: IBufferMark): IDecoration | undefined {
-		if (!this._terminal || mark.hidden || mark.marker.isDisposed || !defaultColor) {
+		if (!this._terminal || (!this._showGutterDecorations && !this._showOverviewRulerDecorations)) {
 			return undefined;
 		}
-		const height = mark.endMarker ? mark.endMarker.line - mark.marker.line + 1 : 1;
-		const decoration = this._terminal.registerDecoration({ marker: mark.marker, anchor: 'left', foregroundColor: Color.cyan.toString(), height });
+		const marker = mark.marker || this._terminal.registerMarker();
+		if (!mark.marker || mark.hidden) {
+			return undefined;
+		}
+		const decoration = this._terminal.registerDecoration({
+			marker,
+			overviewRulerOptions: { color: defaultColor?.toString() || '', position: 'center' }
+		});
 		if (!decoration) {
 			return undefined;
 		}
@@ -323,7 +329,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (!element.classList.contains(DecorationSelector.Codicon) || item.marker?.line === 0) {
 			// first render or buffer was cleared
 			this._updateLayout(element);
-			this._updateClasses(element, exitCode);
+			this._updateClasses(element, exitCode, !('command' in item) ? item : undefined);
 		}
 	}
 
@@ -364,7 +370,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		element.classList.add(DecorationSelector.CommandDecoration, DecorationSelector.Codicon, DecorationSelector.XtermDecoration);
 
 		if (bufferMark) {
-			element.classList.add(DecorationSelector.DefaultColor);
+			element.classList.add(DecorationSelector.DefaultColor, ...Codicon.terminalDecorationMark.classNamesArray);
 			if (!bufferMark.hoverMessage) {
 				//disable the mouse pointer
 				element.classList.add(DecorationSelector.Default);
