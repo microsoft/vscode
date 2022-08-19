@@ -21,7 +21,7 @@ export interface IUserDataProfilesMainService extends IUserDataProfilesService {
 	isEnabled(): boolean;
 	unsetWorkspace(workspaceIdentifier: WorkspaceIdentifier): Promise<void>;
 	setProfileForWorkspaceSync(profileToSet: IUserDataProfile, workspaceIdentifier: WorkspaceIdentifier): void;
-	checkAndCreateProfileFromEnv(args: NativeParsedArgs): Promise<void>;
+	checkAndCreateProfileFromCli(args: NativeParsedArgs): Promise<IUserDataProfile> | undefined;
 	readonly onWillCreateProfile: Event<WillCreateProfileEvent>;
 	readonly onWillRemoveProfile: Event<WillRemoveProfileEvent>;
 }
@@ -42,21 +42,21 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		return this.enabled;
 	}
 
-	async checkAndCreateProfileFromEnv(args: NativeParsedArgs): Promise<void> {
+	checkAndCreateProfileFromCli(args: NativeParsedArgs): Promise<IUserDataProfile> | undefined {
 		if (!this.isEnabled()) {
-			return;
+			return undefined;
 		}
 		if (!args.profile) {
-			return;
+			return undefined;
 		}
 		// Do not create the profile if folder/file arguments are not provided
 		if (!args._.length && !args['folder-uri'] && !args['file-uri']) {
-			return;
+			return undefined;
 		}
 		if (this.profiles.some(p => p.name === args.profile)) {
-			return;
+			return undefined;
 		}
-		await this.createProfile(args.profile);
+		return this.createProfile(args.profile);
 	}
 
 	protected override saveStoredProfiles(storedProfiles: StoredUserDataProfile[]): void {

@@ -120,7 +120,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	get openedWorkspace(): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined { return this._config?.workspace; }
 
-	get profile(): IUserDataProfile | undefined { return this.config ? this.userDataProfilesService.getProfile(this.config.workspace ?? 'empty-window', this.userDataProfilesService.profiles.find(p => p.id === this.config!.profiles.profile.id) ?? this.userDataProfilesService.defaultProfile) : undefined; }
+	get profile(): IUserDataProfile | undefined { return this.config ? this.userDataProfilesService.getProfile(this.config.workspace ?? 'empty-window', this.userDataProfilesService.profiles.find(profile => profile.id === this.config?.profiles.profile.id) ?? this.userDataProfilesService.defaultProfile) : undefined; }
 
 	get remoteAuthority(): string | undefined { return this._config?.remoteAuthority; }
 

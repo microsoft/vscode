@@ -116,7 +116,11 @@ export class LaunchMainService implements ILaunchMainService {
 		const waitMarkerFileURI = args.wait && args.waitMarkerFilePath ? URI.file(args.waitMarkerFilePath) : undefined;
 		const remoteAuthority = args.remote || undefined;
 
-		await this.userDataProfilesMainService.checkAndCreateProfileFromEnv(args);
+		// Ensure profile exists when passed in from CLI
+		const profilePromise = this.userDataProfilesMainService.checkAndCreateProfileFromCli(args);
+		if (profilePromise) {
+			await profilePromise;
+		}
 
 		const baseConfig: IOpenConfiguration = {
 			context,

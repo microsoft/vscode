@@ -1323,17 +1323,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	private openInBrowserWindow(options: IOpenBrowserWindowOptions): ICodeWindow {
 		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
 
-		let profile: IUserDataProfile | undefined;
-		if (options.userDataProfileInfo) {
-			profile = this.userDataProfilesMainService.profiles.find(p => p.name === options.userDataProfileInfo!.name);
-			if (profile) {
-				this.userDataProfilesMainService.setProfileForWorkspaceSync(profile, options.workspace ?? 'empty-window');
-			}
-		}
-		if (!profile) {
-			profile = this.userDataProfilesMainService.getProfile(options.workspace ?? 'empty-window', (options.windowToUse ?? this.getLastActiveWindow())?.profile ?? this.userDataProfilesMainService.defaultProfile);
-		}
-
 		// Build up the window configuration from provided options, config and environment
 		const configuration: INativeWindowConfiguration = {
 
@@ -1359,7 +1348,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			profiles: {
 				all: this.userDataProfilesMainService.profiles,
-				profile
+				profile: this.resolveProfileForBrowserWindow(options)
 			},
 
 			homeDir: this.environmentMainService.userHome.fsPath,
@@ -1479,6 +1468,25 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}
 
 		return window;
+	}
+
+	private resolveProfileForBrowserWindow(options: IOpenBrowserWindowOptions) {
+
+		// Resolve profile by name if provided
+		let profile: IUserDataProfile | undefined;
+		if (options.userDataProfileInfo) {
+			profile = this.userDataProfilesMainService.profiles.find(profile => profile.name === options.userDataProfileInfo!.name);
+			if (profile) {
+				this.userDataProfilesMainService.setProfileForWorkspaceSync(profile, options.workspace ?? 'empty-window');
+			}
+		}
+
+		// Otherwise use associated profile
+		if (!profile) {
+			profile = this.userDataProfilesMainService.getProfile(options.workspace ?? 'empty-window', (options.windowToUse ?? this.getLastActiveWindow())?.profile ?? this.userDataProfilesMainService.defaultProfile);
+		}
+
+		return profile;
 	}
 
 	private doOpenInBrowserWindow(window: ICodeWindow, configuration: INativeWindowConfiguration, options: IOpenBrowserWindowOptions): void {

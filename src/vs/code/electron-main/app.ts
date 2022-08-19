@@ -535,7 +535,11 @@ export class CodeApplication extends Disposable {
 		// Setup Handlers
 		this.setUpHandlers(appInstantiationService);
 
-		await this.userDataProfilesMainService.checkAndCreateProfileFromEnv(this.environmentMainService.args);
+		// Ensure profile exists when passed in from CLI
+		const profilePromise = this.userDataProfilesMainService.checkAndCreateProfileFromCli(this.environmentMainService.args);
+		if (profilePromise) {
+			await profilePromise;
+		}
 
 		// Init Channels
 		appInstantiationService.invokeFunction(accessor => this.initChannels(accessor, mainProcessElectronServer, sharedProcessClient));
