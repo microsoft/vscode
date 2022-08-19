@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IActiveCodeEditor, ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { IActiveCodeEditor, ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import * as dom from 'vs/base/browser/dom';
 import { EditorLayoutInfo, EditorOption, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
@@ -34,7 +34,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private readonly layoutInfo: EditorLayoutInfo;
 	private readonly rootDomNode: HTMLElement = document.createElement('div');
 	private readonly disposableStore = this._register(new DisposableStore());
-	private readonly linkGestureStore = this._register(new DisposableStore());
 	private lineHeight: number;
 	private lineNumbers: number[];
 	private lastLineRelativePosition: number;
@@ -45,7 +44,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		private readonly _languageFeatureService: ILanguageFeaturesService,
+		@ILanguageFeaturesService private readonly _languageFeatureService: ILanguageFeaturesService,
 		@IInstantiationService private readonly _instaService: IInstantiationService
 	) {
 		super();
@@ -72,28 +71,24 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	}
 
 	private updateLinkGesture(): IDisposable {
-		const gesture = this.linkGestureStore.add(new ClickLinkGesture(this._editor));
+		const linkGestureStore = new DisposableStore();
+		const gesture = linkGestureStore.add(new ClickLinkGesture(this._editor, true));
 		const cancellationToken = new CancellationTokenSource();
 		const sessionStore = new DisposableStore();
 		sessionStore.add(cancellationToken);
-		this.linkGestureStore.add(sessionStore);
-		this.linkGestureStore.add(gesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, _keyboardEvent]) => {
-			if (!this._editor.hasModel()) {
-				return;
-			}
-			if (!mouseEvent.hasTriggerModifier) {
-				if (this.lastChildDecorated) {
-					this.lastChildDecorated.style.textDecoration = 'none';
-					this.lastChildDecorated = undefined;
-				}
+		linkGestureStore.add(sessionStore);
+		linkGestureStore.add(gesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, _keyboardEvent]) => {
+			if (!this._editor.hasModel() || !mouseEvent.hasTriggerModifier) {
+				sessionStore.clear();
 				return;
 			}
 			const targetMouseEvent = mouseEvent.target as any;
 			if (targetMouseEvent.detail === 'editor.contrib.stickyScrollWidget' && this.hoverOnLine !== -1 && targetMouseEvent.element.innerText === targetMouseEvent.element.innerHTML) {
 				const text = targetMouseEvent.element.innerText;
 				const lineNumber = this.hoverOnLine;
-				const column = this._editor.getModel()?.getLineContent(lineNumber).indexOf(text);
-				if (!column || column === -1) {
+				// TODO: workaround to find the column index, perhaps need more solid solution
+				const column = this._editor.getModel().getLineContent(lineNumber).indexOf(text);
+				if (column === -1) {
 					return;
 				}
 				const stickyPositionProjectedOnEditor = new Position(lineNumber, column + 1);
@@ -141,10 +136,10 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 				this.lastChildDecorated = undefined;
 			}
 		}));
-		this.linkGestureStore.add(gesture.onCancel(() => {
+		linkGestureStore.add(gesture.onCancel(() => {
 			sessionStore.clear();
 		}));
-		this.linkGestureStore.add(gesture.onExecute(async e => {
+		linkGestureStore.add(gesture.onExecute(async e => {
 			if (this.hoverOnLine !== -1) {
 				if (e.hasTriggerModifier) {
 					// Control click
@@ -156,7 +151,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			}
 
 		}));
-		return this.linkGestureStore;
+		return linkGestureStore;
 	}
 
 	public get codeLineCount(): number {
@@ -310,7 +305,5 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 	override dispose(): void {
 		super.dispose();
-		this.linkGestureStore.dispose();
-		this.disposableStore.dispose();
 	}
 }

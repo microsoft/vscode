@@ -106,16 +106,18 @@ export class ClickLinkGesture extends Disposable {
 	public readonly onCancel: Event<void> = this._onCancel.event;
 
 	private readonly _editor: ICodeEditor;
+	private readonly _alwaysFireExecuteOnMouseUp?: boolean;
 	private _opts: ClickLinkOptions;
 
 	private _lastMouseMoveEvent: ClickLinkMouseEvent | null;
 	private _hasTriggerKeyOnMouseDown: boolean;
 	private _lineNumberOnMouseDown: number;
 
-	constructor(editor: ICodeEditor) {
+	constructor(editor: ICodeEditor, _alwaysFireOnMouseUp?: boolean) {
 		super();
 
 		this._editor = editor;
+		this._alwaysFireExecuteOnMouseUp = _alwaysFireOnMouseUp;
 		this._opts = createOptions(this._editor.getOption(EditorOption.multiCursorModifier));
 
 		this._lastMouseMoveEvent = null;
@@ -175,8 +177,7 @@ export class ClickLinkGesture extends Disposable {
 
 	private _onEditorMouseUp(mouseEvent: ClickLinkMouseEvent): void {
 		const currentLineNumber = mouseEvent.target.position ? mouseEvent.target.position.lineNumber : 0;
-		const stickyScrollWidgetEnabled = this._editor.getOption(EditorOption.experimental);
-		if (this._hasTriggerKeyOnMouseDown && this._lineNumberOnMouseDown && this._lineNumberOnMouseDown === currentLineNumber || stickyScrollWidgetEnabled) {
+		if (this._hasTriggerKeyOnMouseDown && this._lineNumberOnMouseDown && this._lineNumberOnMouseDown === currentLineNumber || this._alwaysFireExecuteOnMouseUp) {
 			this._onExecute.fire(mouseEvent);
 		}
 	}
