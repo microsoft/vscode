@@ -421,12 +421,16 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 	}
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
+		if (this === otherInput) {
+			return true;
+		}
+
 		if (otherInput instanceof FileEditorInput) {
 			return isEqual(otherInput.resource, this.resource);
 		}
 
-		if (isResourceEditorInput(otherInput) && super.matches(otherInput)) {
-			return true;
+		if (isResourceEditorInput(otherInput)) {
+			return super.matches(otherInput);
 		}
 
 		return false;

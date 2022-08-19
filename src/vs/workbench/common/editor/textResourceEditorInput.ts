@@ -182,12 +182,16 @@ export class TextResourceEditorInput extends AbstractTextResourceEditorInput imp
 	}
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
-		if (isResourceEditorInput(otherInput) && super.matches(otherInput)) {
+		if (this === otherInput) {
 			return true;
 		}
 
 		if (otherInput instanceof TextResourceEditorInput) {
 			return isEqual(otherInput.resource, this.resource);
+		}
+
+		if (isResourceEditorInput(otherInput)) {
+			return super.matches(otherInput);
 		}
 
 		return false;
