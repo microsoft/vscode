@@ -1297,7 +1297,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		for (let i = 0; i < this._reconnectedTerminals.length; i++) {
 			const terminal = this._reconnectedTerminals[i];
 			const taskForTerminal = terminal.shellLaunchConfig.attachPersistentProcess?.reconnectionProperties?.data as IReconnectionTaskData;
-			console.log('reconnected terminal', taskForTerminal, taskForTerminal.lastTask, task.getMapKey());
 			if (taskForTerminal.lastTask === task.getMapKey()) {
 				this._reconnectedTerminals.splice(i, 1);
 				return terminal;
