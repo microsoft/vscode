@@ -87,6 +87,7 @@ export class Resource implements SourceControlResourceState {
 		return this.resources[1];
 	}
 
+	@memoize
 	get command(): Command {
 		return this._commandResolver.resolveDefaultCommand(this);
 	}
@@ -938,8 +939,7 @@ export class Repository implements Disposable {
 
 		workspace.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('git.mergeEditor')) {
-				// this.mergeGroup.resourceStates = this.mergeGroup.resourceStates.map(r => r.clone());
-				this.status();
+				this.mergeGroup.resourceStates = this.mergeGroup.resourceStates.map(r => r.clone());
 			}
 		}, undefined, this.disposables);
 

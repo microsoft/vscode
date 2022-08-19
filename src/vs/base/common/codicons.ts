@@ -568,6 +568,7 @@ export class Codicon implements CSSIcon {
 	public static readonly commentUnresolved = new Codicon('comment-unresolved', { fontCharacter: '\\ec0a' });
 	public static readonly gitPullRequestGoToChanges = new Codicon('git-pull-request-go-to-changes', { fontCharacter: '\\ec0b' });
 	public static readonly gitPullRequestNewChanges = new Codicon('git-pull-request-new-changes', { fontCharacter: '\\ec0c' });
+	public static readonly searchFuzzy = new Codicon('search-fuzzy', { fontCharacter: '\\ec0d' });
 
 
 	// derived icons, that could become separate icons

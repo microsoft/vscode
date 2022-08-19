@@ -137,7 +137,7 @@ export interface IWorkbenchConstructionOptions {
 	/**
 	 * The connection token to send to the server.
 	 */
-	readonly connectionToken?: string;
+	readonly connectionToken?: string | Promise<string>;
 
 	/**
 	 * An endpoint to serve iframe content ("webview") from. This is required
