@@ -333,7 +333,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (this._terminalService.getReconnectedTerminals('Task')) {
 			this._attemptTaskReconnection();
 		} else {
-			this._register(this._terminalService.onDidChangeConnectionState(async () => await this._attemptTaskReconnection()));
+			this._register(this._terminalService.onDidChangeConnectionState(() => this._attemptTaskReconnection()));
 		}
 		this._upgrade();
 	}
@@ -355,7 +355,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._onDidRegisterSupportedExecutions.fire();
 	}
 
-	private async _attemptTaskReconnection(): Promise<void> {
+	private _attemptTaskReconnection(): void {
 		this._getTaskSystem();
 		this._waitForSupportedExecutions.then(() => {
 			this._activateTaskProviders(undefined).then(() => {
