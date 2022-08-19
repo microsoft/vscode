@@ -29,7 +29,7 @@ import { isIOS } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { isString, withNullAsUndefined } from 'vs/base/common/types';
 import { getIconClass } from 'vs/base/parts/quickinput/browser/quickInputUtils';
-import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickInputHideEvent, IQuickNavigateConfiguration, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickWillAcceptEvent, ItemActivation, NO_KEY_MODS, QuickInputHideReason, QuickPickInput } from 'vs/base/parts/quickinput/common/quickInput';
+import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickInputHideEvent, IQuickInputToggle, IQuickNavigateConfiguration, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickWillAcceptEvent, ItemActivation, NO_KEY_MODS, QuickInputHideReason, QuickPickInput } from 'vs/base/parts/quickinput/common/quickInput';
 import 'vs/css!./media/quickInput';
 import { localize } from 'vs/nls';
 import { QuickInputBox } from './quickInputBox';
@@ -741,8 +741,12 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		this.update();
 	}
 
-	set additionalToggles(toggles: Toggle[] | undefined) {
-		this.ui.inputBox.additionalToggles = toggles;
+	set additionalToggles(toggles: IQuickInputToggle[] | undefined) {
+		// HACK: Filter out toggles here that are not concrete Toggle objects. This is to workaround
+		// a layering issue as quick input's interface is in common but Toggle is in browser and
+		// it requires a HTMLElement on its interface
+		const concreteToggles = toggles?.filter(opts => opts instanceof Toggle) as Toggle[];
+		this.ui.inputBox.additionalToggles = concreteToggles;
 	}
 
 	onDidChangeSelection = this.onDidChangeSelectionEmitter.event;
