@@ -2788,10 +2788,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _trust(): Promise<boolean> {
-		return (await this._workspaceTrustRequestService.requestWorkspaceTrust(
-			{
-				message: nls.localize('TaskService.requestTrust', "Listing and running tasks requires that some of the files in this workspace be executed as code.")
-			})) === true;
+		await this._workspaceTrustManagementService.workspaceTrustInitialized;
+		if (!this._workspaceTrustManagementService.isWorkspaceTrusted()) {
+			return (await this._workspaceTrustRequestService.requestWorkspaceTrust(
+				{
+					message: nls.localize('TaskService.requestTrust', "Listing and running tasks requires that some of the files in this workspace be executed as code.")
+				})) === true;
+		}
+		return true;
 	}
 
 	private async _runTaskCommand(filter?: any | { type?: string; task?: string }): Promise<void> {
