@@ -36,7 +36,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 
 export const Context = {
-	Visible: new RawContextKey<boolean>('CodeActionMenuVisible', false, localize('CodeActionMenuVisible', "Whether the code action list widget is visible"))
+	Visible: new RawContextKey<boolean>('codeActionMenuVisible', false, localize('codeActionMenuVisible', "Whether the code action list widget is visible"))
 };
 
 interface CodeActionWidgetDelegate {
@@ -304,6 +304,15 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		});
 	}
 
+	/**
+	* Checks if the setting has disabled/enabled headers in the code action widget.
+	*/
+	private isCodeActionWidgetHeadersDisabled(model: ITextModel): boolean {
+		return this._configurationService.getValue('editor.experimental.useCustomCodeActionMenu.toggleHeaders', {
+			resource: model.uri
+		});
+	}
+
 	private _onListSelection(e: IListEvent<ICodeActionMenuItem>): void {
 		if (e.elements.length) {
 			e.elements.forEach(element => {
@@ -422,81 +431,95 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		renderDisposables.add(this.codeActionList.value.onDidChangeSelection(e => this._onListSelection(e)));
 		renderDisposables.add(this._editor.onDidLayoutChange(() => this.hideCodeActionWidget()));
 
-		// Filters and groups code actions by their group
-		const menuEntries: IAction[][] = [];
+		const model = this._editor.getModel();
 
-		// Code Action Groups
-		const quickfixGroup: IAction[] = [];
-		const extractGroup: IAction[] = [];
-		const convertGroup: IAction[] = [];
-		const surroundGroup: IAction[] = [];
-		const sourceGroup: IAction[] = [];
-		const separatorGroup: IAction[] = [];
-		const documentationGroup: IAction[] = [];
-		const otherGroup: IAction[] = [];
+		if (!model) {
+			return renderDisposables;
+		}
 
-		inputArray.forEach((item) => {
-			if (item instanceof CodeActionAction) {
-				const optionKind = item.action.kind;
-
-				if (CodeActionKind.SurroundWith.contains(new CodeActionKind(String(optionKind)))) {
-					surroundGroup.push(item);
-				} else if (CodeActionKind.QuickFix.contains(new CodeActionKind(String(optionKind)))) {
-					quickfixGroup.push(item);
-				} else if (CodeActionKind.Extract.contains(new CodeActionKind(String(optionKind)))) {
-					extractGroup.push(item);
-				} else if (CodeActionKind.Convert.contains(new CodeActionKind(String(optionKind)))) {
-					convertGroup.push(item);
-				} else if (CodeActionKind.Source.contains(new CodeActionKind(String(optionKind)))) {
-					sourceGroup.push(item);
-				} else if (optionKind === CodeActionMenu.documentationID) {
-					documentationGroup.push(item);
-				} else {
-					// Pushes all the other actions to the "Other" group
-					otherGroup.push(item);
-				}
-
-			} else if (item.id === `vs.actions.separator`) {
-				separatorGroup.push(item);
-			}
-		});
-
-		menuEntries.push(quickfixGroup, extractGroup, convertGroup, surroundGroup, sourceGroup, otherGroup, separatorGroup, documentationGroup);
-
-		const menuEntriesToPush = (menuID: string, entry: IAction[]) => {
-			totalActionEntries.push(menuID);
-			totalActionEntries.push(...entry);
-			numHeaders++;
-		};
-		// Creates flat list of all menu entries with headers as separators
 		let numHeaders = 0;
 		const totalActionEntries: (IAction | string)[] = [];
-		menuEntries.forEach(entry => {
-			if (entry.length > 0 && entry[0] instanceof CodeActionAction) {
-				const firstAction = entry[0].action.kind;
-				if (CodeActionKind.SurroundWith.contains(new CodeActionKind(String(firstAction)))) {
-					menuEntriesToPush(localize('codeAction.widget.id.surround', 'Surround With...'), entry);
-				} else if (CodeActionKind.QuickFix.contains(new CodeActionKind(String(firstAction)))) {
-					menuEntriesToPush(localize('codeAction.widget.id.quickfix', 'Quick Fix...'), entry);
-				} else if (CodeActionKind.Extract.contains(new CodeActionKind(String(firstAction)))) {
-					menuEntriesToPush(localize('codeAction.widget.id.extract', 'Extract...'), entry);
-				} else if (CodeActionKind.Convert.contains(new CodeActionKind(String(firstAction)))) {
-					menuEntriesToPush(localize('codeAction.widget.id.convert', 'Convert...'), entry);
-				} else if (CodeActionKind.Source.contains(new CodeActionKind(String(firstAction)))) {
-					menuEntriesToPush(localize('codeAction.widget.id.source', 'Source Action...'), entry);
 
-				} else if (firstAction === CodeActionMenu.documentationID) {
-					totalActionEntries.push(...entry);
-				} else {
-					// Takes and flattens all the `other` actions
-					menuEntriesToPush(localize('codeAction.widget.id.more', 'More Actions...'), entry);
+		// Checks if headers are disabled.
+		if (this.isCodeActionWidgetHeadersDisabled(model)) {
+			totalActionEntries.push(...inputArray);
+
+		} else {
+			// Filters and groups code actions by their group
+			const menuEntries: IAction[][] = [];
+
+			// Code Action Groups
+			const quickfixGroup: IAction[] = [];
+			const extractGroup: IAction[] = [];
+			const convertGroup: IAction[] = [];
+			const surroundGroup: IAction[] = [];
+			const sourceGroup: IAction[] = [];
+			const separatorGroup: IAction[] = [];
+			const documentationGroup: IAction[] = [];
+			const otherGroup: IAction[] = [];
+
+			inputArray.forEach((item) => {
+				if (item instanceof CodeActionAction) {
+					const optionKind = item.action.kind;
+
+					if (CodeActionKind.SurroundWith.contains(new CodeActionKind(String(optionKind)))) {
+						surroundGroup.push(item);
+					} else if (CodeActionKind.QuickFix.contains(new CodeActionKind(String(optionKind)))) {
+						quickfixGroup.push(item);
+					} else if (CodeActionKind.Extract.contains(new CodeActionKind(String(optionKind)))) {
+						extractGroup.push(item);
+					} else if (CodeActionKind.Convert.contains(new CodeActionKind(String(optionKind)))) {
+						convertGroup.push(item);
+					} else if (CodeActionKind.Source.contains(new CodeActionKind(String(optionKind)))) {
+						sourceGroup.push(item);
+					} else if (optionKind === CodeActionMenu.documentationID) {
+						documentationGroup.push(item);
+					} else {
+						// Pushes all the other actions to the "Other" group
+						otherGroup.push(item);
+					}
+
+				} else if (item.id === `vs.actions.separator`) {
+					separatorGroup.push(item);
 				}
-			} else {
-				// case for separator - separators are not codeActionAction typed
-				totalActionEntries.push(...entry);
-			}
+			});
 
-		});
+			menuEntries.push(quickfixGroup, extractGroup, convertGroup, surroundGroup, sourceGroup, otherGroup, separatorGroup, documentationGroup);
+
+			const menuEntriesToPush = (menuID: string, entry: IAction[]) => {
+				totalActionEntries.push(menuID);
+				totalActionEntries.push(...entry);
+				numHeaders++;
+			};
+			// Creates flat list of all menu entries with headers as separators
+			menuEntries.forEach(entry => {
+				if (entry.length > 0 && entry[0] instanceof CodeActionAction) {
+					const firstAction = entry[0].action.kind;
+					if (CodeActionKind.SurroundWith.contains(new CodeActionKind(String(firstAction)))) {
+						menuEntriesToPush(localize('codeAction.widget.id.surround', 'Surround With...'), entry);
+					} else if (CodeActionKind.QuickFix.contains(new CodeActionKind(String(firstAction)))) {
+						menuEntriesToPush(localize('codeAction.widget.id.quickfix', 'Quick Fix...'), entry);
+					} else if (CodeActionKind.Extract.contains(new CodeActionKind(String(firstAction)))) {
+						menuEntriesToPush(localize('codeAction.widget.id.extract', 'Extract...'), entry);
+					} else if (CodeActionKind.Convert.contains(new CodeActionKind(String(firstAction)))) {
+						menuEntriesToPush(localize('codeAction.widget.id.convert', 'Convert...'), entry);
+					} else if (CodeActionKind.Source.contains(new CodeActionKind(String(firstAction)))) {
+						menuEntriesToPush(localize('codeAction.widget.id.source', 'Source Action...'), entry);
+
+					} else if (firstAction === CodeActionMenu.documentationID) {
+						totalActionEntries.push(...entry);
+					} else {
+						// Takes and flattens all the `other` actions
+						menuEntriesToPush(localize('codeAction.widget.id.more', 'More Actions...'), entry);
+					}
+				} else {
+					// case for separator - separators are not codeActionAction typed
+					totalActionEntries.push(...entry);
+				}
+
+			});
+
+		}
 
 		// Populating the list widget and tracking enabled options.
 		totalActionEntries.forEach((item, index) => {
