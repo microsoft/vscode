@@ -187,7 +187,7 @@ export interface IHandleCommandOptions {
 	marker?: IMarker;
 
 	/**
-	 * Properties for a generic mark
+	 * Properties for the mark
 	 */
 	markProperties?: IMarkProperties;
 }
