@@ -18,9 +18,11 @@ export const EDIT_SESSION_SYNC_CATEGORY: ILocalizedString = {
 	value: localize('session sync', 'Edit Sessions')
 };
 
-export const IEditSessionsWorkbenchService = createDecorator<IEditSessionsWorkbenchService>('IEditSessionsWorkbenchService');
-export interface IEditSessionsWorkbenchService {
+export const IEditSessionsStorageService = createDecorator<IEditSessionsStorageService>('IEditSessionsStorageService');
+export interface IEditSessionsStorageService {
 	_serviceBrand: undefined;
+
+	readonly isSignedIn: boolean;
 
 	read(ref: string | undefined): Promise<{ ref: string; editSession: EditSession } | undefined>;
 	write(editSession: EditSession): Promise<string>;
@@ -58,6 +60,7 @@ export type Change = Addition | Deletion;
 
 export interface Folder {
 	name: string;
+	canonicalIdentity: string | undefined;
 	workingChanges: Change[];
 }
 

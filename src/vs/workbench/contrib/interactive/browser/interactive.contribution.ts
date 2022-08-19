@@ -12,7 +12,7 @@ import { Schemas } from 'vs/base/common/network';
 import { extname } from 'vs/base/common/resources';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -462,15 +462,40 @@ registerAction2(class extends Action2 {
 				}
 			],
 			icon: icons.executeIcon,
-			f1: false
+			f1: false,
+			description: {
+				description: 'Execute the Contents of the Input Box',
+				args: [
+					{
+						name: 'resource',
+						description: 'Interactive resource Uri',
+						isOptional: true
+					}
+				]
+			}
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async run(accessor: ServicesAccessor, context?: UriComponents): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const bulkEditService = accessor.get(IBulkEditService);
 		const historyService = accessor.get(IInteractiveHistoryService);
-		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+		let editorControl: { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+		if (context) {
+			if (context.scheme === Schemas.vscodeInteractive) {
+				const resourceUri = URI.revive(context);
+				const editors = editorService.findEditors(resourceUri).filter(id => id.editor instanceof InteractiveEditorInput && id.editor.resource?.toString() === resourceUri.toString());
+				if (editors.length) {
+					const editorInput = editors[0].editor as InteractiveEditorInput;
+					const currentGroup = editors[0].groupId;
+					const editor = await editorService.openEditor(editorInput, currentGroup);
+					editorControl = editor?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+				}
+			}
+		}
+		else {
+			editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+		}
 
 		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
 			const notebookDocument = editorControl.notebookEditor.textModel;

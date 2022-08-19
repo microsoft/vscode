@@ -32,6 +32,9 @@ end
 function __vsc_cmd_executed --on-event fish_preexec
 	__vsc_esc C
 	__vsc_esc E (__vsc_escape_cmd "$argv")
+
+	# Creates a marker to indicate a command was run.
+	set --global _vsc_has_cmd
 end
 
 
@@ -61,6 +64,14 @@ end
 # Updates the current working directory.
 function __vsc_update_cwd --on-event fish_prompt
 	__vsc_esc P "Cwd=$PWD"
+
+	# If a command marker exists, remove it.
+	# Otherwise, the commandline is empty and no command was run.
+	if set --query _vsc_has_cmd
+		set --erase _vsc_has_cmd
+	else
+		__vsc_cmd_clear
+	end
 end
 
 # Sent at the start of the prompt.
@@ -75,11 +86,33 @@ function __vsc_fish_cmd_start
 	__vsc_esc B
 end
 
-# Preserve the user's existing prompt, and wrap it in our escape sequences.
+function __vsc_fish_has_mode_prompt -d "Returns true if fish_mode_prompt is defined and not empty"
+	functions fish_mode_prompt | string match -rvq '^ *(#|function |end$|$)'
+end
+
+# Preserve the user's existing prompt, to wrap in our escape sequences.
 functions --copy fish_prompt __vsc_fish_prompt
 
-function fish_prompt
-	__vsc_fish_prompt_start
-	__vsc_fish_prompt
-	__vsc_fish_cmd_start
+# Preserve and wrap fish_mode_prompt (which appears to the left of the regular
+# prompt), but only if it's not defined as an empty function (which is the
+# officially documented way to disable that feature).
+if __vsc_fish_has_mode_prompt
+	functions --copy fish_mode_prompt __vsc_fish_mode_prompt
+
+	function fish_mode_prompt
+		__vsc_fish_prompt_start
+		__vsc_fish_mode_prompt
+	end
+
+	function fish_prompt
+		__vsc_fish_prompt
+		__vsc_fish_cmd_start
+	end
+else
+	# No fish_mode_prompt, so put everything in fish_prompt.
+	function fish_prompt
+		__vsc_fish_prompt_start
+		__vsc_fish_prompt
+		__vsc_fish_cmd_start
+	end
 end

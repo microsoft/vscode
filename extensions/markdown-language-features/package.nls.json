@@ -42,5 +42,6 @@
 	"configuration.markdown.experimental.updateLinksOnFileMove.enabled.always": "Always update links automatically.",
 	"configuration.markdown.experimental.updateLinksOnFileMove.enabled.never": "Never try to update link and don't prompt.",
 	"configuration.markdown.experimental.updateLinksOnFileMove.fileGlobs": "A glob that specifies which files besides markdown should trigger a link update.",
+	"configuration.markdown.experimental.updateLinksOnFileMove.enableForDirectories": "enable/disable updating links when a directory is moved or renamed in the workspace.",
 	"workspaceTrust": "Required for loading styles configured in the workspace."
 }

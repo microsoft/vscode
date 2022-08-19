@@ -124,7 +124,8 @@ export class MenuId {
 	static readonly ViewTitleContext = new MenuId('ViewTitleContext');
 	static readonly CommentThreadTitle = new MenuId('CommentThreadTitle');
 	static readonly CommentThreadActions = new MenuId('CommentThreadActions');
-	static readonly CommentThreadWidgetContext = new MenuId('CommentThreadWidgetContext');
+	static readonly CommentThreadTitleContext = new MenuId('CommentThreadTitleContext');
+	static readonly CommentThreadCommentContext = new MenuId('CommentThreadCommentContext');
 	static readonly CommentTitle = new MenuId('CommentTitle');
 	static readonly CommentActions = new MenuId('CommentActions');
 	static readonly InteractiveToolbar = new MenuId('InteractiveToolbar');
@@ -439,12 +440,6 @@ export class MenuItemAction implements IAction {
 		if (ThemeIcon.isThemeIcon(item.icon)) {
 			this.class = CSSIcon.asClassName(item.icon);
 		}
-	}
-
-	dispose(): void {
-		// there is NOTHING to dispose and the MenuItemAction should
-		// never have anything to dispose as it is a convenience type
-		// to bridge into the rendering world.
 	}
 
 	run(...args: any[]): Promise<void> {

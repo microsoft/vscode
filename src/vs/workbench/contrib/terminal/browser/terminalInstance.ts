@@ -41,7 +41,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { QuickPickItem, IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
@@ -88,6 +88,8 @@ import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProc
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
+import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
+import { showWithPinnedItems } from 'vs/platform/quickinput/browser/quickPickPin';
 
 const enum Constants {
 	/**
@@ -849,6 +851,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this.xterm) {
 			return;
 		}
+		const runRecentStorageKey = `${TerminalStorageKeys.PinnedRecentCommandsPrefix}.${this._shellType}`;
 		let placeholder: string;
 		type Item = IQuickPickItem & { command?: ITerminalCommand; rawLabel: string };
 		let items: (Item | IQuickPickItem & { rawLabel: string } | IQuickPickSeparator)[] = [];
@@ -857,6 +860,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const removeFromCommandHistoryButton: IQuickInputButton = {
 			iconClass: ThemeIcon.asClassName(Codicon.close),
 			tooltip: nls.localize('removeCommand', "Remove from Command History")
+		};
+
+		const commandOutputButton: IQuickInputButton = {
+			iconClass: ThemeIcon.asClassName(Codicon.output),
+			tooltip: nls.localize('viewCommandOutput', "View Command Output"),
+			alwaysVisible: false
 		};
 
 		if (type === 'command') {
@@ -869,7 +878,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				commandMap.add(executingCommand);
 			}
 			function formatLabel(label: string) {
-				return label.replace(/\r?\n/g, '\u23CE');
+				return label
+					// Replace new lines with "enter" symbol
+					.replace(/\r?\n/g, '\u23CE')
+					// Replace 3 or more spaces with midline horizontal ellipsis which looks similar
+					// to whitespace in the editor
+					.replace(/\s\s\s+/g, '\u22EF');
 			}
 			if (commands && commands.length > 0) {
 				for (const entry of commands) {
@@ -890,12 +904,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						}
 					}
 					description = description.trim();
-					const iconClass = ThemeIcon.asClassName(Codicon.output);
-					const buttons: IQuickInputButton[] = [{
-						iconClass,
-						tooltip: nls.localize('viewCommandOutput', "View Command Output"),
-						alwaysVisible: false
-					}];
+					const buttons: IQuickInputButton[] = [commandOutputButton];
 					// Merge consecutive commands
 					const lastItem = items.length > 0 ? items[items.length - 1] : undefined;
 					if (lastItem?.type !== 'separator' && lastItem?.label === label) {
@@ -1029,7 +1038,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				} else {
 					this._instantiationService.invokeFunction(getDirectoryHistory)?.remove(e.item.label);
 				}
-			} else {
+			} else if (e.button === commandOutputButton) {
 				const selectedCommand = (e.item as Item).command;
 				const output = selectedCommand?.getOutput();
 				if (output && selectedCommand?.command) {
@@ -1047,19 +1056,31 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					}
 				}
 			}
-			quickPick.hide();
+			await this.runRecent(type, filterMode, value);
+		}
+		);
+		quickPick.onDidChangeValue(async value => {
+			if (!value) {
+				await this.runRecent(type, filterMode, value);
+			}
 		});
-		quickPick.onDidAccept(() => {
+		quickPick.onDidAccept(async () => {
 			const result = quickPick.activeItems[0];
-			this.sendText(type === 'cwd' ? `cd ${result.rawLabel}` : result.rawLabel, !quickPick.keyMods.alt, true);
+			let text: string;
+			if (type === 'cwd') {
+				text = `cd ${await preparePathForShell(result.rawLabel, this._shellLaunchConfig.executable, this.title, this._shellType, this._processManager.backend, this._processManager.os)}`;
+			} else { // command
+				text = result.rawLabel;
+			}
+			this.sendText(text, !quickPick.keyMods.alt, true);
 			quickPick.hide();
 		});
 		if (value) {
 			quickPick.value = value;
 		}
 		return new Promise<void>(r => {
-			quickPick.show();
 			this._terminalInRunCommandPicker.set(true);
+			showWithPinnedItems(this._storageService, runRecentStorageKey, quickPick, true);
 			quickPick.onDidHide(() => {
 				this._terminalInRunCommandPicker.set(false);
 				r();
@@ -2491,7 +2512,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const colorTheme = this._themeService.getColorTheme();
 		const standardColors: string[] = getStandardColors(colorTheme);
 		const styleElement = getColorStyleElement(colorTheme);
-		const items: (IQuickPickItem | IQuickPickSeparator)[] = [];
+		const items: QuickPickItem[] = [];
 		for (const colorKey of standardColors) {
 			const colorClass = getColorClass(colorKey);
 			items.push({

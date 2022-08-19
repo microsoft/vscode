@@ -39,6 +39,7 @@ import { AbstractTextEditor } from 'vs/workbench/browser/parts/editor/textEditor
 import { DEFAULT_EDITOR_ASSOCIATION, EditorInputWithOptions, IEditorOpenContext, IResourceMergeEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
+import { readTransientState, writeTransientState } from 'vs/workbench/contrib/codeEditor/browser/toggleWordWrap';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { DocumentMapping, getOppositeDirection, MappingDirection } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
@@ -117,6 +118,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		@IEditorService editorService: IEditorService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IFileService fileService: IFileService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 	) {
 		super(MergeEditor.ID, telemetryService, instantiation, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService, fileService);
 
@@ -176,7 +178,6 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 				})
 			)
 		);
-
 
 		// TODO@jrieken make this proper: add menu id and allow extensions to contribute
 		const toolbarMenu = this._menuService.createMenu(MenuId.MergeToolbar, this._contextKeyService);
@@ -305,12 +306,19 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 
 		const viewModel = new MergeEditorViewModel(model, this.input1View, this.input2View, this.inputResultView);
 
-		this.input1View.setModel(viewModel, model.input1, model.input1Title || localize('input1', 'Input 1'), model.input1Detail, model.input1Description);
-		this.input2View.setModel(viewModel, model.input2, model.input2Title || localize('input2', 'Input 2',), model.input2Detail, model.input2Description);
-		this.inputResultView.setModel(viewModel, model.result, localize('result', 'Result',), this._labelService.getUriLabel(model.result.uri, { relative: true }), undefined);
+		this.input1View.setModel(viewModel, { ...model.input1, title: model.input1.title || localize('input1', 'Input 1') });
+		this.input2View.setModel(viewModel, { ...model.input2, title: model.input2.title || localize('input2', 'Input 2') });
+		this.inputResultView.setModel(viewModel,
+			{
+				textModel: model.resultTextModel,
+				title: localize('result', 'Result'),
+				description: this._labelService.getUriLabel(model.resultTextModel.uri, { relative: true }),
+				detail: undefined,
+			},
+		);
 
 		// Set/unset context keys based on input
-		this._ctxResultUri.set(model.result.uri.toString());
+		this._ctxResultUri.set(model.resultTextModel.uri.toString());
 		this._ctxBaseUri.set(model.base.uri.toString());
 		this._sessionDisposables.add(toDisposable(() => {
 			this._ctxBaseUri.reset();
@@ -334,25 +342,25 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		this._sessionDisposables.add(autorunWithStore((reader, store) => {
 			const input1ViewZoneIds: string[] = [];
 			const input2ViewZoneIds: string[] = [];
-			for (const m of model.modifiedBaseRanges.read(reader)) {
-				const max = Math.max(m.input1Range.lineCount, m.input2Range.lineCount, 1);
+			this.input1View.editor.changeViewZones(a1 => {
+				this.input2View.editor.changeViewZones(a2 => {
+					for (const m of model.modifiedBaseRanges.read(reader)) {
+						const max = Math.max(m.input1Range.lineCount, m.input2Range.lineCount, 1);
 
-				this.input1View.editor.changeViewZones(a => {
-					input1ViewZoneIds.push(a.addZone({
-						afterLineNumber: m.input1Range.endLineNumberExclusive - 1,
-						heightInLines: max - m.input1Range.lineCount,
-						domNode: $('div.diagonal-fill'),
-					}));
-				});
+						input1ViewZoneIds.push(a1.addZone({
+							afterLineNumber: m.input1Range.endLineNumberExclusive - 1,
+							heightInLines: max - m.input1Range.lineCount,
+							domNode: $('div.diagonal-fill'),
+						}));
 
-				this.input2View.editor.changeViewZones(a => {
-					input2ViewZoneIds.push(a.addZone({
-						afterLineNumber: m.input2Range.endLineNumberExclusive - 1,
-						heightInLines: max - m.input2Range.lineCount,
-						domNode: $('div.diagonal-fill'),
-					}));
+						input2ViewZoneIds.push(a2.addZone({
+							afterLineNumber: m.input2Range.endLineNumberExclusive - 1,
+							heightInLines: max - m.input2Range.lineCount,
+							domNode: $('div.diagonal-fill'),
+						}));
+					}
 				});
-			}
+			});
 
 			store.add({
 				dispose: () => {
@@ -369,6 +377,19 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 				}
 			});
 		}, 'update alignment view zones'));
+
+		// word wrap special case - sync transient state from result model to input[1|2] models
+		const mirrorWordWrapTransientState = () => {
+			const state = readTransientState(model.resultTextModel, this._codeEditorService);
+			writeTransientState(model.input2.textModel, state, this._codeEditorService);
+			writeTransientState(model.input1.textModel, state, this._codeEditorService);
+		};
+		this._sessionDisposables.add(this._codeEditorService.onDidChangeTransientModelProperty(candidate => {
+			if (candidate === this.inputResultView.editor.getModel()) {
+				mirrorWordWrapTransientState();
+			}
+		}));
+		mirrorWordWrapTransientState();
 
 
 		// detect when base, input1, and input2 become empty and replace THIS editor with its result editor
@@ -391,8 +412,8 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 
 			private *baseInput1Input2() {
 				yield model.base;
-				yield model.input1;
-				yield model.input2;
+				yield model.input1.textModel;
+				yield model.input2.textModel;
 			}
 
 			private _checkBaseInput1Input2AllEmpty() {
@@ -501,7 +522,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 	}
 
 	protected computeEditorViewState(resource: URI): IMergeEditorViewState | undefined {
-		if (!isEqual(this.model?.result.uri, resource)) {
+		if (!isEqual(this.model?.resultTextModel.uri, resource)) {
 			return undefined;
 		}
 		const result = this.inputResultView.editor.saveViewState();

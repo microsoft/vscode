@@ -165,16 +165,20 @@ export function getTitleBarStyle(configurationService: IConfigurationService): '
 }
 
 export function useWindowControlsOverlay(configurationService: IConfigurationService, environmentService: IEnvironmentService): boolean {
-	// Window Controls Overlay are only configurable on Windows
 	if (!isWindows || isWeb || !environmentService.isBuilt) {
-		return false;
+		return false; // only supported on a built desktop windows instance
 	}
 
 	if (getTitleBarStyle(configurationService) === 'native') {
-		return false;
+		return false; // only supported when title bar is custom
 	}
 
-	return configurationService.getValue<boolean>('window.experimental.windowControlsOverlay.enabled');
+	const configuredUseWindowControlsOverlay = configurationService.getValue<boolean | undefined>('window.experimental.windowControlsOverlay.enabled');
+	if (typeof configuredUseWindowControlsOverlay === 'boolean') {
+		return configuredUseWindowControlsOverlay;
+	}
+
+	return true; // enabled by default
 }
 
 export interface IPath<T = IEditorOptions> extends IPathData<T> {
@@ -279,7 +283,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 
 	profiles: {
 		all: readonly UriDto<IUserDataProfile>[];
-		current: UriDto<IUserDataProfile>;
+		profile: UriDto<IUserDataProfile>;
 	};
 
 	homeDir: string;
