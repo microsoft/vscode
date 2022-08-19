@@ -257,8 +257,19 @@
 	display: none;
 }
 
+/* single install */
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item > .extension-action.label {
+	border-radius: 2px;
+}
+
+/* split install */
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .extension-action.label {
+	border-radius: 2px 0 0 2px;
+}
+
 .extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .monaco-dropdown .extension-action.label {
 	border-left-width: 0;
+	border-radius: 0 2px 2px 0;
 }
 
 .extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item > .action-label.extension-status {

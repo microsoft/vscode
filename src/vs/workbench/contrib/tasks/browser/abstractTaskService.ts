@@ -8,7 +8,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
 import * as json from 'vs/base/common/json';
-import { Disposable, IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { LRUCache, Touch } from 'vs/base/common/map';
 import * as Objects from 'vs/base/common/objects';
 import { ValidationState, ValidationStatus } from 'vs/base/common/parsers';
@@ -53,7 +53,7 @@ import { ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSyst
 import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/common/taskTemplates';
 
 import * as TaskConfig from '../common/taskConfiguration';
-import { TerminalTaskSystem } from './terminalTaskSystem';
+import { terminalsNotReconnectedExitCode, TerminalTaskSystem } from './terminalTaskSystem';
 
 import { IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickSeparator, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 
@@ -181,6 +181,11 @@ class TaskMap {
 	}
 }
 
+interface EventBarrier {
+	isOpen: boolean;
+	queuedEvent?: boolean;
+}
+
 export abstract class AbstractTaskService extends Disposable implements ITaskService {
 
 	// private static autoDetectTelemetryName: string = 'taskServer.autoDetect';
@@ -194,6 +199,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	public static OutputChannelLabel: string = nls.localize('tasks', "Tasks");
 
 	private static _nextHandle: number = 0;
+
+	private _reconnectionBarrier: EventBarrier = { isOpen: true };
 
 	private _tasksReconnected: boolean = false;
 	private _schemaVersion: JsonSchemaVersion | undefined;
@@ -209,7 +216,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	protected _workspaceTasksPromise?: Promise<Map<string, IWorkspaceFolderTaskResult>>;
 
 	protected _taskSystem?: ITaskSystem;
-	protected _taskSystemListener?: IDisposable;
+	protected _taskSystemListeners?: IDisposable[] = [];
 	private _recentlyUsedTasksV1: LRUCache<string, string> | undefined;
 	private _recentlyUsedTasks: LRUCache<string, string> | undefined;
 
@@ -219,6 +226,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	protected _outputChannel: IOutputChannel;
 	protected readonly _onDidStateChange: Emitter<ITaskEvent>;
+	protected readonly _onDidReconnectToTerminals: Emitter<void> = new Emitter();
 	private _waitForSupportedExecutions: Promise<void>;
 	private _onDidRegisterSupportedExecutions: Emitter<void> = new Emitter();
 	private _onDidChangeTaskSystemInfo: Emitter<void> = new Emitter();
@@ -265,7 +273,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 		this._workspaceTasksPromise = undefined;
 		this._taskSystem = undefined;
-		this._taskSystemListener = undefined;
+		this._taskSystemListeners = undefined;
 		this._outputChannel = this._outputService.getChannel(AbstractTaskService.OutputChannelId)!;
 		this._providers = new Map<number, ITaskProvider>();
 		this._providerTypes = new Map<number, string>();
@@ -283,6 +291,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			if (!this._taskSystem && !this._workspaceTasksPromise) {
 				return;
 			}
+
 			if (!this._taskSystem || this._taskSystem instanceof TerminalTaskSystem) {
 				this._outputChannel.clear();
 			}
@@ -328,6 +337,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._waitForSupportedExecutions = new Promise(resolve => {
 			once(this._onDidRegisterSupportedExecutions.event)(() => resolve());
 		});
+		this._register(this.onDidReconnectToTerminals(async () => {
+			await this._waitForSupportedExecutions;
+			await this._attemptTaskReconnection();
+		}));
+
+		this._register(this._onDidRegisterSupportedExecutions.event(async () => await this._attemptTaskReconnection()));
 		this._upgrade();
 	}
 
@@ -346,41 +361,63 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			processContext.set(process && !isVirtual);
 		}
 		this._onDidRegisterSupportedExecutions.fire();
-		if (this._configurationService.getValue(TaskSettingId.Reconnection) === true && this._jsonTasksSupported && !this._tasksReconnected) {
-			this._reconnectTasks();
+	}
+
+	private async _attemptTaskReconnection(): Promise<void> {
+		if (!this._reconnectionBarrier.isOpen) {
+			this._reconnectionBarrier.queuedEvent = true;
+			return;
+		}
+		this._reconnectionBarrier.isOpen = false;
+		if (!this._taskSystem) {
+			this._logService.info('getting task system before reconnection');
+			await this._getTaskSystem();
+		}
+		this._logService.info(`attempting task reconnection, jsonTasksSupported: ${this._jsonTasksSupported}, reconnection pending ${!this._tasksReconnected}`);
+		if (this._configurationService.getValue(TaskSettingId.Reconnection) === true && !this._tasksReconnected) {
+			this._tasksReconnected = await this._reconnectTasks();
+		}
+		this._reconnectionBarrier.isOpen = true;
+		if (this._reconnectionBarrier.queuedEvent) {
+			this._reconnectionBarrier.queuedEvent = undefined;
+			await this._attemptTaskReconnection();
 		}
 	}
 
-	private async _reconnectTasks(): Promise<void> {
+	private async _reconnectTasks(): Promise<boolean> {
 		if (this._lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
 			this._tasksReconnected = true;
 			this._storageService.remove(AbstractTaskService.PersistentTasks_Key, StorageScope.WORKSPACE);
-			return;
+			return true;
 		}
 		const tasks = await this.getSavedTasks('persistent');
-		if (!this._taskSystem) {
-			await this._getTaskSystem();
-		}
 		if (!tasks.length) {
-			this._tasksReconnected = true;
-			return;
+			return true;
 		}
-
 		for (const task of tasks) {
+			let result;
 			if (ConfiguringTask.is(task)) {
 				const resolved = await this.tryResolveTask(task);
 				if (resolved) {
-					this.run(resolved, undefined, TaskRunSource.Reconnect);
+					result = await this.run(resolved, undefined, TaskRunSource.Reconnect);
 				}
 			} else {
-				this.run(task, undefined, TaskRunSource.Reconnect);
+				result = await this.run(task, undefined, TaskRunSource.Reconnect);
+			}
+			if (result?.exitCode === terminalsNotReconnectedExitCode) {
+				this._logService.trace('Terminals were not reconnected');
+				return false;
 			}
 		}
-		this._tasksReconnected = true;
+		return true;
 	}
 
 	public get onDidStateChange(): Event<ITaskEvent> {
 		return this._onDidStateChange.event;
+	}
+
+	public get onDidReconnectToTerminals(): Event<void> {
+		return this._onDidReconnectToTerminals.event;
 	}
 
 	public get supportsMultipleTaskExecutions(): boolean {
@@ -607,7 +644,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	protected _disposeTaskSystemListeners(): void {
-		this._taskSystemListener?.dispose();
+		if (this._taskSystemListeners) {
+			dispose(this._taskSystemListeners);
+			this._taskSystemListeners = undefined;
+		}
 	}
 
 	public registerTaskProvider(provider: ITaskProvider, type: string): IDisposable {
