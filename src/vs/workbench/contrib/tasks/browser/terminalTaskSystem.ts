@@ -255,7 +255,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		this._onDidStateChange = new Emitter();
 		this._taskSystemInfoResolver = taskSystemInfoResolver;
 		this._register(this._terminalStatusManager = new TaskTerminalStatus(taskService));
-		this._register(this._terminalService.onDidChangeConnectionState(() => this._reconnectToTerminals()));
+		this._register(this._terminalService.onDidChangeConnectionState(() => this._onDidReconnectToTerminals.fire()));
 	}
 
 	public get onDidStateChange(): Event<ITaskEvent> {
@@ -1297,6 +1297,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		for (let i = 0; i < this._reconnectedTerminals.length; i++) {
 			const terminal = this._reconnectedTerminals[i];
 			const taskForTerminal = terminal.shellLaunchConfig.attachPersistentProcess?.reconnectionProperties?.data as IReconnectionTaskData;
+			console.log('reconnected terminal', taskForTerminal, taskForTerminal.lastTask, task.getMapKey());
 			if (taskForTerminal.lastTask === task.getMapKey()) {
 				this._reconnectedTerminals.splice(i, 1);
 				return terminal;
@@ -1312,6 +1313,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				reconnectedTerminal.waitOnExit = getWaitOnExitValue(task.command.presentation, task.configurationProperties);
 			}
 			reconnectedTerminal.onDisposed((terminal) => this._fireTaskEvent({ kind: TaskEventKind.Terminated, exitReason: terminal.exitReason, taskId: task.getRecentlyUsedKey() }));
+			this._logService.info('reconnected to task and terminal', task._id);
 			return reconnectedTerminal;
 		}
 		if (group) {
@@ -1363,7 +1365,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				this._terminals[terminal.instanceId] = terminalData;
 			}
 			this._hasReconnected = true;
-			this._onDidReconnectToTerminals.fire();
 		}
 	}
 

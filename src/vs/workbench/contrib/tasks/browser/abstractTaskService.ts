@@ -80,6 +80,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { TerminalExitReason } from 'vs/platform/terminal/common/terminal';
+import { Promises } from 'vs/base/common/async';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
@@ -337,12 +338,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._waitForSupportedExecutions = new Promise(resolve => {
 			once(this._onDidRegisterSupportedExecutions.event)(() => resolve());
 		});
-		this._register(this.onDidReconnectToTerminals(async () => {
-			await this._waitForSupportedExecutions;
-			await this._attemptTaskReconnection();
-		}));
-
-		this._register(this._onDidRegisterSupportedExecutions.event(async () => await this._attemptTaskReconnection()));
+		this._register(this.onDidReconnectToTerminals(async () => await this._attemptTaskReconnection()));
+		this._attemptTaskReconnection();
 		this._upgrade();
 	}
 
@@ -373,6 +370,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._logService.info('getting task system before reconnection');
 			await this._getTaskSystem();
 		}
+		await this._waitForSupportedExecutions;
+		await this._activateTaskProviders(undefined);
+		await this.getWorkspaceTasks();
 		this._logService.info(`attempting task reconnection, jsonTasksSupported: ${this._jsonTasksSupported}, reconnection pending ${!this._tasksReconnected}`);
 		if (this._configurationService.getValue(TaskSettingId.Reconnection) === true && !this._tasksReconnected) {
 			this._tasksReconnected = await this._reconnectTasks();
@@ -390,24 +390,27 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._storageService.remove(AbstractTaskService.PersistentTasks_Key, StorageScope.WORKSPACE);
 			return true;
 		}
+
 		const tasks = await this.getSavedTasks('persistent');
 		if (!tasks.length) {
 			return true;
 		}
+		const promises = [];
 		for (const task of tasks) {
 			let result;
 			if (ConfiguringTask.is(task)) {
 				const resolved = await this.tryResolveTask(task);
 				if (resolved) {
-					result = await this.run(resolved, undefined, TaskRunSource.Reconnect);
+					result = this.run(resolved, undefined, TaskRunSource.Reconnect);
 				}
 			} else {
-				result = await this.run(task, undefined, TaskRunSource.Reconnect);
+				result = this.run(task, undefined, TaskRunSource.Reconnect);
 			}
-			if (result?.exitCode === terminalsNotReconnectedExitCode) {
-				this._logService.trace('Terminals were not reconnected');
-				return false;
-			}
+			promises.push(result);
+		}
+		const promiseResult = await Promise.all(promises);
+		if (promiseResult.find(p => p?.exitCode === terminalsNotReconnectedExitCode)) {
+			return false;
 		}
 		return true;
 	}
