@@ -27,6 +27,7 @@ export interface IFindInputOptions extends IFindInputStyles {
 	readonly flexibleWidth?: boolean;
 	readonly flexibleMaxHeight?: number;
 
+	readonly showCommonFindToggles?: boolean;
 	readonly appendCaseSensitiveLabel?: string;
 	readonly appendWholeWordsLabel?: string;
 	readonly appendRegexLabel?: string;
@@ -100,7 +101,7 @@ export class FindInput extends Widget {
 	private _onRegexKeyDown = this._register(new Emitter<IKeyboardEvent>());
 	public readonly onRegexKeyDown: Event<IKeyboardEvent> = this._onRegexKeyDown.event;
 
-	constructor(parent: HTMLElement | null, contextViewProvider: IContextViewProvider, private readonly _showOptionButtons: boolean, options: IFindInputOptions) {
+	constructor(parent: HTMLElement | null, contextViewProvider: IContextViewProvider, options: IFindInputOptions) {
 		super();
 		this.contextViewProvider = contextViewProvider;
 		this.placeholder = options.placeholder || '';
@@ -243,12 +244,12 @@ export class FindInput extends Widget {
 
 		this.controls = document.createElement('div');
 		this.controls.className = 'controls';
-		this.controls.style.display = this._showOptionButtons ? 'block' : 'none';
+		this.controls.style.display = options.showCommonFindToggles ? 'block' : 'none';
 		this.controls.appendChild(this.caseSensitive.domNode);
 		this.controls.appendChild(this.wholeWords.domNode);
 		this.controls.appendChild(this.regex.domNode);
 
-		if (!this._showOptionButtons) {
+		if (!options.showCommonFindToggles) {
 			this.caseSensitive.domNode.style.display = 'none';
 			this.wholeWords.domNode.style.display = 'none';
 			this.regex.domNode.style.display = 'none';
@@ -273,7 +274,7 @@ export class FindInput extends Widget {
 		}
 
 		this.inputBox.paddingRight =
-			(this._showOptionButtons ? this.caseSensitive.width() + this.wholeWords.width() + this.regex.width() : 0)
+			(options.showCommonFindToggles ? this.caseSensitive.width() + this.wholeWords.width() + this.regex.width() : 0)
 			+ this.additionalToggles.reduce((r, t) => r + t.width(), 0);
 
 		this.domNode.appendChild(this.controls);

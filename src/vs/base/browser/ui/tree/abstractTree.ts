@@ -721,9 +721,10 @@ class FindWidget<T, TFilterData> extends Disposable {
 		this.modeToggle = this._register(new ModeToggle({ ...options, isChecked: mode === TreeFindMode.Filter }));
 		this.onDidChangeMode = Event.map(this.modeToggle.onChange, () => this.modeToggle.checked ? TreeFindMode.Filter : TreeFindMode.Highlight, this._store);
 
-		this.findInput = this._register(new FindInput(this.elements.findInput, contextViewProvider, false, {
+		this.findInput = this._register(new FindInput(this.elements.findInput, contextViewProvider, {
 			label: localize('type to search', "Type to search"),
-			additionalToggles: [this.modeToggle]
+			additionalToggles: [this.modeToggle],
+			showCommonFindToggles: false
 		}));
 
 		this.actionbar = this._register(new ActionBar(this.elements.actionbar));
