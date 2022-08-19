@@ -94,81 +94,56 @@ suite('EditorInput', () => {
 	});
 
 	test('Untpyed inputs properly match TextResourceEditorInput', () => {
-		const textResourceEditorInput = new TextResourceEditorInput(
-			testResource,
-			undefined,
-			undefined,
-			undefined,
-			undefined,
-			accessor.textModelResolverService,
-			accessor.textFileService,
-			accessor.editorService,
-			accessor.fileService,
-			accessor.labelService
-		);
+		const textResourceEditorInput = instantiationService.createInstance(TextResourceEditorInput, testResource, undefined, undefined, undefined, undefined);
+
 		assert.ok(textResourceEditorInput.matches(untypedResourceEditorInput));
 		assert.ok(textResourceEditorInput.matches(untypedTextResourceEditorInput));
 		assert.ok(!textResourceEditorInput.matches(untypedResourceSideBySideEditorInput));
 		assert.ok(!textResourceEditorInput.matches(untypedUntitledResourceEditorinput));
 		assert.ok(!textResourceEditorInput.matches(untypedResourceDiffEditorInput));
 		assert.ok(!textResourceEditorInput.matches(untypedResourceMergeEditorInput));
+
 		textResourceEditorInput.dispose();
 	});
 
 	test('Untyped inputs properly match FileEditorInput', () => {
-		const fileEditorInput = new FileEditorInput(testResource,
-			undefined,
-			undefined,
-			undefined,
-			undefined,
-			undefined,
-			undefined,
-			instantiationService,
-			accessor.textFileService,
-			accessor.textModelResolverService,
-			accessor.labelService,
-			accessor.fileService,
-			accessor.filesConfigurationService,
-			accessor.editorService,
-			accessor.pathService
-		);
+		const fileEditorInput = instantiationService.createInstance(FileEditorInput, testResource, undefined, undefined, undefined, undefined, undefined, undefined);
+
 		assert.ok(fileEditorInput.matches(untypedResourceEditorInput));
 		assert.ok(fileEditorInput.matches(untypedTextResourceEditorInput));
 		assert.ok(!fileEditorInput.matches(untypedResourceSideBySideEditorInput));
 		assert.ok(!fileEditorInput.matches(untypedUntitledResourceEditorinput));
 		assert.ok(!fileEditorInput.matches(untypedResourceDiffEditorInput));
 		assert.ok(!fileEditorInput.matches(untypedResourceMergeEditorInput));
+
 		fileEditorInput.dispose();
 	});
 
 	test('Untyped inputs properly match MergeEditorInput', () => {
 		const mergeData: MergeEditorInputData = { uri: testResource, description: undefined, detail: undefined, title: undefined };
-		const mergeEditorInput = new MergeEditorInput(testResource,
-			mergeData,
-			mergeData,
-			testResource,
-			instantiationService,
-			accessor.textModelResolverService,
-			accessor.editorService, accessor.textFileService,
-			accessor.labelService,
-			accessor.fileService
-		);
+		const mergeEditorInput = instantiationService.createInstance(MergeEditorInput, testResource, mergeData, mergeData, testResource);
+
 		assert.ok(!mergeEditorInput.matches(untypedResourceEditorInput));
 		assert.ok(!mergeEditorInput.matches(untypedTextResourceEditorInput));
 		assert.ok(!mergeEditorInput.matches(untypedResourceSideBySideEditorInput));
 		assert.ok(!mergeEditorInput.matches(untypedUntitledResourceEditorinput));
 		assert.ok(!mergeEditorInput.matches(untypedResourceDiffEditorInput));
 		assert.ok(mergeEditorInput.matches(untypedResourceMergeEditorInput));
+
 		mergeEditorInput.dispose();
 	});
+
 	test('Untyped inputs properly match UntitledTextEditorInput', () => {
-		const untitledTextEditorInput: UntitledTextEditorInput = instantiationService.createInstance(UntitledTextEditorInput, accessor.untitledTextEditorService.create({ associatedResource: { authority: '', path: '/path', fragment: '', query: '' } }));
+		const untitledModel = accessor.untitledTextEditorService.create({ associatedResource: { authority: '', path: '/path', fragment: '', query: '' } });
+		const untitledTextEditorInput: UntitledTextEditorInput = instantiationService.createInstance(UntitledTextEditorInput, untitledModel);
+
 		assert.ok(!untitledTextEditorInput.matches(untypedResourceEditorInput));
 		assert.ok(!untitledTextEditorInput.matches(untypedTextResourceEditorInput));
 		assert.ok(!untitledTextEditorInput.matches(untypedResourceSideBySideEditorInput));
 		assert.ok(untitledTextEditorInput.matches(untypedUntitledResourceEditorinput));
 		assert.ok(!untitledTextEditorInput.matches(untypedResourceDiffEditorInput));
 		assert.ok(!untitledTextEditorInput.matches(untypedResourceMergeEditorInput));
+
 		untitledTextEditorInput.dispose();
 	});
 });
