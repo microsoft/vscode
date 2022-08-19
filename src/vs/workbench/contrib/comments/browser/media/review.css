@@ -444,9 +444,9 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 
 .monaco-editor.inline-comment .margin-view-overlays .codicon-folding-expanded,
 .monaco-editor.inline-comment .margin-view-overlays .codicon-folding-collapsed {
-	margin-left: 13px;
+	margin-left: 14px;
 }
 
 .monaco-editor.inline-comment .margin-view-overlays .dirty-diff-glyph {
-	margin-left: 23px;
+	margin-left: 24px;
 }
