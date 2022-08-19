@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { Event } from 'vs/base/common/event';
 import { IMatch } from 'vs/base/common/filters';
 import { IItemAccessor } from 'vs/base/common/fuzzyScorer';
@@ -340,6 +341,8 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	hideInput: boolean;
 
 	hideCheckAll: boolean;
+
+	additionalToggles: Toggle[] | undefined;
 }
 
 export interface IInputBox extends IQuickInput {

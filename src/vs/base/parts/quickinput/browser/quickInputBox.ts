@@ -8,6 +8,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
 import { IInputBoxStyles, IRange, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
+import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import 'vs/css!./media/quickInput';
@@ -24,9 +25,7 @@ export class QuickInputBox extends Disposable {
 	) {
 		super();
 		this.container = dom.append(this.parent, $('.quick-input-box'));
-		this.findInput = this._register(new FindInput(this.container, undefined, false, {
-			label: ''
-		}));
+		this.findInput = this._register(new FindInput(this.container, undefined, false, { label: '' }));
 	}
 
 	onKeyDown = (handler: (event: StandardKeyboardEvent) => void): IDisposable => {
@@ -91,6 +90,10 @@ export class QuickInputBox extends Disposable {
 
 	set enabled(enabled: boolean) {
 		this.findInput.setEnabled(enabled);
+	}
+
+	set additionalToggles(toggles: Toggle[] | undefined) {
+		this.findInput.setAdditionalToggles(toggles);
 	}
 
 	hasFocus(): boolean {

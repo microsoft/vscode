@@ -15,6 +15,7 @@ import { IKeybindingLabelStyles } from 'vs/base/browser/ui/keybindingLabel/keybi
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListOptions, IListStyles, List } from 'vs/base/browser/ui/list/listWidget';
 import { IProgressBarStyles, ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
+import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { Action } from 'vs/base/common/actions';
 import { equals } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
@@ -738,6 +739,10 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	set hideCheckAll(hideCheckAll: boolean) {
 		this._hideCheckAll = hideCheckAll;
 		this.update();
+	}
+
+	set additionalToggles(toggles: Toggle[] | undefined) {
+		this.ui.inputBox.additionalToggles = toggles;
 	}
 
 	onDidChangeSelection = this.onDidChangeSelectionEmitter.event;
