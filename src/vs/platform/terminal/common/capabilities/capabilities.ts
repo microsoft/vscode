@@ -64,7 +64,7 @@ export const enum TerminalCapability {
 
 	/**
 	 * Manages buffer marks that can be used for terminal navigation. The source of
-	 * the request (task, debug, etc) provides an ID, optional marker, and hidden property. When
+	 * the request (task, debug, etc) provides an ID, optional marker, hoverMessage, and hidden property. When
 	 * hidden is not provided, a generic decoration is added to the buffer and overview ruler.
 	 */
 	BufferMarkDetection
