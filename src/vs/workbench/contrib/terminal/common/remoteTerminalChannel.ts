@@ -88,8 +88,8 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 	get onProcessOrphanQuestion(): Event<{ id: number }> {
 		return this._channel.listen<{ id: number }>('$onProcessOrphanQuestion');
 	}
-	get onExecuteCommand(): Event<{ reqId: number; commandId: string; commandArgs: any[] }> {
-		return this._channel.listen<{ reqId: number; commandId: string; commandArgs: any[] }>('$onExecuteCommand');
+	get onExecuteCommand(): Event<{ reqId: number; persistentProcessId: number; commandId: string; commandArgs: any[] }> {
+		return this._channel.listen<{ reqId: number; persistentProcessId: number; commandId: string; commandArgs: any[] }>('$onExecuteCommand');
 	}
 	get onDidRequestDetach(): Event<{ requestId: number; workspaceId: string; instanceId: number }> {
 		return this._channel.listen<{ requestId: number; workspaceId: string; instanceId: number }>('$onDidRequestDetach');
