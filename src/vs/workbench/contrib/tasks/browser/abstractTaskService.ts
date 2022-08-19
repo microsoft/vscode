@@ -356,16 +356,16 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _attemptTaskReconnection(): Promise<void> {
-		if (!this._taskSystem) {
-			this._logService.info('getting task system before reconnection');
-			await this._getTaskSystem();
-		}
-		await this._waitForSupportedExecutions;
-		await this._activateTaskProviders(undefined);
-		await this.getWorkspaceTasks();
-		if (this._configurationService.getValue(TaskSettingId.Reconnection) === true && !this._tasksReconnected) {
-			await this._reconnectTasks();
-		}
+		this._getTaskSystem();
+		this._waitForSupportedExecutions.then(() => {
+			this._activateTaskProviders(undefined).then(() => {
+				this.getWorkspaceTasks().then(async () => {
+					if (this._configurationService.getValue(TaskSettingId.Reconnection) === true && !this._tasksReconnected) {
+						await this._reconnectTasks();
+					}
+				});
+			});
+		});
 	}
 
 	private async _reconnectTasks(): Promise<boolean> {
