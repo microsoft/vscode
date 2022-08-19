@@ -60,6 +60,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	private _onCursorMoveListener?: IDisposable;
 	private _commandMarkers: IMarker[] = [];
 	private _dimensions: ITerminalDimensions;
+	private __isCommandStorageDisabled: boolean = false;
 	private _handleCommandStartOptions?: IHandleCommandOptions;
 
 	get commands(): readonly ITerminalCommand[] { return this._commands; }
@@ -249,6 +250,10 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		this._isWindowsPty = value;
 	}
 
+	setIsCommandStorageDisabled(): void {
+		this.__isCommandStorageDisabled = true;
+	}
+
 	getCwdForLine(line: number): string | undefined {
 		// Handle the current partial command first, anything below it's prompt is considered part
 		// of the current command
@@ -312,7 +317,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		}
 		this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
 		this._currentCommand.commandStartMarker = options?.marker || this._terminal.registerMarker(0);
-		this._onCommandStarted.fire({ marker: options?.marker || this._currentCommand.commandStartMarker } as ITerminalCommand);
+		this._onCommandStarted.fire({ marker: options?.marker || this._currentCommand.commandStartMarker, genericMarkProperties: options?.genericMarkProperties } as ITerminalCommand);
 		this._logService.debug('CommandDetectionCapability#handleCommandStart', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
 	}
 
@@ -347,6 +352,16 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		});
 	}
 
+	handleGenericCommand(options?: IHandleCommandOptions): void {
+		if (options?.genericMarkProperties?.disableCommandStorage) {
+			this.setIsCommandStorageDisabled();
+		}
+		this.handlePromptStart(options);
+		this.handleCommandStart(options);
+		this.handleCommandExecuted(options);
+		this.handleCommandFinished(undefined, options);
+	}
+
 	handleCommandExecuted(options?: IHandleCommandOptions): void {
 		if (this._isWindowsPty) {
 			this._handleCommandExecutedWindows();
@@ -363,7 +378,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		}
 
 		// Calculate the command
-		this._currentCommand.command = this._terminal.buffer.active.getLine(this._currentCommand.commandStartMarker.line)?.translateToString(true, this._currentCommand.commandStartX, this._currentCommand.commandRightPromptStartX).trim();
+		this._currentCommand.command = this.__isCommandStorageDisabled ? '' : this._terminal.buffer.active.getLine(this._currentCommand.commandStartMarker.line)?.translateToString(true, this._currentCommand.commandStartX, this._currentCommand.commandRightPromptStartX).trim();
 		let y = this._currentCommand.commandStartMarker.line + 1;
 		const commandExecutedLine = this._currentCommand.commandExecutedMarker.line;
 		for (; y < commandExecutedLine; y++) {
@@ -444,6 +459,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				commandStartLineContent: this._currentCommand.commandStartLineContent,
 				hasOutput: () => !executedMarker?.isDisposed && !endMarker?.isDisposed && !!(executedMarker && endMarker && executedMarker?.line < endMarker!.line),
 				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
+				genericMarkProperties: options?.genericMarkProperties
 			};
 			this._commands.push(newCommand);
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
@@ -506,7 +522,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				startX: undefined,
 				endLine: e.endMarker?.line,
 				executedLine: e.executedMarker?.line,
-				command: e.command,
+				command: this.__isCommandStorageDisabled ? '' : e.command,
 				cwd: e.cwd,
 				exitCode: e.exitCode,
 				commandStartLineContent: e.commandStartLineContent,
@@ -555,7 +571,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			const endMarker = e.endLine !== undefined ? this._terminal.registerMarker(e.endLine - (buffer.baseY + buffer.cursorY)) : undefined;
 			const executedMarker = e.executedLine !== undefined ? this._terminal.registerMarker(e.executedLine - (buffer.baseY + buffer.cursorY)) : undefined;
 			const newCommand = {
-				command: e.command,
+				command: this.__isCommandStorageDisabled ? '' : e.command,
 				marker,
 				endMarker,
 				executedMarker,

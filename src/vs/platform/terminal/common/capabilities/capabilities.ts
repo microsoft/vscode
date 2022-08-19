@@ -187,6 +187,17 @@ export interface IHandleCommandOptions {
 	 * The marker to use
 	 */
 	marker?: IMarker;
+
+	/**
+	 * Properties for a generic mark
+	 */
+	genericMarkProperties?: IGenericMarkProperties;
+}
+
+export interface IGenericMarkProperties {
+	hoverMessage?: string;
+	disableCommandStorage?: boolean;
+	hidden?: boolean;
 }
 
 export interface INaiveCwdDetectionCapability {
@@ -210,6 +221,7 @@ export interface ITerminalCommand {
 	endMarker?: IXtermMarker;
 	executedMarker?: IXtermMarker;
 	commandStartLineContent?: string;
+	genericMarkProperties?: IGenericMarkProperties;
 	getOutput(): string | undefined;
 	hasOutput(): boolean;
 }
