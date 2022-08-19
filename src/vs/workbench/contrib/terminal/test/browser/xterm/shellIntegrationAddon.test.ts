@@ -231,7 +231,7 @@ suite('ShellIntegrationAddon', () => {
 			await writeP(xterm, 'foo');
 			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), false);
 			await writeP(xterm, '\x1b]633;SetMark;;true\x07');
-			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), false);
+			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), true);
 		});
 	});
 });
