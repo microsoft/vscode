@@ -20,3 +20,16 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		},
 	}
 });
+
+Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+	...editorConfigurationBaseNode,
+	properties: {
+		'editor.experimental.useCustomCodeActionMenu.toggleHeaders': {
+			type: 'boolean',
+			tags: ['experimental'],
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
+			description: nls.localize('codeActionWidget.toggle', "Disables headers in the code action widget."),
+			default: false,
+		},
+	}
+});
