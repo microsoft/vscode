@@ -2111,11 +2111,12 @@ class SCMInputWidget {
 		this.validationDisposable = this.contextViewService.showContextView({
 			getAnchor: () => this.editorContainer,
 			render: container => {
-				const element = append(container, $('.scm-editor-validation'));
-				element.classList.toggle('validation-info', this.validation!.type === InputValidationType.Information);
-				element.classList.toggle('validation-warning', this.validation!.type === InputValidationType.Warning);
-				element.classList.toggle('validation-error', this.validation!.type === InputValidationType.Error);
-				element.style.width = `${this.editorContainer.clientWidth}px`;
+				const validationContainer = append(container, $('.scm-editor-validation-container'));
+				validationContainer.classList.toggle('validation-info', this.validation!.type === InputValidationType.Information);
+				validationContainer.classList.toggle('validation-warning', this.validation!.type === InputValidationType.Warning);
+				validationContainer.classList.toggle('validation-error', this.validation!.type === InputValidationType.Error);
+				validationContainer.style.width = `${this.editorContainer.clientWidth}px`;
+				const element = append(validationContainer, $('.scm-editor-validation'));
 
 				const message = this.validation!.message;
 				if (typeof message === 'string') {
@@ -2140,6 +2141,14 @@ class SCMInputWidget {
 					});
 					element.appendChild(mdElement);
 				}
+				const actionsContainer = append(validationContainer, $('.scm-editor-validation-actions'));
+				const actionbar = new ActionBar(actionsContainer);
+				const action = new Action('scmInputWidget.validationMessage.close', localize('label.close', "Close"), Codicon.close.classNames, true, () => {
+					this.contextViewService.hideContextView();
+				});
+				disposables.add(actionbar);
+				actionbar.push(action, { icon: true, label: false });
+
 				return Disposable.None;
 			},
 			onHide: () => {
@@ -2448,13 +2457,12 @@ export class SCMViewPane extends ViewPane {
 		if (!e.element) {
 			const menu = this.menuService.createMenu(Menus.ViewSort, this.contextKeyService);
 			const actions: IAction[] = [];
-			const disposable = createAndFillInContextMenuActions(menu, undefined, actions);
+			createAndFillInContextMenuActions(menu, undefined, actions);
 
 			return this.contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
 				getActions: () => actions,
 				onHide: () => {
-					disposable.dispose();
 					menu.dispose();
 				}
 			});
@@ -2463,33 +2471,32 @@ export class SCMViewPane extends ViewPane {
 		const element = e.element;
 		let context: any = element;
 		let actions: IAction[] = [];
-		let disposable: IDisposable = Disposable.None;
 
 		if (isSCMRepository(element)) {
 			const menus = this.scmViewService.menus.getRepositoryMenus(element.provider);
 			const menu = menus.repositoryMenu;
 			context = element.provider;
-			[actions, disposable] = collectContextMenuActions(menu);
+			actions = collectContextMenuActions(menu);
 		} else if (isSCMInput(element) || isSCMActionButton(element)) {
 			// noop
 		} else if (isSCMResourceGroup(element)) {
 			const menus = this.scmViewService.menus.getRepositoryMenus(element.provider);
 			const menu = menus.getResourceGroupMenu(element);
-			[actions, disposable] = collectContextMenuActions(menu);
+			actions = collectContextMenuActions(menu);
 		} else if (ResourceTree.isResourceNode(element)) {
 			if (element.element) {
 				const menus = this.scmViewService.menus.getRepositoryMenus(element.element.resourceGroup.provider);
 				const menu = menus.getResourceMenu(element.element);
-				[actions, disposable] = collectContextMenuActions(menu);
+				actions = collectContextMenuActions(menu);
 			} else {
 				const menus = this.scmViewService.menus.getRepositoryMenus(element.context.provider);
 				const menu = menus.getResourceFolderMenu(element.context);
-				[actions, disposable] = collectContextMenuActions(menu);
+				actions = collectContextMenuActions(menu);
 			}
 		} else {
 			const menus = this.scmViewService.menus.getRepositoryMenus(element.resourceGroup.provider);
 			const menu = menus.getResourceMenu(element);
-			[actions, disposable] = collectContextMenuActions(menu);
+			actions = collectContextMenuActions(menu);
 		}
 
 		const actionRunner = new RepositoryPaneActionRunner(() => this.getSelectedResources());
@@ -2499,10 +2506,7 @@ export class SCMViewPane extends ViewPane {
 			getAnchor: () => e.anchor,
 			getActions: () => actions,
 			getActionsContext: () => context,
-			actionRunner,
-			onHide() {
-				disposable.dispose();
-			}
+			actionRunner
 		});
 	}
 
@@ -2572,49 +2576,49 @@ registerThemingParticipant((theme, collector) => {
 	const inputValidationInfoBorderColor = theme.getColor(inputValidationInfoBorder);
 	if (inputValidationInfoBorderColor) {
 		collector.addRule(`.scm-view .scm-editor-container.validation-info { outline: 1px solid ${inputValidationInfoBorderColor} !important; }`);
-		collector.addRule(`.scm-editor-validation.validation-info { border-color: ${inputValidationInfoBorderColor}; }`);
+		collector.addRule(`.scm-editor-validation-container.validation-info { border-color: ${inputValidationInfoBorderColor}; }`);
 	}
 
 	const inputValidationInfoBackgroundColor = theme.getColor(inputValidationInfoBackground);
 	if (inputValidationInfoBackgroundColor) {
-		collector.addRule(`.scm-editor-validation.validation-info { background-color: ${inputValidationInfoBackgroundColor}; }`);
+		collector.addRule(`.scm-editor-validation-container.validation-info { background-color: ${inputValidationInfoBackgroundColor}; }`);
 	}
 
 	const inputValidationInfoForegroundColor = theme.getColor(inputValidationInfoForeground);
 	if (inputValidationInfoForegroundColor) {
-		collector.addRule(`.scm-editor-validation.validation-info { color: ${inputValidationInfoForegroundColor}; }`);
+		collector.addRule(`.scm-editor-validation-container.validation-info { color: ${inputValidationInfoForegroundColor}; }`);
 	}
 
 	const inputValidationWarningBorderColor = theme.getColor(inputValidationWarningBorder);
 	if (inputValidationWarningBorderColor) {
 		collector.addRule(`.scm-view .scm-editor-container.validation-warning { outline: 1px solid ${inputValidationWarningBorderColor} !important; }`);
-		collector.addRule(`.scm-editor-validation.validation-warning { border-color: ${inputValidationWarningBorderColor}; }`);
+		collector.addRule(`.scm-editor-validation-container.validation-warning { border-color: ${inputValidationWarningBorderColor}; }`);
 	}
 
 	const inputValidationWarningBackgroundColor = theme.getColor(inputValidationWarningBackground);
 	if (inputValidationWarningBackgroundColor) {
-		collector.addRule(`.scm-editor-validation.validation-warning { background-color: ${inputValidationWarningBackgroundColor}; }`);
+		collector.addRule(`.scm-editor-validation-container.validation-warning { background-color: ${inputValidationWarningBackgroundColor}; }`);
 	}
 
 	const inputValidationWarningForegroundColor = theme.getColor(inputValidationWarningForeground);
 	if (inputValidationWarningForegroundColor) {
-		collector.addRule(`.scm-editor-validation.validation-warning { color: ${inputValidationWarningForegroundColor}; }`);
+		collector.addRule(`.scm-editor-validation-container.validation-warning { color: ${inputValidationWarningForegroundColor}; }`);
 	}
 
 	const inputValidationErrorBorderColor = theme.getColor(inputValidationErrorBorder);
 	if (inputValidationErrorBorderColor) {
 		collector.addRule(`.scm-view .scm-editor-container.validation-error { outline: 1px solid ${inputValidationErrorBorderColor} !important; }`);
-		collector.addRule(`.scm-editor-validation.validation-error { border-color: ${inputValidationErrorBorderColor}; }`);
+		collector.addRule(`.scm-editor-validation-container.validation-error { border-color: ${inputValidationErrorBorderColor}; }`);
 	}
 
 	const inputValidationErrorBackgroundColor = theme.getColor(inputValidationErrorBackground);
 	if (inputValidationErrorBackgroundColor) {
-		collector.addRule(`.scm-editor-validation.validation-error { background-color: ${inputValidationErrorBackgroundColor}; }`);
+		collector.addRule(`.scm-editor-validation-container.validation-error { background-color: ${inputValidationErrorBackgroundColor}; }`);
 	}
 
 	const inputValidationErrorForegroundColor = theme.getColor(inputValidationErrorForeground);
 	if (inputValidationErrorForegroundColor) {
-		collector.addRule(`.scm-editor-validation.validation-error { color: ${inputValidationErrorForegroundColor}; }`);
+		collector.addRule(`.scm-editor-validation-container.validation-error { color: ${inputValidationErrorForegroundColor}; }`);
 	}
 
 	const repositoryStatusActionsBorderColor = theme.getColor(SIDE_BAR_BORDER);

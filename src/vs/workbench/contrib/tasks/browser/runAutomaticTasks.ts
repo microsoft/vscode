@@ -166,14 +166,14 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 					label: nls.localize('allow', "Allow and run"),
 					run: () => {
 						resolve(true);
-						configurationService.updateValue(ALLOW_AUTOMATIC_TASKS, true, ConfigurationTarget.WORKSPACE);
+						configurationService.updateValue(ALLOW_AUTOMATIC_TASKS, 'on', ConfigurationTarget.WORKSPACE);
 					}
 				},
 				{
 					label: nls.localize('disallow', "Disallow"),
 					run: () => {
 						resolve(false);
-						configurationService.updateValue(ALLOW_AUTOMATIC_TASKS, false, ConfigurationTarget.WORKSPACE);
+						configurationService.updateValue(ALLOW_AUTOMATIC_TASKS, 'off', ConfigurationTarget.WORKSPACE);
 
 					}
 				},
@@ -214,6 +214,6 @@ export class ManageAutomaticTaskRunning extends Action2 {
 		if (!value) {
 			return;
 		}
-		configurationService.updateValue(ALLOW_AUTOMATIC_TASKS, value === allowItem, ConfigurationTarget.WORKSPACE);
+		configurationService.updateValue(ALLOW_AUTOMATIC_TASKS, value === allowItem ? 'on' : 'off', ConfigurationTarget.WORKSPACE);
 	}
 }

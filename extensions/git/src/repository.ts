@@ -87,6 +87,7 @@ export class Resource implements SourceControlResourceState {
 		return this.resources[1];
 	}
 
+	@memoize
 	get command(): Command {
 		return this._commandResolver.resolveDefaultCommand(this);
 	}
@@ -619,7 +620,7 @@ class ResourceCommandResolver {
 			const bothModified = resource.type === Status.BOTH_MODIFIED;
 			if (resource.rightUri && workspace.getConfiguration('git').get<boolean>('mergeEditor', false) && (bothModified || resource.type === Status.BOTH_ADDED)) {
 				return {
-					command: '_git.openMergeEditor',
+					command: 'git.openMergeEditor',
 					title: localize('open.merge', "Open Merge"),
 					arguments: [resource.rightUri]
 				};

@@ -2439,7 +2439,7 @@ export class TreeItem {
 			return true;
 		}
 		const treeItemThing = thing as vscode.TreeItem;
-		if (treeItemThing.label !== undefined && !isString(treeItemThing.label) && !(treeItemThing.label.label)) {
+		if (treeItemThing.label !== undefined && !isString(treeItemThing.label) && !(treeItemThing.label?.label)) {
 			console.log('INVALID tree item, invalid label', treeItemThing.label);
 			return false;
 		}
@@ -2447,9 +2447,9 @@ export class TreeItem {
 			console.log('INVALID tree item, invalid id', treeItemThing.id);
 			return false;
 		}
-		if ((treeItemThing.iconPath !== undefined) && !isString(treeItemThing.iconPath) && !URI.isUri(treeItemThing.iconPath) && !isString((treeItemThing.iconPath as vscode.ThemeIcon).id)) {
-			const asLightAndDarkThing = treeItemThing.iconPath as { light: string | URI; dark: string | URI };
-			if (!isString(asLightAndDarkThing.light) && !URI.isUri(asLightAndDarkThing.light) && !isString(asLightAndDarkThing.dark) && !URI.isUri(asLightAndDarkThing.dark)) {
+		if ((treeItemThing.iconPath !== undefined) && !isString(treeItemThing.iconPath) && !URI.isUri(treeItemThing.iconPath) && (!treeItemThing.iconPath || !isString((treeItemThing.iconPath as vscode.ThemeIcon).id))) {
+			const asLightAndDarkThing = treeItemThing.iconPath as { light: string | URI; dark: string | URI } | null;
+			if (!asLightAndDarkThing || (!isString(asLightAndDarkThing.light) && !URI.isUri(asLightAndDarkThing.light) && !isString(asLightAndDarkThing.dark) && !URI.isUri(asLightAndDarkThing.dark))) {
 				console.log('INVALID tree item, invalid iconPath', treeItemThing.iconPath);
 				return false;
 			}
@@ -2478,7 +2478,7 @@ export class TreeItem {
 			console.log('INVALID tree item, invalid contextValue', treeItemThing.contextValue);
 			return false;
 		}
-		if ((treeItemThing.accessibilityInformation !== undefined) && !treeItemThing.accessibilityInformation.label) {
+		if ((treeItemThing.accessibilityInformation !== undefined) && !treeItemThing.accessibilityInformation?.label) {
 			console.log('INVALID tree item, invalid accessibilityInformation', treeItemThing.accessibilityInformation);
 			return false;
 		}

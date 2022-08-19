@@ -140,7 +140,7 @@ export class Code {
 	}
 
 	async exit(): Promise<void> {
-		return measureAndLog(new Promise<void>((resolve, reject) => {
+		return measureAndLog(new Promise<void>(resolve => {
 			const pid = this.mainProcess.pid!;
 
 			let done = false;
@@ -154,8 +154,8 @@ export class Code {
 				while (!done) {
 					retries++;
 
-					if (retries === 20) {
-						this.logger.log('Smoke test exit call did not terminate process after 10s, forcefully exiting the application...');
+					if (retries === 40) {
+						this.logger.log('Smoke test exit call did not terminate process after 20s, forcefully exiting the application...');
 
 						// no need to await since we're polling for the process to die anyways
 						treekill(pid, err => {

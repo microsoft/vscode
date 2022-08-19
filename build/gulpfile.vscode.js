@@ -423,7 +423,7 @@ gulp.task(task.define(
 			const pathToSetup = 'build/win32/i18n/messages.en.isl';
 
 			return es.merge(
-				gulp.src([pathToRehWebMetadata]).pipe(merge({
+				gulp.src([pathToMetadata, pathToRehWebMetadata]).pipe(merge({
 					fileName: 'nls.metadata.json',
 					jsonSpace: '',
 					concatArrays: true

@@ -260,7 +260,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this._disposables.add(next);
 
 		const actions: IAction[] = [];
-		this._disposables.add(createAndFillInActionBarActions(this.menu, { shouldForwardArgs: true }, actions));
+		createAndFillInActionBarActions(this.menu, { shouldForwardArgs: true }, actions);
 		this._actionbarWidget!.push(actions.reverse(), { label: false, icon: true });
 		this._actionbarWidget!.push([next, previous], { label: false, icon: true });
 		this._actionbarWidget!.push(new Action('peekview.close', nls.localize('label.close', "Close"), Codicon.close.classNames, true, () => this.dispose()), { label: false, icon: true });

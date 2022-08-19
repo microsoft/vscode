@@ -119,7 +119,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 							return arg;
 						}
 
-						const body = arg.text;
+						const body: string = arg.text;
 						const commentUniqueId = arg.commentUniqueId;
 
 						const comment = commentThread.getCommentByUniqueId(commentUniqueId);
@@ -128,7 +128,12 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 							return arg;
 						}
 
-						comment.body = body;
+						// If the old comment body was a markdown string, use a markdown string here too.
+						if (typeof comment.body === 'string') {
+							comment.body = body;
+						} else {
+							comment.body.value = body;
+						}
 						return comment;
 					}
 
