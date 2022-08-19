@@ -156,6 +156,7 @@ steps:
         $ErrorActionPreference = "Stop"
         exec { node build\lib\policies }
       displayName: Generate Group Policy definitions
+      retryCountOnTaskFailure: 3
 
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
     - powershell: |

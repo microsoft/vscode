@@ -42,7 +42,7 @@ function _formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPick
 		pinnedItems = getPinnedItems(storageKey, storageService);
 	}
 	if (pinnedItems.length) {
-		formattedItems.push({ type: 'separator', label: localize("terminal.commands.pinned", 'Pinned') });
+		formattedItems.push({ type: 'separator', label: localize("terminal.commands.pinned", 'pinned') });
 	}
 	const pinnedIds = new Set();
 	for (const itemToFind of pinnedItems) {
