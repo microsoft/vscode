@@ -394,15 +394,22 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!tasks.length) {
 			return true;
 		}
+		const promises = [];
 		for (const task of tasks) {
+			let result;
 			if (ConfiguringTask.is(task)) {
 				const resolved = await this.tryResolveTask(task);
 				if (resolved) {
-					this.run(resolved, undefined, TaskRunSource.Reconnect);
+					result = this.run(resolved, undefined, TaskRunSource.Reconnect);
 				}
 			} else {
-				this.run(task, undefined, TaskRunSource.Reconnect);
+				result = this.run(task, undefined, TaskRunSource.Reconnect);
 			}
+			promises.push(result);
+		}
+		const promiseResult = await Promise.all(promises);
+		if (promiseResult.find(p => p?.exitCode === terminalsNotReconnectedExitCode)) {
+			return false;
 		}
 		return true;
 	}

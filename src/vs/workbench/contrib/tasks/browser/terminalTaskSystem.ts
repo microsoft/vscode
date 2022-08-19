@@ -119,6 +119,8 @@ class VariableResolver {
 	}
 }
 
+export const terminalsNotReconnectedExitCode = 7777;
+
 export class VerifiedTask {
 	readonly task: Task;
 	readonly resolver: ITaskResolver;
@@ -274,8 +276,14 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	public reconnect(task: Task, resolver: ITaskResolver): ITaskExecuteResult {
 		if (!this._reconnectedTerminals) {
+			// terminalService.onDidChangeConnectionState might have already fired
+			// before this gets created
 			this._logService.trace('Reconnecting to terminals before running');
 			this._reconnectToTerminals();
+			if (!this._reconnectedTerminals) {
+				this._logService.trace('Returning, terminals have not been reconnected yet');
+				return { kind: TaskExecuteKind.Started, promise: Promise.resolve({ exitCode: terminalsNotReconnectedExitCode }), task } as ITaskExecuteResult;
+			}
 		}
 		return this.run(task, resolver, Triggers.reconnect);
 	}
