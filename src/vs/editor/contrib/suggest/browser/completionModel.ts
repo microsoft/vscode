@@ -222,7 +222,7 @@ export class CompletionModel {
 					} else {
 						// re-run the scorer on the label in the hope of a result BUT use the rank
 						// of the filterText-match
-						item.score = anyScore(word, wordLow, wordPos, item.textLabel, item.labelLow, 0, this._fuzzyScoreOptions);
+						item.score = anyScore(word, wordLow, wordPos, item.textLabel, item.labelLow, 0);
 						item.score[0] = match[0]; // use score from filterText
 					}
 
