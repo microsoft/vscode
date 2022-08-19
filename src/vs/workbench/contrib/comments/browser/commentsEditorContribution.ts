@@ -147,7 +147,7 @@ class CommentingRangeDecorator {
 		const hoverDecorationOptions: IModelDecorationOptions = {
 			description: CommentingRangeDecorator.description,
 			isWholeLine: true,
-			linesDecorationsClassName: `comment-range-glyph comment-diff-added line-hover`
+			linesDecorationsClassName: `comment-range-glyph line-hover`
 		};
 
 		this.hoverDecorationOptions = ModelDecorationOptions.createDynamic(hoverDecorationOptions);
@@ -155,7 +155,7 @@ class CommentingRangeDecorator {
 		const multilineDecorationOptions: IModelDecorationOptions = {
 			description: CommentingRangeDecorator.description,
 			isWholeLine: true,
-			linesDecorationsClassName: `comment-range-glyph comment-diff-added multiline-add`
+			linesDecorationsClassName: `comment-range-glyph multiline-add`
 		};
 
 		this.multilineDecorationOptions = ModelDecorationOptions.createDynamic(multilineDecorationOptions);
@@ -203,7 +203,7 @@ class CommentingRangeDecorator {
 					// If there's only one selection line, then just drop into the else if and show an emphasis line.
 					&& !((intersectingSelectionRange.startLineNumber === intersectingSelectionRange.endLineNumber)
 						&& (emphasisLine === intersectingSelectionRange.startLineNumber))) {
-					// The emphasisLine should be the within the commenting range, even if the selection range stretches
+					// The emphasisLine should be within the commenting range, even if the selection range stretches
 					// outside of the commenting range.
 					// Clip the emphasis and selection ranges to the commenting range
 					let intersectingEmphasisRange: Range;
@@ -230,11 +230,15 @@ class CommentingRangeDecorator {
 						commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, afterRange, this.decorationOptions, info.commentingRanges, true));
 					}
 				} else if ((rangeObject.startLineNumber <= emphasisLine) && (emphasisLine <= rangeObject.endLineNumber)) {
-					const beforeRange = new Range(range.startLineNumber, 1, emphasisLine, 1);
-					const afterRange = new Range(emphasisLine, 1, range.endLineNumber, 1);
-					commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, beforeRange, this.decorationOptions, info.commentingRanges, true));
+					if (rangeObject.startLineNumber < emphasisLine) {
+						const beforeRange = new Range(range.startLineNumber, 1, emphasisLine - 1, 1);
+						commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, beforeRange, this.decorationOptions, info.commentingRanges, true));
+					}
 					commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, new Range(emphasisLine, 1, emphasisLine, 1), this.hoverDecorationOptions, info.commentingRanges, true));
-					commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, afterRange, this.decorationOptions, info.commentingRanges, true));
+					if (emphasisLine < rangeObject.endLineNumber) {
+						const afterRange = new Range(emphasisLine + 1, 1, range.endLineNumber, 1);
+						commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, afterRange, this.decorationOptions, info.commentingRanges, true));
+					}
 				} else {
 					commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, range, this.decorationOptions, info.commentingRanges));
 				}
@@ -702,7 +706,7 @@ export class CommentController implements IEditorContribution {
 		if (matchedLineNumber === null || !e.target.element) {
 			return;
 		}
-		const mouseUpIsOnDecorator = (e.target.element.className.indexOf('comment-diff-added') >= 0);
+		const mouseUpIsOnDecorator = (e.target.element.className.indexOf('comment-range-glyph') >= 0);
 
 		const lineNumber = e.target.position!.lineNumber;
 		let range: Range | undefined;
@@ -861,7 +865,7 @@ export class CommentController implements IEditorContribution {
 				if (options.get(EditorOption.folding) && options.get(EditorOption.showFoldingControls) !== 'never') {
 					lineDecorationsWidth -= 16;
 				}
-				lineDecorationsWidth += 14;
+				lineDecorationsWidth += 15;
 				extraEditorClassName.push('inline-comment');
 				this.editor.updateOptions({
 					extraEditorClassName: extraEditorClassName.join(' '),
@@ -1143,14 +1147,13 @@ registerThemingParticipant((theme, collector) => {
 	const commentingRangeForeground = theme.getColor(overviewRulerCommentingRangeForeground);
 	if (commentingRangeForeground) {
 		collector.addRule(`
-			.monaco-editor .comment-diff-added {
-				border-left: 3px solid ${commentingRangeForeground};
+			.monaco-editor .comment-diff-added,
+			.monaco-editor .comment-range-glyph.multiline-add {
+				border-left-color: ${commentingRangeForeground};
 			}
-			.monaco-editor .comment-diff-added:before {
+			.monaco-editor .comment-diff-added:before,
+			.monaco-editor .comment-range-glyph.line-hover:before {
 				background: ${commentingRangeForeground};
-			}
-			.monaco-editor .comment-thread {
-				border-left: 3px solid ${commentingRangeForeground};
 			}
 			.monaco-editor .comment-thread:before {
 				background: ${commentingRangeForeground};

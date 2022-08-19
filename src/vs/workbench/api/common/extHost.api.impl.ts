@@ -1043,6 +1043,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			onDidGrantWorkspaceTrust: (listener, thisArgs?, disposables?) => {
 				return extHostWorkspace.onDidGrantWorkspaceTrust(listener, thisArgs, disposables);
+			},
+			registerEditSessionIdentityProvider: (scheme: string, provider: vscode.EditSessionIdentityProvider) => {
+				checkProposedApiEnabled(extension, 'editSessionIdentityProvider');
+				return extHostWorkspace.registerEditSessionIdentityProvider(scheme, provider);
 			}
 		};
 

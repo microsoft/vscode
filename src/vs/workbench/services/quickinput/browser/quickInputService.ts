@@ -27,7 +27,7 @@ export class QuickInputService extends BaseQuickInputService {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@ILayoutService layoutService: ILayoutService,
+		@ILayoutService layoutService: ILayoutService
 	) {
 		super(instantiationService, contextKeyService, themeService, accessibilityService, layoutService);
 
