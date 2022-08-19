@@ -26,7 +26,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { IEditorControl } from 'vs/workbench/common/editor';
-import { ICodeEditor, isCodeEditor, isCompositeEditor } from 'vs/editor/browser/editorBrowser';
+import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IMainThreadEditorLocator {
@@ -141,11 +141,8 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		}
 		// Composite editors are made up of many editors so we return the active one at the time of opening
 		const editorControl = editor.getControl();
-		if (isCompositeEditor(editorControl) && isCodeEditor(editorControl.activeCodeEditor)) {
-			return this._editorLocator.getIdOfCodeEditor(editorControl.activeCodeEditor);
-		} else {
-			return this._editorLocator.findTextEditorIdFor(editor);
-		}
+		const codeEditor = getCodeEditor(editorControl);
+		return codeEditor ? this._editorLocator.getIdOfCodeEditor(codeEditor) : undefined;
 	}
 
 	async $tryShowEditor(id: string, position?: EditorGroupColumn): Promise<void> {
