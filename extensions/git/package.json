@@ -13,6 +13,7 @@
     "diffCommand",
     "contribMergeEditorToolbar",
     "contribViewsWelcome",
+    "editSessionIdentityProvider",
     "scmActionButton",
     "scmSelectedProvider",
     "scmValidation",
@@ -24,6 +25,7 @@
   ],
   "activationEvents": [
     "*",
+    "onEditSession:file",
     "onFileSystem:git",
     "onFileSystem:git-show"
   ],
