@@ -9,7 +9,7 @@ if (Test-Path variable:global:__VSCodeOriginalPrompt) {
 }
 
 # Disable shell integration when the language mode is restricted
-if (("RestrictedLanguage", "NoLanguage") -Contains $ExecutionContext.SessionState.LanguageMode) {
+if ($ExecutionContext.SessionState.LanguageMode -ne "FullLanguage") {
 	return;
 }
 
