@@ -47,7 +47,6 @@ export class FindInput extends Widget {
 
 	static readonly OPTION_CHANGE: string = 'optionChange';
 
-	private contextViewProvider: IContextViewProvider;
 	private placeholder: string;
 	private validation?: IInputValidator;
 	private label: string;
@@ -100,9 +99,8 @@ export class FindInput extends Widget {
 	private _onRegexKeyDown = this._register(new Emitter<IKeyboardEvent>());
 	public readonly onRegexKeyDown: Event<IKeyboardEvent> = this._onRegexKeyDown.event;
 
-	constructor(parent: HTMLElement | null, contextViewProvider: IContextViewProvider, private readonly _showOptionButtons: boolean, options: IFindInputOptions) {
+	constructor(parent: HTMLElement | null, contextViewProvider: IContextViewProvider | undefined, private readonly _showOptionButtons: boolean, options: IFindInputOptions) {
 		super();
-		this.contextViewProvider = contextViewProvider;
 		this.placeholder = options.placeholder || '';
 		this.validation = options.validation;
 		this.label = options.label || NLS_DEFAULT_LABEL;
@@ -135,7 +133,7 @@ export class FindInput extends Widget {
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('monaco-findInput');
 
-		this.inputBox = this._register(new HistoryInputBox(this.domNode, this.contextViewProvider, {
+		this.inputBox = this._register(new HistoryInputBox(this.domNode, contextViewProvider, {
 			placeholder: this.placeholder || '',
 			ariaLabel: this.label || '',
 			validationOptions: {
