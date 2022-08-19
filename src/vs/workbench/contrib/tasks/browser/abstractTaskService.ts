@@ -53,7 +53,7 @@ import { ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSyst
 import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/common/taskTemplates';
 
 import * as TaskConfig from '../common/taskConfiguration';
-import { TerminalTaskSystem } from './terminalTaskSystem';
+import { terminalsNotReconnectedExitCode, TerminalTaskSystem } from './terminalTaskSystem';
 
 import { IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickSeparator, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 
@@ -337,8 +337,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._waitForSupportedExecutions = new Promise(resolve => {
 			once(this._onDidRegisterSupportedExecutions.event)(() => resolve());
 		});
+		this._register(this.onDidChangeTaskSystemInfo(async () => await this._attemptTaskReconnection()));
 		this._register(this.onDidReconnectToTerminals(async () => await this._attemptTaskReconnection()));
-		this._attemptTaskReconnection();
 		this._upgrade();
 	}
 
@@ -396,16 +396,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		const promises = [];
 		for (const task of tasks) {
-			let result;
 			if (ConfiguringTask.is(task)) {
 				const resolved = await this.tryResolveTask(task);
 				if (resolved) {
-					result = this.run(resolved, undefined, TaskRunSource.Reconnect);
+					promises.push(this.run(resolved, undefined, TaskRunSource.Reconnect));
 				}
 			} else {
-				result = this.run(task, undefined, TaskRunSource.Reconnect);
+				promises.push(this.run(task, undefined, TaskRunSource.Reconnect));
 			}
-			promises.push(result);
 		}
 		const promiseResult = await Promise.all(promises);
 		if (promiseResult.find(p => p?.exitCode === terminalsNotReconnectedExitCode)) {
