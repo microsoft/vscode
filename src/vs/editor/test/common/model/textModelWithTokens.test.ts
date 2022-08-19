@@ -163,9 +163,7 @@ function assertIsNotBracket(model: TextModel, lineNumber: number, column: number
 function assertIsBracket(model: TextModel, testPosition: Position, expected: [Range, Range]): void {
 	expected.sort(Range.compareRangesUsingStarts);
 	const actual = model.bracketPairs.matchBracket(testPosition);
-	if (actual) {
-		actual.sort(Range.compareRangesUsingStarts);
-	}
+	actual?.sort(Range.compareRangesUsingStarts);
 	assert.deepStrictEqual(actual, expected, 'matches brackets at ' + testPosition);
 }
 

@@ -135,8 +135,6 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 
 	readonly titleHeight: IEditorGroupTitleHeight;
 
-	readonly isMinimized: boolean;
-
 	readonly disposed: boolean;
 
 	setActive(isActive: boolean): void;

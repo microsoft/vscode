@@ -11,13 +11,17 @@ require('events').EventEmitter.defaultMaxListeners = 100;
 const gulp = require('gulp');
 const util = require('./lib/util');
 const task = require('./lib/task');
-const { compileTask, watchTask, compileApiProposalNamesTask, watchApiProposalNamesTask } = require('./lib/compilation');
+const { transpileTask, compileTask, watchTask, compileApiProposalNamesTask, watchApiProposalNamesTask } = require('./lib/compilation');
 const { monacoTypecheckTask/* , monacoTypecheckWatchTask */ } = require('./gulpfile.editor');
 const { compileExtensionsTask, watchExtensionsTask, compileExtensionMediaTask } = require('./gulpfile.extensions');
 
 // API proposal names
 gulp.task(compileApiProposalNamesTask);
 gulp.task(watchApiProposalNamesTask);
+
+// Transpile only
+const transpileClientTask = task.define('transpile-client', task.series(util.rimraf('out'), util.buildWebNodePaths('out'), transpileTask('src', 'out')));
+gulp.task(transpileClientTask);
 
 // Fast compile for development time
 const compileClientTask = task.define('compile-client', task.series(util.rimraf('out'), util.buildWebNodePaths('out'), compileApiProposalNamesTask, compileTask('src', 'out', false)));

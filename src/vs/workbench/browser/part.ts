@@ -126,7 +126,7 @@ export abstract class Part extends Component implements ISerializableView {
 
 	//#region ISerializableView
 
-	private _onDidChange = this._register(new Emitter<IViewSize | undefined>());
+	protected _onDidChange = this._register(new Emitter<IViewSize | undefined>());
 	get onDidChange(): Event<IViewSize | undefined> { return this._onDidChange.event; }
 
 	element!: HTMLElement;

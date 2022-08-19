@@ -102,7 +102,9 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		}));
 
 		const body = $('.body');
-		const scrollbar = new DomScrollableElement(body, {});
+		const scrollbar = new DomScrollableElement(body, {
+			alwaysConsumeMouseWheel: true,
+		});
 		this._register(scrollbar);
 		wrapper.appendChild(scrollbar.getDomNode());
 
@@ -159,9 +161,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		this.keyVisible.set(true);
 		this.visible = true;
 		setTimeout(() => {
-			if (this.domNodes) {
-				this.domNodes.element.classList.add('visible');
-			}
+			this.domNodes?.element.classList.add('visible');
 		}, 100);
 		this.editor.layoutContentWidget(this);
 	}
@@ -176,9 +176,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		this.keyVisible.reset();
 		this.visible = false;
 		this.announcedLabel = null;
-		if (this.domNodes) {
-			this.domNodes.element.classList.remove('visible');
-		}
+		this.domNodes?.element.classList.remove('visible');
 		this.editor.layoutContentWidget(this);
 	}
 

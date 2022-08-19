@@ -41,9 +41,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 	dispose(): void {
 		if (!this._isDisposed) {
 			this.#onDidChangeDiagnostics.fire([...this.#data.keys()]);
-			if (this.#proxy) {
-				this.#proxy.$clear(this._owner);
-			}
+			this.#proxy?.$clear(this._owner);
 			this.#data.clear();
 			this._isDisposed = true;
 		}
@@ -108,9 +106,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 					}
 				} else {
 					const currentDiagnostics = this.#data.get(uri);
-					if (currentDiagnostics) {
-						currentDiagnostics.push(...diagnostics);
-					}
+					currentDiagnostics?.push(...diagnostics);
 				}
 			}
 		}
@@ -166,24 +162,27 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 		this._checkDisposed();
 		this.#onDidChangeDiagnostics.fire([uri]);
 		this.#data.delete(uri);
-		if (this.#proxy) {
-			this.#proxy.$changeMany(this._owner, [[uri, undefined]]);
-		}
+		this.#proxy?.$changeMany(this._owner, [[uri, undefined]]);
 	}
 
 	clear(): void {
 		this._checkDisposed();
 		this.#onDidChangeDiagnostics.fire([...this.#data.keys()]);
 		this.#data.clear();
-		if (this.#proxy) {
-			this.#proxy.$clear(this._owner);
-		}
+		this.#proxy?.$clear(this._owner);
 	}
 
 	forEach(callback: (uri: URI, diagnostics: ReadonlyArray<vscode.Diagnostic>, collection: DiagnosticCollection) => any, thisArg?: any): void {
 		this._checkDisposed();
+		for (const [uri, values] of this) {
+			callback.call(thisArg, uri, values, this);
+		}
+	}
+
+	*[Symbol.iterator](): IterableIterator<[uri: vscode.Uri, diagnostics: readonly vscode.Diagnostic[]]> {
+		this._checkDisposed();
 		for (const uri of this.#data.keys()) {
-			callback.apply(thisArg, [uri, this.get(uri), this]);
+			yield [uri, this.get(uri)];
 		}
 	}
 

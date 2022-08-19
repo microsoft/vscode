@@ -95,9 +95,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 			this._model = this._modelService.getModel(resource) || this._modelService.createModel('Loading...', langId, resource);
 
 			this._modelDisposables.push(langId.onDidChange(e => {
-				if (this._model) {
-					this._model.setMode(e);
-				}
+				this._model?.setMode(e);
 			}));
 			this._modelDisposables.push(this._extensionService.onDidChangeExtensionsStatus(this._updateModel, this));
 

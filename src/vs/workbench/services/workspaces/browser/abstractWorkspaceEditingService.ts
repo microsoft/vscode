@@ -20,13 +20,15 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IFileDialogService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { Schemas } from 'vs/base/common/network';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditingService {
 
@@ -35,7 +37,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 	constructor(
 		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
 		@IWorkspaceContextService protected readonly contextService: WorkspaceService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkbenchConfigurationService private readonly configurationService: IWorkbenchConfigurationService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IFileService private readonly fileService: IFileService,
@@ -46,7 +48,9 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 		@IDialogService protected readonly dialogService: IDialogService,
 		@IHostService protected readonly hostService: IHostService,
 		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 	) { }
 
 	async pickNewWorkspacePath(): Promise<URI | undefined> {
@@ -241,6 +245,9 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 			}
 		} else {
 			path = untitledWorkspace.configPath;
+			if (!this.userDataProfileService.currentProfile.isDefault) {
+				await this.userDataProfilesService.setProfileForWorkspace(this.userDataProfileService.currentProfile, untitledWorkspace);
+			}
 		}
 
 		return this.enterWorkspace(path);
@@ -274,6 +281,12 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 
 	protected async saveWorkspaceAs(workspace: IWorkspaceIdentifier, targetConfigPathURI: URI): Promise<void> {
 		const configPathURI = workspace.configPath;
+
+		const isNotUntitledWorkspace = !isUntitledWorkspace(targetConfigPathURI, this.environmentService);
+		if (isNotUntitledWorkspace && !this.userDataProfileService.currentProfile.isDefault) {
+			const newWorkspace = await this.workspacesService.getWorkspaceIdentifier(targetConfigPathURI);
+			await this.userDataProfilesService.setProfileForWorkspace(this.userDataProfileService.currentProfile, newWorkspace);
+		}
 
 		// Return early if target is same as source
 		if (this.uriIdentityService.extUri.isEqual(configPathURI, targetConfigPathURI)) {
@@ -359,8 +372,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 			await this.migrateWorkspaceSettings(workspace);
 		}
 
-		const workspaceImpl = this.contextService as WorkspaceService;
-		await workspaceImpl.initialize(workspace);
+		await this.configurationService.initialize(workspace);
 
 		return this.workspacesService.enterWorkspace(workspaceUri);
 	}

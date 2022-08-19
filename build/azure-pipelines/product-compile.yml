@@ -46,6 +46,7 @@ steps:
   - script: |
       mkdir -p .build
       node build/azure-pipelines/common/computeNodeModulesCacheKey.js $VSCODE_ARCH $ENABLE_TERRAPIN > .build/yarnlockhash
+      node build/azure-pipelines/common/computeBuiltInDepsCacheKey.js > .build/builtindepshash
     displayName: Prepare yarn cache flags
 
   # using `genericNodeModules` instead of `nodeModules` here to avoid sharing the cache with builds running inside containers
@@ -55,6 +56,13 @@ steps:
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Restore node_modules cache
+
+  # Cache built-in extensions to avoid GH rate limits.
+  - task: Cache@2
+    inputs:
+      key: '"builtInDeps" | .build/builtindepshash'
+      path: .build/builtInExtensions
+    displayName: Restore built-in extensions
 
   - script: |
       set -e
@@ -96,6 +104,13 @@ steps:
 
   - script: |
       set -e
+      node build/lib/builtInExtensions.js
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Download missing built-in extensions
+
+  - script: |
+      set -e
       node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
       mkdir -p .build/node_modules_cache
       tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
@@ -116,12 +131,13 @@ steps:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Compile & Hygiene
 
-  - script: |
-      set -e
-      yarn --cwd test/smoke compile
-      yarn --cwd test/integration/browser compile
-    displayName: Compile test suites
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - script: |
+        set -e
+        yarn --cwd test/smoke compile
+        yarn --cwd test/integration/browser compile
+      displayName: Compile test suites
+      condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - task: AzureCLI@2
@@ -151,16 +167,18 @@ steps:
         ./build/azure-pipelines/common/extract-telemetry.sh
       displayName: Extract Telemetry
 
-  - script: |
-      set -e
-      tar -cz --ignore-failed-read -f $(Build.ArtifactStagingDirectory)/compilation.tar.gz .build out-* test/integration/browser/out test/smoke/out test/automation/out
-    displayName: Compress compilation artifact
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - script: |
+        set -e
+        tar -cz --ignore-failed-read -f $(Build.ArtifactStagingDirectory)/compilation.tar.gz .build out-* test/integration/browser/out test/smoke/out test/automation/out
+      displayName: Compress compilation artifact
 
-  - task: PublishPipelineArtifact@1
-    inputs:
-      targetPath: $(Build.ArtifactStagingDirectory)/compilation.tar.gz
-      artifactName: Compilation
-    displayName: Publish compilation artifact
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - task: PublishPipelineArtifact@1
+      inputs:
+        targetPath: $(Build.ArtifactStagingDirectory)/compilation.tar.gz
+        artifactName: Compilation
+      displayName: Publish compilation artifact
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: |

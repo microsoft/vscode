@@ -11,6 +11,7 @@ import { dirname, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { SnippetsSynchroniser } from 'vs/platform/userDataSync/common/snippetsSync';
 import { IResourcePreview, ISyncData, IUserDataSyncStoreService, PREVIEW_DIR_NAME, SyncResource, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
@@ -168,7 +169,7 @@ suite('SnippetsSync', () => {
 
 	test('when snippets does not exist', async () => {
 		const fileService = testClient.instantiationService.get(IFileService);
-		const snippetsResource = testClient.instantiationService.get(IEnvironmentService).snippetsHome;
+		const snippetsResource = testClient.instantiationService.get(IUserDataProfilesService).defaultProfile.snippetsHome;
 
 		assert.deepStrictEqual(await testObject.getLastSyncUserData(), null);
 		let manifest = await testClient.manifest();
@@ -967,22 +968,22 @@ suite('SnippetsSync', () => {
 
 	async function updateSnippet(name: string, content: string, client: UserDataSyncClient): Promise<void> {
 		const fileService = client.instantiationService.get(IFileService);
-		const environmentService = client.instantiationService.get(IEnvironmentService);
-		const snippetsResource = joinPath(environmentService.snippetsHome, name);
+		const userDataProfilesService = client.instantiationService.get(IUserDataProfilesService);
+		const snippetsResource = joinPath(userDataProfilesService.defaultProfile.snippetsHome, name);
 		await fileService.writeFile(snippetsResource, VSBuffer.fromString(content));
 	}
 
 	async function removeSnippet(name: string, client: UserDataSyncClient): Promise<void> {
 		const fileService = client.instantiationService.get(IFileService);
-		const environmentService = client.instantiationService.get(IEnvironmentService);
-		const snippetsResource = joinPath(environmentService.snippetsHome, name);
+		const userDataProfilesService = client.instantiationService.get(IUserDataProfilesService);
+		const snippetsResource = joinPath(userDataProfilesService.defaultProfile.snippetsHome, name);
 		await fileService.del(snippetsResource);
 	}
 
 	async function readSnippet(name: string, client: UserDataSyncClient): Promise<string | null> {
 		const fileService = client.instantiationService.get(IFileService);
-		const environmentService = client.instantiationService.get(IEnvironmentService);
-		const snippetsResource = joinPath(environmentService.snippetsHome, name);
+		const userDataProfilesService = client.instantiationService.get(IUserDataProfilesService);
+		const snippetsResource = joinPath(userDataProfilesService.defaultProfile.snippetsHome, name);
 		if (await fileService.exists(snippetsResource)) {
 			const content = await fileService.readFile(snippetsResource);
 			return content.value.toString();

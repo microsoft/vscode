@@ -163,6 +163,21 @@ export function isPortPrivileged(port: number, os?: OperatingSystem): boolean {
 	}
 }
 
+export class DisposableTunnel {
+	private _onDispose: Emitter<void> = new Emitter();
+	onDidDispose: Event<void> = this._onDispose.event;
+
+	constructor(
+		public readonly remoteAddress: { port: number; host: string },
+		public readonly localAddress: { port: number; host: string } | string,
+		private readonly _dispose: () => Promise<void>) { }
+
+	dispose(): Promise<void> {
+		this._onDispose.fire();
+		return this._dispose();
+	}
+}
+
 export abstract class AbstractTunnelService implements ITunnelService {
 	declare readonly _serviceBrand: undefined;
 

@@ -11,9 +11,9 @@ import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/com
 import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
-	DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, SortBy, InstallExtensionResult, getTargetPlatform, IExtensionInfo
+	DidUninstallExtensionEvent, InstallExtensionEvent, SortBy, InstallExtensionResult, getTargetPlatform, IExtensionInfo, UninstallExtensionEvent
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionRecommendationsService, ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
@@ -54,7 +54,7 @@ suite('ExtensionsListView Tests', () => {
 	let testableView: ExtensionsListView;
 	let installEvent: Emitter<InstallExtensionEvent>,
 		didInstallEvent: Emitter<readonly InstallExtensionResult[]>,
-		uninstallEvent: Emitter<IExtensionIdentifier>,
+		uninstallEvent: Emitter<UninstallExtensionEvent>,
 		didUninstallEvent: Emitter<DidUninstallExtensionEvent>;
 
 	const localEnabledTheme = aLocalExtension('first-enabled-extension', { categories: ['Themes', 'random'] });
@@ -76,7 +76,7 @@ suite('ExtensionsListView Tests', () => {
 	suiteSetup(() => {
 		installEvent = new Emitter<InstallExtensionEvent>();
 		didInstallEvent = new Emitter<readonly InstallExtensionResult[]>();
-		uninstallEvent = new Emitter<IExtensionIdentifier>();
+		uninstallEvent = new Emitter<UninstallExtensionEvent>();
 		didUninstallEvent = new Emitter<DidUninstallExtensionEvent>();
 
 		instantiationService = new TestInstantiationService();
@@ -96,6 +96,7 @@ suite('ExtensionsListView Tests', () => {
 			onDidInstallExtensions: didInstallEvent.event,
 			onUninstallExtension: uninstallEvent.event,
 			onDidUninstallExtension: didUninstallEvent.event,
+			onDidChangeProfileExtensions: Event.None,
 			async getInstalled() { return []; },
 			async canInstall() { return true; },
 			async getExtensionsControlManifest() { return { malicious: [], deprecated: {} }; },
@@ -105,7 +106,7 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(IMenuService, new TestMenuService());
 
-		const localExtensionManagementServer = { extensionManagementService: instantiationService.get(IExtensionManagementService), label: 'local', id: 'vscode-local' };
+		const localExtensionManagementServer = { extensionManagementService: instantiationService.get(IExtensionManagementService) as IProfileAwareExtensionManagementService, label: 'local', id: 'vscode-local' };
 		instantiationService.stub(IExtensionManagementServerService, <Partial<IExtensionManagementServerService>>{
 			get localExtensionManagementServer(): IExtensionManagementServer {
 				return localExtensionManagementServer;

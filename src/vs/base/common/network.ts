@@ -101,6 +101,11 @@ export namespace Schemas {
 	 * Scheme used vs live share
 	 */
 	export const vsls = 'vsls';
+
+	/**
+	 * Scheme used for the Source Control commit input's text document
+	 */
+	export const vscodeSourceControl = 'vscode-scm';
 }
 
 export const connectionTokenCookieName = 'vscode-tkn';

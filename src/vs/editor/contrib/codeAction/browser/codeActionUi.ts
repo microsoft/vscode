@@ -23,6 +23,7 @@ export class CodeActionUi extends Disposable {
 	private readonly _codeActionWidget: Lazy<CodeActionMenu>;
 	private readonly _lightBulbWidget: Lazy<LightBulbWidget>;
 	private readonly _activeCodeActions = this._register(new MutableDisposable<CodeActionSet>());
+	private previewOn: boolean = false;
 
 	#disposed = false;
 
@@ -40,14 +41,19 @@ export class CodeActionUi extends Disposable {
 		this._codeActionWidget = new Lazy(() => {
 			return this._register(instantiationService.createInstance(CodeActionMenu, this._editor, {
 				onSelectCodeAction: async (action, trigger) => {
-					this.delegate.applyCodeAction(action, /* retrigger */ true, Boolean(trigger.preview));
+					if (this.previewOn) {
+						this.delegate.applyCodeAction(action, /* retrigger */ true, Boolean(this.previewOn));
+					} else {
+						this.delegate.applyCodeAction(action, /* retrigger */ true, Boolean(trigger.preview));
+					}
+					this.previewOn = false;
 				}
 			}));
 		});
 
 		this._lightBulbWidget = new Lazy(() => {
 			const widget = this._register(instantiationService.createInstance(LightBulbWidget, this._editor, quickFixActionId, preferredFixActionId));
-			this._register(widget.onClick(e => this.showCodeActionList(e.trigger, e.actions, e, { includeDisabledActions: false })));
+			this._register(widget.onClick(e => this.showCodeActionList(e.trigger, e.actions, e, { includeDisabledActions: false, fromLightbulb: true })));
 			return widget;
 		});
 	}
@@ -55,6 +61,34 @@ export class CodeActionUi extends Disposable {
 	override dispose() {
 		this.#disposed = true;
 		super.dispose();
+
+	}
+
+	public hideCodeActionWidget() {
+		if (this._codeActionWidget.hasValue()) {
+			this._codeActionWidget.getValue().hideCodeActionWidget();
+		}
+	}
+
+	public onEnter() {
+		if (this._codeActionWidget.hasValue()) {
+			this._codeActionWidget.getValue().onEnterSet();
+		}
+	}
+
+	public onPreviewEnter() {
+		this.previewOn = true;
+		this.onEnter();
+	}
+
+	public navigateList(navUp: Boolean) {
+		if (this._codeActionWidget.hasValue()) {
+			if (navUp) {
+				this._codeActionWidget.getValue().navigateListWithKeysUp();
+			} else {
+				this._codeActionWidget.getValue().navigateListWithKeysDown();
+			}
+		}
 	}
 
 	public async update(newState: CodeActionsState.State): Promise<void> {
@@ -114,7 +148,7 @@ export class CodeActionUi extends Disposable {
 			}
 
 			this._activeCodeActions.value = actions;
-			this._codeActionWidget.getValue().show(newState.trigger, actions, newState.position, { includeDisabledActions });
+			this._codeActionWidget.getValue().show(newState.trigger, actions, newState.position, { includeDisabledActions, fromLightbulb: false });
 		} else {
 			// auto magically triggered
 			if (this._codeActionWidget.getValue().isVisible) {

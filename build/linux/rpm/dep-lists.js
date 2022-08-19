@@ -4,7 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.referenceGeneratedDepsByArch = exports.bundledDeps = exports.additionalDeps = void 0;
+exports.referenceGeneratedDepsByArch = exports.additionalDeps = void 0;
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:chrome/installer/linux/rpm/additional_deps
 // Additional dependencies not in the rpm find-requires output.
 exports.additionalDeps = [
@@ -16,18 +16,6 @@ exports.additionalDeps = [
     'libvulkan.so.1()(64bit)',
     'libcurl.so.4()(64bit)',
     'xdg-utils' // OS integration
-];
-// Based on https://source.chromium.org/chromium/chromium/src/+/refs/tags/98.0.4758.109:chrome/installer/linux/BUILD.gn;l=64-80
-// and the Linux Archive build
-// Shared library dependencies that we already bundle.
-exports.bundledDeps = [
-    'libEGL.so',
-    'libGLESv2.so',
-    'libvulkan.so.1',
-    'swiftshader_libEGL.so',
-    'swiftshader_libGLESv2.so',
-    'libvk_swiftshader.so',
-    'libffmpeg.so'
 ];
 exports.referenceGeneratedDepsByArch = {
     'x86_64': [
@@ -74,7 +62,6 @@ exports.referenceGeneratedDepsByArch = {
         'libgbm.so.1()(64bit)',
         'libgcc_s.so.1()(64bit)',
         'libgcc_s.so.1(GCC_3.0)(64bit)',
-        'libgdk_pixbuf-2.0.so.0()(64bit)',
         'libgio-2.0.so.0()(64bit)',
         'libglib-2.0.so.0()(64bit)',
         'libgobject-2.0.so.0()(64bit)',
@@ -157,7 +144,6 @@ exports.referenceGeneratedDepsByArch = {
         'libgcc_s.so.1(GCC_3.0)',
         'libgcc_s.so.1(GCC_3.4)',
         'libgcc_s.so.1(GCC_3.5)',
-        'libgdk_pixbuf-2.0.so.0',
         'libgio-2.0.so.0',
         'libglib-2.0.so.0',
         'libgobject-2.0.so.0',
@@ -247,7 +233,6 @@ exports.referenceGeneratedDepsByArch = {
         'libgcc_s.so.1(GCC_3.0)(64bit)',
         'libgcc_s.so.1(GCC_4.2.0)(64bit)',
         'libgcc_s.so.1(GCC_4.5.0)(64bit)',
-        'libgdk_pixbuf-2.0.so.0()(64bit)',
         'libgio-2.0.so.0()(64bit)',
         'libglib-2.0.so.0()(64bit)',
         'libgobject-2.0.so.0()(64bit)',

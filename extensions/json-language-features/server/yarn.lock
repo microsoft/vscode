@@ -12,22 +12,22 @@
   resolved "https://registry.yarnpkg.com/@types/node/-/node-16.11.6.tgz#6bef7a2a0ad684cf6e90fcfe31cecabd9ce0a3ae"
   integrity sha512-ua7PgUoeQFjmWPcoo9khiPum3Pd60k4/2ZGXt18sm2Slk0W0xZTqt5Y0Ny1NyBiN1EVQ/+FaF9NcY4Qe6rwk5w==
 
-jsonc-parser@^3.0.0:
-  version "3.0.0"
-  resolved "https://registry.yarnpkg.com/jsonc-parser/-/jsonc-parser-3.0.0.tgz#abdd785701c7e7eaca8a9ec8cf070ca51a745a22"
-  integrity sha512-fQzRfAbIBnR0IQvftw9FJveWiHp72Fg20giDrHz6TdfB12UH/uue0D3hm57UB5KgAVuniLMCaS8P1IMj9NR7cA==
+jsonc-parser@^3.1.0:
+  version "3.1.0"
+  resolved "https://registry.yarnpkg.com/jsonc-parser/-/jsonc-parser-3.1.0.tgz#73b8f0e5c940b83d03476bc2e51a20ef0932615d"
+  integrity sha512-DRf0QjnNeCUds3xTjKlQQ3DpJD51GvDjJfnxUVWg6PZTo2otSm+slzNAxU/35hF8/oJIKoG9slq30JYOsF2azg==
 
 request-light@^0.5.8:
   version "0.5.8"
   resolved "https://registry.yarnpkg.com/request-light/-/request-light-0.5.8.tgz#8bf73a07242b9e7b601fac2fa5dc22a094abcc27"
   integrity sha512-3Zjgh+8b5fhRJBQZoy+zbVKpAQGLyka0MPgW3zruTF4dFFJ8Fqcfu9YsAvi/rvdcaTeWG3MkbZv4WKxAn/84Lg==
 
-vscode-json-languageservice@^5.0.0:
-  version "5.0.0"
-  resolved "https://registry.yarnpkg.com/vscode-json-languageservice/-/vscode-json-languageservice-5.0.0.tgz#465d76cfe5dfeed4c3d5a2123b50e3f115bb7f78"
-  integrity sha512-1/+1TJBRFrfCNizmrW0fbIvguKzzO+4ehlqWCCnF7ioSACUGHrYop4ANb+eRnFaCP6fi3+i+llJC5Y5yAvmL6w==
+vscode-json-languageservice@^5.1.0:
+  version "5.1.0"
+  resolved "https://registry.yarnpkg.com/vscode-json-languageservice/-/vscode-json-languageservice-5.1.0.tgz#b1f197a60338cb378189fcb41489a84846724dd9"
+  integrity sha512-D5612D7h/Gh4A0JmdttPveWzT9dur21WXvBHWKPdOt0sLO6ILz8vN6+IzWnvwDOVAEFTpzIAMVMZwbKZkwGGiA==
   dependencies:
-    jsonc-parser "^3.0.0"
+    jsonc-parser "^3.1.0"
     vscode-languageserver-textdocument "^1.0.4"
     vscode-languageserver-types "^3.17.1"
     vscode-nls "^5.0.1"
@@ -38,10 +38,10 @@ vscode-jsonrpc@8.0.2-next.1:
   resolved "https://registry.yarnpkg.com/vscode-jsonrpc/-/vscode-jsonrpc-8.0.2-next.1.tgz#6bdc39fd194782032e34047eeefce562941259c6"
   integrity sha512-sbbvGSWja7NVBLHPGawtgezc8DHYJaP4qfr/AaJiyDapWcSFtHyPtm18+LnYMLTmB7bhOUW/lf5PeeuLpP6bKA==
 
-vscode-languageserver-protocol@3.17.2-next.5:
-  version "3.17.2-next.5"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol/-/vscode-languageserver-protocol-3.17.2-next.5.tgz#9bc747411c3ce9e1d73c2714bf6555e0199eec26"
-  integrity sha512-UlH+QL4Q4lX94of/UPDDwwWIkd8w7dtMW4khzvEDUoykiG9tba0iG6V0bAiv8XVpnBIUYjL2FNFiL3zl+TY1Sw==
+vscode-languageserver-protocol@3.17.2-next.6:
+  version "3.17.2-next.6"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol/-/vscode-languageserver-protocol-3.17.2-next.6.tgz#8f1dc0fcb29366b85f623a3f9af726de433b5fcc"
+  integrity sha512-WtsebNOOkWyNn4oFYoAMPC8Q/ZDoJ/K7Ja53OzTixiitvrl/RpXZETrtzH79R8P5kqCyx6VFBPb6KQILJfkDkA==
   dependencies:
     vscode-jsonrpc "8.0.2-next.1"
     vscode-languageserver-types "3.17.2-next.2"
@@ -61,12 +61,12 @@ vscode-languageserver-types@^3.17.1:
   resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.17.1.tgz#c2d87fa7784f8cac389deb3ff1e2d9a7bef07e16"
   integrity sha512-K3HqVRPElLZVVPtMeKlsyL9aK0GxGQpvtAUTfX4k7+iJ4mc1M+JM+zQwkgGy2LzY0f0IAafe8MKqIkJrxfGGjQ==
 
-vscode-languageserver@^8.0.2-next.4:
-  version "8.0.2-next.4"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver/-/vscode-languageserver-8.0.2-next.4.tgz#c10cc95be06325b56b7ec1d10271c9e4adf3ef07"
-  integrity sha512-B3roWH4TmJiB6Zh5+r7zu0QdlLqJsPdGo0LeEi6OiLfrHYCDlcI7DNcQ7F17vWmxC3C82SrxMt/EuLBMpKQM0A==
+vscode-languageserver@^8.0.2-next.5:
+  version "8.0.2-next.5"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver/-/vscode-languageserver-8.0.2-next.5.tgz#39a2dd4c504fb88042375e7ac706a714bdaab4e5"
+  integrity sha512-2ZDb7O/4atS9mJKufPPz637z+51kCyZfgnobFW5eSrUdS3c0UB/nMS4Ng1EavYTX84GVaVMKCrmP0f2ceLmR0A==
   dependencies:
-    vscode-languageserver-protocol "3.17.2-next.5"
+    vscode-languageserver-protocol "3.17.2-next.6"
 
 vscode-nls@^5.0.1:
   version "5.0.1"

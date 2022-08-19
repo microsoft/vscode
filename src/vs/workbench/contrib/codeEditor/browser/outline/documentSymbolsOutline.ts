@@ -403,8 +403,7 @@ class DocumentSymbolsOutlineCreator implements IOutlineCreator<IEditorPane, Docu
 	readonly dispose: () => void;
 
 	constructor(
-		@IOutlineService outlineService: IOutlineService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IOutlineService outlineService: IOutlineService
 	) {
 		const reg = outlineService.registerOutlineCreator(this);
 		this.dispose = () => reg.dispose();
@@ -427,7 +426,7 @@ class DocumentSymbolsOutlineCreator implements IOutlineCreator<IEditorPane, Docu
 			return undefined;
 		}
 		const firstLoadBarrier = new Barrier();
-		const result = this._instantiationService.createInstance(DocumentSymbolsOutline, editor, target, firstLoadBarrier);
+		const result = editor.invokeWithinContext(accessor => accessor.get(IInstantiationService).createInstance(DocumentSymbolsOutline, editor!, target, firstLoadBarrier));
 		await firstLoadBarrier.wait();
 		return result;
 	}

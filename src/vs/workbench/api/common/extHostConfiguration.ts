@@ -257,12 +257,12 @@ export class ExtHostConfigProvider {
 						key,
 
 						defaultValue: config.policy?.value ?? config.default?.value,
-						globalValue: config.user?.value,
+						globalValue: config.user?.value ?? config.application?.value,
 						workspaceValue: config.workspace?.value,
 						workspaceFolderValue: config.workspaceFolder?.value,
 
 						defaultLanguageValue: config.default?.override,
-						globalLanguageValue: config.user?.override,
+						globalLanguageValue: config.user?.override ?? config.application?.override,
 						workspaceLanguageValue: config.workspace?.override,
 						workspaceFolderLanguageValue: config.workspaceFolder?.override,
 

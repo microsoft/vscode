@@ -58,6 +58,8 @@ const supportedLinkFormats: LinkFormatInfo[] = [
 	{ urlFormat: '{0} on line {1}, column {2}', line: '5', column: '3' },
 	{ urlFormat: '{0}:line {1}', line: '5' },
 	{ urlFormat: '{0}:line {1}, column {2}', line: '5', column: '3' },
+	{ urlFormat: '{0}: line {1}', line: '5' },
+	{ urlFormat: '{0}: line {1}, col {2}', line: '5', column: '3' },
 	{ urlFormat: '{0}({1})', line: '5' },
 	{ urlFormat: '{0} ({1})', line: '5' },
 	{ urlFormat: '{0}({1},{2})', line: '5', column: '3' },
@@ -66,6 +68,7 @@ const supportedLinkFormats: LinkFormatInfo[] = [
 	{ urlFormat: '{0} ({1}, {2})', line: '5', column: '3' },
 	{ urlFormat: '{0}:{1}', line: '5' },
 	{ urlFormat: '{0}:{1}:{2}', line: '5', column: '3' },
+	{ urlFormat: '{0} {1}:{2}', line: '5', column: '3' },
 	{ urlFormat: '{0}[{1}]', line: '5' },
 	{ urlFormat: '{0} [{1}]', line: '5' },
 	{ urlFormat: '{0}[{1},{2}]', line: '5', column: '3' },
@@ -95,7 +98,7 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 		configurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, configurationService);
 
-		xterm = new Terminal({ cols: 80, rows: 30 });
+		xterm = new Terminal({ allowProposedApi: true, cols: 80, rows: 30 });
 	});
 
 	suite('platform independent', () => {

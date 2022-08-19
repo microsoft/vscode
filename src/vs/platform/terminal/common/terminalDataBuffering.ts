@@ -51,9 +51,7 @@ export class TerminalDataBufferer implements IDisposable {
 
 	stopBuffering(id: number) {
 		const buffer = this._terminalBufferMap.get(id);
-		if (buffer) {
-			buffer.dispose();
-		}
+		buffer?.dispose();
 	}
 
 	flushBuffer(id: number): void {

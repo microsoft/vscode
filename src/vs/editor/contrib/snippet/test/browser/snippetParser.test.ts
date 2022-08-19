@@ -97,12 +97,12 @@ suite('SnippetParser', () => {
 	function assertMarker(input: TextmateSnippet | Marker[] | string, ...ctors: Function[]) {
 		let marker: Marker[];
 		if (input instanceof TextmateSnippet) {
-			marker = input.children;
+			marker = [...input.children];
 		} else if (typeof input === 'string') {
 			const p = new SnippetParser();
 			marker = p.parse(input).children;
 		} else {
-			marker = input;
+			marker = [...input];
 		}
 		while (marker.length > 0) {
 			const m = marker.pop();
@@ -273,12 +273,13 @@ suite('SnippetParser', () => {
 		assertTextAndMarker('${1|one,two,three,|}', '${1|one,two,three,|}', Text);
 		assertTextAndMarker('${1|one,', '${1|one,', Text);
 
-		const p = new SnippetParser();
-		const snippet = p.parse('${1|one,two,three|}');
-		assertMarker(snippet, Placeholder);
-		const expected = [Placeholder, Text, Text, Text];
+		const snippet = new SnippetParser().parse('${1|one,two,three|}');
+		const expected: ((m: Marker) => boolean)[] = [
+			m => m instanceof Placeholder,
+			m => m instanceof Choice && m.options.length === 3 && m.options.every(x => x instanceof Text),
+		];
 		snippet.walk(marker => {
-			assert.strictEqual(marker, expected.shift());
+			assert.ok(expected.shift()!(marker));
 			return true;
 		});
 	});

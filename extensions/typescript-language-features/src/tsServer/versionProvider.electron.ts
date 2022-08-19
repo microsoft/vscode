@@ -6,10 +6,13 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import * as nls from 'vscode-nls';
 import API from '../utils/api';
 import { TypeScriptServiceConfiguration } from '../utils/configuration';
 import { RelativeWorkspacePathResolver } from '../utils/relativePathResolver';
-import { ITypeScriptVersionProvider, localize, TypeScriptVersion, TypeScriptVersionSource } from './versionProvider';
+import { ITypeScriptVersionProvider, TypeScriptVersion, TypeScriptVersionSource } from './versionProvider';
+
+const localize = nls.loadMessageBundle();
 
 export class DiskTypeScriptVersionProvider implements ITypeScriptVersionProvider {
 
@@ -28,7 +31,7 @@ export class DiskTypeScriptVersionProvider implements ITypeScriptVersionProvider
 	public get globalVersion(): TypeScriptVersion | undefined {
 		if (this.configuration?.globalTsdk) {
 			const globals = this.loadVersionsFromSetting(TypeScriptVersionSource.UserSetting, this.configuration.globalTsdk);
-			if (globals && globals.length) {
+			if (globals?.length) {
 				return globals[0];
 			}
 		}
@@ -37,7 +40,7 @@ export class DiskTypeScriptVersionProvider implements ITypeScriptVersionProvider
 
 	public get localVersion(): TypeScriptVersion | undefined {
 		const tsdkVersions = this.localTsdkVersions;
-		if (tsdkVersions && tsdkVersions.length) {
+		if (tsdkVersions?.length) {
 			return tsdkVersions[0];
 		}
 

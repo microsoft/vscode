@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { language } from 'vs/base/common/platform';
+import { Language } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { ILocaleService } from 'vs/workbench/contrib/localization/common/locale';
 import { ILanguagePackItem, ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
@@ -15,6 +15,13 @@ import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { localize } from 'vs/nls';
+import { toAction } from 'vs/base/common/actions';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { stripComments } from 'vs/base/common/stripComments';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export class NativeLocaleService implements ILocaleService {
 	_serviceBrand: undefined;
@@ -26,17 +33,52 @@ export class NativeLocaleService implements ILocaleService {
 		@ILanguagePackService private readonly languagePackService: ILanguagePackService,
 		@IPaneCompositePartService private readonly paneCompositePartService: IPaneCompositePartService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@IProgressService private readonly progressService: IProgressService
+		@IProgressService private readonly progressService: IProgressService,
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IHostService private readonly hostService: IHostService,
+		@IProductService private readonly productService: IProductService
 	) { }
 
-	private async writeLocaleValue(locale: string | undefined): Promise<void> {
-		await this.jsonEditingService.write(this.environmentService.argvResource, [{ path: ['locale'], value: locale }], true);
+	private async validateLocaleFile(): Promise<boolean> {
+		try {
+			const content = await this.textFileService.read(this.environmentService.argvResource, { encoding: 'utf8' });
+
+			// This is the same logic that we do where argv.json is parsed so mirror that:
+			// https://github.com/microsoft/vscode/blob/32d40cf44e893e87ac33ac4f08de1e5f7fe077fc/src/main.js#L238-L246
+			JSON.parse(stripComments(content.value));
+		} catch (error) {
+			this.notificationService.notify({
+				severity: Severity.Error,
+				message: localize('argvInvalid', 'Unable to write display language. Please open the runtime settings, correct errors/warnings in it and try again.'),
+				actions: {
+					primary: [
+						toAction({
+							id: 'openArgv',
+							label: localize('openArgv', "Open Runtime Settings"),
+							run: () => this.editorService.openEditor({ resource: this.environmentService.argvResource })
+						})
+					]
+				}
+			});
+			return false;
+		}
+		return true;
 	}
 
-	async setLocale(languagePackItem: ILanguagePackItem): Promise<boolean> {
-		const locale = languagePackItem.id;
-		if (locale === language || (!locale && language === 'en')) {
+	private async writeLocaleValue(locale: string | undefined): Promise<boolean> {
+		if (!(await this.validateLocaleFile())) {
 			return false;
+		}
+		await this.jsonEditingService.write(this.environmentService.argvResource, [{ path: ['locale'], value: locale }], true);
+		return true;
+	}
+
+	async setLocale(languagePackItem: ILanguagePackItem): Promise<void> {
+		const locale = languagePackItem.id;
+		if (locale === Language.value() || (!locale && Language.isDefaultVariant())) {
+			return;
 		}
 		const installedLanguages = await this.languagePackService.getInstalledLanguages();
 		try {
@@ -51,7 +93,7 @@ export class NativeLocaleService implements ILocaleService {
 					// as of now, there are no 3rd party language packs available on the Marketplace.
 					const viewlet = await this.paneCompositePartService.openPaneComposite(EXTENSIONS_VIEWLET_ID, ViewContainerLocation.Sidebar);
 					(viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer).search(`@id:${languagePackItem.extensionId}`);
-					return false;
+					return;
 				}
 
 				await this.progressService.withProgress(
@@ -66,24 +108,40 @@ export class NativeLocaleService implements ILocaleService {
 				);
 			}
 
-			await this.writeLocaleValue(locale);
-			return true;
+			if (await this.writeLocaleValue(locale)) {
+				await this.showRestartDialog(languagePackItem.label);
+			}
 		} catch (err) {
 			this.notificationService.error(err);
-			return false;
 		}
 	}
 
-	async clearLocalePreference(): Promise<boolean> {
-		if (language === 'en') {
-			return false;
-		}
+	async clearLocalePreference(): Promise<void> {
 		try {
 			await this.writeLocaleValue(undefined);
-			return true;
+			if (!Language.isDefaultVariant()) {
+				await this.showRestartDialog('English');
+			}
 		} catch (err) {
 			this.notificationService.error(err);
-			return false;
+		}
+	}
+
+	private async showRestartDialog(languageName: string) {
+		const restartDialog = await this.dialogService.confirm({
+			type: 'info',
+			message: localize('restartDisplayLanguageMessage', "To change the display language, {0} needs to restart", this.productService.nameLong),
+			detail: localize(
+				'restartDisplayLanguageDetail',
+				"Press the restart button to restart {0} and set the display language to {1}.",
+				this.productService.nameLong,
+				languageName
+			),
+			primaryButton: localize({ key: 'restart', comment: ['&& denotes a mnemonic character'] }, "&&Restart"),
+		});
+
+		if (restartDialog.confirmed) {
+			this.hostService.restart();
 		}
 	}
 }

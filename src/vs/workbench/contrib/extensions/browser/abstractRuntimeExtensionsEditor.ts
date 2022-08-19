@@ -95,9 +95,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 
 	protected async _updateExtensions(): Promise<void> {
 		this._elements = await this._resolveExtensions();
-		if (this._list) {
-			this._list.splice(0, this._list.length, this._elements);
-		}
+		this._list?.splice(0, this._list.length, this._elements);
 	}
 
 	private async _resolveExtensions(): Promise<IRuntimeExtension[]> {
@@ -475,9 +473,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 	}
 
 	public layout(dimension: Dimension): void {
-		if (this._list) {
-			this._list.layout(dimension.height);
-		}
+		this._list?.layout(dimension.height);
 	}
 
 	protected abstract _getProfileInfo(): IExtensionHostProfile | null;

@@ -15,7 +15,7 @@ import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { transformOutgoingURIs } from 'vs/base/common/uriIpc';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ContextKeyExpr, ContextKeyDefinedExpr, ContextKeyNotExpr, ContextKeyEqualsExpr, ContextKeyNotEqualsExpr, ContextKeyRegexExpr, IContextKeyExprMapper, ContextKeyExpression, ContextKeyInExpr, ContextKeyGreaterExpr, ContextKeyGreaterEqualsExpr, ContextKeySmallerExpr, ContextKeySmallerEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, ContextKeyDefinedExpr, ContextKeyNotExpr, ContextKeyEqualsExpr, ContextKeyNotEqualsExpr, ContextKeyRegexExpr, IContextKeyExprMapper, ContextKeyExpression, ContextKeyInExpr, ContextKeyGreaterExpr, ContextKeyGreaterEqualsExpr, ContextKeySmallerExpr, ContextKeySmallerEqualsExpr, ContextKeyNotInExpr } from 'vs/platform/contextkey/common/contextkey';
 import { listProcesses } from 'vs/base/node/ps';
 import { getMachineInfo, collectWorkspaceStats } from 'vs/platform/diagnostics/node/diagnosticsService';
 import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
@@ -27,6 +27,7 @@ import { ServerConnectionToken, ServerConnectionTokenType } from 'vs/server/node
 import { IExtensionHostStatusService } from 'vs/server/node/extensionHostStatusService';
 import { IExtensionsScannerService, toExtensionDescription } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { dedupExtensions } from 'vs/workbench/services/extensions/common/extensionsUtil';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export class RemoteAgentEnvironmentChannel implements IServerChannel {
 
@@ -37,6 +38,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 	constructor(
 		private readonly _connectionToken: ServerConnectionToken,
 		private readonly _environmentService: IServerEnvironmentService,
+		private readonly _userDataProfilesService: IUserDataProfilesService,
 		extensionManagementCLIService: IExtensionManagementCLIService,
 		private readonly _logService: ILogService,
 		private readonly _extensionHostStatusService: IExtensionHostStatusService,
@@ -234,6 +236,9 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 			mapIn(key: string, valueKey: string): ContextKeyInExpr {
 				return ContextKeyInExpr.create(key, valueKey);
 			}
+			mapNotIn(key: string, valueKey: string): ContextKeyNotInExpr {
+				return ContextKeyNotInExpr.create(key, valueKey);
+			}
 		};
 
 		const _massageWhenUser = (element: WhenUser) => {
@@ -290,7 +295,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 			logsPath: URI.file(this._environmentService.logsPath),
 			extensionsPath: URI.file(this._environmentService.extensionsPath!),
 			extensionHostLogsPath: URI.file(join(this._environmentService.logsPath, `exthost${RemoteAgentEnvironmentChannel._namePool++}`)),
-			globalStorageHome: this._environmentService.globalStorageHome,
+			globalStorageHome: this._userDataProfilesService.defaultProfile.globalStorageHome,
 			workspaceStorageHome: this._environmentService.workspaceStorageHome,
 			localHistoryHome: this._environmentService.localHistoryHome,
 			userHome: this._environmentService.userHome,

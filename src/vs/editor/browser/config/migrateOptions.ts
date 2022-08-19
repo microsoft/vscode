@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { forEach } from 'vs/base/common/collections';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 export interface ISettingsReader {
@@ -152,14 +151,14 @@ const suggestFilteredTypesMapping: Record<string, string> = {
 
 registerEditorSettingMigration('suggest.filteredTypes', (value, read, write) => {
 	if (value && typeof value === 'object') {
-		forEach(suggestFilteredTypesMapping, entry => {
-			const v = value[entry.key];
+		for (const entry of Object.entries(suggestFilteredTypesMapping)) {
+			const v = value[entry[0]];
 			if (v === false) {
-				if (typeof read(`suggest.${entry.value}`) === 'undefined') {
-					write(`suggest.${entry.value}`, false);
+				if (typeof read(`suggest.${entry[1]}`) === 'undefined') {
+					write(`suggest.${entry[1]}`, false);
 				}
 			}
-		});
+		}
 		write('suggest.filteredTypes', undefined);
 	}
 });

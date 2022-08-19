@@ -1244,7 +1244,31 @@ export class DebugModel implements IDebugModel {
 		}
 	}
 
-	fetchCallStack(thread: Thread): { topCallStack: Promise<void>; wholeCallStack: Promise<void> } {
+	/**
+	 * Update the call stack and notify the call stack view that changes have occurred.
+	 */
+	async fetchCallstack(thread: IThread, levels?: number): Promise<void> {
+
+		if ((<Thread>thread).reachedEndOfCallStack) {
+			return;
+		}
+
+		const totalFrames = thread.stoppedDetails?.totalFrames;
+		const remainingFrames = (typeof totalFrames === 'number') ? (totalFrames - thread.getCallStack().length) : undefined;
+
+		if (!levels || (remainingFrames && levels > remainingFrames)) {
+			levels = remainingFrames;
+		}
+
+		if (levels && levels > 0) {
+			await (<Thread>thread).fetchCallStack(levels);
+			this._onDidChangeCallStack.fire();
+		}
+
+		return;
+	}
+
+	refreshTopOfCallstack(thread: Thread): { topCallStack: Promise<void>; wholeCallStack: Promise<void> } {
 		if (thread.session.capabilities.supportsDelayedStackTraceLoading) {
 			// For improved performance load the first stack frame and then load the rest async.
 			let topCallStack = Promise.resolve();

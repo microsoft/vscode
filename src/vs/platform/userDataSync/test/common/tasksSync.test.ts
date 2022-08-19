@@ -6,10 +6,9 @@
 import * as assert from 'assert';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { getTasksContentFromSyncContent, TasksSynchroniser } from 'vs/platform/userDataSync/common/tasksSync';
 import { Change, IUserDataSyncStoreService, MergeState, SyncResource, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
@@ -33,8 +32,7 @@ suite('TasksSync', () => {
 
 	test('when tasks file does not exist', async () => {
 		const fileService = client.instantiationService.get(IFileService);
-		const uriIdentityService = client.instantiationService.get(IUriIdentityService);
-		const tasksResource = uriIdentityService.extUri.joinPath(uriIdentityService.extUri.dirname(client.instantiationService.get(IEnvironmentService).settingsResource), 'tasks.json');
+		const tasksResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.tasksResource;
 
 		assert.deepStrictEqual(await testObject.getLastSyncUserData(), null);
 		let manifest = await client.manifest();
@@ -74,14 +72,12 @@ suite('TasksSync', () => {
 				'label': 'Watch'
 			}]
 		});
-		const uriIdentityService2 = client2.instantiationService.get(IUriIdentityService);
-		const tasksResource2 = uriIdentityService2.extUri.joinPath(uriIdentityService2.extUri.dirname(client2.instantiationService.get(IEnvironmentService).settingsResource), 'tasks.json');
+		const tasksResource2 = client2.instantiationService.get(IUserDataProfilesService).defaultProfile.tasksResource;
 		await client2.instantiationService.get(IFileService).writeFile(tasksResource2, VSBuffer.fromString(content));
 		await client2.sync();
 
 		const fileService = client.instantiationService.get(IFileService);
-		const uriIdentityService = client.instantiationService.get(IUriIdentityService);
-		const tasksResource = uriIdentityService.extUri.joinPath(uriIdentityService.extUri.dirname(client.instantiationService.get(IEnvironmentService).settingsResource), 'tasks.json');
+		const tasksResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.tasksResource;
 
 		await testObject.sync(await client.manifest());
 
@@ -95,8 +91,7 @@ suite('TasksSync', () => {
 
 	test('when tasks file exists locally and remote has no tasks', async () => {
 		const fileService = client.instantiationService.get(IFileService);
-		const uriIdentityService = client.instantiationService.get(IUriIdentityService);
-		const tasksResource = uriIdentityService.extUri.joinPath(uriIdentityService.extUri.dirname(client.instantiationService.get(IEnvironmentService).settingsResource), 'tasks.json');
+		const tasksResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.tasksResource;
 		const content = JSON.stringify({
 			'version': '2.0.0',
 			'tasks': [{
@@ -127,14 +122,12 @@ suite('TasksSync', () => {
 				'label': 'Watch'
 			}]
 		});
-		const uriIdentityService2 = client2.instantiationService.get(IUriIdentityService);
-		const tasksResource2 = uriIdentityService2.extUri.joinPath(uriIdentityService2.extUri.dirname(client2.instantiationService.get(IEnvironmentService).settingsResource), 'tasks.json');
+		const tasksResource2 = client2.instantiationService.get(IUserDataProfilesService).defaultProfile.tasksResource;
 		await client2.instantiationService.get(IFileService).writeFile(tasksResource2, VSBuffer.fromString(content));
 		await client2.sync();
 
 		const fileService = client.instantiationService.get(IFileService);
-		const uriIdentityService = client.instantiationService.get(IUriIdentityService);
-		const tasksResource = uriIdentityService.extUri.joinPath(uriIdentityService.extUri.dirname(client.instantiationService.get(IEnvironmentService).settingsResource), 'tasks.json');
+		const tasksResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.tasksResource;
 		await fileService.writeFile(tasksResource, VSBuffer.fromString(content));
 
 		await testObject.sync(await client.manifest());
@@ -149,8 +142,7 @@ suite('TasksSync', () => {
 
 	test('when tasks file locally has moved forward', async () => {
 		const fileService = client.instantiationService.get(IFileService);
-		const uriIdentityService = client.instantiationService.get(IUriIdentityService);
-		const tasksResource = uriIdentityService.extUri.joinPath(uriIdentityService.extUri.dirname(client.instantiationService.get(IEnvironmentService).settingsResource), 'tasks.json');
+		const tasksResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.tasksResource;
 		fileService.writeFile(tasksResource, VSBuffer.fromString(JSON.stringify({
 			'version': '2.0.0',
 			'tasks': []
@@ -180,8 +172,7 @@ suite('TasksSync', () => {
 	test('when tasks file remotely has moved forward', async () => {
 		const client2 = disposableStore.add(new UserDataSyncClient(server));
 		await client2.setUp(true);
-		const uriIdentityService2 = client2.instantiationService.get(IUriIdentityService);
-		const tasksResource2 = uriIdentityService2.extUri.joinPath(uriIdentityService2.extUri.dirname(client2.instantiationService.get(IEnvironmentService).settingsResource), 'tasks.json');
+		const tasksResource2 = client2.instantiationService.get(IUserDataProfilesService).defaultProfile.tasksResource;
 		const fileService2 = client2.instantiationService.get(IFileService);
 		await fileService2.writeFile(tasksResource2, VSBuffer.fromString(JSON.stringify({
 			'version': '2.0.0',
@@ -189,8 +180,7 @@ suite('TasksSync', () => {
 		})));
 
 		const fileService = client.instantiationService.get(IFileService);
-		const uriIdentityService = client.instantiationService.get(IUriIdentityService);
-		const tasksResource = uriIdentityService.extUri.joinPath(uriIdentityService.extUri.dirname(client.instantiationService.get(IEnvironmentService).settingsResource), 'tasks.json');
+		const tasksResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.tasksResource;
 
 		await client2.sync();
 		await testObject.sync(await client.manifest());
@@ -219,8 +209,7 @@ suite('TasksSync', () => {
 	test('when tasks file has moved forward locally and remotely with same changes', async () => {
 		const client2 = disposableStore.add(new UserDataSyncClient(server));
 		await client2.setUp(true);
-		const uriIdentityService2 = client2.instantiationService.get(IUriIdentityService);
-		const tasksResource2 = uriIdentityService2.extUri.joinPath(uriIdentityService2.extUri.dirname(client2.instantiationService.get(IEnvironmentService).settingsResource), 'tasks.json');
+		const tasksResource2 = client2.instantiationService.get(IUserDataProfilesService).defaultProfile.tasksResource;
 		const fileService2 = client2.instantiationService.get(IFileService);
 		await fileService2.writeFile(tasksResource2, VSBuffer.fromString(JSON.stringify({
 			'version': '2.0.0',
@@ -228,8 +217,7 @@ suite('TasksSync', () => {
 		})));
 
 		const fileService = client.instantiationService.get(IFileService);
-		const uriIdentityService = client.instantiationService.get(IUriIdentityService);
-		const tasksResource = uriIdentityService.extUri.joinPath(uriIdentityService.extUri.dirname(client.instantiationService.get(IEnvironmentService).settingsResource), 'tasks.json');
+		const tasksResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.tasksResource;
 
 		await client2.sync();
 		await testObject.sync(await client.manifest());
@@ -259,8 +247,7 @@ suite('TasksSync', () => {
 	test('when tasks file has moved forward locally and remotely - accept preview', async () => {
 		const client2 = disposableStore.add(new UserDataSyncClient(server));
 		await client2.setUp(true);
-		const uriIdentityService2 = client2.instantiationService.get(IUriIdentityService);
-		const tasksResource2 = uriIdentityService2.extUri.joinPath(uriIdentityService2.extUri.dirname(client2.instantiationService.get(IEnvironmentService).settingsResource), 'tasks.json');
+		const tasksResource2 = client2.instantiationService.get(IUserDataProfilesService).defaultProfile.tasksResource;
 		const fileService2 = client2.instantiationService.get(IFileService);
 		await fileService2.writeFile(tasksResource2, VSBuffer.fromString(JSON.stringify({
 			'version': '2.0.0',
@@ -268,8 +255,7 @@ suite('TasksSync', () => {
 		})));
 
 		const fileService = client.instantiationService.get(IFileService);
-		const uriIdentityService = client.instantiationService.get(IUriIdentityService);
-		const tasksResource = uriIdentityService.extUri.joinPath(uriIdentityService.extUri.dirname(client.instantiationService.get(IEnvironmentService).settingsResource), 'tasks.json');
+		const tasksResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.tasksResource;
 
 		await client2.sync();
 		await testObject.sync(await client.manifest());
@@ -314,8 +300,7 @@ suite('TasksSync', () => {
 	test('when tasks file has moved forward locally and remotely - accept modified preview', async () => {
 		const client2 = disposableStore.add(new UserDataSyncClient(server));
 		await client2.setUp(true);
-		const uriIdentityService2 = client2.instantiationService.get(IUriIdentityService);
-		const tasksResource2 = uriIdentityService2.extUri.joinPath(uriIdentityService2.extUri.dirname(client2.instantiationService.get(IEnvironmentService).settingsResource), 'tasks.json');
+		const tasksResource2 = client2.instantiationService.get(IUserDataProfilesService).defaultProfile.tasksResource;
 		const fileService2 = client2.instantiationService.get(IFileService);
 		await fileService2.writeFile(tasksResource2, VSBuffer.fromString(JSON.stringify({
 			'version': '2.0.0',
@@ -323,8 +308,7 @@ suite('TasksSync', () => {
 		})));
 
 		const fileService = client.instantiationService.get(IFileService);
-		const uriIdentityService = client.instantiationService.get(IUriIdentityService);
-		const tasksResource = uriIdentityService.extUri.joinPath(uriIdentityService.extUri.dirname(client.instantiationService.get(IEnvironmentService).settingsResource), 'tasks.json');
+		const tasksResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.tasksResource;
 
 		await client2.sync();
 		await testObject.sync(await client.manifest());
@@ -369,8 +353,7 @@ suite('TasksSync', () => {
 	test('when tasks file has moved forward locally and remotely - accept remote', async () => {
 		const client2 = disposableStore.add(new UserDataSyncClient(server));
 		await client2.setUp(true);
-		const uriIdentityService2 = client2.instantiationService.get(IUriIdentityService);
-		const tasksResource2 = uriIdentityService2.extUri.joinPath(uriIdentityService2.extUri.dirname(client2.instantiationService.get(IEnvironmentService).settingsResource), 'tasks.json');
+		const tasksResource2 = client2.instantiationService.get(IUserDataProfilesService).defaultProfile.tasksResource;
 		const fileService2 = client2.instantiationService.get(IFileService);
 		await fileService2.writeFile(tasksResource2, VSBuffer.fromString(JSON.stringify({
 			'version': '2.0.0',
@@ -378,8 +361,7 @@ suite('TasksSync', () => {
 		})));
 
 		const fileService = client.instantiationService.get(IFileService);
-		const uriIdentityService = client.instantiationService.get(IUriIdentityService);
-		const tasksResource = uriIdentityService.extUri.joinPath(uriIdentityService.extUri.dirname(client.instantiationService.get(IEnvironmentService).settingsResource), 'tasks.json');
+		const tasksResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.tasksResource;
 
 		await client2.sync();
 		await testObject.sync(await client.manifest());
@@ -418,8 +400,7 @@ suite('TasksSync', () => {
 	test('when tasks file has moved forward locally and remotely - accept local', async () => {
 		const client2 = disposableStore.add(new UserDataSyncClient(server));
 		await client2.setUp(true);
-		const uriIdentityService2 = client2.instantiationService.get(IUriIdentityService);
-		const tasksResource2 = uriIdentityService2.extUri.joinPath(uriIdentityService2.extUri.dirname(client2.instantiationService.get(IEnvironmentService).settingsResource), 'tasks.json');
+		const tasksResource2 = client2.instantiationService.get(IUserDataProfilesService).defaultProfile.tasksResource;
 		const fileService2 = client2.instantiationService.get(IFileService);
 		await fileService2.writeFile(tasksResource2, VSBuffer.fromString(JSON.stringify({
 			'version': '2.0.0',
@@ -427,8 +408,7 @@ suite('TasksSync', () => {
 		})));
 
 		const fileService = client.instantiationService.get(IFileService);
-		const uriIdentityService = client.instantiationService.get(IUriIdentityService);
-		const tasksResource = uriIdentityService.extUri.joinPath(uriIdentityService.extUri.dirname(client.instantiationService.get(IEnvironmentService).settingsResource), 'tasks.json');
+		const tasksResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.tasksResource;
 
 		await client2.sync();
 		await testObject.sync(await client.manifest());
@@ -466,8 +446,7 @@ suite('TasksSync', () => {
 
 	test('when tasks file is created after first sync', async () => {
 		const fileService = client.instantiationService.get(IFileService);
-		const uriIdentityService = client.instantiationService.get(IUriIdentityService);
-		const tasksResource = uriIdentityService.extUri.joinPath(uriIdentityService.extUri.dirname(client.instantiationService.get(IEnvironmentService).settingsResource), 'tasks.json');
+		const tasksResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.tasksResource;
 		await testObject.sync(await client.manifest());
 
 		const content = JSON.stringify({
@@ -498,8 +477,7 @@ suite('TasksSync', () => {
 
 	test('apply remote when tasks file does not exist', async () => {
 		const fileService = client.instantiationService.get(IFileService);
-		const uriIdentityService = client.instantiationService.get(IUriIdentityService);
-		const tasksResource = uriIdentityService.extUri.joinPath(uriIdentityService.extUri.dirname(client.instantiationService.get(IEnvironmentService).settingsResource), 'tasks.json');
+		const tasksResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.tasksResource;
 		if (await fileService.exists(tasksResource)) {
 			await fileService.del(tasksResource);
 		}

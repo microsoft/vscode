@@ -8,6 +8,12 @@ import { createServer, Server } from 'net';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 
+const enum State {
+	Disabled = 'disabled',
+	OnlyWithFlag = 'onlyWithFlag',
+	Smart = 'smart',
+	Always = 'always',
+}
 const localize = nls.loadMessageBundle();
 const TEXT_STATUSBAR_LABEL = {
 	[State.Disabled]: localize('status.text.auto.attach.disabled', 'Auto Attach: Disabled'),
@@ -62,12 +68,6 @@ const SETTINGS_CAUSE_REFRESH = new Set(
 	['autoAttachSmartPattern', SETTING_STATE].map(s => `${SETTING_SECTION}.${s}`),
 );
 
-const enum State {
-	Disabled = 'disabled',
-	OnlyWithFlag = 'onlyWithFlag',
-	Smart = 'smart',
-	Always = 'always',
-}
 
 let currentState: Promise<{ context: vscode.ExtensionContext; state: State | null }>;
 let statusItem: vscode.StatusBarItem | undefined; // and there is no status bar item

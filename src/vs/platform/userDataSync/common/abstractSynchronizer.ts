@@ -27,6 +27,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { Change, getLastSyncResourceUri, IRemoteUserData, IResourcePreview as IBaseResourcePreview, ISyncData, ISyncResourceHandle, ISyncResourcePreview as IBaseSyncResourcePreview, IUserData, IUserDataInitializer, IUserDataManifest, IUserDataSyncBackupStoreService, IUserDataSyncConfiguration, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, IUserDataSyncUtilService, MergeState, PREVIEW_DIR_NAME, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_CONFIGURATION_SCOPE, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 type IncompatibleSyncSourceClassification = {
 	owner: 'sandy081';
@@ -666,14 +667,14 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 			return { ref: refOrLastSyncData, content };
 		} else {
 			const lastSyncUserData: IUserData | null = refOrLastSyncData ? { ref: refOrLastSyncData.ref, content: refOrLastSyncData.syncData ? JSON.stringify(refOrLastSyncData.syncData) : null } : null;
-			return this.userDataSyncStoreService.read(this.resource, lastSyncUserData, this.syncHeaders);
+			return this.userDataSyncStoreService.read(this.resource, lastSyncUserData, undefined, this.syncHeaders);
 		}
 	}
 
 	protected async updateRemoteUserData(content: string, ref: string | null): Promise<IRemoteUserData> {
 		const machineId = await this.currentMachineIdPromise;
 		const syncData: ISyncData = { version: this.version, machineId, content };
-		ref = await this.userDataSyncStoreService.write(this.resource, JSON.stringify(syncData), ref, this.syncHeaders);
+		ref = await this.userDataSyncStoreService.write(this.resource, JSON.stringify(syncData), ref, undefined, this.syncHeaders);
 		return { ref, syncData };
 	}
 
@@ -819,6 +820,7 @@ export abstract class AbstractInitializer implements IUserDataInitializer {
 
 	constructor(
 		readonly resource: SyncResource,
+		@IUserDataProfilesService protected readonly userDataProfilesService: IUserDataProfilesService,
 		@IEnvironmentService protected readonly environmentService: IEnvironmentService,
 		@ILogService protected readonly logService: ILogService,
 		@IFileService protected readonly fileService: IFileService,

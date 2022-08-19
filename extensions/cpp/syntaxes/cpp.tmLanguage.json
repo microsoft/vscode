@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jeff-hykin/better-cpp-syntax/commit/156fc0eef532928c9dbf22f622d4a8efc7d97a6b",
+	"version": "https://github.com/jeff-hykin/better-cpp-syntax/commit/924295fc44bde1a00fab60da3a2caca4509adb25",
 	"name": "C++",
 	"scopeName": "source.cpp",
 	"patterns": [
@@ -3655,7 +3655,7 @@
 		},
 		"diagnostic": {
 			"begin": "(^((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))(#)(?:(?:\\s)+)?((?:error|warning)))\\b(?:(?:\\s)+)?",
-			"end": "(?<!\\\\)(?=\\n?$)",
+			"end": "(?<!\\\\)(?:(?=\\n)|(?<=^\\n|[^\\\\]\\n)(?=$))",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.control.directive.diagnostic.$7.cpp"
@@ -3695,7 +3695,7 @@
 			"patterns": [
 				{
 					"begin": "\"",
-					"end": "(?:(\")|(?<!\\\\)(?=\\n?$))",
+					"end": "(?:(\")|(?<!\\\\)(?:(?=\\n)|(?<=^\\n|[^\\\\]\\n)(?=$)))",
 					"beginCaptures": {
 						"0": {
 							"name": "punctuation.definition.string.begin.cpp"
@@ -3715,7 +3715,7 @@
 				},
 				{
 					"begin": "'",
-					"end": "(?:(')|(?<!\\\\)(?=\\n?$))",
+					"end": "(?:(')|(?<!\\\\)(?:(?=\\n)|(?<=^\\n|[^\\\\]\\n)(?=$)))",
 					"beginCaptures": {
 						"0": {
 							"name": "punctuation.definition.string.begin.cpp"
@@ -3735,7 +3735,7 @@
 				},
 				{
 					"begin": "[^'\"]",
-					"end": "(?<!\\\\)(?=\\n?$)",
+					"end": "(?<!\\\\)(?:(?=\\n)|(?<=^\\n|[^\\\\]\\n)(?=$))",
 					"beginCaptures": {},
 					"endCaptures": {},
 					"name": "string.unquoted.cpp",
@@ -6174,19 +6174,16 @@
 			]
 		},
 		"goto_statement": {
-			"match": "((?<!\\w)goto(?!\\w))((?:((?:(?>(?:\\s)+)|\\/\\*(?:[^\\*]|(?:\\*)++[^\\/])*+(?:\\*)++\\/)+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*)",
+			"match": "((?:((?:(?>(?:\\s)+)|\\/\\*(?:[^\\*]|(?:\\*)++[^\\/])*+(?:\\*)++\\/)+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?<!\\w)goto(?!\\w))((?:((?:(?>(?:\\s)+)|\\/\\*(?:[^\\*]|(?:\\*)++[^\\/])*+(?:\\*)++\\/)+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*)",
 			"captures": {
 				"1": {
-					"name": "keyword.control.goto.cpp"
-				},
-				"2": {
 					"patterns": [
 						{
 							"include": "#inline_comment"
 						}
 					]
 				},
-				"3": {
+				"2": {
 					"patterns": [
 						{
 							"match": "(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))",
@@ -6213,7 +6210,44 @@
 						}
 					]
 				},
+				"3": {
+					"name": "keyword.control.goto.cpp"
+				},
 				"4": {
+					"patterns": [
+						{
+							"include": "#inline_comment"
+						}
+					]
+				},
+				"5": {
+					"patterns": [
+						{
+							"match": "(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))",
+							"captures": {
+								"1": {
+									"name": "comment.block.cpp punctuation.definition.comment.begin.cpp"
+								},
+								"2": {
+									"name": "comment.block.cpp"
+								},
+								"3": {
+									"patterns": [
+										{
+											"match": "\\*\\/",
+											"name": "comment.block.cpp punctuation.definition.comment.end.cpp"
+										},
+										{
+											"match": "\\*",
+											"name": "comment.block.cpp"
+										}
+									]
+								}
+							}
+						}
+					]
+				},
+				"6": {
 					"name": "entity.name.label.call.cpp"
 				}
 			}
@@ -6948,7 +6982,7 @@
 		},
 		"line": {
 			"begin": "^((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))(#)(?:(?:\\s)+)?line\\b",
-			"end": "(?<!\\\\)(?=\\n?$)",
+			"end": "(?<!\\\\)(?:(?=\\n)|(?<=^\\n|[^\\\\]\\n)(?=$))",
 			"beginCaptures": {
 				"0": {
 					"name": "keyword.control.directive.line.cpp"
@@ -6998,7 +7032,7 @@
 		},
 		"line_comment": {
 			"begin": "\\s*+(\\/\\/)",
-			"end": "(?<=\\n)(?<!\\\\\\n)",
+			"end": "(?<!\\\\)(?:(?=\\n)|(?<=^\\n|[^\\\\]\\n)(?=$))",
 			"beginCaptures": {
 				"1": {
 					"name": "punctuation.definition.comment.cpp"
@@ -7018,7 +7052,7 @@
 		},
 		"macro": {
 			"begin": "(^((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))(#)(?:(?:\\s)+)?define\\b)(?:(?:\\s)+)?((?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*(?!\\w))",
-			"end": "(?<!\\\\)(?=\\n?$)",
+			"end": "(?<!\\\\)(?:(?=\\n)|(?<=^\\n|[^\\\\]\\n)(?=$))",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.control.directive.define.cpp"
@@ -7065,6 +7099,7 @@
 							"name": "punctuation.definition.parameters.begin.preprocessor.cpp"
 						},
 						"2": {
+							"name": "meta.function.preprocessor.parameters.cpp",
 							"patterns": [
 								{
 									"match": "(?<=[(,])(?:(?:\\s)+)?((?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*)(?:(?:\\s)+)?",
@@ -12488,7 +12523,7 @@
 		},
 		"pragma": {
 			"begin": "^((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))(#)(?:(?:\\s)+)?pragma\\b",
-			"end": "(?<!\\\\)(?=\\n?$)",
+			"end": "(?<!\\\\)(?:(?=\\n)|(?<=^\\n|[^\\\\]\\n)(?=$))",
 			"beginCaptures": {
 				"0": {
 					"name": "keyword.control.directive.pragma.cpp"
@@ -12641,7 +12676,7 @@
 		},
 		"preprocessor_conditional_defined": {
 			"begin": "((?<!\\w)defined(?!\\w))(\\()",
-			"end": "(?:\\)|(?<!\\\\)(?=\\n?$))",
+			"end": "(?:\\)|(?<!\\\\)(?:(?=\\n)|(?<=^\\n|[^\\\\]\\n)(?=$)))",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.control.directive.conditional.defined.cpp"
@@ -12717,7 +12752,7 @@
 			"patterns": [
 				{
 					"begin": "\\G(?<=ifndef|ifdef|if)",
-					"end": "(?<!\\\\)(?=\\n?$)",
+					"end": "(?<!\\\\)(?:(?=\\n)|(?<=^\\n|[^\\\\]\\n)(?=$))",
 					"beginCaptures": {},
 					"endCaptures": {},
 					"name": "meta.preprocessor.conditional.cpp",

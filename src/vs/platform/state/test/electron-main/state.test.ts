@@ -15,7 +15,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { FileStorage } from 'vs/platform/state/electron-main/stateMainService';
+import { FileStorage } from 'vs/platform/state/node/stateService';
 
 flakySuite('StateMainService', () => {
 

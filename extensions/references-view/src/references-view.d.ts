@@ -13,7 +13,7 @@ import * as vscode from 'vscode';
  *
  * ```ts
  * // get references viewlet API
- * const api = await vscode.extensions.getExtension<SymbolTree>('ms-vscode.references-view').activate();
+ * const api = await vscode.extensions.getExtension<SymbolTree>('vscode.references-view').activate();
  *
  * // instantiate and set input which updates the view
  * const myInput: SymbolTreeInput<MyItems> = ...

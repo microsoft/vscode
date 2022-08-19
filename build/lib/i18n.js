@@ -491,7 +491,7 @@ function processNlsFiles(opts) {
     });
 }
 exports.processNlsFiles = processNlsFiles;
-const editorProject = 'vscode-editor', workbenchProject = 'vscode-workbench', extensionsProject = 'vscode-extensions', setupProject = 'vscode-setup';
+const editorProject = 'vscode-editor', workbenchProject = 'vscode-workbench', extensionsProject = 'vscode-extensions', setupProject = 'vscode-setup', serverProject = 'vscode-server';
 function getResource(sourceFile) {
     let resource;
     if (/^vs\/platform/.test(sourceFile)) {
@@ -508,6 +508,9 @@ function getResource(sourceFile) {
     }
     else if (/^vs\/code/.test(sourceFile)) {
         return { name: 'vs/code', project: workbenchProject };
+    }
+    else if (/^vs\/server/.test(sourceFile)) {
+        return { name: 'vs/server', project: serverProject };
     }
     else if (/^vs\/workbench\/contrib/.test(sourceFile)) {
         resource = sourceFile.split('/', 4).join('/');
@@ -599,17 +602,24 @@ function createXlfFilesForExtensions() {
                 const basename = path.basename(file.path);
                 if (basename === 'package.nls.json') {
                     const json = JSON.parse(buffer.toString('utf8'));
-                    const keys = Object.keys(json);
-                    const messages = keys.map((key) => {
+                    const keys = [];
+                    const messages = [];
+                    Object.keys(json).forEach((key) => {
                         const value = json[key];
                         if (Is.string(value)) {
-                            return value;
+                            keys.push(key);
+                            messages.push(value);
                         }
                         else if (value) {
-                            return value.message;
+                            keys.push({
+                                key,
+                                comment: value.comment
+                            });
+                            messages.push(value.message);
                         }
                         else {
-                            return `Unknown message for key: ${key}`;
+                            keys.push(key);
+                            messages.push(`Unknown message for key: ${key}`);
                         }
                     });
                     getXlf().addFile(`extensions/${extensionName}/package`, keys, messages);

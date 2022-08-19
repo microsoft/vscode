@@ -15,6 +15,7 @@ import { FileOperationError, FileOperationResult, IFileContent, IFileService, IF
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { AbstractInitializer, AbstractSynchroniser, IAcceptResult, IFileResourcePreview, IMergeResult } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { areSame, IMergeResult as ISnippetsMergeResult, merge } from 'vs/platform/userDataSync/common/snippetsMerge';
 import { Change, IRemoteUserData, ISyncData, ISyncResourceHandle, IUserDataSyncBackupStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
@@ -35,6 +36,7 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IFileService fileService: IFileService,
+		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IStorageService storageService: IStorageService,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncBackupStoreService userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
@@ -45,7 +47,7 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
 		super(SyncResource.Snippets, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService, uriIdentityService);
-		this.snippetsFolder = environmentService.snippetsHome;
+		this.snippetsFolder = userDataProfilesService.defaultProfile.snippetsHome;
 		this._register(this.fileService.watch(environmentService.userRoamingDataHome));
 		this._register(this.fileService.watch(this.snippetsFolder));
 		this._register(Event.filter(this.fileService.onDidFilesChange, e => e.affects(this.snippetsFolder))(() => this.triggerLocalChange()));
@@ -533,11 +535,12 @@ export class SnippetsInitializer extends AbstractInitializer {
 
 	constructor(
 		@IFileService fileService: IFileService,
+		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(SyncResource.Snippets, environmentService, logService, fileService, uriIdentityService);
+		super(SyncResource.Snippets, userDataProfilesService, environmentService, logService, fileService, uriIdentityService);
 	}
 
 	async doInitialize(remoteUserData: IRemoteUserData): Promise<void> {
@@ -556,7 +559,7 @@ export class SnippetsInitializer extends AbstractInitializer {
 		for (const key of Object.keys(remoteSnippets)) {
 			const content = remoteSnippets[key];
 			if (content) {
-				const resource = this.extUri.joinPath(this.environmentService.snippetsHome, key);
+				const resource = this.extUri.joinPath(this.userDataProfilesService.defaultProfile.snippetsHome, key);
 				await this.fileService.createFile(resource, VSBuffer.fromString(content));
 				this.logService.info('Created snippet', this.extUri.basename(resource));
 			}
@@ -567,7 +570,7 @@ export class SnippetsInitializer extends AbstractInitializer {
 
 	private async isEmpty(): Promise<boolean> {
 		try {
-			const stat = await this.fileService.resolve(this.environmentService.snippetsHome);
+			const stat = await this.fileService.resolve(this.userDataProfilesService.defaultProfile.snippetsHome);
 			return !stat.children?.length;
 		} catch (error) {
 			return (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND;

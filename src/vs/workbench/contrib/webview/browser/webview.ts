@@ -161,6 +161,11 @@ export interface IWebview extends IDisposable {
 	 */
 	readonly origin: string;
 
+	/**
+	 * The original view type of the webview.
+	 */
+	readonly providedViewType?: string;
+
 	html: string;
 	contentOptions: WebviewContentOptions;
 	localResourcesRoot: readonly URI[];

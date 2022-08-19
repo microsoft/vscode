@@ -50,7 +50,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { TextCompareEditorActiveContext } from 'vs/workbench/common/contextkeys';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IChange } from 'vs/editor/common/diff/diffComputer';
+import { IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import { Color } from 'vs/base/common/color';
 import { editorGutter } from 'vs/editor/common/core/editorColorRegistry';
 import { Iterable } from 'vs/base/common/iterator';
@@ -260,7 +260,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this._disposables.add(next);
 
 		const actions: IAction[] = [];
-		this._disposables.add(createAndFillInActionBarActions(this.menu, { shouldForwardArgs: true }, actions));
+		createAndFillInActionBarActions(this.menu, { shouldForwardArgs: true }, actions);
 		this._actionbarWidget!.push(actions.reverse(), { label: false, icon: true });
 		this._actionbarWidget!.push([next, previous], { label: false, icon: true });
 		this._actionbarWidget!.push(new Action('peekview.close', nls.localize('label.close', "Close"), Codicon.close.classNames, true, () => this.dispose()), { label: false, icon: true });
@@ -297,7 +297,8 @@ class DirtyDiffWidget extends PeekViewWidget {
 			minimap: { enabled: false },
 			renderSideBySide: false,
 			readOnly: false,
-			renderIndicators: false
+			renderIndicators: false,
+			diffAlgorithm: 'smart',
 		};
 
 		this.diffEditor = this.instantiationService.createInstance(EmbeddedDiffEditorWidget, container, options, this.editor);

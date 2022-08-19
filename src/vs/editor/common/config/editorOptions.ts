@@ -170,6 +170,10 @@ export interface IEditorOptions {
 	 */
 	scrollbar?: IEditorScrollbarOptions;
 	/**
+	 * Control the behavior of experimental options
+	 */
+	experimental?: IEditorExperimentalOptions;
+	/**
 	 * Control the behavior and rendering of the minimap.
 	 */
 	minimap?: IEditorMinimapOptions;
@@ -563,7 +567,7 @@ export interface IEditorOptions {
 	 * Controls whether the fold actions in the gutter stay always visible or hide unless the mouse is over the gutter.
 	 * Defaults to 'mouseover'.
 	 */
-	showFoldingControls?: 'always' | 'mouseover';
+	showFoldingControls?: 'always' | 'never' | 'mouseover';
 	/**
 	 * Controls whether clicking on the empty content after a folded line will unfold the line.
 	 * Defaults to false.
@@ -661,11 +665,11 @@ export interface IEditorOptions {
 	bracketPairColorization?: IBracketPairColorizationOptions;
 
 	/**
-	 * Enables dropping into the editor from an external source.
+	 * Controls dropping into the editor from an external source.
 	 *
-	 * This shows a preview of the drop location and triggers an `onDropIntoEditor` event.
+	 * When enabled, this shows a preview of the drop location and triggers an `onDropIntoEditor` event.
 	 */
-	enableDropIntoEditor?: boolean;
+	dropIntoEditor?: IDropIntoEditorOptions;
 }
 
 /**
@@ -706,6 +710,11 @@ export interface IDiffEditorBaseOptions {
 	 */
 	renderIndicators?: boolean;
 	/**
+	 * Shows icons in the glyph margin to revert changes.
+	 * Default to true.
+	 */
+	renderMarginRevertIcon?: boolean;
+	/**
 	 * Original model should be editable?
 	 * Defaults to false.
 	 */
@@ -724,6 +733,10 @@ export interface IDiffEditorBaseOptions {
 	 * Control the wrapping of the diff editor.
 	 */
 	diffWordWrap?: 'off' | 'on' | 'inherit';
+	/**
+	 * Diff Algorithm
+	*/
+	diffAlgorithm?: 'smart' | 'experimental';
 }
 
 /**
@@ -818,7 +831,7 @@ export interface IEditorOption<K extends EditorOption, V> {
 	/**
 	 * Might modify `value`.
 	*/
-	applyUpdate(value: V, update: V): ApplyUpdateResult<V>;
+	applyUpdate(value: V | undefined, update: V): ApplyUpdateResult<V>;
 }
 
 /**
@@ -847,7 +860,7 @@ abstract class BaseEditorOption<K extends EditorOption, T, V> implements IEditor
 		this.schema = schema;
 	}
 
-	public applyUpdate(value: V, update: V): ApplyUpdateResult<V> {
+	public applyUpdate(value: V | undefined, update: V): ApplyUpdateResult<V> {
 		return applyUpdate(value, update);
 	}
 
@@ -865,13 +878,13 @@ export class ApplyUpdateResult<T> {
 	) { }
 }
 
-function applyUpdate<T>(value: T, update: T): ApplyUpdateResult<T> {
+function applyUpdate<T>(value: T | undefined, update: T): ApplyUpdateResult<T> {
 	if (typeof value !== 'object' || typeof update !== 'object' || !value || !update) {
 		return new ApplyUpdateResult(update, value !== update);
 	}
 	if (Array.isArray(value) || Array.isArray(update)) {
 		const arrayEquals = Array.isArray(value) && Array.isArray(update) && arrays.equals(value, update);
-		return new ApplyUpdateResult(update, arrayEquals);
+		return new ApplyUpdateResult(update, !arrayEquals);
 	}
 	let didChange = false;
 	for (const key in update) {
@@ -902,7 +915,7 @@ abstract class ComputedEditorOption<K extends EditorOption, V> implements IEdito
 		this.defaultValue = <any>undefined;
 	}
 
-	public applyUpdate(value: V, update: V): ApplyUpdateResult<V> {
+	public applyUpdate(value: V | undefined, update: V): ApplyUpdateResult<V> {
 		return applyUpdate(value, update);
 	}
 
@@ -927,7 +940,7 @@ class SimpleEditorOption<K extends EditorOption, V> implements IEditorOption<K, 
 		this.schema = schema;
 	}
 
-	public applyUpdate(value: V, update: V): ApplyUpdateResult<V> {
+	public applyUpdate(value: V | undefined, update: V): ApplyUpdateResult<V> {
 		return applyUpdate(value, update);
 	}
 
@@ -2326,6 +2339,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 
 		const rawLineDecorationsWidth = options.get(EditorOption.lineDecorationsWidth);
 		const folding = options.get(EditorOption.folding);
+		const showFoldingDecoration = options.get(EditorOption.showFoldingControls) !== 'never';
 
 		let lineDecorationsWidth: number;
 		if (typeof rawLineDecorationsWidth === 'string' && /^\d+(\.\d+)?ch$/.test(rawLineDecorationsWidth)) {
@@ -2334,7 +2348,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		} else {
 			lineDecorationsWidth = EditorIntOption.clampedInt(rawLineDecorationsWidth, 0, 0, 1000);
 		}
-		if (folding) {
+		if (folding && showFoldingDecoration) {
 			lineDecorationsWidth += 16;
 		}
 
@@ -2498,6 +2512,67 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 
 //#endregion
 
+//#region experimental
+
+export interface IEditorExperimentalOptions {
+	/**
+	 * Configuration options for editor sticky scroll
+	 */
+	stickyScroll?: {
+		/**
+		 * Enable the sticky scroll
+		 */
+		enabled?: boolean;
+		maxLineCount?: number;
+	};
+}
+
+export interface EditorExperimentalOptions {
+	stickyScroll: {
+		enabled: boolean;
+		maxLineCount: number;
+	};
+}
+
+class EditorExperimental extends BaseEditorOption<EditorOption.experimental, IEditorExperimentalOptions, EditorExperimentalOptions> {
+
+	constructor() {
+		const defaults: EditorExperimentalOptions = { stickyScroll: { enabled: false, maxLineCount: 5 } };
+		super(
+			EditorOption.experimental, 'experimental', defaults,
+			{
+				'editor.experimental.stickyScroll.enabled': {
+					type: 'boolean',
+					default: defaults.stickyScroll.enabled,
+					description: nls.localize('editor.experimental.stickyScroll', "Shows the nested current scopes during the scroll at the top of the editor.")
+				},
+				'editor.experimental.stickyScroll.maxLineCount': {
+					type: 'number',
+					default: defaults.stickyScroll.maxLineCount,
+					minimum: 1,
+					maximum: 10,
+					description: nls.localize('editor.experimental.stickyScroll.', "Defines the maximum number of sticky lines to show.")
+				},
+			}
+		);
+	}
+
+	public validate(_input: any): EditorExperimentalOptions {
+		if (!_input || typeof _input !== 'object') {
+			return this.defaultValue;
+		}
+		const input = _input as IEditorExperimentalOptions;
+		return {
+			stickyScroll: {
+				enabled: boolean(input.stickyScroll?.enabled, this.defaultValue.stickyScroll.enabled),
+				maxLineCount: EditorIntOption.clampedInt(input.stickyScroll?.maxLineCount, this.defaultValue.stickyScroll.maxLineCount, 1, 10),
+			}
+		};
+	}
+}
+
+//#endregion
+
 //#region inlayHints
 
 /**
@@ -2556,12 +2631,12 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 				'editor.inlayHints.fontSize': {
 					type: 'number',
 					default: defaults.fontSize,
-					markdownDescription: nls.localize('inlayHints.fontSize', "Controls font size of inlay hints in the editor. As default the `#editor.fontSize#` is used when the configured value is less than `5` or greater than the editor font size.")
+					markdownDescription: nls.localize('inlayHints.fontSize', "Controls font size of inlay hints in the editor. As default the {0} is used when the configured value is less than {1} or greater than the editor font size.", '`#editor.fontSize#`', '`5`')
 				},
 				'editor.inlayHints.fontFamily': {
 					type: 'string',
 					default: defaults.fontFamily,
-					markdownDescription: nls.localize('inlayHints.fontFamily', "Controls font family of inlay hints in the editor. When set to empty, the `#editor.fontFamily#` is used.")
+					markdownDescription: nls.localize('inlayHints.fontFamily', "Controls font family of inlay hints in the editor. When set to empty, the {0} is used.", '`#editor.fontFamily#`')
 				},
 				'editor.inlayHints.padding': {
 					type: 'boolean',
@@ -2626,6 +2701,10 @@ export interface IEditorMinimapOptions {
 	 */
 	enabled?: boolean;
 	/**
+	 * Control the rendering of minimap.
+	 */
+	autohide?: boolean;
+	/**
 	 * Control the side of the minimap in editor.
 	 * Defaults to 'right'.
 	 */
@@ -2669,6 +2748,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 			size: 'proportional',
 			side: 'right',
 			showSlider: 'mouseover',
+			autohide: false,
 			renderCharacters: true,
 			maxColumn: 120,
 			scale: 1,
@@ -2680,6 +2760,11 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 					type: 'boolean',
 					default: defaults.enabled,
 					description: nls.localize('minimap.enabled', "Controls whether the minimap is shown.")
+				},
+				'editor.minimap.autohide': {
+					type: 'boolean',
+					default: defaults.autohide,
+					description: nls.localize('minimap.autohide', "Controls whether the minimap is hidden automatically.")
 				},
 				'editor.minimap.size': {
 					type: 'string',
@@ -2733,6 +2818,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 		const input = _input as IEditorMinimapOptions;
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
+			autohide: boolean(input.autohide, this.defaultValue.autohide),
 			size: stringSet<'proportional' | 'fill' | 'fit'>(input.size, this.defaultValue.size, ['proportional', 'fill', 'fit']),
 			side: stringSet<'right' | 'left'>(input.side, this.defaultValue.side, ['right', 'left']),
 			showSlider: stringSet<'always' | 'mouseover'>(input.showSlider, this.defaultValue.showSlider, ['always', 'mouseover']),
@@ -2949,7 +3035,7 @@ class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggesti
 				},
 			},
 			default: defaults,
-			markdownDescription: nls.localize('quickSuggestions', "Controls whether suggestions should automatically show up while typing. This can be controlled for typing in comments, strings, and other code. Quick suggestion can be configured to show as ghost text or with the suggest widget.")
+			markdownDescription: nls.localize('quickSuggestions', "Controls whether suggestions should automatically show up while typing. This can be controlled for typing in comments, strings, and other code. Quick suggestion can be configured to show as ghost text or with the suggest widget. Also be aware of the '{0}'-setting which controls if suggestions are triggered by special characters.", `#editor.suggestOnTriggerCharacters#`)
 		});
 		this.defaultValue = defaults;
 	}
@@ -3476,16 +3562,16 @@ class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting
 		);
 	}
 
-	public override applyUpdate(value: Required<Readonly<IUnicodeHighlightOptions>>, update: Required<Readonly<IUnicodeHighlightOptions>>): ApplyUpdateResult<Required<Readonly<IUnicodeHighlightOptions>>> {
+	public override applyUpdate(value: Required<Readonly<IUnicodeHighlightOptions>> | undefined, update: Required<Readonly<IUnicodeHighlightOptions>>): ApplyUpdateResult<Required<Readonly<IUnicodeHighlightOptions>>> {
 		let didChange = false;
-		if (update?.allowedCharacters && value?.allowedCharacters) {
+		if (update.allowedCharacters && value) {
 			// Treat allowedCharacters atomically
 			if (!objects.equals(value.allowedCharacters, update.allowedCharacters)) {
 				value = { ...value, allowedCharacters: update.allowedCharacters };
 				didChange = true;
 			}
 		}
-		if (update?.allowedLocales && value?.allowedLocales) {
+		if (update.allowedLocales && value) {
 			// Treat allowedLocales atomically
 			if (!objects.equals(value.allowedLocales, update.allowedLocales)) {
 				value = { ...value, allowedLocales: update.allowedLocales };
@@ -3626,7 +3712,7 @@ class BracketPairColorization extends BaseEditorOption<EditorOption.bracketPairC
 				'editor.bracketPairColorization.enabled': {
 					type: 'boolean',
 					default: defaults.enabled,
-					markdownDescription: nls.localize('bracketPairColorization.enabled', "Controls whether bracket pair colorization is enabled or not. Use `#workbench.colorCustomizations#` to override the bracket highlight colors.")
+					markdownDescription: nls.localize('bracketPairColorization.enabled', "Controls whether bracket pair colorization is enabled or not. Use {0} to override the bracket highlight colors.", '`#workbench.colorCustomizations#`')
 				},
 				'editor.bracketPairColorization.independentColorPoolPerBracketType': {
 					type: 'boolean',
@@ -4370,6 +4456,53 @@ class EditorWrappingInfoComputer extends ComputedEditorOption<EditorOption.wrapp
 
 //#endregion
 
+//#region dropIntoEditor
+
+/**
+ * Configuration options for editor drop into behavior
+ */
+export interface IDropIntoEditorOptions {
+	/**
+	 * Enable the dropping into editor.
+	 * Defaults to true.
+	 */
+	enabled?: boolean;
+}
+
+/**
+ * @internal
+ */
+export type EditorDropIntoEditorOptions = Readonly<Required<IDropIntoEditorOptions>>;
+
+class EditorDropIntoEditor extends BaseEditorOption<EditorOption.dropIntoEditor, IDropIntoEditorOptions, EditorDropIntoEditorOptions> {
+
+	constructor() {
+		const defaults: EditorDropIntoEditorOptions = { enabled: true };
+		super(
+			EditorOption.dropIntoEditor, 'dropIntoEditor', defaults,
+			{
+				'editor.dropIntoEditor.enabled': {
+					type: 'boolean',
+					default: defaults.enabled,
+					markdownDescription: nls.localize('dropIntoEditor.enabled', "Controls whether you can drag and drop a file into a text editor by holding down `shift` (instead of opening the file in an editor)."),
+				},
+			}
+		);
+	}
+
+	public validate(_input: any): EditorDropIntoEditorOptions {
+		if (!_input || typeof _input !== 'object') {
+			return this.defaultValue;
+		}
+		const input = _input as IDropIntoEditorOptions;
+		return {
+			enabled: boolean(input.enabled, this.defaultValue.enabled)
+		};
+	}
+}
+
+//#endregion
+
 const DEFAULT_WINDOWS_FONT_FAMILY = 'Consolas, \'Courier New\', monospace';
 const DEFAULT_MAC_FONT_FAMILY = 'Menlo, Monaco, \'Courier New\', monospace';
 const DEFAULT_LINUX_FONT_FAMILY = '\'Droid Sans Mono\', \'monospace\', monospace';
@@ -4432,8 +4565,9 @@ export const enum EditorOption {
 	disableMonospaceOptimizations,
 	domReadOnly,
 	dragAndDrop,
-	enableDropIntoEditor,
+	dropIntoEditor,
 	emptySelectionClipboard,
+	experimental,
 	extraEditorClassName,
 	fastScrollSensitivity,
 	find,
@@ -4540,7 +4674,7 @@ export const enum EditorOption {
 export const EditorOptions = {
 	acceptSuggestionOnCommitCharacter: register(new EditorBooleanOption(
 		EditorOption.acceptSuggestionOnCommitCharacter, 'acceptSuggestionOnCommitCharacter', true,
-		{ markdownDescription: nls.localize('acceptSuggestionOnCommitCharacter', "Controls whether suggestions should be accepted on commit characters. For example, in JavaScript, the semi-colon (`;`) can be a commit character that accepts a suggestion and types that character.") }
+		{ markdownDescription: nls.localize('acceptSuggestionOnCommitCharacter', "Controls whether suggestions should be accepted on commit characters. For example, in JavaScript, the semi-colon (`; `) can be a commit character that accepts a suggestion and types that character.") }
 	)),
 	acceptSuggestionOnEnter: register(new EditorStringEnumOption(
 		EditorOption.acceptSuggestionOnEnter, 'acceptSuggestionOnEnter',
@@ -4741,9 +4875,8 @@ export const EditorOptions = {
 		{ description: nls.localize('dragAndDrop', "Controls whether the editor should allow moving selections via drag and drop.") }
 	)),
 	emptySelectionClipboard: register(new EditorEmptySelectionClipboard()),
-	enableDropIntoEditor: register(new EditorBooleanOption(
-		EditorOption.enableDropIntoEditor, 'enableDropIntoEditor', true
-	)),
+	dropIntoEditor: register(new EditorDropIntoEditor()),
+	experimental: register(new EditorExperimental()),
 	extraEditorClassName: register(new EditorStringOption(
 		EditorOption.extraEditorClassName, 'extraEditorClassName', '',
 	)),
@@ -4880,7 +5013,7 @@ export const EditorOptions = {
 					'- `ctrlCmd` refers to a value the setting can take and should not be localized.',
 					'- `Control` and `Command` refer to the modifier keys Ctrl or Cmd on the keyboard and can be localized.'
 				]
-			}, "The modifier to be used to add multiple cursors with the mouse. The Go to Definition and Open Link mouse gestures will adapt such that they do not conflict with the multicursor modifier. [Read more](https://code.visualstudio.com/docs/editor/codebasics#_multicursor-modifier).")
+			}, "The modifier to be used to add multiple cursors with the mouse. The Go to Definition and Open Link mouse gestures will adapt such that they do not conflict with the [multicursor modifier](https://code.visualstudio.com/docs/editor/codebasics#_multicursor-modifier).")
 		}
 	)),
 	multiCursorPaste: register(new EditorStringEnumOption(
@@ -5023,11 +5156,12 @@ export const EditorOptions = {
 	)),
 	showFoldingControls: register(new EditorStringEnumOption(
 		EditorOption.showFoldingControls, 'showFoldingControls',
-		'mouseover' as 'always' | 'mouseover',
-		['always', 'mouseover'] as const,
+		'mouseover' as 'always' | 'never' | 'mouseover',
+		['always', 'never', 'mouseover'] as const,
 		{
 			enumDescriptions: [
 				nls.localize('showFoldingControls.always', "Always show the folding controls."),
+				nls.localize('showFoldingControls.never', "Never show the folding controls and reduce the gutter size."),
 				nls.localize('showFoldingControls.mouseover', "Only show the folding controls when the mouse is over the gutter."),
 			],
 			description: nls.localize('showFoldingControls', "Controls when the folding controls on the gutter are shown.")
@@ -5070,12 +5204,12 @@ export const EditorOptions = {
 	suggestFontSize: register(new EditorIntOption(
 		EditorOption.suggestFontSize, 'suggestFontSize',
 		0, 0, 1000,
-		{ markdownDescription: nls.localize('suggestFontSize', "Font size for the suggest widget. When set to `0`, the value of `#editor.fontSize#` is used.") }
+		{ markdownDescription: nls.localize('suggestFontSize', "Font size for the suggest widget. When set to {0}, the value of {1} is used.", '`0`', '`#editor.fontSize#`') }
 	)),
 	suggestLineHeight: register(new EditorIntOption(
 		EditorOption.suggestLineHeight, 'suggestLineHeight',
 		0, 0, 1000,
-		{ markdownDescription: nls.localize('suggestLineHeight', "Line height for the suggest widget. When set to `0`, the value of `#editor.lineHeight#` is used. The minimum value is 8.") }
+		{ markdownDescription: nls.localize('suggestLineHeight', "Line height for the suggest widget. When set to {0}, the value of {1} is used. The minimum value is 8.", '`0`', '`#editor.lineHeight#`') }
 	)),
 	suggestOnTriggerCharacters: register(new EditorBooleanOption(
 		EditorOption.suggestOnTriggerCharacters, 'suggestOnTriggerCharacters', true,

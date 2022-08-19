@@ -450,6 +450,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private _matchOnDescription = false;
 	private _matchOnDetail = false;
 	private _matchOnLabel = true;
+	private _matchOnLabelMode: 'fuzzy' | 'contiguous' = 'fuzzy';
 	private _sortByLabel = true;
 	private _autoFocusOnList = true;
 	private _keepScrollPosition = false;
@@ -592,6 +593,15 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 
 	set matchOnLabel(matchOnLabel: boolean) {
 		this._matchOnLabel = matchOnLabel;
+		this.update();
+	}
+
+	get matchOnLabelMode() {
+		return this._matchOnLabelMode;
+	}
+
+	set matchOnLabelMode(matchOnLabelMode: 'fuzzy' | 'contiguous') {
+		this._matchOnLabelMode = matchOnLabelMode;
 		this.update();
 	}
 
@@ -994,6 +1004,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		this.ui.list.matchOnDescription = this.matchOnDescription;
 		this.ui.list.matchOnDetail = this.matchOnDetail;
 		this.ui.list.matchOnLabel = this.matchOnLabel;
+		this.ui.list.matchOnLabelMode = this.matchOnLabelMode;
 		this.ui.list.sortByLabel = this.sortByLabel;
 		if (this.itemsUpdated) {
 			this.itemsUpdated = false;
@@ -1599,9 +1610,7 @@ export class QuickInputController extends Disposable {
 		this.onShowEmitter.fire();
 		const oldController = this.controller;
 		this.controller = controller;
-		if (oldController) {
-			oldController.didHide();
-		}
+		oldController?.didHide();
 
 		this.setEnabled(true);
 		ui.leftActionBar.clear();
@@ -1675,10 +1684,10 @@ export class QuickInputController extends Disposable {
 		if (enabled !== this.enabled) {
 			this.enabled = enabled;
 			for (const item of this.getUI().leftActionBar.viewItems) {
-				(item as ActionViewItem).getAction().enabled = enabled;
+				(item as ActionViewItem).action.enabled = enabled;
 			}
 			for (const item of this.getUI().rightActionBar.viewItems) {
-				(item as ActionViewItem).getAction().enabled = enabled;
+				(item as ActionViewItem).action.enabled = enabled;
 			}
 			this.getUI().checkAll.disabled = !enabled;
 			// this.getUI().inputBox.enabled = enabled; Avoid loosing focus.

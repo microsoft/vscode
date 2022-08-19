@@ -10,13 +10,13 @@ import { CompletionModel } from 'vs/editor/contrib/suggest/browser/completionMod
 import { CompletionItem, getSuggestionComparator, SnippetSortOrder } from 'vs/editor/contrib/suggest/browser/suggest';
 import { WordDistance } from 'vs/editor/contrib/suggest/browser/wordDistance';
 
-export function createSuggestItem(label: string, overwriteBefore: number, kind = languages.CompletionItemKind.Property, incomplete: boolean = false, position: IPosition = { lineNumber: 1, column: 1 }, sortText?: string, filterText?: string): CompletionItem {
+export function createSuggestItem(label: string | languages.CompletionItemLabel, overwriteBefore: number, kind = languages.CompletionItemKind.Property, incomplete: boolean = false, position: IPosition = { lineNumber: 1, column: 1 }, sortText?: string, filterText?: string): CompletionItem {
 	const suggestion: languages.CompletionItem = {
 		label,
 		sortText,
 		filterText,
 		range: { startLineNumber: position.lineNumber, startColumn: position.column - overwriteBefore, endLineNumber: position.lineNumber, endColumn: position.column },
-		insertText: label,
+		insertText: typeof label === 'string' ? label : label.label,
 		kind
 	};
 	const container: languages.CompletionList = {
@@ -273,6 +273,17 @@ suite('CompletionModel', function () {
 		const [first, second] = model.items;
 		assert.strictEqual(first.completion.label, 'source');
 		assert.strictEqual(second.completion.label, '<- groups');
+	});
+
+	test('Completion item sorting broken when using label details #153026', function () {
+		const itemZZZ = createSuggestItem({ label: 'ZZZ' }, 0, languages.CompletionItemKind.Operator, false);
+		const itemAAA = createSuggestItem({ label: 'AAA' }, 0, languages.CompletionItemKind.Operator, false);
+		const itemIII = createSuggestItem('III', 0, languages.CompletionItemKind.Operator, false);
+
+		const cmp = getSuggestionComparator(SnippetSortOrder.Inline);
+		const actual = [itemZZZ, itemAAA, itemIII].sort(cmp);
+
+		assert.deepStrictEqual(actual, [itemAAA, itemIII, itemZZZ]);
 	});
 
 	test('Score only filtered items when typing more, score all when typing less', function () {

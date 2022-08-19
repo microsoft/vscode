@@ -143,6 +143,10 @@ export class InMemoryFileSystemProvider extends Disposable implements IFileSyste
 	}
 
 	async mkdir(resource: URI): Promise<void> {
+		if (this._lookup(resource, true)) {
+			throw new FileSystemProviderError('file exists already', FileSystemProviderErrorCode.FileExists);
+		}
+
 		const basename = resources.basename(resource);
 		const dirname = resources.dirname(resource);
 		const parent = this._lookupAsDirectory(dirname, false);

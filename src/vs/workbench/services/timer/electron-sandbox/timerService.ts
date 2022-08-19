@@ -99,10 +99,10 @@ export function didUseCachedData(productService: IProductService, storageService
 	if (typeof _didUseCachedData !== 'boolean') {
 		if (!environmentService.window.isCodeCaching || !productService.commit) {
 			_didUseCachedData = false; // we only produce cached data whith commit and code cache path
-		} else if (storageService.get(lastRunningCommitStorageKey, StorageScope.GLOBAL) === productService.commit) {
+		} else if (storageService.get(lastRunningCommitStorageKey, StorageScope.APPLICATION) === productService.commit) {
 			_didUseCachedData = true; // subsequent start on same commit, assume cached data is there
 		} else {
-			storageService.store(lastRunningCommitStorageKey, productService.commit, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			storageService.store(lastRunningCommitStorageKey, productService.commit, StorageScope.APPLICATION, StorageTarget.MACHINE);
 			_didUseCachedData = false; // first time start on commit, assume cached data is not yet there
 		}
 	}

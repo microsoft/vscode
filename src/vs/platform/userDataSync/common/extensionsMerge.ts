@@ -45,9 +45,7 @@ export function merge(localExtensions: ISyncExtensionWithVersion[], remoteExtens
 	const addUUID = (identifier: IExtensionIdentifier) => { if (identifier.uuid) { uuids.set(identifier.id.toLowerCase(), identifier.uuid); } };
 	localExtensions.forEach(({ identifier }) => addUUID(identifier));
 	remoteExtensions.forEach(({ identifier }) => addUUID(identifier));
-	if (lastSyncExtensions) {
-		lastSyncExtensions.forEach(({ identifier }) => addUUID(identifier));
-	}
+	lastSyncExtensions?.forEach(({ identifier }) => addUUID(identifier));
 
 	const getKey = (extension: ISyncExtension): string => {
 		const uuid = extension.identifier.uuid || uuids.get(extension.identifier.id.toLowerCase());

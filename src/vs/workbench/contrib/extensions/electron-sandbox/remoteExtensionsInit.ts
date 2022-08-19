@@ -14,6 +14,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IStorageService, IS_NEW_KEY, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { AbstractExtensionsInitializer } from 'vs/platform/userDataSync/common/extensionsSync';
 import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
 import { IRemoteUserData, IUserDataSyncStoreManagementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
@@ -56,11 +57,11 @@ export class RemoteExtensionsInitializerContribution implements IWorkbenchContri
 		}
 		const newRemoteConnectionKey = `${IS_NEW_KEY}.${connection.remoteAuthority}`;
 		// Skip: Not a new remote connection
-		if (!this.storageService.getBoolean(newRemoteConnectionKey, StorageScope.GLOBAL, true)) {
+		if (!this.storageService.getBoolean(newRemoteConnectionKey, StorageScope.APPLICATION, true)) {
 			this.logService.trace(`Skipping initializing remote extensions because the window with this remote authority was opened before.`);
 			return;
 		}
-		this.storageService.store(newRemoteConnectionKey, false, StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this.storageService.store(newRemoteConnectionKey, false, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		// Skip: Not a new workspace
 		if (!this.storageService.isNew(StorageScope.WORKSPACE)) {
 			this.logService.trace(`Skipping initializing remote extensions because this workspace was opened before.`);
@@ -82,7 +83,7 @@ export class RemoteExtensionsInitializerContribution implements IWorkbenchContri
 
 		const userDataSyncStoreClient = this.instantiationService.createInstance(UserDataSyncStoreClient, this.userDataSyncStoreManagementService.userDataSyncStore.url);
 		userDataSyncStoreClient.setAuthToken(session.accessToken, resolvedAuthority.options.authenticationSession.providerId);
-		const userData = await userDataSyncStoreClient.read(SyncResource.Extensions, null);
+		const userData = await userDataSyncStoreClient.readResource(SyncResource.Extensions, null);
 
 		const serviceCollection = new ServiceCollection();
 		serviceCollection.set(IExtensionManagementService, remoteExtensionManagementServer.extensionManagementService);
@@ -99,13 +100,14 @@ class RemoteExtensionsInitializer extends AbstractExtensionsInitializer {
 		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
 		@IIgnoredExtensionsManagementService ignoredExtensionsManagementService: IIgnoredExtensionsManagementService,
 		@IFileService fileService: IFileService,
+		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILogService logService: ILogService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) {
-		super(extensionManagementService, ignoredExtensionsManagementService, fileService, environmentService, logService, uriIdentityService);
+		super(extensionManagementService, ignoredExtensionsManagementService, fileService, userDataProfilesService, environmentService, logService, uriIdentityService);
 	}
 
 	protected override async doInitialize(remoteUserData: IRemoteUserData): Promise<void> {

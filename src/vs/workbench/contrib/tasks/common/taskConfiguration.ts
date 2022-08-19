@@ -356,12 +356,17 @@ export interface IConfigurationProperties {
 	/**
 	 * The icon for this task in the terminal tabs list
 	 */
-	icon?: string;
+	icon?: { id: string; color?: string };
 
 	/**
 	 * The icon's color in the terminal tabs list
 	 */
 	color?: string;
+
+	/**
+	 * Do not show this task in the run task quickpick
+	 */
+	hide?: boolean;
 }
 
 export interface ICustomTask extends ICommandProperties, IConfigurationProperties {
@@ -1145,7 +1150,7 @@ export namespace ProblemMatcherConverter {
 	export function namedFrom(this: void, declares: ProblemMatcherConfig.INamedProblemMatcher[] | undefined, context: IParseContext): IStringDictionary<INamedProblemMatcher> {
 		const result: IStringDictionary<INamedProblemMatcher> = Object.create(null);
 
-		if (!Types.isArray(declares)) {
+		if (!Array.isArray(declares)) {
 			return result;
 		}
 		(<ProblemMatcherConfig.INamedProblemMatcher[]>declares).forEach((value) => {
@@ -1208,7 +1213,7 @@ export namespace ProblemMatcherConverter {
 	function getProblemMatcherKind(this: void, value: ProblemMatcherConfig.ProblemMatcherType): ProblemMatcherKind {
 		if (Types.isString(value)) {
 			return ProblemMatcherKind.String;
-		} else if (Types.isArray(value)) {
+		} else if (Array.isArray(value)) {
 			return ProblemMatcherKind.Array;
 		} else if (!Types.isUndefined(value)) {
 			return ProblemMatcherKind.ProblemMatcher;
@@ -1322,8 +1327,8 @@ namespace ConfigurationProperties {
 		{ property: 'presentation', type: CommandConfiguration.PresentationOptions },
 		{ property: 'problemMatchers' },
 		{ property: 'options' },
-		{ property: 'color' },
-		{ property: 'icon' }
+		{ property: 'icon' },
+		{ property: 'hide' }
 	];
 
 	export function from(this: void, external: IConfigurationProperties & { [key: string]: any }, context: IParseContext,
@@ -1350,13 +1355,8 @@ namespace ConfigurationProperties {
 		if (Types.isString(external.identifier)) {
 			result.identifier = external.identifier;
 		}
-		if (Types.isString(external.color)) {
-			result.color = external.color;
-		}
-		if (Types.isString(external.icon)) {
-			result.icon = external.icon;
-		}
-
+		result.icon = external.icon;
+		result.hide = external.hide;
 		if (external.isBackground !== undefined) {
 			result.isBackground = !!external.isBackground;
 		}
@@ -1365,7 +1365,7 @@ namespace ConfigurationProperties {
 		}
 		result.group = GroupKind.from(external.group);
 		if (external.dependsOn !== undefined) {
-			if (Types.isArray(external.dependsOn)) {
+			if (Array.isArray(external.dependsOn)) {
 				result.dependsOn = external.dependsOn.reduce((dependencies: Tasks.ITaskDependency[], item): Tasks.ITaskDependency[] => {
 					const dependency = TaskDependency.from(item, context, source);
 					if (dependency) {
@@ -1489,7 +1489,7 @@ namespace ConfiguringTask {
 			type,
 			taskIdentifier,
 			RunOptions.fromConfiguration(external.runOptions),
-			{}
+			{ hide: external.hide }
 		);
 		const configuration = ConfigurationProperties.from(external, context, true, source, typeDeclaration.properties);
 		result.addTaskLoadMessages(configuration.errors);
@@ -1641,8 +1641,8 @@ namespace CustomTask {
 			{
 				name: configuredProps.configurationProperties.name || contributedTask.configurationProperties.name,
 				identifier: configuredProps.configurationProperties.identifier || contributedTask.configurationProperties.identifier,
-				icon: contributedTask.configurationProperties.icon,
-				color: contributedTask.configurationProperties.color
+				icon: configuredProps.configurationProperties.icon,
+				hide: configuredProps.configurationProperties.hide
 			},
 
 		);
@@ -2126,7 +2126,7 @@ class ConfigurationParser {
 					identifier: name,
 					group: Tasks.TaskGroup.Build,
 					isBackground: isBackground,
-					problemMatchers: matchers,
+					problemMatchers: matchers
 				}
 			);
 			const taskGroupKind = GroupKind.from(fileConfig.group);

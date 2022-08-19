@@ -53,6 +53,7 @@ import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransfo
 import { OutlineModel } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
+import { CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/browser/types';
 
 suite('ExtHostLanguageFeatures', function () {
 
@@ -628,7 +629,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const { validActions: actions } = await getCodeActions(languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), { type: languages.CodeActionTriggerType.Invoke }, Progress.None, CancellationToken.None);
+		const { validActions: actions } = await getCodeActions(languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), { type: languages.CodeActionTriggerType.Invoke, triggerAction: CodeActionTriggerSource.QuickFix }, Progress.None, CancellationToken.None);
 		assert.strictEqual(actions.length, 2);
 		const [first, second] = actions;
 		assert.strictEqual(first.action.title, 'Testing1');
@@ -652,7 +653,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const { validActions: actions } = await getCodeActions(languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), { type: languages.CodeActionTriggerType.Invoke }, Progress.None, CancellationToken.None);
+		const { validActions: actions } = await getCodeActions(languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), { type: languages.CodeActionTriggerType.Invoke, triggerAction: CodeActionTriggerSource.Default }, Progress.None, CancellationToken.None);
 		assert.strictEqual(actions.length, 1);
 		const [first] = actions;
 		assert.strictEqual(first.action.title, 'Testing1');
@@ -675,7 +676,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const { validActions: actions } = await getCodeActions(languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), { type: languages.CodeActionTriggerType.Invoke }, Progress.None, CancellationToken.None);
+		const { validActions: actions } = await getCodeActions(languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), { type: languages.CodeActionTriggerType.Invoke, triggerAction: CodeActionTriggerSource.Default }, Progress.None, CancellationToken.None);
 		assert.strictEqual(actions.length, 1);
 	});
 
@@ -693,7 +694,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const { validActions: actions } = await getCodeActions(languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), { type: languages.CodeActionTriggerType.Invoke }, Progress.None, CancellationToken.None);
+		const { validActions: actions } = await getCodeActions(languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), { type: languages.CodeActionTriggerType.Invoke, triggerAction: CodeActionTriggerSource.QuickFix }, Progress.None, CancellationToken.None);
 		assert.strictEqual(actions.length, 1);
 	});
 

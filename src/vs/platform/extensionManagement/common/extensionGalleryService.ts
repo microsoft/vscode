@@ -7,7 +7,6 @@ import { distinct } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { CancellationError, getErrorMessage, isCancellationError } from 'vs/base/common/errors';
-import { getOrDefault } from 'vs/base/common/objects';
 import { IPager } from 'vs/base/common/paging';
 import { isWeb, platform } from 'vs/base/common/platform';
 import { arch } from 'vs/base/common/process';
@@ -585,7 +584,14 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		const config = productService.extensionsGallery;
 		this.extensionsGalleryUrl = config && config.serviceUrl;
 		this.extensionsControlUrl = config && config.controlUrl;
-		this.commonHeadersPromise = resolveMarketplaceHeaders(productService.version, productService, this.environmentService, this.configurationService, this.fileService, storageService);
+		this.commonHeadersPromise = resolveMarketplaceHeaders(
+			productService.version,
+			productService,
+			this.environmentService,
+			this.configurationService,
+			this.fileService,
+			storageService,
+			this.telemetryService);
 	}
 
 	private api(path = ''): string {
@@ -709,7 +715,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		}
 
 		let text = options.text || '';
-		const pageSize = getOrDefault(options, o => o.pageSize, 50);
+		const pageSize = options.pageSize ?? 50;
 
 		let query = new Query()
 			.withPage(1, pageSize);
@@ -929,7 +935,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			'Content-Type': 'application/json',
 			'Accept': 'application/json;api-version=3.0-preview.1',
 			'Accept-Encoding': 'gzip',
-			'Content-Length': String(data.length)
+			'Content-Length': String(data.length),
 		};
 
 		const startTime = new Date().getTime();

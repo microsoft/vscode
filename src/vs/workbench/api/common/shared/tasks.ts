@@ -78,6 +78,7 @@ export interface ITaskSourceDTO {
 	scope?: number | UriComponents;
 	color?: string;
 	icon?: string;
+	hide?: boolean;
 }
 
 export interface ITaskHandleDTO {
@@ -103,8 +104,6 @@ export interface ITaskDTO {
 	problemMatchers: string[];
 	hasDefinedMatchers: boolean;
 	runOptions?: IRunOptionsDTO;
-	color?: string;
-	icon?: string;
 }
 
 export interface ITaskSetDTO {

@@ -64,4 +64,3 @@ export default class ServiceWrapper implements vscode.Disposable {
 		this.services = [];
 	}
 }
-

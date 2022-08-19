@@ -14,7 +14,7 @@ import { MarshalledObject } from 'vs/base/common/marshalling';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { IURITransformer, transformIncomingURIs } from 'vs/base/common/uriIpc';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { LazyPromise } from 'vs/workbench/services/extensions/common/lazyPromise';
+import { CanceledLazyPromise, LazyPromise } from 'vs/workbench/services/extensions/common/lazyPromise';
 import { getStringIdentifierForProxy, IRPCProtocol, Proxied, ProxyIdentifier, SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 
 export interface JSONStringifyReplacer {
@@ -306,9 +306,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 				break;
 			}
 			case MessageType.Acknowledged: {
-				if (this._logger) {
-					this._logger.logIncoming(msgLength, req, RequestInitiator.LocalSide, `ack`);
-				}
+				this._logger?.logIncoming(msgLength, req, RequestInitiator.LocalSide, `ack`);
 				this._onDidReceiveAcknowledge(req);
 				break;
 			}
@@ -357,9 +355,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 	}
 
 	private _receiveRequest(msgLength: number, req: number, rpcId: number, method: string, args: any[], usesCancellationToken: boolean): void {
-		if (this._logger) {
-			this._logger.logIncoming(msgLength, req, RequestInitiator.OtherSide, `receiveRequest ${getStringIdentifierForProxy(rpcId)}.${method}(`, args);
-		}
+		this._logger?.logIncoming(msgLength, req, RequestInitiator.OtherSide, `receiveRequest ${getStringIdentifierForProxy(rpcId)}.${method}(`, args);
 		const callId = String(req);
 
 		let promise: Promise<any>;
@@ -379,40 +375,30 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 
 		// Acknowledge the request
 		const msg = MessageIO.serializeAcknowledged(req);
-		if (this._logger) {
-			this._logger.logOutgoing(msg.byteLength, req, RequestInitiator.OtherSide, `ack`);
-		}
+		this._logger?.logOutgoing(msg.byteLength, req, RequestInitiator.OtherSide, `ack`);
 		this._protocol.send(msg);
 
 		promise.then((r) => {
 			delete this._cancelInvokedHandlers[callId];
 			const msg = MessageIO.serializeReplyOK(req, r, this._uriReplacer);
-			if (this._logger) {
-				this._logger.logOutgoing(msg.byteLength, req, RequestInitiator.OtherSide, `reply:`, r);
-			}
+			this._logger?.logOutgoing(msg.byteLength, req, RequestInitiator.OtherSide, `reply:`, r);
 			this._protocol.send(msg);
 		}, (err) => {
 			delete this._cancelInvokedHandlers[callId];
 			const msg = MessageIO.serializeReplyErr(req, err);
-			if (this._logger) {
-				this._logger.logOutgoing(msg.byteLength, req, RequestInitiator.OtherSide, `replyErr:`, err);
-			}
+			this._logger?.logOutgoing(msg.byteLength, req, RequestInitiator.OtherSide, `replyErr:`, err);
 			this._protocol.send(msg);
 		});
 	}
 
 	private _receiveCancel(msgLength: number, req: number): void {
-		if (this._logger) {
-			this._logger.logIncoming(msgLength, req, RequestInitiator.OtherSide, `receiveCancel`);
-		}
+		this._logger?.logIncoming(msgLength, req, RequestInitiator.OtherSide, `receiveCancel`);
 		const callId = String(req);
 		this._cancelInvokedHandlers[callId]?.();
 	}
 
 	private _receiveReply(msgLength: number, req: number, value: any): void {
-		if (this._logger) {
-			this._logger.logIncoming(msgLength, req, RequestInitiator.LocalSide, `receiveReply:`, value);
-		}
+		this._logger?.logIncoming(msgLength, req, RequestInitiator.LocalSide, `receiveReply:`, value);
 		const callId = String(req);
 		if (!this._pendingRPCReplies.hasOwnProperty(callId)) {
 			return;
@@ -425,9 +411,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 	}
 
 	private _receiveReplyErr(msgLength: number, req: number, value: any): void {
-		if (this._logger) {
-			this._logger.logIncoming(msgLength, req, RequestInitiator.LocalSide, `receiveReplyErr:`, value);
-		}
+		this._logger?.logIncoming(msgLength, req, RequestInitiator.LocalSide, `receiveReplyErr:`, value);
 
 		const callId = String(req);
 		if (!this._pendingRPCReplies.hasOwnProperty(callId)) {
@@ -473,7 +457,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 
 	private _remoteCall(rpcId: number, methodName: string, args: any[]): Promise<any> {
 		if (this._isDisposed) {
-			return Promise.reject<any>(errors.canceled());
+			return new CanceledLazyPromise();
 		}
 		let cancellationToken: CancellationToken | null = null;
 		if (args.length > 0 && CancellationToken.isCancellationToken(args[args.length - 1])) {
@@ -494,9 +478,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 		if (cancellationToken) {
 			cancellationToken.onCancellationRequested(() => {
 				const msg = MessageIO.serializeCancel(req);
-				if (this._logger) {
-					this._logger.logOutgoing(msg.byteLength, req, RequestInitiator.LocalSide, `cancel`);
-				}
+				this._logger?.logOutgoing(msg.byteLength, req, RequestInitiator.LocalSide, `cancel`);
 				this._protocol.send(MessageIO.serializeCancel(req));
 			});
 		}
@@ -504,9 +486,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 		this._pendingRPCReplies[callId] = result;
 		this._onWillSendRequest(req);
 		const msg = MessageIO.serializeRequest(req, rpcId, methodName, serializedRequestArguments, !!cancellationToken);
-		if (this._logger) {
-			this._logger.logOutgoing(msg.byteLength, req, RequestInitiator.LocalSide, `request: ${getStringIdentifierForProxy(rpcId)}.${methodName}(`, args);
-		}
+		this._logger?.logOutgoing(msg.byteLength, req, RequestInitiator.LocalSide, `request: ${getStringIdentifierForProxy(rpcId)}.${methodName}(`, args);
 		this._protocol.send(msg);
 		return result;
 	}

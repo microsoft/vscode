@@ -425,9 +425,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 					this.removeFromSchema(key, configuration.properties[key]);
 				}
 			}
-			if (configuration.allOf) {
-				configuration.allOf.forEach(node => deregisterConfiguration(node));
-			}
+			configuration.allOf?.forEach(node => deregisterConfiguration(node));
 		};
 		for (const configuration of configurations) {
 			deregisterConfiguration(configuration);
@@ -525,9 +523,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 				}
 			}
 			const subNodes = configuration.allOf;
-			if (subNodes) {
-				subNodes.forEach(register);
-			}
+			subNodes?.forEach(register);
 		};
 		register(configuration);
 	}

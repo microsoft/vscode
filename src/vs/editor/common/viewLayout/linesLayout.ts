@@ -482,7 +482,7 @@ export class LinesLayout {
 	 * @param lineNumber The line number
 	 * @return The sum of heights for all objects above `lineNumber`.
 	 */
-	public getVerticalOffsetForLineNumber(lineNumber: number): number {
+	public getVerticalOffsetForLineNumber(lineNumber: number, includeViewZones = false): number {
 		this._checkPendingChanges();
 		lineNumber = lineNumber | 0;
 
@@ -493,8 +493,22 @@ export class LinesLayout {
 			previousLinesHeight = 0;
 		}
 
-		const previousWhitespacesHeight = this.getWhitespaceAccumulatedHeightBeforeLineNumber(lineNumber);
+		const previousWhitespacesHeight = this.getWhitespaceAccumulatedHeightBeforeLineNumber(lineNumber - (includeViewZones ? 1 : 0));
 
+		return previousLinesHeight + previousWhitespacesHeight + this._paddingTop;
+	}
+
+	/**
+	 * Get the vertical offset (the sum of heights for all objects above) a certain line number.
+	 *
+	 * @param lineNumber The line number
+	 * @return The sum of heights for all objects above `lineNumber`.
+	 */
+	public getVerticalOffsetAfterLineNumber(lineNumber: number, includeViewZones = false): number {
+		this._checkPendingChanges();
+		lineNumber = lineNumber | 0;
+		const previousLinesHeight = this._lineHeight * lineNumber;
+		const previousWhitespacesHeight = this.getWhitespaceAccumulatedHeightBeforeLineNumber(lineNumber + (includeViewZones ? 1 : 0));
 		return previousLinesHeight + previousWhitespacesHeight + this._paddingTop;
 	}
 

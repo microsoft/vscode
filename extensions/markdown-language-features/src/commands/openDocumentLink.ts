@@ -5,8 +5,9 @@
 
 import * as vscode from 'vscode';
 import { Command } from '../commandManager';
-import { MarkdownEngine } from '../markdownEngine';
+import { MdTableOfContentsProvider } from '../tableOfContents';
 import { openDocumentLink } from '../util/openDocumentLink';
+import { Schemes } from '../util/schemes';
 
 type UriComponents = {
 	readonly scheme?: string;
@@ -48,18 +49,18 @@ export class OpenDocumentLinkCommand implements Command {
 	}
 
 	public constructor(
-		private readonly engine: MarkdownEngine
+		private readonly tocProvider: MdTableOfContentsProvider,
 	) { }
 
 	public async execute(args: OpenDocumentLinkArgs) {
 		const fromResource = vscode.Uri.parse('').with(args.fromResource);
 		const targetResource = reviveUri(args.parts).with({ fragment: args.fragment });
-		return openDocumentLink(this.engine, targetResource, fromResource);
+		return openDocumentLink(this.tocProvider, targetResource, fromResource);
 	}
 }
 
 function reviveUri(parts: any) {
-	if (parts.scheme === 'file') {
+	if (parts.scheme === Schemes.file) {
 		return vscode.Uri.file(parts.path);
 	}
 	return vscode.Uri.parse('').with(parts);

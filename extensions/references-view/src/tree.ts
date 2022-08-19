@@ -213,7 +213,7 @@ class TreeDndDelegate implements vscode.TreeDragAndDropController<undefined> {
 				}
 			}
 			if (urls.length > 0) {
-				data.set('text/uri-list', new vscode.DataTransferItem(urls.join('\n')));
+				data.set('text/uri-list', new vscode.DataTransferItem(urls.join('\r\n')));
 			}
 		}
 	}

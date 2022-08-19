@@ -9,6 +9,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { dirname, joinPath } from 'vs/base/common/resources';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUserDataSyncEnablementService, IUserDataSyncService, SyncResource, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
 
@@ -155,11 +156,12 @@ suite('UserDataSyncService', () => {
 		await testClient.setUp();
 		const fileService = testClient.instantiationService.get(IFileService);
 		const environmentService = testClient.instantiationService.get(IEnvironmentService);
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
-		await fileService.writeFile(environmentService.keybindingsResource, VSBuffer.fromString(JSON.stringify([{ 'command': 'abcd', 'key': 'cmd+c' }])));
+		const userDataProfilesService = testClient.instantiationService.get(IUserDataProfilesService);
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.keybindingsResource, VSBuffer.fromString(JSON.stringify([{ 'command': 'abcd', 'key': 'cmd+c' }])));
 		await fileService.writeFile(environmentService.argvResource, VSBuffer.fromString(JSON.stringify({ 'locale': 'de' })));
-		await fileService.writeFile(joinPath(environmentService.snippetsHome, 'html.json'), VSBuffer.fromString(`{}`));
-		await fileService.writeFile(joinPath(dirname(environmentService.settingsResource), 'tasks.json'), VSBuffer.fromString(JSON.stringify({})));
+		await fileService.writeFile(joinPath(userDataProfilesService.defaultProfile.snippetsHome, 'html.json'), VSBuffer.fromString(`{}`));
+		await fileService.writeFile(joinPath(dirname(userDataProfilesService.defaultProfile.settingsResource), 'tasks.json'), VSBuffer.fromString(JSON.stringify({})));
 		const testObject = testClient.instantiationService.get(IUserDataSyncService);
 
 		// Sync (merge) from the test client
@@ -213,9 +215,10 @@ suite('UserDataSyncService', () => {
 		// Do changes in the client
 		const fileService = client.instantiationService.get(IFileService);
 		const environmentService = client.instantiationService.get(IEnvironmentService);
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
-		await fileService.writeFile(environmentService.keybindingsResource, VSBuffer.fromString(JSON.stringify([{ 'command': 'abcd', 'key': 'cmd+c' }])));
-		await fileService.writeFile(joinPath(environmentService.snippetsHome, 'html.json'), VSBuffer.fromString(`{}`));
+		const userDataProfilesService = client.instantiationService.get(IUserDataProfilesService);
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.keybindingsResource, VSBuffer.fromString(JSON.stringify([{ 'command': 'abcd', 'key': 'cmd+c' }])));
+		await fileService.writeFile(joinPath(userDataProfilesService.defaultProfile.snippetsHome, 'html.json'), VSBuffer.fromString(`{}`));
 		await fileService.writeFile(environmentService.argvResource, VSBuffer.fromString(JSON.stringify({ 'locale': 'de' })));
 
 		// Sync from the client
@@ -248,9 +251,10 @@ suite('UserDataSyncService', () => {
 		// Do changes in the client
 		const fileService = client.instantiationService.get(IFileService);
 		const environmentService = client.instantiationService.get(IEnvironmentService);
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
-		await fileService.writeFile(environmentService.keybindingsResource, VSBuffer.fromString(JSON.stringify([{ 'command': 'abcd', 'key': 'cmd+c' }])));
-		await fileService.writeFile(joinPath(environmentService.snippetsHome, 'html.json'), VSBuffer.fromString(`{}`));
+		const userDataProfilesService = client.instantiationService.get(IUserDataProfilesService);
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.keybindingsResource, VSBuffer.fromString(JSON.stringify([{ 'command': 'abcd', 'key': 'cmd+c' }])));
+		await fileService.writeFile(joinPath(userDataProfilesService.defaultProfile.snippetsHome, 'html.json'), VSBuffer.fromString(`{}`));
 		await fileService.writeFile(environmentService.argvResource, VSBuffer.fromString(JSON.stringify({ 'locale': 'de' })));
 		client.instantiationService.get(IUserDataSyncEnablementService).setResourceEnablement(SyncResource.Snippets, false);
 
@@ -286,9 +290,10 @@ suite('UserDataSyncService', () => {
 		// Do changes in first client and sync
 		const fileService = client.instantiationService.get(IFileService);
 		const environmentService = client.instantiationService.get(IEnvironmentService);
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
-		await fileService.writeFile(environmentService.keybindingsResource, VSBuffer.fromString(JSON.stringify([{ 'command': 'abcd', 'key': 'cmd+c' }])));
-		await fileService.writeFile(joinPath(environmentService.snippetsHome, 'html.json'), VSBuffer.fromString(`{ "a": "changed" }`));
+		const userDataProfilesService = client.instantiationService.get(IUserDataProfilesService);
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.keybindingsResource, VSBuffer.fromString(JSON.stringify([{ 'command': 'abcd', 'key': 'cmd+c' }])));
+		await fileService.writeFile(joinPath(userDataProfilesService.defaultProfile.snippetsHome, 'html.json'), VSBuffer.fromString(`{ "a": "changed" }`));
 		await fileService.writeFile(environmentService.argvResource, VSBuffer.fromString(JSON.stringify({ 'locale': 'de' })));
 		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask(null)).run();
 
@@ -395,16 +400,16 @@ suite('UserDataSyncService', () => {
 		const client = disposableStore.add(new UserDataSyncClient(target));
 		await client.setUp();
 		let fileService = client.instantiationService.get(IFileService);
-		let environmentService = client.instantiationService.get(IEnvironmentService);
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
+		let userDataProfilesService = client.instantiationService.get(IUserDataProfilesService);
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
 		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask(null)).run();
 
 		// Setup the test client
 		const testClient = disposableStore.add(new UserDataSyncClient(target));
 		await testClient.setUp();
 		fileService = testClient.instantiationService.get(IFileService);
-		environmentService = testClient.instantiationService.get(IEnvironmentService);
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 16 })));
+		userDataProfilesService = testClient.instantiationService.get(IUserDataProfilesService);
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 16 })));
 		const testObject = testClient.instantiationService.get(IUserDataSyncService);
 
 		// sync from the client
@@ -421,21 +426,21 @@ suite('UserDataSyncService', () => {
 		const client = disposableStore.add(new UserDataSyncClient(target));
 		await client.setUp();
 		const fileService = client.instantiationService.get(IFileService);
-		const environmentService = client.instantiationService.get(IEnvironmentService);
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
+		let userDataProfilesService = client.instantiationService.get(IUserDataProfilesService);
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
 		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask(null)).run();
 
 		// Setup the test client and get conflicts in settings
 		const testClient = disposableStore.add(new UserDataSyncClient(target));
 		await testClient.setUp();
 		const testFileService = testClient.instantiationService.get(IFileService);
-		const testEnvironmentService = testClient.instantiationService.get(IEnvironmentService);
-		await testFileService.writeFile(testEnvironmentService.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 16 })));
+		userDataProfilesService = testClient.instantiationService.get(IUserDataProfilesService);
+		await testFileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 16 })));
 		const testObject = testClient.instantiationService.get(IUserDataSyncService);
 		await (await testObject.createSyncTask(null)).run();
 
 		// sync from the first client with changes in keybindings
-		await fileService.writeFile(environmentService.keybindingsResource, VSBuffer.fromString(JSON.stringify([{ 'command': 'abcd', 'key': 'cmd+c' }])));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.keybindingsResource, VSBuffer.fromString(JSON.stringify([{ 'command': 'abcd', 'key': 'cmd+c' }])));
 		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask(null)).run();
 
 		// sync from the test client
@@ -463,16 +468,16 @@ suite('UserDataSyncService', () => {
 		const client = disposableStore.add(new UserDataSyncClient(target));
 		await client.setUp();
 		let fileService = client.instantiationService.get(IFileService);
-		let environmentService = client.instantiationService.get(IEnvironmentService);
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
+		let userDataProfilesService = client.instantiationService.get(IUserDataProfilesService);
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
 		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask(null)).run();
 
 		// Setup the test client
 		const testClient = disposableStore.add(new UserDataSyncClient(target));
 		await testClient.setUp();
 		fileService = testClient.instantiationService.get(IFileService);
-		environmentService = testClient.instantiationService.get(IEnvironmentService);
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 16 })));
+		userDataProfilesService = testClient.instantiationService.get(IUserDataProfilesService);
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 16 })));
 		const testObject = testClient.instantiationService.get(IUserDataSyncService);
 
 

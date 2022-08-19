@@ -178,13 +178,9 @@ export class ExplorerItem {
 
 	private updateName(value: string): void {
 		// Re-add to parent since the parent has a name map to children and the name might have changed
-		if (this._parent) {
-			this._parent.removeChild(this);
-		}
+		this._parent?.removeChild(this);
 		this._name = value;
-		if (this._parent) {
-			this._parent.addChild(this);
-		}
+		this._parent?.addChild(this);
 	}
 
 	getId(): string {
@@ -411,12 +407,8 @@ export class ExplorerItem {
 	 * Moves this element under a new parent element.
 	 */
 	move(newParent: ExplorerItem): void {
-		if (this.nestedParent) {
-			this.nestedParent.removeChild(this);
-		}
-		if (this._parent) {
-			this._parent.removeChild(this);
-		}
+		this.nestedParent?.removeChild(this);
+		this._parent?.removeChild(this);
 		newParent.removeChild(this); // make sure to remove any previous version of the file if any
 		newParent.addChild(this);
 		this.updateResource(true);

@@ -45,11 +45,11 @@ const enum State {
 class LayoutInfo {
 
 	static store(info: LayoutInfo, storageService: IStorageService): void {
-		storageService.store('typeHierarchyPeekLayout', JSON.stringify(info), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		storageService.store('typeHierarchyPeekLayout', JSON.stringify(info), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
 	static retrieve(storageService: IStorageService): LayoutInfo {
-		const value = storageService.get('typeHierarchyPeekLayout', StorageScope.GLOBAL, '{}');
+		const value = storageService.get('typeHierarchyPeekLayout', StorageScope.PROFILE, '{}');
 		const defaultInfo: LayoutInfo = { ratio: 0.7, height: 17 };
 		try {
 			return { ...defaultInfo, ...JSON.parse(value) };

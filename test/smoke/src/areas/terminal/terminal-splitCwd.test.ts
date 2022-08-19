@@ -15,8 +15,9 @@ export function setup() {
 			const app = this.app as Application;
 			terminal = app.workbench.terminal;
 			settingsEditor = app.workbench.settingsEditor;
-			await settingsEditor.addUserSetting('terminal.integrated.splitCwd', '"inherited"');
-			await setTerminalTestSettings(app);
+			await setTerminalTestSettings(app, [
+				['terminal.integrated.splitCwd', '"inherited"']
+			]);
 		});
 
 		after(async function () {

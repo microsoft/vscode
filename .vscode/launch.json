@@ -24,7 +24,7 @@
 			]
 		},
 		{
-			"type": "pwa-chrome",
+			"type": "chrome",
 			"request": "attach",
 			"name": "Attach to Shared Process",
 			"timeout": 30000,
@@ -83,6 +83,23 @@
 				"${workspaceFolder}/extensions/emmet/test-workspace",
 				"--extensionDevelopmentPath=${workspaceFolder}/extensions/emmet",
 				"--extensionTestsPath=${workspaceFolder}/extensions/emmet/out/test"
+			],
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			],
+			"presentation": {
+				"group": "5_tests",
+				"order": 6
+			}
+		},
+		{
+			"type": "extensionHost",
+			"request": "launch",
+			"name": "VS Code Configuration Editing Tests",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}/extensions/configuration-editing",
+				"--extensionTestsPath=${workspaceFolder}/extensions/configuration-editing/out/test"
 			],
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
@@ -185,25 +202,7 @@
 			}
 		},
 		{
-			"type": "extensionHost",
-			"request": "launch",
-			"name": "VS Code Custom Editor Tests",
-			"runtimeExecutable": "${execPath}",
-			"args": [
-				"${workspaceFolder}/extensions/vscode-custom-editor-tests/test-workspace",
-				"--extensionDevelopmentPath=${workspaceFolder}/extensions/vscode-custom-editor-tests",
-				"--extensionTestsPath=${workspaceFolder}/extensions/vscode-custom-editor-tests/out/test"
-			],
-			"outFiles": [
-				"${workspaceFolder}/out/**/*.js"
-			],
-			"presentation": {
-				"group": "5_tests",
-				"order": 6
-			}
-		},
-		{
-			"type": "pwa-chrome",
+			"type": "chrome",
 			"request": "attach",
 			"name": "Attach to VS Code",
 			"browserAttachLocation": "workspace",
@@ -217,7 +216,7 @@
 			"perScriptSourcemaps": "yes"
 		},
 		{
-			"type": "pwa-chrome",
+			"type": "chrome",
 			"request": "launch",
 			"name": "Launch VS Code Internal",
 			"windows": {
@@ -259,7 +258,7 @@
 			}
 		},
 		{
-			"type": "pwa-node",
+			"type": "node",
 			"request": "launch",
 			"name": "VS Code Server (Web)",
 			"runtimeExecutable": "${workspaceFolder}/scripts/code-server.sh",
@@ -275,7 +274,7 @@
 			}
 		},
 		{
-			"type": "pwa-node",
+			"type": "node",
 			"request": "launch",
 			"name": "Main Process",
 			"attachSimplePort": 5875,
@@ -296,7 +295,7 @@
 			}
 		},
 		{
-			"type": "pwa-chrome",
+			"type": "chrome",
 			"request": "launch",
 			"outFiles": [],
 			"perScriptSourcemaps": "yes",
@@ -309,7 +308,7 @@
 			}
 		},
 		{
-			"type": "pwa-msedge",
+			"type": "msedge",
 			"request": "launch",
 			"outFiles": [],
 			"perScriptSourcemaps": "yes",
@@ -404,7 +403,7 @@
 			}
 		},
 		{
-			"type": "pwa-node",
+			"type": "node",
 			"request": "launch",
 			"name": "Run Unit Tests",
 			"program": "${workspaceFolder}/test/unit/electron/index.js",
@@ -434,7 +433,7 @@
 			}
 		},
 		{
-			"type": "pwa-node",
+			"type": "node",
 			"request": "launch",
 			"name": "Run Unit Tests For Current File",
 			"program": "${workspaceFolder}/test/unit/electron/index.js",

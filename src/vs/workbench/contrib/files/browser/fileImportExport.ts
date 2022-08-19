@@ -20,7 +20,7 @@ import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { URI } from 'vs/base/common/uri';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { extractEditorsDropData } from 'vs/platform/dnd/browser/dnd';
+import { extractEditorsAndFilesDropData } from 'vs/platform/dnd/browser/dnd';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { isWeb } from 'vs/base/common/platform';
 import { triggerDownload } from 'vs/base/browser/dom';
@@ -427,7 +427,7 @@ export class ExternalFileImport {
 	private async doImport(target: ExplorerItem, source: DragEvent, token: CancellationToken): Promise<void> {
 
 		// Activate all providers for the resources dropped
-		const candidateFiles = coalesce((await this.instantiationService.invokeFunction(accessor => extractEditorsDropData(accessor, source))).map(editor => editor.resource));
+		const candidateFiles = coalesce((await this.instantiationService.invokeFunction(accessor => extractEditorsAndFilesDropData(accessor, source))).map(editor => editor.resource));
 		await Promise.all(candidateFiles.map(resource => this.fileService.activateProvider(resource.scheme)));
 
 		// Check for dropped external files to be folders
@@ -796,7 +796,7 @@ export class FileDownload {
 		progress.report({ message: explorerItem.name });
 
 		let defaultUri: URI;
-		const lastUsedDownloadPath = this.storageService.get(FileDownload.LAST_USED_DOWNLOAD_PATH_STORAGE_KEY, StorageScope.GLOBAL);
+		const lastUsedDownloadPath = this.storageService.get(FileDownload.LAST_USED_DOWNLOAD_PATH_STORAGE_KEY, StorageScope.APPLICATION);
 		if (lastUsedDownloadPath) {
 			defaultUri = joinPath(URI.file(lastUsedDownloadPath), explorerItem.name);
 		} else {
@@ -818,7 +818,7 @@ export class FileDownload {
 		if (destination) {
 
 			// Remember as last used download folder
-			this.storageService.store(FileDownload.LAST_USED_DOWNLOAD_PATH_STORAGE_KEY, dirname(destination).fsPath, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.storageService.store(FileDownload.LAST_USED_DOWNLOAD_PATH_STORAGE_KEY, dirname(destination).fsPath, StorageScope.APPLICATION, StorageTarget.MACHINE);
 
 			// Perform download
 			await this.explorerService.applyBulkEdit([new ResourceFileEdit(explorerItem.resource, destination, { overwrite: true, copy: true })], {

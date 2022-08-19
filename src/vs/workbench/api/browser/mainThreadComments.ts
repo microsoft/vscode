@@ -16,7 +16,7 @@ import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/ext
 import { ICommentInfo, ICommentService, INotebookCommentInfo } from 'vs/workbench/contrib/comments/browser/commentService';
 import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
 import { CommentProviderFeatures, ExtHostCommentsShape, ExtHostContext, MainContext, MainThreadCommentsShape, CommentThreadChanges } from '../common/extHost.protocol';
-import { COMMENTS_VIEW_ID, COMMENTS_VIEW_TITLE } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
+import { COMMENTS_VIEW_ID, COMMENTS_VIEW_STORAGE_ID, COMMENTS_VIEW_TITLE } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
 import { ViewContainer, IViewContainersRegistry, Extensions as ViewExtensions, ViewContainerLocation, IViewsRegistry, IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
@@ -110,11 +110,11 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 
 	set collapsibleState(newState: languages.CommentThreadCollapsibleState | undefined) {
 		this._collapsibleState = newState;
-		this._onDidChangeCollasibleState.fire(this._collapsibleState);
+		this._onDidChangeCollapsibleState.fire(this._collapsibleState);
 	}
 
-	private readonly _onDidChangeCollasibleState = new Emitter<languages.CommentThreadCollapsibleState | undefined>();
-	public onDidChangeCollasibleState = this._onDidChangeCollasibleState.event;
+	private readonly _onDidChangeCollapsibleState = new Emitter<languages.CommentThreadCollapsibleState | undefined>();
+	public onDidChangeCollapsibleState = this._onDidChangeCollapsibleState.event;
 
 	private _isDisposed: boolean;
 
@@ -172,7 +172,7 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 
 	dispose() {
 		this._isDisposed = true;
-		this._onDidChangeCollasibleState.dispose();
+		this._onDidChangeCollapsibleState.dispose();
 		this._onDidChangeComments.dispose();
 		this._onDidChangeInput.dispose();
 		this._onDidChangeLabel.dispose();
@@ -582,8 +582,8 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 			const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 				id: COMMENTS_VIEW_ID,
 				title: COMMENTS_VIEW_TITLE,
-				ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [COMMENTS_VIEW_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
-				storageId: COMMENTS_VIEW_TITLE,
+				ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [COMMENTS_VIEW_ID, { mergeViewWithContainerWhenSingleView: true }]),
+				storageId: COMMENTS_VIEW_STORAGE_ID,
 				hideIfEmpty: true,
 				icon: commentsViewIcon,
 				order: 10,

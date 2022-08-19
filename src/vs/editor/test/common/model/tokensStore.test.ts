@@ -15,9 +15,7 @@ import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { LanguageIdCodec } from 'vs/editor/common/services/languagesRegistry';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILanguageConfigurationService, LanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 suite('TokensStore', () => {
 
@@ -222,9 +220,9 @@ suite('TokensStore', () => {
 
 	test('issue #147944: Language id "vs.editor.nullLanguage" is not configured nor known', () => {
 		const disposables = new DisposableStore();
-		const instantiationService = createModelServices(disposables, new ServiceCollection([
-			ILanguageConfigurationService, new SyncDescriptor(LanguageConfigurationService)
-		]));
+		const instantiationService = createModelServices(disposables, [
+			[ILanguageConfigurationService, LanguageConfigurationService]
+		]);
 		const model = instantiateTextModel(instantiationService, '--[[\n\n]]');
 		model.tokenization.setSemanticTokens([
 			SparseMultilineTokens.create(1, new Uint32Array([

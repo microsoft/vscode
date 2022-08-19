@@ -133,7 +133,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 	private _startPtyHost(): [Client, IPtyService] {
 		const opts: IIPCOptions = {
 			serverName: 'Pty Host',
-			args: ['--type=ptyHost'],
+			args: ['--type=ptyHost', '--logsPath', this._environmentService.logsPath],
 			env: {
 				VSCODE_LAST_PTY_ID: lastPtyId,
 				VSCODE_AMD_ENTRYPOINT: 'vs/platform/terminal/node/ptyHostMain',
@@ -294,6 +294,10 @@ export class PtyHostService extends Disposable implements IPtyService {
 	}
 	getWslPath(original: string): Promise<string> {
 		return this._proxy.getWslPath(original);
+	}
+
+	getRevivedPtyNewId(id: number): Promise<number | undefined> {
+		return this._proxy.getRevivedPtyNewId(id);
 	}
 
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {

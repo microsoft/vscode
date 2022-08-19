@@ -260,7 +260,7 @@ suite('ViewContainerModel', () => {
 	});
 
 	test('view states', async function () {
-		storageService.store(`${container.id}.state.hidden`, JSON.stringify([{ id: 'view1', isHidden: true }]), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		storageService.store(`${container.id}.state.hidden`, JSON.stringify([{ id: 'view1', isHidden: true }]), StorageScope.PROFILE, StorageTarget.MACHINE);
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
@@ -280,7 +280,7 @@ suite('ViewContainerModel', () => {
 	});
 
 	test('view states and when contexts', async function () {
-		storageService.store(`${container.id}.state.hidden`, JSON.stringify([{ id: 'view1', isHidden: true }]), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		storageService.store(`${container.id}.state.hidden`, JSON.stringify([{ id: 'view1', isHidden: true }]), StorageScope.PROFILE, StorageTarget.MACHINE);
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
@@ -310,7 +310,7 @@ suite('ViewContainerModel', () => {
 	});
 
 	test('view states and when contexts multiple views', async function () {
-		storageService.store(`${container.id}.state.hidden`, JSON.stringify([{ id: 'view1', isHidden: true }]), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		storageService.store(`${container.id}.state.hidden`, JSON.stringify([{ id: 'view1', isHidden: true }]), StorageScope.PROFILE, StorageTarget.MACHINE);
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
@@ -595,7 +595,7 @@ suite('ViewContainerModel', () => {
 			id: viewDescriptor.id,
 			isHidden: true,
 			order: undefined
-		}]), StorageScope.GLOBAL, StorageTarget.USER);
+		}]), StorageScope.PROFILE, StorageTarget.USER);
 
 		ViewsRegistry.registerViews([viewDescriptor], container);
 
@@ -647,7 +647,7 @@ suite('ViewContainerModel', () => {
 			id: viewDescriptor3.id,
 			isHidden: true,
 			order: undefined
-		}]), StorageScope.GLOBAL, StorageTarget.USER);
+		}]), StorageScope.PROFILE, StorageTarget.USER);
 
 		assert.ok(!addEvent.called, 'add event should not be called');
 		assert.ok(remomveEvent.calledOnce, 'remove event should be called');
@@ -707,7 +707,7 @@ suite('ViewContainerModel', () => {
 			id: viewDescriptor3.id,
 			isHidden: false,
 			order: undefined
-		}]), StorageScope.GLOBAL, StorageTarget.USER);
+		}]), StorageScope.PROFILE, StorageTarget.USER);
 
 		assert.ok(!removeEvent.called, 'remove event should not be called');
 
@@ -784,7 +784,7 @@ suite('ViewContainerModel', () => {
 			id: viewDescriptor4.id,
 			isHidden: true,
 			order: undefined
-		}]), StorageScope.GLOBAL, StorageTarget.USER);
+		}]), StorageScope.PROFILE, StorageTarget.USER);
 
 		assert.ok(removeEvent.calledOnce, 'remove event should be called once');
 		assert.deepStrictEqual(removeEvent.args[0][0], [{

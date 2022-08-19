@@ -115,7 +115,7 @@ function getNodeText(sourceFile: ts.SourceFile, node: { pos: number; end: number
 	return sourceFile.getFullText().substring(node.pos, node.end);
 }
 
-function hasModifier(modifiers: ts.NodeArray<ts.Modifier> | undefined, kind: ts.SyntaxKind): boolean {
+function hasModifier(modifiers: ts.NodeArray<ts.ModifierLike> | undefined, kind: ts.SyntaxKind): boolean {
 	if (modifiers) {
 		for (let i = 0; i < modifiers.length; i++) {
 			const mod = modifiers[i];

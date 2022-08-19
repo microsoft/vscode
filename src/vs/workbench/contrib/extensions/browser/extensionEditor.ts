@@ -29,7 +29,7 @@ import {
 	UpdateAction, ReloadAction, EnableDropDownAction, DisableDropDownAction, ExtensionStatusLabelAction, SetFileIconThemeAction, SetColorThemeAction,
 	RemoteInstallAction, ExtensionStatusAction, LocalInstallAction, ToggleSyncExtensionAction, SetProductIconThemeAction,
 	ActionWithDropDownAction, InstallDropdownAction, InstallingLabelAction, UninstallAction, ExtensionActionWithDropdownActionViewItem, ExtensionDropDownAction,
-	InstallAnotherVersionAction, ExtensionEditorManageExtensionAction, WebInstallAction, SwitchToPreReleaseVersionAction, SwitchToReleasedVersionAction, MigrateDeprecatedExtensionAction
+	InstallAnotherVersionAction, ExtensionEditorManageExtensionAction, WebInstallAction, SwitchToPreReleaseVersionAction, SwitchToReleasedVersionAction, MigrateDeprecatedExtensionAction, SetLanguageAction, ClearLanguageAction
 } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -69,7 +69,7 @@ import { errorIcon, infoIcon, preReleaseIcon, verifiedPublisherIcon as verifiedP
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import semver = require('vs/base/common/semver/semver');
+import * as semver from 'vs/base/common/semver/semver';
 
 class NavBar extends Disposable {
 
@@ -326,6 +326,8 @@ export class ExtensionEditor extends EditorPane {
 			this.instantiationService.createInstance(SetColorThemeAction),
 			this.instantiationService.createInstance(SetFileIconThemeAction),
 			this.instantiationService.createInstance(SetProductIconThemeAction),
+			this.instantiationService.createInstance(SetLanguageAction),
+			this.instantiationService.createInstance(ClearLanguageAction),
 
 			this.instantiationService.createInstance(EnableDropDownAction),
 			this.instantiationService.createInstance(DisableDropDownAction),
@@ -1735,9 +1737,7 @@ registerAction2(class ShowExtensionEditorFindAction extends Action2 {
 	}
 	run(accessor: ServicesAccessor): any {
 		const extensionEditor = getExtensionEditor(accessor);
-		if (extensionEditor) {
-			extensionEditor.showFind();
-		}
+		extensionEditor?.showFind();
 	}
 });
 
@@ -1757,9 +1757,7 @@ registerAction2(class StartExtensionEditorFindNextAction extends Action2 {
 	}
 	run(accessor: ServicesAccessor): any {
 		const extensionEditor = getExtensionEditor(accessor);
-		if (extensionEditor) {
-			extensionEditor.runFindAction(false);
-		}
+		extensionEditor?.runFindAction(false);
 	}
 });
 
@@ -1779,9 +1777,7 @@ registerAction2(class StartExtensionEditorFindPreviousAction extends Action2 {
 	}
 	run(accessor: ServicesAccessor): any {
 		const extensionEditor = getExtensionEditor(accessor);
-		if (extensionEditor) {
-			extensionEditor.runFindAction(true);
-		}
+		extensionEditor?.runFindAction(true);
 	}
 });
 

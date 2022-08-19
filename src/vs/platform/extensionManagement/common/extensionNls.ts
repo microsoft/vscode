@@ -12,7 +12,7 @@ export interface ITranslations {
 	[key: string]: string | { message: string; comment: string[] };
 }
 
-export function localizeManifest(manifest: IExtensionManifest, translations: ITranslations): IExtensionManifest {
+export function localizeManifest(manifest: IExtensionManifest, translations: ITranslations, fallbackTranslations?: ITranslations): IExtensionManifest {
 	const patcher = (value: string): string | undefined => {
 		if (typeof value !== 'string') {
 			return undefined;
@@ -24,7 +24,7 @@ export function localizeManifest(manifest: IExtensionManifest, translations: ITr
 			return undefined;
 		}
 
-		const translation = translations[match[1]] ?? value;
+		const translation = translations?.[match[1]] ?? fallbackTranslations?.[match[1]] ?? value;
 		return typeof translation === 'string' ? translation : (typeof translation.message === 'string' ? translation.message : value);
 	};
 

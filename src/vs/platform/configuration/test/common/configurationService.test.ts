@@ -19,7 +19,6 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { NullPolicyService } from 'vs/platform/policy/common/policy';
 import { Registry } from 'vs/platform/registry/common/platform';
 
-
 suite('ConfigurationService', () => {
 
 	let fileService: IFileService;

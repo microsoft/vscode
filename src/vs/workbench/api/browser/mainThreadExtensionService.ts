@@ -211,9 +211,6 @@ class ExtensionHostProxy implements IExtensionHostProxy {
 	extensionTestsExecute(): Promise<number> {
 		return this._actual.$extensionTestsExecute();
 	}
-	extensionTestsExit(code: number): Promise<void> {
-		return this._actual.$extensionTestsExit(code);
-	}
 	activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void> {
 		return this._actual.$activateByEvent(activationEvent, activationKind);
 	}

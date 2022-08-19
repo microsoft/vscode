@@ -7,7 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ResourceMap } from 'vs/base/common/map';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorFactoryRegistry, IFileEditorInput, IUntypedEditorInput, IUntypedFileEditorInput, EditorExtensions, isResourceDiffEditorInput, isResourceSideBySideEditorInput, IUntitledTextResourceEditorInput, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { IEditorFactoryRegistry, IFileEditorInput, IUntypedEditorInput, IUntypedFileEditorInput, EditorExtensions, isResourceDiffEditorInput, isResourceSideBySideEditorInput, IUntitledTextResourceEditorInput, DEFAULT_EDITOR_ASSOCIATION, isResourceMergeEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { INewUntitledTextEditorOptions, IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { Schemas } from 'vs/base/common/network';
@@ -31,6 +31,18 @@ export interface ITextEditorService {
 	readonly _serviceBrand: undefined;
 
 	/**
+	 * @deprecated this method should not be used, rather consider using
+	 * `IEditorResolverService` instead with `DEFAULT_EDITOR_ASSOCIATION.id`.
+	 */
+	createTextEditor(input: IUntypedEditorInput): EditorInput;
+
+	/**
+	 * @deprecated this method should not be used, rather consider using
+	 * `IEditorResolverService` instead with `DEFAULT_EDITOR_ASSOCIATION.id`.
+	 */
+	createTextEditor(input: IUntypedFileEditorInput): IFileEditorInput;
+
+	/**
 	 * A way to create text editor inputs from an untyped editor input. Depending
 	 * on the passed in input this will be:
 	 * - a `IFileEditorInput` for file resources
@@ -39,8 +51,8 @@ export interface ITextEditorService {
 	 *
 	 * @param input the untyped editor input to create a typed input from
 	 */
-	createTextEditor(input: IUntypedEditorInput): EditorInput;
-	createTextEditor(input: IUntypedFileEditorInput): IFileEditorInput;
+	resolveTextEditor(input: IUntypedEditorInput): Promise<EditorInput>;
+	resolveTextEditor(input: IUntypedFileEditorInput): Promise<IFileEditorInput>;
 }
 
 export class TextEditorService extends Disposable implements ITextEditorService {
@@ -75,28 +87,41 @@ export class TextEditorService extends Disposable implements ITextEditorService 
 				priority: RegisteredEditorPriority.builtin
 			},
 			{},
-			editor => ({ editor: this.createTextEditor(editor) }),
-			untitledEditor => ({ editor: this.createTextEditor(untitledEditor) }),
-			diffEditor => ({ editor: this.createTextEditor(diffEditor) })
+			{
+				createEditorInput: editor => ({ editor: this.createTextEditor(editor) }),
+				createUntitledEditorInput: untitledEditor => ({ editor: this.createTextEditor(untitledEditor) }),
+				createDiffEditorInput: diffEditor => ({ editor: this.createTextEditor(diffEditor) })
+			}
 		));
+	}
+
+	resolveTextEditor(input: IUntypedEditorInput): Promise<EditorInput>;
+	resolveTextEditor(input: IUntypedFileEditorInput): Promise<IFileEditorInput>;
+	async resolveTextEditor(input: IUntypedEditorInput | IUntypedFileEditorInput): Promise<EditorInput | IFileEditorInput> {
+		return this.createTextEditor(input);
 	}
 
 	createTextEditor(input: IUntypedEditorInput): EditorInput;
 	createTextEditor(input: IUntypedFileEditorInput): IFileEditorInput;
 	createTextEditor(input: IUntypedEditorInput | IUntypedFileEditorInput): EditorInput | IFileEditorInput {
 
+		// Merge Editor Not Supported (we fallback to showing the result only)
+		if (isResourceMergeEditorInput(input)) {
+			return this.createTextEditor(input.result);
+		}
+
 		// Diff Editor Support
 		if (isResourceDiffEditorInput(input)) {
-			const original = this.createTextEditor({ ...input.original });
-			const modified = this.createTextEditor({ ...input.modified });
+			const original = this.createTextEditor(input.original);
+			const modified = this.createTextEditor(input.modified);
 
 			return this.instantiationService.createInstance(DiffEditorInput, input.label, input.description, original, modified, undefined);
 		}
 
 		// Side by Side Editor Support
 		if (isResourceSideBySideEditorInput(input)) {
-			const primary = this.createTextEditor({ ...input.primary });
-			const secondary = this.createTextEditor({ ...input.secondary });
+			const primary = this.createTextEditor(input.primary);
+			const secondary = this.createTextEditor(input.secondary);
 
 			return this.instantiationService.createInstance(SideBySideEditorInput, input.label, input.description, secondary, primary);
 		}

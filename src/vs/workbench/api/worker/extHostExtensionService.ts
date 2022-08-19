@@ -8,10 +8,11 @@ import { ExtensionActivationTimesBuilder } from 'vs/workbench/api/common/extHost
 import { AbstractExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 import { URI } from 'vs/base/common/uri';
 import { RequireInterceptor } from 'vs/workbench/api/common/extHostRequireInterceptor';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
 import { timeout } from 'vs/base/common/async';
-import { MainContext, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostConsoleForwarder } from 'vs/workbench/api/worker/extHostConsoleForwarder';
+import { Language } from 'vs/base/common/platform';
 
 class WorkerRequireInterceptor extends RequireInterceptor {
 
@@ -39,8 +40,8 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 	private _fakeModules?: WorkerRequireInterceptor;
 
 	protected async _beforeAlmostReadyToRunExtensions(): Promise<void> {
-		const mainThreadConsole = this._extHostContext.getProxy(MainContext.MainThreadConsole);
-		wrapConsoleMethods(mainThreadConsole, this._initData.environment.isExtensionDevelopmentDebug);
+		// make sure console.log calls make it to the render
+		this._instaService.createInstance(ExtHostConsoleForwarder);
 
 		// initialize API and register actors
 		const apiFactory = this._instaService.invokeFunction(createApiFactoryAndRegisterActors);
@@ -55,10 +56,11 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		return extensionDescription.browser;
 	}
 
-	protected async _loadCommonJSModule<T extends object | undefined>(extensionId: ExtensionIdentifier | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
+	protected async _loadCommonJSModule<T extends object | undefined>(extension: IExtensionDescription | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
 		module = module.with({ path: ensureSuffix(module.path, '.js') });
+		const extensionId = extension?.identifier.value;
 		if (extensionId) {
-			performance.mark(`code/extHost/willFetchExtensionCode/${extensionId.value}`);
+			performance.mark(`code/extHost/willFetchExtensionCode/${extensionId}`);
 		}
 
 		// First resolve the extension entry point URI to something we can load using `fetch`
@@ -67,7 +69,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		const browserUri = URI.revive(await this._mainThreadExtensionsProxy.$asBrowserUri(module));
 		const response = await fetch(browserUri.toString(true));
 		if (extensionId) {
-			performance.mark(`code/extHost/didFetchExtensionCode/${extensionId.value}`);
+			performance.mark(`code/extHost/didFetchExtensionCode/${extensionId}`);
 		}
 
 		if (response.status !== 200) {
@@ -85,7 +87,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 			initFn = new Function('module', 'exports', 'require', fullSource);
 		} catch (err) {
 			if (extensionId) {
-				console.error(`Loading code for extension ${extensionId.value} failed: ${err.message}`);
+				console.error(`Loading code for extension ${extensionId} failed: ${err.message}`);
 			} else {
 				console.error(`Loading code failed: ${err.message}`);
 			}
@@ -94,10 +96,17 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 			throw err;
 		}
 
+		const strings: { [key: string]: string[] } = await this.fetchTranslatedStrings(extension);
+
 		// define commonjs globals: `module`, `exports`, and `require`
 		const _exports = {};
 		const _module = { exports: _exports };
 		const _require = (request: string) => {
+			// In order to keep vscode-nls synchronous, we prefetched the translations above
+			// and then return them here when the extension is loaded.
+			if (request === 'vscode-nls-web-data') {
+				return strings;
+			}
 			const result = this._fakeModules!.getModule(request, module);
 			if (result === undefined) {
 				throw new Error(`Cannot load module '${request}'`);
@@ -108,13 +117,13 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		try {
 			activationTimesBuilder.codeLoadingStart();
 			if (extensionId) {
-				performance.mark(`code/extHost/willLoadExtensionCode/${extensionId.value}`);
+				performance.mark(`code/extHost/willLoadExtensionCode/${extensionId}`);
 			}
 			initFn(_module, _exports, _require);
 			return <T>(_module.exports !== _exports ? _module.exports : _exports);
 		} finally {
 			if (extensionId) {
-				performance.mark(`code/extHost/didLoadExtensionCode/${extensionId.value}`);
+				performance.mark(`code/extHost/didLoadExtensionCode/${extensionId}`);
 			}
 			activationTimesBuilder.codeLoadingStop();
 		}
@@ -135,83 +144,46 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 			await timeout(10);
 		}
 	}
+
+	private async fetchTranslatedStrings(extension: IExtensionDescription | null): Promise<{ [key: string]: string[] }> {
+		let strings: { [key: string]: string[] } = {};
+		if (!extension) {
+			return {};
+		}
+		const translationsUri = Language.isDefaultVariant()
+			// If we are in the default variant, load the translations for en only.
+			? extension.browserNlsBundleUris?.en
+			// Otherwise load the translations for the current locale with English as a fallback.
+			: extension.browserNlsBundleUris?.[Language.value()] ?? extension.browserNlsBundleUris?.en;
+		if (extension && translationsUri) {
+			try {
+				const response = await fetch(translationsUri.toString(true));
+				if (!response.ok) {
+					throw new Error(await response.text());
+				}
+				strings = await response.json();
+			} catch (e) {
+				try {
+					console.error(`Failed to load translations for ${extension.identifier.value} from ${translationsUri}: ${e.message}`);
+					const englishStrings = extension.browserNlsBundleUris?.en;
+					if (englishStrings) {
+						const response = await fetch(englishStrings.toString(true));
+						if (!response.ok) {
+							throw new Error(await response.text());
+						}
+						strings = await response.json();
+					}
+					throw new Error('No English strings found');
+				} catch (e) {
+					// TODO what should this do? We really shouldn't ever be here...
+					console.error(e);
+				}
+			}
+		}
+		return strings;
+	}
 }
 
 function ensureSuffix(path: string, suffix: string): string {
 	return path.endsWith(suffix) ? path : path + suffix;
-}
-
-// copied from bootstrap-fork.js
-function wrapConsoleMethods(service: MainThreadConsoleShape, callToNative: boolean) {
-	wrap('info', 'log');
-	wrap('log', 'log');
-	wrap('warn', 'warn');
-	wrap('error', 'error');
-
-	function wrap(method: 'error' | 'warn' | 'info' | 'log', severity: 'error' | 'warn' | 'log') {
-		const original = console[method];
-		console[method] = function () {
-			service.$logExtensionHostMessage({ type: '__$console', severity, arguments: safeToArray(arguments) });
-			if (callToNative) {
-				original.apply(console, arguments as any);
-			}
-		};
-	}
-
-	const MAX_LENGTH = 100000;
-
-	function safeToArray(args: IArguments) {
-		const seen: any[] = [];
-		const argsArray = [];
-
-		// Massage some arguments with special treatment
-		if (args.length) {
-			for (let i = 0; i < args.length; i++) {
-
-				// Any argument of type 'undefined' needs to be specially treated because
-				// JSON.stringify will simply ignore those. We replace them with the string
-				// 'undefined' which is not 100% right, but good enough to be logged to console
-				if (typeof args[i] === 'undefined') {
-					args[i] = 'undefined';
-				}
-
-				// Any argument that is an Error will be changed to be just the error stack/message
-				// itself because currently cannot serialize the error over entirely.
-				else if (args[i] instanceof Error) {
-					const errorObj = args[i];
-					if (errorObj.stack) {
-						args[i] = errorObj.stack;
-					} else {
-						args[i] = errorObj.toString();
-					}
-				}
-
-				argsArray.push(args[i]);
-			}
-		}
-
-		try {
-			const res = JSON.stringify(argsArray, function (key, value) {
-
-				// Objects get special treatment to prevent circles
-				if (value && typeof value === 'object') {
-					if (seen.indexOf(value) !== -1) {
-						return '[Circular]';
-					}
-
-					seen.push(value);
-				}
-
-				return value;
-			});
-
-			if (res.length > MAX_LENGTH) {
-				return 'Output omitted for a large object that exceeds the limits';
-			}
-
-			return res;
-		} catch (error) {
-			return `Output omitted for an object that cannot be inspected ('${error.toString()}')`;
-		}
-	}
 }
