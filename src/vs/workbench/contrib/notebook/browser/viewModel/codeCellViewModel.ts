@@ -341,19 +341,20 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	}
 
 	private estimateEditorHeight(lineHeight: number | undefined = 20): { editorHeight: number; hasHorizontalScrolling: boolean } {
-		let hasScrolling = false;
-		if (this.layoutInfo.fontInfo && !this.viewContext.notebookOptions.getLayoutConfiguration().wordWrap) {
+		let hasHorizontalScrolling = false;
+		const cellEditorOptions = this.viewContext.getBaseCellEditorOptions(this.language);
+		if (this.layoutInfo.fontInfo && cellEditorOptions.value.wordWrap === 'off') {
 			for (let i = 0; i < this.lineCount; i++) {
 				const max = this.textBuffer.getLineLastNonWhitespaceColumn(i + 1);
 				const estimatedWidth = max * (this.layoutInfo.fontInfo.typicalHalfwidthCharacterWidth + this.layoutInfo.fontInfo.letterSpacing);
 				if (estimatedWidth > this.layoutInfo.editorWidth) {
-					hasScrolling = true;
+					hasHorizontalScrolling = true;
 					break;
 				}
 			}
 		}
 
-		const verticalScrollbarHeight = hasScrolling ? 12 : 0; // take zoom level into account
+		const verticalScrollbarHeight = hasHorizontalScrolling ? 12 : 0; // take zoom level into account
 		const editorPadding = this.viewContext.notebookOptions.computeEditorPadding(this.internalMetadata, this.uri);
 		const editorHeight = this.lineCount * lineHeight
 			+ editorPadding.top
@@ -361,7 +362,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			+ verticalScrollbarHeight;
 		return {
 			editorHeight,
-			hasHorizontalScrolling: hasScrolling
+			hasHorizontalScrolling
 		};
 	}
 

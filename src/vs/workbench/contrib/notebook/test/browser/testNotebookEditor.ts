@@ -36,7 +36,7 @@ import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { CellFindMatchWithIndex, IActiveNotebookEditorDelegate, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellFindMatchWithIndex, IActiveNotebookEditorDelegate, IBaseCellEditorOptions, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { ListViewInfoAccessor, NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
@@ -195,7 +195,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 
 	const model = new NotebookEditorTestModel(notebook);
 	const notebookOptions = new NotebookOptions(instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService));
-	const viewContext = new ViewContext(notebookOptions, new NotebookEventDispatcher());
+	const viewContext = new ViewContext(notebookOptions, new NotebookEventDispatcher(), () => ({} as IBaseCellEditorOptions));
 	const viewModel: NotebookViewModel = instantiationService.createInstance(NotebookViewModel, viewType, model.notebook, viewContext, null, { isReadOnly: false });
 
 	const cellList = createNotebookCellList(instantiationService, viewContext);
@@ -362,7 +362,7 @@ export function createNotebookCellList(instantiationService: TestInstantiationSe
 		'NotebookCellList',
 		DOM.$('container'),
 		DOM.$('body'),
-		viewContext ?? new ViewContext(new NotebookOptions(instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService)), new NotebookEventDispatcher()),
+		viewContext ?? new ViewContext(new NotebookOptions(instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService)), new NotebookEventDispatcher(), () => ({} as IBaseCellEditorOptions)),
 		delegate,
 		[renderer],
 		instantiationService.get<IContextKeyService>(IContextKeyService),

@@ -70,7 +70,6 @@ export interface NotebookLayoutConfiguration {
 	editorOptionsCustomizations: any | undefined;
 	focusIndicatorGap: number;
 	interactiveWindowCollapseCodeCells: InteractiveWindowCollapseCodeCells;
-	wordWrap: boolean;
 }
 
 export interface NotebookOptionsChangeEvent {
@@ -184,8 +183,7 @@ export class NotebookOptions extends Disposable {
 			editorOptionsCustomizations,
 			focusIndicatorGap: 3,
 			interactiveWindowCollapseCodeCells,
-			markdownFoldHintHeight: 22,
-			wordWrap: false
+			markdownFoldHintHeight: 22
 		};
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -244,7 +242,6 @@ export class NotebookOptions extends Disposable {
 		const editorOptionsCustomizations = e.affectsConfiguration(NotebookSetting.cellEditorOptionsCustomizations);
 		const interactiveWindowCollapseCodeCells = e.affectsConfiguration(NotebookSetting.interactiveWindowCollapseCodeCells);
 		const outputLineHeight = e.affectsConfiguration(NotebookSetting.outputLineHeight);
-		const wordWrap = e.affectsConfiguration('editor.wordWrap');
 
 		if (
 			!cellStatusBarVisibility
@@ -266,8 +263,7 @@ export class NotebookOptions extends Disposable {
 			&& !outputFontFamily
 			&& !editorOptionsCustomizations
 			&& !interactiveWindowCollapseCodeCells
-			&& !outputLineHeight
-			&& !wordWrap) {
+			&& !outputLineHeight) {
 			return;
 		}
 
@@ -351,10 +347,6 @@ export class NotebookOptions extends Disposable {
 
 		if (outputLineHeight || fontSize || outputFontSize) {
 			configuration.outputLineHeight = this._computeOutputLineHeight();
-		}
-
-		if (wordWrap) {
-			configuration.wordWrap = this.configurationService.getValue('editor.wordWrap') !== 'off';
 		}
 
 		this._layoutConfiguration = Object.freeze(configuration);
