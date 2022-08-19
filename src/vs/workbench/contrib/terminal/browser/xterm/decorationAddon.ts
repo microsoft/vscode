@@ -277,7 +277,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (!this._terminal || (beforeCommandExecution && !command) || (!this._showGutterDecorations && !this._showOverviewRulerDecorations)) {
 			return undefined;
 		}
-		const marker = command?.marker || this._terminal.registerMarker();
+		const marker = command ? command.marker : this._terminal.registerMarker();
 		if (!marker) {
 			throw new Error(`cannot add a decoration for a command ${JSON.stringify(command)} with no marker`);
 		}
