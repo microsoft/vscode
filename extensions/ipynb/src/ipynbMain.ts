@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { ensureAllNewCellsHaveCellIds } from './cellIdService';
 import { NotebookSerializer } from './notebookSerializer';
+import { ensureAllNewCellsHaveCellIds } from './cellIdService';
 import { notebookImagePasteSetup } from './notebookImagePaste';
 import { notebookAttachmentCleanerSetup } from './notebookAttachmentCleaner';
 
@@ -80,7 +80,7 @@ export function activate(context: vscode.ExtensionContext) {
 	}));
 
 	context.subscriptions.push(notebookImagePasteSetup());
-	context.subscriptions.push(notebookAttachmentCleanerSetup());
+	notebookAttachmentCleanerSetup(context);
 
 	// Update new file contribution
 	vscode.extensions.onDidChange(() => {
