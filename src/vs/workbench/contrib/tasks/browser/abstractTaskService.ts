@@ -53,7 +53,7 @@ import { ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSyst
 import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/common/taskTemplates';
 
 import * as TaskConfig from '../common/taskConfiguration';
-import { terminalsNotReconnectedExitCode, TerminalTaskSystem } from './terminalTaskSystem';
+import { TerminalTaskSystem } from './terminalTaskSystem';
 
 import { IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickSeparator, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 
