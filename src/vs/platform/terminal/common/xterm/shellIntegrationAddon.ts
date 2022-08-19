@@ -375,7 +375,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			}
 			case VSCodeOscPt.SetMark: {
 				const [id, hidden] = args;
-				this._createOrGetBufferMarkDetection(this._terminal).addMark(id, undefined, hidden === 'Hidden');
+				this._createOrGetBufferMarkDetection(this._terminal).addMark({ id, hidden: hidden === 'Hidden' });
 				return true;
 			}
 		}
@@ -398,7 +398,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		const [command] = data.split(';');
 		switch (command) {
 			case ITermOscPt.SetMark: {
-				this._createOrGetBufferMarkDetection(this._terminal).addMark();
+				this._createOrGetBufferMarkDetection(this._terminal).addMark({});
 			}
 			default: {
 				// Checking for known `<key>=<value>` pairs.

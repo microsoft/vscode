@@ -130,13 +130,11 @@ export interface ICommandInvalidationRequest {
 	reason: CommandInvalidationReason;
 }
 
-export interface IBufferMark { id?: string; marker: IMarker; hoverMessage?: string; hidden?: boolean; endMarker?: IMarker }
-
 export interface IBufferMarkDetectionCapability {
 	type: TerminalCapability.BufferMarkDetection;
 	markers(): IMarker[];
-	onMarkAdded: Event<IBufferMark>;
-	addMark(id?: string, marker?: IMarker, hidden?: boolean): void;
+	onMarkAdded: Event<IMarkProperties>;
+	addMark(properties: IMarkProperties): void;
 	getMark(id: string): IMarker | undefined;
 }
 
@@ -199,6 +197,7 @@ export interface IMarkProperties {
 	disableCommandStorage?: boolean;
 	hidden?: boolean;
 	marker?: IMarker;
+	id?: string;
 }
 
 export interface INaiveCwdDetectionCapability {

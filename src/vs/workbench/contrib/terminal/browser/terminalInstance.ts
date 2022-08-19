@@ -44,7 +44,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { QuickPickItem, IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IMarkProperties, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalCapabilityStoreMultiplexer } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { IProcessDataEvent, IProcessPropertyMap, IReconnectionProperties, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, PosixShellType, ProcessPropertyType, ShellIntegrationStatus, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalSettingId, TerminalShellType, TitleEventSource, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 import { escapeNonWindowsPath, collapseTildePath } from 'vs/platform/terminal/common/terminalEnvironment';
@@ -1750,8 +1750,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this.xterm?.raw.registerMarker();
 	}
 
-	public addBufferMarker(id?: string, marker?: IMarker, hidden?: boolean): void {
-		this.capabilities.get(TerminalCapability.BufferMarkDetection)?.addMark(id, marker, hidden);
+	public addBufferMarker(properties: IMarkProperties): void {
+		this.capabilities.get(TerminalCapability.BufferMarkDetection)?.addMark(properties);
 	}
 
 	public scrollToMark(startMarkId: string, endMarkId?: string, highlight?: boolean): void {

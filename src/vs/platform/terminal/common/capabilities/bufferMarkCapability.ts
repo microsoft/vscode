@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
-import { IBufferMarkDetectionCapability, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IBufferMarkDetectionCapability, IMarkProperties, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 // Importing types is safe in any layer
 // eslint-disable-next-line code-import-patterns
 import type { IMarker, Terminal } from 'xterm-headless';
@@ -20,7 +20,7 @@ export class BufferMarkCapability implements IBufferMarkDetectionCapability {
 	private _idToMarkerMap: Map<string, IMarker> = new Map();
 	private _anonymousMarkers: IMarker[] = [];
 
-	private readonly _onMarkAdded = new Emitter<{ marker: IMarker; id?: string; hidden?: boolean }>();
+	private readonly _onMarkAdded = new Emitter<IMarkProperties>();
 	readonly onMarkAdded = this._onMarkAdded.event;
 
 	constructor(
@@ -30,8 +30,9 @@ export class BufferMarkCapability implements IBufferMarkDetectionCapability {
 
 	markers(): IMarker[] { return Array.from(this._idToMarkerMap.values()).concat(this._anonymousMarkers); }
 
-	addMark(id?: string, marker?: IMarker, hidden?: boolean): void {
-		marker = marker || this._terminal.registerMarker();
+	addMark(properties: IMarkProperties): void {
+		const marker = properties.marker || this._terminal.registerMarker();
+		const id = properties.id;
 		if (!marker) {
 			return;
 		}
@@ -42,7 +43,7 @@ export class BufferMarkCapability implements IBufferMarkDetectionCapability {
 			this._anonymousMarkers.push(marker);
 			marker.onDispose(() => this._anonymousMarkers.filter(m => m !== marker));
 		}
-		this._onMarkAdded.fire({ marker, id, hidden });
+		this._onMarkAdded.fire({ marker, id, hidden: properties.hidden, hoverMessage: properties.hoverMessage });
 	}
 
 	getMark(id: string): IMarker | undefined {
