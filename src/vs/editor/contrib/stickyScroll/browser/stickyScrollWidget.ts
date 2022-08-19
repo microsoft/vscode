@@ -135,7 +135,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 						this.lastChildDecorated.style.textDecoration = 'none';
 						this.lastChildDecorated = undefined;
 					}
-					console.log('this.lastChildDecorated at the end of getDefinitionsAtPosition : ', this.lastChildDecorated);
 				}));
 			} else if (this.lastChildDecorated) {
 				this.lastChildDecorated.style.textDecoration = 'none';
