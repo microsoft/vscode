@@ -41,7 +41,6 @@ import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadRea
 import { Color } from 'vs/base/common/color';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { revive } from 'vs/base/common/marshalling';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import product from 'vs/platform/product/common/product';
 
@@ -121,7 +120,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	get openedWorkspace(): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined { return this._config?.workspace; }
 
-	get profile(): IUserDataProfile | undefined { return this.config ? this.userDataProfilesService.getProfile(this.config.workspace ?? 'empty-window', revive(this.config.profiles.workspace)) : undefined; }
+	get profile(): IUserDataProfile | undefined { return this.config ? this.userDataProfilesService.getProfile(this.config.workspace ?? 'empty-window', this.userDataProfilesService.profiles.find(profile => profile.id === this.config?.profiles.profile.id) ?? this.userDataProfilesService.defaultProfile) : undefined; }
 
 	get remoteAuthority(): string | undefined { return this._config?.remoteAuthority; }
 
@@ -972,7 +971,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		configuration.policiesData = this.policyService.serialize(); // set policies data again
 		configuration.profiles = {
 			all: this.userDataProfilesService.profiles,
-			workspace: this.profile || this.userDataProfilesService.defaultProfile
+			profile: this.profile || this.userDataProfilesService.defaultProfile
 		};
 
 		// Load config

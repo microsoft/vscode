@@ -71,11 +71,6 @@ export class UserDataProfilesNativeService extends Disposable implements IUserDa
 		return this.channel.call('resetWorkspaces');
 	}
 
-	async reload(): Promise<void> {
-		const all = await this.channel.call<UriDto<IUserDataProfile>[]>('reload');
-		this._profiles = all.map(profile => reviveProfile(profile, this.profilesHome.scheme));
-	}
-
 	getProfile(workspaceIdentifier: WorkspaceIdentifier, profileToUseIfNotSet: IUserDataProfile): IUserDataProfile { throw new Error('Not implemented'); }
 }
 
