@@ -185,6 +185,10 @@ class CommentingRangeDecorator {
 		this._doUpdate(editor, commentInfos);
 	}
 
+	private _lineHasThread(editor: ICodeEditor, lineRange: Range) {
+		return editor.getDecorationsInRange(lineRange)?.find(decoration => decoration.options.description === CommentGlyphWidget.description);
+	}
+
 	private _doUpdate(editor: ICodeEditor, commentInfos: ICommentInfo[], emphasisLine: number = -1, selectionRange: Range | undefined = this._lastSelection) {
 		const model = editor.getModel();
 		if (!model) {
@@ -215,7 +219,10 @@ class CommentingRangeDecorator {
 						intersectingSelectionRange = new Range(intersectingSelectionRange.startLineNumber, 1, intersectingSelectionRange.endLineNumber - 1, 1);
 					}
 					commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, intersectingSelectionRange, this.multilineDecorationOptions, info.commentingRanges, true));
-					commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, intersectingEmphasisRange, this.hoverDecorationOptions, info.commentingRanges, true));
+
+					if (!this._lineHasThread(editor, intersectingEmphasisRange)) {
+						commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, intersectingEmphasisRange, this.hoverDecorationOptions, info.commentingRanges, true));
+					}
 
 					const beforeRangeEndLine = Math.min(intersectingEmphasisRange.startLineNumber, intersectingSelectionRange.startLineNumber) - 1;
 					const hasBeforeRange = rangeObject.startLineNumber <= beforeRangeEndLine;
@@ -234,7 +241,10 @@ class CommentingRangeDecorator {
 						const beforeRange = new Range(range.startLineNumber, 1, emphasisLine - 1, 1);
 						commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, beforeRange, this.decorationOptions, info.commentingRanges, true));
 					}
-					commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, new Range(emphasisLine, 1, emphasisLine, 1), this.hoverDecorationOptions, info.commentingRanges, true));
+					const emphasisRange = new Range(emphasisLine, 1, emphasisLine, 1);
+					if (!this._lineHasThread(editor, emphasisRange)) {
+						commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, emphasisRange, this.hoverDecorationOptions, info.commentingRanges, true));
+					}
 					if (emphasisLine < rangeObject.endLineNumber) {
 						const afterRange = new Range(emphasisLine + 1, 1, range.endLineNumber, 1);
 						commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, afterRange, this.decorationOptions, info.commentingRanges, true));
