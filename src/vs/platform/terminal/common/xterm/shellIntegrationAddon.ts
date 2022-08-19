@@ -502,7 +502,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	protected _createOrGetBufferMarkDetection(terminal: Terminal): IBufferMarkDetectionCapability {
 		let bufferMarkDetection = this.capabilities.get(TerminalCapability.BufferMarkDetection);
 		if (!bufferMarkDetection) {
-			bufferMarkDetection = new BufferMarkCapability(terminal, this._logService);
+			bufferMarkDetection = new BufferMarkCapability(terminal);
 			this.capabilities.add(TerminalCapability.BufferMarkDetection, bufferMarkDetection);
 		}
 		return bufferMarkDetection;

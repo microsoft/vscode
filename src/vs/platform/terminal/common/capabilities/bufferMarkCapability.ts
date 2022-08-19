@@ -4,60 +4,48 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IBufferMark, IBufferMarkDetectionCapability, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IBufferMarkDetectionCapability, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 // Importing types is safe in any layer
 // eslint-disable-next-line code-import-patterns
 import type { IMarker, Terminal } from 'xterm-headless';
 
+/**
+ * Stores marks to be added to the buffer
+ * anonymous marks are those that have no ID
+ */
 export class BufferMarkCapability implements IBufferMarkDetectionCapability {
 
 	readonly type = TerminalCapability.BufferMarkDetection;
 
-	private _marks: Map<string, IMarker> = new Map();
+	private _idToMarkerMap: Map<string, IMarker> = new Map();
+	private _anonymousMarkers: IMarker[] = [];
 
-	private _anonymousMarks: IMarker[] = [];
-	private readonly _onMarkAdded = new Emitter<{ id?: string; marker: IMarker; hidden?: boolean; height?: number }>();
+	private readonly _onMarkAdded = new Emitter<{ marker: IMarker; id?: string; hidden?: boolean }>();
 	readonly onMarkAdded = this._onMarkAdded.event;
-	private readonly _onDidRequestMarkDecoration = new Emitter<IBufferMark>();
-	readonly onDidRequestMarkDecoration = this._onMarkAdded.event;
 
 	constructor(
-		private readonly _terminal: Terminal,
-		@ILogService private readonly _logService: ILogService
+		private readonly _terminal: Terminal
 	) {
 	}
-	marks(): IMarker[] { return Array.from(this._marks.values()).concat(this._anonymousMarks); }
+
+	markers(): IMarker[] { return Array.from(this._idToMarkerMap.values()).concat(this._anonymousMarkers); }
+
 	addMark(id?: string, marker?: IMarker, hidden?: boolean): void {
 		marker = marker || this._terminal.registerMarker();
 		if (!marker) {
 			return;
 		}
 		if (id) {
-			this._marks.set(id, marker);
-			marker.onDispose(() => this._marks.delete(id));
+			this._idToMarkerMap.set(id, marker);
+			marker.onDispose(() => this._idToMarkerMap.delete(id));
 		} else {
-			this._anonymousMarks.push(marker);
-			marker.onDispose(() => this._anonymousMarks.filter(m => m !== marker));
+			this._anonymousMarkers.push(marker);
+			marker.onDispose(() => this._anonymousMarkers.filter(m => m !== marker));
 		}
-		this._onMarkAdded.fire({ id, marker, hidden });
-		this._logService.trace('Added mark', id, marker.line);
+		this._onMarkAdded.fire({ marker, id, hidden });
 	}
 
 	getMark(id: string): IMarker | undefined {
-		this._logService.trace('Got mark', id, this._marks.get(id));
-		return this._marks.get(id);
-	}
-
-	scrollToMarkAndDecorate(startMarkId: string, endMarkId?: string, highlight?: boolean): void {
-		const startMarker = this.getMark(startMarkId);
-		const endMarker = endMarkId ? this.getMark(endMarkId) : startMarker;
-		if (!startMarker) {
-			return;
-		}
-		this._terminal.scrollToLine(startMarker.line);
-		if (highlight) {
-			this._onDidRequestMarkDecoration.fire({ id: startMarkId, marker: startMarker, endMarker });
-		}
+		return this._idToMarkerMap.get(id);
 	}
 }

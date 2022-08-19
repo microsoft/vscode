@@ -317,7 +317,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		}
 		this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
 		this._currentCommand.commandStartMarker = options?.marker || this._terminal.registerMarker(0);
-		this._onCommandStarted.fire({ marker: options?.marker || this._currentCommand.commandStartMarker, genericMarkProperties: options?.genericMarkProperties } as ITerminalCommand);
+		this._onCommandStarted.fire({ marker: options?.marker || this._currentCommand.commandStartMarker, markProperties: options?.markProperties } as ITerminalCommand);
 		this._logService.debug('CommandDetectionCapability#handleCommandStart', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
 	}
 
@@ -353,7 +353,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	}
 
 	handleGenericCommand(options?: IHandleCommandOptions): void {
-		if (options?.genericMarkProperties?.disableCommandStorage) {
+		if (options?.markProperties?.disableCommandStorage) {
 			this.setIsCommandStorageDisabled();
 		}
 		this.handlePromptStart(options);
@@ -459,7 +459,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				commandStartLineContent: this._currentCommand.commandStartLineContent,
 				hasOutput: () => !executedMarker?.isDisposed && !endMarker?.isDisposed && !!(executedMarker && endMarker && executedMarker?.line < endMarker!.line),
 				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
-				genericMarkProperties: options?.genericMarkProperties
+				markProperties: options?.markProperties
 			};
 			this._commands.push(newCommand);
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
