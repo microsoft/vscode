@@ -100,7 +100,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 		}
 
 		// then check by validExtensions
-		if (this.validExtensions.has(extname(path))) {
+		if (this.validExtensions.has(extname(path).toLowerCase())) {
 			return callback({ path });
 		}
 

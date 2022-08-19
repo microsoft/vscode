@@ -18,7 +18,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IDebugService, IBreakpoint, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, BreakpointWidgetContext, IBreakpointEditorContribution, IBreakpointUpdateData, IDebugConfiguration, State, IDebugSession, DebuggerUiMessage } from 'vs/workbench/contrib/debug/common/debug';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { BreakpointWidget } from 'vs/workbench/contrib/debug/browser/breakpointWidget';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, disposeIfDisposable } from 'vs/base/common/lifecycle';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { getBreakpointMessageAndIcon } from 'vs/workbench/contrib/debug/browser/breakpointsView';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -261,7 +261,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 					getAnchor: () => anchor,
 					getActions: () => actions,
 					getActionsContext: () => breakpoints.length ? breakpoints[0] : undefined,
-					onHide: () => dispose(actions)
+					onHide: () => disposeIfDisposable(actions)
 				});
 			} else {
 				const breakpoints = this.debugService.getModel().getBreakpoints({ uri, lineNumber });
@@ -688,7 +688,7 @@ class InlineBreakpointWidget implements IContentWidget, IDisposable {
 				getAnchor: () => anchor,
 				getActions: () => actions,
 				getActionsContext: () => this.breakpoint,
-				onHide: () => dispose(actions)
+				onHide: () => disposeIfDisposable(actions)
 			});
 		}));
 

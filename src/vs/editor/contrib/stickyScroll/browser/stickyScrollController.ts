@@ -5,7 +5,6 @@
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { EditorOption, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
@@ -23,13 +22,13 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	private _widgetState: StickyScrollWidgetState;
 
 	constructor(
-		editor: ICodeEditor,
-		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+		_editor: ICodeEditor,
+		@ILanguageFeaturesService _languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
-		this._editor = editor;
+		this._editor = _editor;
 		this._stickyScrollWidget = new StickyScrollWidget(this._editor);
-		this._stickyLineCandidateProvider = new StickyLineCandidateProvider(this._editor, languageFeaturesService);
+		this._stickyLineCandidateProvider = new StickyLineCandidateProvider(this._editor, _languageFeaturesService);
 		this._widgetState = new StickyScrollWidgetState([], 0);
 
 		this._register(this._editor.onDidChangeConfiguration(e => {
@@ -147,6 +146,3 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._sessionStore.dispose();
 	}
 }
-
-registerEditorContribution(StickyScrollController.ID, StickyScrollController);
-

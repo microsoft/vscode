@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { withAsyncTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { StickyScrollController } from 'vs/editor/contrib/stickyScroll/browser/stickyScroll';
+import { StickyScrollController } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollController';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
@@ -12,8 +12,6 @@ import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeatu
 import { DocumentSymbol, SymbolKind } from 'vs/editor/common/languages';
 import { StickyLineCandidate, StickyLineCandidateProvider } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollProvider';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-
-// To run this test file : ./test.bat --glob **/stickyScroll.test.js in the scripts folder
 
 suite('Sticky Scroll Tests', () => {
 

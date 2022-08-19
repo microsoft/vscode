@@ -715,7 +715,7 @@ export class PersistentTerminalProcess extends Disposable {
 
 	installAutoReply(match: string, reply: string) {
 		this._autoReplies.get(match)?.dispose();
-		this._autoReplies.set(match, new TerminalAutoResponder(this._terminalProcess, match, reply));
+		this._autoReplies.set(match, new TerminalAutoResponder(this._terminalProcess, match, reply, this._logService));
 	}
 
 	uninstallAutoReply(match: string) {

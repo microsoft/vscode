@@ -283,7 +283,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 
 	profiles: {
 		all: readonly UriDto<IUserDataProfile>[];
-		current: UriDto<IUserDataProfile>;
+		profile: UriDto<IUserDataProfile>;
 	};
 
 	homeDir: string;

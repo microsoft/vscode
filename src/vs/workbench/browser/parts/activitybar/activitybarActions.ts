@@ -191,11 +191,9 @@ class MenuActivityActionViewItem extends ActivityActionViewItem {
 		}
 	}
 
-	protected async resolveMainMenuActions(menu: IMenu, disposables: DisposableStore): Promise<IAction[]> {
+	protected async resolveMainMenuActions(menu: IMenu, _disposable: DisposableStore): Promise<IAction[]> {
 		const actions: IAction[] = [];
-
-		disposables.add(createAndFillInActionBarActions(menu, undefined, { primary: [], secondary: actions }));
-
+		createAndFillInActionBarActions(menu, undefined, { primary: [], secondary: actions });
 		return actions;
 	}
 
@@ -276,7 +274,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 						providerSubMenuActions.push(signOutAction);
 					}
 
-					const providerSubMenu = disposables.add(new SubmenuAction('activitybar.submenu', `${accountName} (${providerDisplayName})`, providerSubMenuActions));
+					const providerSubMenu = new SubmenuAction('activitybar.submenu', `${accountName} (${providerDisplayName})`, providerSubMenuActions);
 					menus.push(providerSubMenu);
 				});
 			} else {

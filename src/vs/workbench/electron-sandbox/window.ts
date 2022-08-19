@@ -660,6 +660,8 @@ export class NativeWindow extends Disposable {
 		const that = this;
 		registerWindowDriver({
 			async exitApplication(): Promise<void> {
+				that.logService.info('[driver] handling exitApplication()');
+
 				return that.nativeHostService.quit();
 			}
 		});
@@ -760,7 +762,7 @@ export class NativeWindow extends Disposable {
 		const ignoredItems = Array.isArray(touchbarIgnored) ? touchbarIgnored : [];
 
 		// Fill actions into groups respecting order
-		this.touchBarDisposables.add(createAndFillInActionBarActions(this.touchBarMenu, undefined, actions));
+		createAndFillInActionBarActions(this.touchBarMenu, undefined, actions);
 
 		// Convert into command action multi array
 		const items: ICommandAction[][] = [];

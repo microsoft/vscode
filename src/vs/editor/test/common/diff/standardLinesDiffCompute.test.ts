@@ -6,7 +6,7 @@
 import assert = require('assert');
 import { Range } from 'vs/editor/common/core/range';
 import { LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
-import { lineRangeMappingFromRangeMappings } from 'vs/editor/common/diff/standardLinesDiffComputer';
+import { lineRangeMappingFromRangeMappings, StandardLinesDiffComputer } from 'vs/editor/common/diff/standardLinesDiffComputer';
 
 suite('standardLinesDiffCompute', () => {
 	test('1', () => {
@@ -52,6 +52,46 @@ suite('standardLinesDiffCompute', () => {
 			(["{[1,1)->[1,2)}"])
 		);
 	});
+
+	test('Suboptimal Diff (needs improving)', () => {
+		const c = new StandardLinesDiffComputer();
+
+		const lines1 =
+			`
+			FirstKeyword = BreakKeyword,
+			LastKeyword = StringKeyword,
+			FirstFutureReservedWord = ImplementsKeyword,
+			LastFutureReservedWord = YieldKeyword
+		}
+`.split('\n');
+
+		const lines2 =
+			`
+			FirstKeyword = BreakKeyword,
+			LastKeyword = StringKeyword,
+			FirstFutureReservedWord = ImplementsKeyword,
+			LastFutureReservedWord = YieldKeyword,
+			FirstTypeNode = TypeReference,
+			LastTypeNode = ArrayType
+		}
+`.split('\n');
+
+		const diff = c.computeDiff(lines1, lines2, { maxComputationTime: 1000, ignoreTrimWhitespace: false });
+
+		// TODO this diff should only have one inner, not two.
+		assert.deepStrictEqual(
+			toJsonWithDetails(diff.changes),
+			[
+				{
+					main: "{[5,6)->[5,8)}",
+					inner: [
+						"{[5,41 -> 5,41]->[5,41 -> 5,42]}",
+						"{[6,1 -> 6,1]->[6,1 -> 8,1]}",
+					]
+				}
+			]
+		);
+	});
 });
 
 function r(values: [startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number]): Range {
@@ -60,4 +100,10 @@ function r(values: [startLineNumber: number, startColumn: number, endLineNumber:
 
 function toJson(mappings: LineRangeMapping[]): unknown {
 	return mappings.map(m => m.toString());
+}
+
+function toJsonWithDetails(mappings: LineRangeMapping[]): unknown {
+	return mappings.map(m => {
+		return { main: m.toString(), inner: m.innerChanges?.map(c => c.toString()) };
+	});
 }
