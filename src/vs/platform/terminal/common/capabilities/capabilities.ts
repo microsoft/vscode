@@ -155,6 +155,7 @@ export interface ICommandDetectionCapability {
 	readonly onCurrentCommandInvalidated: Event<ICommandInvalidationRequest>;
 	setCwd(value: string): void;
 	setIsWindowsPty(value: boolean): void;
+	setIsCommandStorageDisabled(): void;
 	/**
 	 * Gets the working directory for a line, this will return undefined if it's unknown in which
 	 * case the terminal's initial cwd should be used.
@@ -198,6 +199,7 @@ export interface IGenericMarkProperties {
 	hoverMessage?: string;
 	disableCommandStorage?: boolean;
 	hidden?: boolean;
+	marker?: IMarker;
 }
 
 export interface INaiveCwdDetectionCapability {

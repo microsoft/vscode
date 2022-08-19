@@ -119,15 +119,14 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			return;
 		}
 		this._bufferMarkListeners = [];
-		this._bufferMarkListeners.push(capability.onMarkAdded(mark => this.registerMarkDecoration(mark)));
+		this._bufferMarkListeners.push(capability.onMarkAdded(mark => this.registerMarkDecoration({ hoverMessage: mark.hoverMessage })));
 	}
 
 	registerMarkDecoration(mark: IGenericMarkProperties): IDecoration | undefined {
 		if (!this._terminal || (!this._showGutterDecorations && !this._showOverviewRulerDecorations)) {
 			return undefined;
 		}
-		const marker = this._terminal.registerMarker();
-		if (!marker || mark.hidden) {
+		if (mark.hidden) {
 			return undefined;
 		}
 		return this.registerCommandDecoration(undefined, undefined, mark);
@@ -277,7 +276,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (!this._terminal || (beforeCommandExecution && !command) || (!this._showGutterDecorations && !this._showOverviewRulerDecorations)) {
 			return undefined;
 		}
-		const marker = command ? command.marker : this._terminal.registerMarker();
+		const marker = command?.marker || genericMarkProperties?.marker || this._terminal.registerMarker();
 		if (!marker) {
 			throw new Error(`cannot add a decoration for a command ${JSON.stringify(command)} with no marker`);
 		}

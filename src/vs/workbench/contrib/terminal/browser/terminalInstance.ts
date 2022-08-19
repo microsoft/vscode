@@ -89,6 +89,7 @@ import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { showWithPinnedItems } from 'vs/platform/quickinput/browser/quickPickPin';
+import { BufferMarkCapability } from 'vs/platform/terminal/common/capabilities/bufferMarkCapability';
 
 const enum Constants {
 	/**

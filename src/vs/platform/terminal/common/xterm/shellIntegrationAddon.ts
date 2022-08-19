@@ -364,15 +364,13 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 					}
 					case 'Task': {
 						this._createOrGetBufferMarkDetection(this._terminal);
+						this.capabilities.get(TerminalCapability.CommandDetection)?.setIsCommandStorageDisabled();
 						return true;
 					}
 				}
 			}
 			case VSCodeOscPt.SetMark: {
 				const [id, hidden] = args;
-				if (!id) {
-					return false;
-				}
 				this._createOrGetBufferMarkDetection(this._terminal).addMark(id, undefined, hidden === 'Hidden');
 				return true;
 			}
