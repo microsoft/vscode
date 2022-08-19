@@ -12,7 +12,7 @@ import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/d
 import { IFileService } from 'vs/platform/files/common/files';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { QuickPickItem, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { asJson, asText, IRequestService } from 'vs/platform/request/common/request';
 import { IUserDataProfileTemplate, isUserDataProfileTemplate, IUserDataProfileManagementService, IUserDataProfileImportExportService, PROFILES_CATEGORY, PROFILE_EXTENSION, PROFILE_FILTER, ManageProfilesSubMenu, IUserDataProfileService, PROFILES_ENABLEMENT_CONTEXT, HAS_PROFILES_CONTEXT } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -290,7 +290,7 @@ export class MangeSettingsProfileAction extends Action2 {
 		menu.dispose();
 
 		if (actions.length) {
-			const picks: (IQuickPickItem | IQuickPickSeparator)[] = actions.map(action => {
+			const picks: QuickPickItem[] = actions.map(action => {
 				if (action instanceof Separator) {
 					return { type: 'separator' };
 				}
