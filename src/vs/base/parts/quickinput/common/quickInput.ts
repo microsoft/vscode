@@ -342,6 +342,7 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	hideCheckAll: boolean;
 
+	// TODO: Fix layering issue
 	additionalToggles: Toggle[] | undefined;
 }
 

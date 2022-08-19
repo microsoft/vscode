@@ -1011,7 +1011,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (items.length === 0) {
 			return;
 		}
-		// TODO: Toggling fuzzy shows pinned again
 		const fuzzySearchToggle = new Toggle({
 			title: 'Fuzzy search',
 			icon: Codicon.searchFuzzy,
