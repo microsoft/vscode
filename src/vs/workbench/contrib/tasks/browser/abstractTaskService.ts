@@ -53,7 +53,7 @@ import { ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSyst
 import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/common/taskTemplates';
 
 import * as TaskConfig from '../common/taskConfiguration';
-import { terminalsNotReconnectedExitCode, TerminalTaskSystem } from './terminalTaskSystem';
+import { TerminalTaskSystem } from './terminalTaskSystem';
 
 import { IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickSeparator, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 
@@ -181,11 +181,6 @@ class TaskMap {
 	}
 }
 
-interface EventBarrier {
-	isOpen: boolean;
-	queuedEvent?: boolean;
-}
-
 export abstract class AbstractTaskService extends Disposable implements ITaskService {
 
 	// private static autoDetectTelemetryName: string = 'taskServer.autoDetect';
@@ -199,8 +194,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	public static OutputChannelLabel: string = nls.localize('tasks', "Tasks");
 
 	private static _nextHandle: number = 0;
-
-	private _reconnectionBarrier: EventBarrier = { isOpen: true };
 
 	private _tasksReconnected: boolean = false;
 	private _schemaVersion: JsonSchemaVersion | undefined;
@@ -337,8 +330,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._waitForSupportedExecutions = new Promise(resolve => {
 			once(this._onDidRegisterSupportedExecutions.event)(() => resolve());
 		});
-		this._register(this.onDidChangeTaskSystemInfo(async () => await this._attemptTaskReconnection()));
-		this._register(this.onDidReconnectToTerminals(async () => await this._attemptTaskReconnection()));
+		if (this._terminalService.getReconnectedTerminals('Task')) {
+			this._attemptTaskReconnection();
+		} else {
+			this._register(this._terminalService.onDidChangeConnectionState(async () => await this._attemptTaskReconnection()));
+		}
 		this._upgrade();
 	}
 
@@ -360,11 +356,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _attemptTaskReconnection(): Promise<void> {
-		if (!this._reconnectionBarrier.isOpen) {
-			this._reconnectionBarrier.queuedEvent = true;
-			return;
-		}
-		this._reconnectionBarrier.isOpen = false;
 		if (!this._taskSystem) {
 			this._logService.info('getting task system before reconnection');
 			await this._getTaskSystem();
@@ -372,14 +363,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		await this._waitForSupportedExecutions;
 		await this._activateTaskProviders(undefined);
 		await this.getWorkspaceTasks();
-		this._logService.info(`attempting task reconnection, jsonTasksSupported: ${this._jsonTasksSupported}, reconnection pending ${!this._tasksReconnected}`);
 		if (this._configurationService.getValue(TaskSettingId.Reconnection) === true && !this._tasksReconnected) {
-			this._tasksReconnected = await this._reconnectTasks();
-		}
-		this._reconnectionBarrier.isOpen = true;
-		if (this._reconnectionBarrier.queuedEvent) {
-			this._reconnectionBarrier.queuedEvent = undefined;
-			await this._attemptTaskReconnection();
+			await this._reconnectTasks();
 		}
 	}
 
@@ -394,20 +379,15 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!tasks.length) {
 			return true;
 		}
-		const promises = [];
 		for (const task of tasks) {
 			if (ConfiguringTask.is(task)) {
 				const resolved = await this.tryResolveTask(task);
 				if (resolved) {
-					promises.push(this.run(resolved, undefined, TaskRunSource.Reconnect));
+					this.run(resolved, undefined, TaskRunSource.Reconnect);
 				}
 			} else {
-				promises.push(this.run(task, undefined, TaskRunSource.Reconnect));
+				this.run(task, undefined, TaskRunSource.Reconnect);
 			}
-		}
-		const promiseResult = await Promise.all(promises);
-		if (promiseResult.find(p => p?.exitCode === terminalsNotReconnectedExitCode)) {
-			return false;
 		}
 		return true;
 	}
