@@ -276,7 +276,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (!this._terminal || (beforeCommandExecution && !command) || (!this._showGutterDecorations && !this._showOverviewRulerDecorations)) {
 			return undefined;
 		}
-		const marker = command?.marker || markProperties?.marker || this._terminal.registerMarker();
+		const marker = command?.marker || markProperties?.marker;
 		if (!marker) {
 			throw new Error(`cannot add a decoration for a command ${JSON.stringify(command)} with no marker`);
 		}
@@ -388,7 +388,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		});
 	}
 
-	private _createHover(element: HTMLElement, command: ITerminalCommand): IDisposable[] {
+	private _createHover(element: HTMLElement, command: ITerminalCommand, markProperties?: IMarkProperties): IDisposable[] {
 		return [
 			dom.addDisposableListener(element, dom.EventType.MOUSE_ENTER, () => {
 				if (this._contextMenuVisible) {
@@ -397,9 +397,9 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				this._hoverDelayer.trigger(() => {
 					let hoverContent = `${localize('terminalPromptContextMenu', "Show Command Actions")}`;
 					hoverContent += '\n\n---\n\n';
-					if (command.markProperties) {
-						if (command.markProperties.hoverMessage) {
-							hoverContent = command.genericMarkProperties.hoverMessage;
+					if (command.markProperties || markProperties) {
+						if (command.markProperties?.hoverMessage || markProperties?.hoverMessage) {
+							hoverContent = command.markProperties?.hoverMessage || markProperties?.hoverMessage || '';
 						} else {
 							return;
 						}
