@@ -597,7 +597,9 @@ export class PersistentTerminalProcess extends Disposable {
 
 	async detach(): Promise<void> {
 		this._logService.trace('persistentTerminalProcess#detach', this._persistentProcessId);
-		if (this.shouldPersistTerminal) {
+		// Keep the process around if it was indicated to persist and it has had some iteraction or
+		// was replayed
+		if (this.shouldPersistTerminal && this._interactionState !== InteractionState.None) {
 			this._disconnectRunner1.schedule();
 		} else {
 			this.shutdown(true);
