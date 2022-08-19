@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { UriComponents } from 'vs/base/common/uri';
+import { IMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ISerializableEnvironmentVariableCollection, ISerializableEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariable';
 import { IFixedTerminalDimensions, IRawTerminalTabLayoutInfo, IReconnectionProperties, ITerminalEnvironment, ITerminalTabLayoutInfoById, TerminalIcon, TerminalType, TitleEventSource, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
 
@@ -84,8 +85,15 @@ export interface ISerializedCommand {
 	exitCode: number | undefined;
 	commandStartLineContent: string | undefined;
 	timestamp: number;
+	markProperties: IMarkProperties | undefined;
 }
-
+export interface IMarkProperties {
+	hoverMessage?: string;
+	disableCommandStorage?: boolean;
+	hidden?: boolean;
+	marker?: IMarker;
+	id?: string;
+}
 export interface ISerializedCommandDetectionCapability {
 	isWindowsPty: boolean;
 	commands: ISerializedCommand[];

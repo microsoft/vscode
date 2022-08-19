@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
-import { IBufferMarkDetectionCapability, IMarkProperties, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IBufferMarkDetectionCapability, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IMarkProperties } from 'vs/platform/terminal/common/terminalProcess';
 // Importing types is safe in any layer
 // eslint-disable-next-line code-import-patterns
 import type { IMarker, Terminal } from 'xterm-headless';

@@ -44,7 +44,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { QuickPickItem, IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IMarkProperties, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalCapabilityStoreMultiplexer } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { IProcessDataEvent, IProcessPropertyMap, IReconnectionProperties, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, PosixShellType, ProcessPropertyType, ShellIntegrationStatus, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalSettingId, TerminalShellType, TitleEventSource, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 import { escapeNonWindowsPath, collapseTildePath } from 'vs/platform/terminal/common/terminalEnvironment';
@@ -89,6 +89,7 @@ import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { showWithPinnedItems } from 'vs/platform/quickinput/browser/quickPickPin';
+import { IMarkProperties } from 'vs/platform/terminal/common/terminalProcess';
 
 const enum Constants {
 	/**

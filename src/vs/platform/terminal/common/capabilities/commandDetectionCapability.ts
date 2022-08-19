@@ -526,7 +526,8 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				cwd: e.cwd,
 				exitCode: e.exitCode,
 				commandStartLineContent: e.commandStartLineContent,
-				timestamp: e.timestamp
+				timestamp: e.timestamp,
+				markProperties: e.markProperties
 			};
 		});
 		if (this._currentCommand.commandStartMarker) {
@@ -540,6 +541,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				exitCode: undefined,
 				commandStartLineContent: undefined,
 				timestamp: 0,
+				markProperties: undefined
 			});
 		}
 		return {
@@ -580,7 +582,8 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				commandStartLineContent: e.commandStartLineContent,
 				exitCode: e.exitCode,
 				hasOutput: () => !executedMarker?.isDisposed && !endMarker?.isDisposed && !!(executedMarker && endMarker && executedMarker.line < endMarker.line),
-				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer)
+				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
+				markProperties: e.markProperties
 			};
 			this._commands.push(newCommand);
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);

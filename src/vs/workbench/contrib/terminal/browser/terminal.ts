@@ -10,8 +10,9 @@ import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
-import { IMarkProperties, ITerminalCapabilityStore, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ITerminalCapabilityStore, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IExtensionTerminalProfile, IProcessPropertyMap, IReconnectionProperties, IShellIntegration, IShellLaunchConfig, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, ProcessPropertyType, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalShellType, TerminalType, TitleEventSource, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
+import { IMarkProperties } from 'vs/platform/terminal/common/terminalProcess';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditableData } from 'vs/workbench/common/views';
@@ -666,7 +667,7 @@ export interface ITerminalInstance {
 	registerMarker(): IMarker | undefined;
 
 	/**
-	 * Registers a provided @param marker or new one and maps it to an @param ID
+	 * Adds a marker to the buffer, mapping it to an ID if provided.
 	 * When not @param hidden, adds a decoration to the buffer
 	 */
 	addBufferMarker(properties: IMarkProperties): void;
@@ -676,8 +677,7 @@ export interface ITerminalInstance {
 	 * @param startMarkId The ID for the start marker
 	 * @param endMarkId The ID for the end marker
 	 * @param highlight Whether the buffer from startMarker to endMarker
-	 * should be selected - will select just the line unless
-	 * endMarkId is provided
+	 * should be highlighted
 	 */
 	scrollToMark(startMarkId: string, endMarkId?: string, highlight?: boolean): void;
 
