@@ -127,6 +127,10 @@
 	outline-width: 0px; /* do not render focus outline, we already have background */
 }
 
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item :is(a.disabled) span:nth-last-of-type(-n+4):not(span:last-of-type) {
+	margin-inline-end:4px;
+}
+
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-left > a {
 	padding: 0 5px 0 3px;
 }
