@@ -4387,8 +4387,8 @@ declare namespace monaco.editor {
 		codeLensFontSize = 16,
 		colorDecorators = 17,
 		columnSelection = 18,
-		comments = 19,
-		conciseEditorSelection = 20,
+		conciseEditorSelection = 19,
+		comments = 20,
 		contextmenu = 21,
 		copyWithSyntaxHighlighting = 22,
 		cursorBlinking = 23,
@@ -4503,7 +4503,7 @@ declare namespace monaco.editor {
 		pixelRatio = 132,
 		tabFocusMode = 133,
 		layoutInfo = 134,
-		wrappingInfo = 135,
+		wrappingInfo = 135
 	}
 
 	export const EditorOptions: {

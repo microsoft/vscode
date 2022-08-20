@@ -191,8 +191,8 @@ export enum EditorOption {
 	codeLensFontSize = 16,
 	colorDecorators = 17,
 	columnSelection = 18,
-	comments = 19,
-	concieseEditorSelection = 20,
+	conciseEditorSelection = 19,
+	comments = 20,
 	contextmenu = 21,
 	copyWithSyntaxHighlighting = 22,
 	cursorBlinking = 23,
@@ -307,7 +307,7 @@ export enum EditorOption {
 	pixelRatio = 132,
 	tabFocusMode = 133,
 	layoutInfo = 134,
-	wrappingInfo = 135,
+	wrappingInfo = 135
 }
 
 /**
