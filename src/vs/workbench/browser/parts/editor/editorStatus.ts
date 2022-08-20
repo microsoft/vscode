@@ -331,22 +331,22 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		return this.state.conciseEditorSelection ?
 			localize('singleSelectionConcise', '{0} \u2236 {1}') :
 			localize('singleSelection', 'Ln {0}, Col {1}');
-	};
+	}
 	private get nlsSingleSelectionRange(): string {
 		return this.state.conciseEditorSelection ?
 			localize('singleSelectionRangeConcise', '{0} \u2236 {1} ({2} chars)') :
 			localize('singleSelectionRange', 'Ln {0}, Col {1} ({2} characters)');
-	};
+	}
 	private get nlsMultiSelection(): string {
 		return this.state.conciseEditorSelection ?
 			localize('multiSelectionConcise', '{0} crsrs') :
 			localize('multiSelection', '{0} cursors');
-	};
+	}
 	private get nlsMultiSelectionRange(): string {
 		return this.state.conciseEditorSelection ?
 			localize('multiSelectionRangeConcise', '{0} slcts ({1} chars)') :
 			localize('multiSelectionRange', '{0} selections ({1} characters)');
-	};
+	}
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
