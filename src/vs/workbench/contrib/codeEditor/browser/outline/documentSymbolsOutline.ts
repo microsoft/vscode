@@ -161,7 +161,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 			}
 		};
 		const comparator = new DocumentSymbolComparator();
-		const initialState = _configurationService.getValue<DocumentSymbolsOutlineInitialState>(OutlineConfigKeys.initialState);
+		const initialState = textResourceConfigurationService.getValue<DocumentSymbolsOutlineInitialState>(_editor.getModel()?.uri, OutlineConfigKeys.initialState);
 		const options = {
 			collapseByDefault: target === OutlineTarget.Breadcrumbs || (target === OutlineTarget.OutlinePane && initialState === DocumentSymbolsOutlineInitialState.Collapsed),
 			expandOnlyOnTwistieClick: true,

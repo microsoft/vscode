@@ -47,6 +47,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[OutlineConfigKeys.initialState]: {
 			'description': localize('outline.initialState', "Initial state of outline."),
 			'type': 'string',
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 			'enum': [
 				'collapsed',
 				'expanded'
