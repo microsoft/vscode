@@ -246,6 +246,11 @@ export class WordOperations {
 				return new Position(lineNumber, column);
 			}
 
+			if (left === CharCode.Dash && right !== CharCode.Dash) {
+				// kebab-case-variables
+				return new Position(lineNumber, column);
+			}
+
 			if ((strings.isLowerAsciiLetter(left) || strings.isAsciiDigit(left)) && strings.isUpperAsciiLetter(right)) {
 				// camelCaseVariables
 				return new Position(lineNumber, column);
@@ -345,6 +350,11 @@ export class WordOperations {
 
 			if (left !== CharCode.Underline && right === CharCode.Underline) {
 				// snake_case_variables
+				return new Position(lineNumber, column);
+			}
+
+			if (left !== CharCode.Dash && right === CharCode.Dash) {
+				// kebab-case-variables
 				return new Position(lineNumber, column);
 			}
 

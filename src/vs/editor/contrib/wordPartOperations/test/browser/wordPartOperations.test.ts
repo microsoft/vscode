@@ -46,6 +46,7 @@ suite('WordPartOperations', () => {
 		const EXPECTED = [
 			'|start| |line|',
 			'|this|Is|A|Camel|Case|Var|  |this_|is_|a_|snake_|case_|var| |THIS_|IS_|CAPS_|SNAKE| |this_|IS|Mixed|Use|',
+			'|                           |this-|is-|a-|kebab-|case-|var| |THIS-|IS-|CAPS-|KEBAB| |this-|IS|Mixed|Use|',
 			'|end| |line'
 		].join('\n');
 		const [text,] = deserializePipePositions(EXPECTED);
@@ -54,7 +55,8 @@ suite('WordPartOperations', () => {
 			new Position(1000, 1000),
 			ed => cursorWordPartLeft(ed),
 			ed => ed.getPosition()!,
-			ed => ed.getPosition()!.equals(new Position(1, 1))
+			ed => ed.getPosition()!.equals(new Position(1, 1)),
+			{ wordSeparators: "!\"#&'()*+,./:;<=>?@[\\]^`{|}·" } // default characters sans '$-%~' plus '·'
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepStrictEqual(actual, EXPECTED);
@@ -92,6 +94,7 @@ suite('WordPartOperations', () => {
 		const EXPECTED = [
 			'start| |line|',
 			'|this|Is|A|Camel|Case|Var|  |this|_is|_a|_snake|_case|_var| |THIS|_IS|_CAPS|_SNAKE| |this|_IS|Mixed|Use|',
+			'|                           |this|-is|-a|-kebab|-case|-var| |THIS|-IS|-CAPS|-KEBAB| |this|-IS|Mixed|Use|',
 			'|end| |line|'
 		].join('\n');
 		const [text,] = deserializePipePositions(EXPECTED);
@@ -100,7 +103,8 @@ suite('WordPartOperations', () => {
 			new Position(1, 1),
 			ed => cursorWordPartRight(ed),
 			ed => ed.getPosition()!,
-			ed => ed.getPosition()!.equals(new Position(3, 9))
+			ed => ed.getPosition()!.equals(new Position(4, 9)),
+			{ wordSeparators: "!\"#&'()*+,./:;<=>?@[\\]^`{|}·" } // default characters sans '$-%~' plus '·'
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepStrictEqual(actual, EXPECTED);
@@ -186,28 +190,38 @@ suite('WordPartOperations', () => {
 	});
 
 	test('deleteWordPartLeft - basic', () => {
-		const EXPECTED = '|   |/*| |Just| |some| |text| |a|+=| |3| |+|5|-|3| |*/|  |this|Is|A|Camel|Case|Var|  |this_|is_|a_|snake_|case_|var| |THIS_|IS_|CAPS_|SNAKE| |this_|IS|Mixed|Use';
+		const EXPECTED = [
+			'|   |/*| |Just| |some| |text| |a|+=| |3| |+|5-|3| |*/|  |this|Is|A|Camel|Case|Var|',
+			'|this_|is_|a_|snake_|case_|var| |THIS_|IS_|CAPS_|SNAKE| |this_|IS|Mixed|Use|',
+			'|this-|is-|a-|kebab-|case-|var| |THIS-|IS-|CAPS-|KEBAB| |this-|IS|Mixed|Use',
+		].join(' ');
 		const [text,] = deserializePipePositions(EXPECTED);
 		const actualStops = testRepeatedActionAndExtractPositions(
 			text,
-			new Position(1, 1000),
+			new Position(1000, 1000),
 			ed => deleteWordPartLeft(ed),
 			ed => ed.getPosition()!,
-			ed => ed.getValue().length === 0
+			ed => ed.getValue().length === 0,
+			{ wordSeparators: "!\"#&'()*+,./:;<=>?@[\\]^`{|}·" } // default characters sans '$-%~' plus '·'
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('deleteWordPartRight - basic', () => {
-		const EXPECTED = '   |/*| |Just| |some| |text| |a|+=| |3| |+|5|-|3| |*/|  |this|Is|A|Camel|Case|Var|  |this|_is|_a|_snake|_case|_var| |THIS|_IS|_CAPS|_SNAKE| |this|_IS|Mixed|Use|';
+		const EXPECTED = [
+			'   |/*| |Just| |some| |text| |a|+=| |3| |+|5|-3| |*/|  |this|Is|A|Camel|Case|Var|',
+			'|this|_is|_a|_snake|_case|_var| |THIS|_IS|_CAPS|_SNAKE| |this|_IS|Mixed|Use|',
+			'|this|-is|-a|-kebab|-case|-var| |THIS|-IS|-CAPS|-KEBAB| |this|-IS|Mixed|Use|',
+		].join(' ');
 		const [text,] = deserializePipePositions(EXPECTED);
 		const actualStops = testRepeatedActionAndExtractPositions(
 			text,
 			new Position(1, 1),
 			ed => deleteWordPartRight(ed),
 			ed => new Position(1, text.length - ed.getValue().length + 1),
-			ed => ed.getValue().length === 0
+			ed => ed.getValue().length === 0,
+			{ wordSeparators: "!\"#&'()*+,./:;<=>?@[\\]^`{|}·" } // default characters sans '$-%~' plus '·'
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepStrictEqual(actual, EXPECTED);
