@@ -459,13 +459,12 @@ export class CallStackView extends ViewPane {
 		const result = { primary, secondary };
 		const contextKeyService = this.contextKeyService.createOverlay(overlay);
 		const menu = this.menuService.createMenu(MenuId.DebugCallStackContext, contextKeyService);
-		const actionsDisposable = createAndFillInContextMenuActions(menu, { arg: getContextForContributedActions(element), shouldForwardArgs: true }, result, 'inline');
+		createAndFillInContextMenuActions(menu, { arg: getContextForContributedActions(element), shouldForwardArgs: true }, result, 'inline');
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => result.secondary,
-			getActionsContext: () => getContext(element),
-			onHide: () => dispose(actionsDisposable)
+			getActionsContext: () => getContext(element)
 		});
 	}
 }
@@ -583,16 +582,14 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 		const contextKeyService = this.contextKeyService.createOverlay(getSessionContextOverlay(session));
 		const menu = data.elementDisposable.add(this.menuService.createMenu(MenuId.DebugCallStackContext, contextKeyService));
 
-		const menuDisposables = data.elementDisposable.add(new DisposableStore());
 		const setupActionBar = () => {
-			menuDisposables.clear();
 			data.actionBar.clear();
 
 			const primary: IAction[] = [];
 			const secondary: IAction[] = [];
 			const result = { primary, secondary };
 
-			menuDisposables.add(createAndFillInActionBarActions(menu, { arg: getContextForContributedActions(session), shouldForwardArgs: true }, result, 'inline'));
+			createAndFillInActionBarActions(menu, { arg: getContextForContributedActions(session), shouldForwardArgs: true }, result, 'inline');
 			data.actionBar.push(primary, { icon: true, label: false });
 			// We need to set our internal context on the action bar, since our commands depend on that one
 			// While the external context our extensions rely on
@@ -669,16 +666,14 @@ class ThreadsRenderer implements ICompressibleTreeRenderer<IThread, FuzzyScore, 
 		const contextKeyService = this.contextKeyService.createOverlay(getThreadContextOverlay(thread));
 		const menu = data.elementDisposable.add(this.menuService.createMenu(MenuId.DebugCallStackContext, contextKeyService));
 
-		const menuDisposables = data.elementDisposable.add(new DisposableStore());
 		const setupActionBar = () => {
-			menuDisposables.clear();
 			data.actionBar.clear();
 
 			const primary: IAction[] = [];
 			const secondary: IAction[] = [];
 			const result = { primary, secondary };
 
-			menuDisposables.add(createAndFillInActionBarActions(menu, { arg: getContextForContributedActions(thread), shouldForwardArgs: true }, result, 'inline'));
+			createAndFillInActionBarActions(menu, { arg: getContextForContributedActions(thread), shouldForwardArgs: true }, result, 'inline');
 			data.actionBar.push(primary, { icon: true, label: false });
 			// We need to set our internal context on the action bar, since our commands depend on that one
 			// While the external context our extensions rely on

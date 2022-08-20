@@ -209,7 +209,7 @@ export class OpenResultResource extends MergeEditorAction {
 
 	override runWithViewModel(viewModel: MergeEditorViewModel, accessor: ServicesAccessor): void {
 		const editorService = accessor.get(IEditorService);
-		editorService.openEditor({ resource: viewModel.model.result.uri });
+		editorService.openEditor({ resource: viewModel.model.resultTextModel.uri });
 	}
 }
 
@@ -369,7 +369,7 @@ export class CompareInput2WithBaseCommand extends MergeEditorAction {
 function mergeEditorCompare(viewModel: MergeEditorViewModel, commandService: ICommandService, inputNumber: 1 | 2) {
 	const model = viewModel.model;
 	const base = model.base.uri;
-	const input = inputNumber === 1 ? model.input1.uri : model.input2.uri;
+	const input = inputNumber === 1 ? model.input1.textModel.uri : model.input2.textModel.uri;
 	openDiffEditor(commandService, base, input);
 }
 

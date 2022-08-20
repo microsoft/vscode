@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { basename, isEqual } from 'vs/base/common/resources';
-import { Action, IAction } from 'vs/base/common/actions';
+import { Action } from 'vs/base/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { ITextFileService, ISaveErrorHandler, ITextFileEditorModel, ITextFileSaveAsOptions } from 'vs/workbench/services/textfile/common/textfiles';
@@ -102,8 +102,8 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 		const resource = model.resource;
 
 		let message: string;
-		const primaryActions: IAction[] = [];
-		const secondaryActions: IAction[] = [];
+		const primaryActions: Action[] = [];
+		const secondaryActions: Action[] = [];
 
 		// Dirty write prevention
 		if (fileOperationError.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {

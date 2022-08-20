@@ -66,11 +66,11 @@ export class MergeEditorCopyContentsToJSON extends Action2 {
 			return;
 		}
 		const contents: MergeEditorContents = {
-			languageId: model.result.getLanguageId(),
+			languageId: model.resultTextModel.getLanguageId(),
 			base: model.base.getValue(),
-			input1: model.input1.getValue(),
-			input2: model.input2.getValue(),
-			result: model.result.getValue(),
+			input1: model.input1.textModel.getValue(),
+			input2: model.input2.textModel.getValue(),
+			result: model.resultTextModel.getValue(),
 			initialResult: model.getInitialResultValue(),
 		};
 		const jsonStr = JSON.stringify(contents, undefined, 4);
@@ -211,7 +211,7 @@ export class MergeEditorSaveContentsToFolder extends Action2 {
 		}
 		const targetDir = result[0];
 
-		const extension = languageService.getExtensions(model.result.getLanguageId())[0] || '';
+		const extension = languageService.getExtensions(model.resultTextModel.getLanguageId())[0] || '';
 
 		async function write(fileName: string, source: string) {
 			await fileService.writeFile(URI.joinPath(targetDir, fileName + extension), VSBuffer.fromString(source), {});
@@ -219,9 +219,9 @@ export class MergeEditorSaveContentsToFolder extends Action2 {
 
 		await Promise.all([
 			write('base', model.base.getValue()),
-			write('input1', model.input1.getValue()),
-			write('input2', model.input2.getValue()),
-			write('result', model.result.getValue()),
+			write('input1', model.input1.textModel.getValue()),
+			write('input2', model.input2.textModel.getValue()),
+			write('result', model.resultTextModel.getValue()),
 			write('initialResult', model.getInitialResultValue()),
 		]);
 

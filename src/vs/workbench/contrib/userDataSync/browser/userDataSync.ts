@@ -22,7 +22,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { QuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
 	IUserDataAutoSyncService, IUserDataSyncService, registerConfiguration,
@@ -1074,7 +1074,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					const disposables = new DisposableStore();
 					const quickPick = quickInputService.createQuickPick();
 					disposables.add(quickPick);
-					const items: Array<IQuickPickItem | IQuickPickSeparator> = [];
+					const items: Array<QuickPickItem> = [];
 					if (that.userDataSyncService.conflicts.length) {
 						for (const [syncResource] of that.userDataSyncService.conflicts) {
 							switch (syncResource) {

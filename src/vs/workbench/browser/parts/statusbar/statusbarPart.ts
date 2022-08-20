@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/statusbarpart';
 import { localize } from 'vs/nls';
-import { DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, disposeIfDisposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Part } from 'vs/workbench/browser/part';
 import { EventType as TouchEventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -456,7 +456,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 			},
 			onHide: () => {
 				if (actions) {
-					dispose(actions);
+					disposeIfDisposable(actions);
 				}
 			}
 		});
