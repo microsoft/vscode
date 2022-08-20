@@ -326,6 +326,28 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	private screenReaderNotification: INotificationHandle | null = null;
 	private promptedScreenReader: boolean = false;
 
+	private selctionChangeInfo!: IEditorSelectionStatus;
+	private get nlsSingleSelection(): string {
+		return this.state.conciseEditorSelection ?
+			localize('singleSelectionConcise', '{0} \u2236 {1}') :
+			localize('singleSelection', 'Ln {0}, Col {1}');
+	};
+	private get nlsSingleSelectionRange(): string {
+		return this.state.conciseEditorSelection ?
+			localize('singleSelectionRangeConcise', '{0} \u2236 {1} ({2} chars)') :
+			localize('singleSelectionRange', 'Ln {0}, Col {1} ({2} characters)');
+	};
+	private get nlsMultiSelection(): string {
+		return this.state.conciseEditorSelection ?
+			localize('multiSelectionConcise', '{0} slcts') :
+			localize('multiSelection', '{0} selections');
+	};
+	private get nlsMultiSelectionRange(): string {
+		return this.state.conciseEditorSelection ?
+			localize('multiSelectionRangeConcise', '{0} slcts ({1} chars)') :
+			localize('multiSelectionRange', '{0} selections ({1} characters)');
+	};
+
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -619,37 +641,20 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			return undefined;
 		}
 
-		const nlsSingleSelection =
-			this.state.conciseEditorSelection ?
-				localize('singleSelectionConcise', '{0} \u2236 {1}') :
-				localize('singleSelection', 'Ln {0}, Col {1}');
-		const nlsSingleSelectionRange =
-			this.state.conciseEditorSelection ?
-				localize('singleSelectionRangeConcise', '{0} \u2236 {1} ({} chars)') :
-				localize('singleSelectionRange', 'Ln {0}, Col {1} ({2} characters)');
-		const nlsMultiSelection =
-			this.state.conciseEditorSelection ?
-				localize('multiSelectionConcise', '{0} slcts') :
-				localize('multiSelection', '{0} selections');
-		const nlsMultiSelectionRange =
-			this.state.conciseEditorSelection ?
-				localize('multiSelectionRangeConcise', '{0} slcts ({1} chars)') :
-				localize('multiSelectionRange', '{0} selections ({1} characters)');
-
 		if (info.selections.length === 1) {
 			if (info.charactersSelected) {
-				return format(nlsSingleSelectionRange, info.selections[0].positionLineNumber, info.selections[0].positionColumn, info.charactersSelected);
+				return format(this.nlsSingleSelectionRange, info.selections[0].positionLineNumber, info.selections[0].positionColumn, info.charactersSelected);
 			}
 
-			return format(nlsSingleSelection, info.selections[0].positionLineNumber, info.selections[0].positionColumn);
+			return format(this.nlsSingleSelection, info.selections[0].positionLineNumber, info.selections[0].positionColumn);
 		}
 
 		if (info.charactersSelected) {
-			return format(nlsMultiSelectionRange, info.selections.length, info.charactersSelected);
+			return format(this.nlsMultiSelectionRange, info.selections.length, info.charactersSelected);
 		}
 
 		if (info.selections.length > 0) {
-			return format(nlsMultiSelection, info.selections.length);
+			return format(this.nlsMultiSelection, info.selections.length);
 		}
 
 		return undefined;
@@ -664,6 +669,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		this.onColumnSelectionModeChange(activeCodeEditor);
 		this.onScreenReaderModeChange(activeCodeEditor);
 		this.onSelectionChange(activeCodeEditor);
+		this.onConciseEditorSelectionChange(activeCodeEditor);
 		this.onLanguageChange(activeCodeEditor, activeInput);
 		this.onEOLChange(activeCodeEditor);
 		this.onEncodingChange(activeEditorPane, activeCodeEditor);
@@ -842,49 +848,50 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	}
 
 	private onSelectionChange(editorWidget: ICodeEditor | undefined): void {
-		const info: IEditorSelectionStatus = Object.create(null);
+		this.selctionChangeInfo = Object.create(null);
 
 		// We only support text based editors
 		if (editorWidget) {
 
 			// Compute selection(s)
-			info.selections = editorWidget.getSelections() || [];
+			this.selctionChangeInfo.selections = editorWidget.getSelections() || [];
 
 			// Compute selection length
-			info.charactersSelected = 0;
+			this.selctionChangeInfo.charactersSelected = 0;
 			const textModel = editorWidget.getModel();
 			if (textModel) {
-				for (const selection of info.selections) {
-					if (typeof info.charactersSelected !== 'number') {
-						info.charactersSelected = 0;
+				for (const selection of this.selctionChangeInfo.selections) {
+					if (typeof this.selctionChangeInfo.charactersSelected !== 'number') {
+						this.selctionChangeInfo.charactersSelected = 0;
 					}
 
-					info.charactersSelected += textModel.getCharacterCountInRange(selection);
+					this.selctionChangeInfo.charactersSelected += textModel.getCharacterCountInRange(selection);
 				}
 			}
 
 			// Compute the visible column for one selection. This will properly handle tabs and their configured widths
-			if (info.selections.length === 1) {
+			if (this.selctionChangeInfo.selections.length === 1) {
 				const editorPosition = editorWidget.getPosition();
 
 				const selectionClone = new Selection(
-					info.selections[0].selectionStartLineNumber,
-					info.selections[0].selectionStartColumn,
-					info.selections[0].positionLineNumber,
-					editorPosition ? editorWidget.getStatusbarColumn(editorPosition) : info.selections[0].positionColumn
+					this.selctionChangeInfo.selections[0].selectionStartLineNumber,
+					this.selctionChangeInfo.selections[0].selectionStartColumn,
+					this.selctionChangeInfo.selections[0].positionLineNumber,
+					editorPosition ? editorWidget.getStatusbarColumn(editorPosition) : this.selctionChangeInfo.selections[0].positionColumn
 				);
 
-				info.selections[0] = selectionClone;
+				this.selctionChangeInfo.selections[0] = selectionClone;
 			}
 		}
 
-		this.updateState({ type: 'selectionStatus', selectionStatus: this.getSelectionLabel(info) });
+		this.updateState({ type: 'selectionStatus', selectionStatus: this.getSelectionLabel(this.selctionChangeInfo) });
 	}
 
 	private onConciseEditorSelectionChange(editorWidget: ICodeEditor | undefined): void {
 		if (editorWidget) {
 			const info: StateDelta = { type: 'conciseEditorSelection', conciseEditorSelection: this.configurationService.getValue<IEditorOptions>('editor').conciseEditorSelection };
 			this.updateState(info);
+			this.updateState({ type: 'selectionStatus', selectionStatus: this.getSelectionLabel(this.selctionChangeInfo) });
 		}
 	}
 
