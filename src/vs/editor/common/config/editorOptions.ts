@@ -4557,8 +4557,8 @@ export const enum EditorOption {
 	codeLensFontSize,
 	colorDecorators,
 	columnSelection,
-	conciseEditorSelection,
 	comments,
+	conciseEditorSelection,
 	contextmenu,
 	copyWithSyntaxHighlighting,
 	cursorBlinking,
@@ -4821,7 +4821,7 @@ export const EditorOptions = {
 	)),
 	conciseEditorSelection: register(new EditorBooleanOption(
 		EditorOption.conciseEditorSelection, 'conciseEditorSelection', false,
-		{ markdownDescription: nls.localize('conciseEditorSelection', "Controls whether line/column number and selections displayed on the status bar should be abridged.")}
+		{ markdownDescription: nls.localize('conciseEditorSelection', "Controls whether line/column number and selections displayed on the status bar should be abridged.") }
 	)),
 	comments: register(new EditorComments()),
 	contextmenu: register(new EditorBooleanOption(
