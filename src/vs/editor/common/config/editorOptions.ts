@@ -670,6 +670,11 @@ export interface IEditorOptions {
 	 * When enabled, this shows a preview of the drop location and triggers an `onDropIntoEditor` event.
 	 */
 	dropIntoEditor?: IDropIntoEditorOptions;
+
+	/**
+	 * Enable or disable the concise editor selections.
+	 */
+	conciseEditorSelection?: boolean;
 }
 
 /**
@@ -4552,6 +4557,7 @@ export const enum EditorOption {
 	codeLensFontSize,
 	colorDecorators,
 	columnSelection,
+	conciseEditorSelection,
 	comments,
 	contextmenu,
 	copyWithSyntaxHighlighting,
@@ -4812,6 +4818,10 @@ export const EditorOptions = {
 	columnSelection: register(new EditorBooleanOption(
 		EditorOption.columnSelection, 'columnSelection', false,
 		{ description: nls.localize('columnSelection', "Enable that the selection with the mouse and keys is doing column selection.") }
+	)),
+	conciseEditorSelection: register(new EditorBooleanOption(
+		EditorOption.conciseEditorSelection, 'conciseEditorSelection', false,
+		{ markdownDescription: nls.localize('conciseEditorSelection', "Controls whether line/column number and selections displayed on the status bar should be abridged.")}
 	)),
 	comments: register(new EditorComments()),
 	contextmenu: register(new EditorBooleanOption(

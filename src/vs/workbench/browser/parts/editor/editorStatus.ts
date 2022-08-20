@@ -150,6 +150,7 @@ class StateChange {
 	columnSelectionMode: boolean = false;
 	screenReaderMode: boolean = false;
 	metadata: boolean = false;
+	conciseEditorSelection: boolean = false;
 
 	combine(other: StateChange) {
 		this.indentation = this.indentation || other.indentation;
@@ -162,6 +163,7 @@ class StateChange {
 		this.columnSelectionMode = this.columnSelectionMode || other.columnSelectionMode;
 		this.screenReaderMode = this.screenReaderMode || other.screenReaderMode;
 		this.metadata = this.metadata || other.metadata;
+		this.conciseEditorSelection = this.conciseEditorSelection || other.conciseEditorSelection;
 	}
 
 	hasChanges(): boolean {
@@ -174,7 +176,8 @@ class StateChange {
 			|| this.tabFocusMode
 			|| this.columnSelectionMode
 			|| this.screenReaderMode
-			|| this.metadata;
+			|| this.metadata
+			|| this.conciseEditorSelection;
 	}
 }
 
@@ -188,6 +191,7 @@ type StateDelta = (
 	| { type: 'columnSelectionMode'; columnSelectionMode: boolean }
 	| { type: 'screenReaderMode'; screenReaderMode: boolean }
 	| { type: 'metadata'; metadata: string | undefined }
+	| { type: 'conciseEditorSelection'; conciseEditorSelection: boolean | undefined }
 );
 
 class State {
@@ -218,6 +222,9 @@ class State {
 
 	private _metadata: string | undefined;
 	get metadata(): string | undefined { return this._metadata; }
+
+	private _conciseEditorSelection: boolean | undefined;
+	get conciseEditorSelection(): boolean | undefined { return this._conciseEditorSelection; }
 
 	update(update: StateDelta): StateChange {
 		const change = new StateChange();
@@ -285,14 +292,17 @@ class State {
 			}
 		}
 
+		if (update.type === 'conciseEditorSelection') {
+			if (this._conciseEditorSelection !== update.conciseEditorSelection) {
+				this._conciseEditorSelection = update.conciseEditorSelection;
+				change.conciseEditorSelection = true;
+			}
+		}
+
 		return change;
 	}
 }
 
-const nlsSingleSelectionRange = localize('singleSelectionRange', "Ln {0}, Col {1} ({2} selected)");
-const nlsSingleSelection = localize('singleSelection', "Ln {0}, Col {1}");
-const nlsMultiSelectionRange = localize('multiSelectionRange', "{0} selections ({1} characters selected)");
-const nlsMultiSelection = localize('multiSelection', "{0} selections");
 const nlsEOLLF = localize('endOfLineLineFeed', "LF");
 const nlsEOLCRLF = localize('endOfLineCarriageReturnLineFeed', "CRLF");
 
@@ -609,6 +619,23 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			return undefined;
 		}
 
+		const nlsSingleSelection =
+			this.state.conciseEditorSelection ?
+				localize('singleSelectionConcise', '{0} \u2236 {1}') :
+				localize('singleSelection', 'Ln {0}, Col {1}');
+		const nlsSingleSelectionRange =
+			this.state.conciseEditorSelection ?
+				localize('singleSelectionRangeConcise', '{0} \u2236 {1} ({} chars)') :
+				localize('singleSelectionRange', 'Ln {0}, Col {1} ({2} characters)');
+		const nlsMultiSelection =
+			this.state.conciseEditorSelection ?
+				localize('multiSelectionConcise', '{0} slcts') :
+				localize('multiSelection', '{0} selections');
+		const nlsMultiSelectionRange =
+			this.state.conciseEditorSelection ?
+				localize('multiSelectionRangeConcise', '{0} slcts ({1} chars)') :
+				localize('multiSelectionRange', '{0} selections ({1} characters)');
+
 		if (info.selections.length === 1) {
 			if (info.charactersSelected) {
 				return format(nlsSingleSelectionRange, info.selections[0].positionLineNumber, info.selections[0].positionColumn, info.charactersSelected);
@@ -667,6 +694,9 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 				}
 				if (event.hasChanged(EditorOption.accessibilitySupport)) {
 					this.onScreenReaderModeChange(activeCodeEditor);
+				}
+				if (event.hasChanged(EditorOption.conciseEditorSelection)) {
+					this.onConciseEditorSelectionChange(activeCodeEditor);
 				}
 			}));
 
@@ -849,6 +879,13 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		}
 
 		this.updateState({ type: 'selectionStatus', selectionStatus: this.getSelectionLabel(info) });
+	}
+
+	private onConciseEditorSelectionChange(editorWidget: ICodeEditor | undefined): void {
+		if (editorWidget) {
+			const info: StateDelta = { type: 'conciseEditorSelection', conciseEditorSelection: this.configurationService.getValue<IEditorOptions>('editor').conciseEditorSelection };
+			this.updateState(info);
+		}
 	}
 
 	private onEOLChange(editorWidget: ICodeEditor | undefined): void {
