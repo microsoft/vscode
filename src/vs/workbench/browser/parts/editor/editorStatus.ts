@@ -339,8 +339,8 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	};
 	private get nlsMultiSelection(): string {
 		return this.state.conciseEditorSelection ?
-			localize('multiSelectionConcise', '{0} slcts') :
-			localize('multiSelection', '{0} selections');
+			localize('multiSelectionConcise', '{0} crsrs') :
+			localize('multiSelection', '{0} cursors');
 	};
 	private get nlsMultiSelectionRange(): string {
 		return this.state.conciseEditorSelection ?
