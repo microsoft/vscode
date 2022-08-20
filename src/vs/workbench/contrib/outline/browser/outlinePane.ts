@@ -36,6 +36,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { ITreeSorter } from 'vs/base/browser/ui/tree/tree';
 import { AbstractTreeViewState, IAbstractTreeViewState, TreeFindMode } from 'vs/base/browser/ui/tree/abstractTree';
+import { URI } from 'vs/base/common/uri';
 
 const _ctxFollowsCursor = new RawContextKey('outlineFollowsCursor', false);
 const _ctxFilterOnType = new RawContextKey('outlineFiltersOnType', false);
@@ -180,11 +181,14 @@ export class OutlinePane extends ViewPane {
 		this._message.innerText = message;
 	}
 
-	private _captureViewState(): boolean {
+	private _captureViewState(uri?: URI): boolean {
 		if (this._tree) {
 			const oldOutline = this._tree.getInput();
-			if (oldOutline && oldOutline.uri) {
-				this._treeStates.set(`${oldOutline.outlineKind}/${oldOutline.uri}`, this._tree.getViewState());
+			if (!uri) {
+				uri = oldOutline?.uri;
+			}
+			if (oldOutline && uri) {
+				this._treeStates.set(`${oldOutline.outlineKind}/${uri}`, this._tree.getViewState());
 				return true;
 			}
 		}
@@ -269,13 +273,13 @@ export class OutlinePane extends ViewPane {
 			if (newOutline.isEmpty) {
 				// no more elements
 				this._showMessage(localize('no-symbols', "No symbols found in document '{0}'", basename(resource)));
-				this._captureViewState();
+				this._captureViewState(resource);
 				tree.setInput(undefined);
 
 			} else if (!tree.getInput()) {
 				// first: init tree
 				this._domNode.classList.remove('message');
-				const state = this._treeStates.get(`${newOutline.outlineKind}/${resource}`);
+				const state = this._treeStates.get(`${newOutline.outlineKind}/${newOutline.uri}`);
 				tree.setInput(newOutline, state && AbstractTreeViewState.lift(state));
 
 			} else {
