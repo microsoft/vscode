@@ -74,6 +74,15 @@ suite('UserDataProfileService (Common)', () => {
 		assert.deepStrictEqual(testObject.profiles[0].extensionsResource, undefined);
 	});
 
+	test('create transient profile', async () => {
+		const profile = await testObject.createProfile('transient', undefined, undefined, true);
+
+		assert.deepStrictEqual(profile.name, 'transient');
+		assert.deepStrictEqual(profile.isTransient, true);
+		assert.deepStrictEqual(testObject.profiles.length, 2);
+		assert.deepStrictEqual(testObject.profiles[1].id, profile.id);
+	});
+
 	test('profiles include default profile with extension resource defined when transiet prrofile is created', async () => {
 		await testObject.createProfile('transient', undefined, undefined, true);
 
