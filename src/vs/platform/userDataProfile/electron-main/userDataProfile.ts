@@ -19,9 +19,10 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 export const IUserDataProfilesMainService = refineServiceDecorator<IUserDataProfilesService, IUserDataProfilesMainService>(IUserDataProfilesService);
 export interface IUserDataProfilesMainService extends IUserDataProfilesService {
 	isEnabled(): boolean;
-	unsetWorkspace(workspaceIdentifier: WorkspaceIdentifier): Promise<void>;
-	setProfileForWorkspaceSync(profileToSet: IUserDataProfile, workspaceIdentifier: WorkspaceIdentifier): void;
+	getOrSetProfileForWorkspace(workspaceIdentifier: WorkspaceIdentifier, profileToSet?: IUserDataProfile): IUserDataProfile;
+	setProfileForWorkspaceSync(workspaceIdentifier: WorkspaceIdentifier, profileToSet: IUserDataProfile, transient?: boolean): void;
 	checkAndCreateProfileFromCli(args: NativeParsedArgs): Promise<IUserDataProfile> | undefined;
+	unsetWorkspace(workspaceIdentifier: WorkspaceIdentifier, transient?: boolean): void;
 	readonly onWillCreateProfile: Event<WillCreateProfileEvent>;
 	readonly onWillRemoveProfile: Event<WillRemoveProfileEvent>;
 }
@@ -56,7 +57,7 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		if (this.profiles.some(p => p.name === args.profile)) {
 			return undefined;
 		}
-		return this.createProfile(args.profile);
+		return this.createProfile(args.profile, undefined, undefined, args.transient);
 	}
 
 	protected override saveStoredProfiles(storedProfiles: StoredUserDataProfile[]): void {

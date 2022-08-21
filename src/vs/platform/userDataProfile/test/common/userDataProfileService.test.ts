@@ -13,7 +13,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { AbstractNativeEnvironmentService } from 'vs/platform/environment/common/environmentService';
 import product from 'vs/platform/product/common/product';
-import { UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { StoredProfileAssociations, StoredUserDataProfile, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
@@ -23,6 +23,17 @@ class TestEnvironmentService extends AbstractNativeEnvironmentService {
 		super(Object.create(null), Object.create(null), { _serviceBrand: undefined, ...product });
 	}
 	override get userRoamingDataHome() { return this._appSettingsHome.with({ scheme: Schemas.vscodeUserData }); }
+}
+
+class TestUserDataProfilesService extends UserDataProfilesService {
+
+	private storedProfiles: StoredUserDataProfile[] = [];
+	protected override getStoredProfiles(): StoredUserDataProfile[] { return this.storedProfiles; }
+	protected override saveStoredProfiles(storedProfiles: StoredUserDataProfile[]): void { this.storedProfiles = storedProfiles; }
+
+	private storedProfileAssociations: StoredProfileAssociations = {};
+	protected override getStoredProfileAssociations(): StoredProfileAssociations { return this.storedProfileAssociations; }
+	protected override saveStoredProfileAssociations(storedProfileAssociations: StoredProfileAssociations): void { this.storedProfileAssociations = storedProfileAssociations; }
 }
 
 suite('UserDataProfileService (Common)', () => {
@@ -36,9 +47,11 @@ suite('UserDataProfileService (Common)', () => {
 		const fileService = disposables.add(new FileService(logService));
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
 		disposables.add(fileService.registerProvider(ROOT.scheme, fileSystemProvider));
+		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, fileSystemProvider));
 
 		environmentService = new TestEnvironmentService(joinPath(ROOT, 'User'));
-		testObject = new UserDataProfilesService(environmentService, fileService, new UriIdentityService(fileService), logService);
+		testObject = new TestUserDataProfilesService(environmentService, fileService, new UriIdentityService(fileService), logService);
+		testObject.setEnablement(true);
 	});
 
 	teardown(() => disposables.clear());
@@ -56,6 +69,23 @@ suite('UserDataProfileService (Common)', () => {
 	});
 
 	test('profiles always include default profile', () => {
+		assert.deepStrictEqual(testObject.profiles.length, 1);
+		assert.deepStrictEqual(testObject.profiles[0].isDefault, true);
+		assert.deepStrictEqual(testObject.profiles[0].extensionsResource, undefined);
+	});
+
+	test('profiles include default profile with extension resource defined when transiet prrofile is created', async () => {
+		await testObject.createProfile('transient', undefined, undefined, true);
+
+		assert.deepStrictEqual(testObject.profiles.length, 2);
+		assert.deepStrictEqual(testObject.profiles[0].isDefault, true);
+		assert.deepStrictEqual(testObject.profiles[0].extensionsResource?.toString(), joinPath(environmentService.userRoamingDataHome, 'extensions.json').toString());
+	});
+
+	test('profiles include default profile with extension resource undefined when transiet prrofile is removed', async () => {
+		const profile = await testObject.createProfile('transient', undefined, undefined, true);
+		await testObject.removeProfile(profile);
+
 		assert.deepStrictEqual(testObject.profiles.length, 1);
 		assert.deepStrictEqual(testObject.profiles[0].isDefault, true);
 		assert.deepStrictEqual(testObject.profiles[0].extensionsResource, undefined);

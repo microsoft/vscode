@@ -32,7 +32,7 @@ export const IUserDataProfileManagementService = createDecorator<IUserDataProfil
 export interface IUserDataProfileManagementService {
 	readonly _serviceBrand: undefined;
 
-	createAndEnterProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags, fromExisting?: boolean): Promise<IUserDataProfile>;
+	createAndEnterProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags, fromExisting?: boolean, transient?: boolean): Promise<IUserDataProfile>;
 	removeProfile(profile: IUserDataProfile): Promise<void>;
 	renameProfile(profile: IUserDataProfile, name: string): Promise<void>;
 	switchProfile(profile: IUserDataProfile): Promise<void>;
