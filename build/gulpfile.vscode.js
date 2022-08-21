@@ -34,6 +34,9 @@ const minimist = require('minimist');
 const { compileBuildTask } = require('./gulpfile.compile');
 const { compileExtensionsBuildTask, compileExtensionMediaBuildTask } = require('./gulpfile.extensions');
 const { getSettingsSearchBuildId, shouldSetupSettingsSearch } = require('./azure-pipelines/upload-configuration');
+const { promisify } = require('util');
+const glob = promisify(require('glob'));
+const rcedit = promisify(require('rcedit'));
 
 // Build
 const vscodeEntryPoints = _.flatten([
@@ -347,6 +350,35 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 	};
 }
 
+function patchWin32DependenciesTask(destinationFolderName) {
+	const cwd = path.join(path.dirname(root), destinationFolderName);
+
+	return async () => {
+		const deps = await glob('**/*.node', { cwd });
+		const packageJson = JSON.parse(await fs.promises.readFile(path.join(cwd, 'resources', 'app', 'package.json'), 'utf8'));
+		const product = JSON.parse(await fs.promises.readFile(path.join(cwd, 'resources', 'app', 'product.json'), 'utf8'));
+		const baseVersion = packageJson.version.replace(/-.*$/, '');
+
+		await Promise.all(deps.map(async dep => {
+			const basename = path.basename(dep);
+
+			await rcedit(path.join(cwd, dep), {
+				'file-version': baseVersion,
+				'version-string': {
+					'CompanyName': 'Microsoft Corporation',
+					'FileDescription': product.nameLong,
+					'FileVersion': packageJson.version,
+					'InternalName': basename,
+					'LegalCopyright': 'Copyright (C) 2022 Microsoft. All rights reserved',
+					'OriginalFilename': basename,
+					'ProductName': product.nameLong,
+					'ProductVersion': packageJson.version,
+				}
+			});
+		}));
+	};
+}
+
 const buildRoot = path.dirname(root);
 
 const BUILD_TARGETS = [
@@ -370,10 +402,16 @@ BUILD_TARGETS.forEach(buildTarget => {
 		const sourceFolderName = `out-vscode${dashed(minified)}`;
 		const destinationFolderName = `VSCode${dashed(platform)}${dashed(arch)}`;
 
-		const vscodeTaskCI = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(
+		const tasks = [
 			util.rimraf(path.join(buildRoot, destinationFolderName)),
 			packageTask(platform, arch, sourceFolderName, destinationFolderName, opts)
-		));
+		];
+
+		if (platform === 'win32') {
+			tasks.push(patchWin32DependenciesTask(destinationFolderName));
+		}
+
+		const vscodeTaskCI = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(...tasks));
 		gulp.task(vscodeTaskCI);
 
 		const vscodeTask = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
