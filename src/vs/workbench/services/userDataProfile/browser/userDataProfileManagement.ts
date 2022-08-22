@@ -48,13 +48,19 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 
 	private async onDidChangeCurrentProfile(e: DidChangeUserDataProfileEvent): Promise<void> {
 		if (e.previous.isTransient) {
-			await this.userDataProfilesService.removeProfile(e.previous, true);
+			await this.userDataProfilesService.cleanUpTransientProfiles();
 		}
 	}
 
-	async createAndEnterProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags, fromExisting?: boolean, transient?: boolean): Promise<IUserDataProfile> {
-		const profile = await this.userDataProfilesService.createProfile(name, useDefaultFlags, this.getWorkspaceIdentifier(), transient);
+	async createAndEnterProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags, fromExisting?: boolean): Promise<IUserDataProfile> {
+		const profile = await this.userDataProfilesService.createProfile(name, useDefaultFlags, this.getWorkspaceIdentifier());
 		await this.enterProfile(profile, !!fromExisting);
+		return profile;
+	}
+
+	async createAndEnterTransientProfile(): Promise<IUserDataProfile> {
+		const profile = await this.userDataProfilesService.createTransientProfile(this.getWorkspaceIdentifier());
+		await this.enterProfile(profile, false);
 		return profile;
 	}
 

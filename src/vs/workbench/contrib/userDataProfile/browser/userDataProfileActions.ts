@@ -41,7 +41,7 @@ class CreateFromCurrentProfileAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, transient?: boolean) {
+	async run(accessor: ServicesAccessor) {
 		const quickInputService = accessor.get(IQuickInputService);
 		const notificationService = accessor.get(INotificationService);
 		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
@@ -58,7 +58,7 @@ class CreateFromCurrentProfileAction extends Action2 {
 		});
 		if (name) {
 			try {
-				await userDataProfileManagementService.createAndEnterProfile(name, undefined, true, transient);
+				await userDataProfileManagementService.createAndEnterProfile(name, undefined, true);
 			} catch (error) {
 				notificationService.error(error);
 			}
@@ -83,7 +83,7 @@ class CreateEmptyProfileAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, transient?: boolean) {
+	async run(accessor: ServicesAccessor) {
 		const quickInputService = accessor.get(IQuickInputService);
 		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
 		const notificationService = accessor.get(INotificationService);
@@ -100,7 +100,7 @@ class CreateEmptyProfileAction extends Action2 {
 		});
 		if (name) {
 			try {
-				await userDataProfileManagementService.createAndEnterProfile(name, undefined, undefined, transient);
+				await userDataProfileManagementService.createAndEnterProfile(name, undefined, undefined);
 			} catch (error) {
 				notificationService.error(error);
 			}
@@ -153,8 +153,8 @@ registerAction2(class CreateTransientProfileAction extends Action2 {
 		super({
 			id: 'workbench.profiles.actions.createTransientProfile',
 			title: {
-				value: localize('create transient profile', "Create Transient Settings Profile..."),
-				original: 'Create Transient Settings Profile...'
+				value: localize('create transient profile', "Create Transient Settings Profile"),
+				original: 'Create Transient Settings Profile'
 			},
 			category: PROFILES_CATEGORY,
 			f1: true,
@@ -163,7 +163,7 @@ registerAction2(class CreateTransientProfileAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor) {
-		return accessor.get(ICommandService).executeCommand(CreateEmptyProfileAction.ID, true);
+		return accessor.get(IUserDataProfileManagementService).createAndEnterTransientProfile();
 	}
 });
 

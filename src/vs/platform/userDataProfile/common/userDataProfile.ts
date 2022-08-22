@@ -20,6 +20,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { Promises } from 'vs/base/common/async';
 import { generateUuid } from 'vs/base/common/uuid';
+import { escapeRegExpCharacters } from 'vs/base/common/strings';
 
 /**
  * Flags to indicate whether to use the default profile or not.
@@ -94,14 +95,16 @@ export interface IUserDataProfilesService {
 
 	readonly onDidResetWorkspaces: Event<void>;
 
-	createProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags, workspaceIdentifier?: WorkspaceIdentifier, transient?: boolean): Promise<IUserDataProfile>;
+	createProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags, workspaceIdentifier?: WorkspaceIdentifier): Promise<IUserDataProfile>;
+	createTransientProfile(workspaceIdentifier?: WorkspaceIdentifier): Promise<IUserDataProfile>;
 	updateProfile(profile: IUserDataProfile, name: string, useDefaultFlags?: UseDefaultProfileFlags): Promise<IUserDataProfile>;
-	removeProfile(profile: IUserDataProfile, donotRemoveIfAssociated?: boolean): Promise<void>;
+	removeProfile(profile: IUserDataProfile): Promise<void>;
 
-	setProfileForWorkspace(workspaceIdentifier: WorkspaceIdentifier, profile: IUserDataProfile, transient?: boolean): Promise<void>;
+	setProfileForWorkspace(workspaceIdentifier: WorkspaceIdentifier, profile: IUserDataProfile): Promise<void>;
 	resetWorkspaces(): Promise<void>;
 
 	cleanUp(): Promise<void>;
+	cleanUpTransientProfiles(): Promise<void>;
 }
 
 export function reviveProfile(profile: UriDto<IUserDataProfile>, scheme: string): IUserDataProfile {
@@ -237,6 +240,19 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		return this._profilesObject;
 	}
 
+	async createTransientProfile(workspaceIdentifier?: WorkspaceIdentifier): Promise<IUserDataProfile> {
+		const namePrefix = `Temp`;
+		const nameRegEx = new RegExp(`${escapeRegExpCharacters(namePrefix)}\\s(\\d+)`);
+		let nameIndex = 0;
+		for (const profile of this.profiles) {
+			const matches = nameRegEx.exec(profile.name);
+			const index = matches ? parseInt(matches[1]) : 0;
+			nameIndex = index > nameIndex ? index : nameIndex;
+		}
+		const name = `${namePrefix} ${nameIndex + 1}`;
+		return this.createProfile(name, undefined, workspaceIdentifier, true);
+	}
+
 	async createProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags, workspaceIdentifier?: WorkspaceIdentifier, transient?: boolean): Promise<IUserDataProfile> {
 		if (!this.enabled) {
 			throw new Error(`Settings Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
@@ -245,7 +261,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		const profile = await this.doCreateProfile(name, useDefaultFlags, transient);
 
 		if (workspaceIdentifier) {
-			await this.setProfileForWorkspace(workspaceIdentifier, profile, transient);
+			await this.setProfileForWorkspace(workspaceIdentifier, profile);
 		}
 
 		return profile;
@@ -300,7 +316,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		return profile;
 	}
 
-	async removeProfile(profileToRemove: IUserDataProfile, donotRemoveIfAssociated?: boolean): Promise<void> {
+	async removeProfile(profileToRemove: IUserDataProfile): Promise<void> {
 		if (!this.enabled) {
 			throw new Error(`Settings Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
 		}
@@ -310,10 +326,6 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		const profile = this.profiles.find(p => p.id === profileToRemove.id);
 		if (!profile) {
 			throw new Error(`Profile '${profileToRemove.name}' does not exist`);
-		}
-
-		if (donotRemoveIfAssociated && this.isProfileAssociatedToWorkspace(profile)) {
-			return;
 		}
 
 		const joiners: Promise<void>[] = [];
@@ -365,11 +377,11 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		return profile;
 	}
 
-	async setProfileForWorkspace(workspaceIdentifier: WorkspaceIdentifier, profileToSet: IUserDataProfile, transient?: boolean): Promise<void> {
-		this.setProfileForWorkspaceSync(workspaceIdentifier, profileToSet, transient);
+	async setProfileForWorkspace(workspaceIdentifier: WorkspaceIdentifier, profileToSet: IUserDataProfile): Promise<void> {
+		this.setProfileForWorkspaceSync(workspaceIdentifier, profileToSet);
 	}
 
-	setProfileForWorkspaceSync(workspaceIdentifier: WorkspaceIdentifier, profileToSet: IUserDataProfile, transient?: boolean): void {
+	setProfileForWorkspaceSync(workspaceIdentifier: WorkspaceIdentifier, profileToSet: IUserDataProfile): void {
 		if (!this.enabled) {
 			throw new Error(`Settings Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
 		}
@@ -379,7 +391,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 			throw new Error(`Profile '${profileToSet.name}' does not exist`);
 		}
 
-		this.updateWorkspaceAssociation(workspaceIdentifier, profile, transient);
+		this.updateWorkspaceAssociation(workspaceIdentifier, profile);
 	}
 
 	unsetWorkspace(workspaceIdentifier: WorkspaceIdentifier, transient?: boolean): void {
@@ -407,6 +419,14 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		await Promise.all((stat.children || [])
 			.filter(child => child.isDirectory && this.profiles.every(p => !this.uriIdentityService.extUri.isEqual(p.location, child.resource)))
 			.map(child => this.fileService.del(child.resource, { recursive: true })));
+	}
+
+	async cleanUpTransientProfiles(): Promise<void> {
+		if (!this.enabled) {
+			return;
+		}
+		const unAssociatedTransientProfiles = this.transientProfilesObject.profiles.filter(p => !this.isProfileAssociatedToWorkspace(p));
+		await Promise.allSettled(unAssociatedTransientProfiles.map(p => this.removeProfile(p)));
 	}
 
 	private getProfileForWorkspace(workspaceIdentifier: WorkspaceIdentifier): IUserDataProfile | undefined {

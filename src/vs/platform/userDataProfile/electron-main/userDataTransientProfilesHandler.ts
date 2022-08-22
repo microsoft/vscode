@@ -28,7 +28,7 @@ export class UserDataTransientProfilesHandler extends Disposable {
 		const profile = this.userDataProfilesService.getOrSetProfileForWorkspace(workspace);
 		if (profile.isTransient) {
 			this.userDataProfilesService.unsetWorkspace(workspace, true);
-			await this.userDataProfilesService.removeProfile(profile, true);
+			await this.userDataProfilesService.cleanUpTransientProfiles();
 		}
 	}
 

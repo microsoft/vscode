@@ -1476,7 +1476,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		if (options.userDataProfileInfo) {
 			profile = this.userDataProfilesMainService.profiles.find(profile => profile.name === options.userDataProfileInfo!.name);
 			if (profile) {
-				this.userDataProfilesMainService.setProfileForWorkspaceSync(options.workspace ?? 'empty-window', profile, options.cli?.transient);
+				this.userDataProfilesMainService.setProfileForWorkspaceSync(options.workspace ?? 'empty-window', profile);
 			}
 		}
 

@@ -20,7 +20,7 @@ export const IUserDataProfilesMainService = refineServiceDecorator<IUserDataProf
 export interface IUserDataProfilesMainService extends IUserDataProfilesService {
 	isEnabled(): boolean;
 	getOrSetProfileForWorkspace(workspaceIdentifier: WorkspaceIdentifier, profileToSet?: IUserDataProfile): IUserDataProfile;
-	setProfileForWorkspaceSync(workspaceIdentifier: WorkspaceIdentifier, profileToSet: IUserDataProfile, transient?: boolean): void;
+	setProfileForWorkspaceSync(workspaceIdentifier: WorkspaceIdentifier, profileToSet: IUserDataProfile): void;
 	checkAndCreateProfileFromCli(args: NativeParsedArgs): Promise<IUserDataProfile> | undefined;
 	unsetWorkspace(workspaceIdentifier: WorkspaceIdentifier, transient?: boolean): void;
 	readonly onWillCreateProfile: Event<WillCreateProfileEvent>;
@@ -47,17 +47,25 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		if (!this.isEnabled()) {
 			return undefined;
 		}
-		if (!args.profile) {
-			return undefined;
-		}
 		// Do not create the profile if folder/file arguments are not provided
 		if (!args._.length && !args['folder-uri'] && !args['file-uri']) {
 			return undefined;
 		}
-		if (this.profiles.some(p => p.name === args.profile)) {
-			return undefined;
+		if (args.profile) {
+			if (this.profiles.some(p => p.name === args.profile)) {
+				return undefined;
+			}
+			return this.createProfile(args.profile);
 		}
-		return this.createProfile(args.profile, undefined, undefined, args.transient);
+		if (args['profile-transient']) {
+			return this.createTransientProfile()
+				.then(profile => {
+					// Set the profile name to use
+					args.profile = profile.name;
+					return profile;
+				});
+		}
+		return undefined;
 	}
 
 	protected override saveStoredProfiles(storedProfiles: StoredUserDataProfile[]): void {

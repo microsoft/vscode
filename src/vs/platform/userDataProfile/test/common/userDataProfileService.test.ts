@@ -74,17 +74,33 @@ suite('UserDataProfileService (Common)', () => {
 		assert.deepStrictEqual(testObject.profiles[0].extensionsResource, undefined);
 	});
 
-	test('create transient profile', async () => {
-		const profile = await testObject.createProfile('transient', undefined, undefined, true);
+	test('create transient profiles', async () => {
+		const profile1 = await testObject.createTransientProfile();
+		const profile2 = await testObject.createTransientProfile();
+		const profile3 = await testObject.createTransientProfile();
 
-		assert.deepStrictEqual(profile.name, 'transient');
-		assert.deepStrictEqual(profile.isTransient, true);
-		assert.deepStrictEqual(testObject.profiles.length, 2);
-		assert.deepStrictEqual(testObject.profiles[1].id, profile.id);
+		assert.deepStrictEqual(testObject.profiles.length, 4);
+		assert.deepStrictEqual(profile1.name, 'Temp 1');
+		assert.deepStrictEqual(profile1.isTransient, true);
+		assert.deepStrictEqual(testObject.profiles[1].id, profile1.id);
+		assert.deepStrictEqual(profile2.name, 'Temp 2');
+		assert.deepStrictEqual(profile2.isTransient, true);
+		assert.deepStrictEqual(testObject.profiles[2].id, profile2.id);
+		assert.deepStrictEqual(profile3.name, 'Temp 3');
+		assert.deepStrictEqual(profile3.isTransient, true);
+		assert.deepStrictEqual(testObject.profiles[3].id, profile3.id);
+	});
+
+	test('create transient profile when a normal profile with Temp is already created', async () => {
+		await testObject.createProfile('Temp 1');
+		const profile1 = await testObject.createTransientProfile();
+
+		assert.deepStrictEqual(profile1.name, 'Temp 2');
+		assert.deepStrictEqual(profile1.isTransient, true);
 	});
 
 	test('profiles include default profile with extension resource defined when transiet prrofile is created', async () => {
-		await testObject.createProfile('transient', undefined, undefined, true);
+		await testObject.createTransientProfile();
 
 		assert.deepStrictEqual(testObject.profiles.length, 2);
 		assert.deepStrictEqual(testObject.profiles[0].isDefault, true);
@@ -92,13 +108,12 @@ suite('UserDataProfileService (Common)', () => {
 	});
 
 	test('profiles include default profile with extension resource undefined when transiet prrofile is removed', async () => {
-		const profile = await testObject.createProfile('transient', undefined, undefined, true);
+		const profile = await testObject.createTransientProfile();
 		await testObject.removeProfile(profile);
 
 		assert.deepStrictEqual(testObject.profiles.length, 1);
 		assert.deepStrictEqual(testObject.profiles[0].isDefault, true);
 		assert.deepStrictEqual(testObject.profiles[0].extensionsResource, undefined);
 	});
-
 
 });

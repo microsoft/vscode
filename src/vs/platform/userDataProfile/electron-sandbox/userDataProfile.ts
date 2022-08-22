@@ -48,8 +48,13 @@ export class UserDataProfilesNativeService extends Disposable implements IUserDa
 		this.onDidResetWorkspaces = this.channel.listen<void>('onDidResetWorkspaces');
 	}
 
-	async createProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags, workspaceIdentifier?: WorkspaceIdentifier, transient?: boolean): Promise<IUserDataProfile> {
-		const result = await this.channel.call<UriDto<IUserDataProfile>>('createProfile', [name, useDefaultFlags, workspaceIdentifier, transient]);
+	async createProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags, workspaceIdentifier?: WorkspaceIdentifier): Promise<IUserDataProfile> {
+		const result = await this.channel.call<UriDto<IUserDataProfile>>('createProfile', [name, useDefaultFlags, workspaceIdentifier]);
+		return reviveProfile(result, this.profilesHome.scheme);
+	}
+
+	async createTransientProfile(workspaceIdentifier?: WorkspaceIdentifier): Promise<IUserDataProfile> {
+		const result = await this.channel.call<UriDto<IUserDataProfile>>('createTransientProfile', [workspaceIdentifier]);
 		return reviveProfile(result, this.profilesHome.scheme);
 	}
 
@@ -57,8 +62,8 @@ export class UserDataProfilesNativeService extends Disposable implements IUserDa
 		await this.channel.call<UriDto<IUserDataProfile>>('setProfileForWorkspace', [workspaceIdentifier, profile]);
 	}
 
-	removeProfile(profile: IUserDataProfile, donotRemoveIfAssociated?: boolean): Promise<void> {
-		return this.channel.call('removeProfile', [profile, donotRemoveIfAssociated]);
+	removeProfile(profile: IUserDataProfile): Promise<void> {
+		return this.channel.call('removeProfile', [profile]);
 	}
 
 	async updateProfile(profile: IUserDataProfile, name: string, useDefaultFlags?: UseDefaultProfileFlags): Promise<IUserDataProfile> {
@@ -72,6 +77,10 @@ export class UserDataProfilesNativeService extends Disposable implements IUserDa
 
 	cleanUp(): Promise<void> {
 		return this.channel.call('cleanUp');
+	}
+
+	cleanUpTransientProfiles(): Promise<void> {
+		return this.channel.call('cleanUpTransientProfiles');
 	}
 
 }
