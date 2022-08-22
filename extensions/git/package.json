@@ -2192,6 +2192,12 @@
           "scope": "resource",
           "default": "none"
         },
+        "git.rememberPostCommitCommand": {
+          "type": "boolean",
+          "description": "%config.rememberPostCommitCommand%",
+          "scope": "resource",
+          "default": false
+        },
         "git.openAfterClone": {
           "type": "string",
           "enum": [

@@ -2561,7 +2561,7 @@ registerThemingParticipant((theme, collector) => {
 	}
 
 	const buttonBorderColor = theme.getColor(buttonBorder);
-	collector.addRule(`.scm-view .button-container > .monaco-description-button { height: ${buttonBorderColor ? '32px' : '30px'}; }`);
+	collector.addRule(`.scm-view .button-container .monaco-description-button { height: ${buttonBorderColor ? '32px' : '30px'}; }`);
 
 	const focusBorderColor = theme.getColor(focusBorder);
 	if (focusBorderColor) {
@@ -2670,6 +2670,9 @@ export class SCMActionButton implements IDisposable {
 				title: button.command.tooltip,
 				supportIcons: true
 			});
+			if (button.description) {
+				(this.button as ButtonWithDropdown).description = button.description;
+			}
 		} else if (button.description) {
 			// ButtonWithDescription
 			this.button = new ButtonWithDescription(this.container, { supportIcons: true, title: button.command.tooltip });
