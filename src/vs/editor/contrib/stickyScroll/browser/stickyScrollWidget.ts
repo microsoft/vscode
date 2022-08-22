@@ -94,6 +94,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		const renderLineInput: RenderLineInput =
 			new RenderLineInput(true, true, lineRenderingData.content,
 				lineRenderingData.continuesWithWrappedLine,
+
 				lineRenderingData.isBasicASCII, lineRenderingData.containsRTL, 0,
 				lineRenderingData.tokens, actualInlineDecorations,
 				lineRenderingData.tabSize, lineRenderingData.startVisibleColumn,
