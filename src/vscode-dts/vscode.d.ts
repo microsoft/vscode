@@ -1040,7 +1040,7 @@ declare module 'vscode' {
 		 */
 		border?: string;
 		/**
-		 * CSS styling property that will be applied to text enclosed by a decoration.
+		 * CSS styling property that will be applied to the decoration attachment.
 		 */
 		borderColor?: string | ThemeColor;
 		/**
@@ -1056,7 +1056,7 @@ declare module 'vscode' {
 		 */
 		textDecoration?: string;
 		/**
-		 * CSS styling property that will be applied to text enclosed by a decoration.
+		 * CSS styling property that will be applied to the decoration attachment.
 		 */
 		textUnderlinePosition?: string;
 		/**
