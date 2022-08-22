@@ -5,15 +5,18 @@
 
 import { CompareResult } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
+import { toDisposable } from 'vs/base/common/lifecycle';
 import { autorun, derived } from 'vs/base/common/observable';
 import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MergeMarkersController } from 'vs/workbench/contrib/mergeEditor/browser/mergeMarkers/mergeMarkersController';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 import { applyObservableDecorations, join } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from 'vs/workbench/contrib/mergeEditor/browser/view/colors';
 import { EditorGutter } from 'vs/workbench/contrib/mergeEditor/browser/view/editorGutter';
+import { ctxIsMergeResultEditor } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
 import { CodeEditorView } from './codeEditorView';
 
 export class ResultCodeEditorView extends CodeEditorView {
@@ -109,6 +112,13 @@ export class ResultCodeEditorView extends CodeEditorView {
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super(instantiationService);
+
+		this.editor.invokeWithinContext(accessor => {
+			const contextKeyService = accessor.get(IContextKeyService);
+			const isMergeResultEditor = ctxIsMergeResultEditor.bindTo(contextKeyService);
+			isMergeResultEditor.set(true);
+			this._register(toDisposable(() => isMergeResultEditor.reset()));
+		});
 
 		this._register(applyObservableDecorations(this.editor, this.decorations));
 
