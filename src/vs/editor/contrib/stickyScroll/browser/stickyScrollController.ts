@@ -32,7 +32,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._widgetState = new StickyScrollWidgetState([], 0);
 
 		this._register(this._editor.onDidChangeConfiguration(e => {
-			if (e.hasChanged(EditorOption.experimental)) {
+			if (e.hasChanged(EditorOption.stickyScroll)) {
 				this.readConfiguration();
 			}
 		}));
@@ -48,8 +48,8 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	}
 
 	private readConfiguration() {
-		const options = this._editor.getOption(EditorOption.experimental);
-		if (options.stickyScroll.enabled === false) {
+		const options = this._editor.getOption(EditorOption.stickyScroll);
+		if (options.enabled === false) {
 			this._editor.removeOverlayWidget(this._stickyScrollWidget);
 			this._sessionStore.clear();
 			return;
@@ -104,7 +104,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 	public getScrollWidgetState(): StickyScrollWidgetState {
 		const lineHeight: number = this._editor.getOption(EditorOption.lineHeight);
-		const maxNumberStickyLines = this._editor.getOption(EditorOption.experimental).stickyScroll.maxLineCount;
+		const maxNumberStickyLines = this._editor.getOption(EditorOption.stickyScroll).maxLineCount;
 		const scrollTop: number = this._editor.getScrollTop();
 		let lastLineRelativePosition: number = 0;
 		const lineNumbers: number[] = [];

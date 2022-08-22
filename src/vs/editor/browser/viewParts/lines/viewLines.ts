@@ -161,8 +161,8 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		this._horizontalRevealRequest = null;
 
 		// sticky scroll widget
-		this._stickyScrollEnabled = options.get(EditorOption.experimental).stickyScroll.enabled;
-		this._maxNumberStickyLines = options.get(EditorOption.experimental).stickyScroll.maxLineCount;
+		this._stickyScrollEnabled = options.get(EditorOption.stickyScroll).enabled;
+		this._maxNumberStickyLines = options.get(EditorOption.stickyScroll).maxLineCount;
 	}
 
 	public override dispose(): void {
@@ -206,8 +206,8 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		this._canUseLayerHinting = !options.get(EditorOption.disableLayerHinting);
 
 		// sticky scroll
-		this._stickyScrollEnabled = options.get(EditorOption.experimental).stickyScroll.enabled;
-		this._maxNumberStickyLines = options.get(EditorOption.experimental).stickyScroll.maxLineCount;
+		this._stickyScrollEnabled = options.get(EditorOption.stickyScroll).enabled;
+		this._maxNumberStickyLines = options.get(EditorOption.stickyScroll).maxLineCount;
 
 		applyFontInfo(this.domNode, fontInfo);
 
