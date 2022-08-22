@@ -3426,6 +3426,10 @@ declare namespace monaco.editor {
 		 */
 		showDeprecated?: boolean;
 		/**
+		 * Controls whether suggestions allow matches in the middle of the word instead of only at the beginning
+		 */
+		matchOnWordStartOnly?: boolean;
+		/**
 		 * Control the behavior and rendering of the inline hints.
 		 */
 		inlayHints?: IEditorInlayHintsOptions;
@@ -4212,6 +4216,10 @@ declare namespace monaco.editor {
 		 * Show deprecated-suggestions.
 		 */
 		showDeprecated?: boolean;
+		/**
+		 * Controls whether suggestions allow matches in the middle of the word instead of only at the beginning
+		 */
+		matchOnWordStartOnly?: boolean;
 		/**
 		 * Show field-suggestions.
 		 */

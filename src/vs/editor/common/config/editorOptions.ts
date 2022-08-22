@@ -641,6 +641,10 @@ export interface IEditorOptions {
 	 */
 	showDeprecated?: boolean;
 	/**
+	 * Controls whether suggestions allow matches in the middle of the word instead of only at the beginning
+	 */
+	matchOnWordStartOnly?: boolean;
+	/**
 	 * Control the behavior and rendering of the inline hints.
 	 */
 	inlayHints?: IEditorInlayHintsOptions;
@@ -3925,6 +3929,10 @@ export interface ISuggestOptions {
 	 */
 	showDeprecated?: boolean;
 	/**
+	 * Controls whether suggestions allow matches in the middle of the word instead of only at the beginning
+	 */
+	matchOnWordStartOnly?: boolean;
+	/**
 	 * Show field-suggestions.
 	 */
 	showFields?: boolean;
@@ -4045,6 +4053,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 			showFunctions: true,
 			showConstructors: true,
 			showDeprecated: true,
+			matchOnWordStartOnly: true,
 			showFields: true,
 			showVariables: true,
 			showClasses: true,
@@ -4150,6 +4159,11 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 					type: 'boolean',
 					default: true,
 					markdownDescription: nls.localize('editor.suggest.showDeprecated', "When enabled IntelliSense shows `deprecated`-suggestions.")
+				},
+				'editor.suggest.matchOnWordStartOnly': {
+					type: 'boolean',
+					default: false,
+					markdownDescription: nls.localize('editor.suggest.matchOnWordStartOnly', "When enabled IntelliSense filtering requires that the first character matches on a word start, e.g `c` on `Console` or `WebContext` but _not_ on `description`. When disabled IntelliSense will show more results but still sorts them by match quality.")
 				},
 				'editor.suggest.showFields': {
 					type: 'boolean',
@@ -4300,6 +4314,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 			showFunctions: boolean(input.showFunctions, this.defaultValue.showFunctions),
 			showConstructors: boolean(input.showConstructors, this.defaultValue.showConstructors),
 			showDeprecated: boolean(input.showDeprecated, this.defaultValue.showDeprecated),
+			matchOnWordStartOnly: boolean(input.matchOnWordStartOnly, this.defaultValue.matchOnWordStartOnly),
 			showFields: boolean(input.showFields, this.defaultValue.showFields),
 			showVariables: boolean(input.showVariables, this.defaultValue.showVariables),
 			showClasses: boolean(input.showClasses, this.defaultValue.showClasses),
