@@ -862,10 +862,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}
 
 		// Apply profile if any
-		const profileName = cli['profile'];
-		if (profileName) {
+		if (cli.profile) {
 			for (const path of pathsToOpen) {
-				path.userDataProfileInfo = { name: profileName };
+				path.userDataProfileInfo = { name: cli.profile };
 			}
 		}
 
@@ -1477,13 +1476,13 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		if (options.userDataProfileInfo) {
 			profile = this.userDataProfilesMainService.profiles.find(profile => profile.name === options.userDataProfileInfo!.name);
 			if (profile) {
-				this.userDataProfilesMainService.setProfileForWorkspaceSync(profile, options.workspace ?? 'empty-window');
+				this.userDataProfilesMainService.setProfileForWorkspaceSync(options.workspace ?? 'empty-window', profile);
 			}
 		}
 
 		// Otherwise use associated profile
 		if (!profile) {
-			profile = this.userDataProfilesMainService.getProfile(options.workspace ?? 'empty-window', (options.windowToUse ?? this.getLastActiveWindow())?.profile ?? this.userDataProfilesMainService.defaultProfile);
+			profile = this.userDataProfilesMainService.getOrSetProfileForWorkspace(options.workspace ?? 'empty-window', (options.windowToUse ?? this.getLastActiveWindow())?.profile ?? this.userDataProfilesMainService.defaultProfile);
 		}
 
 		return profile;
