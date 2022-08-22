@@ -45,13 +45,8 @@
 	width: 24px;
 	position: relative;
 	overflow: hidden;
-
 	flex-shrink: 0;
 	flex-grow: 0;
-}
-
-.merge-editor-diff {
-	background-color: var(--vscode-mergeEditor-change-background);
 }
 
 .merge-editor-diff-word {
@@ -59,7 +54,8 @@
 }
 
 .merge-editor-block {
-	border: 1px solid var(--vscode-mergeEditor-conflict-unhandledUnfocused-border);
+	background-color: var(--vscode-mergeEditor-conflict-unhandledUnfocused-background);
+	border: 1px dashed var(--vscode-mergeEditor-conflict-unhandledUnfocused-border);
 }
 
 .merge-editor-block.focused {
@@ -68,7 +64,7 @@
 
 .merge-editor-block.handled {
 	border: 1px solid var(--vscode-mergeEditor-conflict-handledUnfocused-border);
-
+	background-color: var(--vscode-mergeEditor-conflict-handledUnfocused-background);
 }
 
 .merge-editor-block.handled.focused {
@@ -159,8 +155,8 @@
 }
 
 .conflict-zone-root {
-	border: 1px solid var(--vscode-mergeEditor-conflict-unhandledUnfocused-border);
-	background-color: var(--vscode-mergeEditor-change-background);
+	border: 1px dashed var(--vscode-mergeEditor-conflict-unhandledUnfocused-border);
+	background-color: var(--vscode-mergeEditor-conflict-unhandledUnfocused-background);
 
 	height: 90%;
 	display: flex;
@@ -179,10 +175,10 @@
 
 .conflict-zone-root .text {
 	margin-left: auto;
-	padding: 0 12px;
+	padding: 0 8px;
 	display: flex;
 	align-items: center;
-	background: var(--vscode-mergeEditor-conflictingLines-background);
+	/* background: var(--vscode-mergeEditor-conflict-unhandledUnfocused-background); */
 	height: 100%;
 	white-space: nowrap;
 	overflow: hidden;
