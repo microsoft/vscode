@@ -6,7 +6,6 @@
 import { CompareResult } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { autorun, derived } from 'vs/base/common/observable';
-import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -113,6 +112,8 @@ export class ResultCodeEditorView extends CodeEditorView {
 
 		this._register(applyObservableDecorations(this.editor, this.decorations));
 
+		this._register(new MergeMarkersController(this.editor, this.viewModel));
+
 		this.htmlElements.gutterDiv.style.width = '5px';
 
 		this._register(
@@ -146,12 +147,5 @@ export class ResultCodeEditorView extends CodeEditorView {
 				);
 
 		}));
-	}
-
-	protected override getEditorContributions(): IEditorContributionDescription[] | undefined {
-		return [
-			...EditorExtensionsRegistry.getEditorContributions(),
-			{ id: MergeMarkersController.ID, ctor: MergeMarkersController }
-		] as IEditorContributionDescription[];
 	}
 }
