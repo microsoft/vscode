@@ -741,12 +741,12 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		this.update();
 	}
 
-	set additionalToggles(toggles: IQuickInputToggle[] | undefined) {
+	set toggles(toggles: IQuickInputToggle[] | undefined) {
 		// HACK: Filter out toggles here that are not concrete Toggle objects. This is to workaround
 		// a layering issue as quick input's interface is in common but Toggle is in browser and
 		// it requires a HTMLElement on its interface
 		const concreteToggles = toggles?.filter(opts => opts instanceof Toggle) as Toggle[];
-		this.ui.inputBox.additionalToggles = concreteToggles;
+		this.ui.inputBox.toggles = concreteToggles;
 	}
 
 	onDidChangeSelection = this.onDidChangeSelectionEmitter.event;

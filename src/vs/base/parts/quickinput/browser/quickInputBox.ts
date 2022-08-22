@@ -92,7 +92,7 @@ export class QuickInputBox extends Disposable {
 		this.findInput.setEnabled(enabled);
 	}
 
-	set additionalToggles(toggles: Toggle[] | undefined) {
+	set toggles(toggles: Toggle[] | undefined) {
 		this.findInput.setAdditionalToggles(toggles);
 	}
 

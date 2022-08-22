@@ -1035,7 +1035,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		quickPick.sortByLabel = false;
 		quickPick.placeholder = placeholder;
 		quickPick.matchOnLabelMode = filterMode || 'contiguous';
-		quickPick.additionalToggles = [fuzzySearchToggle];
+		quickPick.toggles = [fuzzySearchToggle];
 		quickPick.onDidTriggerItemButton(async e => {
 			if (e.button === removeFromCommandHistoryButton) {
 				if (type === 'command') {

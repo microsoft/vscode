@@ -344,7 +344,7 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	/**
 	 * A set of `Toggle` objects to add to the input box.
 	 */
-	additionalToggles: IQuickInputToggle[] | undefined;
+	toggles: IQuickInputToggle[] | undefined;
 }
 
 export interface IQuickInputToggle {
