@@ -83,7 +83,7 @@ const configurationEntrySchema: IJSONSchema = {
 								items: {
 									type: 'string'
 								},
-								description: nls.localize('scope.enumItemLabels', 'Labels for enum values to be displayed in the Settings editor. When specified, the {0} values still show after the labels, but less prominently.', '`enum`')
+								markdownDescription: nls.localize('scope.enumItemLabels', 'Labels for enum values to be displayed in the Settings editor. When specified, the {0} values still show after the labels, but less prominently.', '`enum`')
 							},
 							markdownDescription: {
 								type: 'string',
