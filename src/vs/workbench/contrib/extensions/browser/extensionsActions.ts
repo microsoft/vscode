@@ -11,7 +11,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { dispose } from 'vs/base/common/lifecycle';
+import { disposeIfDisposable } from 'vs/base/common/lifecycle';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewPaneContainer, IExtensionContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
 import { IGalleryExtension, IExtensionGalleryService, ILocalExtension, InstallOptions, InstallOperation, TargetPlatformToString, ExtensionManagementErrorCode, isTargetPlatformCompatible } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -38,7 +38,7 @@ import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/w
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IQuickPickItem, IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickPickItem, IQuickInputService, IQuickPickSeparator, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { IWorkbenchThemeService, IWorkbenchTheme, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IWorkbenchProductIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
@@ -982,7 +982,7 @@ export class DropDownMenuActionViewItem extends ActionViewItem {
 				getAnchor: () => anchor,
 				getActions: () => actions,
 				actionRunner: this.actionRunner,
-				onHide: () => { if (disposeActionsOnHide) { dispose(actions); } }
+				onHide: () => { if (disposeActionsOnHide) { disposeIfDisposable(actions); } }
 			});
 		}
 	}
@@ -1645,8 +1645,8 @@ function isThemeFromExtension(theme: IWorkbenchTheme, extension: IExtension | un
 	return !!(extension && theme.extensionData && ExtensionIdentifier.equals(theme.extensionData.extensionId, extension.identifier.id));
 }
 
-function getQuickPickEntries(themes: IWorkbenchTheme[], currentTheme: IWorkbenchTheme, extension: IExtension | null | undefined, showCurrentTheme: boolean): (IQuickPickItem | IQuickPickSeparator)[] {
-	const picks: (IQuickPickItem | IQuickPickSeparator)[] = [];
+function getQuickPickEntries(themes: IWorkbenchTheme[], currentTheme: IWorkbenchTheme, extension: IExtension | null | undefined, showCurrentTheme: boolean): QuickPickItem[] {
+	const picks: QuickPickItem[] = [];
 	for (const theme of themes) {
 		if (isThemeFromExtension(theme, extension) && !(showCurrentTheme && theme === currentTheme)) {
 			picks.push({ label: theme.label, id: theme.id });

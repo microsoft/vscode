@@ -188,6 +188,10 @@
 	font-size: 14px;
 	font-weight: 500;
 	text-align: left;
+	display: inline-block;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories .category-progress {
@@ -223,11 +227,23 @@
 	padding-left: 1em;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories .codicon {
+.monaco-workbench .part.editor>.content .gettingStartedContainer .icon-widget,
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories .icon-widget,
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories .featured-icon {
+	font-size: 20px;
 	padding-right: 8px;
 	position: relative;
 	top: 3px;
 }
+
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories .codicon:not(.icon-widget, .featured-icon, .hide-category-button) {
+	margin: 0 2px;
+}
+
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories .codicon:first-child {
+	margin-left: 0;
+}
+
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories .start-container img {
 	padding-right: 8px;
@@ -265,10 +281,6 @@
 	position: relative;
 	border-radius: 6px;
 	overflow: hidden;
-}
-
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .codicon {
-	font-size: 20px;
 }
 
 
@@ -325,12 +337,9 @@
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .codicon.hide-category-button {
-	position: relative;
-	top: 0px;
-	align-self: start;
-	left: 8px;
-	font-size: 16px;
-	margin-left: auto;
+	position: absolute;
+	top: 4px;
+	right: 8px;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category.featured .icon-widget {
@@ -418,6 +427,11 @@
 	width: inherit;
 }
 
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .step-title .codicon {
+	position: relative;
+	top: 2px;
+}
+
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-detail-columns .getting-started-detail-left>div {
 	width: 100%;
 }
@@ -459,7 +473,8 @@
 	display: none;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .codicon {
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .codicon-getting-started-step-unchecked,
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .codicon-getting-started-step-checked {
 	margin-right: 8px;
 }
 
@@ -674,6 +689,10 @@
 	margin: 0 0 4px 0;
 }
 
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails h2 .codicon {
+	font-size: 20px;
+}
+
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails h3 {
 	font-size: 13px;
 	font-weight: 700;
@@ -785,4 +804,17 @@
 	display: -webkit-box;
 	-webkit-box-orient: vertical;
 	overflow: hidden;
+}
+
+.monaco-workbench .part.editor>.content .gettingStartedContainer .hide-category-button {
+	padding: 3px;
+	border-radius: 5px;
+}
+
+.monaco-workbench .part.editor>.content .gettingStartedContainer .hide-category-button::before {
+	vertical-align: unset;
+}
+
+.monaco-workbench .part.editor>.content .gettingStartedContainer .hide-category-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
 }

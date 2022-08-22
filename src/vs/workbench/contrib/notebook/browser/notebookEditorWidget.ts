@@ -121,8 +121,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	readonly onDidChangeDecorations: Event<void> = this._onDidChangeDecorations.event;
 	private readonly _onDidScroll = this._register(new Emitter<void>());
 	readonly onDidScroll: Event<void> = this._onDidScroll.event;
-	private readonly _onDidChangeContentHeight = this._register(new Emitter<number>());
-	readonly onDidChangeContentHeight: Event<number> = this._onDidChangeContentHeight.event;
 	private readonly _onDidChangeActiveCell = this._register(new Emitter<void>());
 	readonly onDidChangeActiveCell: Event<void> = this._onDidChangeActiveCell.event;
 	private readonly _onDidChangeSelection = this._register(new Emitter<void>());
@@ -548,8 +546,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			markdownCellLeftMargin,
 			markdownCellBottomMargin,
 			markdownCellTopMargin,
-			// bottomToolbarGap: bottomCellToolbarGap,
-			// bottomToolbarHeight: bottomCellToolbarHeight,
 			collapsedIndicatorHeight,
 			compactView,
 			focusIndicator,
@@ -1364,7 +1360,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			this._localStore.add(DOM.scheduleAtNextAnimationFrame(() => {
 				hasPendingChangeContentHeight = false;
 				this._updateScrollHeight();
-				this._onDidChangeContentHeight.fire(this._list.getScrollHeight());
 			}, 100));
 		}));
 

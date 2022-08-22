@@ -51,8 +51,9 @@ import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electro
 import { ICodeWindow, UnloadReason } from 'vs/platform/window/electron-main/window';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
+import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 
 //#region Helper Interfaces
 
@@ -75,6 +76,12 @@ interface IOpenBrowserWindowOptions {
 	readonly windowToUse?: ICodeWindow;
 
 	readonly emptyWindowBackupInfo?: IEmptyWindowBackupInfo;
+
+	readonly userDataProfileInfo?: IUserDataProfileInfo;
+}
+
+interface IUserDataProfileInfo {
+	readonly name?: string;
 }
 
 interface IPathResolveOptions {
@@ -151,6 +158,11 @@ interface IPathToOpen<T = IEditorOptions> extends IPath<T> {
 	 * Optional label for the recent history
 	 */
 	label?: string;
+
+	/**
+	 * Info of the profile to use
+	 */
+	userDataProfileInfo?: IUserDataProfileInfo;
 }
 
 interface IWorkspacePathToOpen extends IPathToOpen {
@@ -201,7 +213,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		@IStateMainService private readonly stateMainService: IStateMainService,
 		@IPolicyService private readonly policyService: IPolicyService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
-		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+		@IUserDataProfilesMainService private readonly userDataProfilesMainService: IUserDataProfilesMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IBackupMainService private readonly backupMainService: IBackupMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -692,7 +704,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			forceNewWindow,
 			forceNewTabbedWindow: openConfig.forceNewTabbedWindow,
 			filesToOpen,
-			windowToUse
+			windowToUse,
+			userDataProfileInfo: folderOrWorkspace.userDataProfileInfo
 		});
 	}
 
@@ -847,6 +860,14 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				pathsToOpen.push(path);
 			}
 		}
+
+		// Apply profile if any
+		if (cli.profile) {
+			for (const path of pathsToOpen) {
+				path.userDataProfileInfo = { name: cli.profile };
+			}
+		}
+
 		return pathsToOpen;
 	}
 
@@ -1325,8 +1346,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			backupPath: options.emptyWindowBackupInfo ? join(this.environmentMainService.backupHome, options.emptyWindowBackupInfo.backupFolder) : undefined,
 
 			profiles: {
-				all: this.userDataProfilesService.profiles,
-				current: this.userDataProfilesService.getProfile(options.workspace ?? 'empty-window', (options.windowToUse ?? this.getLastActiveWindow())?.profile ?? this.userDataProfilesService.defaultProfile),
+				all: this.userDataProfilesMainService.profiles,
+				profile: this.resolveProfileForBrowserWindow(options)
 			},
 
 			homeDir: this.environmentMainService.userHome.fsPath,
@@ -1356,7 +1377,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			accessibilitySupport: app.accessibilitySupportEnabled,
 			colorScheme: this.themeMainService.getColorScheme(),
 			policiesData: this.policyService.serialize(),
-			editSessionId: this.environmentMainService.editSessionId,
 		};
 
 		let window: ICodeWindow | undefined;
@@ -1447,6 +1467,25 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}
 
 		return window;
+	}
+
+	private resolveProfileForBrowserWindow(options: IOpenBrowserWindowOptions) {
+
+		// Resolve profile by name if provided
+		let profile: IUserDataProfile | undefined;
+		if (options.userDataProfileInfo) {
+			profile = this.userDataProfilesMainService.profiles.find(profile => profile.name === options.userDataProfileInfo!.name);
+			if (profile) {
+				this.userDataProfilesMainService.setProfileForWorkspaceSync(options.workspace ?? 'empty-window', profile);
+			}
+		}
+
+		// Otherwise use associated profile
+		if (!profile) {
+			profile = this.userDataProfilesMainService.getOrSetProfileForWorkspace(options.workspace ?? 'empty-window', (options.windowToUse ?? this.getLastActiveWindow())?.profile ?? this.userDataProfilesMainService.defaultProfile);
+		}
+
+		return profile;
 	}
 
 	private doOpenInBrowserWindow(window: ICodeWindow, configuration: INativeWindowConfiguration, options: IOpenBrowserWindowOptions): void {

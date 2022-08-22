@@ -408,7 +408,7 @@ export class CommandCenter {
 		}
 	}
 
-	@command('_git.openMergeEditor')
+	@command('git.openMergeEditor')
 	async openMergeEditor(uri: unknown) {
 		if (!(uri instanceof Uri)) {
 			return;
@@ -422,8 +422,8 @@ export class CommandCenter {
 
 		type InputData = { uri: Uri; title?: string; detail?: string; description?: string };
 		const mergeUris = toMergeUris(uri);
-		const ours: InputData = { uri: mergeUris.ours, title: localize('Yours', 'Yours') };
-		const theirs: InputData = { uri: mergeUris.theirs, title: localize('Theirs', 'Theirs') };
+		const current: InputData = { uri: mergeUris.ours, title: localize('Current', 'Current') };
+		const incoming: InputData = { uri: mergeUris.theirs, title: localize('Incoming', 'Incoming') };
 
 		try {
 			const [head, rebaseOrMergeHead] = await Promise.all([
@@ -431,12 +431,12 @@ export class CommandCenter {
 				isRebasing ? repo.getCommit('REBASE_HEAD') : repo.getCommit('MERGE_HEAD')
 			]);
 			// ours (current branch and commit)
-			ours.detail = head.refNames.map(s => s.replace(/^HEAD ->/, '')).join(', ');
-			ours.description = '$(git-commit) ' + head.hash.substring(0, 7);
+			current.detail = head.refNames.map(s => s.replace(/^HEAD ->/, '')).join(', ');
+			current.description = '$(git-commit) ' + head.hash.substring(0, 7);
 
 			// theirs
-			theirs.detail = rebaseOrMergeHead.refNames.join(', ');
-			theirs.description = '$(git-commit) ' + rebaseOrMergeHead.hash.substring(0, 7);
+			incoming.detail = rebaseOrMergeHead.refNames.join(', ');
+			incoming.description = '$(git-commit) ' + rebaseOrMergeHead.hash.substring(0, 7);
 
 		} catch (error) {
 			// not so bad, can continue with just uris
@@ -446,8 +446,8 @@ export class CommandCenter {
 
 		const options = {
 			base: mergeUris.base,
-			input1: isRebasing ? ours : theirs,
-			input2: isRebasing ? theirs : ours,
+			input1: isRebasing ? current : incoming,
+			input2: isRebasing ? incoming : current,
 			output: uri
 		};
 
@@ -488,6 +488,7 @@ export class CommandCenter {
 				canSelectFolders: true,
 				canSelectMany: false,
 				defaultUri: Uri.file(defaultCloneDirectory),
+				title: localize('selectFolderTitle', "Choose a folder to clone {0} into", url),
 				openLabel: localize('selectFolder', "Select Repository Location")
 			});
 
@@ -1633,20 +1634,6 @@ export class CommandCenter {
 		}
 
 		await repository.commit(message, opts);
-
-		// Execute post-commit command
-		let postCommitCommand = opts.postCommitCommand;
-
-		if (postCommitCommand === undefined) {
-			// Commit WAS NOT initiated using the action button (ex: keybinding, toolbar
-			// action, command palette) so we honour the `git.postCommitCommand` setting.
-			const postCommitCommandSetting = config.get<string>('postCommitCommand');
-			postCommitCommand = postCommitCommandSetting === 'push' || postCommitCommandSetting === 'sync' ? `git.${postCommitCommandSetting}` : '';
-		}
-
-		if (postCommitCommand.length) {
-			await commands.executeCommand(postCommitCommand, new ApiRepository(repository));
-		}
 
 		return true;
 	}

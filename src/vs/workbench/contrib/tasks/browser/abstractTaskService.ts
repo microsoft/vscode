@@ -3,90 +3,82 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import Severity from 'vs/base/common/severity';
-import * as Objects from 'vs/base/common/objects';
-import * as resources from 'vs/base/common/resources';
-import * as json from 'vs/base/common/json';
-import { URI } from 'vs/base/common/uri';
-import { IStringDictionary } from 'vs/base/common/collections';
 import { Action } from 'vs/base/common/actions';
-import { IDisposable, Disposable, IReference } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import * as Types from 'vs/base/common/types';
-import { TerminateResponseCode } from 'vs/base/common/processes';
-import { ValidationStatus, ValidationState } from 'vs/base/common/parsers';
+import { IStringDictionary } from 'vs/base/common/collections';
+import { Emitter, Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
-import * as UUID from 'vs/base/common/uuid';
-import * as Platform from 'vs/base/common/platform';
+import * as json from 'vs/base/common/json';
+import { Disposable, dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { LRUCache, Touch } from 'vs/base/common/map';
-import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IFileService, IFileStatWithPartialMetadata } from 'vs/platform/files/common/files';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import * as Objects from 'vs/base/common/objects';
+import { ValidationState, ValidationStatus } from 'vs/base/common/parsers';
+import * as Platform from 'vs/base/common/platform';
+import { TerminateResponseCode } from 'vs/base/common/processes';
+import * as resources from 'vs/base/common/resources';
+import Severity from 'vs/base/common/severity';
+import * as Types from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
+import * as UUID from 'vs/base/common/uuid';
+import * as nls from 'vs/nls';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { ProblemMatcherRegistry, INamedProblemMatcher } from 'vs/workbench/contrib/tasks/common/problemMatcher';
+import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IFileService, IFileStatWithPartialMetadata } from 'vs/platform/files/common/files';
+import { IMarkerService } from 'vs/platform/markers/common/markers';
+import { IProgressOptions, IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IProgressService, IProgressOptions, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { INamedProblemMatcher, ProblemMatcherRegistry } from 'vs/workbench/contrib/tasks/common/problemMatcher';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 import { IModelService } from 'vs/editor/common/services/model';
 
+import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { Markers } from 'vs/workbench/contrib/markers/common/markers';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder, IWorkspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
+import { IOutputChannel, IOutputService } from 'vs/workbench/services/output/common/output';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IOutputService, IOutputChannel } from 'vs/workbench/services/output/common/output';
 
 import { ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 
-import { ITaskSystem, ITaskResolver, ITaskSummary, TaskExecuteKind, TaskError, TaskErrors, ITaskTerminateResponse, ITaskSystemInfo, ITaskExecuteResult } from 'vs/workbench/contrib/tasks/common/taskSystem';
-import {
-	Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, ITaskEvent,
-	ITaskSet, TaskGroup, ExecutionEngine, JsonSchemaVersion, TaskSourceKind,
-	TaskSorter, ITaskIdentifier, TASK_RUNNING_STATE, TaskRunSource,
-	KeyedTaskIdentifier as KeyedTaskIdentifier, TaskDefinition, RuntimeType,
-	USER_TASKS_GROUP_KEY,
-	TaskSettingId,
-	TasksSchemaProperties
-} from 'vs/workbench/contrib/tasks/common/tasks';
-import { ITaskService, ITaskProvider, IProblemMatcherRunOptions, ICustomizationProperties, ITaskFilter, IWorkspaceFolderTaskResult, CustomExecutionSupportedContext, ShellExecutionSupportedContext, ProcessExecutionSupportedContext, TaskCommandsRegistered } from 'vs/workbench/contrib/tasks/common/taskService';
+import { ConfiguringTask, ContributedTask, CustomTask, ExecutionEngine, InMemoryTask, ITaskEvent, ITaskIdentifier, ITaskSet, JsonSchemaVersion, KeyedTaskIdentifier, RuntimeType, Task, TaskDefinition, TaskEventKind, TaskGroup, TaskRunSource, TaskSettingId, TaskSorter, TaskSourceKind, TasksSchemaProperties, TASK_RUNNING_STATE, USER_TASKS_GROUP_KEY } from 'vs/workbench/contrib/tasks/common/tasks';
+import { CustomExecutionSupportedContext, ICustomizationProperties, IProblemMatcherRunOptions, ITaskFilter, ITaskProvider, ITaskService, IWorkspaceFolderTaskResult, ProcessExecutionSupportedContext, ShellExecutionSupportedContext, TaskCommandsRegistered } from 'vs/workbench/contrib/tasks/common/taskService';
+import { ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSystemInfo, ITaskTerminateResponse, TaskError, TaskErrors, TaskExecuteKind } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/common/taskTemplates';
 
 import * as TaskConfig from '../common/taskConfiguration';
 import { TerminalTaskSystem } from './terminalTaskSystem';
 
-import { IQuickInputService, IQuickPickItem, QuickPickInput, IQuickPick, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickSeparator, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 
-import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { RunAutomaticTasks } from 'vs/workbench/contrib/tasks/browser/runAutomaticTasks';
+import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
 
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { toFormattedString } from 'vs/base/common/jsonFormatter';
-import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
-import { EditorResourceAccessor, SaveReason } from 'vs/workbench/common/editor';
-import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
-import { isWorkspaceFolder, ITaskQuickPickEntry, QUICKOPEN_DETAIL_CONFIG, TaskQuickPick, QUICKOPEN_SKIP_CONFIG, configureTaskIcon, ITaskTwoLevelQuickPickEntry } from 'vs/workbench/contrib/tasks/browser/taskQuickPick';
-import { ILogService } from 'vs/platform/log/common/log';
 import { once } from 'vs/base/common/functional';
+import { toFormattedString } from 'vs/base/common/jsonFormatter';
+import { Schemas } from 'vs/base/common/network';
+import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
+import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { VirtualWorkspaceContext } from 'vs/workbench/common/contextkeys';
-import { Schemas } from 'vs/base/common/network';
+import { EditorResourceAccessor, SaveReason } from 'vs/workbench/common/editor';
+import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
+import { configureTaskIcon, isWorkspaceFolder, ITaskQuickPickEntry, ITaskTwoLevelQuickPickEntry, QUICKOPEN_DETAIL_CONFIG, QUICKOPEN_SKIP_CONFIG, TaskQuickPick } from 'vs/workbench/contrib/tasks/browser/taskQuickPick';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { ILifecycleService, ShutdownReason, StartupKind } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { TerminalExitReason } from 'vs/platform/terminal/common/terminal';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
@@ -217,7 +209,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	protected _workspaceTasksPromise?: Promise<Map<string, IWorkspaceFolderTaskResult>>;
 
 	protected _taskSystem?: ITaskSystem;
-	protected _taskSystemListener?: IDisposable;
+	protected _taskSystemListeners?: IDisposable[] = [];
 	private _recentlyUsedTasksV1: LRUCache<string, string> | undefined;
 	private _recentlyUsedTasks: LRUCache<string, string> | undefined;
 
@@ -227,6 +219,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	protected _outputChannel: IOutputChannel;
 	protected readonly _onDidStateChange: Emitter<ITaskEvent>;
+	protected readonly _onDidReconnectToTerminals: Emitter<void> = new Emitter();
 	private _waitForSupportedExecutions: Promise<void>;
 	private _onDidRegisterSupportedExecutions: Emitter<void> = new Emitter();
 	private _onDidChangeTaskSystemInfo: Emitter<void> = new Emitter();
@@ -273,7 +266,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 		this._workspaceTasksPromise = undefined;
 		this._taskSystem = undefined;
-		this._taskSystemListener = undefined;
+		this._taskSystemListeners = undefined;
 		this._outputChannel = this._outputService.getChannel(AbstractTaskService.OutputChannelId)!;
 		this._providers = new Map<number, ITaskProvider>();
 		this._providerTypes = new Map<number, string>();
@@ -291,6 +284,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			if (!this._taskSystem && !this._workspaceTasksPromise) {
 				return;
 			}
+
 			if (!this._taskSystem || this._taskSystem instanceof TerminalTaskSystem) {
 				this._outputChannel.clear();
 			}
@@ -327,15 +321,20 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._willRestart = e.reason !== ShutdownReason.RELOAD;
 		});
 		this._register(this.onDidStateChange(e => {
-			if (this._willRestart || e.exitReason === TerminalExitReason.User) {
-				if (e.taskId) {
-					this.removePersistentTask(e.taskId);
-				}
+			if ((this._willRestart || e.exitReason === TerminalExitReason.User) && e.taskId) {
+				this.removePersistentTask(e.taskId);
+			} else if (e.kind === TaskEventKind.Start && e.__task) {
+				this._setPersistentTask(e.__task);
 			}
 		}));
 		this._waitForSupportedExecutions = new Promise(resolve => {
 			once(this._onDidRegisterSupportedExecutions.event)(() => resolve());
 		});
+		if (this._terminalService.getReconnectedTerminals('Task')) {
+			this._attemptTaskReconnection();
+		} else {
+			this._register(this._terminalService.onDidChangeConnectionState(() => this._attemptTaskReconnection()));
+		}
 		this._upgrade();
 	}
 
@@ -354,21 +353,32 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			processContext.set(process && !isVirtual);
 		}
 		this._onDidRegisterSupportedExecutions.fire();
-		if (this._configurationService.getValue(TaskSettingId.Reconnection) === true && this._jsonTasksSupported && !this._tasksReconnected) {
-			this._reconnectTasks();
-		}
 	}
 
-	private async _reconnectTasks(): Promise<void> {
-		const tasks = await this.getSavedTasks('persistent');
-		if (!this._taskSystem) {
-			await this._getTaskSystem();
-		}
-		if (!tasks.length) {
+	private _attemptTaskReconnection(): void {
+		this._getTaskSystem();
+		this._waitForSupportedExecutions.then(() => {
+			this._activateTaskProviders(undefined).then(() => {
+				this.getWorkspaceTasks().then(async () => {
+					if (this._configurationService.getValue(TaskSettingId.Reconnection) === true && !this._tasksReconnected) {
+						await this._reconnectTasks();
+					}
+				});
+			});
+		});
+	}
+
+	private async _reconnectTasks(): Promise<boolean> {
+		if (this._lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
 			this._tasksReconnected = true;
-			return;
+			this._storageService.remove(AbstractTaskService.PersistentTasks_Key, StorageScope.WORKSPACE);
+			return true;
 		}
 
+		const tasks = await this.getSavedTasks('persistent');
+		if (!tasks.length) {
+			return true;
+		}
 		for (const task of tasks) {
 			if (ConfiguringTask.is(task)) {
 				const resolved = await this.tryResolveTask(task);
@@ -379,11 +389,15 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				this.run(task, undefined, TaskRunSource.Reconnect);
 			}
 		}
-		this._tasksReconnected = true;
+		return true;
 	}
 
 	public get onDidStateChange(): Event<ITaskEvent> {
 		return this._onDidStateChange.event;
+	}
+
+	public get onDidReconnectToTerminals(): Event<void> {
+		return this._onDidReconnectToTerminals.event;
 	}
 
 	public get supportsMultipleTaskExecutions(): boolean {
@@ -610,7 +624,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	protected _disposeTaskSystemListeners(): void {
-		this._taskSystemListener?.dispose();
+		if (this._taskSystemListeners) {
+			dispose(this._taskSystemListeners);
+			this._taskSystemListeners = undefined;
+		}
 	}
 
 	public registerTaskProvider(provider: ITaskProvider, type: string): IDisposable {
@@ -938,7 +955,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		//TODO: should this # be configurable?
 		this._persistentTasks = new LRUCache<string, string>(10);
-
 		const storageValue = this._storageService.get(AbstractTaskService.PersistentTasks_Key, StorageScope.WORKSPACE);
 		if (storageValue) {
 			try {
@@ -1087,10 +1103,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _setPersistentTask(task: Task): Promise<void> {
-		if (!task.configurationProperties.problemMatchers || !this._tasksReconnected) {
+		if (!this._configurationService.getValue(TaskSettingId.Reconnection)) {
 			return;
 		}
-		let key = task.getMapKey();
+		let key = task.getRecentlyUsedKey();
 		if (!InMemoryTask.is(task) && key) {
 			const customizations = this._createCustomizableTask(task);
 			if (ContributedTask.is(task) && customizations) {
@@ -1101,8 +1117,15 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					tasks: [customizations]
 				}, TaskRunSource.System, custom, customized, TaskConfig.TaskConfigSource.TasksJson, true);
 				for (const configuration in customized) {
-					key = customized[configuration].getMapKey()!;
+					key = customized[configuration].getRecentlyUsedKey()!;
 				}
+			}
+			// isBackground is still false at this pt bc problem matchers
+			// for contributed tasks get attached later
+			// they're set to [] for this case,
+			// so checking if they're defined is sufficient
+			if (!task.configurationProperties.problemMatchers) {
+				return;
 			}
 			this._getTasksFromStorage('persistent').set(key, JSON.stringify(customizations));
 			this._savePersistentTasks();
@@ -1190,7 +1213,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!(await this._trust())) {
 			return;
 		}
-
 		if (!task) {
 			throw new TaskError(Severity.Info, nls.localize('TaskServer.noTask', 'Task to execute is undefined'), TaskErrors.TaskNotFound);
 		}
@@ -1844,9 +1866,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _handleExecuteResult(executeResult: ITaskExecuteResult, runSource?: TaskRunSource): Promise<ITaskSummary> {
-		if (this._configurationService.getValue(TaskSettingId.Reconnection) === true && runSource !== TaskRunSource.Reconnect) {
-			await this._setPersistentTask(executeResult.task);
-		}
 		if (runSource === TaskRunSource.User) {
 			await this._setRecentlyUsedTask(executeResult.task);
 		}
@@ -2749,10 +2768,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _trust(): Promise<boolean> {
-		return (await this._workspaceTrustRequestService.requestWorkspaceTrust(
-			{
-				message: nls.localize('TaskService.requestTrust', "Listing and running tasks requires that some of the files in this workspace be executed as code.")
-			})) === true;
+		await this._workspaceTrustManagementService.workspaceTrustInitialized;
+		if (!this._workspaceTrustManagementService.isWorkspaceTrusted()) {
+			return (await this._workspaceTrustRequestService.requestWorkspaceTrust(
+				{
+					message: nls.localize('TaskService.requestTrust', "Listing and running tasks requires that some of the files in this workspace be executed as code.")
+				})) === true;
+		}
+		return true;
 	}
 
 	private async _runTaskCommand(filter?: any | { type?: string; task?: string }): Promise<void> {

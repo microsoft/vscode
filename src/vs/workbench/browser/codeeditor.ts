@@ -26,6 +26,10 @@ import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/commo
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { TrackedRangeStickiness, IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IAction } from 'vs/base/common/actions';
 
 export interface IRangeHighlightDecoration {
 	resource: URI;
@@ -153,6 +157,7 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 
 		this._domNode = $('.floating-click-widget');
 		this._domNode.style.padding = '6px 11px';
+		this._domNode.style.borderRadius = '2px';
 		this._domNode.style.cursor = 'pointer';
 
 		if (keyBindingAction) {
@@ -208,6 +213,44 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 		this.editor.removeOverlayWidget(this);
 
 		super.dispose();
+	}
+}
+
+export class FloatingClickMenu extends Disposable implements IEditorContribution {
+
+	static readonly ID = 'editor.contrib.floatingClickMenu';
+
+	constructor(
+		editor: ICodeEditor,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IMenuService menuService: IMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService
+	) {
+		super();
+
+		const menu = menuService.createMenu(MenuId.EditorContent, contextKeyService);
+		const menuDisposables = new DisposableStore();
+		const renderMenuAsFloatingClickBtn = () => {
+			menuDisposables.clear();
+			if (!editor.hasModel() || editor.getOption(EditorOption.inDiffEditor)) {
+				return;
+			}
+			const actions: IAction[] = [];
+			createAndFillInActionBarActions(menu, { renderShortTitle: true, shouldForwardArgs: true }, actions);
+			if (actions.length === 0) {
+				return;
+			}
+			// todo@jrieken find a way to handle N actions, like showing a context menu
+			const [first] = actions;
+			const widget = instantiationService.createInstance(FloatingClickWidget, editor, first.label, first.id);
+			menuDisposables.add(widget);
+			menuDisposables.add(widget.onClick(() => first.run(editor.getModel().uri)));
+			widget.render();
+		};
+		this._store.add(menu);
+		this._store.add(menuDisposables);
+		this._store.add(menu.onDidChange(renderMenuAsFloatingClickBtn));
+		renderMenuAsFloatingClickBtn();
 	}
 }
 

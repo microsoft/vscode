@@ -41,7 +41,7 @@ import 'vs/editor/contrib/links/browser/links';
 import 'vs/editor/contrib/multicursor/browser/multicursor';
 import 'vs/editor/contrib/parameterHints/browser/parameterHints';
 import 'vs/editor/contrib/rename/browser/rename';
-import 'vs/editor/contrib/stickyScroll/browser/stickyScroll';
+import 'vs/editor/contrib/stickyScroll/browser/stickyScrollContribution';
 import 'vs/editor/contrib/smartSelect/browser/smartSelect';
 import 'vs/editor/contrib/snippet/browser/snippetController2';
 import 'vs/editor/contrib/suggest/browser/suggestController';

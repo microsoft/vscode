@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { $, addDisposableListener, append, clearNode, EventHelper, EventType, getDomNodePagePosition, hide, show } from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { dispose, toDisposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { toDisposable, MutableDisposable, DisposableStore, disposeIfDisposable } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService, IColorTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { TextBadge, NumberBadge, IBadge, IconBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
@@ -472,7 +472,7 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 
 	showMenu(): void {
 		if (this.actions) {
-			dispose(this.actions);
+			disposeIfDisposable(this.actions);
 		}
 
 		this.actions = this.getActions();
@@ -481,7 +481,7 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 			getAnchor: () => this.container,
 			getActions: () => this.actions,
 			getCheckedActionsRepresentation: () => 'radio',
-			onHide: () => dispose(this.actions)
+			onHide: () => disposeIfDisposable(this.actions)
 		});
 	}
 
@@ -512,7 +512,7 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 		super.dispose();
 
 		if (this.actions) {
-			this.actions = dispose(this.actions);
+			this.actions = disposeIfDisposable(this.actions);
 		}
 	}
 }

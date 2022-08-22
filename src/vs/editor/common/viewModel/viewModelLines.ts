@@ -25,7 +25,7 @@ export interface IViewModelLines extends IDisposable {
 	setWrappingSettings(fontInfo: FontInfo, wrappingStrategy: 'simple' | 'advanced', wrappingColumn: number, wrappingIndent: WrappingIndent): boolean;
 	setTabSize(newTabSize: number): boolean;
 	getHiddenAreas(): Range[];
-	setHiddenAreas(_ranges: Range[]): boolean;
+	setHiddenAreas(_ranges: readonly Range[]): boolean;
 
 	createLineBreaksComputer(): ILineBreaksComputer;
 	onModelFlushed(): void;

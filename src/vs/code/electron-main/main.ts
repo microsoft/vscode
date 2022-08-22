@@ -103,7 +103,7 @@ class CodeMain {
 
 			// Init services
 			try {
-				await this.initServices(environmentMainService, userDataProfilesMainService, configurationService, stateMainService);
+				await this.initServices(environmentMainService, userDataProfilesMainService, configurationService, stateMainService, productService);
 			} catch (error) {
 
 				// Show a dialog for errors that can be resolved by the user
@@ -235,7 +235,7 @@ class CodeMain {
 		return instanceEnvironment;
 	}
 
-	private async initServices(environmentMainService: IEnvironmentMainService, userDataProfilesMainService: UserDataProfilesMainService, configurationService: ConfigurationService, stateMainService: StateMainService): Promise<void> {
+	private async initServices(environmentMainService: IEnvironmentMainService, userDataProfilesMainService: UserDataProfilesMainService, configurationService: ConfigurationService, stateMainService: StateMainService, productService: IProductService): Promise<void> {
 		await Promises.settled<unknown>([
 
 			// Environment service (paths)
@@ -256,7 +256,7 @@ class CodeMain {
 			configurationService.initialize()
 		]);
 
-		userDataProfilesMainService.setEnablement(!!configurationService.getValue(PROFILES_ENABLEMENT_CONFIG));
+		userDataProfilesMainService.setEnablement(productService.quality !== 'stable' || configurationService.getValue(PROFILES_ENABLEMENT_CONFIG));
 	}
 
 	private async claimInstance(logService: ILogService, environmentMainService: IEnvironmentMainService, lifecycleMainService: ILifecycleMainService, instantiationService: IInstantiationService, productService: IProductService, retry: boolean): Promise<NodeIPCServer> {

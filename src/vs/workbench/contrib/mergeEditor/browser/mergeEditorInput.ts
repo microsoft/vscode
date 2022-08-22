@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { isEqual } from 'vs/base/common/resources';
+import { basename, isEqual } from 'vs/base/common/resources';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -17,11 +17,12 @@ import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, IEditorIdentifier,
 import { EditorInput, IEditorCloseHandler } from 'vs/workbench/common/editor/editorInput';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { MergeDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
-import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
+import { InputData, MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ILanguageSupport, ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { autorun } from 'vs/base/common/observable';
 import { WorkerBasedDocumentDiffProvider } from 'vs/editor/browser/widget/workerBasedDocumentDiffProvider';
+import { ProjectedDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/projectedDocumentDiffProvider';
 
 export class MergeEditorInputData {
 	constructor(
@@ -98,31 +99,47 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 	}
 
 	override async resolve(): Promise<MergeEditorModel> {
-
 		if (!this._model) {
+			const toInputData = async (data: MergeEditorInputData): Promise<InputData> => {
+				const ref = await this._textModelService.createModelReference(data.uri);
+				this._store.add(ref);
+				return {
+					textModel: ref.object.textEditorModel,
+					title: data.title,
+					description: data.description,
+					detail: data.detail,
+				};
+			};
 
-			const base = await this._textModelService.createModelReference(this.base);
-			const input1 = await this._textModelService.createModelReference(this.input1.uri);
-			const input2 = await this._textModelService.createModelReference(this.input2.uri);
-			const result = await this._textModelService.createModelReference(this.result);
+			const [
+				base,
+				result,
+				input1Data,
+				input2Data,
+			] = await Promise.all([
+				this._textModelService.createModelReference(this.base),
+				this._textModelService.createModelReference(this.result),
+				toInputData(this.input1),
+				toInputData(this.input2),
+			]);
 
+			this._store.add(base);
+			this._store.add(result);
+
+			const diffProvider = this._instaService.createInstance(WorkerBasedDocumentDiffProvider);
 			this._model = this._instaService.createInstance(
 				MergeEditorModel,
 				base.object.textEditorModel,
-				input1.object.textEditorModel,
-				this.input1.title,
-				this.input1.detail,
-				this.input1.description,
-				input2.object.textEditorModel,
-				this.input2.title,
-				this.input2.detail,
-				this.input2.description,
+				input1Data,
+				input2Data,
 				result.object.textEditorModel,
-				this._instaService.createInstance(MergeDiffComputer, this._instaService.createInstance(WorkerBasedDocumentDiffProvider)),
+				this._instaService.createInstance(MergeDiffComputer, diffProvider),
+				this._instaService.createInstance(MergeDiffComputer, this._instaService.createInstance(ProjectedDiffComputer, diffProvider)),
 				{
-					resetUnknownOnInitialization: true
+					resetUnknownOnInitialization: false
 				},
 			);
+			this._store.add(this._model);
 
 			// set/unset the closeHandler whenever unhandled conflicts are detected
 			const closeHandler = this._instaService.createInstance(MergeEditorCloseHandler, this._model);
@@ -133,11 +150,6 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 
 			await this._model.onInitialized;
 
-			this._store.add(this._model);
-			this._store.add(base);
-			this._store.add(input1);
-			this._store.add(input2);
-			this._store.add(result);
 		}
 
 		return this._model;
@@ -222,50 +234,79 @@ class MergeEditorCloseHandler implements IEditorCloseHandler {
 			return ConfirmResult.SAVE;
 		}
 
-		const actions: string[] = [
-			someAreDirty ? localize('unhandledConflicts.saveAndIgnore', "Save & Continue with Conflicts") : localize('unhandledConflicts.ignore', "Continue with Conflicts"),
-			localize('unhandledConflicts.discard', "Discard Merge Changes"),
-			localize('unhandledConflicts.cancel', "Cancel"),
-		];
+		const result = someAreDirty
+			? await this._confirmDirty(handler)
+			: await this._confirmNoneDirty(handler);
+
+		if (result !== ConfirmResult.CANCEL) {
+			// save or ignore: in both cases we tell the inputs to ignore unhandled conflicts
+			// for the dirty state computation.
+			for (const input of handler) {
+				input._ignoreUnhandledConflicts = true;
+			}
+		}
+
+		return result;
+	}
+
+	private async _confirmDirty(handler: MergeEditorCloseHandler[]): Promise<ConfirmResult> {
+		const isMany = handler.length > 1;
+
+		const message = isMany
+			? localize('messageN', 'Do you want to save the changes you made to {0} files?', handler.length)
+			: localize('message1', 'Do you want to save the changes you made to {0}?', basename(handler[0]._model.resultTextModel.uri));
+
 		const options = {
 			cancelId: 2,
-			detail: handler.length > 1
-				? localize('unhandledConflicts.detailN', 'Merge conflicts in {0} editors will remain unhandled.', handler.length)
-				: localize('unhandledConflicts.detail1', 'Merge conflicts in this editor will remain unhandled.')
+			detail: isMany
+				? localize('detailN', "The files contain unhandled conflicts. Your changes will be lost if you don't save them.")
+				: localize('detail1', "The file contains unhandled conflicts. Your changes will be lost if you don't save them.")
 		};
 
-		const { choice } = await this._dialogService.show(
-			Severity.Info,
-			localize('unhandledConflicts.msg', 'Do you want to continue with unhandled conflicts?'), // 1
-			actions,
-			options
-		);
+		const actions: string[] = [
+			localize('saveWithConflict', "Save with Conflicts"),
+			localize('discard', "Don't save"),
+			localize('cancel', "Cancel"),
+		];
+
+		const { choice } = await this._dialogService.show(Severity.Info, message, actions, options);
 
 		if (choice === options.cancelId) {
 			// cancel: stay in editor
 			return ConfirmResult.CANCEL;
-		}
-
-		// save or revert: in both cases we tell the inputs to ignore unhandled conflicts
-		// for the dirty state computation.
-		for (const input of handler) {
-			input._ignoreUnhandledConflicts = true;
-		}
-
-		if (choice === 0) {
-			// conflicts: continue with remaining conflicts
+		} else if (choice === 0) {
+			// save with conflicts
 			return ConfirmResult.SAVE;
-
-		} else if (choice === 1) {
-			// discard: undo all changes and save original (pre-merge) state
-			for (const input of handler) {
-				input._model.discardMergeChanges();
-			}
-			return ConfirmResult.SAVE;
-
 		} else {
-			// don't save
+			// discard changes
 			return ConfirmResult.DONT_SAVE;
+		}
+	}
+
+	private async _confirmNoneDirty(handler: MergeEditorCloseHandler[]): Promise<ConfirmResult> {
+		const isMany = handler.length > 1;
+
+		const message = isMany
+			? localize('conflictN', 'Do you want to close with conflicts in {0} files?', handler.length)
+			: localize('conflict1', 'Do you want to close with conflicts in {0}?', basename(handler[0]._model.resultTextModel.uri));
+
+		const options = {
+			cancelId: 1,
+			detail: isMany
+				? localize('detailNotDirtyN', "The files contain unhandled conflicts.")
+				: localize('detailNotDirty1', "The file contains unhandled conflicts.")
+		};
+
+		const actions = [
+			localize('closeWithConflicts', "Close with Conflicts"),
+			localize('cancel', "Cancel"),
+		];
+
+		const { choice } = await this._dialogService.show(Severity.Info, message, actions, options);
+		if (choice === options.cancelId) {
+			return ConfirmResult.CANCEL;
+		} else {
+			return ConfirmResult.SAVE;
 		}
 	}
 }

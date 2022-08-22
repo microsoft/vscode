@@ -595,7 +595,9 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 					return item.label ? item.label.label : (item.resourceUri ? basename(URI.revive(item.resourceUri)) : undefined);
 				}
 			},
-			expandOnlyOnTwistieClick: (e: ITreeItem) => !!e.command,
+			expandOnlyOnTwistieClick: (e: ITreeItem) => {
+				return !!e.command || this.configurationService.getValue<'singleClick' | 'doubleClick'>('workbench.tree.expandMode') === 'doubleClick';
+			},
 			collapseByDefault: (e: ITreeItem): boolean => {
 				return e.collapsibleState !== TreeItemCollapsibleState.Expanded;
 			},
@@ -1008,11 +1010,12 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		}
 
 		return {
-			markdown: (token: CancellationToken): Promise<IMarkdownString | string | undefined> => {
-				return new Promise<IMarkdownString | string | undefined>((resolve) => {
-					node.resolve(token).then(() => resolve(node.tooltip));
-				});
-			},
+			markdown: typeof node.tooltip === 'string' ? node.tooltip :
+				(token: CancellationToken): Promise<IMarkdownString | string | undefined> => {
+					return new Promise<IMarkdownString | string | undefined>((resolve) => {
+						node.resolve(token).then(() => resolve(node.tooltip));
+					});
+				},
 			markdownNotSupportedFallback: resource ? undefined : (label ?? '') // Passing undefined as the fallback for a resource falls back to the old native hover
 		};
 	}
