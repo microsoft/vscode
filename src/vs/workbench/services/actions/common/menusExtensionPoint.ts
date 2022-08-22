@@ -282,7 +282,7 @@ const apiMenus: IAPIMenu[] = [
 	{
 		key: 'editor/content',
 		id: MenuId.EditorContent,
-		description: localize('merge.toolbar', "The prominent botton in an editor, overlays its content"),
+		description: localize('merge.toolbar', "The prominent button in an editor, overlays its content"),
 		proposed: 'contribEditorContentMenu'
 	},
 	{
