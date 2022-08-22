@@ -49,6 +49,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 	}
 
+
 	public get lineNumbers(): number[] {
 		return this._lineNumbers;
 	}
@@ -93,6 +94,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		const renderLineInput: RenderLineInput =
 			new RenderLineInput(true, true, lineRenderingData.content,
 				lineRenderingData.continuesWithWrappedLine,
+
 				lineRenderingData.isBasicASCII, lineRenderingData.containsRTL, 0,
 				lineRenderingData.tokens, actualInlineDecorations,
 				lineRenderingData.tabSize, lineRenderingData.startVisibleColumn,
@@ -182,6 +184,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		} else if (minimapSide === 'right') {
 			this._rootDomNode.style.marginLeft = '0px';
 		}
+		this._rootDomNode.style.zIndex = '11';
 	}
 
 	public getId(): string {
