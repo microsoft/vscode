@@ -59,8 +59,8 @@ export class StickyLineCandidateProvider extends Disposable {
 	}
 
 	private readConfiguration() {
-		const options = this._editor.getOption(EditorOption.stickyScroll);
-		if (options.enabled === false) {
+		const stickyScrollOptions = this._editor.getOption(EditorOption.stickyScroll);
+		if (stickyScrollOptions.enabled === false) {
 			this._sessionStore.clear();
 			return;
 		} else {
