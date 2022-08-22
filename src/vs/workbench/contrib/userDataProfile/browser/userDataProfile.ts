@@ -66,7 +66,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 	}
 
 	private registerConfiguration(): void {
-		if (this.productService.quality !== 'stable') {
+		if (this.productService.quality === 'stable') {
 			Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 				...workbenchConfigurationNodeBase,
 				'properties': {
