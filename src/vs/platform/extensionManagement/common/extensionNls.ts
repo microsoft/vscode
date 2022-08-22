@@ -42,11 +42,17 @@ function replaceNLStrings(extensionManifest: IExtensionManifest, messages: ITran
 				const message: string | undefined = typeof translated === 'string' ? translated : translated.message;
 				if (message !== undefined) {
 					// This branch returns ILocalizedString's instead of Strings so that the Command Palette can contain both the localized and the original value.
-					if (command && originalMessages && (key === 'title' || key === 'category')) {
-						const originalMessage = originalMessages[messageKey];
+					const original = originalMessages?.[messageKey];
+					const originalMessage: string | undefined = typeof original === 'string' ? original : original?.message;
+					if (
+						// if we are translating the title or category of a command
+						command && (key === 'title' || key === 'category') &&
+						// and the original value is not the same as the translated value
+						originalMessage && originalMessage !== message
+					) {
 						const localizedString: ILocalizedString = {
 							value: message,
-							original: typeof originalMessage === 'string' ? originalMessage : originalMessage?.message
+							original: originalMessage
 						};
 						obj[key] = localizedString;
 					} else {
