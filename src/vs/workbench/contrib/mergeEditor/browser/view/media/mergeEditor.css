@@ -59,20 +59,20 @@
 }
 
 .merge-editor-block {
-	border: 2px solid var(--vscode-mergeEditor-conflict-unhandledUnfocused-border);
+	border: 1px solid var(--vscode-mergeEditor-conflict-unhandledUnfocused-border);
 }
 
 .merge-editor-block.focused {
-	border: 2px solid var(--vscode-mergeEditor-conflict-unhandledFocused-border);
+	border: 1px solid var(--vscode-mergeEditor-conflict-unhandledFocused-border);
 }
 
 .merge-editor-block.handled {
-	border: 2px solid var(--vscode-mergeEditor-conflict-handledUnfocused-border);
+	border: 1px solid var(--vscode-mergeEditor-conflict-handledUnfocused-border);
 
 }
 
 .merge-editor-block.handled.focused {
-	border: 2px solid var(--vscode-mergeEditor-conflict-handledFocused-border);
+	border: 1px solid var(--vscode-mergeEditor-conflict-handledFocused-border);
 }
 
 .gutter.monaco-editor > div {
@@ -159,7 +159,7 @@
 }
 
 .conflict-zone-root {
-	border: 2px solid var(--vscode-mergeEditor-conflict-unhandledUnfocused-border);
+	border: 1px solid var(--vscode-mergeEditor-conflict-unhandledUnfocused-border);
 	background-color: var(--vscode-mergeEditor-change-background);
 
 	height: 90%;
@@ -190,7 +190,7 @@
 
 
 .focused.conflict-zone .conflict-zone-root {
-	border: 2px solid var(--vscode-mergeEditor-conflict-unhandledFocused-border);
+	border: 1px solid var(--vscode-mergeEditor-conflict-unhandledFocused-border);
 }
 
 
