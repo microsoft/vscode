@@ -59,11 +59,11 @@
 }
 
 .merge-editor-block {
-	border: 1px solid var(--vscode-mergeEditor-conflict-unhandledUnfocused-border);
+	border: 1px dashed var(--vscode-mergeEditor-conflict-unhandledUnfocused-border);
 }
 
 .merge-editor-block.focused {
-	border: 1px solid var(--vscode-mergeEditor-conflict-unhandledFocused-border);
+	border: 1px dashed var(--vscode-mergeEditor-conflict-unhandledFocused-border);
 }
 
 .merge-editor-block.handled {
@@ -93,12 +93,12 @@
 
 
 .merge-accept-gutter-marker.multi-line.focused .background {
-	border: 1px solid var(--vscode-mergeEditor-conflict-unhandledFocused-border);
+	border: 1px dashed var(--vscode-mergeEditor-conflict-unhandledFocused-border);
 	border-right: 0;
 }
 
 .merge-accept-gutter-marker.multi-line .background {
-	border: 1px solid var(--vscode-mergeEditor-conflict-unhandledUnfocused-border);
+	border: 1px dashed var(--vscode-mergeEditor-conflict-unhandledUnfocused-border);
 	border-right: 0;
 }
 
@@ -159,7 +159,7 @@
 }
 
 .conflict-zone-root {
-	border: 1px solid var(--vscode-mergeEditor-conflict-unhandledUnfocused-border);
+	border: 1px dashed var(--vscode-mergeEditor-conflict-unhandledUnfocused-border);
 	background-color: var(--vscode-mergeEditor-change-background);
 
 	height: 90%;
@@ -190,7 +190,7 @@
 
 
 .focused.conflict-zone .conflict-zone-root {
-	border: 1px solid var(--vscode-mergeEditor-conflict-unhandledFocused-border);
+	border: 1px dashed var(--vscode-mergeEditor-conflict-unhandledFocused-border);
 }
 
 
