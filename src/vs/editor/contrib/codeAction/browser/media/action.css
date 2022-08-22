@@ -71,6 +71,7 @@
 .codeActionMenuWidget .monaco-list .monaco-list-row:hover:not(.option-disabled),
 .codeActionMenuWidget .monaco-list .monaco-list-row.focused:not(.option-disabled) {
 	background-color: var(--vscode-list-hoverBackground) !important;
+	color: var(--vscode-list-activeSelectionForeground) !important;
 }
 
 .codeActionMenuWidget .monaco-list .monaco-list-row.focused:not(.option-disabled)  {

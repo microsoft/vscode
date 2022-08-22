@@ -663,7 +663,7 @@ export interface ICaseSensitiveToggleOpts {
 export class ModeToggle extends Toggle {
 	constructor(opts?: ICaseSensitiveToggleOpts) {
 		super({
-			icon: Codicon.filter,
+			icon: Codicon.listFilter,
 			title: localize('filter', "Filter"),
 			isChecked: opts?.isChecked ?? false,
 			inputActiveOptionBorder: opts?.inputActiveOptionBorder,

@@ -21,7 +21,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { mock } from 'vs/base/test/common/mock';
 import * as sinon from 'sinon';
 import * as assert from 'assert';
-import { ChangeType, FileType, IEditSessionsLogService, IEditSessionsWorkbenchService } from 'vs/workbench/contrib/editSessions/common/editSessions';
+import { ChangeType, FileType, IEditSessionsLogService, IEditSessionsStorageService } from 'vs/workbench/contrib/editSessions/common/editSessions';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -65,7 +65,7 @@ suite('Edit session sync', () => {
 			override onWillShutdown = Event.None;
 		});
 		instantiationService.stub(INotificationService, new TestNotificationService());
-		instantiationService.stub(IEditSessionsWorkbenchService, new class extends mock<IEditSessionsWorkbenchService>() { });
+		instantiationService.stub(IEditSessionsStorageService, new class extends mock<IEditSessionsStorageService>() { });
 		instantiationService.stub(IProgressService, ProgressService);
 		instantiationService.stub(ISCMService, SCMService);
 		instantiationService.stub(IEnvironmentService, TestEnvironmentService);
@@ -128,7 +128,7 @@ suite('Edit session sync', () => {
 
 		// Stub sync service to return edit session data
 		const readStub = sandbox.stub().returns({ editSession, ref: '0' });
-		instantiationService.stub(IEditSessionsWorkbenchService, 'read', readStub);
+		instantiationService.stub(IEditSessionsStorageService, 'read', readStub);
 
 		// Create root folder
 		await fileService.createFolder(folderUri);
@@ -142,7 +142,7 @@ suite('Edit session sync', () => {
 
 	test('Edit session not stored if there are no edits', async function () {
 		const writeStub = sandbox.stub();
-		instantiationService.stub(IEditSessionsWorkbenchService, 'write', writeStub);
+		instantiationService.stub(IEditSessionsStorageService, 'write', writeStub);
 
 		// Create root folder
 		await fileService.createFolder(folderUri);

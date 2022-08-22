@@ -39,6 +39,7 @@ module.exports.unicodeFilter = [
 	'!**/test/**',
 	'!**/*.test.ts',
 	'!**/*.{d.ts,json,md}',
+	'!**/*.mp3',
 
 	'!build/win32/**',
 	'!extensions/markdown-language-features/notebook-out/*.js',
@@ -65,6 +66,7 @@ module.exports.indentationFilter = [
 	'!**/LICENSE.{txt,rtf}',
 	'!LICENSES.chromium.html',
 	'!**/LICENSE',
+	'!**/*.mp3',
 	'!src/vs/loader.js',
 	'!src/vs/base/browser/dompurify/*',
 	'!src/vs/base/common/marked/marked.js',
@@ -135,6 +137,7 @@ module.exports.copyrightFilter = [
 	'!**/*.cmd',
 	'!**/*.ico',
 	'!**/*.opus',
+	'!**/*.mp3',
 	'!**/*.icns',
 	'!**/*.xml',
 	'!**/*.sh',

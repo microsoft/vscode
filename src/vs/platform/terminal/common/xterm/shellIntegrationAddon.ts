@@ -17,6 +17,8 @@ import type { ITerminalAddon, Terminal } from 'xterm-headless';
 import { ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Emitter } from 'vs/base/common/event';
+import { URI } from 'vs/base/common/uri';
+
 
 /**
  * Shell integration is a feature that enhances the terminal's understanding of what's happening
@@ -48,7 +50,9 @@ const enum ShellIntegrationOscPs {
 	/**
 	 * Sequences pioneered by iTerm.
 	 */
-	ITerm = 1337
+	ITerm = 1337,
+	SetCwd = 7,
+	SetWindowsFriendlyCwd = 9
 }
 
 /**
@@ -158,7 +162,12 @@ const enum ITermOscPt {
 	/**
 	 * Sets a mark/point-of-interest in the buffer. `OSC 1337 ; SetMark`
 	 */
-	SetMark = 'SetMark'
+	SetMark = 'SetMark',
+
+	/**
+	 * Reports current working directory (CWD). `OSC 1337 ; CurrentDir=<Cwd> ST`
+	 */
+	CurrentDir = 'CurrentDir'
 }
 
 /**
@@ -204,6 +213,8 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		this._commonProtocolDisposables.push(
 			xterm.parser.registerOscHandler(ShellIntegrationOscPs.FinalTerm, data => this._handleFinalTermSequence(data))
 		);
+		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.SetCwd, data => this._doHandleSetCwd(data)));
+		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.SetWindowsFriendlyCwd, data => this._doHandleSetWindowsFriendlyCwd(data)));
 		this._ensureCapabilitiesOrAddFailureTelemetry();
 	}
 
@@ -306,7 +317,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			case VSCodeOscPt.CommandLine: {
 				let commandLine: string;
 				if (args.length === 1) {
-					commandLine = this._deserializeMessage(args[0]);
+					commandLine = deserializeMessage(args[0]);
 				} else {
 					commandLine = '';
 				}
@@ -330,20 +341,13 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				return true;
 			}
 			case VSCodeOscPt.Property: {
-				const [key, rawValue] = args[0].split('=');
-				if (rawValue === undefined) {
+				const { key, value } = parseKeyValueAssignment(args[0]);
+				if (value === undefined) {
 					return true;
 				}
-				const value = this._deserializeMessage(rawValue);
 				switch (key) {
 					case 'Cwd': {
-						// TODO: Ideally we would also support the following to supplement our own:
-						//       - OSC 1337 ; CurrentDir=<Cwd> ST (iTerm)
-						//       - OSC 7 ; scheme://cwd ST        (Unknown origin)
-						//       - OSC 9 ; 9 ; <cwd> ST           (cmder)
-						this._createOrGetCwdDetection().updateCwd(value);
-						const commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
-						commandDetection?.setCwd(value);
+						this._updateCwd(value);
 						return true;
 					}
 					case 'IsWindows': {
@@ -361,6 +365,12 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		return false;
 	}
 
+	private _updateCwd(value: string) {
+		this._createOrGetCwdDetection().updateCwd(value);
+		const commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
+		commandDetection?.setCwd(value);
+	}
+
 	private _doHandleITermSequence(data: string): boolean {
 		if (!this._terminal) {
 			return false;
@@ -371,7 +381,65 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			case ITermOscPt.SetMark: {
 				this._createOrGetCommandDetection(this._terminal).handleGenericCommand({ genericMarkProperties: { disableCommandStorage: true } });
 			}
+			default: {
+				// Checking for known `<key>=<value>` pairs.
+				const { key, value } = parseKeyValueAssignment(command);
+
+				if (value === undefined) {
+					// No '=' was found, so it's not a property assignment.
+					return true;
+				}
+
+				switch (key) {
+					case ITermOscPt.CurrentDir:
+						// Encountered: `OSC 1337 ; CurrentDir=<Cwd> ST`
+						this._updateCwd(value);
+						return true;
+				}
+			}
 		}
+
+		// Unrecognized sequence
+		return false;
+	}
+
+	private _doHandleSetWindowsFriendlyCwd(data: string): boolean {
+		if (!this._terminal) {
+			return false;
+		}
+
+		const [command, ...args] = data.split(';');
+		switch (command) {
+			case '9':
+				// Encountered `OSC 9 ; 9 ; <cwd> ST`
+				if (args.length) {
+					this._updateCwd(args[0]);
+				}
+				return true;
+		}
+
+		// Unrecognized sequence
+		return false;
+	}
+
+	/**
+	 * Handles the sequence: `OSC 7 ; scheme://cwd ST`
+	 */
+	private _doHandleSetCwd(data: string): boolean {
+		if (!this._terminal) {
+			return false;
+		}
+
+		const [command] = data.split(';');
+
+		if (command.match(/^file:\/\/.*\//)) {
+			const uri = URI.parse(command);
+			if (uri.path && uri.path.length > 0) {
+				this._updateCwd(uri.path);
+				return true;
+			}
+		}
+
 		// Unrecognized sequence
 		return false;
 	}
@@ -411,17 +479,29 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		}
 		return commandDetection;
 	}
+}
 
-	private _deserializeMessage(message: string): string {
-		let result = message.replace(/\\\\/g, '\\');
-		const deserializeRegex = /\\x([0-9a-f]{2})/i;
-		while (true) {
-			const match = result.match(deserializeRegex);
-			if (!match?.index || match.length < 2) {
-				break;
-			}
-			result = result.slice(0, match.index) + String.fromCharCode(parseInt(match[1], 16)) + result.slice(match.index + 4);
+export function deserializeMessage(message: string): string {
+	let result = message.replace(/\\\\/g, '\\');
+	const deserializeRegex = /\\x([0-9a-f]{2})/i;
+	while (true) {
+		const match = result.match(deserializeRegex);
+		if (!match?.index || match.length < 2) {
+			break;
 		}
-		return result;
+		result = result.slice(0, match.index) + String.fromCharCode(parseInt(match[1], 16)) + result.slice(match.index + 4);
 	}
+	return result;
+}
+
+export function parseKeyValueAssignment(message: string): { key: string; value: string | undefined } {
+	const deserialized = deserializeMessage(message);
+	const separatorIndex = deserialized.indexOf('=');
+	if (separatorIndex === -1) {
+		return { key: deserialized, value: undefined }; // No '=' was found.
+	}
+	return {
+		key: deserialized.substring(0, separatorIndex),
+		value: deserialized.substring(1 + separatorIndex)
+	};
 }

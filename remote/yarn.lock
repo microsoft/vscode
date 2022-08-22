@@ -808,10 +808,10 @@ xterm-addon-unicode11@0.4.0-beta.5:
   resolved "https://registry.yarnpkg.com/xterm-addon-unicode11/-/xterm-addon-unicode11-0.4.0-beta.5.tgz#3900e66f10d2e506133b61d7421aab6878d32665"
   integrity sha512-+g+fuxAd/tkCEJ/jhdnebXKtdPrhsu4VKWNnB/3qM35GbuGQOasmYFYnKL+HYZMpbQ6YqeZcXTVg/wnCTttz0g==
 
-xterm-addon-webgl@0.13.0-beta.35:
-  version "0.13.0-beta.35"
-  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.13.0-beta.35.tgz#98b5dc102583120de25c7c6e0f35cd34ab6bef98"
-  integrity sha512-powgeb3ifEZK7zWwLJuE8YRz/Z0UzDrrVA9NTx9mH7+vWxrGt9ZgroychoeCqZBvKMofiUM5vlf1oWdSmsMfzw==
+xterm-addon-webgl@0.13.0-beta.36:
+  version "0.13.0-beta.36"
+  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.13.0-beta.36.tgz#94c0f05a1be7fd027e7d5367a623969a656fb97a"
+  integrity sha512-HG86+KCYHNf7Pi9/ksRU9LLrMcfex1e2D6rU1NCK/p2hEiQqTALX2QnLf7BoO0Yl97671GllZvVSZvhA7/bwrA==
 
 xterm-headless@5.0.0-beta.5:
   version "5.0.0-beta.5"

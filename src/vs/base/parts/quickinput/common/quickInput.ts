@@ -340,6 +340,15 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	hideInput: boolean;
 
 	hideCheckAll: boolean;
+
+	/**
+	 * A set of `Toggle` objects to add to the input box.
+	 */
+	toggles: IQuickInputToggle[] | undefined;
+}
+
+export interface IQuickInputToggle {
+	onChange: Event<boolean /* via keyboard */>;
 }
 
 export interface IInputBox extends IQuickInput {

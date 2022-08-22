@@ -208,25 +208,25 @@
 	align-items: center;
 }
 
-.scm-view .button-container > .monaco-description-button {
+.scm-view .button-container .monaco-description-button {
 	flex-direction: row;
 	flex-wrap: wrap;
 	padding: 0 4px;
 	overflow: hidden;
 }
 
-.scm-view .button-container > .monaco-description-button > .monaco-button-label {
+.scm-view .button-container .monaco-description-button > .monaco-button-label {
 	flex-grow: 1;
 	width: 0;
 	overflow: hidden;
 }
 
-.scm-view .button-container > .monaco-description-button > .monaco-button-description {
+.scm-view .button-container .monaco-description-button > .monaco-button-description {
 	flex-basis: 100%;
 }
 
-.scm-view .button-container > .monaco-description-button > .monaco-button-label,
-.scm-view .button-container > .monaco-description-button > .monaco-button-description {
+.scm-view .button-container .monaco-description-button > .monaco-button-label,
+.scm-view .button-container .monaco-description-button > .monaco-button-description {
 	font-style: inherit;
 	padding: 4px 0;
 }
@@ -246,6 +246,7 @@
 
 .scm-view .button-container > .monaco-button-dropdown {
 	flex-grow: 1;
+	overflow: hidden;
 }
 
 .scm-view .button-container > .monaco-button-dropdown > .monaco-dropdown-button {

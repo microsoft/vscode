@@ -6,7 +6,6 @@
 import { $, Dimension, reset } from 'vs/base/browser/dom';
 import { Direction, Grid, IView, SerializableGrid } from 'vs/base/browser/ui/grid/grid';
 import { Orientation, Sizing } from 'vs/base/browser/ui/splitview/splitview';
-import { IAction } from 'vs/base/common/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Color } from 'vs/base/common/color';
 import { BugIndicatingError } from 'vs/base/common/errors';
@@ -23,8 +22,7 @@ import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/ed
 import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { localize } from 'vs/nls';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOptions, ITextEditorOptions, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
@@ -34,7 +32,6 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
 import { AbstractTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { DEFAULT_EDITOR_ASSOCIATION, EditorInputWithOptions, IEditorOpenContext, IResourceMergeEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
@@ -108,8 +105,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 	constructor(
 		@IInstantiationService instantiation: IInstantiationService,
 		@ILabelService private readonly _labelService: ILabelService,
-		@IMenuService private readonly _menuService: IMenuService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
 		@IThemeService themeService: IThemeService,
@@ -122,10 +118,10 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 	) {
 		super(MergeEditor.ID, telemetryService, instantiation, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService, fileService);
 
-		this._ctxIsMergeEditor = ctxIsMergeEditor.bindTo(_contextKeyService);
-		this._ctxUsesColumnLayout = ctxMergeEditorLayout.bindTo(_contextKeyService);
-		this._ctxBaseUri = ctxMergeBaseUri.bindTo(_contextKeyService);
-		this._ctxResultUri = ctxMergeResultUri.bindTo(_contextKeyService);
+		this._ctxIsMergeEditor = ctxIsMergeEditor.bindTo(contextKeyService);
+		this._ctxUsesColumnLayout = ctxMergeEditorLayout.bindTo(contextKeyService);
+		this._ctxBaseUri = ctxMergeBaseUri.bindTo(contextKeyService);
+		this._ctxResultUri = ctxMergeResultUri.bindTo(contextKeyService);
 
 		this._layoutMode = instantiation.createInstance(MergeEditorLayout);
 		this._ctxUsesColumnLayout.set(this._layoutMode.value);
@@ -165,40 +161,23 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		this._store.add(
 			this.inputResultView.editor.onDidScrollChange(
 				reentrancyBarrier.makeExclusive((c) => {
-					if (c.scrollTopChanged) {
-						const mapping1 = this.model?.input1ResultMapping.get();
-						synchronizeScrolling(this.inputResultView.editor, this.input1View.editor, mapping1, MappingDirection.output);
-						const mapping2 = this.model?.input2ResultMapping.get();
-						synchronizeScrolling(this.inputResultView.editor, this.input2View.editor, mapping2, MappingDirection.output);
-					}
-					if (c.scrollLeftChanged) {
-						this.input1View.editor.setScrollLeft(c.scrollLeft, ScrollType.Immediate);
-						this.input2View.editor.setScrollLeft(c.scrollLeft, ScrollType.Immediate);
-					}
+					this.updateResultScrolling(c.scrollTopChanged, c.scrollLeftChanged);
 				})
 			)
 		);
+	}
 
-		// TODO@jrieken make this proper: add menu id and allow extensions to contribute
-		const toolbarMenu = this._menuService.createMenu(MenuId.MergeToolbar, this._contextKeyService);
-		const toolbarMenuDisposables = new DisposableStore();
-		const toolbarMenuRender = () => {
-			toolbarMenuDisposables.clear();
-
-			const actions: IAction[] = [];
-			createAndFillInActionBarActions(toolbarMenu, { renderShortTitle: true, shouldForwardArgs: true }, actions);
-			if (actions.length > 0) {
-				const [first] = actions;
-				const acceptBtn = this.instantiationService.createInstance(FloatingClickWidget, this.inputResultView.editor, first.label, first.id);
-				toolbarMenuDisposables.add(acceptBtn.onClick(() => first.run(this.inputResultView.editor.getModel()?.uri)));
-				toolbarMenuDisposables.add(acceptBtn);
-				acceptBtn.render();
-			}
-		};
-		this._store.add(toolbarMenu);
-		this._store.add(toolbarMenuDisposables);
-		this._store.add(toolbarMenu.onDidChange(toolbarMenuRender));
-		toolbarMenuRender();
+	private updateResultScrolling(scrollTopChanged: boolean, scrollLeftChanged: boolean): void {
+		if (scrollTopChanged) {
+			const mapping1 = this.model?.input1ResultMapping.get();
+			synchronizeScrolling(this.inputResultView.editor, this.input1View.editor, mapping1, MappingDirection.output);
+			const mapping2 = this.model?.input2ResultMapping.get();
+			synchronizeScrolling(this.inputResultView.editor, this.input2View.editor, mapping2, MappingDirection.output);
+		}
+		if (scrollLeftChanged) {
+			this.input1View.editor.setScrollLeft(this.inputResultView.editor.getScrollLeft(), ScrollType.Immediate);
+			this.input2View.editor.setScrollLeft(this.inputResultView.editor.getScrollLeft(), ScrollType.Immediate);
+		}
 	}
 
 	public get viewModel(): IObservable<MergeEditorViewModel | undefined> {
@@ -391,6 +370,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		}));
 		mirrorWordWrapTransientState();
 
+		this.updateResultScrolling(true, true);
 
 		// detect when base, input1, and input2 become empty and replace THIS editor with its result editor
 		// TODO@jrieken@hediet this needs a better/cleaner solution
