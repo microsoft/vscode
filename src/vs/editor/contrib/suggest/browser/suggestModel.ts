@@ -526,9 +526,10 @@ export class SuggestModel implements IDisposable {
 			}
 
 			const ctx = new LineContext(model, this._editor.getPosition(), auto, context.shy, context.noSelect);
-			const allowMidWordMatch = this._editor.getOption(EditorOption.suggest).allowMidWordMatch;
-			const boostFullMatch = FuzzyScoreOptions.default.boostFullMatch;
-			const fuzzySearchOptions = { firstMatchCanBeWeak: allowMidWordMatch, boostFullMatch: boostFullMatch };
+			const fuzzySearchOptions = {
+				...FuzzyScoreOptions.default,
+				firstMatchCanBeWeak: this._editor.getOption(EditorOption.suggest).matchOnWordStartOnly
+			};
 			this._completionModel = new CompletionModel(items, this._context!.column, {
 				leadingLineContent: ctx.leadingLineContent,
 				characterCountDelta: ctx.column - this._context!.column

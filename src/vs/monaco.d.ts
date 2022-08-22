@@ -3428,7 +3428,7 @@ declare namespace monaco.editor {
 		/**
 		 * Controls whether suggestions allow matches in the middle of the word instead of only at the beginning
 		 */
-		allowMidWordMatch?: boolean;
+		matchOnWordStartOnly?: boolean;
 		/**
 		 * Control the behavior and rendering of the inline hints.
 		 */
@@ -4228,7 +4228,7 @@ declare namespace monaco.editor {
 		/**
 		 * Controls whether suggestions allow matches in the middle of the word instead of only at the beginning
 		 */
-		allowMidWordMatch?: boolean;
+		matchOnWordStartOnly?: boolean;
 		/**
 		 * Show field-suggestions.
 		 */
