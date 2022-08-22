@@ -99,6 +99,8 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 				if (!stickyPositionProjectedOnEditor.equalsRange(this._stickyRangeProjectedOnEditor)) {
 					this._stickyRangeProjectedOnEditor = stickyPositionProjectedOnEditor;
 					sessionStore.clear();
+				} else if (targetMouseEvent.element.style.textDecoration === 'underline') {
+					return;
 				}
 
 				const cancellationToken = new CancellationTokenSource();
