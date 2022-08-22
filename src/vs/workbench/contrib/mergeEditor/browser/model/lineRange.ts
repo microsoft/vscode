@@ -111,4 +111,9 @@ export class LineRange {
 		}
 		return new Range(this.startLineNumber, 1, this.endLineNumberExclusive - 1, Constants.MAX_SAFE_SMALL_INTEGER);
 	}
+
+	intersects(lineRange: LineRange) {
+		return this.startLineNumber <= lineRange.endLineNumberExclusive
+			&& lineRange.startLineNumber <= this.endLineNumberExclusive;
+	}
 }

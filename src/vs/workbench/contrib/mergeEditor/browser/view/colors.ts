@@ -54,3 +54,9 @@ export const unhandledConflictMinimapOverViewRulerColor = registerColor(
 	{ dark: '#fcba03FF', light: '#fcba03FF', hcDark: '#fcba03FF', hcLight: '#fcba03FF', },
 	localize('mergeEditor.conflict.unhandled.minimapOverViewRuler', 'The foreground color for changes in input 1.')
 );
+
+export const conflictingLinesBackground = registerColor(
+	'mergeEditor.conflictingLines.background',
+	{ dark: '#ffea0047', light: '#ffea0047', hcDark: '#ffea0047', hcLight: '#ffea0047', },
+	localize('mergeEditor.conflictingLines.background', 'The background of the "Conflicting Lines" text.')
+);
