@@ -564,7 +564,7 @@ export function registerTerminalActions() {
 			if (instance.target === TerminalLocation.Editor) {
 				terminalEditorService.revealActiveEditor();
 			} else {
-				return terminalGroupService.showPanel();
+				terminalGroupService.showPanel();
 			}
 		}
 	});
