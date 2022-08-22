@@ -21,7 +21,7 @@ export interface IUserDataProfilesMainService extends IUserDataProfilesService {
 	isEnabled(): boolean;
 	getOrSetProfileForWorkspace(workspaceIdentifier: WorkspaceIdentifier, profileToSet?: IUserDataProfile): IUserDataProfile;
 	setProfileForWorkspaceSync(workspaceIdentifier: WorkspaceIdentifier, profileToSet: IUserDataProfile): void;
-	checkAndCreateProfileFromCli(args: NativeParsedArgs): Promise<IUserDataProfile> | undefined;
+	checkAndCreateProfileFromCli(args: NativeParsedArgs): Promise<NativeParsedArgs> | undefined;
 	unsetWorkspace(workspaceIdentifier: WorkspaceIdentifier, transient?: boolean): void;
 	readonly onWillCreateProfile: Event<WillCreateProfileEvent>;
 	readonly onWillRemoveProfile: Event<WillRemoveProfileEvent>;
@@ -43,7 +43,7 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		return this.enabled;
 	}
 
-	checkAndCreateProfileFromCli(args: NativeParsedArgs): Promise<IUserDataProfile> | undefined {
+	checkAndCreateProfileFromCli(args: NativeParsedArgs): Promise<NativeParsedArgs> | undefined {
 		if (!this.isEnabled()) {
 			return undefined;
 		}
@@ -55,14 +55,14 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 			if (this.profiles.some(p => p.name === args.profile)) {
 				return undefined;
 			}
-			return this.createProfile(args.profile);
+			return this.createProfile(args.profile).then(() => args);
 		}
 		if (args['profile-transient']) {
 			return this.createTransientProfile()
 				.then(profile => {
 					// Set the profile name to use
 					args.profile = profile.name;
-					return profile;
+					return args;
 				});
 		}
 		return undefined;
