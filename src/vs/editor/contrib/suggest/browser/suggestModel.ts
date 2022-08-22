@@ -528,7 +528,7 @@ export class SuggestModel implements IDisposable {
 			const ctx = new LineContext(model, this._editor.getPosition(), auto, context.shy, context.noSelect);
 			const fuzzySearchOptions = {
 				...FuzzyScoreOptions.default,
-				firstMatchCanBeWeak: this._editor.getOption(EditorOption.suggest).matchOnWordStartOnly
+				firstMatchCanBeWeak: !this._editor.getOption(EditorOption.suggest).matchOnWordStartOnly
 			};
 			this._completionModel = new CompletionModel(items, this._context!.column, {
 				leadingLineContent: ctx.leadingLineContent,
