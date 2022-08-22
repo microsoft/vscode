@@ -299,7 +299,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	 * Checks if the settings have enabled the new code action widget.
 	 */
 	private isCodeActionWidgetEnabled(model: ITextModel): boolean {
-		return this._configurationService.getValue('editor.experimental.useCustomCodeActionMenu', {
+		return this._configurationService.getValue('editor.useCustomCodeActionMenu', {
 			resource: model.uri
 		});
 	}

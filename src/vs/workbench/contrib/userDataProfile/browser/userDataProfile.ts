@@ -6,6 +6,7 @@
 import { Codicon } from 'vs/base/common/codicons';
 import { Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { isWeb } from 'vs/base/common/platform';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { Action2, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -21,6 +22,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { MangeSettingsProfileAction } from 'vs/workbench/contrib/userDataProfile/browser/userDataProfileActions';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { CURRENT_PROFILE_CONTEXT, HAS_PROFILES_CONTEXT, IUserDataProfileManagementService, IUserDataProfileService, ManageProfilesSubMenu, PROFILES_CATEGORY, PROFILES_ENABLEMENT_CONTEXT, PROFILES_TTILE } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
@@ -39,6 +41,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IProductService private readonly productService: IProductService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 	) {
 		super();
 
@@ -56,10 +59,14 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		this._register(Event.any(this.workspaceContextService.onDidChangeWorkbenchState, this.userDataProfileService.onDidChangeCurrentProfile, this.userDataProfileService.onDidUpdateCurrentProfile, this.userDataProfilesService.onDidChangeProfiles)(() => this.updateStatus()));
 
 		this.registerActions();
+
+		if (isWeb) {
+			lifecycleService.when(LifecyclePhase.Eventually).then(() => userDataProfilesService.cleanUp());
+		}
 	}
 
 	private registerConfiguration(): void {
-		if (this.productService.quality !== 'stable') {
+		if (this.productService.quality === 'stable') {
 			Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 				...workbenchConfigurationNodeBase,
 				'properties': {
