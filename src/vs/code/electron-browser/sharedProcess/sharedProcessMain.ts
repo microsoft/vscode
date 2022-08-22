@@ -105,6 +105,7 @@ import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/pol
 import { UserDataProfilesNativeService } from 'vs/platform/userDataProfile/electron-sandbox/userDataProfile';
 import { SharedProcessRequestService } from 'vs/platform/request/electron-browser/sharedProcessRequestService';
 import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
+import { UserDataProfilesCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/userDataProfilesCleaner';
 
 class SharedProcessMain extends Disposable {
 
@@ -169,7 +170,8 @@ class SharedProcessMain extends Disposable {
 			instantiationService.createInstance(StorageDataCleaner, this.configuration.backupWorkspacesPath),
 			instantiationService.createInstance(LogsDataCleaner),
 			instantiationService.createInstance(LocalizationsUpdater),
-			instantiationService.createInstance(ExtensionsCleaner)
+			instantiationService.createInstance(ExtensionsCleaner),
+			instantiationService.createInstance(UserDataProfilesCleaner)
 		));
 	}
 

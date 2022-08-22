@@ -18,7 +18,6 @@ import { IUserDataProfileTemplate, isUserDataProfileTemplate, IUserDataProfileMa
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { CATEGORIES } from 'vs/workbench/common/actions';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { compare } from 'vs/base/common/strings';
@@ -101,7 +100,7 @@ class CreateEmptyProfileAction extends Action2 {
 		});
 		if (name) {
 			try {
-				await userDataProfileManagementService.createAndEnterProfile(name);
+				await userDataProfileManagementService.createAndEnterProfile(name, undefined, undefined);
 			} catch (error) {
 				notificationService.error(error);
 			}
@@ -146,6 +145,25 @@ registerAction2(class CreateProfileAction extends Action2 {
 		if (pick) {
 			return commandService.executeCommand(pick.id);
 		}
+	}
+});
+
+registerAction2(class CreateTransientProfileAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.profiles.actions.createTransientProfile',
+			title: {
+				value: localize('create transient profile', "Create Transient Settings Profile"),
+				original: 'Create Transient Settings Profile'
+			},
+			category: PROFILES_CATEGORY,
+			f1: true,
+			precondition: PROFILES_ENABLEMENT_CONTEXT
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		return accessor.get(IUserDataProfileManagementService).createAndEnterTransientProfile();
 	}
 });
 
@@ -509,13 +527,7 @@ registerAction2(class CleanupProfilesAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor) {
-		const userDataProfilesService = accessor.get(IUserDataProfilesService);
-		const fileService = accessor.get(IFileService);
-		const uriIdentityService = accessor.get(IUriIdentityService);
-
-		const stat = await fileService.resolve(userDataProfilesService.profilesHome);
-		await Promise.all((stat.children || [])?.filter(child => child.isDirectory && userDataProfilesService.profiles.every(p => !uriIdentityService.extUri.isEqual(p.location, child.resource)))
-			.map(child => fileService.del(child.resource, { recursive: true })));
+		return accessor.get(IUserDataProfilesService).cleanUp();
 	}
 });
 

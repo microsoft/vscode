@@ -51,7 +51,7 @@ export class StickyLineCandidateProvider extends Disposable {
 		this._languageFeaturesService = languageFeaturesService;
 		this._updateSoon = this._register(new RunOnceScheduler(() => this.update(), 50));
 		this._register(this._editor.onDidChangeConfiguration(e => {
-			if (e.hasChanged(EditorOption.experimental)) {
+			if (e.hasChanged(EditorOption.stickyScroll)) {
 				this.readConfiguration();
 			}
 		}));
@@ -59,8 +59,8 @@ export class StickyLineCandidateProvider extends Disposable {
 	}
 
 	private readConfiguration() {
-		const options = this._editor.getOption(EditorOption.experimental);
-		if (options.stickyScroll.enabled === false) {
+		const options = this._editor.getOption(EditorOption.stickyScroll);
+		if (options.enabled === false) {
 			this._sessionStore.clear();
 			return;
 		} else {

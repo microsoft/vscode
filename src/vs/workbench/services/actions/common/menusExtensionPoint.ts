@@ -280,10 +280,10 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'inlineCompletionsAdditions'
 	},
 	{
-		key: 'merge/toolbar',
-		id: MenuId.MergeToolbar,
-		description: localize('merge.toolbar', "The prominent botton in the merge editor"),
-		proposed: 'contribMergeEditorToolbar'
+		key: 'editor/content',
+		id: MenuId.EditorContent,
+		description: localize('merge.toolbar', "The prominent button in an editor, overlays its content"),
+		proposed: 'contribEditorContentMenu'
 	},
 	{
 		key: 'webview/context',

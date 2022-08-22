@@ -159,12 +159,41 @@
 }
 
 .conflict-zone-root {
+	border: 2px solid var(--vscode-mergeEditor-conflict-unhandledUnfocused-border);
+	background-color: var(--vscode-mergeEditor-change-background);
+
+	height: 90%;
 	display: flex;
+	align-items: center;
+	align-content: center;
 }
 
-.conflict-zone-button {
-	border: 1px solid red;
-	background: #ec010147;
-	padding: 0px 10px;
-	border-radius: 4px;
+.conflict-zone-root .dots {
+	margin: 0 10px;
+}
+
+.conflict-zone-root pre {
+	display: 'inline';
+	font-family: var(--monaco-monospace-font);
+}
+
+.conflict-zone-root .text {
+	margin-left: auto;
+	padding: 0 12px;
+	display: flex;
+	align-items: center;
+	background: var(--vscode-mergeEditor-conflictingLines-background);
+	height: 100%;
+	white-space: nowrap;
+	overflow: hidden;
+}
+
+
+.focused.conflict-zone .conflict-zone-root {
+	border: 2px solid var(--vscode-mergeEditor-conflict-unhandledFocused-border);
+}
+
+
+.view-zones {
+	z-index: 10000000;
 }
