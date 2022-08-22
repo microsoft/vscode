@@ -11,6 +11,7 @@ import { EditorOption, RenderLineNumbersType } from 'vs/editor/common/config/edi
 import { StickyScrollWidget, StickyScrollWidgetState } from './stickyScrollWidget';
 import { StickyLineCandidateProvider, StickyRange } from './stickyScrollProvider';
 import { IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class StickyScrollController extends Disposable implements IEditorContribution {
 
@@ -24,10 +25,11 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	constructor(
 		_editor: ICodeEditor,
 		@ILanguageFeaturesService _languageFeaturesService: ILanguageFeaturesService,
+		@IInstantiationService _instaService: IInstantiationService,
 	) {
 		super();
 		this._editor = _editor;
-		this._stickyScrollWidget = new StickyScrollWidget(this._editor);
+		this._stickyScrollWidget = new StickyScrollWidget(this._editor, _languageFeaturesService, _instaService);
 		this._stickyLineCandidateProvider = new StickyLineCandidateProvider(this._editor, _languageFeaturesService);
 		this._widgetState = new StickyScrollWidgetState([], 0);
 
