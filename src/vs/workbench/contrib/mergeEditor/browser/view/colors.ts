@@ -20,7 +20,7 @@ export const diffWord = registerColor(
 
 export const conflictBorderUnhandledUnfocused = registerColor(
 	'mergeEditor.conflict.unhandledUnfocused.border',
-	{ dark: '#ffa6007a', light: '#ffa6007a', hcDark: '#ffa600', hcLight: '#ffa600', },
+	{ dark: '#ffa6007a', light: '#ffa6007a', hcDark: '#ffa60080', hcLight: '#ffa60080', },
 	localize('mergeEditor.conflict.unhandledUnfocused.border', 'The border color of unhandled unfocused conflicts.')
 );
 
@@ -44,8 +44,14 @@ export const conflictBorderHandledUnfocused = registerColor(
 
 export const conflictBackgroundHandledUnfocused = registerColor(
 	'mergeEditor.conflict.handledUnfocused.background',
-	{ dark: '#40C8AE33', light: '#40C8AE33', hcDark: '#40C8AE', hcLight: '#40C8AE', },
+	{ dark: '#40C8AE33', light: '#40C8AE33', hcDark: '#40C8AE33', hcLight: '#40C8AE33', },
 	localize('mergeEditor.conflict.handledUnfocused.background', 'The background color of handled unfocused conflicts.')
+);
+
+export const conflictBackgroundHandledFocused = registerColor(
+	'mergeEditor.conflict.handledFocused.background',
+	{ dark: '#40C8AE33', light: '#40C8AE33', hcDark: '#40C8AE33', hcLight: '#40C8AE33', },
+	localize('mergeEditor.conflict.handledFocused.background', 'The background color of handled focused conflicts.')
 );
 
 export const conflictBorderHandledFocused = registerColor(
@@ -53,7 +59,6 @@ export const conflictBorderHandledFocused = registerColor(
 	{ dark: '#40C8AEBF', light: '#40C8AEBF', hcDark: '#40C8AE', hcLight: '#40C8AE', },
 	localize('mergeEditor.conflict.handledFocused.border', 'The border color of handled focused conflicts.')
 );
-
 
 export const handledConflictMinimapOverViewRulerColor = registerColor(
 	'mergeEditor.conflict.handled.minimapOverViewRuler',
