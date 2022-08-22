@@ -558,6 +558,7 @@ export namespace FuzzyScore {
 }
 
 export abstract class FuzzyScoreOptions {
+
 	static default = { boostFullMatch: true, firstMatchCanBeWeak: false };
 
 	constructor(
