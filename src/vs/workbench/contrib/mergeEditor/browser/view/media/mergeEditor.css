@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .merge-editor .code-view > .title {
+.monaco-workbench .merge-editor .code-view>.title {
 	padding: 0 10px;
 	height: 30px;
 	display: flex;
 	align-content: center;
 }
 
-.monaco-workbench .merge-editor .code-view > .title>SPAN {
+.monaco-workbench .merge-editor .code-view>.title>SPAN {
 	align-self: center;
 	text-overflow: ellipsis;
 	overflow: hidden;
@@ -18,30 +18,30 @@
 	white-space: nowrap;
 }
 
-.monaco-workbench .merge-editor .code-view > .title>SPAN.title {
+.monaco-workbench .merge-editor .code-view>.title>SPAN.title {
 	flex-shrink: 0;
 }
 
-.monaco-workbench .merge-editor .code-view > .title>SPAN.description {
+.monaco-workbench .merge-editor .code-view>.title>SPAN.description {
 	opacity: 0.7;
 	font-size: 90%;
 }
 
-.monaco-workbench .merge-editor .code-view > .title>SPAN.detail {
+.monaco-workbench .merge-editor .code-view>.title>SPAN.detail {
 	margin-left: auto;
 	flex-shrink: 0;
 }
 
-.monaco-workbench .merge-editor .code-view > .title>SPAN.detail .codicon {
+.monaco-workbench .merge-editor .code-view>.title>SPAN.detail .codicon {
 	font-size: 13px;
 }
 
-.monaco-workbench .merge-editor .code-view > .container {
+.monaco-workbench .merge-editor .code-view>.container {
 	display: flex;
 	flex-direction: row;
 }
 
-.monaco-workbench .merge-editor .code-view > .container > .gutter {
+.monaco-workbench .merge-editor .code-view>.container>.gutter {
 	width: 24px;
 	position: relative;
 	overflow: hidden;
@@ -72,7 +72,7 @@
 	background-color: var(--vscode-mergeEditor-conflict-handledFocused-background);
 }
 
-.gutter.monaco-editor > div {
+.gutter.monaco-editor>div {
 	position: absolute;
 }
 
@@ -88,12 +88,12 @@
 }
 
 .merge-accept-gutter-marker.multi-line.focused .background {
-	border: 1px solid var(--vscode-mergeEditor-conflict-unhandledFocused-border);
+	border: 1px dashed var(--vscode-mergeEditor-conflict-unhandledFocused-border);
 	border-right: 0;
 }
 
 .merge-accept-gutter-marker.multi-line .background {
-	border: 1px solid var(--vscode-mergeEditor-conflict-unhandledUnfocused-border);
+	border: 1px dashed var(--vscode-mergeEditor-conflict-unhandledUnfocused-border);
 	border-right: 0;
 }
 
