@@ -1020,13 +1020,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			inputActiveOptionBackground: this._themeService.getColorTheme().getColor(inputActiveOptionBackground)
 		});
 		fuzzySearchToggle.onChange(() => {
-			if (fuzzySearchToggle.checked) {
-				quickPick.hide();
-				this.runRecent(type, 'fuzzy', quickPick.value);
-			} else {
-				quickPick.hide();
-				this.runRecent(type, 'contiguous', quickPick.value);
-			}
+			this.runRecent(type, fuzzySearchToggle.checked ? 'fuzzy' : 'contiguous', quickPick.value);
 		});
 		const outputProvider = this._instantiationService.createInstance(TerminalOutputProvider);
 		const quickPick = this._quickInputService.createQuickPick<IQuickPickItem & { rawLabel: string }>();
