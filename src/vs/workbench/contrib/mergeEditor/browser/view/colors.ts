@@ -8,25 +8,25 @@ import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 
 export const diff = registerColor(
 	'mergeEditor.change.background',
-	{ dark: '#40A6FF33', light: '#9bb95533', hcDark: '#9bb95533', hcLight: '#9bb95533', },
+	{ dark: '#40A6FF33', light: '#40A6FF33', hcDark: '#40A6FF33', hcLight: '#40A6FF33', },
 	localize('mergeEditor.change.background', 'The background color for changes.')
 );
 
 export const diffWord = registerColor(
 	'mergeEditor.change.word.background',
-	{ dark: '#ffea0047', light: '#9bb9551e', hcDark: '#9bb9551e', hcLight: '#9bb9551e', },
+	{ dark: '#ffea00', light: '#9bb9551e', hcDark: null, hcLight: null, },
 	localize('mergeEditor.change.word.background', 'The background color for word changes.')
 );
 
 export const conflictBorderUnhandledUnfocused = registerColor(
 	'mergeEditor.conflict.unhandledUnfocused.border',
-	{ dark: '#ffa6007a', light: '#ffa6007a', hcDark: '#ffa6007a', hcLight: '#ffa6007a', },
+	{ dark: '#ffa6007a', light: '#ffa6007a', hcDark: '#ffa600', hcLight: '#ffa600', },
 	localize('mergeEditor.conflict.unhandledUnfocused.border', 'The border color of unhandled unfocused conflicts.')
 );
 
 export const conflictBackgroundUnhandledUnfocused = registerColor(
 	'mergeEditor.conflict.unhandledUnfocused.background',
-	{ dark: '#ffa60026', light: '#ffa60080', hcDark: '#ffa6007a', hcLight: '#ffa6007a', },
+	{ dark: '#ffa60026', light: '#ffa60080', hcDark: '#ffa60026', hcLight: '#ffa6007a', },
 	localize('mergeEditor.conflict.unhandledUnfocused.background', 'The background color of unhandled unfocused conflicts.')
 );
 
@@ -38,19 +38,19 @@ export const conflictBorderUnhandledFocused = registerColor(
 
 export const conflictBorderHandledUnfocused = registerColor(
 	'mergeEditor.conflict.handledUnfocused.border',
-	{ dark: '#40C8AE49', light: '#40C8AE49', hcDark: '#86868649', hcLight: '#86868649', },
+	{ dark: '#40C8AE49', light: '#40C8AE49', hcDark: '#40C8AE', hcLight: '#40C8AE', },
 	localize('mergeEditor.conflict.handledUnfocused.border', 'The border color of handled unfocused conflicts.')
 );
 
 export const conflictBackgroundHandledUnfocused = registerColor(
 	'mergeEditor.conflict.handledUnfocused.background',
-	{ dark: '#40C8AE33', light: '#40C8AE33', hcDark: '#86868649', hcLight: '#86868649', },
+	{ dark: '#40C8AE33', light: '#40C8AE33', hcDark: '#40C8AE', hcLight: '#40C8AE', },
 	localize('mergeEditor.conflict.handledUnfocused.background', 'The background color of handled unfocused conflicts.')
 );
 
 export const conflictBorderHandledFocused = registerColor(
 	'mergeEditor.conflict.handledFocused.border',
-	{ dark: '#40C8AEBF', light: '#c1c1c1cc', hcDark: '#c1c1c1cc', hcLight: '#c1c1c1cc', },
+	{ dark: '#40C8AEBF', light: '#40C8AEBF', hcDark: '#40C8AE', hcLight: '#40C8AE', },
 	localize('mergeEditor.conflict.handledFocused.border', 'The border color of handled focused conflicts.')
 );
 
