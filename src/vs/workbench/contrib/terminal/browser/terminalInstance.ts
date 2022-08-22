@@ -48,7 +48,7 @@ import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/commo
 import { TerminalCapabilityStoreMultiplexer } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { IProcessDataEvent, IProcessPropertyMap, IReconnectionProperties, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, PosixShellType, ProcessPropertyType, ShellIntegrationStatus, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalSettingId, TerminalShellType, TitleEventSource, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 import { escapeNonWindowsPath, collapseTildePath } from 'vs/platform/terminal/common/terminalEnvironment';
-import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
+import { activeContrastBorder, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
@@ -90,6 +90,7 @@ import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { showWithPinnedItems } from 'vs/platform/quickinput/browser/quickPickPin';
+import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 
 const enum Constants {
 	/**
@@ -1010,27 +1011,25 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (items.length === 0) {
 			return;
 		}
+		const fuzzySearchToggle = new Toggle({
+			title: 'Fuzzy search',
+			icon: Codicon.searchFuzzy,
+			isChecked: filterMode === 'fuzzy',
+			inputActiveOptionBorder: this._themeService.getColorTheme().getColor(inputActiveOptionBorder),
+			inputActiveOptionForeground: this._themeService.getColorTheme().getColor(inputActiveOptionForeground),
+			inputActiveOptionBackground: this._themeService.getColorTheme().getColor(inputActiveOptionBackground)
+		});
+		fuzzySearchToggle.onChange(() => {
+			this.runRecent(type, fuzzySearchToggle.checked ? 'fuzzy' : 'contiguous', quickPick.value);
+		});
 		const outputProvider = this._instantiationService.createInstance(TerminalOutputProvider);
 		const quickPick = this._quickInputService.createQuickPick<IQuickPickItem & { rawLabel: string }>();
 		const originalItems = items;
 		quickPick.items = [...originalItems];
 		quickPick.sortByLabel = false;
 		quickPick.placeholder = placeholder;
-		quickPick.customButton = true;
 		quickPick.matchOnLabelMode = filterMode || 'contiguous';
-		if (filterMode === 'fuzzy') {
-			quickPick.customLabel = nls.localize('terminal.contiguousSearch', 'Use Contiguous Search');
-			quickPick.onDidCustom(() => {
-				quickPick.hide();
-				this.runRecent(type, 'contiguous', quickPick.value);
-			});
-		} else {
-			quickPick.customLabel = nls.localize('terminal.fuzzySearch', 'Use Fuzzy Search');
-			quickPick.onDidCustom(() => {
-				quickPick.hide();
-				this.runRecent(type, 'fuzzy', quickPick.value);
-			});
-		}
+		quickPick.toggles = [fuzzySearchToggle];
 		quickPick.onDidTriggerItemButton(async e => {
 			if (e.button === removeFromCommandHistoryButton) {
 				if (type === 'command') {
