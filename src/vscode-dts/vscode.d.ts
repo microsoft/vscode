@@ -975,6 +975,11 @@ declare module 'vscode' {
 		/**
 		 * CSS styling property that will be applied to text enclosed by a decoration.
 		 */
+		textUnderlinePosition?: string;
+
+		/**
+		 * CSS styling property that will be applied to text enclosed by a decoration.
+		 */
 		cursor?: string;
 
 		/**
@@ -1050,6 +1055,10 @@ declare module 'vscode' {
 		 * CSS styling property that will be applied to the decoration attachment.
 		 */
 		textDecoration?: string;
+		/**
+		 * CSS styling property that will be applied to text enclosed by a decoration.
+		 */
+		textUnderlinePosition?: string;
 		/**
 		 * CSS styling property that will be applied to the decoration attachment.
 		 */

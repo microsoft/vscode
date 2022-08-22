@@ -560,6 +560,8 @@ export const _CSS_MAP: { [prop: string]: string } = {
 	fontSize: 'font-size:{0};',
 	fontFamily: 'font-family:{0};',
 	textDecoration: 'text-decoration:{0};',
+	textUnderlinePosition: 'text-underline-position:{0};',
+
 	cursor: 'cursor:{0};',
 	letterSpacing: 'letter-spacing:{0};',
 
@@ -727,7 +729,7 @@ class DecorationCSSRules {
 			return '';
 		}
 		const cssTextArr: string[] = [];
-		this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'textDecoration', 'cursor', 'color', 'opacity', 'letterSpacing'], cssTextArr);
+		this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'textDecoration', 'textUnderlinePosition', 'cursor', 'color', 'opacity', 'letterSpacing'], cssTextArr);
 		if (opts.letterSpacing) {
 			this._hasLetterSpacing = true;
 		}
@@ -754,7 +756,7 @@ class DecorationCSSRules {
 
 				cssTextArr.push(strings.format(_CSS_MAP.contentText, escaped));
 			}
-			this.collectCSSText(opts, ['verticalAlign', 'fontStyle', 'fontWeight', 'fontSize', 'fontFamily', 'textDecoration', 'color', 'opacity', 'backgroundColor', 'margin', 'padding'], cssTextArr);
+			this.collectCSSText(opts, ['verticalAlign', 'fontStyle', 'fontWeight', 'fontSize', 'fontFamily', 'textDecoration', 'textUnderlinePosition', 'color', 'opacity', 'backgroundColor', 'margin', 'padding'], cssTextArr);
 			if (this.collectCSSText(opts, ['width', 'height'], cssTextArr)) {
 				cssTextArr.push('display:inline-block;');
 			}

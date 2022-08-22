@@ -610,6 +610,7 @@ export interface IThemeDecorationRenderOptions {
 	fontWeight?: string;
 	fontSize?: string;
 	textDecoration?: string;
+	textUnderlinePosition?: string;
 	cursor?: string;
 	color?: string | ThemeColor;
 	opacity?: string;
@@ -654,6 +655,7 @@ export interface IContentDecorationRenderOptions {
 	fontSize?: string;
 	fontFamily?: string;
 	textDecoration?: string;
+	textUnderlinePosition?: string;
 	color?: string | ThemeColor;
 	backgroundColor?: string | ThemeColor;
 	opacity?: string;
