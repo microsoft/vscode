@@ -2955,9 +2955,9 @@ declare namespace monaco.editor {
 		 */
 		scrollbar?: IEditorScrollbarOptions;
 		/**
-		 * Control the behavior of experimental options
+		 * Control the behavior of sticky scroll options
 		 */
-		experimental?: IEditorExperimentalOptions;
+		stickyScroll?: IEditorStickyScrollOptions;
 		/**
 		 * Control the behavior and rendering of the minimap.
 		 */
@@ -3426,6 +3426,10 @@ declare namespace monaco.editor {
 		 */
 		showDeprecated?: boolean;
 		/**
+		 * Controls whether suggestions allow matches in the middle of the word instead of only at the beginning
+		 */
+		matchOnWordStartOnly?: boolean;
+		/**
 		 * Control the behavior and rendering of the inline hints.
 		 */
 		inlayHints?: IEditorInlayHintsOptions;
@@ -3820,24 +3824,15 @@ declare namespace monaco.editor {
 		enabled?: boolean;
 	}
 
-	export interface IEditorExperimentalOptions {
+	export interface IEditorStickyScrollOptions {
 		/**
-		 * Configuration options for editor sticky scroll
+		 * Enable the sticky scroll
 		 */
-		stickyScroll?: {
-			/**
-			 * Enable the sticky scroll
-			 */
-			enabled?: boolean;
-			maxLineCount?: number;
-		};
-	}
-
-	export interface EditorExperimentalOptions {
-		stickyScroll: {
-			enabled: boolean;
-			maxLineCount: number;
-		};
+		enabled?: boolean;
+		/**
+		 * Maximum number of sticky lines to show
+		 */
+		maxLineCount?: number;
 	}
 
 	/**
@@ -4222,6 +4217,10 @@ declare namespace monaco.editor {
 		 */
 		showDeprecated?: boolean;
 		/**
+		 * Controls whether suggestions allow matches in the middle of the word instead of only at the beginning
+		 */
+		matchOnWordStartOnly?: boolean;
+		/**
 		 * Show field-suggestions.
 		 */
 		showFields?: boolean;
@@ -4398,78 +4397,78 @@ declare namespace monaco.editor {
 		dragAndDrop = 31,
 		dropIntoEditor = 32,
 		emptySelectionClipboard = 33,
-		experimental = 34,
-		extraEditorClassName = 35,
-		fastScrollSensitivity = 36,
-		find = 37,
-		fixedOverflowWidgets = 38,
-		folding = 39,
-		foldingStrategy = 40,
-		foldingHighlight = 41,
-		foldingImportsByDefault = 42,
-		foldingMaximumRegions = 43,
-		unfoldOnClickAfterEndOfLine = 44,
-		fontFamily = 45,
-		fontInfo = 46,
-		fontLigatures = 47,
-		fontSize = 48,
-		fontWeight = 49,
-		formatOnPaste = 50,
-		formatOnType = 51,
-		glyphMargin = 52,
-		gotoLocation = 53,
-		hideCursorInOverviewRuler = 54,
-		hover = 55,
-		inDiffEditor = 56,
-		inlineSuggest = 57,
-		letterSpacing = 58,
-		lightbulb = 59,
-		lineDecorationsWidth = 60,
-		lineHeight = 61,
-		lineNumbers = 62,
-		lineNumbersMinChars = 63,
-		linkedEditing = 64,
-		links = 65,
-		matchBrackets = 66,
-		minimap = 67,
-		mouseStyle = 68,
-		mouseWheelScrollSensitivity = 69,
-		mouseWheelZoom = 70,
-		multiCursorMergeOverlapping = 71,
-		multiCursorModifier = 72,
-		multiCursorPaste = 73,
-		occurrencesHighlight = 74,
-		overviewRulerBorder = 75,
-		overviewRulerLanes = 76,
-		padding = 77,
-		parameterHints = 78,
-		peekWidgetDefaultFocus = 79,
-		definitionLinkOpensInPeek = 80,
-		quickSuggestions = 81,
-		quickSuggestionsDelay = 82,
-		readOnly = 83,
-		renameOnType = 84,
-		renderControlCharacters = 85,
-		renderFinalNewline = 86,
-		renderLineHighlight = 87,
-		renderLineHighlightOnlyWhenFocus = 88,
-		renderValidationDecorations = 89,
-		renderWhitespace = 90,
-		revealHorizontalRightPadding = 91,
-		roundedSelection = 92,
-		rulers = 93,
-		scrollbar = 94,
-		scrollBeyondLastColumn = 95,
-		scrollBeyondLastLine = 96,
-		scrollPredominantAxis = 97,
-		selectionClipboard = 98,
-		selectionHighlight = 99,
-		selectOnLineNumbers = 100,
-		showFoldingControls = 101,
-		showUnused = 102,
-		snippetSuggestions = 103,
-		smartSelect = 104,
-		smoothScrolling = 105,
+		extraEditorClassName = 34,
+		fastScrollSensitivity = 35,
+		find = 36,
+		fixedOverflowWidgets = 37,
+		folding = 38,
+		foldingStrategy = 39,
+		foldingHighlight = 40,
+		foldingImportsByDefault = 41,
+		foldingMaximumRegions = 42,
+		unfoldOnClickAfterEndOfLine = 43,
+		fontFamily = 44,
+		fontInfo = 45,
+		fontLigatures = 46,
+		fontSize = 47,
+		fontWeight = 48,
+		formatOnPaste = 49,
+		formatOnType = 50,
+		glyphMargin = 51,
+		gotoLocation = 52,
+		hideCursorInOverviewRuler = 53,
+		hover = 54,
+		inDiffEditor = 55,
+		inlineSuggest = 56,
+		letterSpacing = 57,
+		lightbulb = 58,
+		lineDecorationsWidth = 59,
+		lineHeight = 60,
+		lineNumbers = 61,
+		lineNumbersMinChars = 62,
+		linkedEditing = 63,
+		links = 64,
+		matchBrackets = 65,
+		minimap = 66,
+		mouseStyle = 67,
+		mouseWheelScrollSensitivity = 68,
+		mouseWheelZoom = 69,
+		multiCursorMergeOverlapping = 70,
+		multiCursorModifier = 71,
+		multiCursorPaste = 72,
+		occurrencesHighlight = 73,
+		overviewRulerBorder = 74,
+		overviewRulerLanes = 75,
+		padding = 76,
+		parameterHints = 77,
+		peekWidgetDefaultFocus = 78,
+		definitionLinkOpensInPeek = 79,
+		quickSuggestions = 80,
+		quickSuggestionsDelay = 81,
+		readOnly = 82,
+		renameOnType = 83,
+		renderControlCharacters = 84,
+		renderFinalNewline = 85,
+		renderLineHighlight = 86,
+		renderLineHighlightOnlyWhenFocus = 87,
+		renderValidationDecorations = 88,
+		renderWhitespace = 89,
+		revealHorizontalRightPadding = 90,
+		roundedSelection = 91,
+		rulers = 92,
+		scrollbar = 93,
+		scrollBeyondLastColumn = 94,
+		scrollBeyondLastLine = 95,
+		scrollPredominantAxis = 96,
+		selectionClipboard = 97,
+		selectionHighlight = 98,
+		selectOnLineNumbers = 99,
+		showFoldingControls = 100,
+		showUnused = 101,
+		snippetSuggestions = 102,
+		smartSelect = 103,
+		smoothScrolling = 104,
+		stickyScroll = 105,
 		stickyTabStops = 106,
 		stopRenderingLineAfter = 107,
 		suggest = 108,
@@ -4537,7 +4536,7 @@ declare namespace monaco.editor {
 		dragAndDrop: IEditorOption<EditorOption.dragAndDrop, boolean>;
 		emptySelectionClipboard: IEditorOption<EditorOption.emptySelectionClipboard, boolean>;
 		dropIntoEditor: IEditorOption<EditorOption.dropIntoEditor, Readonly<Required<IDropIntoEditorOptions>>>;
-		experimental: IEditorOption<EditorOption.experimental, EditorExperimentalOptions>;
+		stickyScroll: IEditorOption<EditorOption.stickyScroll, Readonly<Required<IEditorStickyScrollOptions>>>;
 		extraEditorClassName: IEditorOption<EditorOption.extraEditorClassName, string>;
 		fastScrollSensitivity: IEditorOption<EditorOption.fastScrollSensitivity, number>;
 		find: IEditorOption<EditorOption.find, Readonly<Required<IEditorFindOptions>>>;

@@ -108,6 +108,7 @@ import { IRequestService } from 'vs/platform/request/common/request';
 import { ExtensionsProfileScannerService, IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/extensionsScannerService';
+import { UserDataTransientProfilesHandler } from 'vs/platform/userDataProfile/electron-main/userDataTransientProfilesHandler';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -128,7 +129,8 @@ export class CodeApplication extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStateMainService private readonly stateMainService: IStateMainService,
 		@IFileService private readonly fileService: IFileService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IUserDataProfilesMainService private readonly userDataProfilesMainService: IUserDataProfilesMainService,
 	) {
 		super();
 
@@ -534,6 +536,12 @@ export class CodeApplication extends Disposable {
 		// Setup Handlers
 		this.setUpHandlers(appInstantiationService);
 
+		// Ensure profile exists when passed in from CLI
+		const profilePromise = this.userDataProfilesMainService.checkAndCreateProfileFromCli(this.environmentMainService.args);
+		if (profilePromise) {
+			await profilePromise;
+		}
+
 		// Init Channels
 		appInstantiationService.invokeFunction(accessor => this.initChannels(accessor, mainProcessElectronServer, sharedProcessClient));
 
@@ -555,6 +563,9 @@ export class CodeApplication extends Disposable {
 
 		// Default Extensions Profile Init Handler
 		this._register(instantiationService.createInstance(DefaultExtensionsProfileInitHandler));
+
+		// Transient profiles handler
+		this._register(instantiationService.createInstance(UserDataTransientProfilesHandler));
 	}
 
 	private async resolveMachineId(): Promise<string> {

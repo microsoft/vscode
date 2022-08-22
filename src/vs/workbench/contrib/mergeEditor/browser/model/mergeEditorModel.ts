@@ -128,10 +128,6 @@ export class MergeEditorModel extends EditorModel {
 		return chunks.join();
 	}
 
-	public discardMergeChanges(): void {
-		this.resultTextModel.setValue(this.resultSnapshot);
-	}
-
 	constructor(
 		readonly base: ITextModel,
 		readonly input1: InputData,

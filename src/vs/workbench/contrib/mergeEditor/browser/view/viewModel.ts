@@ -14,20 +14,22 @@ import { InputCodeEditorView } from 'vs/workbench/contrib/mergeEditor/browser/vi
 import { ResultCodeEditorView } from 'vs/workbench/contrib/mergeEditor/browser/view/editors/resultCodeEditorView';
 
 export class MergeEditorViewModel {
+	private counter = 0;
 	private readonly lastFocusedEditor = derivedObservableWithWritableCache<
-		CodeEditorView | undefined
+		{ view: CodeEditorView | undefined; counter: number }
 	>('lastFocusedEditor', (reader, lastValue) => {
 		const editors = [
 			this.inputCodeEditorView1,
 			this.inputCodeEditorView2,
 			this.resultCodeEditorView,
 		];
-		return editors.find((e) => e.isFocused.read(reader)) || lastValue;
+		const view = editors.find((e) => e.isFocused.read(reader));
+		return view ? { view, counter: this.counter++ } : lastValue || { view: undefined, counter: this.counter++ };
 	});
 
 	private readonly manuallySetActiveModifiedBaseRange = observableValue<
-		ModifiedBaseRange | undefined
-	>('manuallySetActiveModifiedBaseRange', undefined);
+		{ range: ModifiedBaseRange | undefined; counter: number }
+	>('manuallySetActiveModifiedBaseRange', { range: undefined, counter: 0 });
 
 	private getRange(editor: CodeEditorView, modifiedBaseRange: ModifiedBaseRange, reader: IReader | undefined): LineRange {
 		if (editor === this.resultCodeEditorView) {
@@ -42,17 +44,22 @@ export class MergeEditorViewModel {
 		'activeModifiedBaseRange',
 		(reader) => {
 			const focusedEditor = this.lastFocusedEditor.read(reader);
-			if (!focusedEditor) {
-				return this.manuallySetActiveModifiedBaseRange.read(reader);
+			const manualRange = this.manuallySetActiveModifiedBaseRange.read(reader);
+			if (manualRange.counter > focusedEditor.counter) {
+				return manualRange.range;
 			}
-			const cursorLineNumber = focusedEditor.cursorLineNumber.read(reader);
+
+			if (!focusedEditor.view) {
+				return;
+			}
+			const cursorLineNumber = focusedEditor.view.cursorLineNumber.read(reader);
 			if (!cursorLineNumber) {
 				return undefined;
 			}
 
 			const modifiedBaseRanges = this.model.modifiedBaseRanges.read(reader);
 			return modifiedBaseRanges.find((r) => {
-				const range = this.getRange(focusedEditor, r, reader);
+				const range = this.getRange(focusedEditor.view!, r, reader);
 				return range.isEmpty
 					? range.startLineNumber === cursorLineNumber
 					: range.contains(cursorLineNumber);
@@ -72,28 +79,28 @@ export class MergeEditorViewModel {
 		state: ModifiedBaseRangeState,
 		tx: ITransaction
 	): void {
-		this.manuallySetActiveModifiedBaseRange.set(baseRange, tx);
-		this.lastFocusedEditor.clearCache(tx);
+		this.manuallySetActiveModifiedBaseRange.set({ range: baseRange, counter: this.counter++ }, tx);
 		this.model.setState(baseRange, state, true, tx);
 	}
 
 	private goToConflict(getModifiedBaseRange: (editor: CodeEditorView, curLineNumber: number) => ModifiedBaseRange | undefined): void {
-		const lastFocusedEditor = this.lastFocusedEditor.get();
-		if (!lastFocusedEditor) {
-			return;
+		let editor = this.lastFocusedEditor.get().view;
+		if (!editor) {
+			editor = this.resultCodeEditorView;
 		}
-		const curLineNumber = lastFocusedEditor.editor.getPosition()?.lineNumber;
+		const curLineNumber = editor.editor.getPosition()?.lineNumber;
 		if (curLineNumber === undefined) {
 			return;
 		}
-		const modifiedBaseRange = getModifiedBaseRange(lastFocusedEditor, curLineNumber);
+		const modifiedBaseRange = getModifiedBaseRange(editor, curLineNumber);
 		if (modifiedBaseRange) {
-			const range = this.getRange(lastFocusedEditor, modifiedBaseRange, undefined);
-			lastFocusedEditor.editor.setPosition({
+			const range = this.getRange(editor, modifiedBaseRange, undefined);
+			editor.editor.focus();
+			editor.editor.setPosition({
 				lineNumber: range.startLineNumber,
-				column: lastFocusedEditor.editor.getModel()!.getLineFirstNonWhitespaceColumn(range.startLineNumber),
+				column: editor.editor.getModel()!.getLineFirstNonWhitespaceColumn(range.startLineNumber),
 			});
-			lastFocusedEditor.editor.revealLinesNearTop(range.startLineNumber, range.endLineNumberExclusive, ScrollType.Smooth);
+			editor.editor.revealLinesNearTop(range.startLineNumber, range.endLineNumberExclusive, ScrollType.Smooth);
 		}
 	}
 
