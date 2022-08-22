@@ -49,6 +49,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 	}
 
+
 	public get lineNumbers(): number[] {
 		return this._lineNumbers;
 	}
