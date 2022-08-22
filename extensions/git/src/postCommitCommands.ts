@@ -82,14 +82,19 @@ export class CommitCommandsCenter {
 		private readonly postCommitCommandsProviderRegistry: IPostCommitCommandsProviderRegistry
 	) {
 		const root = Uri.file(repository.root);
-		this.disposables.push(workspace.onDidChangeConfiguration(async e => {
+
+		const onRememberPostCommitCommandChange = async () => {
+			const config = workspace.getConfiguration('git', root);
+			if (!config.get<boolean>('rememberPostCommitCommand')) {
+				await this.globalState.update(repository.root, undefined);
+			}
+		};
+		this.disposables.push(workspace.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('git.rememberPostCommitCommand', root)) {
-				const config = workspace.getConfiguration('git', root);
-				if (!config.get<boolean>('rememberPostCommitCommand')) {
-					await this.globalState.update(repository.root, undefined);
-				}
+				onRememberPostCommitCommandChange();
 			}
 		}));
+		onRememberPostCommitCommandChange();
 
 		this.disposables.push(postCommitCommandsProviderRegistry.onDidChangePostCommitCommandsProviders(() => this._onDidChange.fire()));
 	}
