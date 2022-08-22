@@ -165,16 +165,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		this._store.add(
 			this.inputResultView.editor.onDidScrollChange(
 				reentrancyBarrier.makeExclusive((c) => {
-					if (c.scrollTopChanged) {
-						const mapping1 = this.model?.input1ResultMapping.get();
-						synchronizeScrolling(this.inputResultView.editor, this.input1View.editor, mapping1, MappingDirection.output);
-						const mapping2 = this.model?.input2ResultMapping.get();
-						synchronizeScrolling(this.inputResultView.editor, this.input2View.editor, mapping2, MappingDirection.output);
-					}
-					if (c.scrollLeftChanged) {
-						this.input1View.editor.setScrollLeft(c.scrollLeft, ScrollType.Immediate);
-						this.input2View.editor.setScrollLeft(c.scrollLeft, ScrollType.Immediate);
-					}
+					this.updateResultScrolling(c.scrollTopChanged, c.scrollLeftChanged);
 				})
 			)
 		);
@@ -199,6 +190,19 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		this._store.add(toolbarMenuDisposables);
 		this._store.add(toolbarMenu.onDidChange(toolbarMenuRender));
 		toolbarMenuRender();
+	}
+
+	private updateResultScrolling(scrollTopChanged: boolean, scrollLeftChanged: boolean): void {
+		if (scrollTopChanged) {
+			const mapping1 = this.model?.input1ResultMapping.get();
+			synchronizeScrolling(this.inputResultView.editor, this.input1View.editor, mapping1, MappingDirection.output);
+			const mapping2 = this.model?.input2ResultMapping.get();
+			synchronizeScrolling(this.inputResultView.editor, this.input2View.editor, mapping2, MappingDirection.output);
+		}
+		if (scrollLeftChanged) {
+			this.input1View.editor.setScrollLeft(this.inputResultView.editor.getScrollLeft(), ScrollType.Immediate);
+			this.input2View.editor.setScrollLeft(this.inputResultView.editor.getScrollLeft(), ScrollType.Immediate);
+		}
 	}
 
 	public get viewModel(): IObservable<MergeEditorViewModel | undefined> {
@@ -391,6 +395,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		}));
 		mirrorWordWrapTransientState();
 
+		this.updateResultScrolling(true, true);
 
 		// detect when base, input1, and input2 become empty and replace THIS editor with its result editor
 		// TODO@jrieken@hediet this needs a better/cleaner solution
