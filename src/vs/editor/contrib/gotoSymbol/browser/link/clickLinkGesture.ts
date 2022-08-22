@@ -113,11 +113,11 @@ export class ClickLinkGesture extends Disposable {
 	private _hasTriggerKeyOnMouseDown: boolean;
 	private _lineNumberOnMouseDown: number;
 
-	constructor(editor: ICodeEditor, _alwaysFireOnMouseUp?: boolean) {
+	constructor(editor: ICodeEditor, alwaysFireOnMouseUp?: boolean) {
 		super();
 
 		this._editor = editor;
-		this._alwaysFireExecuteOnMouseUp = _alwaysFireOnMouseUp;
+		this._alwaysFireExecuteOnMouseUp = alwaysFireOnMouseUp;
 		this._opts = createOptions(this._editor.getOption(EditorOption.multiCursorModifier));
 
 		this._lastMouseMoveEvent = null;

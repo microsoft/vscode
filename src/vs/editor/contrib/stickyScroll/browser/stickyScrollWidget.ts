@@ -45,7 +45,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private _lastLineRelativePosition: number;
 	private _hoverOnLine: number;
 	private _hoverOnColumn: number;
-	private _stickyRangeProjectedOnEditor: IRange;
+	private _stickyRangeProjectedOnEditor: IRange | undefined;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -61,7 +61,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._lastLineRelativePosition = 0;
 		this._hoverOnLine = -1;
 		this._hoverOnColumn = -1;
-		this._stickyRangeProjectedOnEditor = {} as IRange;
+		this._stickyRangeProjectedOnEditor = undefined;
 		this._lineHeight = this._editor.getOption(EditorOption.lineHeight);
 		this._register(this._editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.lineHeight)) {
@@ -87,7 +87,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 				return;
 			}
 			const targetMouseEvent = mouseEvent.target as unknown as CustomMouseEvent;
-			if (targetMouseEvent.detail === 'editor.contrib.stickyScrollWidget' && targetMouseEvent.element.innerText === targetMouseEvent.element.innerHTML) {
+			if (targetMouseEvent.detail === this.getId() && targetMouseEvent.element.innerText === targetMouseEvent.element.innerHTML) {
 				const text = targetMouseEvent.element.innerText;
 				if (this._hoverOnColumn === -1) {
 					return;
@@ -111,18 +111,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 						return;
 					}
 					if (candidateDefinitions.length !== 0) {
-						const lineToDecorate = this.getDomNode().getElementsByClassName(`stickyLine${lineNumber}`)[0].children[0] as HTMLElement;
-						let childHTML: HTMLElement | undefined = undefined;
-						for (const childElement of lineToDecorate.children) {
-							const childAsHTMLElement = childElement as HTMLElement;
-							if (childAsHTMLElement.innerText === text) {
-								childHTML = childAsHTMLElement;
-								break;
-							}
-						}
-						if (!childHTML) {
-							return;
-						}
+						const childHTML: HTMLElement = targetMouseEvent.element;
 						if (currentHTMLChild !== childHTML) {
 							sessionStore.clear();
 							currentHTMLChild = childHTML;
