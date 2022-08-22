@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .merge-editor .code-view > .title {
+.monaco-workbench .merge-editor .code-view>.title {
 	padding: 0 10px;
 	height: 30px;
 	display: flex;
 	align-content: center;
 }
 
-.monaco-workbench .merge-editor .code-view > .title>SPAN {
+.monaco-workbench .merge-editor .code-view>.title>SPAN {
 	align-self: center;
 	text-overflow: ellipsis;
 	overflow: hidden;
@@ -18,40 +18,35 @@
 	white-space: nowrap;
 }
 
-.monaco-workbench .merge-editor .code-view > .title>SPAN.title {
+.monaco-workbench .merge-editor .code-view>.title>SPAN.title {
 	flex-shrink: 0;
 }
 
-.monaco-workbench .merge-editor .code-view > .title>SPAN.description {
+.monaco-workbench .merge-editor .code-view>.title>SPAN.description {
 	opacity: 0.7;
 	font-size: 90%;
 }
 
-.monaco-workbench .merge-editor .code-view > .title>SPAN.detail {
+.monaco-workbench .merge-editor .code-view>.title>SPAN.detail {
 	margin-left: auto;
 	flex-shrink: 0;
 }
 
-.monaco-workbench .merge-editor .code-view > .title>SPAN.detail .codicon {
+.monaco-workbench .merge-editor .code-view>.title>SPAN.detail .codicon {
 	font-size: 13px;
 }
 
-.monaco-workbench .merge-editor .code-view > .container {
+.monaco-workbench .merge-editor .code-view>.container {
 	display: flex;
 	flex-direction: row;
 }
 
-.monaco-workbench .merge-editor .code-view > .container > .gutter {
+.monaco-workbench .merge-editor .code-view>.container>.gutter {
 	width: 24px;
 	position: relative;
 	overflow: hidden;
-
 	flex-shrink: 0;
 	flex-grow: 0;
-}
-
-.merge-editor-diff {
-	background-color: var(--vscode-mergeEditor-change-background);
 }
 
 .merge-editor-diff-word {
@@ -59,6 +54,7 @@
 }
 
 .merge-editor-block {
+	background-color: var(--vscode-mergeEditor-conflict-unhandledUnfocused-background);
 	border: 1px dashed var(--vscode-mergeEditor-conflict-unhandledUnfocused-border);
 }
 
@@ -68,14 +64,15 @@
 
 .merge-editor-block.handled {
 	border: 1px solid var(--vscode-mergeEditor-conflict-handledUnfocused-border);
-
+	background-color: var(--vscode-mergeEditor-conflict-handledUnfocused-background);
 }
 
 .merge-editor-block.handled.focused {
 	border: 1px solid var(--vscode-mergeEditor-conflict-handledFocused-border);
+	background-color: var(--vscode-mergeEditor-conflict-handledFocused-background);
 }
 
-.gutter.monaco-editor > div {
+.gutter.monaco-editor>div {
 	position: absolute;
 }
 
@@ -89,8 +86,6 @@
 	width: 50%;
 	position: absolute;
 }
-
-
 
 .merge-accept-gutter-marker.multi-line.focused .background {
 	border: 1px dashed var(--vscode-mergeEditor-conflict-unhandledFocused-border);
@@ -129,8 +124,6 @@
 	border: 1px solid var(--vscode-checkbox-border);
 }
 
-
-
 .merge-accept-gutter-marker.multi-line .background {
 	left: 8px;
 	width: 10px;
@@ -160,7 +153,7 @@
 
 .conflict-zone-root {
 	border: 1px dashed var(--vscode-mergeEditor-conflict-unhandledUnfocused-border);
-	background-color: var(--vscode-mergeEditor-change-background);
+	background-color: var(--vscode-mergeEditor-conflict-unhandledUnfocused-background);
 
 	height: 90%;
 	display: flex;
@@ -179,10 +172,10 @@
 
 .conflict-zone-root .text {
 	margin-left: auto;
-	padding: 0 12px;
+	padding: 0 8px;
 	display: flex;
 	align-items: center;
-	background: var(--vscode-mergeEditor-conflictingLines-background);
+	/* background: var(--vscode-mergeEditor-conflict-unhandledUnfocused-background); */
 	height: 100%;
 	white-space: nowrap;
 	overflow: hidden;
