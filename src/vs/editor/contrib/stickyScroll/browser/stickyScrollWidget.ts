@@ -17,7 +17,7 @@ import { Location } from 'vs/editor/common/languages';
 import { goToDefinitionWithLocation } from 'vs/editor/contrib/inlayHints/browser/inlayHintsLocations';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IRange } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import 'vs/css!./stickyScroll';
 
@@ -45,7 +45,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private _lastLineRelativePosition: number;
 	private _hoverOnLine: number;
 	private _hoverOnColumn: number;
-	private _stickyRangeProjectedOnEditor: IRange | undefined;
+	private _stickyRangeProjectedOnEditor: IRange | null;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -61,7 +61,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._lastLineRelativePosition = 0;
 		this._hoverOnLine = -1;
 		this._hoverOnColumn = -1;
-		this._stickyRangeProjectedOnEditor = undefined;
+		this._stickyRangeProjectedOnEditor = null;
 		this._lineHeight = this._editor.getOption(EditorOption.lineHeight);
 		this._register(this._editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.lineHeight)) {
@@ -95,8 +95,8 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 				const lineNumber = this._hoverOnLine;
 				const column = this._hoverOnColumn;
 
-				const stickyPositionProjectedOnEditor = { startLineNumber: lineNumber, endLineNumber: lineNumber, startColumn: column, endColumn: column + text.length } as IRange;
-				if (JSON.stringify(this._stickyRangeProjectedOnEditor) !== JSON.stringify(stickyPositionProjectedOnEditor)) {
+				const stickyPositionProjectedOnEditor = new Range(lineNumber, column, lineNumber, column + text.length);
+				if (!stickyPositionProjectedOnEditor.equalsRange(this._stickyRangeProjectedOnEditor)) {
 					this._stickyRangeProjectedOnEditor = stickyPositionProjectedOnEditor;
 					sessionStore.clear();
 				}
