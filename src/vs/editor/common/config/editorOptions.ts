@@ -170,9 +170,9 @@ export interface IEditorOptions {
 	 */
 	scrollbar?: IEditorScrollbarOptions;
 	/**
-	 * Control the behavior of experimental options
+	 * Control the behavior of sticky scroll options
 	 */
-	experimental?: IEditorExperimentalOptions;
+	stickyScroll?: IEditorStickyScrollOptions;
 	/**
 	 * Control the behavior and rendering of the minimap.
 	 */
@@ -2512,61 +2512,56 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 
 //#endregion
 
-//#region experimental
+//#region stickyScroll
 
-export interface IEditorExperimentalOptions {
+export interface IEditorStickyScrollOptions {
 	/**
-	 * Configuration options for editor sticky scroll
+	 * Enable the sticky scroll
 	 */
-	stickyScroll?: {
-		/**
-		 * Enable the sticky scroll
-		 */
-		enabled?: boolean;
-		maxLineCount?: number;
-	};
+	enabled?: boolean;
+	/**
+	 * Maximum number of sticky lines to show
+	 */
+	maxLineCount?: number;
+
 }
 
-export interface EditorExperimentalOptions {
-	stickyScroll: {
-		enabled: boolean;
-		maxLineCount: number;
-	};
-}
+/**
+ * @internal
+ */
+export type EditorStickyScrollOptions = Readonly<Required<IEditorStickyScrollOptions>>;
 
-class EditorExperimental extends BaseEditorOption<EditorOption.experimental, IEditorExperimentalOptions, EditorExperimentalOptions> {
+class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEditorStickyScrollOptions, EditorStickyScrollOptions> {
 
 	constructor() {
-		const defaults: EditorExperimentalOptions = { stickyScroll: { enabled: false, maxLineCount: 5 } };
+		const defaults: EditorStickyScrollOptions = { enabled: false, maxLineCount: 5 };
 		super(
-			EditorOption.experimental, 'experimental', defaults,
+			EditorOption.stickyScroll, 'stickyScroll', defaults,
 			{
-				'editor.experimental.stickyScroll.enabled': {
+				'editor.stickyScroll.enabled': {
 					type: 'boolean',
-					default: defaults.stickyScroll.enabled,
-					description: nls.localize('editor.experimental.stickyScroll', "Shows the nested current scopes during the scroll at the top of the editor.")
+					default: defaults.enabled,
+					description: nls.localize('editor.stickyScroll', "Shows the nested current scopes during the scroll at the top of the editor.")
 				},
-				'editor.experimental.stickyScroll.maxLineCount': {
+				'editor.stickyScroll.maxLineCount': {
 					type: 'number',
-					default: defaults.stickyScroll.maxLineCount,
+					default: defaults.maxLineCount,
 					minimum: 1,
 					maximum: 10,
-					description: nls.localize('editor.experimental.stickyScroll.', "Defines the maximum number of sticky lines to show.")
+					description: nls.localize('editor.stickyScroll.', "Defines the maximum number of sticky lines to show.")
 				},
 			}
 		);
 	}
 
-	public validate(_input: any): EditorExperimentalOptions {
+	public validate(_input: any): EditorStickyScrollOptions {
 		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
-		const input = _input as IEditorExperimentalOptions;
+		const input = _input as IEditorStickyScrollOptions;
 		return {
-			stickyScroll: {
-				enabled: boolean(input.stickyScroll?.enabled, this.defaultValue.stickyScroll.enabled),
-				maxLineCount: EditorIntOption.clampedInt(input.stickyScroll?.maxLineCount, this.defaultValue.stickyScroll.maxLineCount, 1, 10),
-			}
+			enabled: boolean(input.enabled, this.defaultValue.enabled),
+			maxLineCount: EditorIntOption.clampedInt(input.maxLineCount, this.defaultValue.maxLineCount, 1, 10),
 		};
 	}
 }
@@ -4567,7 +4562,6 @@ export const enum EditorOption {
 	dragAndDrop,
 	dropIntoEditor,
 	emptySelectionClipboard,
-	experimental,
 	extraEditorClassName,
 	fastScrollSensitivity,
 	find,
@@ -4639,6 +4633,7 @@ export const enum EditorOption {
 	snippetSuggestions,
 	smartSelect,
 	smoothScrolling,
+	stickyScroll,
 	stickyTabStops,
 	stopRenderingLineAfter,
 	suggest,
@@ -4876,7 +4871,7 @@ export const EditorOptions = {
 	)),
 	emptySelectionClipboard: register(new EditorEmptySelectionClipboard()),
 	dropIntoEditor: register(new EditorDropIntoEditor()),
-	experimental: register(new EditorExperimental()),
+	stickyScroll: register(new EditorStickyScroll()),
 	extraEditorClassName: register(new EditorStringOption(
 		EditorOption.extraEditorClassName, 'extraEditorClassName', '',
 	)),
