@@ -131,6 +131,9 @@ export class InputCodeEditorView extends CodeEditorView {
 				className: derived('checkbox classnames', (reader) => {
 					const classNames = [];
 					const active = viewModel.activeModifiedBaseRange.read(reader);
+					if (!model.has(baseRange)) {
+						return ''; // Invalid state, should only be observed temporarily
+					}
 					const isHandled = model.isHandled(baseRange).read(reader);
 					if (isHandled) {
 						classNames.push('handled');
