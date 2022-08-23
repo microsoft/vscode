@@ -18,7 +18,7 @@ import * as platform from 'vs/base/common/platform';
 import { basename, isEqual, joinPath } from 'vs/base/common/resources';
 import * as semver from 'vs/base/common/semver/semver';
 import Severity from 'vs/base/common/severity';
-import { isEmptyObject, isObject, isString } from 'vs/base/common/types';
+import { isEmptyObject } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -35,7 +35,7 @@ import { revive } from 'vs/base/common/marshalling';
 import { IExtensionsProfileScannerService, IScannedProfileExtension } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { ILocalizedString } from 'vs/platform/action/common/action';
+import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
 
 export type IScannedExtensionManifest = IRelaxedExtensionManifest & { __metadata?: Metadata };
 
@@ -658,7 +658,7 @@ class ExtensionsScanner extends Disposable {
 					return extensionManifest;
 				}
 				const localized = localizedMessages.values || Object.create(null);
-				this.replaceNLStrings(nlsConfiguration.pseudo, extensionManifest, localized, defaults, extensionLocation);
+				return localizeManifest(extensionManifest, localized, defaults);
 			} catch (error) {
 				/*Ignore Error*/
 			}
@@ -734,18 +734,16 @@ class ExtensionsScanner extends Disposable {
 	/**
 	 * Parses original message bundle, returns null if the original message bundle is null.
 	 */
-	private async resolveOriginalMessageBundle(originalMessageBundle: URI | null, errors: ParseError[]): Promise<{ [key: string]: string } | null> {
+	private async resolveOriginalMessageBundle(originalMessageBundle: URI | null, errors: ParseError[]): Promise<{ [key: string]: string } | undefined> {
 		if (originalMessageBundle) {
 			try {
 				const originalBundleContent = (await this.fileService.readFile(originalMessageBundle)).value.toString();
 				return parse(originalBundleContent, errors);
 			} catch (error) {
 				/* Ignore Error */
-				return null;
 			}
-		} else {
-			return null;
 		}
+		return;
 	}
 
 	/**
@@ -774,65 +772,6 @@ class ExtensionsScanner extends Disposable {
 			}
 			loop(nlsConfiguration.language);
 		});
-	}
-
-	/**
-	 * This routine makes the following assumptions:
-	 * The root element is an object literal
-	 */
-	private replaceNLStrings<T extends object>(pseudo: boolean, literal: T, messages: MessageBag, originalMessages: MessageBag | null, extensionLocation: URI): void {
-		const processEntry = (obj: any, key: string | number, command?: boolean) => {
-			const value = obj[key];
-			if (isString(value)) {
-				const str = <string>value;
-				const length = str.length;
-				if (length > 1 && str[0] === '%' && str[length - 1] === '%') {
-					const messageKey = str.substr(1, length - 2);
-					let translated = messages[messageKey];
-					// If the messages come from a language pack they might miss some keys
-					// Fill them from the original messages.
-					if (translated === undefined && originalMessages) {
-						translated = originalMessages[messageKey];
-					}
-					let message: string | undefined = typeof translated === 'string' ? translated : translated.message;
-					if (message !== undefined) {
-						if (pseudo) {
-							// FF3B and FF3D is the Unicode zenkaku representation for [ and ]
-							message = '\uFF3B' + message.replace(/[aouei]/g, '$&$&') + '\uFF3D';
-						}
-						// This branch returns ILocalizedString's instead of Strings so that the Command Palette can contain both the localized and the original value.
-						if (command && originalMessages && (key === 'title' || key === 'category')) {
-							const originalMessage = originalMessages[messageKey];
-							const localizedString: ILocalizedString = {
-								value: message,
-								original: typeof originalMessage === 'string' ? originalMessage : originalMessage?.message
-							};
-							obj[key] = localizedString;
-						} else {
-							obj[key] = message;
-						}
-					} else {
-						this.logService.warn(this.formatMessage(extensionLocation, localize('missingNLSKey', "Couldn't find message for key {0}.", messageKey)));
-					}
-				}
-			} else if (isObject(value)) {
-				for (const k in value) {
-					if (value.hasOwnProperty(k)) {
-						k === 'commands' ? processEntry(value, k, true) : processEntry(value, k, command);
-					}
-				}
-			} else if (Array.isArray(value)) {
-				for (let i = 0; i < value.length; i++) {
-					processEntry(value, i, command);
-				}
-			}
-		};
-
-		for (const key in literal) {
-			if (literal.hasOwnProperty(key)) {
-				processEntry(literal, key);
-			}
-		}
 	}
 
 	private formatMessage(extensionLocation: URI, message: string): string {
