@@ -119,7 +119,7 @@ export class TerminalViewPane extends ViewPane {
 		}));
 		this._register(this._terminalService.onDidCreateInstance((i) => {
 			i.capabilities.onDidAddCapability(c => {
-				if (c === TerminalCapability.CommandDetection && !this._gutterDecorationsEnabled()) {
+				if (c === TerminalCapability.CommandDetection && this._gutterDecorationsEnabled()) {
 					this._parentDomElement?.classList.add('shell-integration');
 				}
 			});
