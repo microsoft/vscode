@@ -97,6 +97,7 @@ export class StickyLineCandidateProvider extends Disposable {
 		}
 	}
 
+	// consider the case when index = -length - 1
 	private updatedIndex(index: number) {
 		if (index === -1) {
 			index = 0;
@@ -111,10 +112,15 @@ export class StickyLineCandidateProvider extends Disposable {
 			return;
 		}
 		let lastLine = lastStartLineNumber;
-		const childrenStartLines = outlineModel.children.map(child => child.range?.startLineNumber as number);
+		const childrenStartLines = outlineModel.children.filter(child => { return child.range?.startLineNumber !== child.range?.endLineNumber; }).map(child => child.range?.startLineNumber as number);
+		console.log('childrenStartLines : ', childrenStartLines);
+		console.log('range : ', range);
+		console.log('start lines : ', childrenStartLines);
+		console.log('b1 ', binarySearch(childrenStartLines, range.startLineNumber, (a: number, b: number) => { return a - b; }));
+		console.log('b2 ', binarySearch(childrenStartLines, range.startLineNumber + depth, (a: number, b: number) => { return a - b; }));
 		const indexLower = this.updatedIndex(binarySearch(childrenStartLines, range.startLineNumber, (a: number, b: number) => { return a - b; }));
 		const indexUpper = this.updatedIndex(binarySearch(childrenStartLines, range.startLineNumber + depth, (a: number, b: number) => { return a - b; }));
-
+		console.log('indexLower : ', indexLower, ' and indexUpper : ', indexUpper);
 		for (let i = indexLower; i <= indexUpper; i++) {
 			const child = outlineModel.children[i];
 			if (child.range) {
@@ -134,6 +140,7 @@ export class StickyLineCandidateProvider extends Disposable {
 	public getCandidateStickyLinesIntersecting(range: StickyRange): StickyLineCandidate[] {
 		let stickyLineCandidates: StickyLineCandidate[] = [];
 		this.getCandidateStickyLinesIntersectingFromOutline(range, this._outlineModel as StickyOutlineElement, stickyLineCandidates, 0, -1);
+		console.log('stickyLineCandidates : ', stickyLineCandidates);
 		const hiddenRanges: Range[] | undefined = this._editor._getViewModel()?.getHiddenAreas();
 		if (hiddenRanges) {
 			for (const hiddenRange of hiddenRanges) {
