@@ -2332,12 +2332,12 @@ export class DidChangeDecorationsEmitter extends Disposable {
 		this._deferredCnt--;
 		if (this._deferredCnt === 0) {
 			if (this._shouldFire) {
+				const affectedTextLines = new Set(this._affectedInjectedTextLines);
 				this.handleBeforeFire(this._affectedInjectedTextLines);
-
-				// TODO: CHANGE HERE IN ORDER TO FIRE THE AFFECTED LINES TOO
 				const event: IModelDecorationsChangedEvent = {
 					affectsMinimap: this._affectsMinimap,
-					affectsOverviewRuler: this._affectsOverviewRuler
+					affectsOverviewRuler: this._affectsOverviewRuler,
+					linesAffected: affectedTextLines,
 				};
 				this._shouldFire = false;
 				this._affectsMinimap = false;

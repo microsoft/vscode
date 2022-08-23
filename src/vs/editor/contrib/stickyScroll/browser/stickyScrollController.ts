@@ -11,7 +11,6 @@ import { EditorOption, RenderLineNumbersType } from 'vs/editor/common/config/edi
 import { StickyScrollWidget, StickyScrollWidgetState } from './stickyScrollWidget';
 import { StickyLineCandidateProvider, StickyRange } from './stickyScrollProvider';
 import { IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
-import { ModifierKeyEmitter } from 'vs/base/browser/dom';
 
 export class StickyScrollController extends Disposable implements IEditorContribution {
 
@@ -21,7 +20,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	private readonly _stickyLineCandidateProvider: StickyLineCandidateProvider;
 	private readonly _sessionStore: DisposableStore = new DisposableStore();
 	private _widgetState: StickyScrollWidgetState;
-	private _ctrlAltClicked: boolean;
 
 	constructor(
 		_editor: ICodeEditor,
@@ -32,8 +30,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._stickyScrollWidget = new StickyScrollWidget(this._editor);
 		this._stickyLineCandidateProvider = new StickyLineCandidateProvider(this._editor, _languageFeaturesService);
 		this._widgetState = new StickyScrollWidgetState([], 0);
-		this._ctrlAltClicked = false;
-
 
 		this._register(this._editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.stickyScroll)) {
@@ -68,25 +64,21 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				this._sessionStore.add(this._editor.onDidChangeCursorPosition(() => this.renderStickyScroll()));
 			}
 			const inlayHintsOptions = this._editor.getOption(EditorOption.inlayHints);
-
-			// inlay hints are decorations, check if it fires below and if it fires not very often
-			// maybe fire the actual line number, or the range of the decoration, and rerender the sticky scroll in that case
-			this._editor.onDidChangeModelDecorations((e) => {
-				console.log('e', e);
-
-			});
-			/*
 			if (inlayHintsOptions.enabled === 'offUnlessPressed' || inlayHintsOptions.enabled === 'onUnlessPressed') {
-				this._sessionStore.add(ModifierKeyEmitter.getInstance().event(e => {
-					console.log('e : ', e);
-					if (this._ctrlAltClicked !== e.altKey && e.ctrlKey) {
-						this.renderStickyScroll();
-						this._ctrlAltClicked = e.altKey && e.ctrlKey;
-						console.log('_ctrlAltClicked : ', this._ctrlAltClicked);
+				this._editor.onDidChangeModelDecorations((e) => {
+					const firstLine = this._widgetState.lineNumbers[0];
+					const lastLine = this._widgetState.lineNumbers[this._widgetState.lineNumbers.length - 1];
+					if (!e.linesAffected || !firstLine || !lastLine) {
+						return;
 					}
-				}));
+					for (const line of e.linesAffected) {
+						if (line >= firstLine && line <= lastLine) {
+							this.renderStickyScroll();
+							return;
+						}
+					}
+				});
 			}
-			*/
 		}
 	}
 
