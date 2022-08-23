@@ -88,22 +88,24 @@
 }
 
 .merge-accept-gutter-marker.multi-line.focused .background {
-	border: 1px dashed var(--vscode-mergeEditor-conflict-unhandledFocused-border);
+	border: 2px solid var(--vscode-mergeEditor-conflict-unhandledFocused-border);
 	border-right: 0;
 }
 
 .merge-accept-gutter-marker.multi-line .background {
-	border: 1px dashed var(--vscode-mergeEditor-conflict-unhandledUnfocused-border);
+	border: 2px solid var(--vscode-mergeEditor-conflict-unhandledUnfocused-border);
 	border-right: 0;
+	border-top-left-radius: 3px;
+	border-bottom-left-radius: 3px;
 }
 
 .merge-accept-gutter-marker.multi-line.handled.focused .background {
-	border: 1px solid var(--vscode-mergeEditor-conflict-handledFocused-border);
+	border: 2px solid var(--vscode-mergeEditor-conflict-handledFocused-border);
 	border-right: 0;
 }
 
 .merge-accept-gutter-marker.multi-line.handled .background {
-	border: 1px solid var(--vscode-checkbox-border);
+	border: 2px solid var(--vscode-checkbox-border);
 	border-right: 0;
 }
 
