@@ -125,14 +125,11 @@ function encodeBase64(buffer: Uint8Array, padded = true, urlSafe = false) {
 
 function buildMetadata(b64: string, cell: vscode.NotebookCell, filename: string, filetype: string, startingAttachments: any): { [key: string]: any } {
 	const outputMetadata = { ...cell.metadata };
-	const customField = cell.metadata.custom;
-	if (!customField) {
-		return { 'custom': { 'attachments': { [filename]: { 'image/png': b64 } } } };
-	}
 
-	const attachmentField = cell.metadata.custom.attachments;
-	if (!attachmentField) {
-		outputMetadata['attachments'] = { [filename]: { 'image/png': b64 } };
+	if (!outputMetadata.custom) {
+		outputMetadata['custom'] = { 'attachments': { [filename]: { 'image/png': b64 } } };
+	} else if (!outputMetadata.custom.attachments) {
+		outputMetadata.custom['attachments'] = { [filename]: { 'image/png': b64 } };
 	} else {
 		for (let appendValue = 2; filename in startingAttachments; appendValue++) {
 			const objEntries = Object.entries(startingAttachments[filename]);
@@ -145,6 +142,7 @@ function buildMetadata(b64: string, cell: vscode.NotebookCell, filename: string,
 		}
 		outputMetadata.custom.attachments[filename] = { 'image/png': b64 };
 	}
+
 	return outputMetadata;
 }
 
