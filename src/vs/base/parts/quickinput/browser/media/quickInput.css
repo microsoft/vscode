@@ -150,7 +150,7 @@
 .quick-input-list {
 	line-height: 22px;
 	margin-top: 6px;
-	padding: 0px 1px 1px 1px;
+	padding: 0px;
 }
 
 .quick-input-widget.hidden-input .quick-input-list {
