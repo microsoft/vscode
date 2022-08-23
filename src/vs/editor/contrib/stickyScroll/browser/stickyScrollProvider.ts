@@ -12,6 +12,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Range } from 'vs/editor/common/core/range';
 import { Emitter } from 'vs/base/common/event';
+import { binarySearch } from 'vs/base/common/arrays';
 
 export class StickyRange {
 	constructor(
@@ -96,8 +97,48 @@ export class StickyLineCandidateProvider extends Disposable {
 		}
 	}
 
+	private changeIndex(index: number) {
+		if (index === -1) {
+			index = 0;
+		} else if (index < 0) {
+			index = -index - 2;
+		}
+		return index;
+	}
 	public getCandidateStickyLinesIntersectingFromOutline(range: StickyRange, outlineModel: StickyOutlineElement, result: StickyLineCandidate[], depth: number, lastStartLineNumber: number): void {
 		let lastLine = lastStartLineNumber;
+		// Find largest number in the start lines being smaller than the current range start line
+		const childrenStartLines = outlineModel.children.map(child => child.range?.startLineNumber as number);
+		let indexLower = binarySearch(childrenStartLines, range.startLineNumber, (a: number, b: number) => { return a - b; });
+		let indexUpper = binarySearch(childrenStartLines, range.startLineNumber + depth, (a: number, b: number) => { return a - b; });
+		console.log('children start lines : ', childrenStartLines);
+		console.log('range start line number : ', range.startLineNumber);
+		console.log('range.startLineNumber + depth : ', range.startLineNumber + depth);
+		console.log('index lower before change : ', indexLower);
+		console.log('index upper before change : ', indexUpper);
+
+		indexLower = this.changeIndex(indexLower);
+		indexUpper = this.changeIndex(indexUpper);
+
+		console.log('indexLower : ', indexLower);
+		console.log('indexUpper : ', indexUpper);
+
+		for (let i = indexLower; i <= indexUpper; i++) {
+			console.log('currently at index : ', i);
+			const child = outlineModel.children[i];
+			if (child && child.range) {
+				const childStartLine = child.range.startLineNumber;
+				const childEndLine = child.range.endLineNumber;
+				if (range.startLineNumber <= childEndLine + 1 && childStartLine - 1 <= range.endLineNumber && childStartLine !== lastLine) {
+					lastLine = childStartLine;
+					result.push(new StickyLineCandidate(childStartLine, childEndLine - 1, depth + 1));
+					this.getCandidateStickyLinesIntersectingFromOutline(range, child, result, depth + 1, childStartLine);
+				}
+			} else {
+				this.getCandidateStickyLinesIntersectingFromOutline(range, child, result, depth, lastStartLineNumber);
+			}
+		}
+		/*
 		for (const child of outlineModel.children) {
 			if (child.range) {
 				const childStartLine = child.range.startLineNumber;
@@ -111,11 +152,15 @@ export class StickyLineCandidateProvider extends Disposable {
 				this.getCandidateStickyLinesIntersectingFromOutline(range, child, result, depth, lastStartLineNumber);
 			}
 		}
+		*/
 	}
 
 	public getCandidateStickyLinesIntersecting(range: StickyRange): StickyLineCandidate[] {
 		let stickyLineCandidates: StickyLineCandidate[] = [];
+		console.log('this._outlineModel : ', this._outlineModel);
+		console.log('range : ', range);
 		this.getCandidateStickyLinesIntersectingFromOutline(range, this._outlineModel as StickyOutlineElement, stickyLineCandidates, 0, -1);
+		console.log('stickyLineCandidates : ', stickyLineCandidates);
 		const hiddenRanges: Range[] | undefined = this._editor._getViewModel()?.getHiddenAreas();
 		if (hiddenRanges) {
 			for (const hiddenRange of hiddenRanges) {
