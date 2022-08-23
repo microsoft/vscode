@@ -13,7 +13,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IAction } from 'vs/base/common/actions';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER, WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
@@ -283,11 +283,9 @@ export class TitlebarPart extends Part implements ITitleService {
 				}
 
 				const actions: IAction[] = [];
-				const toDispose = createAndFillInContextMenuActions(menu, undefined, { primary: [], secondary: actions });
+				createAndFillInContextMenuActions(menu, undefined, { primary: [], secondary: actions });
 
 				this.layoutToolbar.setActions(actions);
-
-				toDispose.dispose();
 			};
 
 			menu.onDidChange(updateLayoutMenu);
@@ -401,14 +399,13 @@ export class TitlebarPart extends Part implements ITitleService {
 		// Fill in contributed actions
 		const menu = this.menuService.createMenu(menuId, this.contextKeyService);
 		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(menu, undefined, actions);
+		createAndFillInContextMenuActions(menu, undefined, actions);
 		menu.dispose();
 
 		// Show it
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => actions,
-			onHide: () => dispose(actionsDisposable),
 			domForShadowRoot: isMacintosh && isNative ? event.target : undefined
 		});
 	}

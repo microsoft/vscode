@@ -344,7 +344,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 				}
 			}
 		}
-		this.editor.setHiddenAreas(hiddenRanges);
+		this.editor.setHiddenAreas(hiddenRanges, this);
 	}
 
 	private onCursorPositionChanged() {

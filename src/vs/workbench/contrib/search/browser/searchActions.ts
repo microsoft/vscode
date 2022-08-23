@@ -23,7 +23,7 @@ import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
 import { ISearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
-import { FileMatch, FolderMatch, FolderMatchWithResource, Match, RenderableMatch, searchComparer, searchMatchComparer, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
+import { arrayContainsElementOrParent, FileMatch, FolderMatch, FolderMatchWithResource, Match, RenderableMatch, searchComparer, searchMatchComparer, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
 import { OpenEditorCommandId } from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
 import { OpenSearchEditorArgs } from 'vs/workbench/contrib/searchEditor/browser/searchEditor.contribution';
@@ -431,7 +431,8 @@ class ReplaceActionRunner {
 		@IReplaceService private readonly replaceService: IReplaceService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IViewsService private readonly viewsService: IViewsService
 	) { }
 
 	async performReplace(element: FolderMatch | FileMatch | Match): Promise<any> {
@@ -439,22 +440,11 @@ class ReplaceActionRunner {
 		const opInfo = getElementsToOperateOnInfo(this.viewer, element, this.configurationService.getValue<ISearchConfigurationProperties>('search'));
 		const elementsToReplace = opInfo.elements;
 
-		await Promise.all(elementsToReplace.map(async (elem) => {
-			const parent = elem.parent();
+		const searchResult = getSearchView(this.viewsService)?.searchResult;
 
-			if ((parent instanceof FolderMatch || parent instanceof FileMatch) && arrayContainsElementOrParent(parent, elementsToReplace)) {
-				// skip any children who have parents in the array
-				return;
-			}
-
-			if (elem instanceof FileMatch) {
-				elem.parent().replace(elem);
-			} else if (elem instanceof Match) {
-				elem.parent().replace(elem);
-			} else if (elem instanceof FolderMatch) {
-				await elem.replaceAll();
-			}
-		}));
+		if (searchResult) {
+			searchResult.batchReplace(elementsToReplace);
+		}
 
 		const currentBottomFocusElement = elementsToReplace[elementsToReplace.length - 1];
 
@@ -561,6 +551,7 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 		private element: RenderableMatch,
 		@IKeybindingService keyBindingService: IKeybindingService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IViewsService private readonly viewsService: IViewsService,
 	) {
 		super(Constants.RemoveActionId, appendKeyBindingLabel(RemoveAction.LABEL, keyBindingService.lookupKeybinding(Constants.RemoveActionId), keyBindingService), ThemeIcon.asClassName(searchRemoveIcon));
 	}
@@ -587,24 +578,17 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 			}
 		}
 
-		elementsToRemove.forEach((currentElement) =>
-			currentElement.parent().remove(<(FolderMatch | FileMatch)[] & Match & FileMatch[]>currentElement)
-		);
+		const searchResult = getSearchView(this.viewsService)?.searchResult;
+
+		if (searchResult) {
+			searchResult.batchRemove(elementsToRemove);
+		}
 
 		this.viewer.domFocus();
 		return;
 	}
 }
 
-function arrayContainsElementOrParent(element: RenderableMatch, testArray: (RenderableMatch | SearchResult)[]): boolean {
-	do {
-		if (testArray.includes(element)) {
-			return true;
-		}
-	} while (!(element.parent() instanceof SearchResult) && (element = <RenderableMatch>element.parent()));
-
-	return false;
-}
 
 export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 

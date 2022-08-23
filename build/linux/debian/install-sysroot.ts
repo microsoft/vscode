@@ -9,7 +9,7 @@ import { tmpdir } from 'os';
 import * as fs from 'fs';
 import * as https from 'https';
 import * as path from 'path';
-import { ArchString } from './types';
+import { DebianArchString } from './types';
 import * as util from '../../lib/util';
 
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:build/linux/sysroot_scripts/install-sysroot.py.
@@ -37,7 +37,7 @@ type SysrootDictEntry = {
 	Tarball: string;
 };
 
-export async function getSysroot(arch: ArchString): Promise<string> {
+export async function getSysroot(arch: DebianArchString): Promise<string> {
 	const sysrootJSONUrl = `https://raw.githubusercontent.com/electron/electron/v${util.getElectronVersion()}/script/sysroots.json`;
 	const sysrootDictLocation = `${tmpdir()}/sysroots.json`;
 	const result = spawnSync('curl', [sysrootJSONUrl, '-o', sysrootDictLocation]);
@@ -63,14 +63,13 @@ export async function getSysroot(arch: ArchString): Promise<string> {
 	console.log(`Downloading ${url}`);
 	let downloadSuccess = false;
 	for (let i = 0; i < 3 && !downloadSuccess; i++) {
+		fs.writeFileSync(tarball, '');
 		await new Promise<void>((c) => {
 			https.get(url, (res) => {
-				const chunks: Uint8Array[] = [];
 				res.on('data', (chunk) => {
-					chunks.push(chunk);
+					fs.appendFileSync(tarball, chunk);
 				});
 				res.on('end', () => {
-					fs.writeFileSync(tarball, Buffer.concat(chunks));
 					downloadSuccess = true;
 					c();
 				});
@@ -81,6 +80,7 @@ export async function getSysroot(arch: ArchString): Promise<string> {
 		});
 	}
 	if (!downloadSuccess) {
+		fs.rmSync(tarball);
 		throw new Error('Failed to download ' + url);
 	}
 	const sha = getSha(tarball);

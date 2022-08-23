@@ -10,7 +10,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { Registry } from 'vs/platform/registry/common/platform';
 import { TreeView, TreeViewPane } from 'vs/workbench/browser/parts/views/treeView';
 import { Extensions, ITreeItem, ITreeViewDataProvider, ITreeViewDescriptor, IViewsRegistry, TreeItemCollapsibleState, TreeViewItemHandleArg, ViewContainer } from 'vs/workbench/common/views';
-import { EDIT_SESSIONS_DATA_VIEW_ID, EDIT_SESSIONS_SCHEME, EDIT_SESSIONS_SHOW_VIEW, EDIT_SESSIONS_SIGNED_IN, EDIT_SESSIONS_SIGNED_IN_KEY, EDIT_SESSIONS_TITLE, IEditSessionsWorkbenchService } from 'vs/workbench/contrib/editSessions/common/editSessions';
+import { EDIT_SESSIONS_DATA_VIEW_ID, EDIT_SESSIONS_SCHEME, EDIT_SESSIONS_SHOW_VIEW, EDIT_SESSIONS_SIGNED_IN, EDIT_SESSIONS_SIGNED_IN_KEY, EDIT_SESSIONS_TITLE, IEditSessionsStorageService } from 'vs/workbench/contrib/editSessions/common/editSessions';
 import { URI } from 'vs/base/common/uri';
 import { fromNow } from 'vs/base/common/date';
 import { Codicon } from 'vs/base/common/codicons';
@@ -128,14 +128,14 @@ export class EditSessionsDataViews extends Disposable {
 			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
 				const editSessionId = URI.parse(handle.$treeItemHandle).path.substring(1);
 				const dialogService = accessor.get(IDialogService);
-				const editSessionWorkbenchService = accessor.get(IEditSessionsWorkbenchService);
+				const editSessionStorageService = accessor.get(IEditSessionsStorageService);
 				const result = await dialogService.confirm({
 					message: localize('confirm delete', 'Are you sure you want to permanently delete the edit session with ref {0}? You cannot undo this action.', editSessionId),
 					type: 'warning',
 					title: EDIT_SESSIONS_TITLE
 				});
 				if (result.confirmed) {
-					await editSessionWorkbenchService.delete(editSessionId);
+					await editSessionStorageService.delete(editSessionId);
 					await treeView.refresh();
 				}
 			}
@@ -156,14 +156,14 @@ export class EditSessionsDataViews extends Disposable {
 
 			async run(accessor: ServicesAccessor): Promise<void> {
 				const dialogService = accessor.get(IDialogService);
-				const editSessionWorkbenchService = accessor.get(IEditSessionsWorkbenchService);
+				const editSessionStorageService = accessor.get(IEditSessionsStorageService);
 				const result = await dialogService.confirm({
 					message: localize('confirm delete all', 'Are you sure you want to permanently delete all edit sessions? You cannot undo this action.'),
 					type: 'warning',
 					title: EDIT_SESSIONS_TITLE
 				});
 				if (result.confirmed) {
-					await editSessionWorkbenchService.delete(null);
+					await editSessionStorageService.delete(null);
 					await treeView.refresh();
 				}
 			}
@@ -176,7 +176,7 @@ class EditSessionDataViewDataProvider implements ITreeViewDataProvider {
 	private editSessionsCount;
 
 	constructor(
-		@IEditSessionsWorkbenchService private readonly editSessionsWorkbenchService: IEditSessionsWorkbenchService,
+		@IEditSessionsStorageService private readonly editSessionsStorageService: IEditSessionsStorageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		this.editSessionsCount = EDIT_SESSIONS_COUNT_CONTEXT_KEY.bindTo(this.contextKeyService);
@@ -199,7 +199,7 @@ class EditSessionDataViewDataProvider implements ITreeViewDataProvider {
 	}
 
 	private async getAllEditSessions(): Promise<ITreeItem[]> {
-		const allEditSessions = await this.editSessionsWorkbenchService.list();
+		const allEditSessions = await this.editSessionsStorageService.list();
 		this.editSessionsCount.set(allEditSessions.length);
 		return allEditSessions.map((session) => {
 			const resource = URI.from({ scheme: EDIT_SESSIONS_SCHEME, authority: 'remote-session-content', path: `/${session.ref}` });
@@ -215,7 +215,7 @@ class EditSessionDataViewDataProvider implements ITreeViewDataProvider {
 	}
 
 	private async getEditSession(ref: string): Promise<ITreeItem[]> {
-		const data = await this.editSessionsWorkbenchService.read(ref);
+		const data = await this.editSessionsStorageService.read(ref);
 
 		if (!data) {
 			return [];
@@ -233,7 +233,7 @@ class EditSessionDataViewDataProvider implements ITreeViewDataProvider {
 	}
 
 	private async getEditSessionFolderContents(ref: string, folderName: string): Promise<ITreeItem[]> {
-		const data = await this.editSessionsWorkbenchService.read(ref);
+		const data = await this.editSessionsStorageService.read(ref);
 
 		if (!data) {
 			return [];
