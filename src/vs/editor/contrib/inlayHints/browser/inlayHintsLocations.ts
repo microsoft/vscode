@@ -106,7 +106,8 @@ export async function goToDefinitionWithLocation(accessor: ServicesAccessor, eve
 		const canPeek = !openToSide && editor.getOption(EditorOption.definitionLinkOpensInPeek) && !isInPeek;
 
 		const action = new DefinitionAction({ openToSide, openInPeek: canPeek, muteMessage: true }, { alias: '', label: '', id: '', precondition: undefined });
-		return action.run(accessor, editor, { model: ref.object.textEditorModel, position: Range.getStartPosition(location.range) });
+		const locationRange = location.range;
+		return action.run(accessor, editor, { model: ref.object.textEditorModel, position: Range.getStartPosition(locationRange) }, new Range(locationRange.startLineNumber, locationRange.startColumn, locationRange.endLineNumber, locationRange.endColumn));
 	});
 
 	ref.dispose();
