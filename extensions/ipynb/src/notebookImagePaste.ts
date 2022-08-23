@@ -8,13 +8,13 @@ import * as vscode from 'vscode';
 class CopyPasteEditProvider implements vscode.DocumentPasteEditProvider {
 
 	async provideDocumentPasteEdits(
-		_document: vscode.TextDocument,
+		document: vscode.TextDocument,
 		_ranges: readonly vscode.Range[],
 		dataTransfer: vscode.DataTransfer,
 		_token: vscode.CancellationToken
 	): Promise<vscode.DocumentPasteEdit | undefined> {
 
-		const enabled = vscode.workspace.getConfiguration('ipynb', _document).get('experimental.pasteImages.enabled', false);
+		const enabled = vscode.workspace.getConfiguration('ipynb', document).get('experimental.pasteImages.enabled', false);
 		if (!enabled) {
 			return undefined;
 		}
@@ -42,23 +42,12 @@ class CopyPasteEditProvider implements vscode.DocumentPasteEditProvider {
 			return undefined;
 		}
 
-		// get notebook cell
-		let notebookUri;
-		let currentCell;
-		for (const notebook of vscode.workspace.notebookDocuments) {
-			if (notebook.uri.path === _document.uri.path) {
-				for (const cell of notebook.getCells()) {
-					if (cell.document === _document) {
-						currentCell = cell;
-						notebookUri = notebook.uri;
-						break;
-					}
-				}
-			}
-		}
-		if (!currentCell || !notebookUri) {
+		const currentCell = this.getCellFromCellDocument(document);
+		if (!currentCell) {
 			return undefined;
 		}
+
+		const notebookUri = currentCell.notebook.uri;
 
 		// create updated metadata for cell (prep for WorkspaceEdit)
 		const b64string = encodeBase64(fileDataAsUint8);
@@ -77,6 +66,19 @@ class CopyPasteEditProvider implements vscode.DocumentPasteEditProvider {
 		pasteSnippet.appendText(`](attachment:${pasteFilename})`);
 
 		return { insertText: pasteSnippet, additionalEdit: workspaceEdit };
+	}
+
+	private getCellFromCellDocument(cellDocument: vscode.TextDocument): vscode.NotebookCell | undefined {
+		for (const notebook of vscode.workspace.notebookDocuments) {
+			if (notebook.uri.path === cellDocument.uri.path) {
+				for (const cell of notebook.getCells()) {
+					if (cell.document === cellDocument) {
+						return cell;
+					}
+				}
+			}
+		}
+		return undefined;
 	}
 }
 
