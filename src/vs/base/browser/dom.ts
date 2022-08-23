@@ -19,7 +19,9 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 
 export function clearNode(node: HTMLElement): void {
-	node.replaceChildren();
+	while (node.firstChild) {
+		node.firstChild.remove();
+	}
 }
 
 /**
