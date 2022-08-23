@@ -72,8 +72,10 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			// inlay hints are decorations, check if it fires below and if it fires not very often
 			// maybe fire the actual line number, or the range of the decoration, and rerender the sticky scroll in that case
 			this._editor.onDidChangeModelDecorations((e) => {
+				console.log('e', e);
 
 			});
+			/*
 			if (inlayHintsOptions.enabled === 'offUnlessPressed' || inlayHintsOptions.enabled === 'onUnlessPressed') {
 				this._sessionStore.add(ModifierKeyEmitter.getInstance().event(e => {
 					console.log('e : ', e);
@@ -84,6 +86,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 					}
 				}));
 			}
+			*/
 		}
 	}
 

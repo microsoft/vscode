@@ -2334,6 +2334,7 @@ export class DidChangeDecorationsEmitter extends Disposable {
 			if (this._shouldFire) {
 				this.handleBeforeFire(this._affectedInjectedTextLines);
 
+				// TODO: CHANGE HERE IN ORDER TO FIRE THE AFFECTED LINES TOO
 				const event: IModelDecorationsChangedEvent = {
 					affectsMinimap: this._affectsMinimap,
 					affectsOverviewRuler: this._affectsOverviewRuler
