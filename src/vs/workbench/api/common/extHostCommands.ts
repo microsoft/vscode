@@ -34,6 +34,14 @@ interface CommandHandler {
 	extension?: IExtensionDescription;
 }
 
+export interface UnrollableArgument {
+	unrollArguments: any[];
+}
+
+function isUnrollableArgument(arg: any): arg is UnrollableArgument {
+	return arg !== undefined && Object.prototype.hasOwnProperty.call(arg, 'unrollArguments');
+}
+
 export interface ArgumentProcessor {
 	processArgument(arg: any): any;
 }
@@ -285,6 +293,12 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 	$executeContributedCommand(id: string, ...args: any[]): Promise<unknown> {
 		this._logService.trace('ExtHostCommands#$executeContributedCommand', id);
+
+		for (let i = args.length - 1; i >= 0; i--) {
+			if (isUnrollableArgument(args[i])) {
+				args.splice(i, 1, ...(args[i] as UnrollableArgument).unrollArguments);
+			}
+		}
 
 		if (!this._commands.has(id)) {
 			return Promise.reject(new Error(`Contributed command '${id}' does not exist.`));

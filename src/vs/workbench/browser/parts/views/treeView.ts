@@ -66,6 +66,8 @@ import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { ITreeViewsService } from 'vs/workbench/services/views/browser/treeViewsService';
 import { CodeDataTransfers } from 'vs/platform/dnd/browser/dnd';
 import { addExternalEditorsDropData, toVSDataTransfer } from 'vs/editor/browser/dnd';
+// eslint-disable-next-line code-import-patterns
+import { UnrollableArgument } from 'vs/workbench/api/common/extHostCommands';
 
 export class TreeViewPane extends ViewPane {
 
@@ -143,10 +145,12 @@ export class TreeViewPane extends ViewPane {
 		this.treeView.setVisibility(this.isBodyVisible());
 	}
 
-	override getActionsContext(): TreeViewPaneHandleArg {
+	override getActionsContext(): UnrollableArgument {
 		return {
-			$selectedTreeItems: true,
-			$treeViewId: this.id
+			unrollArguments: [
+				<TreeViewPaneHandleArg>{ $treeViewId: this.id, $focusedTreeItem: true },
+				<TreeViewPaneHandleArg>{ $treeViewId: this.id, $selectedTreeItems: true }
+			]
 		};
 	}
 
@@ -213,6 +217,9 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 
 	private _onDidChangeSelection: Emitter<ITreeItem[]> = this._register(new Emitter<ITreeItem[]>());
 	readonly onDidChangeSelection: Event<ITreeItem[]> = this._onDidChangeSelection.event;
+
+	private _onDidChangeFocus: Emitter<ITreeItem> = this._register(new Emitter<ITreeItem>());
+	readonly onDidChangeFocus: Event<ITreeItem> = this._onDidChangeFocus.event;
 
 	private readonly _onDidChangeVisibility: Emitter<boolean> = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
@@ -617,6 +624,11 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		customTreeKey.set(true);
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(treeMenus, e, actionRunner)));
 		this._register(this.tree.onDidChangeSelection(e => this._onDidChangeSelection.fire(e.elements)));
+		this._register(this.tree.onDidChangeFocus(e => {
+			if (e.elements.length) {
+				this._onDidChangeFocus.fire(e.elements[0]);
+			}
+		}));
 		this._register(this.tree.onDidChangeCollapseState(e => {
 			if (!e.node.element) {
 				return;

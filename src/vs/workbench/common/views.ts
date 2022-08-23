@@ -663,6 +663,8 @@ export interface ITreeView extends IDisposable {
 
 	readonly onDidChangeSelection: Event<ITreeItem[]>;
 
+	readonly onDidChangeFocus: Event<ITreeItem>;
+
 	readonly onDidChangeVisibility: Event<boolean>;
 
 	readonly onDidChangeActions: Event<void>;
@@ -712,7 +714,8 @@ export interface ITreeViewDescriptor extends IViewDescriptor {
 
 export type TreeViewPaneHandleArg = {
 	$treeViewId: string;
-	$selectedTreeItems: boolean;
+	$selectedTreeItems?: boolean;
+	$focusedTreeItem?: boolean;
 };
 
 export type TreeViewItemHandleArg = {
