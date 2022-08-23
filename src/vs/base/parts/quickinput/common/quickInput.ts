@@ -354,7 +354,7 @@ export interface IQuickInputToggle {
 export interface IInputBox extends IQuickInput {
 
 	/**
-	 * Initial value shown in the input box.
+	 * Value shown in the input box.
 	 */
 	value: string;
 
@@ -369,7 +369,7 @@ export interface IInputBox extends IQuickInput {
 	placeholder: string | undefined;
 
 	/**
-	 * Determines if the password should be hidden.
+	 * Determines if the input value should be hidden while typing.
 	 */
 	password: boolean;
 
@@ -384,7 +384,7 @@ export interface IInputBox extends IQuickInput {
 	readonly onDidAccept: Event<void>;
 
 	/**
-	 * Buttons to show in additional to user input submission.
+	 * Buttons to show in addition to user input submission.
 	 */
 	buttons: ReadonlyArray<IQuickInputButton>;
 
@@ -400,13 +400,12 @@ export interface IInputBox extends IQuickInput {
 
 	/**
 	 * An optional validation message indicating a problem with the current input value.
-	 * By returning a string, the InputBox will use a default InputBoxValidationSeverity
-	 * of Error. Returning undefined clears the validation message.
+	 * Returning undefined clears the validation message.
 	 */
 	validationMessage: string | undefined;
 
 	/**
-	 * Severity of the input.
+	 * Severity of the input validation message.
 	 */
 	severity: Severity;
 }
