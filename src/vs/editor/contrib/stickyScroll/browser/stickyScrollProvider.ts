@@ -112,10 +112,8 @@ export class StickyLineCandidateProvider extends Disposable {
 		}
 		let lastLine = lastStartLineNumber;
 		const childrenStartLines = outlineModel.children.map(child => child.range?.startLineNumber as number);
-		let indexLower = binarySearch(childrenStartLines, range.startLineNumber, (a: number, b: number) => { return a - b; });
-		let indexUpper = binarySearch(childrenStartLines, range.startLineNumber + depth, (a: number, b: number) => { return a - b; });
-		indexLower = this.updatedIndex(indexLower);
-		indexUpper = this.updatedIndex(indexUpper);
+		const indexLower = this.updatedIndex(binarySearch(childrenStartLines, range.startLineNumber, (a: number, b: number) => { return a - b; }));
+		const indexUpper = this.updatedIndex(binarySearch(childrenStartLines, range.startLineNumber + depth, (a: number, b: number) => { return a - b; }));
 
 		for (let i = indexLower; i <= indexUpper; i++) {
 			const child = outlineModel.children[i];
