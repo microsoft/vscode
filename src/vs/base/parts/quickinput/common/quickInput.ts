@@ -353,26 +353,61 @@ export interface IQuickInputToggle {
 
 export interface IInputBox extends IQuickInput {
 
+	/**
+	 * Initial value shown in the input box.
+	 */
 	value: string;
 
+	/**
+	 * Provide start and end values to be selected in the input box.
+	 */
 	valueSelection: Readonly<[number, number]> | undefined;
 
+	/**
+	 * Value shown as example for input.
+	 */
 	placeholder: string | undefined;
 
+	/**
+	 * Determines if the password should be hidden.
+	 */
 	password: boolean;
 
+	/**
+	 * Event called when the input value changes.
+	 */
 	readonly onDidChangeValue: Event<string>;
 
+	/**
+	 * Event called when the user submits the input.
+	 */
 	readonly onDidAccept: Event<void>;
 
+	/**
+	 * Buttons to show in additional to user input submission.
+	 */
 	buttons: ReadonlyArray<IQuickInputButton>;
 
+	/**
+	 * Event called when a button is selected.
+	 */
 	readonly onDidTriggerButton: Event<IQuickInputButton>;
 
+	/**
+	 * Text show below the input box.
+	 */
 	prompt: string | undefined;
 
+	/**
+	 * An optional validation message indicating a problem with the current input value.
+	 * By returning a string, the InputBox will use a default InputBoxValidationSeverity
+	 * of Error. Returning undefined clears the validation message.
+	 */
 	validationMessage: string | undefined;
 
+	/**
+	 * Severity of the input.
+	 */
 	severity: Severity;
 }
 
