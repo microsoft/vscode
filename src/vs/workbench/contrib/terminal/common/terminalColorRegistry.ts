@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 
-import { registerColor, ColorIdentifier, ColorDefaults, editorFindMatch, editorFindMatchHighlight, overviewRulerFindMatchForeground, editorSelectionBackground, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, ColorIdentifier, ColorDefaults, editorFindMatch, editorFindMatchHighlight, overviewRulerFindMatchForeground, editorSelectionBackground, transparent, editorInactiveSelection } from 'vs/platform/theme/common/colorRegistry';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND, PANEL_BORDER, TAB_ACTIVE_BORDER } from 'vs/workbench/common/theme';
 
 /**
@@ -30,10 +30,10 @@ export const TERMINAL_SELECTION_BACKGROUND_COLOR = registerColor('terminal.selec
 	hcLight: editorSelectionBackground
 }, nls.localize('terminal.selectionBackground', 'The selection background color of the terminal.'));
 export const TERMINAL_INACTIVE_SELECTION_BACKGROUND_COLOR = registerColor('terminal.inactiveSelectionBackground', {
-	light: transparent(TERMINAL_SELECTION_BACKGROUND_COLOR, 0.5),
-	dark: transparent(TERMINAL_SELECTION_BACKGROUND_COLOR, 0.5),
-	hcDark: transparent(TERMINAL_SELECTION_BACKGROUND_COLOR, 0.7),
-	hcLight: transparent(TERMINAL_SELECTION_BACKGROUND_COLOR, 0.5)
+	light: editorInactiveSelection,
+	dark: editorInactiveSelection,
+	hcDark: editorInactiveSelection,
+	hcLight: editorInactiveSelection
 }, nls.localize('terminal.inactiveSelectionBackground', 'The selection background color of the terminal when it does not have focus.'));
 export const TERMINAL_SELECTION_FOREGROUND_COLOR = registerColor('terminal.selectionForeground', {
 	light: null,
