@@ -143,22 +143,21 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			sessionStore.clear();
 		}));
 		linkGestureStore.add(gesture.onExecute(async e => {
-			if (this._hoverOnLine !== -1) {
-				if (e.hasTriggerModifier) {
-					// Control click
-					if (this._candidateDefinitionsLength === 1) {
-						this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, { uri: this._editor.getModel()!.uri, range: this._stickyRangeProjectedOnEditor } as Location);
-					} else {
-						this._editor.revealPosition({ lineNumber: this._hoverOnLine, column: 1 });
-						this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, { uri: this._editor.getModel()!.uri, range: this._stickyRangeProjectedOnEditor } as Location);
-					}
-				} else {
-					// Normal click
-					this._editor.revealPosition({ lineNumber: this._hoverOnLine, column: 1 });
-				}
-				this._hoverOnLine = -1;
+			if ((e.target as unknown as CustomMouseEvent).detail !== this.getId()) {
+				return;
 			}
-
+			if (e.hasTriggerModifier) {
+				// Control click
+				if (this._candidateDefinitionsLength === 1) {
+					this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, { uri: this._editor.getModel()!.uri, range: this._stickyRangeProjectedOnEditor } as Location);
+				} else {
+					this._editor.revealPosition({ lineNumber: this._hoverOnLine, column: 1 });
+					this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, { uri: this._editor.getModel()!.uri, range: this._stickyRangeProjectedOnEditor } as Location);
+				}
+			} else {
+				// Normal click
+				this._editor.revealPosition({ lineNumber: this._hoverOnLine, column: 1 });
+			}
 		}));
 		return linkGestureStore;
 	}
@@ -282,10 +281,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 				// TODO: workaround to find the column index, perhaps need more solid solution
 				this._hoverOnColumn = this._editor.getModel().getLineContent(line).indexOf(text) + 1 || -1;
 			}
-		}));
-		this._disposableStore.add(dom.addDisposableListener(child, 'mouseout', () => {
-			this._hoverOnLine = -1;
-			this._hoverOnColumn = -1;
 		}));
 
 		return child;
