@@ -185,8 +185,3 @@
 .focused.conflict-zone .conflict-zone-root {
 	border: 1px dashed var(--vscode-mergeEditor-conflict-unhandledFocused-border);
 }
-
-
-.view-zones {
-	z-index: 10000000;
-}
