@@ -306,4 +306,3 @@ CommandsRegistry.registerCommand('_workbench.getRecentlyOpened', async function 
 
 	return workspacesService.getRecentlyOpened();
 });
-

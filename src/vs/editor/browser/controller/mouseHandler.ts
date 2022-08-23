@@ -6,7 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { StandardWheelEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { TimeoutTimer } from 'vs/base/common/async';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { HitTestContext, MouseTarget, MouseTargetFactory, PointerHandlerLastRenderData } from 'vs/editor/browser/controller/mouseTarget';
 import { IMouseTarget, IMouseTargetViewZoneData, MouseTargetType } from 'vs/editor/browser/editorBrowser';
@@ -55,6 +55,7 @@ export class MouseHandler extends ViewEventHandler {
 	protected readonly _mouseDownOperation: MouseDownOperation;
 	private lastMouseLeaveTime: number;
 	private _height: number;
+	private _mouseLeaveMonitor: IDisposable | null = null;
 
 	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
 		super();
@@ -79,7 +80,25 @@ export class MouseHandler extends ViewEventHandler {
 
 		this._register(mouseEvents.onContextMenu(this.viewHelper.viewDomNode, (e) => this._onContextMenu(e, true)));
 
-		this._register(mouseEvents.onMouseMove(this.viewHelper.viewDomNode, (e) => this._onMouseMove(e)));
+		this._register(mouseEvents.onMouseMove(this.viewHelper.viewDomNode, (e) => {
+			this._onMouseMove(e);
+
+			// See https://github.com/microsoft/vscode/issues/138789
+			// When moving the mouse really quickly, the browser sometimes forgets to
+			// send us a `mouseleave` or `mouseout` event. We therefore install here
+			// a global `mousemove` listener to manually recover if the mouse goes outside
+			// the editor. As soon as the mouse leaves outside of the editor, we
+			// remove this listener
+
+			if (!this._mouseLeaveMonitor) {
+				this._mouseLeaveMonitor = dom.addDisposableListener(document, 'mousemove', (e) => {
+					if (!this.viewHelper.viewDomNode.contains(e.target as Node | null)) {
+						// went outside the editor!
+						this._onMouseLeave(new EditorMouseEvent(e, false, this.viewHelper.viewDomNode));
+					}
+				});
+			}
+		}));
 
 		this._register(mouseEvents.onMouseUp(this.viewHelper.viewDomNode, (e) => this._onMouseUp(e)));
 
@@ -132,6 +151,10 @@ export class MouseHandler extends ViewEventHandler {
 
 	public override dispose(): void {
 		this._context.removeEventHandler(this);
+		if (this._mouseLeaveMonitor) {
+			this._mouseLeaveMonitor.dispose();
+			this._mouseLeaveMonitor = null;
+		}
 		super.dispose();
 	}
 
@@ -220,6 +243,10 @@ export class MouseHandler extends ViewEventHandler {
 	}
 
 	public _onMouseLeave(e: EditorMouseEvent): void {
+		if (this._mouseLeaveMonitor) {
+			this._mouseLeaveMonitor.dispose();
+			this._mouseLeaveMonitor = null;
+		}
 		this.lastMouseLeaveTime = (new Date()).getTime();
 		this.viewController.emitMouseLeave({
 			event: e,

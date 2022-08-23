@@ -60,5 +60,5 @@
 	"emmetPreferencesOutputReverseAttributes": "If `true`, reverses attribute merging directions when resolving snippets.",
 	"emmetPreferencesOutputSelfClosingStyle": "Style of self-closing tags: html (`<br>`), xml (`<br/>`) or xhtml (`<br />`).",
 	"emmetPreferencesCssColorShort": "If `true`, color values like `#f` will be expanded to `#fff` instead of `#ffffff`.",
-	"emmetUseInlineCompletions": "If `true`, Emmet will use inline completions to suggest expansions."
+	"emmetUseInlineCompletions": "If `true`, Emmet will use inline completions to suggest expansions. To prevent the non-inline completion item provider from showing up as often while this setting is `true`, turn `#editor.quickSuggestions#` to `inline` or `off` for the `other` item."
 }

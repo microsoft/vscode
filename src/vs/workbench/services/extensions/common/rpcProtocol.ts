@@ -14,7 +14,7 @@ import { MarshalledObject } from 'vs/base/common/marshalling';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { IURITransformer, transformIncomingURIs } from 'vs/base/common/uriIpc';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { LazyPromise } from 'vs/workbench/services/extensions/common/lazyPromise';
+import { CanceledLazyPromise, LazyPromise } from 'vs/workbench/services/extensions/common/lazyPromise';
 import { getStringIdentifierForProxy, IRPCProtocol, Proxied, ProxyIdentifier, SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 
 export interface JSONStringifyReplacer {
@@ -457,7 +457,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 
 	private _remoteCall(rpcId: number, methodName: string, args: any[]): Promise<any> {
 		if (this._isDisposed) {
-			return Promise.reject<any>(errors.canceled());
+			return new CanceledLazyPromise();
 		}
 		let cancellationToken: CancellationToken | null = null;
 		if (args.length > 0 && CancellationToken.isCancellationToken(args[args.length - 1])) {

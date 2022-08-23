@@ -20,7 +20,8 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ICreateContributedTerminalProfileOptions, IShellLaunchConfig, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, TerminalLocationString, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { ICreateContributedTerminalProfileOptions, IShellLaunchConfig, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalExitReason, TerminalLocation, TerminalLocationString, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 import { iconForeground } from 'vs/platform/theme/common/colorRegistry';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
@@ -38,12 +39,11 @@ import { getInstanceFromResource, getTerminalUri, parseTerminalUri } from 'vs/wo
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
 import { IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalBackend, ITerminalConfigHelper, ITerminalProcessExtHostProxy, ITerminalProfileService, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ILifecycleService, ShutdownReason, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ILifecycleService, ShutdownReason, StartupKind, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export class TerminalService implements ITerminalService {
@@ -82,6 +82,12 @@ export class TerminalService implements ITerminalService {
 	get configHelper(): ITerminalConfigHelper { return this._configHelper; }
 	get instances(): ITerminalInstance[] {
 		return this._terminalGroupService.instances.concat(this._terminalEditorService.instances);
+	}
+
+
+	private _reconnectedTerminals: Map<string, ITerminalInstance[]> = new Map();
+	getReconnectedTerminals(reconnectionOwner: string): ITerminalInstance[] | undefined {
+		return this._reconnectedTerminals.get(reconnectionOwner);
 	}
 
 	get defaultLocation(): TerminalLocation { return this.configHelper.config.defaultLocation === TerminalLocationString.Editor ? TerminalLocation.Editor : TerminalLocation.Panel; }
@@ -147,7 +153,7 @@ export class TerminalService implements ITerminalService {
 
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
-		@ILifecycleService lifecycleService: ILifecycleService,
+		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@ILogService private readonly _logService: ILogService,
 		@IDialogService private _dialogService: IDialogService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
@@ -169,7 +175,6 @@ export class TerminalService implements ITerminalService {
 		// we update detected profiles when an instance is created so that,
 		// for example, we detect if you've installed a pwsh
 		this.onDidCreateInstance(() => this._terminalProfileService.refreshAvailableProfiles());
-
 		this._forwardInstanceHostEvents(this._terminalGroupService);
 		this._forwardInstanceHostEvents(this._terminalEditorService);
 		this._terminalGroupService.onDidChangeActiveGroup(this._onDidChangeActiveGroup.fire, this._onDidChangeActiveGroup);
@@ -207,8 +212,8 @@ export class TerminalService implements ITerminalService {
 			this._terminalEditorActive.set(!!instance?.target && instance.target === TerminalLocation.Editor);
 		});
 
-		lifecycleService.onBeforeShutdown(async e => e.veto(this._onBeforeShutdown(e.reason), 'veto.terminal'));
-		lifecycleService.onWillShutdown(e => this._onWillShutdown(e));
+		_lifecycleService.onBeforeShutdown(async e => e.veto(this._onBeforeShutdown(e.reason), 'veto.terminal'));
+		_lifecycleService.onWillShutdown(e => this._onWillShutdown(e));
 
 		// Create async as the class depends on `this`
 		timeout(0).then(() => this._instantiationService.createInstance(TerminalEditorStyle, document.head));
@@ -282,7 +287,7 @@ export class TerminalService implements ITerminalService {
 						} else {
 							this._terminalGroupService.getGroupForInstance(instanceToDetach)?.removeInstance(instanceToDetach);
 						}
-						await instanceToDetach.detachFromProcess();
+						await instanceToDetach.detachProcessAndDispose(TerminalExitReason.User);
 						await this._primaryBackend?.acceptDetachInstanceReply(e.requestId, persistentProcessId);
 					} else {
 						// will get rejected without a persistentProcessId to attach to
@@ -371,13 +376,14 @@ export class TerminalService implements ITerminalService {
 		}
 		return new Promise<void>(r => {
 			instance.onExit(() => r());
-			instance.dispose();
+			instance.dispose(TerminalExitReason.User);
 		});
 	}
 
 	private _setConnected() {
 		this._connectionState = TerminalConnectionState.Connected;
 		this._onDidChangeConnectionState.fire();
+		this._logService.trace('Reconnected to terminals');
 	}
 
 	private async _reconnectToRemoteTerminals(): Promise<void> {
@@ -422,6 +428,9 @@ export class TerminalService implements ITerminalService {
 					let terminalInstance: ITerminalInstance | undefined;
 					let group: ITerminalGroup | undefined;
 					for (const terminalLayout of terminalLayouts) {
+						if (this._lifecycleService.startupKind !== StartupKind.ReloadedWindow && terminalLayout.terminal?.type === 'Task') {
+							continue;
+						}
 						if (!terminalInstance) {
 							// create group and terminal
 							terminalInstance = await this.createTerminal({
@@ -615,14 +624,18 @@ export class TerminalService implements ITerminalService {
 		const shouldPersistTerminals = this._configHelper.config.enablePersistentSessions && e.reason === ShutdownReason.RELOAD;
 		if (shouldPersistTerminals) {
 			for (const instance of this.instances) {
-				instance.detachFromProcess();
+				instance.detachProcessAndDispose(TerminalExitReason.Shutdown);
 			}
 			return;
 		}
 
 		// Force dispose of all terminal instances
+		const shouldPersistTerminalsForEvent = this._shouldReviveProcesses(e.reason);
 		for (const instance of this.instances) {
-			instance.dispose();
+			if (shouldPersistTerminalsForEvent) {
+				instance.shutdownPersistentProcessId = instance.persistentProcessId;
+			}
+			instance.dispose(TerminalExitReason.Shutdown);
 		}
 
 		// Clear terminal layout info only when not persisting
@@ -1034,7 +1047,19 @@ export class TerminalService implements ITerminalService {
 			shellLaunchConfig.parentTerminalId = parent.instanceId;
 			instance = group.split(shellLaunchConfig);
 		}
+		this._addToReconnected(instance);
 		return instance;
+	}
+
+	private _addToReconnected(instance: ITerminalInstance): void {
+		if (instance.reconnectionProperties) {
+			const reconnectedTerminals = this._reconnectedTerminals.get(instance.reconnectionProperties.ownerId);
+			if (reconnectedTerminals) {
+				reconnectedTerminals.push(instance);
+			} else {
+				this._reconnectedTerminals.set(instance.reconnectionProperties.ownerId, [instance]);
+			}
+		}
 	}
 
 	private _createTerminal(shellLaunchConfig: IShellLaunchConfig, location: TerminalLocation, options?: ICreateTerminalOptions): ITerminalInstance {
@@ -1049,6 +1074,7 @@ export class TerminalService implements ITerminalService {
 			const group = this._terminalGroupService.createGroup(shellLaunchConfig);
 			instance = group.terminalInstances[0];
 		}
+		this._addToReconnected(instance);
 		return instance;
 	}
 

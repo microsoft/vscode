@@ -29,6 +29,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export const enum ConfigurationEditingErrorCode {
 
@@ -154,6 +155,7 @@ export class ConfigurationEditingService {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IFileService private readonly fileService: IFileService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@ITextFileService private readonly textFileService: ITextFileService,
@@ -576,7 +578,7 @@ export class ConfigurationEditingService {
 			const standaloneConfigurationMap = target === EditableConfigurationTarget.USER_LOCAL ? USER_STANDALONE_CONFIGURATIONS : WORKSPACE_STANDALONE_CONFIGURATIONS;
 			const standaloneConfigurationKeys = Object.keys(standaloneConfigurationMap);
 			for (const key of standaloneConfigurationKeys) {
-				const resource = this.getConfigurationFileResource(target, key, standaloneConfigurationMap[key], overrides.resource);
+				const resource = this.getConfigurationFileResource(target, key, standaloneConfigurationMap[key], overrides.resource, undefined);
 
 				// Check for prefix
 				if (config.key === key) {
@@ -594,12 +596,14 @@ export class ConfigurationEditingService {
 		}
 
 		const key = config.key;
+		const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
+		const configurationScope = configurationProperties[key]?.scope;
 		let jsonPath = overrides.overrideIdentifiers?.length ? [keyFromOverrideIdentifiers(overrides.overrideIdentifiers), key] : [key];
 		if (target === EditableConfigurationTarget.USER_LOCAL || target === EditableConfigurationTarget.USER_REMOTE) {
-			return { key, jsonPath, value: config.value, resource: withNullAsUndefined(this.getConfigurationFileResource(target, undefined, '', null)), target };
+			return { key, jsonPath, value: config.value, resource: withNullAsUndefined(this.getConfigurationFileResource(target, undefined, '', null, configurationScope)), target };
 		}
 
-		const resource = this.getConfigurationFileResource(target, undefined, FOLDER_SETTINGS_PATH, overrides.resource);
+		const resource = this.getConfigurationFileResource(target, undefined, FOLDER_SETTINGS_PATH, overrides.resource, configurationScope);
 		if (this.isWorkspaceConfigurationResource(resource)) {
 			jsonPath = ['settings', ...jsonPath];
 		}
@@ -611,11 +615,14 @@ export class ConfigurationEditingService {
 		return !!(workspace.configuration && resource && workspace.configuration.fsPath === resource.fsPath);
 	}
 
-	private getConfigurationFileResource(target: EditableConfigurationTarget, standAloneConfigurationKey: string | undefined, relativePath: string, resource: URI | null | undefined): URI | null {
+	private getConfigurationFileResource(target: EditableConfigurationTarget, standAloneConfigurationKey: string | undefined, relativePath: string, resource: URI | null | undefined, scope: ConfigurationScope | undefined): URI | null {
 		if (target === EditableConfigurationTarget.USER_LOCAL) {
 			if (standAloneConfigurationKey === TASKS_CONFIGURATION_KEY) {
 				return this.userDataProfileService.currentProfile.tasksResource;
 			} else {
+				if (scope === ConfigurationScope.APPLICATION && !this.userDataProfileService.currentProfile.isDefault) {
+					return this.userDataProfilesService.defaultProfile.settingsResource;
+				}
 				return this.userDataProfileService.currentProfile.settingsResource;
 			}
 		}

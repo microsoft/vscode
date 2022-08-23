@@ -30,7 +30,7 @@
 		"node_modules/*",
 		"vs/platform/files/browser/htmlFileSystemProvider.ts",
 		"vs/platform/files/browser/webFileSystemAccess.ts",
-		"vs/platform/telemetry/browser/*",
+		"vs/platform/telemetry/*",
 		"vs/platform/assignment/*"
 	]
 }

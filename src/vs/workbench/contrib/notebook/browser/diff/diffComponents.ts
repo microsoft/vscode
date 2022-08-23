@@ -94,7 +94,8 @@ export const fixedDiffEditorOptions: IDiffEditorConstructionOptions = {
 	renderIndicators: true,
 	readOnly: false,
 	isInEmbeddedEditor: true,
-	renderOverviewRuler: false
+	renderOverviewRuler: false,
+	diffAlgorithm: 'smart',
 };
 
 class PropertyHeader extends Disposable {
@@ -156,7 +157,7 @@ class PropertyHeader extends Disposable {
 		this._toolbar = new ToolBar(cellToolbarContainer, this.contextMenuService, {
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction) {
-					const item = new CodiconActionViewItem(action, this.keybindingService, this.notificationService, this.contextKeyService, this.themeService);
+					const item = new CodiconActionViewItem(action, undefined, this.keybindingService, this.notificationService, this.contextKeyService, this.themeService, this.contextMenuService);
 					return item;
 				}
 

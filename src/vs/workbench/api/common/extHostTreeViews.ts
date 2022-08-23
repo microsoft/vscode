@@ -11,10 +11,10 @@ import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { DataTransferDTO, ExtHostTreeViewsShape, MainThreadTreeViewsShape } from './extHost.protocol';
-import { ITreeItem, TreeViewItemHandleArg, ITreeItemLabel, IRevealOptions } from 'vs/workbench/common/views';
+import { ITreeItem, TreeViewItemHandleArg, ITreeItemLabel, IRevealOptions, TreeCommand, TreeViewPaneHandleArg } from 'vs/workbench/common/views';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { asPromise } from 'vs/base/common/async';
-import { TreeItemCollapsibleState, ThemeIcon, MarkdownString as MarkdownStringType } from 'vs/workbench/api/common/extHostTypes';
+import { TreeItemCollapsibleState, ThemeIcon, MarkdownString as MarkdownStringType, TreeItem } from 'vs/workbench/api/common/extHostTypes';
 import { isUndefinedOrNull, isString } from 'vs/base/common/types';
 import { equals, coalesce } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -22,7 +22,6 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { MarkdownString, ViewBadge, DataTransfer } from 'vs/workbench/api/common/extHostTypeConverters';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Command } from 'vs/editor/common/languages';
 import { ITreeViewsService, TreeviewsService } from 'vs/workbench/services/views/common/treeViewsService';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
@@ -59,16 +58,16 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		private logService: ILogService
 	) {
 
-		function isTreeViewItemHandleArg(arg: any): boolean {
-			return arg && arg.$treeViewId && arg.$treeItemHandle;
+		function isTreeViewConvertableItem(arg: any): boolean {
+			return arg && arg.$treeViewId && (arg.$treeItemHandle || arg.$selectedTreeItems);
 		}
 		commands.registerArgumentProcessor({
 			processArgument: arg => {
-				if (isTreeViewItemHandleArg(arg)) {
+				if (isTreeViewConvertableItem(arg)) {
 					return this.convertArgument(arg);
 				} else if (Array.isArray(arg) && (arg.length > 0)) {
 					return arg.map(item => {
-						if (isTreeViewItemHandleArg(item)) {
+						if (isTreeViewConvertableItem(item)) {
 							return this.convertArgument(item);
 						}
 						return item;
@@ -236,9 +235,15 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		return treeView;
 	}
 
-	private convertArgument(arg: TreeViewItemHandleArg): any {
+	private convertArgument(arg: TreeViewItemHandleArg | TreeViewPaneHandleArg): any {
 		const treeView = this.treeViews.get(arg.$treeViewId);
-		return treeView ? treeView.getExtensionElement(arg.$treeItemHandle) : null;
+		if (treeView && '$treeItemHandle' in arg) {
+			return treeView.getExtensionElement(arg.$treeItemHandle);
+		}
+		if (treeView && '$selectedTreeItems' in arg && arg.$selectedTreeItems) {
+			return { selectedTreeItems: treeView.selectedElements };
+		}
+		return null;
 	}
 }
 
@@ -500,6 +505,7 @@ class ExtHostTreeView<T> extends Disposable {
 			const node = this.nodes.get(element);
 			if (node) {
 				const resolve = await this.dataProvider.resolveTreeItem(node.extensionItem, element, token) ?? node.extensionItem;
+				this.validateTreeItem(resolve);
 				// Resolvable elements. Currently only tooltip and command.
 				node.item.tooltip = this.getTooltip(resolve.tooltip);
 				node.item.command = this.getCommand(node.disposableStore, resolve.command);
@@ -695,11 +701,19 @@ class ExtHostTreeView<T> extends Disposable {
 		return tooltip;
 	}
 
-	private getCommand(disposable: DisposableStore, command?: vscode.Command): Command | undefined {
-		return command ? this.commands.toInternal(command, disposable) : undefined;
+	private getCommand(disposable: DisposableStore, command?: vscode.Command): TreeCommand | undefined {
+		return command ? { ...this.commands.toInternal(command, disposable), originalId: command.command } : undefined;
+	}
+
+	private validateTreeItem(extensionTreeItem: vscode.TreeItem) {
+		if (!TreeItem.isTreeItem(extensionTreeItem)) {
+			// TODO: #154757 we should consider throwing, but let's wait and see if there are tons of reports of this first.
+			console.log(`Extension ${this.extension.identifier.value} has provided an invalid tree item.`);
+		}
 	}
 
 	private createTreeNode(element: T, extensionTreeItem: vscode.TreeItem, parent: TreeNode | Root): TreeNode {
+		this.validateTreeItem(extensionTreeItem);
 		const disposableStore = new DisposableStore();
 		const handle = this.createHandle(element, extensionTreeItem, parent);
 		const icon = this.getLightIconPath(extensionTreeItem);

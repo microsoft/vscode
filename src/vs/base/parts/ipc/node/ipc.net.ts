@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createHash } from 'crypto';
-import { createConnection, createServer, Server as NetServer, Socket } from 'net';
-import { tmpdir } from 'os';
+// import { createHash } from 'crypto';
+import type { Server as NetServer, Socket } from 'net';
+// import { tmpdir } from 'os';
+import type * as zlib from 'zlib';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -15,7 +16,16 @@ import { Platform, platform } from 'vs/base/common/platform';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ClientConnectionEvent, IPCServer } from 'vs/base/parts/ipc/common/ipc';
 import { ChunkStream, Client, ISocket, Protocol, SocketCloseEvent, SocketCloseEventType, SocketDiagnostics, SocketDiagnosticsEventType } from 'vs/base/parts/ipc/common/ipc.net';
-import * as zlib from 'zlib';
+
+// TODO@bpasero remove me once electron utility process has landed
+function getNodeDependencies() {
+	return {
+		crypto: (require.__$__nodeRequire('crypto') as any) as typeof import('crypto'),
+		zlib: (require.__$__nodeRequire('zlib') as any) as typeof import('zlib'),
+		net: (require.__$__nodeRequire('net') as any) as typeof import('net'),
+		os: (require.__$__nodeRequire('os') as any) as typeof import('os')
+	};
+}
 
 export class NodeSocket implements ISocket {
 
@@ -580,7 +590,7 @@ class ZlibInflateStream extends Disposable {
 		options: zlib.ZlibOptions
 	) {
 		super();
-		this._zlibInflate = zlib.createInflateRaw(options);
+		this._zlibInflate = getNodeDependencies().zlib.createInflateRaw(options);
 		this._zlibInflate.on('error', (err) => {
 			this._tracer.traceSocketEvent(SocketDiagnosticsEventType.zlibInflateError, { message: err?.message, code: (<any>err)?.code });
 			this._onError.fire(err);
@@ -631,7 +641,7 @@ class ZlibDeflateStream extends Disposable {
 	) {
 		super();
 
-		this._zlibDeflate = zlib.createDeflateRaw({
+		this._zlibDeflate = getNodeDependencies().zlib.createDeflateRaw({
 			windowBits: 15
 		});
 		this._zlibDeflate.on('error', (err) => {
@@ -692,7 +702,8 @@ function unmask(buffer: VSBuffer, mask: number): void {
 
 // Read this before there's any chance it is overwritten
 // Related to https://github.com/microsoft/vscode/issues/30624
-export const XDG_RUNTIME_DIR = <string | undefined>process.env['XDG_RUNTIME_DIR'];
+// TODO@bpasero revert me once electron utility process has landed
+export const XDG_RUNTIME_DIR = typeof process !== 'undefined' ? <string | undefined>process.env['XDG_RUNTIME_DIR'] : undefined;
 
 const safeIpcPathLengths: { [platform: number]: number } = {
 	[Platform.Linux]: 107,
@@ -713,7 +724,7 @@ export function createRandomIPCHandle(): string {
 	if (XDG_RUNTIME_DIR) {
 		result = join(XDG_RUNTIME_DIR, `vscode-ipc-${randomSuffix}.sock`);
 	} else {
-		result = join(tmpdir(), `vscode-ipc-${randomSuffix}.sock`);
+		result = join(getNodeDependencies().os.tmpdir(), `vscode-ipc-${randomSuffix}.sock`);
 	}
 
 	// Validate length
@@ -723,7 +734,7 @@ export function createRandomIPCHandle(): string {
 }
 
 export function createStaticIPCHandle(directoryPath: string, type: string, version: string): string {
-	const scope = createHash('md5').update(directoryPath).digest('hex');
+	const scope = getNodeDependencies().crypto.createHash('md5').update(directoryPath).digest('hex');
 
 	// Windows: use named pipe
 	if (process.platform === 'win32') {
@@ -785,7 +796,7 @@ export function serve(port: number): Promise<Server>;
 export function serve(namedPipe: string): Promise<Server>;
 export function serve(hook: any): Promise<Server> {
 	return new Promise<Server>((c, e) => {
-		const server = createServer();
+		const server = getNodeDependencies().net.createServer();
 
 		server.on('error', e);
 		server.listen(hook, () => {
@@ -800,7 +811,7 @@ export function connect(port: number, clientId: string): Promise<Client>;
 export function connect(namedPipe: string, clientId: string): Promise<Client>;
 export function connect(hook: any, clientId: string): Promise<Client> {
 	return new Promise<Client>((c, e) => {
-		const socket = createConnection(hook, () => {
+		const socket = getNodeDependencies().net.createConnection(hook, () => {
 			socket.removeListener('error', e);
 			c(Client.fromSocket(new NodeSocket(socket, `ipc-client${clientId}`), clientId));
 		});

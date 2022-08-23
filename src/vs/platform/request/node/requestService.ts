@@ -9,7 +9,7 @@ import { parse as parseUrl } from 'url';
 import { Promises } from 'vs/base/common/async';
 import { streamToBufferReadableStream } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { canceled } from 'vs/base/common/errors';
+import { CancellationError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as streams from 'vs/base/common/stream';
 import { isBoolean, isNumber } from 'vs/base/common/types';
@@ -170,7 +170,7 @@ export class RequestService extends Disposable implements IRequestService {
 
 			token.onCancellationRequested(() => {
 				req.abort();
-				e(canceled());
+				e(new CancellationError());
 			});
 		});
 	}

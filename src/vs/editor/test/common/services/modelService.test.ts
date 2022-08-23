@@ -37,7 +37,6 @@ import { LanguageFeatureDebounceService } from 'vs/editor/common/services/langua
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 
@@ -55,11 +54,9 @@ suite('ModelService', () => {
 		configService.setUserConfiguration('files', { 'eol': '\n' });
 		configService.setUserConfiguration('files', { 'eol': '\r\n' }, URI.file(platform.isWindows ? 'c:\\myroot' : '/myroot'));
 
-		const serviceCollection = new ServiceCollection([
-			IConfigurationService, configService
+		instantiationService = createModelServices(disposables, [
+			[IConfigurationService, configService]
 		]);
-
-		instantiationService = createModelServices(disposables, serviceCollection);
 		modelService = instantiationService.get(IModelService);
 	});
 

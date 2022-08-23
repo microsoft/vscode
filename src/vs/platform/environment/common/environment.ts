@@ -66,6 +66,7 @@ export interface IEnvironmentService {
 
 	// --- continue edit session
 	editSessionId?: string;
+	editSessionsLogResource: URI;
 
 	// --- extension development
 	debugExtensionHost: IExtensionHostDebugParams;
@@ -85,6 +86,7 @@ export interface IEnvironmentService {
 	// --- telemetry
 	disableTelemetry: boolean;
 	telemetryLogResource: URI;
+	extensionTelemetryLogResource: URI;
 	serviceMachineIdResource: URI;
 
 	// --- Policy

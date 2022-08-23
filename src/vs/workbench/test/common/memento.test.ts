@@ -14,24 +14,24 @@ suite('Memento', () => {
 	setup(() => {
 		storage = new TestStorageService();
 		Memento.clear(StorageScope.APPLICATION);
-		Memento.clear(StorageScope.GLOBAL);
+		Memento.clear(StorageScope.PROFILE);
 		Memento.clear(StorageScope.WORKSPACE);
 	});
 
 	test('Loading and Saving Memento with Scopes', () => {
 		const myMemento = new Memento('memento.test', storage);
 
-		// Global
+		// Application
 		let memento = myMemento.getMemento(StorageScope.APPLICATION, StorageTarget.MACHINE);
 		memento.foo = [1, 2, 3];
 		let applicationMemento = myMemento.getMemento(StorageScope.APPLICATION, StorageTarget.MACHINE);
 		assert.deepStrictEqual(applicationMemento, memento);
 
-		// Global
-		memento = myMemento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
+		// Profile
+		memento = myMemento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
 		memento.foo = [4, 5, 6];
-		let globalMemento = myMemento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
-		assert.deepStrictEqual(globalMemento, memento);
+		let profileMemento = myMemento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
+		assert.deepStrictEqual(profileMemento, memento);
 
 		// Workspace
 		memento = myMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
@@ -46,11 +46,11 @@ suite('Memento', () => {
 		applicationMemento = myMemento.getMemento(StorageScope.APPLICATION, StorageTarget.MACHINE);
 		assert.deepStrictEqual(applicationMemento, memento);
 
-		// Global
-		memento = myMemento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
+		// Profile
+		memento = myMemento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
 		assert.deepStrictEqual(memento, { foo: [4, 5, 6] });
-		globalMemento = myMemento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
-		assert.deepStrictEqual(globalMemento, memento);
+		profileMemento = myMemento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
+		assert.deepStrictEqual(profileMemento, memento);
 
 		// Workspace
 		memento = myMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
@@ -58,15 +58,15 @@ suite('Memento', () => {
 
 		// Assert the Mementos are stored properly in storage
 		assert.deepStrictEqual(JSON.parse(storage.get('memento/memento.test', StorageScope.APPLICATION)!), { foo: [1, 2, 3] });
-		assert.deepStrictEqual(JSON.parse(storage.get('memento/memento.test', StorageScope.GLOBAL)!), { foo: [4, 5, 6] });
+		assert.deepStrictEqual(JSON.parse(storage.get('memento/memento.test', StorageScope.PROFILE)!), { foo: [4, 5, 6] });
 		assert.deepStrictEqual(JSON.parse(storage.get('memento/memento.test', StorageScope.WORKSPACE)!), { foo: 'Hello World' });
 
 		// Delete Application
 		memento = myMemento.getMemento(StorageScope.APPLICATION, StorageTarget.MACHINE);
 		delete memento.foo;
 
-		// Delete Global
-		memento = myMemento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
+		// Delete Profile
+		memento = myMemento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
 		delete memento.foo;
 
 		// Delete Workspace
@@ -79,8 +79,8 @@ suite('Memento', () => {
 		memento = myMemento.getMemento(StorageScope.APPLICATION, StorageTarget.MACHINE);
 		assert.deepStrictEqual(memento, {});
 
-		// Global
-		memento = myMemento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
+		// Profile
+		memento = myMemento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
 		assert.deepStrictEqual(memento, {});
 
 		// Workspace
@@ -89,15 +89,15 @@ suite('Memento', () => {
 
 		// Assert the Mementos are also removed from storage
 		assert.strictEqual(storage.get('memento/memento.test', StorageScope.APPLICATION, null!), null);
-		assert.strictEqual(storage.get('memento/memento.test', StorageScope.GLOBAL, null!), null);
+		assert.strictEqual(storage.get('memento/memento.test', StorageScope.PROFILE, null!), null);
 		assert.strictEqual(storage.get('memento/memento.test', StorageScope.WORKSPACE, null!), null);
 	});
 
 	test('Save and Load', () => {
 		const myMemento = new Memento('memento.test', storage);
 
-		// Global
-		let memento = myMemento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
+		// Profile
+		let memento = myMemento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
 		memento.foo = [1, 2, 3];
 
 		// Workspace
@@ -107,18 +107,18 @@ suite('Memento', () => {
 
 		myMemento.saveMemento();
 
-		// Global
-		memento = myMemento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
+		// Profile
+		memento = myMemento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
 		assert.deepStrictEqual(memento, { foo: [1, 2, 3] });
-		let globalMemento = myMemento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
-		assert.deepStrictEqual(globalMemento, memento);
+		let profileMemento = myMemento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
+		assert.deepStrictEqual(profileMemento, memento);
 
 		// Workspace
 		memento = myMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		assert.deepStrictEqual(memento, { foo: 'Hello World' });
 
-		// Global
-		memento = myMemento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
+		// Profile
+		memento = myMemento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
 		memento.foo = [4, 5, 6];
 
 		// Workspace
@@ -128,18 +128,18 @@ suite('Memento', () => {
 
 		myMemento.saveMemento();
 
-		// Global
-		memento = myMemento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
+		// Profile
+		memento = myMemento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
 		assert.deepStrictEqual(memento, { foo: [4, 5, 6] });
-		globalMemento = myMemento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
-		assert.deepStrictEqual(globalMemento, memento);
+		profileMemento = myMemento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
+		assert.deepStrictEqual(profileMemento, memento);
 
 		// Workspace
 		memento = myMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		assert.deepStrictEqual(memento, { foo: 'World Hello' });
 
-		// Delete Global
-		memento = myMemento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
+		// Delete Profile
+		memento = myMemento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
 		delete memento.foo;
 
 		// Delete Workspace
@@ -148,8 +148,8 @@ suite('Memento', () => {
 
 		myMemento.saveMemento();
 
-		// Global
-		memento = myMemento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
+		// Profile
+		memento = myMemento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
 		assert.deepStrictEqual(memento, {});
 
 		// Workspace
@@ -161,11 +161,11 @@ suite('Memento', () => {
 		const myMemento = new Memento('memento.test', storage);
 		const myMemento2 = new Memento('memento.test', storage);
 
-		// Global
-		let memento = myMemento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
+		// Profile
+		let memento = myMemento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
 		memento.foo = [1, 2, 3];
 
-		memento = myMemento2.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
+		memento = myMemento2.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
 		memento.bar = [1, 2, 3];
 
 		// Workspace
@@ -180,16 +180,16 @@ suite('Memento', () => {
 		myMemento.saveMemento();
 		myMemento2.saveMemento();
 
-		// Global
-		memento = myMemento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
+		// Profile
+		memento = myMemento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
 		assert.deepStrictEqual(memento, { foo: [1, 2, 3], bar: [1, 2, 3] });
-		let globalMemento = myMemento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
-		assert.deepStrictEqual(globalMemento, memento);
+		let profileMemento = myMemento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
+		assert.deepStrictEqual(profileMemento, memento);
 
-		memento = myMemento2.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
+		memento = myMemento2.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
 		assert.deepStrictEqual(memento, { foo: [1, 2, 3], bar: [1, 2, 3] });
-		globalMemento = myMemento2.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
-		assert.deepStrictEqual(globalMemento, memento);
+		profileMemento = myMemento2.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
+		assert.deepStrictEqual(profileMemento, memento);
 
 		// Workspace
 		memento = myMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
@@ -202,9 +202,9 @@ suite('Memento', () => {
 	test('Clear Memento', () => {
 		let myMemento = new Memento('memento.test', storage);
 
-		// Global
-		let globalMemento = myMemento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
-		globalMemento.foo = 'Hello World';
+		// Profile
+		let profileMemento = myMemento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
+		profileMemento.foo = 'Hello World';
 
 		// Workspace
 		let workspaceMemento = myMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
@@ -214,14 +214,14 @@ suite('Memento', () => {
 
 		// Clear
 		storage = new TestStorageService();
-		Memento.clear(StorageScope.GLOBAL);
+		Memento.clear(StorageScope.PROFILE);
 		Memento.clear(StorageScope.WORKSPACE);
 
 		myMemento = new Memento('memento.test', storage);
-		globalMemento = myMemento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
+		profileMemento = myMemento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
 		workspaceMemento = myMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
 
-		assert.deepStrictEqual(globalMemento, {});
+		assert.deepStrictEqual(profileMemento, {});
 		assert.deepStrictEqual(workspaceMemento, {});
 	});
 });

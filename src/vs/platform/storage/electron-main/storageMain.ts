@@ -31,7 +31,7 @@ export interface IStorageMainOptions {
 }
 
 /**
- * Provides access to application, global and workspace storage from
+ * Provides access to application, profile and workspace storage from
  * the electron-main side that is the owner of all storage connections.
  */
 export interface IStorageMain extends IDisposable {
@@ -283,7 +283,7 @@ class BaseProfileAwareStorageMain extends BaseStorageMain {
 	}
 }
 
-export class GlobalStorageMain extends BaseProfileAwareStorageMain {
+export class ProfileStorageMain extends BaseProfileAwareStorageMain {
 
 	constructor(
 		profile: IUserDataProfile,

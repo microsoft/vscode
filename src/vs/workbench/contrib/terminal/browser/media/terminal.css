@@ -14,6 +14,10 @@
 	position: relative;
 }
 
+.terminal-command-decoration.hide {
+	visibility: hidden;
+}
+
 .monaco-workbench .pane-body.integrated-terminal .terminal-outer-container,
 .monaco-workbench .pane-body.integrated-terminal .terminal-groups-container,
 .monaco-workbench .pane-body.integrated-terminal .terminal-group,
@@ -445,6 +449,11 @@
 .terminal-scroll-highlight {
 	left: 0;
 	right: 0;
+	border-left: 5px solid #ffffff;
+	border-left-width: 5px !important;
+}
+
+.terminal-scroll-highlight-outline {
 	border: 1px solid #ffffff;
 }
 

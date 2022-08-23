@@ -378,6 +378,10 @@ export function compareSubstringIgnoreCase(a: string, b: string, aStart: number 
 	return 0;
 }
 
+export function isAsciiDigit(code: number): boolean {
+	return code >= CharCode.Digit0 && code <= CharCode.Digit9;
+}
+
 export function isLowerAsciiLetter(code: number): boolean {
 	return code >= CharCode.a && code <= CharCode.z;
 }

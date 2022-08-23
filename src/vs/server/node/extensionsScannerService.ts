@@ -10,25 +10,29 @@ import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagemen
 import { AbstractExtensionsScannerService, IExtensionsScannerService, Translations } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { MANIFEST_CACHE_FOLDER } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { getNLSConfiguration, InternalNLSConfiguration } from 'vs/server/node/remoteLanguagePacks';
 
 export class ExtensionsScannerService extends AbstractExtensionsScannerService implements IExtensionsScannerService {
 
 	constructor(
+		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IExtensionsProfileScannerService extensionsProfileScannerService: IExtensionsProfileScannerService,
 		@IFileService fileService: IFileService,
 		@ILogService logService: ILogService,
 		@INativeEnvironmentService private readonly nativeEnvironmentService: INativeEnvironmentService,
 		@IProductService productService: IProductService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(
 			URI.file(nativeEnvironmentService.builtinExtensionsPath),
 			URI.file(nativeEnvironmentService.extensionsPath),
 			joinPath(nativeEnvironmentService.userHome, '.vscode-oss-dev', 'extensions', 'control.json'),
 			joinPath(URI.file(nativeEnvironmentService.userDataPath), MANIFEST_CACHE_FOLDER),
-			extensionsProfileScannerService, fileService, logService, nativeEnvironmentService, productService);
+			userDataProfilesService, extensionsProfileScannerService, fileService, logService, nativeEnvironmentService, productService, instantiationService);
 	}
 
 	protected async getTranslations(language: string): Promise<Translations> {

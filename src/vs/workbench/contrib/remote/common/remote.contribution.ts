@@ -190,9 +190,9 @@ class InitialRemoteConnectionHealthContribution implements IWorkbenchContributio
 			type RemoteConnectionSuccessClassification = {
 				owner: 'alexdima';
 				comment: 'The initial connection succeeded';
-				web: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+				web: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Is web ui.' };
 				connectionTimeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Time, in ms, until connected'; isMeasurement: true };
-				remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+				remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the resolver.' };
 			};
 			type RemoteConnectionSuccessEvent = {
 				web: boolean;
@@ -212,10 +212,10 @@ class InitialRemoteConnectionHealthContribution implements IWorkbenchContributio
 			type RemoteConnectionFailureClassification = {
 				owner: 'alexdima';
 				comment: 'The initial connection failed';
-				web: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-				remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+				web: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Is web ui.' };
+				remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the resolver.' };
 				connectionTimeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Time, in ms, until connection failure'; isMeasurement: true };
-				message: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+				message: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Error message' };
 			};
 			type RemoteConnectionFailureEvent = {
 				web: boolean;
@@ -353,7 +353,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			},
 			'remote.autoForwardPortsSource': {
 				type: 'string',
-				markdownDescription: localize('remote.autoForwardPortsSource', "Sets the source from which ports are automatically forwarded when `remote.autoForwardPorts` is true. On Windows and Mac remotes, the `process` option has no effect and `output` will be used. Requires a reload to take effect."),
+				markdownDescription: localize('remote.autoForwardPortsSource', "Sets the source from which ports are automatically forwarded when {0} is true. On Windows and Mac remotes, the `process` option has no effect and `output` will be used. Requires a reload to take effect.", '`#remote.autoForwardPorts#`'),
 				enum: ['process', 'output'],
 				enumDescriptions: [
 					localize('remote.autoForwardPortsSource.process', "Ports will be automatically forwarded when discovered by watching for processes that are started and include a port."),
@@ -463,7 +463,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					}
 				},
 				defaultSnippets: [{ body: { onAutoForward: 'ignore' } }],
-				markdownDescription: localize('remote.portsAttributes.defaults', "Set default properties that are applied to all ports that don't get properties from the setting `remote.portsAttributes`. For example:\n\n```\n{\n  \"onAutoForward\": \"ignore\"\n}\n```"),
+				markdownDescription: localize('remote.portsAttributes.defaults', "Set default properties that are applied to all ports that don't get properties from the setting {0}. For example:\n\n```\n{\n  \"onAutoForward\": \"ignore\"\n}\n```", '`#remote.portsAttributes#`'),
 				additionalProperties: false
 			},
 			'remote.localPortHost': {

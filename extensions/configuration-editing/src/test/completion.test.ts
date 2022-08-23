@@ -73,6 +73,20 @@ suite('Completions in settings.json', () => {
 			const expected = { label: '${activeEditorMedium}', resultText };
 			await testCompletion(testFile, 'jsonc', content, expected);
 		}
+		{ // replacing a partial variable
+			const content = [
+				'{',
+				'  "window.title": "${a|"',
+				'}',
+			].join('\n');
+			const resultText = [
+				'{',
+				'  "window.title": "${dirty}"',
+				'}',
+			].join('\n');
+			const expected = { label: '${dirty}', resultText };
+			await testCompletion(testFile, 'jsonc', content, expected);
+		}
 		{ // inserting a literal
 			const content = [
 				'{',
@@ -375,6 +389,32 @@ suite('Completions in launch.json', () => {
 				'      "name": "Run Extension",',
 				'      "type": "extensionHost",',
 				'      "preLaunchTask": "${cwd}${defaultBuildTask}"',
+				'    }',
+				'  ]',
+				'}',
+			].join('\n');
+			const expected = { label: '${cwd}', resultText };
+			await testCompletion(testFile, 'jsonc', content, expected);
+		}
+		{
+			const content = [
+				'{',
+				'  "version": "0.2.0",',
+				'  "configurations": [',
+				'    {',
+				'      "name": "Do It",',
+				'      "program": "${workspace|"',
+				'    }',
+				'  ]',
+				'}',
+			].join('\n');
+			const resultText = [
+				'{',
+				'  "version": "0.2.0",',
+				'  "configurations": [',
+				'    {',
+				'      "name": "Do It",',
+				'      "program": "${cwd}"',
 				'    }',
 				'  ]',
 				'}',

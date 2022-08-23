@@ -611,7 +611,8 @@ export function processNlsFiles(opts: { fileHeader: string; languages: Language[
 const editorProject: string = 'vscode-editor',
 	workbenchProject: string = 'vscode-workbench',
 	extensionsProject: string = 'vscode-extensions',
-	setupProject: string = 'vscode-setup';
+	setupProject: string = 'vscode-setup',
+	serverProject: string = 'vscode-server';
 
 export function getResource(sourceFile: string): Resource {
 	let resource: string;
@@ -626,6 +627,8 @@ export function getResource(sourceFile: string): Resource {
 		return { name: 'vs/base', project: editorProject };
 	} else if (/^vs\/code/.test(sourceFile)) {
 		return { name: 'vs/code', project: workbenchProject };
+	} else if (/^vs\/server/.test(sourceFile)) {
+		return { name: 'vs/server', project: serverProject };
 	} else if (/^vs\/workbench\/contrib/.test(sourceFile)) {
 		resource = sourceFile.split('/', 4).join('/');
 		return { name: resource, project: workbenchProject };
@@ -714,15 +717,22 @@ export function createXlfFilesForExtensions(): ThroughStream {
 				const basename = path.basename(file.path);
 				if (basename === 'package.nls.json') {
 					const json: PackageJsonFormat = JSON.parse(buffer.toString('utf8'));
-					const keys = Object.keys(json);
-					const messages = keys.map((key) => {
+					const keys: Array<string | LocalizeInfo> = [];
+					const messages: string[] = [];
+					Object.keys(json).forEach((key) => {
 						const value = json[key];
 						if (Is.string(value)) {
-							return value;
+							keys.push(key);
+							messages.push(value);
 						} else if (value) {
-							return value.message;
+							keys.push({
+								key,
+								comment: value.comment
+							});
+							messages.push(value.message);
 						} else {
-							return `Unknown message for key: ${key}`;
+							keys.push(key);
+							messages.push(`Unknown message for key: ${key}`);
 						}
 					});
 					getXlf().addFile(`extensions/${extensionName}/package`, keys, messages);

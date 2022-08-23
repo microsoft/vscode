@@ -6,10 +6,9 @@
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { FileOperation, IFileService } from 'vs/platform/files/common/files';
 import { extHostCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ExtHostContext } from '../common/extHost.protocol';
+import { ExtHostContext, reviveWorkspaceEditDto } from '../common/extHost.protocol';
 import { localize } from 'vs/nls';
 import { IWorkingCopyFileOperationParticipant, IWorkingCopyFileService, SourceTargetPair, IFileOperationUndoRedoInfo } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { reviveWorkspaceEditDto2 } from 'vs/workbench/api/browser/mainThreadBulkEdits';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { raceCancellation } from 'vs/base/common/async';
@@ -84,7 +83,7 @@ export class MainThreadFileSystemEventService {
 				}
 
 				const needsConfirmation = data.edit.edits.some(edit => edit.metadata?.needsConfirmation);
-				let showPreview = storageService.getBoolean(MainThreadFileSystemEventService.MementoKeyAdditionalEdits, StorageScope.GLOBAL);
+				let showPreview = storageService.getBoolean(MainThreadFileSystemEventService.MementoKeyAdditionalEdits, StorageScope.PROFILE);
 
 				if (envService.extensionTestsLocationURI) {
 					// don't show dialog in tests
@@ -140,7 +139,7 @@ export class MainThreadFileSystemEventService {
 						}
 						showPreview = answer.choice === 1;
 						if (answer.checkboxChecked /* && answer.choice !== 2 */) {
-							storageService.store(MainThreadFileSystemEventService.MementoKeyAdditionalEdits, showPreview, StorageScope.GLOBAL, StorageTarget.USER);
+							storageService.store(MainThreadFileSystemEventService.MementoKeyAdditionalEdits, showPreview, StorageScope.PROFILE, StorageTarget.USER);
 						}
 					}
 				}
@@ -148,7 +147,7 @@ export class MainThreadFileSystemEventService {
 				logService.info('[onWill-handler] applying additional workspace edit from extensions', data.extensionNames);
 
 				await bulkEditService.apply(
-					reviveWorkspaceEditDto2(data.edit),
+					reviveWorkspaceEditDto(data.edit),
 					{ undoRedoGroupId: undoInfo?.undoRedoGroupId, showPreview }
 				);
 			}
@@ -185,11 +184,14 @@ registerAction2(class ResetMemento extends Action2 {
 	constructor() {
 		super({
 			id: 'files.participants.resetChoice',
-			title: localize('label', "Reset choice for 'File operation needs preview'"),
+			title: {
+				value: localize('label', "Reset choice for 'File operation needs preview'"),
+				original: `Reset choice for 'File operation needs preview'`
+			},
 			f1: true
 		});
 	}
 	run(accessor: ServicesAccessor) {
-		accessor.get(IStorageService).remove(MainThreadFileSystemEventService.MementoKeyAdditionalEdits, StorageScope.GLOBAL);
+		accessor.get(IStorageService).remove(MainThreadFileSystemEventService.MementoKeyAdditionalEdits, StorageScope.PROFILE);
 	}
 });

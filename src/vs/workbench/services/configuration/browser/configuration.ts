@@ -26,7 +26,6 @@ import { joinPath } from 'vs/base/common/resources';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { isObject } from 'vs/base/common/types';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { DefaultConfiguration as BaseDefaultConfiguration } from 'vs/platform/configuration/common/configurations';
 
 export class DefaultConfiguration extends BaseDefaultConfiguration {
@@ -120,15 +119,17 @@ export class UserConfiguration extends Disposable {
 	private readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
 	readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
 
-	private readonly userConfiguration: MutableDisposable<UserSettings | FileServiceBasedConfiguration> = this._register(new MutableDisposable<UserSettings | FileServiceBasedConfiguration>());
+	private readonly userConfiguration = this._register(new MutableDisposable<UserSettings | FileServiceBasedConfiguration>());
+	private readonly userConfigurationChangeDisposable = this._register(new MutableDisposable<IDisposable>());
 	private readonly reloadConfigurationScheduler: RunOnceScheduler;
 
-	private readonly configurationParseOptions: ConfigurationParseOptions;
+	private configurationParseOptions: ConfigurationParseOptions;
 
 	get hasTasksLoaded(): boolean { return this.userConfiguration.value instanceof FileServiceBasedConfiguration; }
 
 	constructor(
-		private readonly userDataProfile: IUserDataProfile,
+		private settingsResource: URI,
+		private tasksResource: URI | undefined,
 		scopes: ConfigurationScope[] | undefined,
 		private readonly fileService: IFileService,
 		private readonly uriIdentityService: IUriIdentityService,
@@ -136,9 +137,27 @@ export class UserConfiguration extends Disposable {
 	) {
 		super();
 		this.configurationParseOptions = { scopes, skipRestricted: false };
-		this.userConfiguration.value = new UserSettings(this.userDataProfile.settingsResource, scopes, uriIdentityService.extUri, this.fileService);
-		this._register(this.userConfiguration.value.onDidChange(() => this.reloadConfigurationScheduler.schedule()));
-		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reload().then(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)), 50));
+		this.userConfiguration.value = new UserSettings(settingsResource, scopes, uriIdentityService.extUri, this.fileService);
+		this.userConfigurationChangeDisposable.value = this.userConfiguration.value.onDidChange(() => this.reloadConfigurationScheduler.schedule());
+		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.userConfiguration.value!.loadConfiguration().then(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)), 50));
+	}
+
+	async reset(settingsResource: URI, tasksResource: URI | undefined, scopes: ConfigurationScope[] | undefined): Promise<ConfigurationModel> {
+		this.settingsResource = settingsResource;
+		this.tasksResource = tasksResource;
+		this.configurationParseOptions = { scopes, skipRestricted: false };
+		const folder = this.uriIdentityService.extUri.dirname(this.settingsResource);
+		const standAloneConfigurationResources: [string, URI][] = this.tasksResource ? [[TASKS_CONFIGURATION_KEY, this.tasksResource]] : [];
+		const fileServiceBasedConfiguration = new FileServiceBasedConfiguration(folder.toString(), this.settingsResource, standAloneConfigurationResources, this.configurationParseOptions, this.fileService, this.uriIdentityService, this.logService);
+		const configurationModel = await fileServiceBasedConfiguration.loadConfiguration();
+		this.userConfiguration.value = fileServiceBasedConfiguration;
+
+		// Check for value because userConfiguration might have been disposed.
+		if (this.userConfigurationChangeDisposable.value) {
+			this.userConfigurationChangeDisposable.value = this.userConfiguration.value.onDidChange(() => this.reloadConfigurationScheduler.schedule());
+		}
+
+		return configurationModel;
 	}
 
 	async initialize(): Promise<ConfigurationModel> {
@@ -149,19 +168,7 @@ export class UserConfiguration extends Disposable {
 		if (this.hasTasksLoaded) {
 			return this.userConfiguration.value!.loadConfiguration();
 		}
-
-		const folder = this.uriIdentityService.extUri.dirname(this.userDataProfile.settingsResource);
-		const standAloneConfigurationResources: [string, URI][] = [[TASKS_CONFIGURATION_KEY, this.userDataProfile.tasksResource]];
-		const fileServiceBasedConfiguration = new FileServiceBasedConfiguration(folder.toString(), this.userDataProfile.settingsResource, standAloneConfigurationResources, this.configurationParseOptions, this.fileService, this.uriIdentityService, this.logService);
-		const configurationModel = await fileServiceBasedConfiguration.loadConfiguration();
-		this.userConfiguration.value = fileServiceBasedConfiguration;
-
-		// Check for value because userConfiguration might have been disposed.
-		if (this.userConfiguration.value) {
-			this._register(this.userConfiguration.value.onDidChange(() => this.reloadConfigurationScheduler.schedule()));
-		}
-
-		return configurationModel;
+		return this.reset(this.settingsResource, this.tasksResource, this.configurationParseOptions.scopes);
 	}
 
 	reparse(): ConfigurationModel {

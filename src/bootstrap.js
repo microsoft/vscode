@@ -205,7 +205,7 @@
 	}
 
 	/**
-	 * @returns {import('./vs/base/parts/sandbox/electron-sandbox/globals').ISandboxNodeProcess | NodeJS.Process}
+	 * @returns {import('./vs/base/parts/sandbox/electron-sandbox/globals').ISandboxNodeProcess | NodeJS.Process | undefined}
 	 */
 	function safeProcess() {
 		const sandboxGlobals = safeSandboxGlobals();

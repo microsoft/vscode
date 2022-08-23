@@ -8,7 +8,7 @@ import { chmodSync, existsSync, readFileSync, statSync, truncateSync, unlinkSync
 import { homedir, release, tmpdir } from 'os';
 import type { ProfilingSession, Target } from 'v8-inspect-profiler';
 import { Event } from 'vs/base/common/event';
-import { isAbsolute, resolve } from 'vs/base/common/path';
+import { isAbsolute, resolve, join } from 'vs/base/common/path';
 import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { randomPort } from 'vs/base/common/ports';
 import { isString } from 'vs/base/common/types';
@@ -24,6 +24,8 @@ import product from 'vs/platform/product/common/product';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { randomPath } from 'vs/base/common/extpath';
 import { Utils } from 'vs/platform/profiling/common/profiling';
+import { dirname } from 'vs/base/common/resources';
+import { FileAccess } from 'vs/base/common/network';
 
 function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
 	return !!argv['install-source']
@@ -57,6 +59,23 @@ export async function main(argv: string[]): Promise<any> {
 	// Version Info
 	else if (args.version) {
 		console.log(buildVersionMessage(product.version, product.commit));
+	}
+
+	// Shell integration
+	else if (args['locate-shell-integration-path']) {
+		let file: string;
+		switch (args['locate-shell-integration-path']) {
+			// Usage: `[[ "$TERM_PROGRAM" == "vscode" ]] && . "$(code --locate-shell-integration-path bash)"`
+			case 'bash': file = 'shellIntegration-bash.sh'; break;
+			// Usage: `if ($env:TERM_PROGRAM -eq "vscode") { . "$(code --locate-shell-integration-path pwsh)" }`
+			case 'pwsh': file = 'shellIntegration.ps1'; break;
+			// Usage: `[[ "$TERM_PROGRAM" == "vscode" ]] && . "$(code --locate-shell-integration-path zsh)"`
+			case 'zsh': file = 'shellIntegration-rc.zsh'; break;
+			// Usage: `string match -q "$TERM_PROGRAM" "vscode"; and . (code --locate-shell-integration-path fish)`
+			case 'fish': file = 'shellIntegration.fish'; break;
+			default: throw new Error('Error using --locate-shell-integration-path: Invalid shell type');
+		}
+		console.log(join(dirname(FileAccess.asFileUri('', require)).fsPath, 'out', 'vs', 'workbench', 'contrib', 'terminal', 'browser', 'media', file));
 	}
 
 	// Extensions Management
@@ -162,7 +181,7 @@ export async function main(argv: string[]): Promise<any> {
 
 				// returns a file path where stdin input is written into (write in progress).
 				try {
-					readFromStdin(stdinFilePath, !!verbose); // throws error if file can not be written
+					await readFromStdin(stdinFilePath, !!verbose); // throws error if file can not be written
 
 					// Make sure to open tmp file
 					addArg(argv, stdinFilePath);

@@ -45,18 +45,3 @@ export class DomEmitter<K extends keyof DOMEventMap> implements IDisposable {
 		this.emitter.dispose();
 	}
 }
-
-export interface CancellableEvent {
-	preventDefault(): void;
-	stopPropagation(): void;
-}
-
-export function stopEvent<T extends CancellableEvent>(event: T): T {
-	event.preventDefault();
-	event.stopPropagation();
-	return event;
-}
-
-export function stop<T extends CancellableEvent>(event: BaseEvent<T>): BaseEvent<T> {
-	return BaseEvent.map(event, stopEvent);
-}

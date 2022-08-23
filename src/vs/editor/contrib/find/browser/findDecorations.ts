@@ -33,7 +33,7 @@ export class FindDecorations implements IDisposable {
 	}
 
 	public dispose(): void {
-		this._editor.deltaDecorations(this._allDecorations(), []);
+		this._editor.removeDecorations(this._allDecorations());
 
 		this._decorations = [];
 		this._overviewRulerApproximateDecorations = [];

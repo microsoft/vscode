@@ -44,7 +44,7 @@ export async function migrateExtensionStorage(fromExtensionId: string, toExtensi
 			return uriIdentityService.extUri.joinPath(environmentService.workspaceStorageHome, workspaceContextService.getWorkspace().id, extensionId);
 		};
 
-		const storageScope = global ? StorageScope.GLOBAL : StorageScope.WORKSPACE;
+		const storageScope = global ? StorageScope.PROFILE : StorageScope.WORKSPACE;
 		if (!storageService.getBoolean(storageMigratedKey, storageScope, false) && !(migrateLowerCaseStorageKey && storageService.getBoolean(migrateLowerCaseStorageKey, storageScope, false))) {
 			logService.info(`Migrating ${global ? 'global' : 'workspace'} extension storage from ${fromExtensionId} to ${toExtensionId}...`);
 			// Migrate state

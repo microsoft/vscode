@@ -207,9 +207,25 @@ suite('vscode API - window', () => {
 			}
 		}));
 
+		// verify the result array matches our expectations: depending
+		// on execution time there are 2 possible results for the first
+		// two entries. For the last entry there is only the `fileC` URI
+		// as expected result because it is the last editor opened.
+		// - either `undefined` indicating that the opening of the editor
+		//   was cancelled by the next editor opening
+		// - or the expected `URI` that was opened in case it suceeds
+
 		assert.strictEqual(result.length, 3);
-		assert.strictEqual(result[0], undefined);
-		assert.strictEqual(result[1], undefined);
+		if (result[0]) {
+			assert.strictEqual(result[0].toString(), fileA.toString());
+		} else {
+			assert.strictEqual(result[0], undefined);
+		}
+		if (result[1]) {
+			assert.strictEqual(result[1].toString(), fileB.toString());
+		} else {
+			assert.strictEqual(result[1], undefined);
+		}
 		assert.strictEqual(result[2]?.toString(), fileC.toString());
 	});
 

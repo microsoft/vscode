@@ -20,7 +20,7 @@ import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/cont
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEditorProgressService, Progress } from 'vs/platform/progress/common/progress';
 import { CodeActionSet, getCodeActions } from './codeAction';
-import { CodeActionTrigger } from './types';
+import { CodeActionTrigger, CodeActionTriggerSource } from './types';
 
 export const SUPPORTED_CODE_ACTIONS = new RawContextKey<string>('supportedCodeAction', '');
 
@@ -58,14 +58,14 @@ class CodeActionOracle extends Disposable {
 
 		if (resources.some(resource => isEqual(resource, model.uri))) {
 			this._autoTriggerTimer.cancelAndSet(() => {
-				this.trigger({ type: CodeActionTriggerType.Auto });
+				this.trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default });
 			}, this._delay);
 		}
 	}
 
 	private _onCursorChange(): void {
 		this._autoTriggerTimer.cancelAndSet(() => {
-			this.trigger({ type: CodeActionTriggerType.Auto });
+			this.trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default });
 		}, this._delay);
 	}
 
@@ -256,7 +256,7 @@ export class CodeActionModel extends Disposable {
 				this.setState(new CodeActionsState.Triggered(trigger.trigger, trigger.selection, trigger.position, actions));
 
 			}, undefined);
-			this._codeActionOracle.value.trigger({ type: CodeActionTriggerType.Auto });
+			this._codeActionOracle.value.trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default });
 		} else {
 			this._supportedCodeActions.reset();
 		}

@@ -752,10 +752,10 @@ declare module 'vscode' {
 	export interface TextDocumentShowOptions {
 		/**
 		 * An optional view column in which the {@link TextEditor editor} should be shown.
-		 * The default is the {@link ViewColumn.Active active}, other values are adjusted to
-		 * be `Min(column, columnCount + 1)`, the {@link ViewColumn.Active active}-column is
-		 * not adjusted. Use {@linkcode ViewColumn.Beside} to open the
-		 * editor to the side of the currently active one.
+		 * The default is the {@link ViewColumn.Active active}. Columns that do not exist
+		 * will be created as needed up to the maximum of {@linkcode ViewColumn.Nine}.
+		 * Use {@linkcode ViewColumn.Beside} to open the editor to the side of the currently
+		 * active one.
 		 */
 		viewColumn?: ViewColumn;
 
@@ -814,10 +814,10 @@ declare module 'vscode' {
 	export interface NotebookDocumentShowOptions {
 		/**
 		 * An optional view column in which the {@link NotebookEditor notebook editor} should be shown.
-		 * The default is the {@link ViewColumn.Active active}, other values are adjusted to
-		 * be `Min(column, columnCount + 1)`, the {@link ViewColumn.Active active}-column is
-		 * not adjusted. Use {@linkcode ViewColumn.Beside} to open the
-		 * editor to the side of the currently active one.
+		 * The default is the {@link ViewColumn.Active active}. Columns that do not exist
+		 * will be created as needed up to the maximum of {@linkcode ViewColumn.Nine}.
+		 * Use {@linkcode ViewColumn.Beside} to open the editor to the side of the currently
+		 * active one.
 		 */
 		readonly viewColumn?: ViewColumn;
 
@@ -1608,7 +1608,6 @@ declare module 'vscode' {
 		/**
 		 * The event listeners can subscribe to.
 		 */
-		// eslint-disable-next-line vscode-dts-event-naming
 		event: Event<T>;
 
 		/**
@@ -4038,7 +4037,7 @@ declare module 'vscode' {
 		/**
 		 * The index of the active parameter.
 		 *
-		 * If provided, this is used in place of {@linkcode SignatureHelp.activeSignature}.
+		 * If provided, this is used in place of {@linkcode SignatureHelp.activeParameter}.
 		 */
 		activeParameter?: number;
 
@@ -5409,6 +5408,48 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * An edit operation applied {@link DocumentDropEditProvider on drop}.
+	 */
+	export class DocumentDropEdit {
+		/**
+		 * The text or snippet to insert at the drop location.
+		 */
+		insertText: string | SnippetString;
+
+		/**
+		 * An optional additional edit to apply on drop.
+		 */
+		additionalEdit?: WorkspaceEdit;
+
+		/**
+		 * @param insertText The text or snippet to insert at the drop location.
+		 */
+		constructor(insertText: string | SnippetString);
+	}
+
+	/**
+	 * Provider which handles dropping of resources into a text editor.
+	 *
+	 * This allows users to drag and drop resources (including resources from external apps) into the editor. While dragging
+	 * and dropping files, users can hold down `shift` to drop the file into the editor instead of opening it.
+	 * Requires `editor.dropIntoEditor.enabled` to be on.
+	 */
+	export interface DocumentDropEditProvider {
+		/**
+		 * Provide edits which inserts the content being dragged and dropped into the document.
+		 *
+		 * @param document The document in which the drop occurred.
+		 * @param position The position in the document where the drop occurred.
+		 * @param dataTransfer A {@link DataTransfer} object that holds data about what is being dragged and dropped.
+		 * @param token A cancellation token.
+		 *
+		 * @return A {@link DocumentDropEdit} or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returning `undefined` or `null`.
+		 */
+		provideDocumentDropEdits(document: TextDocument, position: Position, dataTransfer: DataTransfer, token: CancellationToken): ProviderResult<DocumentDropEdit>;
+	}
+
+	/**
 	 * A tuple of two characters, like a pair of
 	 * opening and closing brackets.
 	 */
@@ -6494,10 +6535,10 @@ declare module 'vscode' {
 	export interface TerminalEditorLocationOptions {
 		/**
 		 * A view column in which the {@link Terminal terminal} should be shown in the editor area.
-		 * Use {@link ViewColumn.Active active} to open in the active editor group, other values are
-		 * adjusted to be `Min(column, columnCount + 1)`, the
-		 * {@link ViewColumn.Active active}-column is not adjusted. Use
-		 * {@linkcode ViewColumn.Beside} to open the editor to the side of the currently active one.
+		 * The default is the {@link ViewColumn.Active active}. Columns that do not exist
+		 * will be created as needed up to the maximum of {@linkcode ViewColumn.Nine}.
+		 * Use {@linkcode ViewColumn.Beside} to open the editor to the side of the currently
+		 * active one.
 		 */
 		viewColumn: ViewColumn;
 		/**
@@ -9408,8 +9449,8 @@ declare module 'vscode' {
 		 * to control where the editor is being shown. Might change the {@link window.activeTextEditor active editor}.
 		 *
 		 * @param document A text document to be shown.
-		 * @param column A view column in which the {@link TextEditor editor} should be shown. The default is the {@link ViewColumn.Active active}, other values
-		 * are adjusted to be `Min(column, columnCount + 1)`, the {@link ViewColumn.Active active}-column is not adjusted. Use {@linkcode ViewColumn.Beside}
+		 * @param column A view column in which the {@link TextEditor editor} should be shown. The default is the {@link ViewColumn.Active active}.
+		 * Columns that do not exist will be created as needed up to the maximum of {@linkcode ViewColumn.Nine}. Use {@linkcode ViewColumn.Beside}
 		 * to open the editor to the side of the currently active one.
 		 * @param preserveFocus When `true` the editor will not take focus.
 		 * @return A promise that resolves to an {@link TextEditor editor}.
@@ -10127,7 +10168,7 @@ declare module 'vscode' {
 		 * @param mimeType The mime type to get the data transfer item for, such as `text/plain` or `image/png`.
 		 *
 		 * Special mime types:
-		 * - `text/uri-list` — A string with `toString()`ed Uris separated by newlines. To specify a cursor position in the file,
+		 * - `text/uri-list` — A string with `toString()`ed Uris separated by `\r\n`. To specify a cursor position in the file,
 		 * set the Uri's fragment to `L3,5`, where 3 is the line number and 5 is the column number.
 		 */
 		get(mimeType: string): DataTransferItem | undefined;
@@ -10145,7 +10186,7 @@ declare module 'vscode' {
 		 * @param callbackfn Callback for iteration through the data transfer items.
 		 * @param thisArg The `this` context used when invoking the handler function.
 		 */
-		forEach(callbackfn: (value: DataTransferItem, key: string, dataTransfer: DataTransfer) => void, thisArg?: any): void;
+		forEach(callbackfn: (item: DataTransferItem, mimeType: string, dataTransfer: DataTransfer) => void, thisArg?: any): void;
 
 		/**
 		 * Get a new iterator with the `[mime, item]` pairs for each element in this data transfer.
@@ -10165,6 +10206,8 @@ declare module 'vscode' {
 		 * To support drops from trees, you will need to add the mime type of that tree.
 		 * This includes drops from within the same tree.
 		 * The mime type of a tree is recommended to be of the format `application/vnd.code.tree.<treeidlowercase>`.
+		 *
+		 * Use the special `files` mime type to support all types of dropped files {@link DataTransferFile files}, regardless of the file's actual mime type.
 		 *
 		 * To learn the mime type of a dragged item:
 		 * 1. Set up your `DragAndDropController`
@@ -10779,6 +10822,41 @@ declare module 'vscode' {
 		 *   without providing an exit code.
 		 */
 		readonly code: number | undefined;
+
+		/**
+		 * The reason that triggered the exit of a terminal.
+		 */
+		readonly reason: TerminalExitReason;
+	}
+
+	/**
+	 * Terminal exit reason kind.
+	 */
+	export enum TerminalExitReason {
+		/**
+		 * Unknown reason.
+		 */
+		Unknown = 0,
+
+		/**
+		 * The window closed/reloaded.
+		 */
+		Shutdown = 1,
+
+		/**
+		 * The shell process exited.
+		 */
+		Process = 2,
+
+		/**
+		 * The user closed the terminal.
+		 */
+		User = 3,
+
+		/**
+		 * An extension disposed the terminal.
+		 */
+		Extension = 4,
 	}
 
 	/**
@@ -12785,6 +12863,16 @@ declare module 'vscode' {
 		export function registerLinkedEditingRangeProvider(selector: DocumentSelector, provider: LinkedEditingRangeProvider): Disposable;
 
 		/**
+		 * Registers a new {@link DocumentDropEditProvider}.
+		 *
+		 * @param selector A selector that defines the documents this provider applies to.
+		 * @param provider A drop provider.
+		 *
+		 * @return A {@link Disposable} that unregisters this provider when disposed of.
+		 */
+		export function registerDocumentDropEditProvider(selector: DocumentSelector, provider: DocumentDropEditProvider): Disposable;
+
+		/**
 		 * Set a {@link LanguageConfiguration language configuration} for a language.
 		 *
 		 * @param language A language identifier like `typescript`.
@@ -12937,7 +13025,7 @@ declare module 'vscode' {
 		/**
 		 * The metadata of this cell. Can be anything but must be JSON-stringifyable.
 		 */
-		readonly metadata: { [key: string]: any };
+		readonly metadata: { readonly [key: string]: any };
 
 		/**
 		 * The outputs of this cell.
@@ -15010,7 +15098,7 @@ declare module 'vscode' {
 		/**
 		 * Optional commenting range provider. Provide a list {@link Range ranges} which support commenting to any given resource uri.
 		 *
-		 * If not provided, users can leave comments in any document opened in the editor.
+		 * If not provided, users cannot leave any comments.
 		 */
 		commentingRangeProvider?: CommentingRangeProvider;
 

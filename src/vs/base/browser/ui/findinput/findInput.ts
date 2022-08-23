@@ -6,7 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
+import { IToggleStyles, Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { CaseSensitiveToggle, RegexToggle, WholeWordsToggle } from 'vs/base/browser/ui/findinput/findInputToggles';
 import { HistoryInputBox, IInputBoxStyles, IInputValidator, IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -16,6 +16,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import 'vs/css!./findInput';
 import * as nls from 'vs/nls';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 
 export interface IFindInputOptions extends IFindInputStyles {
@@ -31,6 +32,7 @@ export interface IFindInputOptions extends IFindInputStyles {
 	readonly appendWholeWordsLabel?: string;
 	readonly appendRegexLabel?: string;
 	readonly history?: string[];
+	readonly additionalToggles?: Toggle[];
 	readonly showHistoryHint?: () => boolean;
 }
 
@@ -46,12 +48,12 @@ export class FindInput extends Widget {
 
 	static readonly OPTION_CHANGE: string = 'optionChange';
 
-	private contextViewProvider: IContextViewProvider;
 	private placeholder: string;
 	private validation?: IInputValidator;
 	private label: string;
 	private fixFocusOnOptionClickEnabled = true;
 	private imeSessionInProgress = false;
+	private additionalTogglesDisposables: DisposableStore = new DisposableStore();
 
 	protected inputActiveOptionBorder?: Color;
 	protected inputActiveOptionForeground?: Color;
@@ -74,6 +76,7 @@ export class FindInput extends Widget {
 	protected regex: RegexToggle;
 	protected wholeWords: WholeWordsToggle;
 	protected caseSensitive: CaseSensitiveToggle;
+	protected additionalToggles: Toggle[] = [];
 	public domNode: HTMLElement;
 	public inputBox: HistoryInputBox;
 
@@ -98,9 +101,8 @@ export class FindInput extends Widget {
 	private _onRegexKeyDown = this._register(new Emitter<IKeyboardEvent>());
 	public readonly onRegexKeyDown: Event<IKeyboardEvent> = this._onRegexKeyDown.event;
 
-	constructor(parent: HTMLElement | null, contextViewProvider: IContextViewProvider, private readonly _showOptionButtons: boolean, options: IFindInputOptions) {
+	constructor(parent: HTMLElement | null, contextViewProvider: IContextViewProvider | undefined, private readonly _showOptionButtons: boolean, options: IFindInputOptions) {
 		super();
-		this.contextViewProvider = contextViewProvider;
 		this.placeholder = options.placeholder || '';
 		this.validation = options.validation;
 		this.label = options.label || NLS_DEFAULT_LABEL;
@@ -133,7 +135,7 @@ export class FindInput extends Widget {
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('monaco-findInput');
 
-		this.inputBox = this._register(new HistoryInputBox(this.domNode, this.contextViewProvider, {
+		this.inputBox = this._register(new HistoryInputBox(this.domNode, contextViewProvider, {
 			placeholder: this.placeholder || '',
 			ariaLabel: this.label || '',
 			validationOptions: {
@@ -209,10 +211,6 @@ export class FindInput extends Widget {
 			this._onCaseSensitiveKeyDown.fire(e);
 		}));
 
-		if (this._showOptionButtons) {
-			this.inputBox.paddingRight = this.caseSensitive.width() + this.wholeWords.width() + this.regex.width();
-		}
-
 		// Arrow-Key support to navigate between options
 		const indexes = [this.caseSensitive.domNode, this.wholeWords.domNode, this.regex.domNode];
 		this.onkeydown(this.domNode, (event: IKeyboardEvent) => {
@@ -250,6 +248,14 @@ export class FindInput extends Widget {
 		this.controls.appendChild(this.wholeWords.domNode);
 		this.controls.appendChild(this.regex.domNode);
 
+		if (!this._showOptionButtons) {
+			this.caseSensitive.domNode.style.display = 'none';
+			this.wholeWords.domNode.style.display = 'none';
+			this.regex.domNode.style.display = 'none';
+		}
+
+		this.setAdditionalToggles(options?.additionalToggles);
+
 		this.domNode.appendChild(this.controls);
 
 		parent?.appendChild(this.domNode);
@@ -282,6 +288,10 @@ export class FindInput extends Widget {
 		this.regex.enable();
 		this.wholeWords.enable();
 		this.caseSensitive.enable();
+
+		for (const toggle of this.additionalToggles) {
+			toggle.enable();
+		}
 	}
 
 	public disable(): void {
@@ -290,6 +300,10 @@ export class FindInput extends Widget {
 		this.regex.disable();
 		this.wholeWords.disable();
 		this.caseSensitive.disable();
+
+		for (const toggle of this.additionalToggles) {
+			toggle.disable();
+		}
 	}
 
 	public setFocusInputOnOptionClick(value: boolean): void {
@@ -302,6 +316,37 @@ export class FindInput extends Widget {
 		} else {
 			this.disable();
 		}
+	}
+
+	public setAdditionalToggles(toggles: Toggle[] | undefined): void {
+		for (const currentToggle of this.additionalToggles) {
+			currentToggle.domNode.remove();
+		}
+		this.additionalToggles = [];
+		this.additionalTogglesDisposables.dispose();
+		this.additionalTogglesDisposables = new DisposableStore();
+
+		for (const toggle of toggles ?? []) {
+			this.additionalTogglesDisposables.add(toggle);
+			this.controls.appendChild(toggle.domNode);
+
+			this.additionalTogglesDisposables.add(toggle.onChange(viaKeyboard => {
+				this._onDidOptionChange.fire(viaKeyboard);
+				if (!viaKeyboard && this.fixFocusOnOptionClickEnabled) {
+					this.inputBox.focus();
+				}
+			}));
+
+			this.additionalToggles.push(toggle);
+		}
+
+		if (this.additionalToggles.length > 0) {
+			this.controls.style.display = 'block';
+		}
+
+		this.inputBox.paddingRight =
+			(this._showOptionButtons ? this.caseSensitive.width() + this.wholeWords.width() + this.regex.width() : 0)
+			+ this.additionalToggles.reduce((r, t) => r + t.width(), 0);
 	}
 
 	public clear(): void {
@@ -355,6 +400,10 @@ export class FindInput extends Widget {
 			this.regex.style(toggleStyles);
 			this.wholeWords.style(toggleStyles);
 			this.caseSensitive.style(toggleStyles);
+
+			for (const toggle of this.additionalToggles) {
+				toggle.style(toggleStyles);
+			}
 
 			const inputBoxStyles: IInputBoxStyles = {
 				inputBackground: this.inputBackground,

@@ -211,7 +211,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		const sessions = await this.authenticationService.getSessions(authenticationProviderId, scopes) || [];
 		for (const session of sessions) {
 			const account: UserDataSyncAccount = new UserDataSyncAccount(authenticationProviderId, session);
-			accounts.set(account.accountName, account);
+			accounts.set(account.accountId, account);
 			if (this.isCurrentAccount(account)) {
 				currentAccount = account;
 			}
@@ -219,7 +219,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 		if (currentAccount) {
 			// Always use current account if available
-			accounts.set(currentAccount.accountName, currentAccount);
+			accounts.set(currentAccount.accountId, currentAccount);
 		}
 
 		return [...accounts.values()];

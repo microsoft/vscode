@@ -11,7 +11,7 @@ import { getUriClasses, getColorClass, getColorStyleElement } from 'vs/workbench
 import { configureTerminalProfileIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import * as nls from 'vs/nls';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProfileResolverService, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IQuickPickTerminalObject, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
@@ -22,6 +22,7 @@ type DefaultProfileName = string;
 export class TerminalProfileQuickpick {
 	constructor(
 		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
+		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IThemeService private readonly _themeService: IThemeService
@@ -155,7 +156,7 @@ export class TerminalProfileQuickpick {
 				}
 			}
 			if (!icon || !getIconRegistry().getIcon(icon.id)) {
-				icon = Codicon.terminal;
+				icon = this._terminalProfileResolverService.getDefaultIcon();
 			}
 			const uriClasses = getUriClasses(contributed, this._themeService.getColorTheme().type, true);
 			const colorClass = getColorClass(contributed);

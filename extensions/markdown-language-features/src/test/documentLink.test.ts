@@ -24,7 +24,7 @@ function workspaceFile(...segments: string[]) {
 
 async function getLinksForFile(file: vscode.Uri): Promise<vscode.DocumentLink[]> {
 	debugLog('getting links', file.toString(), Date.now());
-	const r = (await vscode.commands.executeCommand<vscode.DocumentLink[]>('vscode.executeLinkProvider', file))!;
+	const r = (await vscode.commands.executeCommand<vscode.DocumentLink[]>('vscode.executeLinkProvider', file, /*linkResolveCount*/ 100))!;
 	debugLog('got links', file.toString(), Date.now());
 	return r;
 }
@@ -134,7 +134,7 @@ async function getLinksForFile(file: vscode.Uri): Promise<vscode.DocumentLink[]>
 		}
 	});
 
-	test('Should navigate to fragment within current untitled file', async () => {
+	test('Should navigate to fragment within current untitled file', async () => { // TODO: skip for now for ls migration
 		const testFile = workspaceFile('x.md').with({ scheme: 'untitled' });
 		await withFileContents(testFile, joinLines(
 			'[](#second)',
@@ -171,7 +171,7 @@ async function withFileContents(file: vscode.Uri, contents: string): Promise<voi
 async function executeLink(link: vscode.DocumentLink) {
 	debugLog('executeingLink', link.target?.toString(), Date.now());
 
-	const args = JSON.parse(decodeURIComponent(link.target!.query));
-	await vscode.commands.executeCommand(link.target!.path, args);
+	const args: any[] = JSON.parse(decodeURIComponent(link.target!.query));
+	await vscode.commands.executeCommand(link.target!.path, vscode.Uri.from(args[0]), ...args.slice(1));
 	debugLog('executedLink', vscode.window.activeTextEditor?.document.toString(), Date.now());
 }

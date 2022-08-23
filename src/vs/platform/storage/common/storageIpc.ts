@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { UriDto } from 'vs/base/common/types';
+import { UriDto } from 'vs/base/common/uri';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest } from 'vs/base/parts/storage/common/storage';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
@@ -26,7 +26,7 @@ export interface IBaseSerializableStorageRequest {
 
 	/**
 	 * Workspace to correlate storage. Can be undefined to
-	 * denote application or global scope depending on profile.
+	 * denote application or profile scope depending on profile.
 	 */
 	readonly workspace: ISerializedWorkspaceIdentifier | ISerializedSingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined;
 }
@@ -118,7 +118,7 @@ export class ApplicationStorageDatabaseClient extends BaseProfileAwareStorageDat
 	}
 }
 
-export class GlobalStorageDatabaseClient extends BaseProfileAwareStorageDatabaseClient {
+export class ProfileStorageDatabaseClient extends BaseProfileAwareStorageDatabaseClient {
 
 	constructor(channel: IChannel, profile: UriDto<IUserDataProfile>) {
 		super(channel, profile);
@@ -126,7 +126,7 @@ export class GlobalStorageDatabaseClient extends BaseProfileAwareStorageDatabase
 
 	async close(): Promise<void> {
 
-		// The global storage database is shared across all instances of
+		// The profile storage database is shared across all instances of
 		// the same profile so we do not close it from the window.
 		// However we dispose the listener for external changes because
 		// we no longer interested in it.

@@ -38,8 +38,11 @@ const editorEntryPoints = [
 		name: 'vs/base/common/worker/simpleWorker',
 		include: ['vs/editor/common/services/editorSimpleWorker'],
 		exclude: ['vs/nls'],
-		prepend: [{ path: 'vs/loader.js' }],
-		append: [{ path: 'vs/base/worker/workerMain' }],
+		prepend: [
+			{ path: 'vs/loader.js' },
+			{ path: 'vs/nls.js', amdModuleId: 'vs/nls' },
+			{ path: 'vs/base/worker/workerMain.js' }
+		],
 		dest: 'vs/base/worker/workerMain.js'
 	}
 ];
@@ -81,7 +84,7 @@ const extractEditorSrcTask = task.define('extract-editor-src', () => {
 	});
 });
 
-const compileEditorAMDTask = task.define('compile-editor-amd', compilation.compileTask('out-editor-src', 'out-editor-build', true, false));
+const compileEditorAMDTask = task.define('compile-editor-amd', compilation.compileTask('out-editor-src', 'out-editor-build', true));
 
 const optimizeEditorAMDTask = task.define('optimize-editor-amd', common.optimizeTask({
 	src: 'out-editor-build',

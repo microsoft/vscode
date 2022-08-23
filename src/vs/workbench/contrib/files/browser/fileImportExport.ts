@@ -796,7 +796,7 @@ export class FileDownload {
 		progress.report({ message: explorerItem.name });
 
 		let defaultUri: URI;
-		const lastUsedDownloadPath = this.storageService.get(FileDownload.LAST_USED_DOWNLOAD_PATH_STORAGE_KEY, StorageScope.GLOBAL);
+		const lastUsedDownloadPath = this.storageService.get(FileDownload.LAST_USED_DOWNLOAD_PATH_STORAGE_KEY, StorageScope.APPLICATION);
 		if (lastUsedDownloadPath) {
 			defaultUri = joinPath(URI.file(lastUsedDownloadPath), explorerItem.name);
 		} else {
@@ -818,7 +818,7 @@ export class FileDownload {
 		if (destination) {
 
 			// Remember as last used download folder
-			this.storageService.store(FileDownload.LAST_USED_DOWNLOAD_PATH_STORAGE_KEY, dirname(destination).fsPath, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.storageService.store(FileDownload.LAST_USED_DOWNLOAD_PATH_STORAGE_KEY, dirname(destination).fsPath, StorageScope.APPLICATION, StorageTarget.MACHINE);
 
 			// Perform download
 			await this.explorerService.applyBulkEdit([new ResourceFileEdit(explorerItem.resource, destination, { overwrite: true, copy: true })], {

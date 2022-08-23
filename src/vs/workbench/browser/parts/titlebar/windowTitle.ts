@@ -27,7 +27,6 @@ import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtua
 
 export class WindowTitle extends Disposable {
 
-	private static readonly NLS_UNSUPPORTED = localize('patchedWindowTitle', "[Unsupported]");
 	private static readonly NLS_USER_IS_ADMIN = isWindows ? localize('userIsAdmin', "[Administrator]") : localize('userIsSudo', "[Superuser]");
 	private static readonly NLS_EXTENSION_HOST = localize('devExtensionWindowTitlePrefix', "[Extension Development Host]");
 	private static readonly TITLE_DIRTY = '\u25cf ';
@@ -136,11 +135,6 @@ export class WindowTitle extends Disposable {
 
 		if (this.properties.isAdmin) {
 			suffix = WindowTitle.NLS_USER_IS_ADMIN;
-		}
-		if (!this.properties.isPure) {
-			suffix = !suffix
-				? WindowTitle.NLS_UNSUPPORTED
-				: `${suffix} ${WindowTitle.NLS_UNSUPPORTED}`;
 		}
 		return { prefix, suffix };
 	}

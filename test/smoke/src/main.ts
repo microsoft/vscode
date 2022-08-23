@@ -27,6 +27,7 @@ import { setup as setupMultirootTests } from './areas/multiroot/multiroot.test';
 import { setup as setupLocalizationTests } from './areas/workbench/localization.test';
 import { setup as setupLaunchTests } from './areas/workbench/launch.test';
 import { setup as setupTerminalTests } from './areas/terminal/terminal.test';
+import { setup as setupTaskTests } from './areas/task/task.test';
 
 const rootPath = path.join(__dirname, '..', '..', '..');
 
@@ -401,6 +402,7 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	setupNotebookTests(logger);
 	setupLanguagesTests(logger);
 	if (opts.web) { setupTerminalTests(logger); } // Not stable on desktop/remote https://github.com/microsoft/vscode/issues/146811
+	setupTaskTests(logger);
 	setupStatusbarTests(logger);
 	if (quality !== Quality.Dev && quality !== Quality.OSS) { setupExtensionTests(logger); }
 	setupMultirootTests(logger);

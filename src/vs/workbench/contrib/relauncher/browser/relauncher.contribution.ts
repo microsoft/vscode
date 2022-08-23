@@ -26,19 +26,22 @@ interface IConfiguration extends IWindowsConfiguration {
 	debug?: { console?: { wordWrap?: boolean } };
 	editor?: { accessibilitySupport?: 'on' | 'off' | 'auto' };
 	security?: { workspace?: { trust?: { enabled?: boolean } } };
-	window: IWindowSettings & { experimental?: { windowControlsOverlay?: { enabled?: boolean } } };
+	window: IWindowSettings & { experimental?: { windowControlsOverlay?: { enabled?: boolean }; useSandbox?: boolean } };
+	workbench?: { experimental?: { settingsProfiles?: { enabled?: boolean } } };
 }
 
 export class SettingsChangeRelauncher extends Disposable implements IWorkbenchContribution {
 
 	private titleBarStyle: 'native' | 'custom' | undefined;
 	private windowControlsOverlayEnabled: boolean | undefined;
+	private windowSandboxEnabled: boolean | undefined;
 	private nativeTabs: boolean | undefined;
 	private nativeFullScreen: boolean | undefined;
 	private clickThroughInactive: boolean | undefined;
 	private updateMode: string | undefined;
 	private accessibilitySupport: 'on' | 'off' | 'auto' | undefined;
 	private workspaceTrustEnabled: boolean | undefined;
+	private settingsProfilesEnabled: boolean | undefined;
 
 	constructor(
 		@IHostService private readonly hostService: IHostService,
@@ -64,11 +67,16 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 			}
 
 			// Windows: Window Controls Overlay
-			if (isWindows && typeof config.window?.experimental?.windowControlsOverlay?.enabled === 'boolean' && config.window?.experimental?.windowControlsOverlay?.enabled !== this.windowControlsOverlayEnabled) {
+			if (isWindows && typeof config.window?.experimental?.windowControlsOverlay?.enabled === 'boolean' && config.window.experimental.windowControlsOverlay.enabled !== this.windowControlsOverlayEnabled) {
 				this.windowControlsOverlayEnabled = config.window.experimental.windowControlsOverlay.enabled;
 				changed = true;
 			}
 
+			// Windows: Sandbox
+			if (typeof config.window?.experimental?.useSandbox === 'boolean' && config.window.experimental.useSandbox !== this.windowSandboxEnabled) {
+				this.windowSandboxEnabled = config.window.experimental.useSandbox;
+				changed = true;
+			}
 
 			// macOS: Native tabs
 			if (isMacintosh && typeof config.window?.nativeTabs === 'boolean' && config.window.nativeTabs !== this.nativeTabs) {
@@ -107,6 +115,12 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 				this.workspaceTrustEnabled = config.security.workspace.trust.enabled;
 				changed = true;
 			}
+		}
+
+		// Profiles
+		if (this.productService.quality === 'stable' && typeof config.workbench?.experimental?.settingsProfiles?.enabled === 'boolean' && config.workbench.experimental.settingsProfiles.enabled !== this.settingsProfilesEnabled) {
+			this.settingsProfilesEnabled = config.workbench.experimental.settingsProfiles.enabled;
+			changed = true;
 		}
 
 		// Notify only when changed and we are the focused window (avoids notification spam across windows)
@@ -171,9 +185,7 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 			});
 
 		this._register(toDisposable(() => {
-			if (this.onDidChangeWorkspaceFoldersUnbind) {
-				this.onDidChangeWorkspaceFoldersUnbind.dispose();
-			}
+			this.onDidChangeWorkspaceFoldersUnbind?.dispose();
 		}));
 	}
 

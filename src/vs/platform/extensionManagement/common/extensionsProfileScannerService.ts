@@ -8,23 +8,25 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ILocalExtension, Metadata } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { Metadata } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IExtension, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 
 interface IStoredProfileExtension {
-	readonly identifier: IExtensionIdentifier;
-	readonly location: UriComponents;
-	readonly metadata: Metadata;
+	identifier: IExtensionIdentifier;
+	location: UriComponents;
+	version: string;
+	metadata?: Metadata;
 }
 
 export interface IScannedProfileExtension {
 	readonly identifier: IExtensionIdentifier;
+	readonly version: string;
 	readonly location: URI;
-	readonly metadata: Metadata;
+	readonly metadata?: Metadata;
 }
 
 export const IExtensionsProfileScannerService = createDecorator<IExtensionsProfileScannerService>('IExtensionsProfileScannerService');
@@ -32,7 +34,7 @@ export interface IExtensionsProfileScannerService {
 	readonly _serviceBrand: undefined;
 
 	scanProfileExtensions(profileLocation: URI): Promise<IScannedProfileExtension[]>;
-	addExtensionsToProfile(extensions: [ILocalExtension, Metadata | undefined][], profileLocation: URI): Promise<IScannedProfileExtension[]>;
+	addExtensionsToProfile(extensions: [IExtension, Metadata | undefined][], profileLocation: URI): Promise<IScannedProfileExtension[]>;
 	removeExtensionFromProfile(identifier: IExtensionIdentifier, profileLocation: URI): Promise<IScannedProfileExtension[]>;
 }
 
@@ -52,11 +54,11 @@ export class ExtensionsProfileScannerService extends Disposable implements IExte
 		return this.withProfileExtensions(profileLocation);
 	}
 
-	addExtensionsToProfile(extensions: [ILocalExtension, Metadata][], profileLocation: URI): Promise<IScannedProfileExtension[]> {
+	addExtensionsToProfile(extensions: [IExtension, Metadata][], profileLocation: URI): Promise<IScannedProfileExtension[]> {
 		return this.withProfileExtensions(profileLocation, profileExtensions => {
 			// Remove the existing extension to avoid duplicates
 			profileExtensions = profileExtensions.filter(e => extensions.some(([extension]) => !areSameExtensions(e.identifier, extension.identifier)));
-			profileExtensions.push(...extensions.map(([extension, metadata]) => ({ identifier: extension.identifier, location: extension.location, metadata })));
+			profileExtensions.push(...extensions.map(([extension, metadata]) => ({ identifier: extension.identifier, version: extension.manifest.version, location: extension.location, metadata })));
 			return profileExtensions;
 		});
 	}
@@ -74,13 +76,22 @@ export class ExtensionsProfileScannerService extends Disposable implements IExte
 				const content = await this.fileService.readFile(file);
 				const storedWebExtensions: IStoredProfileExtension[] = JSON.parse(content.value.toString());
 				for (const e of storedWebExtensions) {
-					if (!e.location || !e.identifier) {
-						this.logService.info('Ignoring invalid extension while scanning', storedWebExtensions);
+					if (!e.identifier) {
+						this.logService.info('Ignoring invalid extension while scanning. Identifier does not exist.', e);
+						continue;
+					}
+					if (!e.location) {
+						this.logService.info('Ignoring invalid extension while scanning. Location does not exist.', e);
+						continue;
+					}
+					if (!e.version) {
+						this.logService.info('Ignoring invalid extension while scanning. Version does not exist.', e);
 						continue;
 					}
 					extensions.push({
 						identifier: e.identifier,
 						location: URI.revive(e.location),
+						version: e.version,
 						metadata: e.metadata,
 					});
 				}
@@ -94,12 +105,13 @@ export class ExtensionsProfileScannerService extends Disposable implements IExte
 			// Update
 			if (updateFn) {
 				extensions = updateFn(extensions);
-				const storedWebExtensions: IStoredProfileExtension[] = extensions.map(e => ({
+				const storedProfileExtensions: IStoredProfileExtension[] = extensions.map(e => ({
 					identifier: e.identifier,
+					version: e.version,
 					location: e.location.toJSON(),
 					metadata: e.metadata
 				}));
-				await this.fileService.writeFile(file, VSBuffer.fromString(JSON.stringify(storedWebExtensions)));
+				await this.fileService.writeFile(file, VSBuffer.fromString(JSON.stringify(storedProfileExtensions)));
 			}
 
 			return extensions;

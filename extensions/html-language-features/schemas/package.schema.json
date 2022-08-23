@@ -13,6 +13,23 @@
 						"type": "string",
 						"description": "Relative path to a HTML custom data file"
 					}
+				},
+				"htmlLanguageParticipants": {
+					"type": "array",
+					"description": "A list of languages that participate with the HTML language server.",
+					"items": {
+						"type": "object",
+						"properties": {
+							"languageId": {
+								"type": "string",
+								"description": "The id of the language that participates with HTML language server."
+							},
+							"autoInsert": {
+								"type": "boolean",
+								"description": "Whether the language participates with HTML auto insertions. If not specified, defaults to <code>true</code>."
+							}
+						}
+					}
 				}
 			}
 		}

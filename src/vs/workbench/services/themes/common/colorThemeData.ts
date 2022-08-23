@@ -440,7 +440,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		let themeSpecificColors;
 		for (const key in colors) {
 			const scopedColors = colors[key];
-			if (this.isThemeScope(key) && scopedColors instanceof Object && !types.isArray(scopedColors)) {
+			if (this.isThemeScope(key) && scopedColors instanceof Object && !Array.isArray(scopedColors)) {
 				const themeScopeList = key.match(themeScopeRegex) || [];
 				for (const themeScope of themeScopeList) {
 					const themeId = themeScope.substring(1, themeScope.length - 1);
@@ -452,7 +452,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 						for (const subkey in scopedThemeSpecificColors) {
 							const originalColors = themeSpecificColors[subkey];
 							const overrideColors = scopedThemeSpecificColors[subkey];
-							if (types.isArray(originalColors) && types.isArray(overrideColors)) {
+							if (Array.isArray(originalColors) && Array.isArray(overrideColors)) {
 								themeSpecificColors[subkey] = originalColors.concat(overrideColors);
 							} else if (overrideColors) {
 								themeSpecificColors[subkey] = overrideColors;
@@ -564,7 +564,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		});
 
 		// roam persisted color theme colors. Don't enable for icons as they contain references to fonts and images.
-		storageService.store(ColorThemeData.STORAGE_KEY, value, StorageScope.GLOBAL, StorageTarget.USER);
+		storageService.store(ColorThemeData.STORAGE_KEY, value, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	get baseTheme(): string {
@@ -612,7 +612,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	}
 
 	static fromStorageData(storageService: IStorageService): ColorThemeData | undefined {
-		const input = storageService.get(ColorThemeData.STORAGE_KEY, StorageScope.GLOBAL);
+		const input = storageService.get(ColorThemeData.STORAGE_KEY, StorageScope.PROFILE);
 		if (!input) {
 			return undefined;
 		}

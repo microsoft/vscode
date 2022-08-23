@@ -54,7 +54,7 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { isMacintosh } from 'vs/base/common/platform';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { OpenWorkspaceButtonContribution } from 'vs/workbench/browser/codeeditor';
+import { FloatingClickMenu, OpenWorkspaceButtonContribution } from 'vs/workbench/browser/codeeditor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { EditorAutoSave } from 'vs/workbench/browser/parts/editor/editorAutoSave';
@@ -127,6 +127,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(UntitledTextEditorWorkingCopyEditorHandler, LifecyclePhase.Ready);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DynamicEditorResolverConfigurations, LifecyclePhase.Ready);
 
+registerEditorContribution(FloatingClickMenu.ID, FloatingClickMenu);
 registerEditorContribution(OpenWorkspaceButtonContribution.ID, OpenWorkspaceButtonContribution);
 
 //#endregion
@@ -577,6 +578,13 @@ MenuRegistry.appendMenuItem(MenuId.MenubarRecentMenu, {
 		title: localize({ key: 'miClearRecentOpen', comment: ['&& denotes a mnemonic'] }, "&&Clear Recently Opened")
 	},
 	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+	title: localize('miShare', "Share"),
+	submenu: MenuId.MenubarShare,
+	group: '45_share',
+	order: 1,
 });
 
 // Layout menu

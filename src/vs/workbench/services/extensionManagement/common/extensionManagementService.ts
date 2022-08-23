@@ -7,7 +7,7 @@ import { Event, EventMultiplexer } from 'vs/base/common/event';
 import {
 	ILocalExtension, IGalleryExtension, IExtensionIdentifier, IExtensionsControlManifest, IGalleryMetadata, IExtensionGalleryService, InstallOptions, UninstallOptions, InstallVSIXOptions, InstallExtensionResult, ExtensionManagementError, ExtensionManagementErrorCode, Metadata
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { DidUninstallExtensionOnServerEvent, IExtensionManagementServer, IExtensionManagementServerService, InstallExtensionOnServerEvent, IWorkbenchExtensionManagementService, UninstallExtensionOnServerEvent } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { DidChangeProfileExtensionsOnServerEvent, DidUninstallExtensionOnServerEvent, IExtensionManagementServer, IExtensionManagementServerService, InstallExtensionOnServerEvent, IWorkbenchExtensionManagementService, UninstallExtensionOnServerEvent } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionType, isLanguagePackExtension, IExtensionManifest, getWorkspaceSupportTypeMessage, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -40,6 +40,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 	readonly onDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
 	readonly onUninstallExtension: Event<UninstallExtensionOnServerEvent>;
 	readonly onDidUninstallExtension: Event<DidUninstallExtensionOnServerEvent>;
+	readonly onDidChangeProfileExtensions: Event<DidChangeProfileExtensionsOnServerEvent>;
 
 	protected readonly servers: IExtensionManagementServer[] = [];
 
@@ -72,6 +73,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		this.onDidInstallExtensions = this._register(this.servers.reduce((emitter: EventMultiplexer<readonly InstallExtensionResult[]>, server) => { emitter.add(server.extensionManagementService.onDidInstallExtensions); return emitter; }, new EventMultiplexer<readonly InstallExtensionResult[]>())).event;
 		this.onUninstallExtension = this._register(this.servers.reduce((emitter: EventMultiplexer<UninstallExtensionOnServerEvent>, server) => { emitter.add(Event.map(server.extensionManagementService.onUninstallExtension, e => ({ ...e, server }))); return emitter; }, new EventMultiplexer<UninstallExtensionOnServerEvent>())).event;
 		this.onDidUninstallExtension = this._register(this.servers.reduce((emitter: EventMultiplexer<DidUninstallExtensionOnServerEvent>, server) => { emitter.add(Event.map(server.extensionManagementService.onDidUninstallExtension, e => ({ ...e, server }))); return emitter; }, new EventMultiplexer<DidUninstallExtensionOnServerEvent>())).event;
+		this.onDidChangeProfileExtensions = this._register(this.servers.reduce((emitter: EventMultiplexer<DidChangeProfileExtensionsOnServerEvent>, server) => { emitter.add(Event.map(server.extensionManagementService.onDidChangeProfileExtensions, e => ({ ...e, server }))); return emitter; }, new EventMultiplexer<DidChangeProfileExtensionsOnServerEvent>())).event;
 	}
 
 	async getInstalled(type?: ExtensionType): Promise<ILocalExtension[]> {

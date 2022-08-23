@@ -15,7 +15,17 @@ import { IShellLaunchConfig, ITerminalTabLayoutInfoById } from 'vs/platform/term
 import { TerminalStatus } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { getPartByLocation } from 'vs/workbench/browser/parts/views/viewsService';
 
-const SPLIT_PANE_MIN_SIZE = 120;
+const enum Constants {
+	/**
+	 * The minimum size in pixels of a split pane.
+	 */
+	SplitPaneMinSize = 120,
+	/**
+	 * The number of cells the terminal gets added or removed when asked to increase or decrease
+	 * the view size.
+	 */
+	ResizePartCellCount = 4
+}
 
 class SplitPaneContainer extends Disposable {
 	private _height: number;
@@ -91,10 +101,10 @@ class SplitPaneContainer extends Disposable {
 		}
 
 		// Ensure the size is not reduced beyond the minimum, otherwise weird things can happen
-		if (sizes[index] + amount < SPLIT_PANE_MIN_SIZE) {
-			amount = SPLIT_PANE_MIN_SIZE - sizes[index];
-		} else if (sizes[indexToChange] - amount < SPLIT_PANE_MIN_SIZE) {
-			amount = sizes[indexToChange] - SPLIT_PANE_MIN_SIZE;
+		if (sizes[index] + amount < Constants.SplitPaneMinSize) {
+			amount = Constants.SplitPaneMinSize - sizes[index];
+		} else if (sizes[indexToChange] - amount < Constants.SplitPaneMinSize) {
+			amount = sizes[indexToChange] - Constants.SplitPaneMinSize;
 		}
 
 		// Apply the size change
@@ -207,7 +217,7 @@ class SplitPaneContainer extends Disposable {
 }
 
 class SplitPane implements IView {
-	minimumSize: number = SPLIT_PANE_MIN_SIZE;
+	minimumSize: number = Constants.SplitPaneMinSize;
 	maximumSize: number = Number.MAX_VALUE;
 
 	orientation: Orientation | undefined;
@@ -560,9 +570,9 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		const isHorizontal = (direction === Direction.Left || direction === Direction.Right);
 		const font = this._terminalService.configHelper.getFont();
 		// TODO: Support letter spacing and line height
-		const amount = isHorizontal ? font.charWidth : font.charHeight;
-		if (amount) {
-			this._splitPaneContainer.resizePane(this._activeInstanceIndex, direction, amount, getPartByLocation(this._terminalLocation));
+		const charSize = (isHorizontal ? font.charWidth : font.charHeight);
+		if (charSize) {
+			this._splitPaneContainer.resizePane(this._activeInstanceIndex, direction, charSize * Constants.ResizePartCellCount, getPartByLocation(this._terminalLocation));
 		}
 	}
 

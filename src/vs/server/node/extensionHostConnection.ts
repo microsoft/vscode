@@ -9,7 +9,6 @@ import { getNLSConfiguration } from 'vs/server/node/remoteLanguagePacks';
 import { FileAccess } from 'vs/base/common/network';
 import { join, delimiter } from 'vs/base/common/path';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { IRemoteConsoleLog } from 'vs/base/common/console';
 import { Emitter, Event } from 'vs/base/common/event';
 import { createRandomIPCHandle, NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { getResolvedShellEnv } from 'vs/platform/shell/node/shellEnv';
@@ -18,13 +17,12 @@ import { IRemoteExtensionHostStartParams } from 'vs/platform/remote/common/remot
 import { IExtHostReadyMessage, IExtHostSocketMessage, IExtHostReduceGraceTimeMessage } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { IServerEnvironmentService } from 'vs/server/node/serverEnvironmentService';
 import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
-import { logRemoteEntry } from 'vs/workbench/services/extensions/common/remoteConsoleUtil';
 import { removeDangerousEnvVariables } from 'vs/base/common/processes';
 import { IExtensionHostStatusService } from 'vs/server/node/extensionHostStatusService';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { IPCExtHostConnection, writeExtHostConnection, SocketExtHostConnection } from 'vs/workbench/services/extensions/common/extensionHostEnv';
 
-export async function buildUserEnvironment(startParamsEnv: { [key: string]: string | null } = {}, withUserShellEnvironment: boolean, language: string, isDebug: boolean, environmentService: IServerEnvironmentService, logService: ILogService): Promise<IProcessEnvironment> {
+export async function buildUserEnvironment(startParamsEnv: { [key: string]: string | null } = {}, withUserShellEnvironment: boolean, language: string, environmentService: IServerEnvironmentService, logService: ILogService): Promise<IProcessEnvironment> {
 	const nlsConfig = await getNLSConfiguration(language, environmentService.userDataPath);
 
 	let userShellEnv: typeof process.env = {};
@@ -42,12 +40,8 @@ export async function buildUserEnvironment(startParamsEnv: { [key: string]: stri
 		...processEnv,
 		...userShellEnv,
 		...{
-			VSCODE_LOG_NATIVE: String(isDebug),
 			VSCODE_AMD_ENTRYPOINT: 'vs/workbench/api/node/extensionHostProcess',
-			VSCODE_PIPE_LOGGING: 'true',
-			VSCODE_VERBOSE_LOGGING: 'true',
 			VSCODE_HANDLES_UNCAUGHT_ERRORS: 'true',
-			VSCODE_LOG_STACK: 'false',
 			VSCODE_NLS_CONFIG: JSON.stringify(nlsConfig, undefined, 0)
 		},
 		...startParamsEnv
@@ -239,7 +233,7 @@ export class ExtensionHostConnection {
 				execArgv = [`--inspect${startParams.break ? '-brk' : ''}=${startParams.port}`];
 			}
 
-			const env = await buildUserEnvironment(startParams.env, true, startParams.language, !!startParams.debugId, this._environmentService, this._logService);
+			const env = await buildUserEnvironment(startParams.env, true, startParams.language, this._environmentService, this._logService);
 			removeDangerousEnvVariables(env);
 
 			let extHostNamedPipeServer: net.Server | null;
@@ -274,14 +268,6 @@ export class ExtensionHostConnection {
 			const onStderr = Event.fromNodeEventEmitter<string>(this._extensionHostProcess.stderr!, 'data');
 			onStdout((e) => this._log(`<${pid}> ${e}`));
 			onStderr((e) => this._log(`<${pid}><stderr> ${e}`));
-
-
-			// Support logging from extension host
-			this._extensionHostProcess.on('message', msg => {
-				if (msg && (<IRemoteConsoleLog>msg).type === '__$console') {
-					logRemoteEntry(this._logService, (<IRemoteConsoleLog>msg), `${this._logPrefix}<${pid}>`);
-				}
-			});
 
 			// Lifecycle
 			this._extensionHostProcess.on('error', (err) => {

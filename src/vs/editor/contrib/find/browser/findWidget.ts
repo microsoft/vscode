@@ -176,7 +176,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._storageService = storageService;
 		this._notificationService = notificationService;
 
-		this._ctrlEnterReplaceAllWarningPrompted = !!storageService.getBoolean(ctrlEnterReplaceAllWarningPromptedKey, StorageScope.GLOBAL);
+		this._ctrlEnterReplaceAllWarningPrompted = !!storageService.getBoolean(ctrlEnterReplaceAllWarningPromptedKey, StorageScope.PROFILE);
 
 		this._isVisible = false;
 		this._isReplaceVisible = false;
@@ -902,7 +902,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 					);
 
 					this._ctrlEnterReplaceAllWarningPrompted = true;
-					this._storageService.store(ctrlEnterReplaceAllWarningPromptedKey, true, StorageScope.GLOBAL, StorageTarget.USER);
+					this._storageService.store(ctrlEnterReplaceAllWarningPromptedKey, true, StorageScope.PROFILE, StorageTarget.USER);
 				}
 
 				this._replaceInput.inputBox.insertAtCursor('\n');

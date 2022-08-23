@@ -6,20 +6,36 @@
 import { groupBy } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { compare } from 'vs/base/common/strings';
+import { isObject } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 import { WorkspaceEditMetadata } from 'vs/editor/common/languages';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { UndoRedoGroup, UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
-import { ICellEditOperation } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellPartialMetadataEdit, ICellReplaceEdit, IDocumentMetadataEdit, IWorkspaceNotebookCellEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 
-export class ResourceNotebookCellEdit extends ResourceEdit {
+export class ResourceNotebookCellEdit extends ResourceEdit implements IWorkspaceNotebookCellEdit {
+
+	static is(candidate: any): candidate is IWorkspaceNotebookCellEdit {
+		if (candidate instanceof ResourceNotebookCellEdit) {
+			return true;
+		}
+		return URI.isUri((<IWorkspaceNotebookCellEdit>candidate).resource)
+			&& isObject((<IWorkspaceNotebookCellEdit>candidate).cellEdit);
+	}
+
+	static lift(edit: IWorkspaceNotebookCellEdit): ResourceNotebookCellEdit {
+		if (edit instanceof ResourceNotebookCellEdit) {
+			return edit;
+		}
+		return new ResourceNotebookCellEdit(edit.resource, edit.cellEdit, edit.notebookVersionId, edit.metadata);
+	}
 
 	constructor(
 		readonly resource: URI,
-		readonly cellEdit: ICellEditOperation,
-		readonly versionId?: number,
+		readonly cellEdit: ICellPartialMetadataEdit | IDocumentMetadataEdit | ICellReplaceEdit,
+		readonly notebookVersionId: number | undefined = undefined,
 		metadata?: WorkspaceEditMetadata
 	) {
 		super(metadata);
@@ -49,7 +65,7 @@ export class BulkCellEdits {
 			const ref = await this._notebookModelService.resolve(first.resource);
 
 			// check state
-			if (typeof first.versionId === 'number' && ref.object.notebook.versionId !== first.versionId) {
+			if (typeof first.notebookVersionId === 'number' && ref.object.notebook.versionId !== first.notebookVersionId) {
 				ref.dispose();
 				throw new Error(`Notebook '${first.resource}' has changed in the meantime`);
 			}

@@ -8,17 +8,29 @@ import { compare, compareSubstring } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, CompletionItemInsertTextRule, CompletionContext, CompletionTriggerKind, CompletionItemLabel } from 'vs/editor/common/languages';
+import { CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, CompletionItemInsertTextRule, CompletionContext, CompletionTriggerKind, CompletionItemLabel, Command } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { localize } from 'vs/nls';
-import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
+import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets';
 import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 import { isPatternInWord } from 'vs/base/common/filters';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { getWordAtText } from 'vs/editor/common/core/wordHelper';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+
+
+const markSnippetAsUsed = '_snippet.markAsUsed';
+
+CommandsRegistry.registerCommand(markSnippetAsUsed, (accessor, ...args) => {
+	const snippetsService = accessor.get(ISnippetsService);
+	const [first] = args;
+	if (first instanceof Snippet) {
+		snippetsService.updateUsageTimestamp(first);
+	}
+});
 
 export class SnippetCompletion implements CompletionItem {
 
@@ -31,10 +43,11 @@ export class SnippetCompletion implements CompletionItem {
 	kind: CompletionItemKind;
 	insertTextRules: CompletionItemInsertTextRule;
 	extensionId?: ExtensionIdentifier;
+	command?: Command;
 
 	constructor(
 		readonly snippet: Snippet,
-		range: IRange | { insert: IRange; replace: IRange }
+		range: IRange | { insert: IRange; replace: IRange },
 	) {
 		this.label = { label: snippet.prefix, description: snippet.name };
 		this.detail = localize('detail.snippet', "{0} ({1})", snippet.description || snippet.name, snippet.source);
@@ -44,6 +57,7 @@ export class SnippetCompletion implements CompletionItem {
 		this.sortText = `${snippet.snippetSource === SnippetSource.Extension ? 'z' : 'a'}-${snippet.prefix}`;
 		this.kind = CompletionItemKind.Snippet;
 		this.insertTextRules = CompletionItemInsertTextRule.InsertAsSnippet;
+		this.command = { id: markSnippetAsUsed, title: '', arguments: [snippet] };
 	}
 
 	resolve(): this {

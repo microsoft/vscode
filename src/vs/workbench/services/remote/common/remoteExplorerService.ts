@@ -532,7 +532,7 @@ export class TunnelModel extends Disposable {
 			return deprecatedValue;
 		}
 
-		return this.storageService.get(await this.getStorageKey(), StorageScope.GLOBAL);
+		return this.storageService.get(await this.getStorageKey(), StorageScope.PROFILE);
 	}
 
 	async restoreForwarded() {
@@ -560,7 +560,7 @@ export class TunnelModel extends Disposable {
 			const key = await this.getStorageKey();
 			this.restoreListener = this._register(this.storageService.onDidChangeValue(async (e) => {
 				if (e.key === key) {
-					this.tunnelRestoreValue = Promise.resolve(this.storageService.get(await this.getStorageKey(), StorageScope.GLOBAL));
+					this.tunnelRestoreValue = Promise.resolve(this.storageService.get(await this.getStorageKey(), StorageScope.PROFILE));
 					await this.restoreForwarded();
 				}
 			}));
@@ -572,7 +572,7 @@ export class TunnelModel extends Disposable {
 			const valueToStore = JSON.stringify(Array.from(this.forwarded.values()).filter(value => value.source.source === TunnelSource.User));
 			if (valueToStore !== this.knownPortsRestoreValue) {
 				this.knownPortsRestoreValue = valueToStore;
-				this.storageService.store(await this.getStorageKey(), this.knownPortsRestoreValue, StorageScope.GLOBAL, StorageTarget.USER);
+				this.storageService.store(await this.getStorageKey(), this.knownPortsRestoreValue, StorageScope.PROFILE, StorageTarget.USER);
 			}
 		}
 	}
@@ -939,7 +939,7 @@ class RemoteExplorerService implements IRemoteExplorerService {
 		if (current !== newName) {
 			this._targetType = name;
 			this.storageService.store(REMOTE_EXPLORER_TYPE_KEY, this._targetType.toString(), StorageScope.WORKSPACE, StorageTarget.USER);
-			this.storageService.store(REMOTE_EXPLORER_TYPE_KEY, this._targetType.toString(), StorageScope.GLOBAL, StorageTarget.USER);
+			this.storageService.store(REMOTE_EXPLORER_TYPE_KEY, this._targetType.toString(), StorageScope.PROFILE, StorageTarget.USER);
 			this._onDidChangeTargetType.fire(this._targetType);
 		}
 	}

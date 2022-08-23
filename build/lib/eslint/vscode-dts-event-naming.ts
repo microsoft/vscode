@@ -88,11 +88,10 @@ export = new class ApiEventNaming implements eslint.Rule.RuleModule {
 
 		if (def.type === AST_NODE_TYPES.Identifier) {
 			return def;
-		} else if ((def.type === AST_NODE_TYPES.TSPropertySignature || def.type === AST_NODE_TYPES.Property) && def.key.type === AST_NODE_TYPES.Identifier) {
+		} else if ((def.type === AST_NODE_TYPES.TSPropertySignature || def.type === AST_NODE_TYPES.PropertyDefinition) && def.key.type === AST_NODE_TYPES.Identifier) {
 			return def.key;
 		}
 
 		return this.getIdent(def.parent);
 	}
 };
-

@@ -32,7 +32,7 @@ import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import * as resources from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IExtensionManifest, ExtensionType, IExtension as IPlatformExtension, TargetPlatform, ExtensionIdentifier, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -45,8 +45,9 @@ import { isBoolean, isUndefined } from 'vs/base/common/types';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IExtensionService, IExtensionsStatus } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionEditor } from 'vs/workbench/contrib/extensions/browser/extensionEditor';
-import { isWeb } from 'vs/base/common/platform';
-import { GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
+import { isWeb, language } from 'vs/base/common/platform';
+import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
+import { ILocaleService } from 'vs/workbench/contrib/localization/common/locale';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -56,11 +57,12 @@ interface InstalledExtensionsEvent {
 	readonly extensionIds: string;
 	readonly count: number;
 }
-interface ExtensionsLoadClassification extends GDPRClassification<InstalledExtensionsEvent> {
+type ExtensionsLoadClassification = {
 	owner: 'digitarald';
-	readonly extensionIds: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
-	readonly count: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
-}
+	comment: 'Helps to understand which extensions are the most actively used.';
+	readonly extensionIds: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The list of extension ids that are installed.' };
+	readonly count: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The number of extensions that are installed.' };
+};
 
 export class Extension implements IExtension {
 
@@ -416,8 +418,11 @@ class Extensions extends Disposable {
 		extension.deprecationInfo = extensionsControlManifest.deprecated ? extensionsControlManifest.deprecated[extension.identifier.id.toLowerCase()] : undefined;
 	}
 
-	private readonly _onChange: Emitter<{ extension: Extension; operation?: InstallOperation } | undefined> = this._register(new Emitter<{ extension: Extension; operation?: InstallOperation } | undefined>());
-	get onChange(): Event<{ extension: Extension; operation?: InstallOperation } | undefined> { return this._onChange.event; }
+	private readonly _onChange = this._register(new Emitter<{ extension: Extension; operation?: InstallOperation } | undefined>());
+	get onChange() { return this._onChange.event; }
+
+	private readonly _onReset = this._register(new Emitter<void>());
+	get onReset() { return this._onReset.event; }
 
 	private installing: Extension[] = [];
 	private uninstalling: Extension[] = [];
@@ -433,8 +438,9 @@ class Extensions extends Disposable {
 		super();
 		this._register(server.extensionManagementService.onInstallExtension(e => this.onInstallExtension(e)));
 		this._register(server.extensionManagementService.onDidInstallExtensions(e => this.onDidInstallExtensions(e)));
-		this._register(server.extensionManagementService.onUninstallExtension(e => this.onUninstallExtension(e)));
+		this._register(server.extensionManagementService.onUninstallExtension(e => this.onUninstallExtension(e.identifier)));
 		this._register(server.extensionManagementService.onDidUninstallExtension(e => this.onDidUninstallExtension(e)));
+		this._register(server.extensionManagementService.onDidChangeProfileExtensions(e => this.onDidChangeProfileExtensions(e.added, e.removed)));
 		this._register(extensionEnablementService.onEnablementChanged(e => this.onEnablementChanged(e)));
 	}
 
@@ -554,6 +560,23 @@ class Extensions extends Disposable {
 		}
 	}
 
+	private async onDidChangeProfileExtensions(added: ILocalExtension[], removed: ILocalExtension[]): Promise<void> {
+		const extensionsControlManifest = await this.server.extensionManagementService.getExtensionsControlManifest();
+		for (const addedExtension of added) {
+			if (this.installed.find(e => areSameExtensions(e.identifier, addedExtension.identifier))) {
+				const extension = this.instantiationService.createInstance(Extension, this.stateProvider, this.server, addedExtension, undefined);
+				this.installed.push(extension);
+				Extensions.updateExtensionFromControlManifest(extension, extensionsControlManifest);
+			}
+		}
+
+		if (removed.length) {
+			this.installed = this.installed.filter(e => !removed.some(removedExtension => areSameExtensions(e.identifier, removedExtension.identifier)));
+		}
+
+		this._onReset.fire();
+	}
+
 	private async onDidInstallExtensions(results: readonly InstallExtensionResult[]): Promise<void> {
 		for (const event of results) {
 			const { local, source } = event;
@@ -660,6 +683,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private readonly _onChange: Emitter<IExtension | undefined> = new Emitter<IExtension | undefined>();
 	get onChange(): Event<IExtension | undefined> { return this._onChange.event; }
 
+	private readonly _onReset = new Emitter<void>();
+	get onReset() { return this._onReset.event; }
+
 	readonly preferPreReleases = this.productService.quality !== 'stable';
 
 	private installing: IExtension[] = [];
@@ -686,6 +712,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@ILogService private readonly logService: ILogService,
 		@IExtensionService private readonly extensionService: IExtensionService,
+		@ILanguagePackService private readonly languagePackService: ILanguagePackService,
+		@ILocaleService private readonly localeService: ILocaleService,
 	) {
 		super();
 		const preferPreReleasesValue = configurationService.getValue('_extensions.preferPreReleases');
@@ -696,14 +724,17 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (extensionManagementServerService.localExtensionManagementServer) {
 			this.localExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.localExtensionManagementServer, ext => this.getExtensionState(ext)));
 			this._register(this.localExtensions.onChange(e => this._onChange.fire(e ? e.extension : undefined)));
+			this._register(this.localExtensions.onReset(e => { this._onChange.fire(undefined); this._onReset.fire(); }));
 		}
 		if (extensionManagementServerService.remoteExtensionManagementServer) {
 			this.remoteExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.remoteExtensionManagementServer, ext => this.getExtensionState(ext)));
 			this._register(this.remoteExtensions.onChange(e => this._onChange.fire(e ? e.extension : undefined)));
+			this._register(this.remoteExtensions.onReset(e => { this._onChange.fire(undefined); this._onReset.fire(); }));
 		}
 		if (extensionManagementServerService.webExtensionManagementServer) {
 			this.webExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.webExtensionManagementServer, ext => this.getExtensionState(ext)));
 			this._register(this.webExtensions.onChange(e => this._onChange.fire(e ? e.extension : undefined)));
+			this._register(this.webExtensions.onReset(e => { this._onChange.fire(undefined); this._onReset.fire(); }));
 		}
 
 		this.updatesCheckDelayer = new ThrottledDelayer<void>(ExtensionsWorkbenchService.UpdatesCheckInterval);
@@ -749,10 +780,12 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			this.updateContexts();
 			this.updateActivity();
 		}));
+
+		this._register(this.storageService.onDidChangeValue(e => this.onDidChangeStorage(e)));
 	}
 	private _reportTelemetry() {
 		const extensionIds = this.installed.filter(extension =>
-			extension.type === ExtensionType.User &&
+			!extension.isBuiltin &&
 			(extension.enablementState === EnablementState.EnabledWorkspace ||
 				extension.enablementState === EnablementState.EnabledGlobally))
 			.map(extension => ExtensionIdentifier.toKey(extension.identifier.id));
@@ -1201,7 +1234,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return false;
 	}
 
-	install(extension: URI | IExtension, installOptions?: InstallOptions | InstallVSIXOptions): Promise<IExtension> {
+	install(extension: URI | IExtension, installOptions?: InstallOptions | InstallVSIXOptions, progressLocation?: ProgressLocation): Promise<IExtension> {
 		if (extension instanceof URI) {
 			return this.installWithProgress(() => this.installFromVSIX(extension, installOptions));
 		}
@@ -1216,7 +1249,35 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return Promise.reject(new Error('Missing gallery'));
 		}
 
-		return this.installWithProgress(() => this.installFromGallery(extension, gallery, installOptions), gallery.displayName);
+		return this.installWithProgress(() => this.installFromGallery(extension, gallery, installOptions), gallery.displayName, progressLocation);
+	}
+
+	canSetLanguage(extension: IExtension): boolean {
+		if (!isWeb) {
+			return false;
+		}
+
+		if (!extension.gallery) {
+			return false;
+		}
+
+		const locale = this.languagePackService.getLocale(extension.gallery);
+		if (!locale) {
+			return false;
+		}
+
+		return true;
+	}
+
+	async setLanguage(extension: IExtension): Promise<void> {
+		if (!this.canSetLanguage(extension)) {
+			throw new Error('Can not set language');
+		}
+		const locale = this.languagePackService.getLocale(extension.gallery!);
+		if (locale === language) {
+			return;
+		}
+		return this.localeService.setLocale({ id: locale, galleryExtension: extension.gallery, extensionId: extension.identifier.id, label: extension.displayName });
 	}
 
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void> {
@@ -1314,10 +1375,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return extension;
 	}
 
-	private installWithProgress<T>(installTask: () => Promise<T>, extensionName?: string): Promise<T> {
+	private installWithProgress<T>(installTask: () => Promise<T>, extensionName?: string, progressLocation?: ProgressLocation): Promise<T> {
 		const title = extensionName ? nls.localize('installing named extension', "Installing '{0}' extension....", extensionName) : nls.localize('installing extension', 'Installing extension....');
 		return this.progressService.withProgress({
-			location: ProgressLocation.Extensions,
+			location: progressLocation ?? ProgressLocation.Extensions,
 			title
 		}, () => installTask());
 	}
@@ -1568,18 +1629,26 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}).then(undefined, error => this.onError(error));
 	}
 
+	//#region Ignore Autoupdates when specific versions are installed
+
 	/* TODO: @sandy081 Extension version shall be moved to extensions.json file */
 	private _ignoredAutoUpdateExtensions: string[] | undefined;
 	private get ignoredAutoUpdateExtensions(): string[] {
 		if (!this._ignoredAutoUpdateExtensions) {
-			this._ignoredAutoUpdateExtensions = JSON.parse(this.storageService.get('extensions.ignoredAutoUpdateExtension', StorageScope.GLOBAL, '[]') || '[]');
+			this._ignoredAutoUpdateExtensions = JSON.parse(this.storageService.get('extensions.ignoredAutoUpdateExtension', StorageScope.PROFILE, '[]') || '[]');
 		}
 		return this._ignoredAutoUpdateExtensions!;
 	}
 
 	private set ignoredAutoUpdateExtensions(extensionIds: string[]) {
 		this._ignoredAutoUpdateExtensions = distinct(extensionIds.map(id => id.toLowerCase()));
-		this.storageService.store('extensions.ignoredAutoUpdateExtension', JSON.stringify(this._ignoredAutoUpdateExtensions), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this.storageService.store('extensions.ignoredAutoUpdateExtension', JSON.stringify(this._ignoredAutoUpdateExtensions), StorageScope.PROFILE, StorageTarget.MACHINE);
+	}
+
+	private onDidChangeStorage(e: IStorageValueChangeEvent): void {
+		if (e.scope === StorageScope.PROFILE && e.key === 'extensions.ignoredAutoUpdateExtension') {
+			this._ignoredAutoUpdateExtensions = undefined;
+		}
 	}
 
 	private ignoreAutoUpdate(extensionKey: ExtensionKey): void {
@@ -1595,5 +1664,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private resetIgnoreAutoUpdateExtensions(): void {
 		this.ignoredAutoUpdateExtensions = this.ignoredAutoUpdateExtensions.filter(extensionId => this.local.some(local => !!local.local && new ExtensionKey(local.identifier, local.version).toString() === extensionId));
 	}
+
+	//#endregion
 
 }

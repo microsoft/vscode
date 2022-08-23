@@ -25,7 +25,8 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 		hasChildProcesses: true,
 		resolvedShellLaunchConfig: {},
 		overrideDimensions: undefined,
-		failedShellIntegrationActivation: false
+		failedShellIntegrationActivation: false,
+		usedShellIntegrationInjection: undefined
 	};
 	private readonly _onProcessData = this._register(new Emitter<IProcessDataEvent | string>());
 	readonly onProcessData = this._onProcessData.event;
@@ -51,8 +52,8 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	start(): Promise<ITerminalLaunchError | undefined> {
 		return this._localPtyService.start(this.id);
 	}
-	detach(): Promise<void> {
-		return this._localPtyService.detachFromProcess(this.id);
+	detach(forcePersist?: boolean): Promise<void> {
+		return this._localPtyService.detachFromProcess(this.id, forcePersist);
 	}
 	shutdown(immediate: boolean): void {
 		this._localPtyService.shutdown(this.id, immediate);

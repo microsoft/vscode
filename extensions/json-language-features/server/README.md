@@ -188,12 +188,6 @@ Notification:
 ### Item Limit
 
 If the setting `resultLimit` is set, the JSON language server will limit the number of folding ranges and document symbols computed.
-When the limit is reached, a notification `json/resultLimitReached` is sent that can be shown that can be shown to the user.
-
-Notification:
-- method: 'json/resultLimitReached'
-- params: a human readable string to show to the user.
-
 
 ## Try
 
