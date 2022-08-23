@@ -284,10 +284,8 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			}
 		}));
 		this._disposableStore.add(dom.addDisposableListener(child, 'mouseout', () => {
-			if (this._editor.hasModel()) {
-				this._hoverOnLine = -1;
-				this._hoverOnColumn = -1;
-			}
+			this._hoverOnLine = -1;
+			this._hoverOnColumn = -1;
 		}));
 
 		return child;
