@@ -120,7 +120,7 @@ export interface IExtensionsScannerService {
 
 	getTargetPlatform(): Promise<TargetPlatform>;
 
-	scanAllExtensions(systemScanOptions: ScanOptions, userScanOptions: ScanOptions): Promise<IScannedExtension[]>;
+	scanAllExtensions(systemScanOptions: ScanOptions, userScanOptions: ScanOptions, includeExtensionsUnderDev: boolean): Promise<IScannedExtension[]>;
 	scanSystemExtensions(scanOptions: ScanOptions): Promise<IScannedExtension[]>;
 	scanUserExtensions(scanOptions: ScanOptions): Promise<IScannedExtension[]>;
 	scanExtensionsUnderDevelopment(scanOptions: ScanOptions, existingExtensions: IScannedExtension[]): Promise<IScannedExtension[]>;
@@ -172,12 +172,12 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 		return this._targetPlatformPromise;
 	}
 
-	async scanAllExtensions(systemScanOptions: ScanOptions, userScanOptions: ScanOptions): Promise<IScannedExtension[]> {
+	async scanAllExtensions(systemScanOptions: ScanOptions, userScanOptions: ScanOptions, includeExtensionsUnderDev: boolean): Promise<IScannedExtension[]> {
 		const [system, user] = await Promise.all([
 			this.scanSystemExtensions(systemScanOptions),
 			this.scanUserExtensions(userScanOptions),
 		]);
-		const development = await this.scanExtensionsUnderDevelopment(systemScanOptions, [...system, ...user]);
+		const development = includeExtensionsUnderDev ? await this.scanExtensionsUnderDevelopment(systemScanOptions, [...system, ...user]) : [];
 		return this.dedupExtensions(system, user, development, await this.getTargetPlatform(), true);
 	}
 
