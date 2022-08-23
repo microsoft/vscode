@@ -8,6 +8,11 @@ if (Test-Path variable:global:__VSCodeOriginalPrompt) {
 	return;
 }
 
+# Disable shell integration when the language mode is restricted
+if ($ExecutionContext.SessionState.LanguageMode -ne "FullLanguage") {
+	return;
+}
+
 $Global:__VSCodeOriginalPrompt = $function:Prompt
 
 $Global:__LastHistoryId = -1
