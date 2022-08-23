@@ -23,13 +23,17 @@
 }
 
 .monaco-workbench .merge-editor .code-view>.title>SPAN.description {
-	opacity: 0.7;
-	font-size: 90%;
+	display: flex;
+	font-size: 12px;
+	align-items: center;
+	color: var(--vscode-descriptionForeground);
 }
 
 .monaco-workbench .merge-editor .code-view>.title>SPAN.detail {
 	margin-left: auto;
 	flex-shrink: 0;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
 }
 
 .monaco-workbench .merge-editor .code-view>.title>SPAN.detail .codicon {
