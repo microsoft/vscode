@@ -29,6 +29,11 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+.monaco-workbench .merge-editor .code-view>.title>SPAN.description .codicon {
+	font-size: 14px;
+	color: var(--vscode-descriptionForeground);
+}
+
 .monaco-workbench .merge-editor .code-view>.title>SPAN.detail {
 	margin-left: auto;
 	flex-shrink: 0;
