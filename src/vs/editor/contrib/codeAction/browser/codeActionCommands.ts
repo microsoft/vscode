@@ -569,7 +569,10 @@ registerEditorCommand(new CodeActionContribution({
 	kbOpts: {
 		weight: weight + 100000,
 		primary: KeyCode.Enter,
-		secondary: [KeyMod.Shift | KeyCode.Tab],
+		secondary: [
+			KeyMod.Shift | KeyCode.Tab,
+			KeyMod.CtrlCmd | KeyCode.Period
+		],
 	}
 }));
 
