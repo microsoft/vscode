@@ -544,8 +544,8 @@ registerAction2(class RevealRunningCellAction extends NotebookAction {
 	constructor() {
 		super({
 			id: REVEAL_RUNNING_CELL,
-			title: localize('revealRunningCell', "Go To Running Cell"),
-			tooltip: localize('revealRunningCell', "Go To Running Cell"),
+			title: localize('revealRunningCell', "Go to Running Cell"),
+			tooltip: localize('revealRunningCell', "Go to Running Cell"),
 			shortTitle: localize('revealRunningCellShort', "Go To"),
 			precondition: NOTEBOOK_HAS_RUNNING_CELL,
 			menu: [

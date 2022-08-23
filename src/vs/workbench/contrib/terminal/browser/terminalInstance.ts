@@ -41,14 +41,14 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { QuickPickItem, IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalCapabilityStoreMultiplexer } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { IProcessDataEvent, IProcessPropertyMap, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, PosixShellType, ProcessPropertyType, ShellIntegrationStatus, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalSettingId, TerminalShellType, TitleEventSource, WindowsShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessPropertyMap, IReconnectionProperties, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, PosixShellType, ProcessPropertyType, ShellIntegrationStatus, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalSettingId, TerminalShellType, TitleEventSource, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 import { escapeNonWindowsPath, collapseTildePath } from 'vs/platform/terminal/common/terminalEnvironment';
-import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
+import { activeContrastBorder, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
@@ -87,6 +87,10 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProcess';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
+import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
+import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
+import { showWithPinnedItems } from 'vs/platform/quickinput/browser/quickPickPin';
+import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 
 const enum Constants {
 	/**
@@ -226,6 +230,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	xterm?: XtermTerminal;
 	disableLayout: boolean = false;
 
+	get waitOnExit(): ITerminalInstance['waitOnExit'] { return this._shellLaunchConfig.attachPersistentProcess?.waitOnExit || this._shellLaunchConfig.waitOnExit; }
+	set waitOnExit(value: ITerminalInstance['waitOnExit']) {
+		this._shellLaunchConfig.waitOnExit = value;
+	}
+
 	get target(): TerminalLocation | undefined { return this._target; }
 	set target(value: TerminalLocation | undefined) {
 		if (this.xterm) {
@@ -276,7 +285,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	// TODO: Should this be an event as it can fire twice?
 	get processReady(): Promise<void> { return this._processManager.ptyProcessReady; }
 	get hasChildProcesses(): boolean { return this.shellLaunchConfig.attachPersistentProcess?.hasChildProcesses || this._processManager.hasChildProcesses; }
-	get reconnectionOwner(): string | undefined { return this.shellLaunchConfig.attachPersistentProcess?.reconnectionOwner || this.shellLaunchConfig.reconnectionOwner; }
+	get reconnectionProperties(): IReconnectionProperties | undefined { return this.shellLaunchConfig.attachPersistentProcess?.reconnectionProperties || this.shellLaunchConfig.reconnectionProperties; }
 	get areLinksReady(): boolean { return this._areLinksReady; }
 	get initialDataEvents(): string[] | undefined { return this._initialDataEvents; }
 	get exitCode(): number | undefined { return this._exitCode; }
@@ -303,12 +312,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get description(): string | undefined {
 		if (this._description) {
 			return this._description;
-		} else if (this._shellLaunchConfig.type) {
-			if (this._shellLaunchConfig.type === 'Task') {
+		}
+		const type = this.shellLaunchConfig.attachPersistentProcess?.type || this.shellLaunchConfig.type;
+		if (type) {
+			if (type === 'Task') {
 				return nls.localize('terminalTypeTask', "Task");
-			} else {
-				return nls.localize('terminalTypeLocal', "Local");
 			}
+			return nls.localize('terminalTypeLocal', "Local");
 		}
 		return undefined;
 	}
@@ -406,6 +416,18 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// the resource is already set when it's been moved from another window
 		this._resource = resource || getTerminalUri(this._workspaceContextService.getWorkspace().id, this.instanceId, this.title);
+
+		if (this._shellLaunchConfig.attachPersistentProcess?.hideFromUser) {
+			this._shellLaunchConfig.hideFromUser = this._shellLaunchConfig.attachPersistentProcess.hideFromUser;
+		}
+
+		if (this._shellLaunchConfig.attachPersistentProcess?.isFeatureTerminal) {
+			this._shellLaunchConfig.isFeatureTerminal = this._shellLaunchConfig.attachPersistentProcess.isFeatureTerminal;
+		}
+
+		if (this._shellLaunchConfig.attachPersistentProcess?.type) {
+			this._shellLaunchConfig.type = this._shellLaunchConfig.attachPersistentProcess.type;
+		}
 
 		if (this.shellLaunchConfig.cwd) {
 			const cwdUri = typeof this._shellLaunchConfig.cwd === 'string' ? URI.from({
@@ -537,7 +559,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._labelComputer?.refreshLabel();
 			}
 		}));
-		this._workspaceContextService.onDidChangeWorkspaceFolders(() => this._labelComputer?.refreshLabel());
+		this.addDisposable(this._workspaceContextService.onDidChangeWorkspaceFolders(() => this._labelComputer?.refreshLabel()));
 
 		// Clear out initial data events after 10 seconds, hopefully extension hosts are up and
 		// running at that point.
@@ -677,7 +699,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._shutdownPersistentProcessId = shutdownPersistentProcessId;
 	}
 	get persistentProcessId(): number | undefined { return this._processManager.persistentProcessId ?? this._shutdownPersistentProcessId; }
-	get shouldPersist(): boolean { return (this._processManager.shouldPersist || this._shutdownPersistentProcessId !== undefined) && !this.shellLaunchConfig.isTransient; }
+	get shouldPersist(): boolean { return (this._processManager.shouldPersist || this._shutdownPersistentProcessId !== undefined) && !this.shellLaunchConfig.isTransient && (!this.reconnectionProperties || this._configurationService.getValue(TaskSettingId.Reconnection) === true); }
 
 	/**
 	 * Create xterm.js instance and attach data listeners.
@@ -760,11 +782,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._loadTypeAheadAddon(xterm);
 
-		this._configurationService.onDidChangeConfiguration(e => {
+		this.addDisposable(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalSettingId.LocalEchoEnabled)) {
 				this._loadTypeAheadAddon(xterm);
 			}
-		});
+		}));
 
 		this._pathService.userHome().then(userHome => {
 			this._userHome = userHome.fsPath;
@@ -830,14 +852,21 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this.xterm) {
 			return;
 		}
+		const runRecentStorageKey = `${TerminalStorageKeys.PinnedRecentCommandsPrefix}.${this._shellType}`;
 		let placeholder: string;
-		type Item = IQuickPickItem & { command?: ITerminalCommand };
-		let items: (Item | IQuickPickItem | IQuickPickSeparator)[] = [];
+		type Item = IQuickPickItem & { command?: ITerminalCommand; rawLabel: string };
+		let items: (Item | IQuickPickItem & { rawLabel: string } | IQuickPickSeparator)[] = [];
 		const commandMap: Set<string> = new Set();
 
 		const removeFromCommandHistoryButton: IQuickInputButton = {
 			iconClass: ThemeIcon.asClassName(Codicon.close),
 			tooltip: nls.localize('removeCommand', "Remove from Command History")
+		};
+
+		const commandOutputButton: IQuickInputButton = {
+			iconClass: ThemeIcon.asClassName(Codicon.output),
+			tooltip: nls.localize('viewCommandOutput', "View Command Output"),
+			alwaysVisible: false
 		};
 
 		if (type === 'command') {
@@ -849,9 +878,18 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (executingCommand) {
 				commandMap.add(executingCommand);
 			}
+			function formatLabel(label: string) {
+				return label
+					// Replace new lines with "enter" symbol
+					.replace(/\r?\n/g, '\u23CE')
+					// Replace 3 or more spaces with midline horizontal ellipsis which looks similar
+					// to whitespace in the editor
+					.replace(/\s\s\s+/g, '\u22EF');
+			}
 			if (commands && commands.length > 0) {
 				for (const entry of commands) {
-					// trim off any whitespace and/or line endings
+					// Trim off any whitespace and/or line endings, replace new lines with the
+					// Downwards Arrow with Corner Leftwards symbol
 					const label = entry.command.trim();
 					if (label.length === 0 || commandMap.has(label)) {
 						continue;
@@ -867,12 +905,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						}
 					}
 					description = description.trim();
-					const iconClass = ThemeIcon.asClassName(Codicon.output);
-					const buttons: IQuickInputButton[] = [{
-						iconClass,
-						tooltip: nls.localize('viewCommandOutput', "View Command Output"),
-						alwaysVisible: false
-					}];
+					const buttons: IQuickInputButton[] = [commandOutputButton];
 					// Merge consecutive commands
 					const lastItem = items.length > 0 ? items[items.length - 1] : undefined;
 					if (lastItem?.type !== 'separator' && lastItem?.label === label) {
@@ -881,7 +914,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						continue;
 					}
 					items.push({
-						label,
+						label: formatLabel(label),
+						rawLabel: label,
 						description,
 						id: entry.timestamp.toString(),
 						command: entry,
@@ -893,7 +927,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 			if (executingCommand) {
 				items.unshift({
-					label: executingCommand,
+					label: formatLabel(executingCommand),
+					rawLabel: executingCommand,
 					description: cmdDetection.cwd
 				});
 			}
@@ -903,12 +938,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 			// Gather previous session history
 			const history = this._instantiationService.invokeFunction(getCommandHistory);
-			const previousSessionItems: IQuickPickItem[] = [];
+			const previousSessionItems: (IQuickPickItem & { rawLabel: string })[] = [];
 			for (const [label, info] of history.entries) {
 				// Only add previous session item if it's not in this session
 				if (!commandMap.has(label) && info.shellType === this.shellType) {
 					previousSessionItems.unshift({
-						label,
+						label: formatLabel(label),
+						rawLabel: label,
 						buttons: [removeFromCommandHistoryButton]
 					});
 					commandMap.add(label);
@@ -924,10 +960,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 			// Gather shell file history
 			const shellFileHistory = await this._instantiationService.invokeFunction(getShellFileHistory, this._shellType);
-			const dedupedShellFileItems: IQuickPickItem[] = [];
+			const dedupedShellFileItems: (IQuickPickItem & { rawLabel: string })[] = [];
 			for (const label of shellFileHistory) {
 				if (!commandMap.has(label)) {
-					dedupedShellFileItems.unshift({ label });
+					dedupedShellFileItems.unshift({
+						label: formatLabel(label),
+						rawLabel: label
+					});
 				}
 			}
 			if (dedupedShellFileItems.length > 0) {
@@ -943,7 +982,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			const cwds = this.capabilities.get(TerminalCapability.CwdDetection)?.cwds || [];
 			if (cwds && cwds.length > 0) {
 				for (const label of cwds) {
-					items.push({ label });
+					items.push({ label, rawLabel: label });
 				}
 				items = items.reverse();
 				items.unshift({ type: 'separator', label: terminalStrings.currentSessionCategory });
@@ -951,12 +990,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 			// Gather previous session history
 			const history = this._instantiationService.invokeFunction(getDirectoryHistory);
-			const previousSessionItems: IQuickPickItem[] = [];
+			const previousSessionItems: (IQuickPickItem & { rawLabel: string })[] = [];
 			// Only add previous session item if it's not in this session and it matches the remote authority
 			for (const [label, info] of history.entries) {
 				if ((info === null || info.remoteAuthority === this.remoteAuthority) && !cwds.includes(label)) {
 					previousSessionItems.unshift({
 						label,
+						rawLabel: label,
 						buttons: [removeFromCommandHistoryButton]
 					});
 				}
@@ -971,27 +1011,25 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (items.length === 0) {
 			return;
 		}
+		const fuzzySearchToggle = new Toggle({
+			title: 'Fuzzy search',
+			icon: Codicon.searchFuzzy,
+			isChecked: filterMode === 'fuzzy',
+			inputActiveOptionBorder: this._themeService.getColorTheme().getColor(inputActiveOptionBorder),
+			inputActiveOptionForeground: this._themeService.getColorTheme().getColor(inputActiveOptionForeground),
+			inputActiveOptionBackground: this._themeService.getColorTheme().getColor(inputActiveOptionBackground)
+		});
+		fuzzySearchToggle.onChange(() => {
+			this.runRecent(type, fuzzySearchToggle.checked ? 'fuzzy' : 'contiguous', quickPick.value);
+		});
 		const outputProvider = this._instantiationService.createInstance(TerminalOutputProvider);
-		const quickPick = this._quickInputService.createQuickPick();
+		const quickPick = this._quickInputService.createQuickPick<IQuickPickItem & { rawLabel: string }>();
 		const originalItems = items;
 		quickPick.items = [...originalItems];
 		quickPick.sortByLabel = false;
 		quickPick.placeholder = placeholder;
-		quickPick.customButton = true;
 		quickPick.matchOnLabelMode = filterMode || 'contiguous';
-		if (filterMode === 'fuzzy') {
-			quickPick.customLabel = nls.localize('terminal.contiguousSearch', 'Use Contiguous Search');
-			quickPick.onDidCustom(() => {
-				quickPick.hide();
-				this.runRecent(type, 'contiguous', quickPick.value);
-			});
-		} else {
-			quickPick.customLabel = nls.localize('terminal.fuzzySearch', 'Use Fuzzy Search');
-			quickPick.onDidCustom(() => {
-				quickPick.hide();
-				this.runRecent(type, 'fuzzy', quickPick.value);
-			});
-		}
+		quickPick.toggles = [fuzzySearchToggle];
 		quickPick.onDidTriggerItemButton(async e => {
 			if (e.button === removeFromCommandHistoryButton) {
 				if (type === 'command') {
@@ -999,7 +1037,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				} else {
 					this._instantiationService.invokeFunction(getDirectoryHistory)?.remove(e.item.label);
 				}
-			} else {
+			} else if (e.button === commandOutputButton) {
 				const selectedCommand = (e.item as Item).command;
 				const output = selectedCommand?.getOutput();
 				if (output && selectedCommand?.command) {
@@ -1017,19 +1055,31 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					}
 				}
 			}
-			quickPick.hide();
+			await this.runRecent(type, filterMode, value);
+		}
+		);
+		quickPick.onDidChangeValue(async value => {
+			if (!value) {
+				await this.runRecent(type, filterMode, value);
+			}
 		});
-		quickPick.onDidAccept(() => {
+		quickPick.onDidAccept(async () => {
 			const result = quickPick.activeItems[0];
-			this.sendText(type === 'cwd' ? `cd ${result.label}` : result.label, !quickPick.keyMods.alt);
+			let text: string;
+			if (type === 'cwd') {
+				text = `cd ${await preparePathForShell(result.rawLabel, this._shellLaunchConfig.executable, this.title, this._shellType, this._processManager.backend, this._processManager.os)}`;
+			} else { // command
+				text = result.rawLabel;
+			}
+			this.sendText(text, !quickPick.keyMods.alt, true);
 			quickPick.hide();
 		});
 		if (value) {
 			quickPick.value = value;
 		}
 		return new Promise<void>(r => {
-			quickPick.show();
 			this._terminalInRunCommandPicker.set(true);
+			showWithPinnedItems(this._storageService, runRecentStorageKey, quickPick, true);
 			quickPick.onDidHide(() => {
 				this._terminalInRunCommandPicker.set(false);
 				r();
@@ -1219,7 +1269,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// If IShellLaunchConfig.waitOnExit was true and the process finished before the terminal
 		// panel was initialized.
-		if (xterm.raw.getOption('disableStdin')) {
+		if (xterm.raw.options.disableStdin) {
 			this._attachPressAnyKeyToCloseListener(xterm.raw);
 		}
 	}
@@ -1432,8 +1482,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	async detachProcessAndDispose(reason: TerminalExitReason): Promise<void> {
 		// Detach the process and dispose the instance, without the instance dispose the terminal
-		// won't go away
-		await this._processManager.detachFromProcess();
+		// won't go away. Force persist if the detach was requested by the user (not shutdown).
+		await this._processManager.detachFromProcess(reason === TerminalExitReason.User);
 		this.dispose(reason);
 	}
 
@@ -1486,7 +1536,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this.xterm.raw.paste(currentText);
 	}
 
-	async sendText(text: string, addNewLine: boolean): Promise<void> {
+	async sendText(text: string, addNewLine: boolean, bracketedPasteMode?: boolean): Promise<void> {
+		// Apply bracketed paste sequences if the terminal has the mode enabled, this will prevent
+		// the text from triggering keybindings and ensure new lines are handled properly
+		if (bracketedPasteMode && this.xterm?.raw.modes.bracketedPasteMode) {
+			text = `\x1b[200~${text}\x1b[201~`;
+		}
+
 		// Normalize line endings to 'enter' press.
 		text = text.replace(/\r?\n/g, '\r');
 		if (addNewLine && text[text.length - 1] !== '\r') {
@@ -1747,18 +1803,19 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// Only trigger wait on exit when the exit was *not* triggered by the
 		// user (via the `workbench.action.terminal.kill` command).
-		if (this._shellLaunchConfig.waitOnExit && this._processManager.processState !== ProcessState.KilledByUser) {
+		const waitOnExit = this.waitOnExit;
+		if (waitOnExit && this._processManager.processState !== ProcessState.KilledByUser) {
 			this._xtermReadyPromise.then(xterm => {
 				if (exitMessage) {
 					xterm.raw.write(formatMessageForTerminal(exitMessage));
 				}
-				switch (typeof this._shellLaunchConfig.waitOnExit) {
+				switch (typeof waitOnExit) {
 					case 'string':
-						xterm.raw.write(formatMessageForTerminal(this._shellLaunchConfig.waitOnExit, { excludeLeadingNewLine: true }));
+						xterm.raw.write(formatMessageForTerminal(waitOnExit, { excludeLeadingNewLine: true }));
 						break;
 					case 'function':
 						if (this.exitCode !== undefined) {
-							xterm.raw.write(formatMessageForTerminal(this._shellLaunchConfig.waitOnExit(this.exitCode), { excludeLeadingNewLine: true }));
+							xterm.raw.write(formatMessageForTerminal(waitOnExit(this.exitCode), { excludeLeadingNewLine: true }));
 						}
 						break;
 				}
@@ -2350,12 +2407,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		// Recreate the process if the terminal has not yet been interacted with and it's not a
-		// special terminal (eg. task, extension terminal)
+		// special terminal (eg. extension terminal)
 		if (
 			info.requiresAction &&
 			this._configHelper.config.environmentChangesRelaunch &&
 			!this._processManager.hasWrittenData &&
-			(this.reconnectionOwner || !this._shellLaunchConfig.isFeatureTerminal) &&
+			(!this._shellLaunchConfig.isFeatureTerminal || (this.reconnectionProperties && this._configurationService.getValue(TaskSettingId.Reconnection) === true)) &&
 			!this._shellLaunchConfig.customPtyImplementation
 			&& !this._shellLaunchConfig.isExtensionOwnedTerminal &&
 			!this._shellLaunchConfig.attachPersistentProcess
@@ -2454,7 +2511,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const colorTheme = this._themeService.getColorTheme();
 		const standardColors: string[] = getStandardColors(colorTheme);
 		const styleElement = getColorStyleElement(colorTheme);
-		const items: (IQuickPickItem | IQuickPickSeparator)[] = [];
+		const items: QuickPickItem[] = [];
 		for (const colorKey of standardColors) {
 			const colorClass = getColorClass(colorKey);
 			items.push({
@@ -2715,14 +2772,15 @@ export class TerminalLabelComputer extends Disposable {
 		labelType: TerminalLabelType,
 		reset?: boolean
 	) {
+		const type = this._instance.shellLaunchConfig.attachPersistentProcess?.type || this._instance.shellLaunchConfig.type;
 		const templateProperties: ITerminalLabelTemplateProperties = {
 			cwd: this._instance.cwd || this._instance.initialCwd || '',
 			cwdFolder: '',
 			workspaceFolder: this._instance.workspaceFolder ? path.basename(this._instance.workspaceFolder.uri.fsPath) : undefined,
-			local: this._instance.shellLaunchConfig.type === 'Local' ? this._instance.shellLaunchConfig.type : undefined,
+			local: type === 'Local' ? type : undefined,
 			process: this._instance.processName,
 			sequence: this._instance.sequence,
-			task: this._instance.shellLaunchConfig.type === 'Task' ? this._instance.shellLaunchConfig.type : undefined,
+			task: type === 'Task' ? type : undefined,
 			fixedDimensions: this._instance.fixedCols
 				? (this._instance.fixedRows ? `\u2194${this._instance.fixedCols} \u2195${this._instance.fixedRows}` : `\u2194${this._instance.fixedCols}`)
 				: (this._instance.fixedRows ? `\u2195${this._instance.fixedRows}` : ''),

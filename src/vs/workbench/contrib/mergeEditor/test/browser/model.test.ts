@@ -8,11 +8,11 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { transaction } from 'vs/base/common/observable';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Range } from 'vs/editor/common/core/range';
+import { linesDiffComputers } from 'vs/editor/common/diff/linesDiffComputers';
 import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
-import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
 import { createModelServices, createTextModel } from 'vs/editor/test/common/testTextModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EditorWorkerServiceDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
+import { MergeDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
 
 suite('merge editor model', () => {
@@ -257,34 +257,43 @@ class MergeModelInterface extends Disposable {
 		const input2TextModel = this._register(createTextModel(options.input2, options.languageId));
 		const baseTextModel = this._register(createTextModel(options.base, options.languageId));
 		const resultTextModel = this._register(createTextModel(options.result, options.languageId));
-		this.mergeModel = this._register(instantiationService.createInstance(MergeEditorModel,
-			baseTextModel,
-			input1TextModel,
-			'',
-			'',
-			'',
-			input2TextModel,
-			'',
-			'',
-			'',
-			resultTextModel,
+
+		const diffComputer = instantiationService.createInstance(MergeDiffComputer,
 			{
+				// Don't go through the webworker to improve unit test performance & reduce dependencies
 				async computeDiff(textModel1, textModel2) {
-					const result = EditorSimpleWorker.computeDiff(textModel1, textModel2, false, 10000);
-					if (!result) {
-						return { diffs: null };
-					}
+					const result = linesDiffComputers.smart.computeDiff(
+						textModel1.getLinesContent(),
+						textModel2.getLinesContent(),
+						{ ignoreTrimWhitespace: false, maxComputationTime: 10000 }
+					);
 					return {
-						diffs: EditorWorkerServiceDiffComputer.fromDiffComputationResult(
-							result,
-							textModel1,
-							textModel2
-						),
+						changes: result.changes,
+						quitEarly: result.quitEarly,
+						identical: result.changes.length === 0
 					};
 				},
-			}, {
-			resetUnknownOnInitialization: false
-		}
+			}
+		);
+
+		this.mergeModel = this._register(instantiationService.createInstance(MergeEditorModel,
+			baseTextModel,
+			{
+				textModel: input1TextModel,
+				description: '',
+				detail: '',
+				title: '',
+			},
+			{
+				textModel: input2TextModel,
+				description: '',
+				detail: '',
+				title: '',
+			},
+			resultTextModel,
+			diffComputer,
+			diffComputer,
+			{ resetUnknownOnInitialization: false }
 		));
 	}
 
@@ -310,7 +319,7 @@ class MergeModelInterface extends Disposable {
 			}))
 		);
 
-		const input1TextModel = createTextModel(this.mergeModel.input1.getValue());
+		const input1TextModel = createTextModel(this.mergeModel.input1.textModel.getValue());
 		applyRanges(
 			input1TextModel,
 			baseRanges.map<LabeledRange>((r, idx) => ({
@@ -319,7 +328,7 @@ class MergeModelInterface extends Disposable {
 			}))
 		);
 
-		const input2TextModel = createTextModel(this.mergeModel.input2.getValue());
+		const input2TextModel = createTextModel(this.mergeModel.input2.textModel.getValue());
 		applyRanges(
 			input2TextModel,
 			baseRanges.map<LabeledRange>((r, idx) => ({
@@ -328,7 +337,7 @@ class MergeModelInterface extends Disposable {
 			}))
 		);
 
-		const resultTextModel = createTextModel(this.mergeModel.result.getValue());
+		const resultTextModel = createTextModel(this.mergeModel.resultTextModel.getValue());
 		applyRanges(
 			resultTextModel,
 			baseRanges.map<LabeledRange>((r, idx) => ({
@@ -362,6 +371,6 @@ class MergeModelInterface extends Disposable {
 	}
 
 	getResult(): string {
-		return this.mergeModel.result.getValue();
+		return this.mergeModel.resultTextModel.getValue();
 	}
 }

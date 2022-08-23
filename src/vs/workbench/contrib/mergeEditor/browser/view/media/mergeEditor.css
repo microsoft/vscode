@@ -3,50 +3,50 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .merge-editor .code-view > .title {
+.monaco-workbench .merge-editor .code-view>.title {
 	padding: 0 10px;
 	height: 30px;
 	display: flex;
 	align-content: center;
 }
 
-.monaco-workbench .merge-editor .code-view > .title>SPAN {
+.monaco-workbench .merge-editor .code-view>.title>SPAN {
 	align-self: center;
 	text-overflow: ellipsis;
 	overflow: hidden;
 	padding-right: 6px;
+	white-space: nowrap;
 }
 
-.monaco-workbench .merge-editor .code-view > .title>SPAN.title {
+.monaco-workbench .merge-editor .code-view>.title>SPAN.title {
 	flex-shrink: 0;
 }
 
-.monaco-workbench .merge-editor .code-view > .title>SPAN.description {
+.monaco-workbench .merge-editor .code-view>.title>SPAN.description {
 	opacity: 0.7;
 	font-size: 90%;
 }
 
-.monaco-workbench .merge-editor .code-view > .title>SPAN.detail {
+.monaco-workbench .merge-editor .code-view>.title>SPAN.detail {
 	margin-left: auto;
 	flex-shrink: 0;
 }
 
-.monaco-workbench .merge-editor .code-view > .container {
+.monaco-workbench .merge-editor .code-view>.title>SPAN.detail .codicon {
+	font-size: 13px;
+}
+
+.monaco-workbench .merge-editor .code-view>.container {
 	display: flex;
 	flex-direction: row;
 }
 
-.monaco-workbench .merge-editor .code-view > .container > .gutter {
+.monaco-workbench .merge-editor .code-view>.container>.gutter {
 	width: 24px;
 	position: relative;
 	overflow: hidden;
-
 	flex-shrink: 0;
 	flex-grow: 0;
-}
-
-.merge-editor-diff {
-	background-color: var(--vscode-mergeEditor-change-background);
 }
 
 .merge-editor-diff-word {
@@ -54,23 +54,25 @@
 }
 
 .merge-editor-block {
-	border: 2px solid var(--vscode-mergeEditor-conflict-unhandledUnfocused-border);
+	background-color: var(--vscode-mergeEditor-conflict-unhandledUnfocused-background);
+	border: 1px dashed var(--vscode-mergeEditor-conflict-unhandledUnfocused-border);
 }
 
 .merge-editor-block.focused {
-	border: 2px solid var(--vscode-mergeEditor-conflict-unhandledFocused-border);
+	border: 1px dashed var(--vscode-mergeEditor-conflict-unhandledFocused-border);
 }
 
 .merge-editor-block.handled {
-	border: 2px solid var(--vscode-mergeEditor-conflict-handledUnfocused-border);
-
+	border: 1px solid var(--vscode-mergeEditor-conflict-handledUnfocused-border);
+	background-color: var(--vscode-mergeEditor-conflict-handledUnfocused-background);
 }
 
 .merge-editor-block.handled.focused {
-	border: 2px solid var(--vscode-mergeEditor-conflict-handledFocused-border);
+	border: 1px solid var(--vscode-mergeEditor-conflict-handledFocused-border);
+	background-color: var(--vscode-mergeEditor-conflict-handledFocused-background);
 }
 
-.gutter-item {
+.gutter.monaco-editor>div {
 	position: absolute;
 }
 
@@ -85,26 +87,56 @@
 	position: absolute;
 }
 
+.merge-accept-gutter-marker.multi-line.focused .background {
+	border: 1px dashed var(--vscode-mergeEditor-conflict-unhandledFocused-border);
+	border-right: 0;
+}
+
 .merge-accept-gutter-marker.multi-line .background {
+	border: 1px dashed var(--vscode-mergeEditor-conflict-unhandledUnfocused-border);
+	border-right: 0;
+}
+
+.merge-accept-gutter-marker.multi-line.handled.focused .background {
+	border: 1px solid var(--vscode-mergeEditor-conflict-handledFocused-border);
+	border-right: 0;
+}
+
+.merge-accept-gutter-marker.multi-line.handled .background {
 	border: 1px solid var(--vscode-checkbox-border);
 	border-right: 0;
+}
+
+
+.focused .accept-conflict-group.monaco-custom-toggle {
+	border: 1px solid var(--vscode-mergeEditor-conflict-unhandledFocused-border);
+}
+
+.accept-conflict-group.monaco-custom-toggle {
+	border: 1px solid var(--vscode-mergeEditor-conflict-unhandledUnfocused-border);
+}
+
+.handled.focused .accept-conflict-group.monaco-custom-toggle {
+	border: 1px solid var(--vscode-mergeEditor-conflict-handledFocused-border);
+}
+
+.handled .accept-conflict-group.monaco-custom-toggle {
+	border: 1px solid var(--vscode-checkbox-border);
+}
+
+.merge-accept-gutter-marker.multi-line .background {
 	left: 8px;
 	width: 10px;
 }
 
 .merge-accept-gutter-marker .checkbox {
-	height: 100%;
 	width: 100%;
 	position: absolute;
-	display: flex;
-	flex-direction: column;
-	justify-content: center;
 }
 
 .accept-conflict-group.monaco-custom-toggle {
 	height: 18px;
 	width: 18px;
-	border: 1px solid transparent;
 	border-radius: 3px;
 	margin-right: 0px;
 	margin-left: 0px;
@@ -115,5 +147,41 @@
 }
 
 .merge-accept-gutter-marker .checkbox-background {
+	display: flex;
 	background: var(--vscode-editor-background);
+}
+
+.conflict-zone-root {
+	border: 1px dashed var(--vscode-mergeEditor-conflict-unhandledUnfocused-border);
+	background-color: var(--vscode-mergeEditor-conflict-unhandledUnfocused-background);
+
+	height: 90%;
+	display: flex;
+	align-items: center;
+	align-content: center;
+}
+
+.conflict-zone-root .dots {
+	margin: 0 10px;
+}
+
+.conflict-zone-root pre {
+	display: 'inline';
+	font-family: var(--monaco-monospace-font);
+}
+
+.conflict-zone-root .text {
+	margin-left: auto;
+	padding: 0 8px;
+	display: flex;
+	align-items: center;
+	/* background: var(--vscode-mergeEditor-conflict-unhandledUnfocused-background); */
+	height: 100%;
+	white-space: nowrap;
+	overflow: hidden;
+}
+
+
+.focused.conflict-zone .conflict-zone-root {
+	border: 1px dashed var(--vscode-mergeEditor-conflict-unhandledFocused-border);
 }

@@ -81,9 +81,7 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 	let istream: WriteStream;
 
 	token.onCancellationRequested(() => {
-		if (istream) {
-			istream.destroy();
-		}
+		istream?.destroy();
 	});
 
 	return Promise.resolve(Promises.mkdir(targetDirName, { recursive: true })).then(() => new Promise<void>((c, e) => {

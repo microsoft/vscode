@@ -6,14 +6,13 @@
 import { $, Dimension, reset } from 'vs/base/browser/dom';
 import { Direction, Grid, IView, SerializableGrid } from 'vs/base/browser/ui/grid/grid';
 import { Orientation, Sizing } from 'vs/base/browser/ui/splitview/splitview';
-import { IAction } from 'vs/base/common/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Color } from 'vs/base/common/color';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { autorunWithStore, IObservable } from 'vs/base/common/observable';
-import { isEqual } from 'vs/base/common/resources';
+import { basename, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/mergeEditor';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -23,8 +22,7 @@ import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/ed
 import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { localize } from 'vs/nls';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOptions, ITextEditorOptions, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
@@ -34,20 +32,20 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
 import { AbstractTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { DEFAULT_EDITOR_ASSOCIATION, EditorInputWithOptions, IEditorOpenContext, IResourceMergeEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
+import { readTransientState, writeTransientState } from 'vs/workbench/contrib/codeEditor/browser/toggleWordWrap';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { DocumentMapping, getOppositeDirection, MappingDirection } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
 import { deepMerge, ReentrancyBarrier, thenIfNotDisposed } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
-import { ctxBaseResourceScheme, ctxIsMergeEditor, ctxMergeEditorLayout, MergeEditorLayoutTypes } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
+import { ctxMergeBaseUri, ctxIsMergeEditor, ctxMergeEditorLayout, ctxMergeResultUri, MergeEditorLayoutTypes } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
 import { settingsSashBorder } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
+import { IEditorResolverService, MergeEditorInputFactoryFunction, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import './colors';
 import { InputCodeEditorView } from './editors/inputCodeEditorView';
@@ -87,14 +85,15 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 	private readonly _sessionDisposables = new DisposableStore();
 
 	private _grid!: Grid<IView>;
-	private readonly input1View = this._register(this.instantiationService.createInstance(InputCodeEditorView, 1));
-	private readonly input2View = this._register(this.instantiationService.createInstance(InputCodeEditorView, 2));
+	private readonly input1View = this._register(this.instantiationService.createInstance(InputCodeEditorView, 1, MenuId.MergeInput1Toolbar));
+	private readonly input2View = this._register(this.instantiationService.createInstance(InputCodeEditorView, 2, MenuId.MergeInput2Toolbar));
 	private readonly inputResultView = this._register(this.instantiationService.createInstance(ResultCodeEditorView));
 
 	private readonly _layoutMode: MergeEditorLayout;
 	private readonly _ctxIsMergeEditor: IContextKey<boolean>;
 	private readonly _ctxUsesColumnLayout: IContextKey<string>;
-	private readonly _ctxBaseResourceScheme: IContextKey<string>;
+	private readonly _ctxResultUri: IContextKey<string>;
+	private readonly _ctxBaseUri: IContextKey<string>;
 
 	private _model: MergeEditorModel | undefined;
 	public get model(): MergeEditorModel | undefined { return this._model; }
@@ -106,8 +105,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 	constructor(
 		@IInstantiationService instantiation: IInstantiationService,
 		@ILabelService private readonly _labelService: ILabelService,
-		@IMenuService private readonly _menuService: IMenuService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
 		@IThemeService themeService: IThemeService,
@@ -116,12 +114,14 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		@IEditorService editorService: IEditorService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IFileService fileService: IFileService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 	) {
 		super(MergeEditor.ID, telemetryService, instantiation, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService, fileService);
 
-		this._ctxIsMergeEditor = ctxIsMergeEditor.bindTo(_contextKeyService);
-		this._ctxUsesColumnLayout = ctxMergeEditorLayout.bindTo(_contextKeyService);
-		this._ctxBaseResourceScheme = ctxBaseResourceScheme.bindTo(_contextKeyService);
+		this._ctxIsMergeEditor = ctxIsMergeEditor.bindTo(contextKeyService);
+		this._ctxUsesColumnLayout = ctxMergeEditorLayout.bindTo(contextKeyService);
+		this._ctxBaseUri = ctxMergeBaseUri.bindTo(contextKeyService);
+		this._ctxResultUri = ctxMergeResultUri.bindTo(contextKeyService);
 
 		this._layoutMode = instantiation.createInstance(MergeEditorLayout);
 		this._ctxUsesColumnLayout.set(this._layoutMode.value);
@@ -161,41 +161,23 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		this._store.add(
 			this.inputResultView.editor.onDidScrollChange(
 				reentrancyBarrier.makeExclusive((c) => {
-					if (c.scrollTopChanged) {
-						const mapping1 = this.model?.input1ResultMapping.get();
-						synchronizeScrolling(this.inputResultView.editor, this.input1View.editor, mapping1, MappingDirection.output);
-						const mapping2 = this.model?.input2ResultMapping.get();
-						synchronizeScrolling(this.inputResultView.editor, this.input2View.editor, mapping2, MappingDirection.output);
-					}
-					if (c.scrollLeftChanged) {
-						this.input1View.editor.setScrollLeft(c.scrollLeft, ScrollType.Immediate);
-						this.input2View.editor.setScrollLeft(c.scrollLeft, ScrollType.Immediate);
-					}
+					this.updateResultScrolling(c.scrollTopChanged, c.scrollLeftChanged);
 				})
 			)
 		);
+	}
 
-
-		// TODO@jrieken make this proper: add menu id and allow extensions to contribute
-		const toolbarMenu = this._menuService.createMenu(MenuId.MergeToolbar, this._contextKeyService);
-		const toolbarMenuDisposables = new DisposableStore();
-		const toolbarMenuRender = () => {
-			toolbarMenuDisposables.clear();
-
-			const actions: IAction[] = [];
-			createAndFillInActionBarActions(toolbarMenu, { renderShortTitle: true, shouldForwardArgs: true }, actions);
-			if (actions.length > 0) {
-				const [first] = actions;
-				const acceptBtn = this.instantiationService.createInstance(FloatingClickWidget, this.inputResultView.editor, first.label, first.id);
-				toolbarMenuDisposables.add(acceptBtn.onClick(() => first.run(this.inputResultView.editor.getModel()?.uri)));
-				toolbarMenuDisposables.add(acceptBtn);
-				acceptBtn.render();
-			}
-		};
-		this._store.add(toolbarMenu);
-		this._store.add(toolbarMenuDisposables);
-		this._store.add(toolbarMenu.onDidChange(toolbarMenuRender));
-		toolbarMenuRender();
+	private updateResultScrolling(scrollTopChanged: boolean, scrollLeftChanged: boolean): void {
+		if (scrollTopChanged) {
+			const mapping1 = this.model?.input1ResultMapping.get();
+			synchronizeScrolling(this.inputResultView.editor, this.input1View.editor, mapping1, MappingDirection.output);
+			const mapping2 = this.model?.input2ResultMapping.get();
+			synchronizeScrolling(this.inputResultView.editor, this.input2View.editor, mapping2, MappingDirection.output);
+		}
+		if (scrollLeftChanged) {
+			this.input1View.editor.setScrollLeft(this.inputResultView.editor.getScrollLeft(), ScrollType.Immediate);
+			this.input2View.editor.setScrollLeft(this.inputResultView.editor.getScrollLeft(), ScrollType.Immediate);
+		}
 	}
 
 	public get viewModel(): IObservable<MergeEditorViewModel | undefined> {
@@ -205,6 +187,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 	override dispose(): void {
 		this._sessionDisposables.dispose();
 		this._ctxIsMergeEditor.reset();
+		this._ctxUsesColumnLayout.reset();
 		super.dispose();
 	}
 
@@ -302,10 +285,24 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 
 		const viewModel = new MergeEditorViewModel(model, this.input1View, this.input2View, this.inputResultView);
 
-		this.input1View.setModel(viewModel, model.input1, model.input1Title || localize('input1', 'Input 1'), model.input1Detail, model.input1Description);
-		this.input2View.setModel(viewModel, model.input2, model.input2Title || localize('input2', 'Input 2',), model.input2Detail, model.input2Description);
-		this.inputResultView.setModel(viewModel, model.result, localize('result', 'Result',), this._labelService.getUriLabel(model.result.uri, { relative: true }), undefined);
-		this._ctxBaseResourceScheme.set(model.base.uri.scheme);
+		this.input1View.setModel(viewModel, { ...model.input1, title: model.input1.title || localize('input1', 'Input 1') });
+		this.input2View.setModel(viewModel, { ...model.input2, title: model.input2.title || localize('input2', 'Input 2') });
+		this.inputResultView.setModel(viewModel,
+			{
+				textModel: model.resultTextModel,
+				title: localize('result', 'Result'),
+				description: this._labelService.getUriLabel(model.resultTextModel.uri, { relative: true }),
+				detail: undefined,
+			},
+		);
+
+		// Set/unset context keys based on input
+		this._ctxResultUri.set(model.resultTextModel.uri.toString());
+		this._ctxBaseUri.set(model.base.uri.toString());
+		this._sessionDisposables.add(toDisposable(() => {
+			this._ctxBaseUri.reset();
+			this._ctxResultUri.reset();
+		}));
 
 		const viewState = this.loadEditorViewState(input, context);
 		if (viewState) {
@@ -324,25 +321,25 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		this._sessionDisposables.add(autorunWithStore((reader, store) => {
 			const input1ViewZoneIds: string[] = [];
 			const input2ViewZoneIds: string[] = [];
-			for (const m of model.modifiedBaseRanges.read(reader)) {
-				const max = Math.max(m.input1Range.lineCount, m.input2Range.lineCount, 1);
+			this.input1View.editor.changeViewZones(a1 => {
+				this.input2View.editor.changeViewZones(a2 => {
+					for (const m of model.modifiedBaseRanges.read(reader)) {
+						const max = Math.max(m.input1Range.lineCount, m.input2Range.lineCount, 1);
 
-				this.input1View.editor.changeViewZones(a => {
-					input1ViewZoneIds.push(a.addZone({
-						afterLineNumber: m.input1Range.endLineNumberExclusive - 1,
-						heightInLines: max - m.input1Range.lineCount,
-						domNode: $('div.diagonal-fill'),
-					}));
-				});
+						input1ViewZoneIds.push(a1.addZone({
+							afterLineNumber: m.input1Range.endLineNumberExclusive - 1,
+							heightInLines: max - m.input1Range.lineCount,
+							domNode: $('div.diagonal-fill'),
+						}));
 
-				this.input2View.editor.changeViewZones(a => {
-					input2ViewZoneIds.push(a.addZone({
-						afterLineNumber: m.input2Range.endLineNumberExclusive - 1,
-						heightInLines: max - m.input2Range.lineCount,
-						domNode: $('div.diagonal-fill'),
-					}));
+						input2ViewZoneIds.push(a2.addZone({
+							afterLineNumber: m.input2Range.endLineNumberExclusive - 1,
+							heightInLines: max - m.input2Range.lineCount,
+							domNode: $('div.diagonal-fill'),
+						}));
+					}
 				});
-			}
+			});
 
 			store.add({
 				dispose: () => {
@@ -359,6 +356,59 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 				}
 			});
 		}, 'update alignment view zones'));
+
+		// word wrap special case - sync transient state from result model to input[1|2] models
+		const mirrorWordWrapTransientState = () => {
+			const state = readTransientState(model.resultTextModel, this._codeEditorService);
+			writeTransientState(model.input2.textModel, state, this._codeEditorService);
+			writeTransientState(model.input1.textModel, state, this._codeEditorService);
+		};
+		this._sessionDisposables.add(this._codeEditorService.onDidChangeTransientModelProperty(candidate => {
+			if (candidate === this.inputResultView.editor.getModel()) {
+				mirrorWordWrapTransientState();
+			}
+		}));
+		mirrorWordWrapTransientState();
+
+		this.updateResultScrolling(true, true);
+
+		// detect when base, input1, and input2 become empty and replace THIS editor with its result editor
+		// TODO@jrieken@hediet this needs a better/cleaner solution
+		// https://github.com/microsoft/vscode/issues/155940
+		const that = this;
+		this._sessionDisposables.add(new class {
+
+			private readonly _disposable = new DisposableStore();
+
+			constructor() {
+				for (const model of this.baseInput1Input2()) {
+					this._disposable.add(model.onDidChangeContent(() => this._checkBaseInput1Input2AllEmpty()));
+				}
+			}
+
+			dispose() {
+				this._disposable.dispose();
+			}
+
+			private *baseInput1Input2() {
+				yield model.base;
+				yield model.input1.textModel;
+				yield model.input2.textModel;
+			}
+
+			private _checkBaseInput1Input2AllEmpty() {
+				for (const model of this.baseInput1Input2()) {
+					if (model.getValueLength() > 0) {
+						return;
+					}
+				}
+				// all empty -> replace this editor with a normal editor for result
+				that.editorService.replaceEditors(
+					[{ editor: input, replacement: { resource: input.result }, forceReplaceDirty: true }],
+					that.group ?? that.editorGroupService.activeGroup
+				);
+			}
+		});
 	}
 
 	override setOptions(options: ITextEditorOptions | undefined): void {
@@ -452,7 +502,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 	}
 
 	protected computeEditorViewState(resource: URI): IMergeEditorViewState | undefined {
-		if (!isEqual(this.model?.result.uri, resource)) {
+		if (!isEqual(this.model?.resultTextModel.uri, resource)) {
 			return undefined;
 		}
 		const result = this.inputResultView.editor.saveViewState();
@@ -510,58 +560,39 @@ export class MergeEditorResolverContribution extends Disposable {
 	) {
 		super();
 
+		const mergeEditorInputFactory: MergeEditorInputFactoryFunction = (mergeEditor: IResourceMergeEditorInput): EditorInputWithOptions => {
+			return {
+				editor: instantiationService.createInstance(
+					MergeEditorInput,
+					mergeEditor.base.resource,
+					{
+						uri: mergeEditor.input1.resource,
+						title: mergeEditor.input1.label ?? basename(mergeEditor.input1.resource),
+						description: mergeEditor.input1.description ?? '',
+						detail: mergeEditor.input1.detail
+					},
+					{
+						uri: mergeEditor.input2.resource,
+						title: mergeEditor.input2.label ?? basename(mergeEditor.input2.resource),
+						description: mergeEditor.input2.description ?? '',
+						detail: mergeEditor.input2.detail
+					},
+					mergeEditor.result.resource
+				)
+			};
+		};
+
 		this._register(editorResolverService.registerEditor(
 			`*`,
 			{
-				id: MergeEditorInput.ID,
-				label: localize('editor.mergeEditor.label', "Merge Editor"),
+				id: DEFAULT_EDITOR_ASSOCIATION.id,
+				label: DEFAULT_EDITOR_ASSOCIATION.displayName,
 				detail: DEFAULT_EDITOR_ASSOCIATION.providerDisplayName,
-				priority: RegisteredEditorPriority.option
+				priority: RegisteredEditorPriority.builtin
 			},
 			{},
-			(editor) => {
-				return {
-					editor: instantiationService.createInstance(
-						MergeEditorInput,
-						editor.resource,
-						{
-							uri: editor.resource,
-							title: '',
-							description: '',
-							detail: ''
-						},
-						{
-							uri: editor.resource,
-							title: '',
-							description: '',
-							detail: ''
-						},
-						editor.resource
-					)
-				};
-			},
-			undefined,
-			undefined,
-			(mergeEditor: IResourceMergeEditorInput): EditorInputWithOptions => {
-				return {
-					editor: instantiationService.createInstance(
-						MergeEditorInput,
-						mergeEditor.base.resource,
-						{
-							uri: mergeEditor.input1.resource,
-							title: localize('input1Title', "First Version"),
-							description: '',
-							detail: ''
-						},
-						{
-							uri: mergeEditor.input2.resource,
-							title: localize('input2Title', "Second Version"),
-							description: '',
-							detail: ''
-						},
-						mergeEditor.result.resource
-					)
-				};
+			{
+				createMergeEditorInput: mergeEditorInputFactory
 			}
 		));
 	}

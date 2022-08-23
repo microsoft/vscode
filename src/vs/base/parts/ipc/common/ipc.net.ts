@@ -136,6 +136,12 @@ export interface WebSocketCloseEvent {
 
 export type SocketCloseEvent = NodeSocketCloseEvent | WebSocketCloseEvent | undefined;
 
+export interface SocketTimeoutEvent {
+	readonly unacknowledgedMsgCount: number;
+	readonly timeSinceOldestUnacknowledgedMsg: number;
+	readonly timeSinceLastReceivedSomeData: number;
+}
+
 export interface ISocket extends IDisposable {
 	onData(listener: (e: VSBuffer) => void): IDisposable;
 	onClose(listener: (e: SocketCloseEvent) => void): IDisposable;
@@ -667,6 +673,16 @@ class Queue<T> {
 		this._last = null;
 	}
 
+	public length(): number {
+		let result = 0;
+		let current = this._first;
+		while (current) {
+			current = current.next;
+			result++;
+		}
+		return result;
+	}
+
 	public peek(): T | null {
 		if (!this._first) {
 			return null;
@@ -800,8 +816,8 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	private readonly _onSocketClose = new BufferedEmitter<SocketCloseEvent>();
 	readonly onSocketClose: Event<SocketCloseEvent> = this._onSocketClose.event;
 
-	private readonly _onSocketTimeout = new BufferedEmitter<void>();
-	readonly onSocketTimeout: Event<void> = this._onSocketTimeout.event;
+	private readonly _onSocketTimeout = new BufferedEmitter<SocketTimeoutEvent>();
+	readonly onSocketTimeout: Event<SocketTimeoutEvent> = this._onSocketTimeout.event;
 
 	public get unacknowledgedCount(): number {
 		return this._outgoingMsgId - this._outgoingAckId;
@@ -1081,7 +1097,11 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 			if (!this._loadEstimator.hasHighLoad()) {
 				// Trash the socket
 				this._lastSocketTimeoutTime = Date.now();
-				this._onSocketTimeout.fire(undefined);
+				this._onSocketTimeout.fire({
+					unacknowledgedMsgCount: this._outgoingUnackMsg.length(),
+					timeSinceOldestUnacknowledgedMsg,
+					timeSinceLastReceivedSomeData
+				});
 				return;
 			}
 		}

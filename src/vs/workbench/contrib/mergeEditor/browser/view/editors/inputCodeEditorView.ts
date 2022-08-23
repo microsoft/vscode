@@ -5,9 +5,11 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
+import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { clamp } from 'vs/base/common/numbers';
 import { autorun, derived, IObservable, ISettableObservable, ITransaction, transaction, observableValue } from 'vs/base/common/observable';
 import { noBreakWhitespace } from 'vs/base/common/strings';
 import { isDefined } from 'vs/base/common/types';
@@ -15,6 +17,9 @@ import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/edi
 import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
 import { CodeLensContribution } from 'vs/editor/contrib/codelens/browser/codelensController';
 import { localize } from 'vs/nls';
+import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { attachToggleStyler } from 'vs/platform/theme/common/styler';
@@ -61,36 +66,38 @@ export class InputCodeEditorView extends CodeEditorView {
 							position: MinimapPosition.Gutter,
 							color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
 						},
-						overviewRuler: {
+						overviewRuler: modifiedBaseRange.isConflicting ? {
 							position: OverviewRulerLane.Center,
 							color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
-						}
+						} : undefined
 					}
 				});
 
-				const inputDiffs = modifiedBaseRange.getInputDiffs(this.inputNumber);
-				for (const diff of inputDiffs) {
-					const range = diff.outputRange.toInclusiveRange();
-					if (range) {
-						result.push({
-							range,
-							options: {
-								className: `merge-editor-diff ${inputClassName}`,
-								description: 'Merge Editor',
-								isWholeLine: true,
-							}
-						});
-					}
-
-					if (diff.rangeMappings) {
-						for (const d of diff.rangeMappings) {
+				if (modifiedBaseRange.isConflicting) {
+					const inputDiffs = modifiedBaseRange.getInputDiffs(this.inputNumber);
+					for (const diff of inputDiffs) {
+						const range = diff.outputRange.toInclusiveRange();
+						if (range) {
 							result.push({
-								range: d.outputRange,
+								range,
 								options: {
-									className: `merge-editor-diff-word ${inputClassName}`,
-									description: 'Merge Editor'
+									className: `merge-editor-diff ${inputClassName}`,
+									description: 'Merge Editor',
+									isWholeLine: true,
 								}
 							});
+						}
+
+						if (diff.rangeMappings) {
+							for (const d of diff.rangeMappings) {
+								result.push({
+									range: d.outputRange,
+									options: {
+										className: `merge-editor-diff-word ${inputClassName}`,
+										description: 'Merge Editor'
+									}
+								});
+							}
 						}
 					}
 				}
@@ -121,6 +128,21 @@ export class InputCodeEditorView extends CodeEditorView {
 						: input;
 				}
 				),
+				className: derived('checkbox classnames', (reader) => {
+					const classNames = [];
+					const active = viewModel.activeModifiedBaseRange.read(reader);
+					if (!model.has(baseRange)) {
+						return ''; // Invalid state, should only be observed temporarily
+					}
+					const isHandled = model.isHandled(baseRange).read(reader);
+					if (isHandled) {
+						classNames.push('handled');
+					}
+					if (baseRange === active) {
+						classNames.push('focused');
+					}
+					return classNames.join(' ');
+				}),
 				setState: (value, tx) => viewModel.setState(
 					baseRange,
 					model
@@ -169,7 +191,7 @@ export class InputCodeEditorView extends CodeEditorView {
 						baseRange.input1Diffs.length > 0
 							? action(
 								'mergeEditor.acceptInput1',
-								localize('mergeEditor.accept', 'Accept {0}', model.input1Title),
+								localize('mergeEditor.accept', 'Accept {0}', model.input1.title),
 								state.toggle(1),
 								state.input1
 							)
@@ -177,7 +199,7 @@ export class InputCodeEditorView extends CodeEditorView {
 						baseRange.input2Diffs.length > 0
 							? action(
 								'mergeEditor.acceptInput2',
-								localize('mergeEditor.accept', 'Accept {0}', model.input2Title),
+								localize('mergeEditor.accept', 'Accept {0}', model.input2.title),
 								state.toggle(2),
 								state.input2
 							)
@@ -231,9 +253,12 @@ export class InputCodeEditorView extends CodeEditorView {
 
 	constructor(
 		public readonly inputNumber: 1 | 2,
+		titleMenuId: MenuId,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IThemeService themeService: IThemeService,
+		@IMenuService menuService: IMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super(instantiationService);
 
@@ -247,6 +272,19 @@ export class InputCodeEditorView extends CodeEditorView {
 				createView: (item, target) => new MergeConflictGutterItemView(item, target, contextMenuService, themeService),
 			})
 		);
+
+		// title menu
+		const titleMenu = menuService.createMenu(titleMenuId, contextKeyService);
+		const toolBar = new ToolBar(this.htmlElements.toolbar, contextMenuService);
+		const toolBarUpdate = () => {
+			const secondary: IAction[] = [];
+			createAndFillInActionBarActions(titleMenu, { renderShortTitle: true }, secondary);
+			toolBar.setActions([], secondary);
+		};
+		this._store.add(toolBar);
+		this._store.add(titleMenu);
+		this._store.add(titleMenu.onDidChange(toolBarUpdate));
+		toolBarUpdate();
 	}
 
 	protected override getEditorContributions(): IEditorContributionDescription[] | undefined {
@@ -260,22 +298,24 @@ export interface ModifiedBaseRangeGutterItemInfo extends IGutterItemInfo {
 	setState(value: boolean, tx: ITransaction): void;
 	toggleBothSides(): void;
 	getContextMenuActions(): readonly IAction[];
+	className: IObservable<string>;
 }
 
 export class MergeConflictGutterItemView extends Disposable implements IGutterItemView<ModifiedBaseRangeGutterItemInfo> {
 	private readonly item: ISettableObservable<ModifiedBaseRangeGutterItemInfo>;
 
+	private readonly checkboxDiv: HTMLDivElement;
+	private readonly isMultiLine = observableValue('isMultiLine', false);
+
 	constructor(
 		item: ModifiedBaseRangeGutterItemInfo,
-		private readonly target: HTMLElement,
+		target: HTMLElement,
 		contextMenuService: IContextMenuService,
 		themeService: IThemeService
 	) {
 		super();
 
 		this.item = observableValue('item', item);
-
-		target.classList.add('merge-accept-gutter-marker');
 
 		const checkBox = new Toggle({ isChecked: false, title: localize('accept', "Accept"), icon: Codicon.check });
 
@@ -328,6 +368,17 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 			})
 		);
 
+		this._register(autorun('Update Checkbox CSS ClassNames', (reader) => {
+			let className = this.item.read(reader).className.read(reader);
+			className += ' merge-accept-gutter-marker';
+			if (this.isMultiLine.read(reader)) {
+				className += ' multi-line';
+			} else {
+				className += ' single-line';
+			}
+			target.className = className;
+		}));
+
 		this._register(checkBox.onChange(() => {
 			transaction(tx => {
 				/** @description Handle Checkbox Change */
@@ -337,14 +388,40 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 
 		target.appendChild(dom.h('div.background', [noBreakWhitespace]).root);
 		target.appendChild(
-			dom.h('div.checkbox', [dom.h('div.checkbox-background', [checkBox.domNode])]).root
+			this.checkboxDiv = dom.h('div.checkbox', [dom.h('div.checkbox-background', [checkBox.domNode])]).root
 		);
 	}
 
 	layout(top: number, height: number, viewTop: number, viewHeight: number): void {
-		this.target.classList.remove('multi-line');
-		this.target.classList.remove('single-line');
-		this.target.classList.add(height > 30 ? 'multi-line' : 'single-line');
+
+		const checkboxHeight = this.checkboxDiv.clientHeight;
+		const middleHeight = height / 2 - checkboxHeight / 2;
+
+		const margin = checkboxHeight;
+
+		let effectiveCheckboxTop = top + middleHeight;
+
+		const preferredViewPortRange = [
+			margin,
+			viewTop + viewHeight - margin - checkboxHeight
+		];
+
+		const preferredParentRange = [
+			top + margin,
+			top + height - checkboxHeight - margin
+		];
+
+		if (preferredParentRange[0] < preferredParentRange[1]) {
+			effectiveCheckboxTop = clamp(effectiveCheckboxTop, preferredViewPortRange[0], preferredViewPortRange[1]);
+			effectiveCheckboxTop = clampIfIntervalIsNonEmpty(effectiveCheckboxTop, preferredParentRange[0], preferredParentRange[1]);
+		}
+
+		this.checkboxDiv.style.top = `${effectiveCheckboxTop - top}px`;
+
+		transaction((tx) => {
+			/** @description MergeConflictGutterItemView: Update Is Multi Line */
+			this.isMultiLine.set(height > 30, tx);
+		});
 	}
 
 	update(baseRange: ModifiedBaseRangeGutterItemInfo): void {
@@ -353,4 +430,11 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 			this.item.set(baseRange, tx);
 		});
 	}
+}
+
+function clampIfIntervalIsNonEmpty(value: number, min: number, max: number): number {
+	if (min >= max) {
+		return value;
+	}
+	return Math.min(Math.max(value, min), max);
 }

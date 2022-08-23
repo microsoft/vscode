@@ -164,8 +164,8 @@ export class DebugSession implements IDebugSession {
 		return !!this._options.compact;
 	}
 
-	get saveBeforeStart(): boolean {
-		return this._options.saveBeforeStart ?? !this._options?.parentSession;
+	get saveBeforeRestart(): boolean {
+		return this._options.saveBeforeRestart ?? !this._options?.parentSession;
 	}
 
 	get compoundRoot(): DebugCompoundRoot | undefined {
@@ -296,7 +296,8 @@ export class DebugSession implements IDebugSession {
 				locale: platform.locale,
 				supportsProgressReporting: true, // #92253
 				supportsInvalidatedEvent: true, // #106745
-				supportsMemoryReferences: true //#129684
+				supportsMemoryReferences: true, //#129684
+				supportsArgsCanBeInterpretedByShell: true // #149910
 			});
 
 			this.initialized = true;

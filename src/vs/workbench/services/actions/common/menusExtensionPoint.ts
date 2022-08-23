@@ -161,6 +161,12 @@ const apiMenus: IAPIMenu[] = [
 		supportsSubmenus: false
 	},
 	{
+		key: 'comments/commentThread/title/context',
+		id: MenuId.CommentThreadTitleContext,
+		description: localize('commentThread.titleContext', "The contributed comment thread title's peek context menu, rendered as a right click menu on the comment thread's peek title."),
+		proposed: 'contribCommentPeekContext'
+	},
+	{
 		key: 'comments/comment/title',
 		id: MenuId.CommentTitle,
 		description: localize('comment.title', "The contributed comment title menu")
@@ -170,6 +176,12 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.CommentActions,
 		description: localize('comment.actions', "The contributed comment context menu, rendered as buttons below the comment editor"),
 		supportsSubmenus: false
+	},
+	{
+		key: 'comments/commentThread/comment/context',
+		id: MenuId.CommentThreadCommentContext,
+		description: localize('comment.commentContext', "The contributed comment context menu, rendered as a right click menu on the an individual comment in the comment thread's peek view."),
+		proposed: 'contribCommentPeekContext'
 	},
 	{
 		key: 'notebook/toolbar',
@@ -268,11 +280,18 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'inlineCompletionsAdditions'
 	},
 	{
-		key: 'merge/toolbar',
-		id: MenuId.MergeToolbar,
-		description: localize('merge.toolbar', "The prominent botton in the merge editor"),
-		proposed: 'contribMergeEditorToolbar'
-	}
+		key: 'editor/content',
+		id: MenuId.EditorContent,
+		description: localize('merge.toolbar', "The prominent button in an editor, overlays its content"),
+		proposed: 'contribEditorContentMenu'
+	},
+	{
+		key: 'webview/context',
+		id: MenuId.WebviewContext,
+		description: localize('webview.context', "The webview context menu"),
+		proposed: 'contribWebviewContext'
+	},
+
 ];
 
 namespace schema {
@@ -688,20 +707,20 @@ submenusExtensionPoint.setHandler(extensions => {
 		for (const [, submenuInfo] of Object.entries(value)) {
 
 			if (!schema.isValidSubmenu(submenuInfo, collector)) {
-				return;
+				continue;
 			}
 
 			if (!submenuInfo.id) {
 				collector.warn(localize('submenuId.invalid.id', "`{0}` is not a valid submenu identifier", submenuInfo.id));
-				return;
+				continue;
 			}
 			if (_submenus.has(submenuInfo.id)) {
 				collector.info(localize('submenuId.duplicate.id', "The `{0}` submenu was already previously registered.", submenuInfo.id));
-				return;
+				continue;
 			}
 			if (!submenuInfo.label) {
 				collector.warn(localize('submenuId.invalid.label', "`{0}` is not a valid submenu label", submenuInfo.label));
-				return;
+				continue;
 			}
 
 			let absoluteIcon: { dark: URI; light?: URI } | ThemeIcon | undefined;
@@ -768,7 +787,6 @@ menusExtensionPoint.setHandler(extensions => {
 			}
 
 			if (!menu) {
-				collector.info(localize('menuId.invalid', "`{0}` is not a valid menu identifier", entry[0]));
 				continue;
 			}
 

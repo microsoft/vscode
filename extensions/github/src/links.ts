@@ -125,11 +125,11 @@ export function getPermalink(gitAPI: GitAPI, useSelection: boolean, hostPrefix?:
 		return;
 	}
 
-	const commitHash = gitRepo.state.HEAD?.commit;
+	const commitHash = (gitRepo.state.HEAD?.ahead === 0) ? `/blob/${gitRepo.state.HEAD?.commit}` : '';
 	const fileSegments = fileAndPosition.type === LinkType.File
 		? (useSelection ? `${uri.path.substring(gitRepo.rootUri.path.length)}${rangeString(fileAndPosition.range)}` : '')
 		: (useSelection ? `${uri.path.substring(gitRepo.rootUri.path.length)}${notebookCellRangeString(fileAndPosition.cellIndex, fileAndPosition.range)}` : '');
 
-	return `${hostPrefix}/${repo.owner}/${repo.repo}/blob/${commitHash
+	return `${hostPrefix}/${repo.owner}/${repo.repo}${commitHash
 		}${fileSegments}`;
 }

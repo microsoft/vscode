@@ -9,8 +9,6 @@ import { DomEmitter } from 'vs/base/browser/event';
 import { createElement, FormattedTextRenderOptions } from 'vs/base/browser/formattedTextRenderer';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { raceCancellation } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { IMarkdownString, escapeDoubleQuotes, parseHrefAndDimensions, removeMarkdownEscapes } from 'vs/base/common/htmlContent';
@@ -43,8 +41,6 @@ export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRenderOptions = {}, markedOptions: MarkedOptions = {}): { element: HTMLElement; dispose: () => void } {
 	const disposables = new DisposableStore();
 	let isDisposed = false;
-
-	const cts = disposables.add(new CancellationTokenSource());
 
 	const element = createElement(options);
 
@@ -96,11 +92,6 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		return uri.toString();
 	};
 
-	// signal to code-block render that the
-	// element has been created
-	let signalInnerHTML: () => void;
-	const withInnerHTML = new Promise<void>(c => signalInnerHTML = c);
-
 	const renderer = new marked.Renderer();
 
 	renderer.image = (href: string, title: string, text: string) => {
@@ -146,24 +137,14 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		return `<p>${text}</p>`;
 	};
 
+	// Will collect [id, renderedElement] tuples
+	const codeBlocks: Promise<[string, HTMLElement]>[] = [];
+
 	if (options.codeBlockRenderer) {
 		renderer.code = (code, lang) => {
-			const value = options.codeBlockRenderer!(lang ?? '', code);
-			// when code-block rendering is async we return sync
-			// but update the node with the real result later.
 			const id = defaultGenerator.nextId();
-			raceCancellation(Promise.all([value, withInnerHTML]), cts.token).then(values => {
-				if (!isDisposed && values) {
-					const span = element.querySelector<HTMLDivElement>(`div[data-code="${id}"]`);
-					if (span) {
-						DOM.reset(span, values[0]);
-					}
-					options.asyncRenderCallback?.();
-				}
-			}).catch(() => {
-				// ignore
-			});
-
+			const value = options.codeBlockRenderer!(postProcessCodeBlockLanguageId(lang), code);
+			codeBlocks.push(value.then(element => [id, element]));
 			return `<div class="code" data-code="${id}">${escape(code)}</div>`;
 		};
 	}
@@ -277,8 +258,22 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 
 	element.innerHTML = sanitizeRenderedMarkdown(markdown, markdownHtmlDoc.body.innerHTML) as unknown as string;
 
-	// signal that async code blocks can be now be inserted
-	signalInnerHTML!();
+	if (codeBlocks.length > 0) {
+		Promise.all(codeBlocks).then((tuples) => {
+			if (isDisposed) {
+				return;
+			}
+			const renderedElements = new Map(tuples);
+			const placeholderElements = element.querySelectorAll<HTMLDivElement>(`div[data-code]`);
+			for (const placeholderElement of placeholderElements) {
+				const renderedElement = renderedElements.get(placeholderElement.dataset['code'] ?? '');
+				if (renderedElement) {
+					DOM.reset(placeholderElement, renderedElement);
+				}
+			}
+			options.asyncRenderCallback?.();
+		});
+	}
 
 	// signal size changes for image tags
 	if (options.asyncRenderCallback) {
@@ -294,10 +289,21 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		element,
 		dispose: () => {
 			isDisposed = true;
-			cts.cancel();
 			disposables.dispose();
 		}
 	};
+}
+
+function postProcessCodeBlockLanguageId(lang: string | undefined): string {
+	if (!lang) {
+		return '';
+	}
+
+	const parts = lang.split(/[\s+|:|,|\{|\?]/, 1);
+	if (parts.length) {
+		return parts[0];
+	}
+	return lang;
 }
 
 function resolveWithBaseUri(baseUri: URI, href: string): string {

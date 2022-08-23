@@ -11,11 +11,11 @@ import { ILoggerService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { OneDataSystemWebAppender } from 'vs/platform/telemetry/browser/1dsAppender';
-import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
-import { ITelemetryData, ITelemetryInfo, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
+import { ITelemetryData, ITelemetryInfo, ITelemetryService, TelemetryLevel, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryLogAppender } from 'vs/platform/telemetry/common/telemetryLogAppender';
 import { ITelemetryServiceConfig, TelemetryService as BaseTelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { ITelemetryAppender, NullTelemetryService, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import { isInternalTelemetry, ITelemetryAppender, NullTelemetryService, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { resolveWorkbenchCommonProperties } from 'vs/workbench/services/telemetry/browser/workbenchCommonProperties';
@@ -38,21 +38,49 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		super();
 
 		if (supportsTelemetry(productService, environmentService) && productService.aiConfig?.ariaKey) {
+			this.impl = this.initializeService(environmentService, loggerService, configurationService, storageService, productService, remoteAgentService);
+		} else {
+			this.impl = NullTelemetryService;
+		}
+
+		// When the level changes it could change from off to on and we want to make sure telemetry is properly intialized
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TELEMETRY_SETTING_ID)) {
+				this.impl = this.initializeService(environmentService, loggerService, configurationService, storageService, productService, remoteAgentService);
+			}
+		}));
+	}
+
+	/**
+	 * Initializes the telemetry service to be a full fledged service.
+	 * This is only done once and only when telemetry is enabled as this will also ping the endpoint to
+	 * ensure its not adblocked and we can send telemetry
+	 */
+	private initializeService(
+		environmentService: IBrowserWorkbenchEnvironmentService,
+		loggerService: ILoggerService,
+		configurationService: IConfigurationService,
+		storageService: IStorageService,
+		productService: IProductService,
+		remoteAgentService: IRemoteAgentService
+	) {
+		const telemetrySupported = supportsTelemetry(productService, environmentService) && productService.aiConfig?.ariaKey;
+		if (telemetrySupported && this.impl === NullTelemetryService && this.telemetryLevel.value !== TelemetryLevel.NONE) {
 			// If remote server is present send telemetry through that, else use the client side appender
 			const appenders = [];
-			const telemetryProvider: ITelemetryAppender = remoteAgentService.getConnection() !== null ? { log: remoteAgentService.logTelemetry.bind(remoteAgentService), flush: remoteAgentService.flushTelemetry.bind(remoteAgentService) } : new OneDataSystemWebAppender(configurationService, 'monacoworkbench', null, productService.aiConfig?.ariaKey);
+			const isInternal = isInternalTelemetry(productService, configurationService);
+			const telemetryProvider: ITelemetryAppender = remoteAgentService.getConnection() !== null ? { log: remoteAgentService.logTelemetry.bind(remoteAgentService), flush: remoteAgentService.flushTelemetry.bind(remoteAgentService) } : new OneDataSystemWebAppender(isInternal, 'monacoworkbench', null, productService.aiConfig?.ariaKey);
 			appenders.push(telemetryProvider);
 			appenders.push(new TelemetryLogAppender(loggerService, environmentService));
 			const config: ITelemetryServiceConfig = {
 				appenders,
-				commonProperties: resolveWorkbenchCommonProperties(storageService, productService.commit, productService.version, environmentService.remoteAuthority, productService.embedderIdentifier, productService.removeTelemetryMachineId, environmentService.options && environmentService.options.resolveCommonTelemetryProperties),
+				commonProperties: resolveWorkbenchCommonProperties(storageService, productService.commit, productService.version, isInternal, environmentService.remoteAuthority, productService.embedderIdentifier, productService.removeTelemetryMachineId, environmentService.options && environmentService.options.resolveCommonTelemetryProperties),
 				sendErrorTelemetry: this.sendErrorTelemetry,
 			};
 
-			this.impl = this._register(new BaseTelemetryService(config, configurationService, productService));
-		} else {
-			this.impl = NullTelemetryService;
+			return this._register(new BaseTelemetryService(config, configurationService, productService));
 		}
+		return NullTelemetryService;
 	}
 
 	setExperimentProperty(name: string, value: string): void {
@@ -67,7 +95,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		return this.impl.publicLog(eventName, data, anonymizeFilePaths);
 	}
 
-	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>, anonymizeFilePaths?: boolean) {
+	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>, anonymizeFilePaths?: boolean) {
 		return this.publicLog(eventName, data as ITelemetryData, anonymizeFilePaths);
 	}
 
@@ -75,7 +103,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		return this.impl.publicLog(errorEventName, data);
 	}
 
-	publicLogError2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+	publicLogError2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
 		return this.publicLogError(eventName, data as ITelemetryData);
 	}
 

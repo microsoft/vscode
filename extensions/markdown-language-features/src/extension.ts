@@ -26,6 +26,9 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(workspace);
 
 	const client = await startServer(context, workspace, engine);
+	context.subscriptions.push({
+		dispose: () => client.stop()
+	});
 	activateShared(context, client, workspace, engine, logger, contributions);
 }
 

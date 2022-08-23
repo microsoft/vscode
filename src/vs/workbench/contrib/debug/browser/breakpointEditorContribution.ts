@@ -18,7 +18,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IDebugService, IBreakpoint, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, BreakpointWidgetContext, IBreakpointEditorContribution, IBreakpointUpdateData, IDebugConfiguration, State, IDebugSession, DebuggerUiMessage } from 'vs/workbench/contrib/debug/common/debug';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { BreakpointWidget } from 'vs/workbench/contrib/debug/browser/breakpointWidget';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, disposeIfDisposable } from 'vs/base/common/lifecycle';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { getBreakpointMessageAndIcon } from 'vs/workbench/contrib/debug/browser/breakpointsView';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -261,7 +261,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 					getAnchor: () => anchor,
 					getActions: () => actions,
 					getActionsContext: () => breakpoints.length ? breakpoints[0] : undefined,
-					onHide: () => dispose(actions)
+					onHide: () => disposeIfDisposable(actions)
 				});
 			} else {
 				const breakpoints = this.debugService.getModel().getBreakpoints({ uri, lineNumber });
@@ -510,9 +510,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 			activeCodeEditor.changeDecorations((changeAccessor) => {
 				const decorationIds = changeAccessor.deltaDecorations(this.breakpointDecorations.map(bpd => bpd.decorationId), desiredBreakpointDecorations);
 				this.breakpointDecorations.forEach(bpd => {
-					if (bpd.inlineWidget) {
-						bpd.inlineWidget.dispose();
-					}
+					bpd.inlineWidget?.dispose();
 				});
 				this.breakpointDecorations = decorationIds.map((decorationId, index) => {
 					let inlineWidget: InlineBreakpointWidget | undefined = undefined;
@@ -613,9 +611,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 
 	// breakpoint widget
 	showBreakpointWidget(lineNumber: number, column: number | undefined, context?: BreakpointWidgetContext): void {
-		if (this.breakpointWidget) {
-			this.breakpointWidget.dispose();
-		}
+		this.breakpointWidget?.dispose();
 
 		this.breakpointWidget = this.instantiationService.createInstance(BreakpointWidget, this.editor, lineNumber, column, context);
 		this.breakpointWidget.show({ lineNumber, column: 1 });
@@ -632,9 +628,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 	}
 
 	dispose(): void {
-		if (this.breakpointWidget) {
-			this.breakpointWidget.dispose();
-		}
+		this.breakpointWidget?.dispose();
 		this.editor.removeDecorations(this.breakpointDecorations.map(bpd => bpd.decorationId));
 		dispose(this.toDispose);
 	}
@@ -694,7 +688,7 @@ class InlineBreakpointWidget implements IContentWidget, IDisposable {
 				getAnchor: () => anchor,
 				getActions: () => actions,
 				getActionsContext: () => this.breakpoint,
-				onHide: () => dispose(actions)
+				onHide: () => disposeIfDisposable(actions)
 			});
 		}));
 

@@ -213,9 +213,9 @@ export class PtyService extends Disposable implements IPtyService {
 	async attachToProcess(id: number): Promise<void> {
 		try {
 			await this._throwIfNoPty(id).attach();
-			this._logService.trace(`Persistent process reconnection "${id}"`);
+			this._logService.info(`Persistent process reconnection "${id}"`);
 		} catch (e) {
-			this._logService.trace(`Persistent process reconnection "${id}" failed`, e.message);
+			this._logService.warn(`Persistent process reconnection "${id}" failed`, e.message);
 			throw e;
 		}
 	}
@@ -236,8 +236,8 @@ export class PtyService extends Disposable implements IPtyService {
 		return this._throwIfNoPty(id).updateProperty(type, value);
 	}
 
-	async detachFromProcess(id: number): Promise<void> {
-		return this._throwIfNoPty(id).detach();
+	async detachFromProcess(id: number, forcePersist?: boolean): Promise<void> {
+		return this._throwIfNoPty(id).detach(forcePersist);
 	}
 
 	async reduceConnectionGraceTime(): Promise<void> {
@@ -341,7 +341,7 @@ export class PtyService extends Disposable implements IPtyService {
 		try {
 			return this._revivedPtyIdMap.get(id)?.newId;
 		} catch (e) {
-			this._logService.trace(`Couldn't find terminal ID ${id}`, e.message);
+			this._logService.warn(`Couldn't find terminal ID ${id}`, e.message);
 		}
 		return undefined;
 	}
@@ -376,6 +376,7 @@ export class PtyService extends Disposable implements IPtyService {
 	private async _expandTerminalInstance(t: ITerminalInstanceLayoutInfoById): Promise<IRawTerminalInstanceLayoutInfo<IProcessDetails | null>> {
 		try {
 			const revivedPtyId = this._revivedPtyIdMap.get(t.terminal)?.newId;
+			this._revivedPtyIdMap.delete(t.terminal);
 			const persistentProcessId = revivedPtyId ?? t.terminal;
 			const persistentProcess = this._throwIfNoPty(persistentProcessId);
 			const processDetails = persistentProcess && await this._buildProcessDetails(t.terminal, persistentProcess, revivedPtyId !== undefined);
@@ -384,7 +385,7 @@ export class PtyService extends Disposable implements IPtyService {
 				relativeSize: t.relativeSize
 			};
 		} catch (e) {
-			this._logService.trace(`Couldn't get layout info, a terminal was probably disconnected`, e.message);
+			this._logService.warn(`Couldn't get layout info, a terminal was probably disconnected`, e.message);
 			// this will be filtered out and not reconnected
 			return {
 				terminal: null,
@@ -410,8 +411,11 @@ export class PtyService extends Disposable implements IPtyService {
 			color: persistentProcess.color,
 			fixedDimensions: persistentProcess.fixedDimensions,
 			environmentVariableCollections: persistentProcess.processLaunchOptions.options.environmentVariableCollections,
-			reconnectionOwner: persistentProcess.shellLaunchConfig.reconnectionOwner,
-			task: persistentProcess.shellLaunchConfig.task
+			reconnectionProperties: persistentProcess.shellLaunchConfig.reconnectionProperties,
+			waitOnExit: persistentProcess.shellLaunchConfig.waitOnExit,
+			hideFromUser: persistentProcess.shellLaunchConfig.hideFromUser,
+			isFeatureTerminal: persistentProcess.shellLaunchConfig.isFeatureTerminal,
+			type: persistentProcess.shellLaunchConfig.type
 		};
 	}
 
@@ -579,21 +583,23 @@ export class PersistentTerminalProcess extends Disposable {
 
 	async attach(): Promise<void> {
 		this._logService.trace('persistentTerminalProcess#attach', this._persistentProcessId);
+		// Something wrong happened if the disconnect runner is not canceled, this likely means
+		// multiple windows attempted to attach.
+		if (!await this._isOrphaned()) {
+			throw new Error(`Cannot attach to persistent process "${this._persistentProcessId}", it is already adopted`);
+		}
 		if (!this._disconnectRunner1.isScheduled() && !this._disconnectRunner2.isScheduled()) {
-			// Something wrong happened if the disconnect runner is not canceled, this likely means
-			// multiple windows attempted to attach.
-			if (!await this._isOrphaned()) {
-				throw new Error(`Cannot attach to persistent process "${this._persistentProcessId}", it is already adopted`);
-			}
 			this._logService.warn(`Persistent process "${this._persistentProcessId}": Process had no disconnect runners but was an orphan`);
 		}
 		this._disconnectRunner1.cancel();
 		this._disconnectRunner2.cancel();
 	}
 
-	async detach(): Promise<void> {
-		this._logService.trace('persistentTerminalProcess#detach', this._persistentProcessId);
-		if (this.shouldPersistTerminal) {
+	async detach(forcePersist?: boolean): Promise<void> {
+		this._logService.trace('persistentTerminalProcess#detach', this._persistentProcessId, forcePersist);
+		// Keep the process around if it was indicated to persist and it has had some iteraction or
+		// was replayed
+		if (this.shouldPersistTerminal && (this._interactionState !== InteractionState.None || forcePersist)) {
 			this._disconnectRunner1.schedule();
 		} else {
 			this.shutdown(true);
@@ -711,7 +717,7 @@ export class PersistentTerminalProcess extends Disposable {
 
 	installAutoReply(match: string, reply: string) {
 		this._autoReplies.get(match)?.dispose();
-		this._autoReplies.set(match, new TerminalAutoResponder(this._terminalProcess, match, reply));
+		this._autoReplies.set(match, new TerminalAutoResponder(this._terminalProcess, match, reply, this._logService));
 	}
 
 	uninstallAutoReply(match: string) {
@@ -785,7 +791,12 @@ class XtermSerializer implements ITerminalSerializer {
 		private _rawReviveBuffer: string | undefined,
 		logService: ILogService
 	) {
-		this._xterm = new XtermTerminal({ cols, rows, scrollback });
+		this._xterm = new XtermTerminal({
+			cols,
+			rows,
+			scrollback,
+			allowProposedApi: true
+		});
 		if (reviveBufferWithRestoreMessage) {
 			this._xterm.writeln(reviveBufferWithRestoreMessage);
 		}
@@ -811,7 +822,7 @@ class XtermSerializer implements ITerminalSerializer {
 		const serialize = new (await this._getSerializeConstructor());
 		this._xterm.loadAddon(serialize);
 		const options: ISerializeOptions = {
-			scrollback: this._xterm.getOption('scrollback')
+			scrollback: this._xterm.options.scrollback
 		};
 		if (normalBufferOnly) {
 			options.excludeAltBuffer = true;

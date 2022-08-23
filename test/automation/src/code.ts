@@ -135,8 +135,12 @@ export class Code {
 		await this.driver.dispatchKeybinding(keybinding);
 	}
 
+	async didFinishLoad(): Promise<void> {
+		return this.driver.didFinishLoad();
+	}
+
 	async exit(): Promise<void> {
-		return measureAndLog(new Promise<void>((resolve, reject) => {
+		return measureAndLog(new Promise<void>(resolve => {
 			const pid = this.mainProcess.pid!;
 
 			let done = false;
@@ -150,8 +154,8 @@ export class Code {
 				while (!done) {
 					retries++;
 
-					if (retries === 20) {
-						this.logger.log('Smoke test exit call did not terminate process after 10s, forcefully exiting the application...');
+					if (retries === 40) {
+						this.logger.log('Smoke test exit call did not terminate process after 20s, forcefully exiting the application...');
 
 						// no need to await since we're polling for the process to die anyways
 						treekill(pid, err => {
@@ -164,16 +168,17 @@ export class Code {
 						});
 					}
 
-					if (retries === 40) {
-						done = true;
-						reject(new Error('Smoke test exit call did not terminate process after 20s, giving up'));
-					}
-
 					try {
 						process.kill(pid, 0); // throws an exception if the process doesn't exist anymore.
 						await new Promise(resolve => setTimeout(resolve, 500));
 					} catch (error) {
 						done = true;
+						resolve();
+					}
+
+					if (retries === 60) {
+						done = true;
+						this.logger.log('Smoke test exit call did not terminate process after 30s, giving up');
 						resolve();
 					}
 				}

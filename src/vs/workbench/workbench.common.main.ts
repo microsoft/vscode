@@ -54,6 +54,7 @@ import 'vs/workbench/browser/parts/views/viewsService';
 
 import 'vs/platform/actions/common/actions.contribution';
 import 'vs/platform/undoRedo/common/undoRedoService';
+import 'vs/workbench/services/workspaces/common/editSessionIdentityService';
 import 'vs/workbench/services/extensions/browser/extensionUrlHandler';
 import 'vs/workbench/services/keybinding/common/keybindingEditing';
 import 'vs/workbench/services/decorations/browser/decorationsService';
@@ -346,5 +347,8 @@ import 'vs/workbench/contrib/audioCues/browser/audioCues.contribution';
 
 // Deprecated Extension Migrator
 import 'vs/workbench/contrib/deprecatedExtensionMigrator/browser/deprecatedExtensionMigrator.contribution';
+
+// Bracket Pair Colorizer 2 Telemetry
+import 'vs/workbench/contrib/bracketPairColorizer2Telemetry/browser/bracketPairColorizer2Telemetry.contribution';
 
 //#endregion

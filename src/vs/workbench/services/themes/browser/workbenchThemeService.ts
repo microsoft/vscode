@@ -581,11 +581,12 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			if (!this.themeExtensionsActivated.get(key)) {
 				type ActivatePluginClassification = {
 					owner: 'aeschli';
-					id: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
-					name: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
-					isBuiltin: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-					publisherDisplayName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-					themeId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
+					comment: 'An event is fired when an color theme extension is first used as it provides the currently shown color theme.';
+					id: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The extension id.' };
+					name: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The extension name.' };
+					isBuiltin: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the extension is a built-in extension.' };
+					publisherDisplayName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension publisher id.' };
+					themeId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The id of the theme that triggered the first extension use.' };
 				};
 				type ActivatePluginEvent = {
 					id: string;

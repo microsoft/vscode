@@ -57,6 +57,7 @@ export class MenuId {
 	static readonly DebugToolBarStop = new MenuId('DebugToolBarStop');
 	static readonly EditorContext = new MenuId('EditorContext');
 	static readonly SimpleEditorContext = new MenuId('SimpleEditorContext');
+	static readonly EditorContent = new MenuId('EditorContent');
 	static readonly EditorContextCopy = new MenuId('EditorContextCopy');
 	static readonly EditorContextPeek = new MenuId('EditorContextPeek');
 	static readonly EditorContextShare = new MenuId('EditorContextShare');
@@ -124,6 +125,8 @@ export class MenuId {
 	static readonly ViewTitleContext = new MenuId('ViewTitleContext');
 	static readonly CommentThreadTitle = new MenuId('CommentThreadTitle');
 	static readonly CommentThreadActions = new MenuId('CommentThreadActions');
+	static readonly CommentThreadTitleContext = new MenuId('CommentThreadTitleContext');
+	static readonly CommentThreadCommentContext = new MenuId('CommentThreadCommentContext');
 	static readonly CommentTitle = new MenuId('CommentTitle');
 	static readonly CommentActions = new MenuId('CommentActions');
 	static readonly InteractiveToolbar = new MenuId('InteractiveToolbar');
@@ -163,7 +166,8 @@ export class MenuId {
 	static readonly WebviewContext = new MenuId('WebviewContext');
 	static readonly InlineCompletionsActions = new MenuId('InlineCompletionsActions');
 	static readonly NewFile = new MenuId('NewFile');
-	static readonly MergeToolbar = new MenuId('MergeToolbar');
+	static readonly MergeInput1Toolbar = new MenuId('MergeToolbar1Toolbar');
+	static readonly MergeInput2Toolbar = new MenuId('MergeToolbar2Toolbar');
 
 	/**
 	 * Create or reuse a `MenuId` with the given identifier
@@ -353,7 +357,6 @@ export class SubmenuItemAction extends SubmenuAction {
 
 	constructor(
 		readonly item: ISubmenuItem,
-		readonly hideActions: MenuItemActionManageActions,
 		private readonly _menuService: IMenuService,
 		private readonly _contextKeyService: IContextKeyService,
 		private readonly _options?: IMenuActionOptions
@@ -379,20 +382,10 @@ export class SubmenuItemAction extends SubmenuAction {
 	}
 }
 
-export class MenuItemActionManageActions {
-	constructor(
-		readonly hideThis: IAction,
-		readonly toggleAny: readonly IAction[][],
-	) { }
-
-	asList(): IAction[] {
-		let result: IAction[] = [this.hideThis];
-		for (const n of this.toggleAny) {
-			result.push(new Separator());
-			result = result.concat(n);
-		}
-		return result;
-	}
+export interface IMenuItemHide {
+	readonly isHidden: boolean;
+	readonly hide: IAction;
+	readonly toggle: IAction;
 }
 
 // implements IAction, does NOT extend Action, so that no one
@@ -415,7 +408,7 @@ export class MenuItemAction implements IAction {
 		item: ICommandAction,
 		alt: ICommandAction | undefined,
 		options: IMenuActionOptions | undefined,
-		readonly hideActions: MenuItemActionManageActions | undefined,
+		readonly hideActions: IMenuItemHide | undefined,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService private _commandService: ICommandService
 	) {
@@ -447,12 +440,6 @@ export class MenuItemAction implements IAction {
 		if (ThemeIcon.isThemeIcon(item.icon)) {
 			this.class = CSSIcon.asClassName(item.icon);
 		}
-	}
-
-	dispose(): void {
-		// there is NOTHING to dispose and the MenuItemAction should
-		// never have anything to dispose as it is a convenience type
-		// to bridge into the rendering world.
 	}
 
 	run(...args: any[]): Promise<void> {

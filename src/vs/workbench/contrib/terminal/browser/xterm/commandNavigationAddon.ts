@@ -73,7 +73,13 @@ export class CommandNavigationAddon extends Disposable implements ICommandTracke
 		// Clear the current marker so successive focus/selection actions are performed from the
 		// bottom of the buffer
 		this._currentMarker = Boundary.Bottom;
+		this._resetNavigationDecoration();
 		this._selectionStart = null;
+	}
+
+	private _resetNavigationDecoration() {
+		this._navigationDecoration?.dispose();
+		this._navigationDecoration = undefined;
 	}
 
 	scrollToPreviousCommand(scrollPosition: ScrollPosition = ScrollPosition.Middle, retainSelection: boolean = false): void {
@@ -110,6 +116,7 @@ export class CommandNavigationAddon extends Disposable implements ICommandTracke
 		if (markerIndex < 0) {
 			this._currentMarker = Boundary.Top;
 			this._terminal.scrollToTop();
+			this._resetNavigationDecoration();
 			return;
 		}
 
@@ -151,6 +158,7 @@ export class CommandNavigationAddon extends Disposable implements ICommandTracke
 		if (markerIndex >= this._getCommandMarkers().length) {
 			this._currentMarker = Boundary.Bottom;
 			this._terminal.scrollToBottom();
+			this._resetNavigationDecoration();
 			return;
 		}
 
@@ -178,12 +186,14 @@ export class CommandNavigationAddon extends Disposable implements ICommandTracke
 		});
 		this._navigationDecoration = decoration;
 		if (decoration) {
-			const isRendered = false;
+			let renderedElement: HTMLElement | undefined;
+
 			decoration.onRender(element => {
-				if (!isRendered) {
-					// TODO: Remove when https://github.com/xtermjs/xterm.js/issues/3686 is fixed
-					if (!element.classList.contains('xterm-decoration-overview-ruler')) {
-						element.classList.add('terminal-scroll-highlight');
+				if (!renderedElement) {
+					renderedElement = element;
+					element.classList.add('terminal-scroll-highlight', 'terminal-scroll-highlight-outline');
+					if (this._terminal?.element) {
+						element.style.marginLeft = `-${getComputedStyle(this._terminal.element).paddingLeft}`;
 					}
 				}
 			});
@@ -194,7 +204,9 @@ export class CommandNavigationAddon extends Disposable implements ICommandTracke
 			});
 			// Number picked to align with symbol highlight in the editor
 			timeout(350).then(() => {
-				decoration.dispose();
+				if (renderedElement) {
+					renderedElement.classList.remove('terminal-scroll-highlight-outline');
+				}
 			});
 		}
 	}

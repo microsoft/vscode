@@ -188,6 +188,15 @@ class MonacoGenerator {
     }
 }
 function generateApiProposalNames() {
+    let eol;
+    try {
+        const src = fs.readFileSync('src/vs/workbench/services/extensions/common/extensionsApiProposals.ts', 'utf-8');
+        const match = /\r?\n/m.exec(src);
+        eol = match ? match[0] : os.EOL;
+    }
+    catch {
+        eol = os.EOL;
+    }
     const pattern = /vscode\.proposed\.([a-zA-Z]+)\.d\.ts$/;
     const proposalNames = new Set();
     const input = es.through();
@@ -214,7 +223,7 @@ function generateApiProposalNames() {
             '});',
             'export type ApiProposalName = keyof typeof allApiProposals;',
             '',
-        ].join(os.EOL);
+        ].join(eol);
         this.emit('data', new File({
             path: 'vs/workbench/services/extensions/common/extensionsApiProposals.ts',
             contents: Buffer.from(contents)

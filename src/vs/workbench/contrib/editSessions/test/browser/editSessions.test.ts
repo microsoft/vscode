@@ -21,13 +21,20 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { mock } from 'vs/base/test/common/mock';
 import * as sinon from 'sinon';
 import * as assert from 'assert';
-import { ChangeType, FileType, IEditSessionsLogService, IEditSessionsWorkbenchService } from 'vs/workbench/contrib/editSessions/common/editSessions';
+import { ChangeType, FileType, IEditSessionsLogService, IEditSessionsStorageService } from 'vs/workbench/contrib/editSessions/common/editSessions';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { Event } from 'vs/base/common/event';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 const folderName = 'test-folder';
 const folderUri = URI.file(`/${folderName}`);
@@ -54,8 +61,11 @@ suite('Edit session sync', () => {
 		// Stub out all services
 		instantiationService.stub(IEditSessionsLogService, logService);
 		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(ILifecycleService, new class extends mock<ILifecycleService>() {
+			override onWillShutdown = Event.None;
+		});
 		instantiationService.stub(INotificationService, new TestNotificationService());
-		instantiationService.stub(IEditSessionsWorkbenchService, new class extends mock<IEditSessionsWorkbenchService>() { });
+		instantiationService.stub(IEditSessionsStorageService, new class extends mock<IEditSessionsStorageService>() { });
 		instantiationService.stub(IProgressService, ProgressService);
 		instantiationService.stub(ISCMService, SCMService);
 		instantiationService.stub(IEnvironmentService, TestEnvironmentService);
@@ -76,6 +86,17 @@ suite('Edit session sync', () => {
 
 		// Stub repositories
 		instantiationService.stub(ISCMService, '_repositories', new Map());
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		instantiationService.stub(IThemeService, new class extends mock<IThemeService>() {
+			override onDidColorThemeChange = Event.None;
+			override onDidFileIconThemeChange = Event.None;
+		});
+		instantiationService.stub(IViewDescriptorService, {
+			onDidChangeLocation: Event.None
+		});
+		instantiationService.stub(ITextModelService, new class extends mock<ITextModelService>() {
+			override registerTextModelContentProvider = () => ({ dispose: () => { } });
+		});
 
 		editSessionsContribution = instantiationService.createInstance(EditSessionsContribution);
 	});
@@ -107,7 +128,7 @@ suite('Edit session sync', () => {
 
 		// Stub sync service to return edit session data
 		const readStub = sandbox.stub().returns({ editSession, ref: '0' });
-		instantiationService.stub(IEditSessionsWorkbenchService, 'read', readStub);
+		instantiationService.stub(IEditSessionsStorageService, 'read', readStub);
 
 		// Create root folder
 		await fileService.createFolder(folderUri);
@@ -121,7 +142,7 @@ suite('Edit session sync', () => {
 
 	test('Edit session not stored if there are no edits', async function () {
 		const writeStub = sandbox.stub();
-		instantiationService.stub(IEditSessionsWorkbenchService, 'write', writeStub);
+		instantiationService.stub(IEditSessionsStorageService, 'write', writeStub);
 
 		// Create root folder
 		await fileService.createFolder(folderUri);

@@ -263,7 +263,7 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 		this.element.classList.add('monaco-button-dropdown');
 		container.appendChild(this.element);
 
-		this.button = this._register(new Button(this.element, options));
+		this.button = this._register(new ButtonWithDescription(this.element, options));
 		this._register(this.button.onDidClick(e => this._onDidClick.fire(e)));
 		this.action = this._register(new Action('primaryAction', this.button.label, undefined, true, async () => this._onDidClick.fire(undefined)));
 
@@ -300,6 +300,10 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 		this.button.icon = icon;
 	}
 
+	set description(value: string) {
+		(this.button as ButtonWithDescription).description = value;
+	}
+
 	set enabled(enabled: boolean) {
 		this.button.enabled = enabled;
 		this.dropdownButton.enabled = enabled;
@@ -316,6 +320,16 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 		this.dropdownButton.style(styles);
 
 		// Separator
+		const border = styles.buttonBorder ? styles.buttonBorder.toString() : '';
+
+		this.separatorContainer.style.borderTopWidth = border ? '1px' : '';
+		this.separatorContainer.style.borderTopStyle = border ? 'solid' : '';
+		this.separatorContainer.style.borderTopColor = border;
+
+		this.separatorContainer.style.borderBottomWidth = border ? '1px' : '';
+		this.separatorContainer.style.borderBottomStyle = border ? 'solid' : '';
+		this.separatorContainer.style.borderBottomColor = border;
+
 		this.separatorContainer.style.backgroundColor = styles.buttonBackground?.toString() ?? '';
 		this.separator.style.backgroundColor = styles.buttonSeparator?.toString() ?? '';
 	}

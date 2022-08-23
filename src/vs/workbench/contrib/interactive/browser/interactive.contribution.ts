@@ -12,7 +12,7 @@ import { Schemas } from 'vs/base/common/network';
 import { extname } from 'vs/base/common/resources';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -203,9 +203,11 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 				canSupportResource: uri => uri.scheme === Schemas.vscodeInteractiveInput,
 				singlePerResource: true
 			},
-			({ resource }) => {
-				const editorInput = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editor => editor.editor instanceof InteractiveEditorInput && editor.editor.inputResource.toString() === resource.toString());
-				return editorInput!;
+			{
+				createEditorInput: ({ resource }) => {
+					const editorInput = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editor => editor.editor instanceof InteractiveEditorInput && editor.editor.inputResource.toString() === resource.toString());
+					return editorInput!;
+				}
 			}
 		);
 
@@ -220,23 +222,25 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 				canSupportResource: uri => uri.scheme === Schemas.vscodeInteractive || (uri.scheme === Schemas.vscodeNotebookCell && extname(uri) === '.interactive'),
 				singlePerResource: true
 			},
-			({ resource, options }) => {
-				const data = CellUri.parse(resource);
-				let notebookUri: URI = resource;
-				let cellOptions: IResourceEditorInput | undefined;
+			{
+				createEditorInput: ({ resource, options }) => {
+					const data = CellUri.parse(resource);
+					let notebookUri: URI = resource;
+					let cellOptions: IResourceEditorInput | undefined;
 
-				if (data) {
-					notebookUri = data.notebook;
-					cellOptions = { resource, options };
+					if (data) {
+						notebookUri = data.notebook;
+						cellOptions = { resource, options };
+					}
+
+					const notebookOptions = { ...options, cellOptions } as INotebookEditorOptions;
+
+					const editorInput = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editor => editor.editor instanceof InteractiveEditorInput && editor.editor.resource?.toString() === notebookUri.toString());
+					return {
+						editor: editorInput!.editor,
+						options: notebookOptions
+					};
 				}
-
-				const notebookOptions = { ...options, cellOptions } as INotebookEditorOptions;
-
-				const editorInput = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editor => editor.editor instanceof InteractiveEditorInput && editor.editor.resource?.toString() === notebookUri.toString());
-				return {
-					editor: editorInput!.editor,
-					options: notebookOptions
-				};
 			}
 		);
 	}
@@ -279,7 +283,7 @@ export class InteractiveEditorSerializer implements IEditorSerializer {
 	}
 
 	canSerialize(): boolean {
-		return this.configurationService.getValue<boolean>(InteractiveWindowSetting.interactiveWindowHotExit);
+		return this.configurationService.getValue<boolean>(InteractiveWindowSetting.interactiveWindowRestore);
 	}
 
 	serialize(input: EditorInput): string {
@@ -374,7 +378,8 @@ registerAction2(class extends Action2 {
 		const historyService = accessor.get(IInteractiveHistoryService);
 		const kernelService = accessor.get(INotebookKernelService);
 		const logService = accessor.get(ILogService);
-		const group = columnToEditorGroup(editorGroupService, typeof showOptions === 'number' ? showOptions : showOptions?.viewColumn);
+		const configurationService = accessor.get(IConfigurationService);
+		const group = columnToEditorGroup(editorGroupService, configurationService, typeof showOptions === 'number' ? showOptions : showOptions?.viewColumn);
 		const editorOptions = {
 			activation: EditorActivation.PRESERVE,
 			preserveFocus: typeof showOptions !== 'number' ? (showOptions?.preserveFocus ?? false) : false
@@ -457,15 +462,40 @@ registerAction2(class extends Action2 {
 				}
 			],
 			icon: icons.executeIcon,
-			f1: false
+			f1: false,
+			description: {
+				description: 'Execute the Contents of the Input Box',
+				args: [
+					{
+						name: 'resource',
+						description: 'Interactive resource Uri',
+						isOptional: true
+					}
+				]
+			}
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async run(accessor: ServicesAccessor, context?: UriComponents): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const bulkEditService = accessor.get(IBulkEditService);
 		const historyService = accessor.get(IInteractiveHistoryService);
-		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+		let editorControl: { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+		if (context) {
+			if (context.scheme === Schemas.vscodeInteractive) {
+				const resourceUri = URI.revive(context);
+				const editors = editorService.findEditors(resourceUri).filter(id => id.editor instanceof InteractiveEditorInput && id.editor.resource?.toString() === resourceUri.toString());
+				if (editors.length) {
+					const editorInput = editors[0].editor as InteractiveEditorInput;
+					const currentGroup = editors[0].groupId;
+					const editor = await editorService.openEditor(editorInput, currentGroup);
+					editorControl = editor?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+				}
+			}
+		}
+		else {
+			editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+		}
 
 		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
 			const notebookDocument = editorControl.notebookEditor.textModel;
@@ -759,10 +789,10 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: true,
 			markdownDescription: localize('interactiveWindow.alwaysScrollOnNewCell', "Automatically scroll the interactive window to show the output of the last statement executed. If this value is false, the window will only scroll if the last cell was already the one scrolled to.")
 		},
-		[InteractiveWindowSetting.interactiveWindowHotExit]: {
+		[InteractiveWindowSetting.interactiveWindowRestore]: {
 			type: 'boolean',
 			default: false,
-			markdownDescription: localize('interactiveWindow.hotExit', "Controls whether the interactive window sessions should be restored when the workspace reloads.")
+			markdownDescription: localize('interactiveWindow.restore', "Controls whether the Interactive Window sessions/history should be restored across window reloads. Whether the state of controllers used in Interactive Windows is persisted across window reloads are controlled by extensions contributing controllers.")
 		}
 	}
 });
