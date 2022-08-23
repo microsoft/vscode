@@ -46,6 +46,7 @@
 }
 
 .monaco-action-bar .action-label {
+	display: flex;
 	font-size: 11px;
 	padding: 3px;
 	border-radius: 5px;

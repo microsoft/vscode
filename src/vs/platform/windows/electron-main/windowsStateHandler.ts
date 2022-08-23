@@ -181,7 +181,7 @@ export class WindowsStateHandler extends Disposable {
 			if (currentWindowsState.lastPluginDevelopmentHostWindow.uiState.mode === WindowMode.Fullscreen) {
 				if (displaysWithFullScreenWindow.has(currentWindowsState.lastPluginDevelopmentHostWindow.uiState.display)) {
 					if (isMacintosh && !extensionHostWindow.win?.isSimpleFullScreen()) {
-						currentWindowsState.lastPluginDevelopmentHostWindow.uiState.mode = WindowMode.Normal;
+						currentWindowsState.lastPluginDevelopmentHostWindow.uiState.mode = WindowMode.Maximized;
 					}
 				} else {
 					displaysWithFullScreenWindow.add(currentWindowsState.lastPluginDevelopmentHostWindow.uiState.display);
@@ -201,7 +201,7 @@ export class WindowsStateHandler extends Disposable {
 				if (windowState.uiState.mode === WindowMode.Fullscreen) {
 					if (displaysWithFullScreenWindow.has(windowState.uiState.display)) {
 						if (isMacintosh && windowState.windowId !== currentWindowsState.lastActiveWindow?.windowId && !window.win?.isSimpleFullScreen()) {
-							windowState.uiState.mode = WindowMode.Normal;
+							windowState.uiState.mode = WindowMode.Maximized;
 						}
 					} else {
 						displaysWithFullScreenWindow.add(windowState.uiState.display);
@@ -284,7 +284,7 @@ export class WindowsStateHandler extends Disposable {
 			}
 
 			if (!allowFullscreen) {
-				state.mode = WindowMode.Normal;
+				state.mode = WindowMode.Maximized;
 			}
 		}
 

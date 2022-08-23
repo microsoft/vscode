@@ -16,7 +16,7 @@ import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/c
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Schemas } from 'vs/base/common/network';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { QuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
@@ -386,7 +386,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		const computeItems = () => {
 			let actionGroups = this.getRemoteMenuActions(true);
 
-			const items: (IQuickPickItem | IQuickPickSeparator)[] = [];
+			const items: QuickPickItem[] = [];
 
 			const currentRemoteMatcher = matchCurrentRemote();
 			if (currentRemoteMatcher) {

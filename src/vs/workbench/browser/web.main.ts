@@ -278,7 +278,7 @@ export class BrowserMain extends Disposable {
 		const userDataProfilesService = new BrowserUserDataProfilesService(environmentService, fileService, uriIdentityService, logService);
 		serviceCollection.set(IUserDataProfilesService, userDataProfilesService);
 		const lastActiveProfile = environmentService.lastActiveProfile ? userDataProfilesService.profiles.find(p => p.id === environmentService.lastActiveProfile) : undefined;
-		const currentProfile = userDataProfilesService.getProfile(isWorkspaceIdentifier(payload) || isSingleFolderWorkspaceIdentifier(payload) ? payload : 'empty-window', lastActiveProfile ?? userDataProfilesService.defaultProfile);
+		const currentProfile = userDataProfilesService.getOrSetProfileForWorkspace(isWorkspaceIdentifier(payload) || isSingleFolderWorkspaceIdentifier(payload) ? payload : 'empty-window', lastActiveProfile ?? userDataProfilesService.defaultProfile);
 		const userDataProfileService = new UserDataProfileService(currentProfile, userDataProfilesService);
 		serviceCollection.set(IUserDataProfileService, userDataProfileService);
 
@@ -304,7 +304,7 @@ export class BrowserMain extends Disposable {
 			})
 		]);
 
-		userDataProfilesService.setEnablement(!!configurationService.getValue(PROFILES_ENABLEMENT_CONFIG));
+		userDataProfilesService.setEnablement(productService.quality !== 'stable' || configurationService.getValue(PROFILES_ENABLEMENT_CONFIG));
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(PROFILES_ENABLEMENT_CONFIG)) {
 				userDataProfilesService.setEnablement(!!configurationService.getValue(PROFILES_ENABLEMENT_CONFIG));

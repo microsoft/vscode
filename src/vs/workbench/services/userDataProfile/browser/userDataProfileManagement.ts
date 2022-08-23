@@ -12,7 +12,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IUserDataProfileManagementService, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { DidChangeUserDataProfileEvent, IUserDataProfileManagementService, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export class UserDataProfileManagementService extends Disposable implements IUserDataProfileManagementService {
 	readonly _serviceBrand: undefined;
@@ -29,6 +29,7 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		super();
 		this._register(userDataProfilesService.onDidChangeProfiles(e => this.onDidChangeProfiles(e)));
 		this._register(userDataProfilesService.onDidResetWorkspaces(() => this.onDidResetWorkspaces()));
+		this._register(userDataProfileService.onDidChangeCurrentProfile(e => this.onDidChangeCurrentProfile(e)));
 	}
 
 	private onDidChangeProfiles(e: DidChangeProfilesEvent): void {
@@ -45,9 +46,21 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		}
 	}
 
+	private async onDidChangeCurrentProfile(e: DidChangeUserDataProfileEvent): Promise<void> {
+		if (e.previous.isTransient) {
+			await this.userDataProfilesService.cleanUpTransientProfiles();
+		}
+	}
+
 	async createAndEnterProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags, fromExisting?: boolean): Promise<IUserDataProfile> {
 		const profile = await this.userDataProfilesService.createProfile(name, useDefaultFlags, this.getWorkspaceIdentifier());
 		await this.enterProfile(profile, !!fromExisting);
+		return profile;
+	}
+
+	async createAndEnterTransientProfile(): Promise<IUserDataProfile> {
+		const profile = await this.userDataProfilesService.createTransientProfile(this.getWorkspaceIdentifier());
+		await this.enterProfile(profile, false);
 		return profile;
 	}
 
@@ -79,7 +92,7 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		if (this.userDataProfileService.currentProfile.id === profile.id) {
 			return;
 		}
-		await this.userDataProfilesService.setProfileForWorkspace(profile, workspaceIdentifier);
+		await this.userDataProfilesService.setProfileForWorkspace(workspaceIdentifier, profile);
 		await this.enterProfile(profile, false);
 	}
 
