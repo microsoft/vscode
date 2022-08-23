@@ -38,9 +38,10 @@ import { ITreeSorter } from 'vs/base/browser/ui/tree/tree';
 import { AbstractTreeViewState, IAbstractTreeViewState, TreeFindMode } from 'vs/base/browser/ui/tree/abstractTree';
 import { URI } from 'vs/base/common/uri';
 
-const _ctxFollowsCursor = new RawContextKey('outlineFollowsCursor', false);
-const _ctxFilterOnType = new RawContextKey('outlineFiltersOnType', false);
+const _ctxFollowsCursor = new RawContextKey<boolean>('outlineFollowsCursor', false);
+const _ctxFilterOnType = new RawContextKey<boolean>('outlineFiltersOnType', false);
 const _ctxSortMode = new RawContextKey<OutlineSortOrder>('outlineSortMode', OutlineSortOrder.ByPosition);
+const _ctxAllCollapsed = new RawContextKey<boolean>('outlineAllCollapsed', false);
 
 class OutlineTreeSorter<E> implements ITreeSorter<E> {
 
@@ -83,6 +84,10 @@ export class OutlinePane extends ViewPane {
 	private _ctxFollowsCursor!: IContextKey<boolean>;
 	private _ctxFilterOnType!: IContextKey<boolean>;
 	private _ctxSortMode!: IContextKey<OutlineSortOrder>;
+	private _ctxAllCollapsed!: IContextKey<boolean>;
+	private _updateAllCollapsedContext(): void {
+		this._ctxAllCollapsed.set(this._tree?.getNode(null).children.every(node => !node.collapsible || node.collapsed) || false);
+	}
 
 	constructor(
 		options: IViewletViewOptions,
@@ -108,6 +113,7 @@ export class OutlinePane extends ViewPane {
 			this._ctxFollowsCursor = _ctxFollowsCursor.bindTo(contextKeyService);
 			this._ctxFilterOnType = _ctxFilterOnType.bindTo(contextKeyService);
 			this._ctxSortMode = _ctxSortMode.bindTo(contextKeyService);
+			this._ctxAllCollapsed = _ctxAllCollapsed.bindTo(contextKeyService);
 		});
 
 		const updateContext = () => {
@@ -117,6 +123,8 @@ export class OutlinePane extends ViewPane {
 		};
 		updateContext();
 		this._disposables.add(this._outlineViewState.onDidChange(updateContext));
+
+		this._updateAllCollapsedContext();
 	}
 
 	override dispose(): void {
@@ -169,6 +177,10 @@ export class OutlinePane extends ViewPane {
 
 	collapseAll(): void {
 		this._tree?.collapseAll();
+	}
+
+	expandAll(): void {
+		this._tree?.expandAll();
 	}
 
 	get outlineViewState() {
@@ -359,13 +371,14 @@ export class OutlinePane extends ViewPane {
 			}
 		}));
 
-		// last: set tree property
+		// last: set tree property and wire it up to one of our context keys
 		tree.layout(this._treeDimensions?.height, this._treeDimensions?.width);
 		this._tree = tree;
 		this._editorControlDisposables.add(toDisposable(() => {
 			tree.dispose();
 			this._tree = undefined;
 		}));
+		this._disposables.add(this._tree.onDidChangeCollapseState(() => this._updateAllCollapsedContext()));
 	}
 }
 
@@ -383,12 +396,32 @@ registerAction2(class Collapse extends ViewAction<OutlinePane> {
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				when: ContextKeyExpr.equals('view', OutlinePane.Id)
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', OutlinePane.Id), _ctxAllCollapsed.isEqualTo(false))
 			}
 		});
 	}
 	runInView(_accessor: ServicesAccessor, view: OutlinePane) {
 		view.collapseAll();
+	}
+});
+
+registerAction2(class Collapse extends ViewAction<OutlinePane> {
+	constructor() {
+		super({
+			viewId: OutlinePane.Id,
+			id: 'outline.expand',
+			title: localize('expand', "Expand All"),
+			f1: false,
+			icon: Codicon.expandAll,
+			menu: {
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', OutlinePane.Id), _ctxAllCollapsed.isEqualTo(true))
+			}
+		});
+	}
+	runInView(_accessor: ServicesAccessor, view: OutlinePane) {
+		view.expandAll();
 	}
 });
 
