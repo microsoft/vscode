@@ -161,6 +161,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			outputIndicatorHeight: 0,
 			bottomToolbarOffset: 0,
 			layoutState: CellLayoutState.Uninitialized,
+			estimatedHasHorizontalScrolling: false
 		};
 	}
 
@@ -192,9 +193,12 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			let newState: CellLayoutState;
 			let editorHeight: number;
 			let totalHeight: number;
+			let hasHorizontalScrolling = false;
 			if (!state.editorHeight && this._layoutInfo.layoutState === CellLayoutState.FromCache && !state.outputHeight) {
 				// No new editorHeight info - keep cached totalHeight and estimate editorHeight
-				editorHeight = this.estimateEditorHeight(state.font?.lineHeight ?? this._layoutInfo.fontInfo?.lineHeight);
+				const estimate = this.estimateEditorHeight(state.font?.lineHeight ?? this._layoutInfo.fontInfo?.lineHeight);
+				editorHeight = estimate.editorHeight;
+				hasHorizontalScrolling = estimate.hasHorizontalScrolling;
 				totalHeight = this._layoutInfo.totalHeight;
 				newState = CellLayoutState.FromCache;
 			} else if (state.editorHeight || this._layoutInfo.layoutState === CellLayoutState.Measured) {
@@ -202,8 +206,11 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				editorHeight = this._editorHeight;
 				totalHeight = this.computeTotalHeight(this._editorHeight, outputTotalHeight, outputShowMoreContainerHeight);
 				newState = CellLayoutState.Measured;
+				hasHorizontalScrolling = this._layoutInfo.estimatedHasHorizontalScrolling;
 			} else {
-				editorHeight = this.estimateEditorHeight(state.font?.lineHeight ?? this._layoutInfo.fontInfo?.lineHeight);
+				const estimate = this.estimateEditorHeight(state.font?.lineHeight ?? this._layoutInfo.fontInfo?.lineHeight);
+				editorHeight = estimate.editorHeight;
+				hasHorizontalScrolling = estimate.hasHorizontalScrolling;
 				totalHeight = this.computeTotalHeight(editorHeight, outputTotalHeight, outputShowMoreContainerHeight);
 				newState = CellLayoutState.Estimated;
 			}
@@ -239,6 +246,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				outputIndicatorHeight,
 				bottomToolbarOffset,
 				layoutState: newState,
+				estimatedHasHorizontalScrolling: hasHorizontalScrolling
 			};
 		} else {
 			const codeIndicatorHeight = notebookLayoutConfiguration.collapsedIndicatorHeight;
@@ -276,6 +284,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				outputIndicatorHeight,
 				bottomToolbarOffset,
 				layoutState: this._layoutInfo.layoutState,
+				estimatedHasHorizontalScrolling: false
 			};
 		}
 
@@ -306,7 +315,8 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				codeIndicatorHeight: this._layoutInfo.codeIndicatorHeight,
 				outputIndicatorHeight: this._layoutInfo.outputIndicatorHeight,
 				bottomToolbarOffset: this._layoutInfo.bottomToolbarOffset,
-				layoutState: CellLayoutState.FromCache
+				layoutState: CellLayoutState.FromCache,
+				estimatedHasHorizontalScrolling: this._layoutInfo.estimatedHasHorizontalScrolling
 			};
 		}
 	}
@@ -323,32 +333,37 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 
 	getHeight(lineHeight: number) {
 		if (this._layoutInfo.layoutState === CellLayoutState.Uninitialized) {
-			const editorHeight = this.estimateEditorHeight(lineHeight);
-			return this.computeTotalHeight(editorHeight, 0, 0);
+			const estimate = this.estimateEditorHeight(lineHeight);
+			return this.computeTotalHeight(estimate.editorHeight, 0, 0);
 		} else {
 			return this._layoutInfo.totalHeight;
 		}
 	}
 
-	private estimateEditorHeight(lineHeight: number | undefined = 20): number {
-		let hasScrolling = false;
-		if (this.layoutInfo.fontInfo) {
+	private estimateEditorHeight(lineHeight: number | undefined = 20): { editorHeight: number; hasHorizontalScrolling: boolean } {
+		let hasHorizontalScrolling = false;
+		const cellEditorOptions = this.viewContext.getBaseCellEditorOptions(this.language);
+		if (this.layoutInfo.fontInfo && cellEditorOptions.value.wordWrap === 'off') {
 			for (let i = 0; i < this.lineCount; i++) {
 				const max = this.textBuffer.getLineLastNonWhitespaceColumn(i + 1);
 				const estimatedWidth = max * (this.layoutInfo.fontInfo.typicalHalfwidthCharacterWidth + this.layoutInfo.fontInfo.letterSpacing);
 				if (estimatedWidth > this.layoutInfo.editorWidth) {
-					hasScrolling = true;
+					hasHorizontalScrolling = true;
 					break;
 				}
 			}
 		}
 
-		const verticalScrollbarHeight = hasScrolling ? 12 : 0; // take zoom level into account
+		const verticalScrollbarHeight = hasHorizontalScrolling ? 12 : 0; // take zoom level into account
 		const editorPadding = this.viewContext.notebookOptions.computeEditorPadding(this.internalMetadata, this.uri);
-		return this.lineCount * lineHeight
+		const editorHeight = this.lineCount * lineHeight
 			+ editorPadding.top
 			+ editorPadding.bottom // EDITOR_BOTTOM_PADDING
 			+ verticalScrollbarHeight;
+		return {
+			editorHeight,
+			hasHorizontalScrolling
+		};
 	}
 
 	private computeTotalHeight(editorHeight: number, outputsTotalHeight: number, outputShowMoreContainerHeight: number): number {
