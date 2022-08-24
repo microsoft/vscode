@@ -59,7 +59,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 	) {
 
 		function isTreeViewConvertableItem(arg: any): boolean {
-			return arg && arg.$treeViewId && (arg.$treeItemHandle || arg.$selectedTreeItems || arg.$focusedTreeItem);
+			return arg && arg.$treeViewId && (arg.$treeItemHandle || arg.$selectedTreeItems);
 		}
 		commands.registerArgumentProcessor({
 			processArgument: arg => {
@@ -221,14 +221,6 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		treeView.setSelection(treeItemHandles);
 	}
 
-	$setFocus(treeViewId: string, treeItemHandles: string) {
-		const treeView = this.treeViews.get(treeViewId);
-		if (!treeView) {
-			throw new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId));
-		}
-		treeView.setFocus(treeItemHandles);
-	}
-
 	$setVisible(treeViewId: string, isVisible: boolean): void {
 		const treeView = this.treeViews.get(treeViewId);
 		if (!treeView) {
@@ -248,8 +240,8 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		if (treeView && '$treeItemHandle' in arg) {
 			return treeView.getExtensionElement(arg.$treeItemHandle);
 		}
-		if (treeView && '$focusedTreeItem' in arg && arg.$focusedTreeItem) {
-			return treeView.focusedElement;
+		if (treeView && '$selectedTreeItems' in arg && arg.$selectedTreeItems) {
+			return { selectedTreeItems: treeView.selectedElements };
 		}
 		return null;
 	}
@@ -283,9 +275,6 @@ class ExtHostTreeView<T> extends Disposable {
 
 	private _selectedHandles: TreeItemHandle[] = [];
 	get selectedElements(): T[] { return <T[]>this._selectedHandles.map(handle => this.getExtensionElement(handle)).filter(element => !isUndefinedOrNull(element)); }
-
-	private _focusedHandle: TreeItemHandle | undefined = undefined;
-	get focusedElement(): T | undefined { return <T | undefined>(this._focusedHandle ? this.getExtensionElement(this._focusedHandle) : undefined); }
 
 	private _onDidExpandElement: Emitter<vscode.TreeViewExpansionEvent<T>> = this._register(new Emitter<vscode.TreeViewExpansionEvent<T>>());
 	readonly onDidExpandElement: Event<vscode.TreeViewExpansionEvent<T>> = this._onDidExpandElement.event;
@@ -464,10 +453,6 @@ class ExtHostTreeView<T> extends Disposable {
 			this._selectedHandles = treeItemHandles;
 			this._onDidChangeSelection.fire(Object.freeze({ selection: this.selectedElements }));
 		}
-	}
-
-	setFocus(treeItemHandle: TreeItemHandle) {
-		this._focusedHandle = treeItemHandle;
 	}
 
 	setVisible(visible: boolean): void {
