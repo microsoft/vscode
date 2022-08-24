@@ -5,10 +5,10 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { localize } from 'vs/nls';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IResourceMergeEditorInput } from 'vs/workbench/common/editor';
@@ -371,21 +371,17 @@ async function mergeEditorCompare(viewModel: MergeEditorViewModel, editorService
 	const input = inputNumber === 1 ? viewModel.inputCodeEditorView1.editor : viewModel.inputCodeEditorView2.editor;
 
 	const lineNumber = input.getPosition()!.lineNumber;
-	const editor = await editorService.openEditor({
+	await editorService.openEditor({
 		original: { resource: base.uri },
-		modified: { resource: input.getModel()!.uri }
-	});
-	const e = editor?.getControl() as IDiffEditor | undefined;
-	if (!e) {
-		return;
-	}
-	const d = e.onDidUpdateDiff(() => {
-		// This setTimeout makes sure we only scroll after the diff editor already scrolled to the first diff
-		setTimeout(() => {
-			e.setPosition({ lineNumber, column: 1 });
-			e.revealLine(lineNumber);
-			d.dispose();
-		}, 0);
+		modified: { resource: input.getModel()!.uri },
+		options: {
+			selection: {
+				startLineNumber: lineNumber,
+				startColumn: 1,
+			},
+			revealIfOpened: true,
+			revealIfVisible: true,
+		} as ITextEditorOptions
 	});
 }
 
