@@ -39,6 +39,15 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		super(stateMainService, uriIdentityService, environmentService, fileService, logService);
 	}
 
+	override setEnablement(enabled: boolean): void {
+		super.setEnablement(enabled);
+		if (!this.enabled) {
+			// reset
+			this.saveStoredProfiles([]);
+			this.saveStoredProfileAssociations({});
+		}
+	}
+
 	isEnabled(): boolean {
 		return this.enabled;
 	}
@@ -69,11 +78,19 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 	}
 
 	protected override saveStoredProfiles(storedProfiles: StoredUserDataProfile[]): void {
-		this.stateMainService.setItem(UserDataProfilesMainService.PROFILES_KEY, storedProfiles);
+		if (storedProfiles.length) {
+			this.stateMainService.setItem(UserDataProfilesMainService.PROFILES_KEY, storedProfiles);
+		} else {
+			this.stateMainService.removeItem(UserDataProfilesMainService.PROFILES_KEY);
+		}
 	}
 
 	protected override saveStoredProfileAssociations(storedProfileAssociations: StoredProfileAssociations): void {
-		this.stateMainService.setItem(UserDataProfilesMainService.PROFILE_ASSOCIATIONS_KEY, storedProfileAssociations);
+		if (storedProfileAssociations.emptyWindow || storedProfileAssociations.workspaces) {
+			this.stateMainService.setItem(UserDataProfilesMainService.PROFILE_ASSOCIATIONS_KEY, storedProfileAssociations);
+		} else {
+			this.stateMainService.removeItem(UserDataProfilesMainService.PROFILE_ASSOCIATIONS_KEY);
+		}
 	}
 
 	protected override getStoredProfileAssociations(): StoredProfileAssociations {
