@@ -5,20 +5,18 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { localize } from 'vs/nls';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { API_OPEN_DIFF_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IResourceMergeEditorInput } from 'vs/workbench/common/editor';
 import { MergeEditorInputData } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { MergeEditor } from 'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor';
 import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
 import { ctxIsMergeEditor, ctxMergeEditorLayout } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Event } from 'vs/base/common/event';
 
 abstract class MergeEditorAction extends Action2 {
 	constructor(desc: Readonly<IAction2Options>) {
@@ -375,14 +373,14 @@ async function mergeEditorCompare(viewModel: MergeEditorViewModel, editorService
 	const lineNumber = input.getPosition()!.lineNumber;
 	const editor = await editorService.openEditor({
 		original: { resource: base.uri },
-		modified: { resource: input.getModel()!.uri },
+		modified: { resource: input.getModel()!.uri }
 	});
-	const e = editor?.getControl();
+	const e = editor?.getControl() as IDiffEditor | undefined;
 	if (!e) {
 		return;
 	}
-	const d = ((e as any).onDidUpdateDiff as Event<unknown>)(() => {
-		// This setTimeout makes sure the diff editor first scrolls to the first diff
+	const d = e.onDidUpdateDiff(() => {
+		// This setTimeout makes sure we only scroll after the diff editor already scrolled to the first diff
 		setTimeout(() => {
 			e.setPosition({ lineNumber, column: 1 });
 			e.revealLine(lineNumber);
