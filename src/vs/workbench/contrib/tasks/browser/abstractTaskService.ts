@@ -1120,11 +1120,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					key = customized[configuration].getRecentlyUsedKey()!;
 				}
 			}
-			// isBackground is still false at this pt bc problem matchers
-			// for contributed tasks get attached later
-			// they're set to [] for this case,
-			// so checking if they're defined is sufficient
-			if (!task.configurationProperties.problemMatchers) {
+			if (!task.configurationProperties.isBackground) {
 				return;
 			}
 			this._getTasksFromStorage('persistent').set(key, JSON.stringify(customizations));

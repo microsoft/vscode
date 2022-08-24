@@ -236,8 +236,8 @@ export class PtyService extends Disposable implements IPtyService {
 		return this._throwIfNoPty(id).updateProperty(type, value);
 	}
 
-	async detachFromProcess(id: number): Promise<void> {
-		return this._throwIfNoPty(id).detach();
+	async detachFromProcess(id: number, forcePersist?: boolean): Promise<void> {
+		return this._throwIfNoPty(id).detach(forcePersist);
 	}
 
 	async reduceConnectionGraceTime(): Promise<void> {
@@ -595,9 +595,11 @@ export class PersistentTerminalProcess extends Disposable {
 		this._disconnectRunner2.cancel();
 	}
 
-	async detach(): Promise<void> {
-		this._logService.trace('persistentTerminalProcess#detach', this._persistentProcessId);
-		if (this.shouldPersistTerminal) {
+	async detach(forcePersist?: boolean): Promise<void> {
+		this._logService.trace('persistentTerminalProcess#detach', this._persistentProcessId, forcePersist);
+		// Keep the process around if it was indicated to persist and it has had some iteraction or
+		// was replayed
+		if (this.shouldPersistTerminal && (this._interactionState !== InteractionState.None || forcePersist)) {
 			this._disconnectRunner1.schedule();
 		} else {
 			this.shutdown(true);

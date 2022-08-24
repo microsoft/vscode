@@ -213,14 +213,14 @@ export class OpenResultResource extends MergeEditorAction {
 	}
 }
 
-export class GoToNextConflict extends MergeEditorAction {
+export class GoToNextUnhandledConflict extends MergeEditorAction {
 	constructor() {
 		super({
-			id: 'merge.goToNextConflict',
+			id: 'merge.goToNextUnhandledConflict',
 			category: mergeEditorCategory,
 			title: {
-				value: localize('merge.goToNextConflict', 'Go to Next Conflict'),
-				original: 'Go to Next Conflict',
+				value: localize('merge.goToNextUnhandledConflict', 'Go to Next Unhandled Conflict'),
+				original: 'Go to Next Unhandled Conflict',
 			},
 			icon: Codicon.arrowDown,
 			menu: [
@@ -237,21 +237,21 @@ export class GoToNextConflict extends MergeEditorAction {
 	}
 
 	override runWithViewModel(viewModel: MergeEditorViewModel): void {
-		viewModel.goToNextModifiedBaseRange(true);
+		viewModel.goToNextModifiedBaseRange(r => !viewModel.model.isHandled(r).get());
 	}
 }
 
-export class GoToPreviousConflict extends MergeEditorAction {
+export class GoToPreviousUnhandledConflict extends MergeEditorAction {
 	constructor() {
 		super({
-			id: 'merge.goToPreviousConflict',
+			id: 'merge.goToPreviousUnhandledConflict',
 			category: mergeEditorCategory,
 			title: {
 				value: localize(
-					'merge.goToPreviousConflict',
-					'Go to Previous Conflict'
+					'merge.goToPreviousUnhandledConflict',
+					'Go to Previous Unhandled Conflict'
 				),
-				original: 'Go to Previous Conflict',
+				original: 'Go to Previous Unhandled Conflict',
 			},
 			icon: Codicon.arrowUp,
 			menu: [
@@ -268,7 +268,7 @@ export class GoToPreviousConflict extends MergeEditorAction {
 	}
 
 	override runWithViewModel(viewModel: MergeEditorViewModel): void {
-		viewModel.goToPreviousModifiedBaseRange(true);
+		viewModel.goToPreviousModifiedBaseRange(r => !viewModel.model.isHandled(r).get());
 	}
 }
 

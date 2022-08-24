@@ -55,10 +55,7 @@
 .xterm .xterm-helpers {
 	position: absolute;
 	top: 0;
-	/**
-	 * The z-index of the helpers must be higher than the canvases in order for
-	 * IMEs to appear on top.
-	 */
+	/* The z-index of the helpers must be higher than the canvases in order for IMEs to appear on top. */
 	z-index: 5;
 }
 
@@ -167,8 +164,24 @@
 	opacity: 0.5;
 }
 
-.xterm-underline {
+.xterm-underline-1 {
 	text-decoration: underline;
+}
+
+.xterm-underline-2 {
+	text-decoration: double underline;
+}
+
+.xterm-underline-3 {
+	text-decoration: wavy underline;
+}
+
+.xterm-underline-4 {
+	text-decoration: dotted underline;
+}
+
+.xterm-underline-5 {
+	text-decoration: dashed underline;
 }
 
 .xterm-strikethrough {
