@@ -415,10 +415,12 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		if (!this.enabled) {
 			return;
 		}
-		const stat = await this.fileService.resolve(this.profilesHome);
-		await Promise.all((stat.children || [])
-			.filter(child => child.isDirectory && this.profiles.every(p => !this.uriIdentityService.extUri.isEqual(p.location, child.resource)))
-			.map(child => this.fileService.del(child.resource, { recursive: true })));
+		if (await this.fileService.exists(this.profilesHome)) {
+			const stat = await this.fileService.resolve(this.profilesHome);
+			await Promise.all((stat.children || [])
+				.filter(child => child.isDirectory && this.profiles.every(p => !this.uriIdentityService.extUri.isEqual(p.location, child.resource)))
+				.map(child => this.fileService.del(child.resource, { recursive: true })));
+		}
 	}
 
 	async cleanUpTransientProfiles(): Promise<void> {
