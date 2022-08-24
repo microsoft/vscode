@@ -1717,7 +1717,11 @@ export class CommandCenter {
 
 	@command('git.commitMessageAccept')
 	async commitMessageAccept(arg?: Uri): Promise<void> {
-		if (!arg) { return; }
+		if (!arg) {
+			const activeEditor = window.activeTextEditor;
+			if (!activeEditor) { return; }
+			arg = activeEditor.document.uri;
+		}
 
 		// Close the tab
 		this._closeEditorTab(arg);
@@ -1725,11 +1729,15 @@ export class CommandCenter {
 
 	@command('git.commitMessageDiscard')
 	async commitMessageDiscard(arg?: Uri): Promise<void> {
-		if (!arg) { return; }
+		if (!arg) {
+			const activeEditor = window.activeTextEditor;
+			if (!activeEditor) { return; }
+			arg = activeEditor.document.uri;
+		}
 
 		// Clear the contents of the editor
 		const editors = window.visibleTextEditors
-			.filter(e => e.document.languageId === 'git-commit' && e.document.uri.toString() === arg.toString());
+			.filter(e => e.document.languageId === 'git-commit' && e.document.uri.toString() === arg!.toString());
 
 		if (editors.length !== 1) { return; }
 
