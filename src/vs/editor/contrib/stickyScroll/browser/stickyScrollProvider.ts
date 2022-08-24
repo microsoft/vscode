@@ -118,14 +118,17 @@ export class StickyLineCandidateProvider extends Disposable {
 		console.log('start lines : ', childrenStartLines);
 		console.log('b1 ', binarySearch(childrenStartLines, range.startLineNumber, (a: number, b: number) => { return a - b; }));
 		console.log('b2 ', binarySearch(childrenStartLines, range.startLineNumber + depth, (a: number, b: number) => { return a - b; }));
+		console.log('childrenStartLines : ', childrenStartLines);
 		const indexLower = this.updatedIndex(binarySearch(childrenStartLines, range.startLineNumber, (a: number, b: number) => { return a - b; }));
 		const indexUpper = this.updatedIndex(binarySearch(childrenStartLines, range.startLineNumber + depth, (a: number, b: number) => { return a - b; }));
 		console.log('indexLower : ', indexLower, ' and indexUpper : ', indexUpper);
 		for (let i = indexLower; i <= indexUpper; i++) {
-			const child = outlineModel.children[i];
+			console.log('index i : ', i);
+			const child = outlineModel.children.filter(child => { return child.range?.startLineNumber !== child.range?.endLineNumber; })[i];
 			if (child.range) {
 				const childStartLine = child.range.startLineNumber;
 				const childEndLine = child.range.endLineNumber;
+				console.log('for range : ', child.range, ' our range : ', range, ' we are outside the if condition');
 				if (range.startLineNumber <= childEndLine + 1 && childStartLine - 1 <= range.endLineNumber && childStartLine !== lastLine) {
 					lastLine = childStartLine;
 					result.push(new StickyLineCandidate(childStartLine, childEndLine - 1, depth + 1));
