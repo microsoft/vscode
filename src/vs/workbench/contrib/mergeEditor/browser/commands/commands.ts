@@ -8,10 +8,9 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { API_OPEN_DIFF_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IResourceMergeEditorInput } from 'vs/workbench/common/editor';
 import { MergeEditorInputData } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { MergeEditor } from 'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor';
@@ -336,8 +335,8 @@ export class CompareInput1WithBaseCommand extends MergeEditorAction {
 	}
 
 	override runWithViewModel(viewModel: MergeEditorViewModel, accessor: ServicesAccessor): void {
-		const commandService = accessor.get(ICommandService);
-		mergeEditorCompare(viewModel, commandService, 1);
+		const editorService = accessor.get(IEditorService);
+		mergeEditorCompare(viewModel, editorService, 1);
 	}
 }
 
@@ -361,20 +360,29 @@ export class CompareInput2WithBaseCommand extends MergeEditorAction {
 	}
 
 	override runWithViewModel(viewModel: MergeEditorViewModel, accessor: ServicesAccessor): void {
-		const commandService = accessor.get(ICommandService);
-		mergeEditorCompare(viewModel, commandService, 2);
+		const editorService = accessor.get(IEditorService);
+		mergeEditorCompare(viewModel, editorService, 2);
 	}
 }
 
-function mergeEditorCompare(viewModel: MergeEditorViewModel, commandService: ICommandService, inputNumber: 1 | 2) {
+async function mergeEditorCompare(viewModel: MergeEditorViewModel, editorService: IEditorService, inputNumber: 1 | 2) {
 	const model = viewModel.model;
-	const base = model.base.uri;
-	const input = inputNumber === 1 ? model.input1.textModel.uri : model.input2.textModel.uri;
-	openDiffEditor(commandService, base, input);
-}
+	const base = model.base;
+	const input = inputNumber === 1 ? viewModel.inputCodeEditorView1.editor : viewModel.inputCodeEditorView2.editor;
 
-function openDiffEditor(commandService: ICommandService, left: URI, right: URI, label?: string) {
-	commandService.executeCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, left, right, label);
+	const lineNumber = input.getPosition()!.lineNumber;
+	await editorService.openEditor({
+		original: { resource: base.uri },
+		modified: { resource: input.getModel()!.uri },
+		options: {
+			selection: {
+				startLineNumber: lineNumber,
+				startColumn: 1,
+			},
+			revealIfOpened: true,
+			revealIfVisible: true,
+		} as ITextEditorOptions
+	});
 }
 
 export class OpenBaseFile extends MergeEditorAction {
