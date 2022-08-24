@@ -12,7 +12,6 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Range } from 'vs/editor/common/core/range';
 import { Emitter } from 'vs/base/common/event';
-import { binarySearch } from 'vs/base/common/arrays';
 
 export class StickyRange {
 	constructor(
@@ -97,14 +96,32 @@ export class StickyLineCandidateProvider extends Disposable {
 		}
 	}
 
-	// consider the case when index = -length - 1
-	private updatedIndex(index: number) {
-		if (index === -1) {
-			index = 0;
-		} else if (index < 0) {
-			index = -index - 2;
+	private customBinarySearch(model: readonly StickyOutlineElement[], startLine: number) {
+
+		// Binary search
+		let result;
+		let low = 0, high = model.length - 1;
+		while (low <= high) {
+			const mid = ((low + high) / 2) | 0;
+			const comp = model[mid].range?.startLineNumber as number - startLine;
+			if (comp < 0) {
+				low = mid + 1;
+			} else if (comp > 0) {
+				high = mid - 1;
+			} else {
+				result = mid;
+				break;
+			}
 		}
-		return index;
+		if (!result) { result = -(low + 1); }
+
+		// Update index
+		if (result === -1) {
+			result = 0;
+		} else if (result < 0) {
+			result = -result - 2;
+		}
+		return result;
 	}
 
 	public getCandidateStickyLinesIntersectingFromOutline(range: StickyRange, outlineModel: StickyOutlineElement, result: StickyLineCandidate[], depth: number, lastStartLineNumber: number): void {
@@ -112,11 +129,10 @@ export class StickyLineCandidateProvider extends Disposable {
 			return;
 		}
 		let lastLine = lastStartLineNumber;
-		const childrenStartLines = outlineModel.children.filter(child => { return child.range?.startLineNumber !== child.range?.endLineNumber; }).map(child => child.range?.startLineNumber as number);
-		const indexLower = this.updatedIndex(binarySearch(childrenStartLines, range.startLineNumber, (a: number, b: number) => { return a - b; }));
-		const indexUpper = this.updatedIndex(binarySearch(childrenStartLines, range.startLineNumber + depth, (a: number, b: number) => { return a - b; }));
-		for (let i = indexLower; i <= indexUpper; i++) {
-			const child = outlineModel.children.filter(child => { return child.range?.startLineNumber !== child.range?.endLineNumber; })[i];
+		const lowerBound = this.customBinarySearch(outlineModel.children, range.startLineNumber);
+		const upperBound = this.customBinarySearch(outlineModel.children, range.startLineNumber + depth);
+		for (let i = lowerBound; i <= upperBound; i++) {
+			const child = outlineModel.children[i];
 			if (child && child.range) {
 				const childStartLine = child.range.startLineNumber;
 				const childEndLine = child.range.endLineNumber;
@@ -151,9 +167,13 @@ export class StickyLineCandidateProvider extends Disposable {
 
 class StickyOutlineElement {
 	public static fromOutlineModel(outlineModel: OutlineModel | OutlineElement | OutlineGroup): StickyOutlineElement {
-		const children = [...outlineModel.children.values()].map(child =>
-			StickyOutlineElement.fromOutlineModel(child)
-		);
+		const children = [...outlineModel.children.values()].map(child => {
+			if (child instanceof OutlineElement && child.symbol.selectionRange.startLineNumber !== child.symbol.range.endLineNumber || child instanceof OutlineGroup || child instanceof OutlineModel) {
+				return StickyOutlineElement.fromOutlineModel(child);
+			} else {
+				return;
+			}
+		}).filter((child) => !!child) as StickyOutlineElement[];
 		children.sort((child1, child2) => {
 			if (!child1.range || !child2.range) {
 				return 1;
