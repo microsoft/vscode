@@ -105,12 +105,10 @@ suite('Sticky Scroll Tests', () => {
 			const languageService = instantiationService.get(ILanguageFeaturesService);
 			languageService.documentSymbolProvider.register('*', documentSymbolProviderForTestModel());
 			const provider: StickyLineCandidateProvider = new StickyLineCandidateProvider(editor, languageService);
-
 			await provider.update();
-
 			assert.deepStrictEqual(provider.getCandidateStickyLinesIntersecting({ startLineNumber: 1, endLineNumber: 4 }), [new StickyLineCandidate(1, 2, 1)]);
-			assert.deepStrictEqual(provider.getCandidateStickyLinesIntersecting({ startLineNumber: 1, endLineNumber: 10 }), [new StickyLineCandidate(1, 2, 1), new StickyLineCandidate(7, 11, 1), new StickyLineCandidate(9, 11, 2), new StickyLineCandidate(10, 10, 3)]);
-			assert.deepStrictEqual(provider.getCandidateStickyLinesIntersecting({ startLineNumber: 1, endLineNumber: 13 }), [new StickyLineCandidate(1, 2, 1), new StickyLineCandidate(7, 11, 1), new StickyLineCandidate(9, 11, 2), new StickyLineCandidate(10, 10, 3), new StickyLineCandidate(13, 13, 1)]);
+			assert.deepStrictEqual(provider.getCandidateStickyLinesIntersecting({ startLineNumber: 8, endLineNumber: 10 }), [new StickyLineCandidate(7, 11, 1), new StickyLineCandidate(9, 11, 2), new StickyLineCandidate(10, 10, 3)]);
+			assert.deepStrictEqual(provider.getCandidateStickyLinesIntersecting({ startLineNumber: 10, endLineNumber: 13 }), [new StickyLineCandidate(7, 11, 1), new StickyLineCandidate(9, 11, 2), new StickyLineCandidate(10, 10, 3)]);
 
 			provider.dispose();
 			model.dispose();
