@@ -26,7 +26,6 @@ import { Color } from 'vs/base/common/color';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProcess';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { Codicon } from 'vs/base/common/codicons';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { terminalDecorationError, terminalDecorationIncomplete, terminalDecorationMark, terminalDecorationSuccess } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 
@@ -455,30 +454,11 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		quickPick.onDidAccept(async e => {
 			quickPick.hide();
 			const result = quickPick.activeItems[0];
-			let iconSetting: string | undefined;
 			switch (result.id) {
 				case 'a': this._showToggleVisibilityQuickPick(); break;
 			}
-			if (iconSetting) {
-				this._showChangeIconQuickPick(iconSetting);
-			}
 		});
 		quickPick.show();
-	}
-
-	private async _showChangeIconQuickPick(iconSetting: string) {
-		type Item = IQuickPickItem & { icon: Codicon };
-		const items: Item[] = [];
-		for (const icon of Codicon.getAll()) {
-			items.push({ label: `$(${icon.id})`, description: `${icon.id}`, icon });
-		}
-		const result = await this._quickInputService.pick(items, {
-			matchOnDescription: true
-		});
-		if (result) {
-			this._configurationService.updateValue(iconSetting, result.icon.id);
-			this._showConfigureCommandDecorationsQuickPick();
-		}
 	}
 
 	private _showToggleVisibilityQuickPick() {
