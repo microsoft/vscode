@@ -69,9 +69,9 @@ export class MergeEditorViewModel {
 
 	constructor(
 		public readonly model: MergeEditorModel,
-		private readonly inputCodeEditorView1: InputCodeEditorView,
-		private readonly inputCodeEditorView2: InputCodeEditorView,
-		private readonly resultCodeEditorView: ResultCodeEditorView
+		public readonly inputCodeEditorView1: InputCodeEditorView,
+		public readonly inputCodeEditorView2: InputCodeEditorView,
+		public readonly resultCodeEditorView: ResultCodeEditorView
 	) { }
 
 	public setState(
