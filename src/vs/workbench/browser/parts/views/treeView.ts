@@ -71,6 +71,7 @@ export class TreeViewPane extends ViewPane {
 
 	protected readonly treeView: ITreeView;
 	private _container: HTMLElement | undefined;
+	private _actionRunner: MultipleSelectionActionRunner;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -83,6 +84,7 @@ export class TreeViewPane extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@INotificationService notificationService: INotificationService
 	) {
 		super({ ...(options as IViewPaneOptions), titleMenuId: MenuId.ViewTitle, donotForwardArgs: false }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		const { treeView } = (<ITreeViewDescriptor>Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getView(options.id));
@@ -103,6 +105,7 @@ export class TreeViewPane extends ViewPane {
 		if (options.titleDescription !== this.treeView.description) {
 			this.updateTitleDescription(this.treeView.description);
 		}
+		this._actionRunner = new MultipleSelectionActionRunner(notificationService, () => this.treeView.getSelection());
 
 		this.updateTreeVisibility();
 	}
@@ -143,11 +146,12 @@ export class TreeViewPane extends ViewPane {
 		this.treeView.setVisibility(this.isBodyVisible());
 	}
 
+	override getActionRunner() {
+		return this._actionRunner;
+	}
+
 	override getActionsContext(): TreeViewPaneHandleArg {
-		return {
-			$selectedTreeItems: true,
-			$treeViewId: this.id
-		};
+		return { $treeViewId: this.id, $focusedTreeItem: true, $selectedTreeItems: true };
 	}
 
 }
@@ -213,6 +217,9 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 
 	private _onDidChangeSelection: Emitter<ITreeItem[]> = this._register(new Emitter<ITreeItem[]>());
 	readonly onDidChangeSelection: Event<ITreeItem[]> = this._onDidChangeSelection.event;
+
+	private _onDidChangeFocus: Emitter<ITreeItem> = this._register(new Emitter<ITreeItem>());
+	readonly onDidChangeFocus: Event<ITreeItem> = this._onDidChangeFocus.event;
 
 	private readonly _onDidChangeVisibility: Emitter<boolean> = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
@@ -617,6 +624,11 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		customTreeKey.set(true);
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(treeMenus, e, actionRunner)));
 		this._register(this.tree.onDidChangeSelection(e => this._onDidChangeSelection.fire(e.elements)));
+		this._register(this.tree.onDidChangeFocus(e => {
+			if (e.elements.length) {
+				this._onDidChangeFocus.fire(e.elements[0]);
+			}
+		}));
 		this._register(this.tree.onDidChangeCollapseState(e => {
 			if (!e.node.element) {
 				return;
@@ -801,6 +813,10 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 
 	setSelection(items: ITreeItem[]): void {
 		this.tree?.setSelection(items);
+	}
+
+	getSelection(): ITreeItem[] {
+		return this.tree?.getSelection() ?? [];
 	}
 
 	setFocus(item: ITreeItem): void {
@@ -1234,13 +1250,13 @@ class MultipleSelectionActionRunner extends ActionRunner {
 		}));
 	}
 
-	override async runAction(action: IAction, context: TreeViewItemHandleArg): Promise<void> {
+	override async runAction(action: IAction, context: TreeViewItemHandleArg | TreeViewPaneHandleArg): Promise<void> {
 		const selection = this.getSelectedResources();
 		let selectionHandleArgs: TreeViewItemHandleArg[] | undefined = undefined;
 		let actionInSelected: boolean = false;
 		if (selection.length > 1) {
 			selectionHandleArgs = selection.map(selected => {
-				if (selected.handle === context.$treeItemHandle) {
+				if ((selected.handle === (context as TreeViewItemHandleArg).$treeItemHandle) || (context as TreeViewPaneHandleArg).$selectedTreeItems) {
 					actionInSelected = true;
 				}
 				return { $treeViewId: context.$treeViewId, $treeItemHandle: selected.handle };

@@ -152,6 +152,7 @@ exports.config = {
             'F# script': ['fsx', 'fsscript'],
             'SVG document': ['svg', 'svgz'],
             'TOML document': 'toml',
+            'Swift source code': 'swift',
         }, 'default'),
         // Default icon with default name
         darwinBundleDocumentType([
