@@ -61,31 +61,29 @@ export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 		// Calculate the file name end using the URI if possible, this will help with sanitizing the
 		// link for the match regex. The actual path isn't important in extracting the line and
 		// column from the regex so modifying the link text before the file name is safe.
-		const fileName = basename(uri.fsPath);
+		const fileName = basename(uri.path);
 		const index = link.indexOf(fileName);
 		const fileNameEndIndex: number = index !== -1 ? index + fileName.length : link.length;
 
 		// Sanitize the link text such that the folders and file name do not contain whitespace.
-		// Prefer the URI's fsPath over the raw `link` text to operate on a consistent format.
-		// link = uri.fsPath.replace(/\s/g, '_') + link.slice(fileNameEndIndex);
+		link = link.slice(0, fileNameEndIndex).replace(/\s/g, '_') + link.slice(fileNameEndIndex);
 
 		// The local link regex only works for non file:// links, check these for a simple
 		// `:line:col` suffix
-		// if (link.startsWith('file://')) {
-		// 	const simpleMatches = link.match(/:(\d+)(:(\d+))?$/);
-		// 	if (simpleMatches) {
-		// 		if (simpleMatches[1] !== undefined) {
-		// 			lineColumnInfo.lineNumber = parseInt(simpleMatches[1]);
-		// 		}
-		// 		if (simpleMatches[3] !== undefined) {
-		// 			lineColumnInfo.columnNumber = parseInt(simpleMatches[3]);
-		// 		}
-		// 	}
-		// 	return lineColumnInfo;
-		// }
+		if (link.startsWith('file://')) {
+			const simpleMatches = link.match(/:(\d+)(:(\d+))?$/);
+			if (simpleMatches) {
+				if (simpleMatches[1] !== undefined) {
+					lineColumnInfo.lineNumber = parseInt(simpleMatches[1]);
+				}
+				if (simpleMatches[3] !== undefined) {
+					lineColumnInfo.columnNumber = parseInt(simpleMatches[3]);
+				}
+			}
+			return lineColumnInfo;
+		}
 
-		const fsLink = uri.fsPath.replace(/\s/g, '_') + link.slice(fileNameEndIndex);
-		const matches: string[] | null = getLocalLinkRegex(this._os).exec(fsLink);
+		const matches: string[] | null = getLocalLinkRegex(this._os).exec(link);
 		if (!matches) {
 			return lineColumnInfo;
 		}
