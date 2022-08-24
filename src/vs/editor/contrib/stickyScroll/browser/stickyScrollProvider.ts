@@ -111,7 +111,13 @@ export class StickyLineCandidateProvider extends Disposable {
 			return;
 		}
 		let lastLine = lastStartLineNumber;
-		const childrenStartLines = outlineModel.children.map(child => child.range?.startLineNumber as number);
+		const childrenStartLines: number[] = [];
+		for (let i = 0; i < outlineModel.children.length; i++) {
+			const child = outlineModel.children[i];
+			if (child.range) {
+				childrenStartLines.push(child.range.startLineNumber);
+			}
+		}
 		const lowerBound = this.updateIndex(binarySearch(childrenStartLines, range.startLineNumber, (a: number, b: number) => { return a - b; }));
 		const upperBound = this.updateIndex(binarySearch(childrenStartLines, range.startLineNumber + depth, (a: number, b: number) => { return a - b; }));
 		for (let i = lowerBound; i <= upperBound; i++) {
