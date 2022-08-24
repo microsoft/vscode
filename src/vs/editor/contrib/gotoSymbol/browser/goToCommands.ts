@@ -232,11 +232,7 @@ export abstract class SymbolNavigationAction extends EditorAction {
 	private _openInPeek(target: ICodeEditor, model: ReferencesModel, range?: Range) {
 		const controller = ReferencesController.get(target);
 		if (controller && target.hasModel()) {
-			if (range) {
-				controller.toggleWidget(range, createCancelablePromise(_ => Promise.resolve(model)), this.configuration.openInPeek);
-			} else {
-				controller.toggleWidget(target.getSelection(), createCancelablePromise(_ => Promise.resolve(model)), this.configuration.openInPeek);
-			}
+			controller.toggleWidget(range ?? target.getSelection(), createCancelablePromise(_ => Promise.resolve(model)), this.configuration.openInPeek);
 		} else {
 			model.dispose();
 		}
