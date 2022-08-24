@@ -160,7 +160,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		return linkGestureStore;
 	}
 
-
 	public get lineNumbers(): number[] {
 		return this._lineNumbers;
 	}
