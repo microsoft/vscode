@@ -265,7 +265,7 @@ class MergeEditorCloseHandler implements IEditorCloseHandler {
 
 		const actions: string[] = [
 			localize('saveWithConflict', "Save with Conflicts"),
-			localize('discard', "Don't save"),
+			localize('discard', "Don't Save"),
 			localize('cancel', "Cancel"),
 		];
 
