@@ -66,7 +66,7 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 			}
 			return this.createProfile(args.profile).then(() => args);
 		}
-		if (args['profile-transient']) {
+		if (args['profile-temp']) {
 			return this.createTransientProfile()
 				.then(profile => {
 					// Set the profile name to use
