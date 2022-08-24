@@ -104,34 +104,34 @@ export class MergeEditorViewModel {
 		}
 	}
 
-	public goToNextModifiedBaseRange(onlyConflicting: boolean): void {
+	public goToNextModifiedBaseRange(predicate: (m: ModifiedBaseRange) => boolean): void {
 		this.goToConflict(
 			(e, l) =>
 				this.model.modifiedBaseRanges
 					.get()
 					.find(
 						(r) =>
-							(!onlyConflicting || r.isConflicting) &&
+							predicate(r) &&
 							this.getRange(e, r, undefined).startLineNumber > l
 					) ||
 				this.model.modifiedBaseRanges
 					.get()
-					.find((r) => !onlyConflicting || r.isConflicting)
+					.find((r) => predicate(r))
 		);
 	}
 
-	public goToPreviousModifiedBaseRange(onlyConflicting: boolean): void {
+	public goToPreviousModifiedBaseRange(predicate: (m: ModifiedBaseRange) => boolean): void {
 		this.goToConflict(
 			(e, l) =>
 				findLast(
 					this.model.modifiedBaseRanges.get(),
 					(r) =>
-						(!onlyConflicting || r.isConflicting) &&
+						predicate(r) &&
 						this.getRange(e, r, undefined).endLineNumberExclusive < l
 				) ||
 				findLast(
 					this.model.modifiedBaseRanges.get(),
-					(r) => !onlyConflicting || r.isConflicting
+					(r) => predicate(r)
 				)
 		);
 	}
