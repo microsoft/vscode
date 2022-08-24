@@ -108,27 +108,18 @@ export class StickyLineCandidateProvider extends Disposable {
 	}
 
 	public getCandidateStickyLinesIntersectingFromOutline(range: StickyRange, outlineModel: StickyOutlineElement, result: StickyLineCandidate[], depth: number, lastStartLineNumber: number): void {
-		if (outlineModel.children.length === 0) {
+		if (!outlineModel || outlineModel.children.length === 0) {
 			return;
 		}
 		let lastLine = lastStartLineNumber;
 		const childrenStartLines = outlineModel.children.filter(child => { return child.range?.startLineNumber !== child.range?.endLineNumber; }).map(child => child.range?.startLineNumber as number);
-		console.log('childrenStartLines : ', childrenStartLines);
-		console.log('range : ', range);
-		console.log('start lines : ', childrenStartLines);
-		console.log('b1 ', binarySearch(childrenStartLines, range.startLineNumber, (a: number, b: number) => { return a - b; }));
-		console.log('b2 ', binarySearch(childrenStartLines, range.startLineNumber + depth, (a: number, b: number) => { return a - b; }));
-		console.log('childrenStartLines : ', childrenStartLines);
 		const indexLower = this.updatedIndex(binarySearch(childrenStartLines, range.startLineNumber, (a: number, b: number) => { return a - b; }));
 		const indexUpper = this.updatedIndex(binarySearch(childrenStartLines, range.startLineNumber + depth, (a: number, b: number) => { return a - b; }));
-		console.log('indexLower : ', indexLower, ' and indexUpper : ', indexUpper);
 		for (let i = indexLower; i <= indexUpper; i++) {
-			console.log('index i : ', i);
 			const child = outlineModel.children.filter(child => { return child.range?.startLineNumber !== child.range?.endLineNumber; })[i];
-			if (child.range) {
+			if (child && child.range) {
 				const childStartLine = child.range.startLineNumber;
 				const childEndLine = child.range.endLineNumber;
-				console.log('for range : ', child.range, ' our range : ', range, ' we are outside the if condition');
 				if (range.startLineNumber <= childEndLine + 1 && childStartLine - 1 <= range.endLineNumber && childStartLine !== lastLine) {
 					lastLine = childStartLine;
 					result.push(new StickyLineCandidate(childStartLine, childEndLine - 1, depth + 1));
@@ -143,7 +134,6 @@ export class StickyLineCandidateProvider extends Disposable {
 	public getCandidateStickyLinesIntersecting(range: StickyRange): StickyLineCandidate[] {
 		let stickyLineCandidates: StickyLineCandidate[] = [];
 		this.getCandidateStickyLinesIntersectingFromOutline(range, this._outlineModel as StickyOutlineElement, stickyLineCandidates, 0, -1);
-		console.log('stickyLineCandidates : ', stickyLineCandidates);
 		const hiddenRanges: Range[] | undefined = this._editor._getViewModel()?.getHiddenAreas();
 		if (hiddenRanges) {
 			for (const hiddenRange of hiddenRanges) {
