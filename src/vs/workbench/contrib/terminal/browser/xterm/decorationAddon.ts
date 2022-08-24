@@ -9,7 +9,7 @@ import { IDecoration, ITerminalAddon, Terminal } from 'xterm';
 import * as dom from 'vs/base/browser/dom';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { CommandInvalidationReason, ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IAction, Separator } from 'vs/base/common/actions';
@@ -28,6 +28,7 @@ import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProc
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { Codicon } from 'vs/base/common/codicons';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { terminalDecorationError, terminalDecorationIncomplete, terminalDecorationMark, terminalDecorationSuccess } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 
 const enum DecorationSelector {
 	CommandDecoration = 'terminal-command-decoration',
@@ -333,7 +334,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		element.classList.add(DecorationSelector.CommandDecoration, DecorationSelector.Codicon, DecorationSelector.XtermDecoration);
 
 		if (genericMarkProperties) {
-			element.classList.add(DecorationSelector.DefaultColor, ...Codicon.terminalDecorationMark.classNamesArray);
+			element.classList.add(DecorationSelector.DefaultColor, ...ThemeIcon.asClassNameArray(terminalDecorationMark));
 			if (!genericMarkProperties.hoverMessage) {
 				//disable the mouse pointer
 				element.classList.add(DecorationSelector.Default);
@@ -343,12 +344,12 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			this._updateCommandDecorationVisibility(element);
 			if (exitCode === undefined) {
 				element.classList.add(DecorationSelector.DefaultColor, DecorationSelector.Default);
-				element.classList.add(...Codicon.terminalDecorationIncomplete.classNamesArray);
+				element.classList.add(...ThemeIcon.asClassNameArray(terminalDecorationIncomplete));
 			} else if (exitCode) {
 				element.classList.add(DecorationSelector.ErrorColor);
-				element.classList.add(...Codicon.terminalDecorationError.classNamesArray);
+				element.classList.add(...ThemeIcon.asClassNameArray(terminalDecorationError));
 			} else {
-				element.classList.add(...Codicon.terminalDecorationSuccess.classNamesArray);
+				element.classList.add(...ThemeIcon.asClassNameArray(terminalDecorationSuccess));
 			}
 		}
 	}
