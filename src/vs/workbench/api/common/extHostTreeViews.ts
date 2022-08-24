@@ -248,9 +248,6 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		if (treeView && '$treeItemHandle' in arg) {
 			return treeView.getExtensionElement(arg.$treeItemHandle);
 		}
-		if (treeView && '$selectedTreeItems' in arg && arg.$selectedTreeItems) {
-			return treeView.selectedElements.length ? treeView.selectedElements : undefined;
-		}
 		if (treeView && '$focusedTreeItem' in arg && arg.$focusedTreeItem) {
 			return treeView.focusedElement;
 		}

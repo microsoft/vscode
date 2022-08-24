@@ -66,13 +66,12 @@ import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { ITreeViewsService } from 'vs/workbench/services/views/browser/treeViewsService';
 import { CodeDataTransfers } from 'vs/platform/dnd/browser/dnd';
 import { addExternalEditorsDropData, toVSDataTransfer } from 'vs/editor/browser/dnd';
-// eslint-disable-next-line code-import-patterns
-import { UnrollableArgument } from 'vs/workbench/api/common/extHostCommands';
 
 export class TreeViewPane extends ViewPane {
 
 	protected readonly treeView: ITreeView;
 	private _container: HTMLElement | undefined;
+	private _actionRunner: MultipleSelectionActionRunner;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -85,6 +84,7 @@ export class TreeViewPane extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@INotificationService notificationService: INotificationService
 	) {
 		super({ ...(options as IViewPaneOptions), titleMenuId: MenuId.ViewTitle, donotForwardArgs: false }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		const { treeView } = (<ITreeViewDescriptor>Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getView(options.id));
@@ -105,6 +105,7 @@ export class TreeViewPane extends ViewPane {
 		if (options.titleDescription !== this.treeView.description) {
 			this.updateTitleDescription(this.treeView.description);
 		}
+		this._actionRunner = new MultipleSelectionActionRunner(notificationService, () => this.treeView.getSelection());
 
 		this.updateTreeVisibility();
 	}
@@ -145,13 +146,12 @@ export class TreeViewPane extends ViewPane {
 		this.treeView.setVisibility(this.isBodyVisible());
 	}
 
-	override getActionsContext(): UnrollableArgument {
-		return {
-			unrollArguments: [
-				<TreeViewPaneHandleArg>{ $treeViewId: this.id, $focusedTreeItem: true },
-				<TreeViewPaneHandleArg>{ $treeViewId: this.id, $selectedTreeItems: true }
-			]
-		};
+	override getActionRunner() {
+		return this._actionRunner;
+	}
+
+	override getActionsContext(): TreeViewPaneHandleArg {
+		return { $treeViewId: this.id, $focusedTreeItem: true, $selectedTreeItems: true };
 	}
 
 }
@@ -815,6 +815,10 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		this.tree?.setSelection(items);
 	}
 
+	getSelection(): ITreeItem[] {
+		return this.tree?.getSelection() ?? [];
+	}
+
 	setFocus(item: ITreeItem): void {
 		if (this.tree) {
 			this.focus(true, item);
@@ -1245,13 +1249,13 @@ class MultipleSelectionActionRunner extends ActionRunner {
 		}));
 	}
 
-	override async runAction(action: IAction, context: TreeViewItemHandleArg): Promise<void> {
+	override async runAction(action: IAction, context: TreeViewItemHandleArg | TreeViewPaneHandleArg): Promise<void> {
 		const selection = this.getSelectedResources();
 		let selectionHandleArgs: TreeViewItemHandleArg[] | undefined = undefined;
 		let actionInSelected: boolean = false;
 		if (selection.length > 1) {
 			selectionHandleArgs = selection.map(selected => {
-				if (selected.handle === context.$treeItemHandle) {
+				if ((selected.handle === (context as TreeViewItemHandleArg).$treeItemHandle) || (context as TreeViewPaneHandleArg).$selectedTreeItems) {
 					actionInSelected = true;
 				}
 				return { $treeViewId: context.$treeViewId, $treeItemHandle: selected.handle };
