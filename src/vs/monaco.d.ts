@@ -1497,6 +1497,10 @@ declare namespace monaco.editor {
 		 */
 		hoverMessage?: IMarkdownString | IMarkdownString[] | null;
 		/**
+		 * If true, hover message will be left-aligned to the beforecontent on the line
+		 */
+		hoverMessageBefore?: boolean | null;
+		/**
 		 * Should the decoration expand to encompass a whole line.
 		 */
 		isWholeLine?: boolean;
