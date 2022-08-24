@@ -124,7 +124,7 @@ function encodeBase64(buffer: Uint8Array, padded = true, urlSafe = false) {
 }
 
 function buildMetadata(b64: string, cell: vscode.NotebookCell, filename: string, filetype: string, startingAttachments: any): { [key: string]: any } {
-	const outputMetadata = {};
+	const outputMetadata = { ...cell.metadata };
 
 	if (!outputMetadata.custom) {
 		outputMetadata['custom'] = { 'attachments': { [filename]: { 'image/png': b64 } } };
