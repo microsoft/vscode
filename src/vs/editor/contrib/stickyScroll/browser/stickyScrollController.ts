@@ -11,6 +11,7 @@ import { EditorOption, RenderLineNumbersType } from 'vs/editor/common/config/edi
 import { StickyScrollWidget, StickyScrollWidgetState } from './stickyScrollWidget';
 import { StickyLineCandidateProvider, StickyRange } from './stickyScrollProvider';
 import { IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class StickyScrollController extends Disposable implements IEditorContribution {
 
@@ -24,15 +25,16 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	constructor(
 		_editor: ICodeEditor,
 		@ILanguageFeaturesService _languageFeaturesService: ILanguageFeaturesService,
+		@IInstantiationService _instaService: IInstantiationService,
 	) {
 		super();
 		this._editor = _editor;
-		this._stickyScrollWidget = new StickyScrollWidget(this._editor);
+		this._stickyScrollWidget = new StickyScrollWidget(this._editor, _languageFeaturesService, _instaService);
 		this._stickyLineCandidateProvider = new StickyLineCandidateProvider(this._editor, _languageFeaturesService);
 		this._widgetState = new StickyScrollWidgetState([], 0);
 
 		this._register(this._editor.onDidChangeConfiguration(e => {
-			if (e.hasChanged(EditorOption.experimental)) {
+			if (e.hasChanged(EditorOption.stickyScroll)) {
 				this.readConfiguration();
 			}
 		}));
@@ -48,8 +50,8 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	}
 
 	private readConfiguration() {
-		const options = this._editor.getOption(EditorOption.experimental);
-		if (options.stickyScroll.enabled === false) {
+		const options = this._editor.getOption(EditorOption.stickyScroll);
+		if (options.enabled === false) {
 			this._editor.removeOverlayWidget(this._stickyScrollWidget);
 			this._sessionStore.clear();
 			return;
@@ -104,7 +106,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 	public getScrollWidgetState(): StickyScrollWidgetState {
 		const lineHeight: number = this._editor.getOption(EditorOption.lineHeight);
-		const maxNumberStickyLines = this._editor.getOption(EditorOption.experimental).stickyScroll.maxLineCount;
+		const maxNumberStickyLines = this._editor.getOption(EditorOption.stickyScroll).maxLineCount;
 		const scrollTop: number = this._editor.getScrollTop();
 		let lastLineRelativePosition: number = 0;
 		const lineNumbers: number[] = [];

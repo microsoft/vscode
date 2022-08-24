@@ -299,7 +299,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	 * Checks if the settings have enabled the new code action widget.
 	 */
 	private isCodeActionWidgetEnabled(model: ITextModel): boolean {
-		return this._configurationService.getValue('editor.experimental.useCustomCodeActionMenu', {
+		return this._configurationService.getValue('editor.useCustomCodeActionMenu', {
 			resource: model.uri
 		});
 	}
@@ -307,8 +307,8 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	/**
 	* Checks if the setting has disabled/enabled headers in the code action widget.
 	*/
-	private isCodeActionWidgetHeadersDisabled(model: ITextModel): boolean {
-		return this._configurationService.getValue('editor.experimental.useCustomCodeActionMenu.toggleHeaders', {
+	private isCodeActionWidgetHeadersShown(model: ITextModel): boolean {
+		return this._configurationService.getValue('editor.customCodeActionMenu.showHeaders', {
 			resource: model.uri
 		});
 	}
@@ -441,7 +441,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		const totalActionEntries: (IAction | string)[] = [];
 
 		// Checks if headers are disabled.
-		if (this.isCodeActionWidgetHeadersDisabled(model)) {
+		if (!this.isCodeActionWidgetHeadersShown(model)) {
 			totalActionEntries.push(...inputArray);
 
 		} else {

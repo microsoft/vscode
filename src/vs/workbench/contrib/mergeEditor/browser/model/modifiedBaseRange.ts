@@ -48,7 +48,6 @@ export class ModifiedBaseRange {
 	public readonly input1CombinedDiff = DetailedLineRangeMapping.join(this.input1Diffs);
 	public readonly input2CombinedDiff = DetailedLineRangeMapping.join(this.input2Diffs);
 
-
 	constructor(
 		public readonly baseRange: LineRange,
 		public readonly baseTextModel: ITextModel,

@@ -119,8 +119,6 @@ class VariableResolver {
 	}
 }
 
-export const terminalsNotReconnectedExitCode = 7777;
-
 export class VerifiedTask {
 	readonly task: Task;
 	readonly resolver: ITaskResolver;
@@ -255,7 +253,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		this._onDidStateChange = new Emitter();
 		this._taskSystemInfoResolver = taskSystemInfoResolver;
 		this._register(this._terminalStatusManager = new TaskTerminalStatus(taskService));
-		this._register(this._terminalService.onDidChangeConnectionState(() => this._reconnectToTerminals()));
 	}
 
 	public get onDidStateChange(): Event<ITaskEvent> {
@@ -275,15 +272,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	}
 
 	public reconnect(task: Task, resolver: ITaskResolver): ITaskExecuteResult {
-		if (!this._reconnectedTerminals) {
-			// terminalService.onDidChangeConnectionState might have already fired
-			// before this gets created
-			this._logService.trace('Reconnecting to terminals before running');
+		if (!this._hasReconnected) {
 			this._reconnectToTerminals();
-			if (!this._reconnectedTerminals) {
-				this._logService.trace('Returning, terminals have not been reconnected yet');
-				return { kind: TaskExecuteKind.Started, promise: Promise.resolve({ exitCode: terminalsNotReconnectedExitCode }), task } as ITaskExecuteResult;
-			}
 		}
 		return this.run(task, resolver, Triggers.reconnect);
 	}
@@ -1312,6 +1302,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				reconnectedTerminal.waitOnExit = getWaitOnExitValue(task.command.presentation, task.configurationProperties);
 			}
 			reconnectedTerminal.onDisposed((terminal) => this._fireTaskEvent({ kind: TaskEventKind.Terminated, exitReason: terminal.exitReason, taskId: task.getRecentlyUsedKey() }));
+			this._logService.trace('reconnected to task and terminal', task._id);
 			return reconnectedTerminal;
 		}
 		if (group) {
@@ -1344,9 +1335,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 		this._reconnectedTerminals = this._terminalService.getReconnectedTerminals(ReconnectionType)?.filter(t => !t.isDisposed);
 		this._logService.trace(`Attempting reconnection of ${this._reconnectedTerminals?.length} terminals`);
-		if (!this._reconnectedTerminals) {
-			this._hasReconnected = false;
-		} else if (!this._reconnectedTerminals?.length) {
+		if (!this._reconnectedTerminals?.length) {
 			this._logService.trace(`No terminals to reconnect to so returning`);
 			this._hasReconnected = true;
 			return;
@@ -1363,7 +1352,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				this._terminals[terminal.instanceId] = terminalData;
 			}
 			this._hasReconnected = true;
-			this._onDidReconnectToTerminals.fire();
 		}
 	}
 
