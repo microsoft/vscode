@@ -701,7 +701,6 @@ class FindWidget<T, TFilterData> extends Disposable {
 	private width = 0;
 	private right = 0;
 	private top = 0;
-	private permittedVerticalMovement: number;
 
 	readonly _onDidDisable = new Emitter<void>();
 	readonly onDidDisable = this._onDidDisable.event;
@@ -719,9 +718,6 @@ class FindWidget<T, TFilterData> extends Disposable {
 
 		container.appendChild(this.elements.root);
 		this._register(toDisposable(() => container.removeChild(this.elements.root)));
-		const computedStyle = window.getComputedStyle(this.elements.root);
-		this.permittedVerticalMovement = parseInt(computedStyle.paddingTop);
-		this.permittedVerticalMovement += parseInt(computedStyle.lineHeight);
 
 		this.modeToggle = this._register(new ModeToggle({ ...options, isChecked: mode === TreeFindMode.Filter }));
 		this.onDidChangeMode = Event.map(this.modeToggle.onChange, () => this.modeToggle.checked ? TreeFindMode.Filter : TreeFindMode.Highlight, this._store);
@@ -767,7 +763,6 @@ class FindWidget<T, TFilterData> extends Disposable {
 
 			const update = (e: MouseEvent) => {
 				const deltaX = e.pageX - startX;
-				this.right = startRight - deltaX;
 				this.right = startRight - deltaX;
 				const deltaY = e.pageY - startY;
 				this.top = startTop + deltaY;
@@ -833,7 +828,7 @@ class FindWidget<T, TFilterData> extends Disposable {
 		this.width = width;
 		this.right = clamp(this.right, 0, Math.max(0, width - 212));
 		this.elements.root.style.right = `${this.right}px`;
-		this.top = clamp(this.top, 0, this.permittedVerticalMovement);
+		this.top = clamp(this.top, 0, parseInt(window.getComputedStyle(this.elements.root).height));
 		this.elements.root.style.top = `${this.top}px`;
 	}
 
