@@ -692,7 +692,9 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			const change = this._configuration.compare(currentConfiguration);
 			this.triggerConfigurationChange(change, { data: currentConfiguration.toData(), workspace: this.workspace }, ConfigurationTarget.WORKSPACE);
 		} else {
-			this._onDidChangeConfiguration.fire(new AllKeysConfigurationChangeEvent(this._configuration, this.workspace, ConfigurationTarget.WORKSPACE, this.getTargetConfiguration(ConfigurationTarget.WORKSPACE)));
+			if (this._onDidChangeConfiguration.hasListeners()) {
+				this._onDidChangeConfiguration.fire(new AllKeysConfigurationChangeEvent(this._configuration, this.workspace, ConfigurationTarget.WORKSPACE, this.getTargetConfiguration(ConfigurationTarget.WORKSPACE)));
+			}
 			this.initialized = true;
 		}
 
