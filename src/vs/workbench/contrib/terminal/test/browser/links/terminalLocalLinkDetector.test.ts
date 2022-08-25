@@ -44,7 +44,6 @@ const windowsLinks = [
 	'foo/bar',
 	'foo\\bar',
 	'foo\\bar+more',
-	'foo bar'
 ];
 
 interface LinkFormatInfo {
