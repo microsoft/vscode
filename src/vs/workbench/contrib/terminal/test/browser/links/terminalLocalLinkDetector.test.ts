@@ -145,7 +145,7 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 		});
 	});
 
-	suite.only('Windows', () => {
+	suite('Windows', () => {
 		setup(() => {
 			detector = instantiationService.createInstance(TerminalLocalLinkDetector, xterm, new TerminalCapabilityStore(), OperatingSystem.Windows, resolveLinkForTest);
 		});
