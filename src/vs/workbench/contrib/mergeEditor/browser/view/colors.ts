@@ -42,7 +42,6 @@ export const conflictBorderHandledFocused = registerColor(
 	localize('mergeEditor.conflict.handledFocused.border', 'The border color of handled focused conflicts.')
 );
 
-
 export const handledConflictMinimapOverViewRulerColor = registerColor(
 	'mergeEditor.conflict.handled.minimapOverViewRuler',
 	{ dark: '#adaca8ee', light: '#adaca8ee', hcDark: '#adaca8ee', hcLight: '#adaca8ee', },

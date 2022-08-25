@@ -54,12 +54,18 @@ export class MergeMarkersController extends Disposable {
 				const startLine = model!.getLineContent(b.lineRange.startLineNumber).substring(0, 20);
 				const endLine = model!.getLineContent(b.lineRange.endLineNumberExclusive - 1).substring(0, 20);
 
+				const conflictingLinesCount = b.lineRange.lineCount - 2;
+
 				const domNode = h('div', [
 					h('div.conflict-zone-root', [
 						h('pre', [startLine]),
 						h('span.dots', ['...']),
 						h('pre', [endLine]),
-						h('span.text', [nls.localize('conflictingLines', "Conflicting Lines")]),
+						h('span.text', [
+							conflictingLinesCount === 1
+								? nls.localize('conflictingLine', "1 Conflicting Line")
+								: nls.localize('conflictingLines', "{0} Conflicting Lines", conflictingLinesCount)
+						]),
 					]),
 				]).root;
 				this.viewZoneIds.push(c.addZone({

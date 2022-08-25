@@ -932,6 +932,8 @@ var requirejs = (function() {
 		];
 	}
 
+	private firstInit = true;
+
 	private initializeWebViewState() {
 		this._preloadsCache.clear();
 		if (this._currentKernel) {
@@ -940,6 +942,15 @@ var requirejs = (function() {
 
 		for (const [output, inset] of this.insetMapping.entries()) {
 			this._sendMessageToWebview({ ...inset.cachedCreation, initiallyHidden: this.hiddenInsetMapping.has(output) });
+		}
+
+		if (this.firstInit) {
+			// On first run the contents have already been initialized so we don't need to init them again
+			this.firstInit = false;
+		} else {
+			const mdCells = [...this.markupPreviewMapping.values()];
+			this.markupPreviewMapping.clear();
+			this.initializeMarkup(mdCells);
 		}
 
 		this._updateStyles();

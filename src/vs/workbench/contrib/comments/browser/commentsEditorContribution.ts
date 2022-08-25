@@ -873,9 +873,9 @@ export class CommentController implements IEditorContribution {
 
 				const options = this.editor.getOptions();
 				if (options.get(EditorOption.folding) && options.get(EditorOption.showFoldingControls) !== 'never') {
-					lineDecorationsWidth -= 16;
+					lineDecorationsWidth -= 27;
 				}
-				lineDecorationsWidth += 15;
+				lineDecorationsWidth += 24;
 				extraEditorClassName.push('inline-comment');
 				this.editor.updateOptions({
 					extraEditorClassName: extraEditorClassName.join(' '),

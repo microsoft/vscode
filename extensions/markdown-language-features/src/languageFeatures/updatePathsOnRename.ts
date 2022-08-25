@@ -6,7 +6,7 @@
 import * as path from 'path';
 import * as picomatch from 'picomatch';
 import * as vscode from 'vscode';
-import { BaseLanguageClient } from 'vscode-languageclient';
+import { BaseLanguageClient, TextDocumentEdit } from 'vscode-languageclient';
 import * as nls from 'vscode-nls';
 import { getEditForFileRenames } from '../protocol';
 import { Delayer } from '../util/async';
@@ -206,13 +206,13 @@ class UpdateLinksOnFileRenameHandler extends Disposable {
 		token: vscode.CancellationToken,
 	): Promise<boolean> {
 		const edit = await this.client.sendRequest(getEditForFileRenames, [{ oldUri: oldUri.toString(), newUri: newUri.toString() }], token);
-		if (!edit.changes) {
+		if (!edit.documentChanges?.length) {
 			return false;
 		}
 
-		for (const [path, edits] of Object.entries(edit.changes)) {
-			const uri = vscode.Uri.parse(path);
-			for (const edit of edits) {
+		for (const change of edit.documentChanges as TextDocumentEdit[]) {
+			const uri = vscode.Uri.parse(change.textDocument.uri);
+			for (const edit of change.edits) {
 				workspaceEdit.replace(uri, convertRange(edit.range), edit.newText);
 			}
 		}
