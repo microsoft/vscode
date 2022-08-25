@@ -126,7 +126,7 @@ function cleanNotebookAttachments(e: vscode.NotebookDocumentChangeEvent) {
 					}
 
 					// if image is referenced in mkdn && image is not in metadata -> check if image IS inside cache
-					if (Object.keys(attachmentCache[notebookUri][cellFragment]).includes(currFilename)) {
+					if (attachmentCache.notebookUri?.cellFragment && Object.keys(attachmentCache[notebookUri][cellFragment]).includes(currFilename)) {
 						updateMetadata.custom.attachments[currFilename] = attachmentCache[notebookUri][cellFragment][currFilename];
 						delete attachmentCache[notebookUri][cellFragment][currFilename];
 					}
