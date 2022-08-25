@@ -7,7 +7,8 @@ import { isEqual } from 'vs/base/common/resources';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { EditorResourceAccessor, EditorInputWithOptions, isEditorInputWithOptions, IUntypedEditorInput, isEditorInput, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, EditorInputWithOptions, isEditorInputWithOptions, IUntypedEditorInput, isEditorInput, EditorInputCapabilities, isResourceDiffEditorInput } from 'vs/workbench/common/editor';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorGroup, GroupsOrder, preferredSideBySideGroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { PreferredGroup, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -205,6 +206,9 @@ function matchesEditor(typedEditor: EditorInput, editor: EditorInput | IUntypedE
 	// editors that have no `override` defined.
 	//
 	// TODO@lramos15 https://github.com/microsoft/vscode/issues/131619
+	if (typedEditor instanceof DiffEditorInput && isResourceDiffEditorInput(editor)) {
+		return matchesEditor(typedEditor.primary, editor.modified) && matchesEditor(typedEditor.secondary, editor.original);
+	}
 	if (typedEditor.resource) {
 		return isEqual(typedEditor.resource, EditorResourceAccessor.getCanonicalUri(editor));
 	}

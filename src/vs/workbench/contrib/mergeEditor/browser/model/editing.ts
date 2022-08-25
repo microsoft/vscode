@@ -42,6 +42,7 @@ export class LineEdits {
 	constructor(public readonly edits: readonly LineRangeEdit[]) { }
 
 	public apply(model: ITextModel): void {
+		model.pushStackElement();
 		model.pushEditOperations(
 			null,
 			this.edits.map((e) => {

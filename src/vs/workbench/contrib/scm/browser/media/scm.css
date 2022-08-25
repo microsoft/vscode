@@ -227,6 +227,7 @@
 
 .scm-view .button-container .monaco-description-button > .monaco-button-label,
 .scm-view .button-container .monaco-description-button > .monaco-button-description {
+	font-weight: normal;
 	font-style: inherit;
 	padding: 4px 0;
 }
