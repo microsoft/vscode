@@ -735,12 +735,34 @@ class FindWidget<T, TFilterData> extends Disposable {
 			.event;
 
 		this._register(onKeyDown((e): any => {
-			switch (e.keyCode) {
-				case KeyCode.DownArrow:
-					e.preventDefault();
-					e.stopPropagation();
+			// Using equals() so we reserve modified keys for future use
+			if (e.equals(KeyCode.Enter)) {
+				// This is the only keyboard way to return to the tree from a history item that isn't the last one
+				e.preventDefault();
+				e.stopPropagation();
+				this.findInput.inputBox.addToHistory();
+				this.tree.domFocus();
+				return;
+			}
+			if (e.equals(KeyCode.DownArrow)) {
+				e.preventDefault();
+				e.stopPropagation();
+				if (this.findInput.inputBox.isAtLastInHistory() || this.findInput.inputBox.isNowhereInHistory()) {
+					// Retain original pre-history DownArrow behavior
+					this.findInput.inputBox.addToHistory();
 					this.tree.domFocus();
-					return;
+				} else {
+					// Downward through history
+					this.findInput.inputBox.showNextValue();
+				}
+				return;
+			}
+			if (e.equals(KeyCode.UpArrow)) {
+				e.preventDefault();
+				e.stopPropagation();
+				// Upward through history
+				this.findInput.inputBox.showPreviousValue();
+				return;
 			}
 		}));
 
@@ -817,6 +839,9 @@ class FindWidget<T, TFilterData> extends Disposable {
 
 	select() {
 		this.findInput.select();
+
+		// Reposition to last in history
+		this.findInput.inputBox.addToHistory(true);
 	}
 
 	layout(width: number = this.width): void {
