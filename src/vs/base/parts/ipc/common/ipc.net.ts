@@ -262,7 +262,8 @@ const enum ProtocolMessageType {
 	Disconnect = 5,
 	ReplayRequest = 6,
 	Pause = 7,
-	Resume = 8
+	Resume = 8,
+	KeepAlive = 9,
 }
 
 function protocolMessageTypeToString(messageType: ProtocolMessageType) {
@@ -275,6 +276,7 @@ function protocolMessageTypeToString(messageType: ProtocolMessageType) {
 		case ProtocolMessageType.ReplayRequest: return 'ReplayRequest';
 		case ProtocolMessageType.Pause: return 'PauseWriting';
 		case ProtocolMessageType.Resume: return 'ResumeWriting';
+		case ProtocolMessageType.KeepAlive: return 'KeepAlive';
 	}
 }
 
@@ -794,6 +796,8 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	private _incomingMsgLastTime: number;
 	private _incomingAckTimeout: any | null;
 
+	private _keepAliveInterval: any | null;
+
 	private _lastReplayRequestTime: number;
 	private _lastSocketTimeoutTime: number;
 
@@ -850,6 +854,11 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		if (initialChunk) {
 			this._socketReader.acceptChunk(initialChunk);
 		}
+
+		// send a message every 5s
+		this._keepAliveInterval = setInterval(() => {
+			this._sendKeepAlive();
+		}, 5000);
 	}
 
 	dispose(): void {
@@ -860,6 +869,10 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		if (this._incomingAckTimeout) {
 			clearTimeout(this._incomingAckTimeout);
 			this._incomingAckTimeout = null;
+		}
+		if (this._keepAliveInterval) {
+			clearInterval(this._keepAliveInterval);
+			this._keepAliveInterval = null;
 		}
 		this._socketDisposables = dispose(this._socketDisposables);
 	}
@@ -982,7 +995,7 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 				break;
 			}
 			case ProtocolMessageType.Ack: {
-				// nothing to do
+				// nothing to do, .ack is handled above already
 				break;
 			}
 			case ProtocolMessageType.Disconnect: {
@@ -1004,6 +1017,10 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 			}
 			case ProtocolMessageType.Resume: {
 				this._socketWriter.resume();
+				break;
+			}
+			case ProtocolMessageType.KeepAlive: {
+				// nothing to do
 				break;
 			}
 		}
@@ -1127,6 +1144,11 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 
 		this._incomingAckId = this._incomingMsgId;
 		const msg = new ProtocolMessage(ProtocolMessageType.Ack, 0, this._incomingAckId, getEmptyBuffer());
+		this._socketWriter.write(msg);
+	}
+
+	private _sendKeepAlive(): void {
+		const msg = new ProtocolMessage(ProtocolMessageType.KeepAlive, 0, 0, getEmptyBuffer());
 		this._socketWriter.write(msg);
 	}
 }
