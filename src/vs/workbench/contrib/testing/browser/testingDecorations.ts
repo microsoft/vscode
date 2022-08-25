@@ -782,18 +782,18 @@ abstract class RunTestDecoration {
 			() => this.commandService.executeCommand('_revealTestInExplorer', test.item.extId)));
 
 		const contributed = this.getContributedTestActions(test, capabilities);
-		return { object: Separator.join(testActions, contributed.object), dispose: contributed.dispose };
+		return { object: Separator.join(testActions, contributed), dispose() { } };
 	}
 
-	private getContributedTestActions(test: InternalTestItem, capabilities: number): IReference<IAction[]> {
+	private getContributedTestActions(test: InternalTestItem, capabilities: number): IAction[] {
 		const contextOverlay = this.contextKeyService.createOverlay(getTestItemContextOverlay(test, capabilities));
 		const menu = this.menuService.createMenu(MenuId.TestItemGutter, contextOverlay);
 
 		try {
 			const target: IAction[] = [];
 			const arg = getContextForTestItem(this.testService.collection, test.item.extId);
-			const actionsDisposable = createAndFillInContextMenuActions(menu, { shouldForwardArgs: true, arg }, target);
-			return { object: target, dispose: () => actionsDisposable.dispose };
+			createAndFillInContextMenuActions(menu, { shouldForwardArgs: true, arg }, target);
+			return target;
 		} finally {
 			menu.dispose();
 		}

@@ -42,7 +42,6 @@ export const conflictBorderHandledFocused = registerColor(
 	localize('mergeEditor.conflict.handledFocused.border', 'The border color of handled focused conflicts.')
 );
 
-
 export const handledConflictMinimapOverViewRulerColor = registerColor(
 	'mergeEditor.conflict.handled.minimapOverViewRuler',
 	{ dark: '#adaca8ee', light: '#adaca8ee', hcDark: '#adaca8ee', hcLight: '#adaca8ee', },
@@ -53,4 +52,10 @@ export const unhandledConflictMinimapOverViewRulerColor = registerColor(
 	'mergeEditor.conflict.unhandled.minimapOverViewRuler',
 	{ dark: '#fcba03FF', light: '#fcba03FF', hcDark: '#fcba03FF', hcLight: '#fcba03FF', },
 	localize('mergeEditor.conflict.unhandled.minimapOverViewRuler', 'The foreground color for changes in input 1.')
+);
+
+export const conflictingLinesBackground = registerColor(
+	'mergeEditor.conflictingLines.background',
+	{ dark: '#ffea0047', light: '#ffea0047', hcDark: '#ffea0047', hcLight: '#ffea0047', },
+	localize('mergeEditor.conflictingLines.background', 'The background of the "Conflicting Lines" text.')
 );

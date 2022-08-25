@@ -116,7 +116,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	private readonly nonce = UUID.generateUuid();
 
 	constructor(
-		public readonly notebookEditor: INotebookDelegateForWebview,
+		public notebookEditor: INotebookDelegateForWebview,
 		public readonly id: string,
 		public readonly documentUri: URI,
 		private options: BacklayerWebviewOptions,
@@ -932,6 +932,8 @@ var requirejs = (function() {
 		];
 	}
 
+	private firstInit = true;
+
 	private initializeWebViewState() {
 		this._preloadsCache.clear();
 		if (this._currentKernel) {
@@ -940,6 +942,15 @@ var requirejs = (function() {
 
 		for (const [output, inset] of this.insetMapping.entries()) {
 			this._sendMessageToWebview({ ...inset.cachedCreation, initiallyHidden: this.hiddenInsetMapping.has(output) });
+		}
+
+		if (this.firstInit) {
+			// On first run the contents have already been initialized so we don't need to init them again
+			this.firstInit = false;
+		} else {
+			const mdCells = [...this.markupPreviewMapping.values()];
+			this.markupPreviewMapping.clear();
+			this.initializeMarkup(mdCells);
 		}
 
 		this._updateStyles();
@@ -1504,6 +1515,9 @@ var requirejs = (function() {
 	override dispose() {
 		this._disposed = true;
 		this.webview?.dispose();
+		this.webview = undefined;
+		this.notebookEditor = null!;
+		this.insetMapping.clear();
 		super.dispose();
 	}
 }

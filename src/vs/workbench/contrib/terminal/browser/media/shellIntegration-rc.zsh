@@ -6,6 +6,7 @@ builtin autoload -Uz add-zsh-hook
 
 # Prevent the script recursing when setting up
 if [ -n "$VSCODE_SHELL_INTEGRATION" ]; then
+	ZDOTDIR=$USER_ZDOTDIR
 	builtin return
 fi
 

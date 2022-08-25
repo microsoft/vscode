@@ -9,7 +9,7 @@ import { IDecoration, ITerminalAddon, Terminal } from 'xterm';
 import * as dom from 'vs/base/browser/dom';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { CommandInvalidationReason, ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IAction, Separator } from 'vs/base/common/actions';
@@ -26,8 +26,8 @@ import { Color } from 'vs/base/common/color';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProcess';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { Codicon } from 'vs/base/common/codicons';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { terminalDecorationError, terminalDecorationIncomplete, terminalDecorationMark, terminalDecorationSuccess } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 
 const enum DecorationSelector {
 	CommandDecoration = 'terminal-command-decoration',
@@ -333,7 +333,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		element.classList.add(DecorationSelector.CommandDecoration, DecorationSelector.Codicon, DecorationSelector.XtermDecoration);
 
 		if (genericMarkProperties) {
-			element.classList.add(DecorationSelector.DefaultColor, ...Codicon.terminalDecorationMark.classNamesArray);
+			element.classList.add(DecorationSelector.DefaultColor, ...ThemeIcon.asClassNameArray(terminalDecorationMark));
 			if (!genericMarkProperties.hoverMessage) {
 				//disable the mouse pointer
 				element.classList.add(DecorationSelector.Default);
@@ -343,12 +343,12 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			this._updateCommandDecorationVisibility(element);
 			if (exitCode === undefined) {
 				element.classList.add(DecorationSelector.DefaultColor, DecorationSelector.Default);
-				element.classList.add(...Codicon.terminalDecorationIncomplete.classNamesArray);
+				element.classList.add(...ThemeIcon.asClassNameArray(terminalDecorationIncomplete));
 			} else if (exitCode) {
 				element.classList.add(DecorationSelector.ErrorColor);
-				element.classList.add(...Codicon.terminalDecorationError.classNamesArray);
+				element.classList.add(...ThemeIcon.asClassNameArray(terminalDecorationError));
 			} else {
-				element.classList.add(...Codicon.terminalDecorationSuccess.classNamesArray);
+				element.classList.add(...ThemeIcon.asClassNameArray(terminalDecorationSuccess));
 			}
 		}
 	}
@@ -405,12 +405,12 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (command.command !== '') {
 			const labelRun = localize("terminal.rerunCommand", 'Rerun Command');
 			actions.push({
-				class: undefined, tooltip: labelRun, dispose: () => { }, id: 'terminal.rerunCommand', label: labelRun, enabled: true,
+				class: undefined, tooltip: labelRun, id: 'terminal.rerunCommand', label: labelRun, enabled: true,
 				run: () => this._onDidRequestRunCommand.fire({ command })
 			});
 			const labelCopy = localize("terminal.copyCommand", 'Copy Command');
 			actions.push({
-				class: undefined, tooltip: labelCopy, dispose: () => { }, id: 'terminal.copyCommand', label: labelCopy, enabled: true,
+				class: undefined, tooltip: labelCopy, id: 'terminal.copyCommand', label: labelCopy, enabled: true,
 				run: () => this._clipboardService.writeText(command.command)
 			});
 		}
@@ -420,12 +420,12 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			}
 			const labelText = localize("terminal.copyOutput", 'Copy Output');
 			actions.push({
-				class: undefined, tooltip: labelText, dispose: () => { }, id: 'terminal.copyOutput', label: labelText, enabled: true,
+				class: undefined, tooltip: labelText, id: 'terminal.copyOutput', label: labelText, enabled: true,
 				run: () => this._clipboardService.writeText(command.getOutput()!)
 			});
 			const labelHtml = localize("terminal.copyOutputAsHtml", 'Copy Output as HTML');
 			actions.push({
-				class: undefined, tooltip: labelHtml, dispose: () => { }, id: 'terminal.copyOutputAsHtml', label: labelHtml, enabled: true,
+				class: undefined, tooltip: labelHtml, id: 'terminal.copyOutputAsHtml', label: labelHtml, enabled: true,
 				run: () => this._onDidRequestRunCommand.fire({ command, copyAsHtml: true })
 			});
 		}
@@ -434,12 +434,12 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 		const labelConfigure = localize("terminal.configureCommandDecorations", 'Configure Command Decorations');
 		actions.push({
-			class: undefined, tooltip: labelConfigure, dispose: () => { }, id: 'terminal.configureCommandDecorations', label: labelConfigure, enabled: true,
+			class: undefined, tooltip: labelConfigure, id: 'terminal.configureCommandDecorations', label: labelConfigure, enabled: true,
 			run: () => this._showConfigureCommandDecorationsQuickPick()
 		});
 		const labelAbout = localize("terminal.learnShellIntegration", 'Learn About Shell Integration');
 		actions.push({
-			class: undefined, tooltip: labelAbout, dispose: () => { }, id: 'terminal.learnShellIntegration', label: labelAbout, enabled: true,
+			class: undefined, tooltip: labelAbout, id: 'terminal.learnShellIntegration', label: labelAbout, enabled: true,
 			run: () => this._openerService.open('https://code.visualstudio.com/docs/terminal/shell-integration')
 		});
 		return actions;
@@ -454,30 +454,11 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		quickPick.onDidAccept(async e => {
 			quickPick.hide();
 			const result = quickPick.activeItems[0];
-			let iconSetting: string | undefined;
 			switch (result.id) {
 				case 'a': this._showToggleVisibilityQuickPick(); break;
 			}
-			if (iconSetting) {
-				this._showChangeIconQuickPick(iconSetting);
-			}
 		});
 		quickPick.show();
-	}
-
-	private async _showChangeIconQuickPick(iconSetting: string) {
-		type Item = IQuickPickItem & { icon: Codicon };
-		const items: Item[] = [];
-		for (const icon of Codicon.getAll()) {
-			items.push({ label: `$(${icon.id})`, description: `${icon.id}`, icon });
-		}
-		const result = await this._quickInputService.pick(items, {
-			matchOnDescription: true
-		});
-		if (result) {
-			this._configurationService.updateValue(iconSetting, result.icon.id);
-			this._showConfigureCommandDecorationsQuickPick();
-		}
 	}
 
 	private _showToggleVisibilityQuickPick() {

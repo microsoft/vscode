@@ -5,15 +5,16 @@
 
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IDiffAlgorithm, SequenceFromIntArray, OffsetRange, SequenceDiff, ISequence } from 'vs/editor/common/diff/algorithms/diffAlgorithm';
+import { SequenceFromIntArray, OffsetRange, SequenceDiff, ISequence } from 'vs/editor/common/diff/algorithms/diffAlgorithm';
 import { DynamicProgrammingDiffing } from 'vs/editor/common/diff/algorithms/dynamicProgrammingDiffing';
+import { MyersDiffAlgorithm } from 'vs/editor/common/diff/algorithms/myersDiffAlgorithm';
 import { ILinesDiff, ILinesDiffComputer, ILinesDiffComputerOptions, LineRange, LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 
 export class StandardLinesDiffComputer implements ILinesDiffComputer {
-	private readonly lineDiffingAlgorithm = new DynamicProgrammingDiffing();
+	private readonly dynamicProgrammingDiffing = new DynamicProgrammingDiffing();
+	private readonly myersDiffingAlgorithm = new MyersDiffAlgorithm();
 
 	constructor(
-		private readonly detailedDiffingAlgorithm: IDiffAlgorithm
 	) { }
 
 	computeDiff(originalLines: string[], modifiedLines: string[], options: ILinesDiffComputerOptions): ILinesDiff {
@@ -30,39 +31,34 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 		const srcDocLines = originalLines.map((l) => getOrCreateHash(l.trim()));
 		const tgtDocLines = modifiedLines.map((l) => getOrCreateHash(l.trim()));
 
-		const lineAlignments = this.lineDiffingAlgorithm.compute(
-			new SequenceFromIntArray(srcDocLines),
-			new SequenceFromIntArray(tgtDocLines),
-			(offset1, offset2) =>
-				originalLines[offset1] === modifiedLines[offset2]
-					? modifiedLines[offset2].length === 0
-						? 0.1
-						: 1// + Math.log(1 + modifiedLines[offset2].length)
-					: 0.99
-		);
+		const sequence1 = new SequenceFromIntArray(srcDocLines);
+		const sequence2 = new SequenceFromIntArray(tgtDocLines);
 
-		const alignments: RangeMapping[] = [];
-		for (let diff of lineAlignments) {
-			// Move line diffs up to improve the case of
-			// AxBAzB -> AxBA(yBA)zB to
-			// AxBAzB -> AxB(AyB)AzB
-			if (
-				(diff.seq1Range.start > 0 &&
-					diff.seq1Range.length > 0 &&
-					srcDocLines[diff.seq1Range.start - 1] ===
-					srcDocLines[diff.seq1Range.endExclusive - 1]) ||
-				(diff.seq2Range.start > 0 &&
-					diff.seq2Range.length > 0 &&
-					tgtDocLines[diff.seq2Range.start - 1] ===
-					tgtDocLines[diff.seq2Range.endExclusive - 1])
-			) {
-				diff = new SequenceDiff(
-					diff.seq1Range.delta(-1),
-					diff.seq2Range.delta(-1),
+		const lineAlignments = (() => {
+			if (sequence1.length + sequence2.length < 1500) {
+				// Use the improved algorithm for small files
+				return this.dynamicProgrammingDiffing.compute(
+					sequence1,
+					sequence2,
+					(offset1, offset2) =>
+						originalLines[offset1] === modifiedLines[offset2]
+							? modifiedLines[offset2].length === 0
+								? 0.1
+								: 1 + Math.log(1 + modifiedLines[offset2].length)
+							: 0.99
 				);
 			}
 
-			for (const a of this.refineDiff(originalLines, modifiedLines, diff)) {
+			return this.myersDiffingAlgorithm.compute(
+				sequence1,
+				sequence2
+			);
+		})();
+
+		const alignments: RangeMapping[] = [];
+		for (const diff of lineAlignments) {
+			const characterDiffs = this.refineDiff(originalLines, modifiedLines, diff);
+			for (const a of characterDiffs) {
 				alignments.push(a);
 			}
 		}
@@ -79,7 +75,7 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 		const sourceSlice = new Slice(originalLines, diff.seq1Range);
 		const targetSlice = new Slice(modifiedLines, diff.seq2Range);
 
-		const diffs = this.detailedDiffingAlgorithm.compute(sourceSlice, targetSlice);
+		const diffs = this.myersDiffingAlgorithm.compute(sourceSlice, targetSlice);
 		const result = diffs.map(
 			(d) =>
 				new RangeMapping(

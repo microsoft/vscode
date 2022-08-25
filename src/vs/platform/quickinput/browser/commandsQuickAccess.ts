@@ -55,10 +55,10 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 		this.options = options;
 	}
 
-	protected async _getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<ICommandQuickPick | IQuickPickSeparator>> {
+	protected async _getPicks(filter: string, _disposables: DisposableStore, token: CancellationToken): Promise<Array<ICommandQuickPick | IQuickPickSeparator>> {
 
 		// Ask subclass for all command picks
-		const allCommandPicks = await this.getCommandPicks(disposables, token);
+		const allCommandPicks = await this.getCommandPicks(token);
 
 		if (token.isCancellationRequested) {
 			return [];
@@ -176,7 +176,7 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 	/**
 	 * Subclasses to provide the actual command entries.
 	 */
-	protected abstract getCommandPicks(disposables: DisposableStore, token: CancellationToken): Promise<Array<ICommandQuickPick>>;
+	protected abstract getCommandPicks(token: CancellationToken): Promise<Array<ICommandQuickPick>>;
 }
 
 interface ISerializedCommandHistory {
