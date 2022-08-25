@@ -828,7 +828,7 @@ class FindWidget<T, TFilterData> extends Disposable {
 		this.width = width;
 		this.right = clamp(this.right, 0, Math.max(0, width - 212));
 		this.elements.root.style.right = `${this.right}px`;
-		this.top = clamp(this.top, 0, parseInt(window.getComputedStyle(this.elements.root).height));
+		this.top = clamp(this.top, 0, 24);
 		this.elements.root.style.top = `${this.top}px`;
 	}
 
