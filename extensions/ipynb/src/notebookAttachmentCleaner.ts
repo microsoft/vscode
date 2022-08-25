@@ -3,31 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* 	TODO: LIST, FIXME: == priority
- *	[]  FIXME: functionality
- *		[X] add case for deleting all markdown in a cell --> cache all images
- *		[X] add case where there are no file names within the markdown
- *		[X] debounce
- *
- *	[] bugs
- *		[X] sometimes in a new cell it does a weird thing and pastes image-2 first... weird edge case only with new cells
- *
- *	[] general cleaning
- *		[] see about cleaning things so the code is a bit more readable?
- *		[] stress test -- how many images etc
- *
- *	[] cache notebook URI complications
- *		[X] bring ext context into this to have both onDidClose and onDidChange running
- *		[X] setup onDidClose to delete cache entries per URI
- *		[] some way to handle renaming of files -- vscode.workspace.onDidRenameFiles()
- *
- *	[] stretch goals
- *		[] problem matcher for if the image does not exist in JSON or
- * close -> clean diagnostic collection
- * diagnostic collection -- vsc ext API
- *
- */
-
 import * as vscode from 'vscode';
 import { clearTimeout, setTimeout } from 'timers';
 
@@ -95,28 +70,28 @@ function cleanNotebookAttachments(e: vscode.NotebookDocumentChangeEvent) {
 		return;
 	}
 
+	// *should* only iterate once
 	for (const currentChange of e.cellChanges) {
-		const currentCell = currentChange.cell;
-		const cellFragment = currentCell.document.uri.fragment;
+		const updateMetadata = { ...currentChange.cell.metadata };
+		const cellFragment = currentChange.cell.document.uri.fragment;
 		const notebookUri = e.notebook.uri.toString();
 		const mkdnSource = currentChange.document?.getText();
 
-
 		if (!mkdnSource) { // cell with 0 content
-			cacheAllImages(currentCell, notebookUri, cellFragment);
+			cacheAllImages(updateMetadata, notebookUri, cellFragment);
 		} else {
 			const markdownAttachments = getAttachmentNames(mkdnSource);
 			if (!markdownAttachments) {
-				cacheAllImages(currentCell, notebookUri, cellFragment);
+				cacheAllImages(updateMetadata, notebookUri, cellFragment);
 			}
 
-			if (!currentCell.metadata.custom?.attachments) { // no attachments to begin with
+			if (!updateMetadata.custom?.attachments) { // no attachments to begin with
 				// iterate second through the markdown names, pull in any cached images that we might need based on a paste, undo, etc
 				if (attachmentCache[notebookUri] && attachmentCache[notebookUri][cellFragment]) {
 					for (const currFilename of Object.keys(markdownAttachments)) {
 						// check if image IS inside cache
 						if (Object.keys(attachmentCache[notebookUri][cellFragment]).includes(currFilename)) {
-							currentCell.metadata.custom.attachments[currFilename] = attachmentCache[notebookUri][cellFragment][currFilename];
+							updateMetadata.custom.attachments[currFilename] = attachmentCache[notebookUri][cellFragment][currFilename];
 							delete attachmentCache[notebookUri][cellFragment][currFilename];
 						}
 						//TODO: ELSE: red squiggle, image not present
@@ -125,7 +100,7 @@ function cleanNotebookAttachments(e: vscode.NotebookDocumentChangeEvent) {
 				}
 			} else {
 				// iterate first through the attachments stored in cell metadata
-				for (const currFilename of Object.keys(currentCell.metadata.custom.attachments)) {
+				for (const currFilename of Object.keys(updateMetadata.custom.attachments)) {
 					// means markdown reference is present in the metadata, rendering will work properly
 					// therefore, we don't need to check it in the next loop either
 					if (currFilename in markdownAttachments) {
@@ -133,13 +108,13 @@ function cleanNotebookAttachments(e: vscode.NotebookDocumentChangeEvent) {
 						continue;
 					} else {
 						if (!attachmentCache[notebookUri]) {
-							attachmentCache[notebookUri] = { [cellFragment]: { [currFilename]: currentCell.metadata.custom.attachments[currFilename] } };
+							attachmentCache[notebookUri] = { [cellFragment]: { [currFilename]: updateMetadata.custom.attachments[currFilename] } };
 						} else if (!attachmentCache[notebookUri][cellFragment]) {
-							attachmentCache[notebookUri][cellFragment] = { [currFilename]: currentCell.metadata.custom.attachments[currFilename] };
+							attachmentCache[notebookUri][cellFragment] = { [currFilename]: updateMetadata.custom.attachments[currFilename] };
 						} else {
-							attachmentCache[notebookUri][cellFragment][currFilename] = currentCell.metadata.custom.attachments[currFilename];
+							attachmentCache[notebookUri][cellFragment][currFilename] = updateMetadata.custom.attachments[currFilename];
 						}
-						delete currentCell.metadata.custom.attachments[currFilename];
+						delete updateMetadata.custom.attachments[currFilename];
 					}
 				}
 
@@ -150,9 +125,9 @@ function cleanNotebookAttachments(e: vscode.NotebookDocumentChangeEvent) {
 						continue;
 					}
 
-					// if image is referenced in mkdn -> image is not in metadata -> check if image IS inside cache
+					// if image is referenced in mkdn && image is not in metadata -> check if image IS inside cache
 					if (Object.keys(attachmentCache[notebookUri][cellFragment]).includes(currFilename)) {
-						currentCell.metadata.custom.attachments[currFilename] = attachmentCache[notebookUri][cellFragment][currFilename];
+						updateMetadata.custom.attachments[currFilename] = attachmentCache[notebookUri][cellFragment][currFilename];
 						delete attachmentCache[notebookUri][cellFragment][currFilename];
 					}
 					//TODO: ELSE: red squiggle, image not present
@@ -160,23 +135,23 @@ function cleanNotebookAttachments(e: vscode.NotebookDocumentChangeEvent) {
 				}
 			}
 		}
-		const metadataEdit = vscode.NotebookEdit.updateCellMetadata(currentCell.index, currentCell.metadata);
+		const metadataEdit = vscode.NotebookEdit.updateCellMetadata(currentChange.cell.index, updateMetadata);
 		const workspaceEdit = new vscode.WorkspaceEdit();
 		workspaceEdit.set(e.notebook.uri, [metadataEdit]);
 		vscode.workspace.applyEdit(workspaceEdit);
 	} // for loop of all changes
 }
 
-function cacheAllImages(currentCell: vscode.NotebookCell, notebookUri: string, cellFragment: string) {
-	for (const currFilename of Object.keys(currentCell.metadata.custom.attachments)) {
+function cacheAllImages(metadata: { [key: string]: any }, notebookUri: string, cellFragment: string) {
+	for (const currFilename of Object.keys(metadata.custom.attachments)) {
 		if (!attachmentCache[notebookUri]) {
-			attachmentCache[notebookUri] = { [cellFragment]: { [currFilename]: currentCell.metadata.custom.attachments[currFilename] } };
+			attachmentCache[notebookUri] = { [cellFragment]: { [currFilename]: metadata.custom.attachments[currFilename] } };
 		} else if (!attachmentCache[notebookUri][cellFragment]) {
-			attachmentCache[notebookUri][cellFragment] = { [currFilename]: currentCell.metadata.custom.attachments[currFilename] };
+			attachmentCache[notebookUri][cellFragment] = { [currFilename]: metadata.custom.attachments[currFilename] };
 		} else {
-			attachmentCache[notebookUri][cellFragment][currFilename] = currentCell.metadata.custom.attachments[currFilename];
+			attachmentCache[notebookUri][cellFragment][currFilename] = metadata.custom.attachments[currFilename];
 		}
-		delete currentCell.metadata.custom.attachments[currFilename];
+		delete metadata.custom.attachments[currFilename];
 	}
 }
 
