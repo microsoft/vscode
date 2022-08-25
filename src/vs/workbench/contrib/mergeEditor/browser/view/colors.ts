@@ -14,7 +14,7 @@ export const diff = registerColor(
 
 export const diffWord = registerColor(
 	'mergeEditor.change.word.background',
-	{ dark: '#9ccc2c33', light: '#9ccc2c66', hcDark: '#9ccc2c66', hcLight: '#9ccc2c66', },
+	{ dark: '#9ccc2c33', light: '#9ccc2c66', hcDark: '#9ccc2c33', hcLight: '#9ccc2c66', },
 	localize('mergeEditor.change.word.background', 'The background color for word changes.')
 );
 
