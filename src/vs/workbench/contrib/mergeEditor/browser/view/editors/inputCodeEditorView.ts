@@ -53,6 +53,9 @@ export class InputCodeEditorView extends CodeEditorView {
 				if (modifiedBaseRange === activeModifiedBaseRange) {
 					blockClassNames.push('focused');
 				}
+				if (modifiedBaseRange.isConflicting) {
+					blockClassNames.push('conflicting');
+				}
 				const inputClassName = this.inputNumber === 1 ? 'input1' : 'input2';
 				blockClassNames.push(inputClassName);
 

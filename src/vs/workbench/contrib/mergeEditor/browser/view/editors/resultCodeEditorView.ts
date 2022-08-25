@@ -55,6 +55,9 @@ export class ResultCodeEditorView extends CodeEditorView {
 					if (modifiedBaseRange === activeModifiedBaseRange) {
 						blockClassNames.push('focused');
 					}
+					if (modifiedBaseRange.isConflicting) {
+						blockClassNames.push('conflicting');
+					}
 					blockClassNames.push('result');
 
 					result.push({
