@@ -333,18 +333,19 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 				}
 
 				if (e.button === /* Right */ 2) {
+					e.stopPropagation();
+					e.preventDefault();
+
 					contextMenuService.showContextMenu({
 						getAnchor: () => checkBox.domNode,
 						getActions: item.getContextMenuActions,
 					});
 
-					e.stopPropagation();
-					e.preventDefault();
 				} else if (e.button === /* Middle */ 1) {
-					item.toggleBothSides();
-
 					e.stopPropagation();
 					e.preventDefault();
+
+					item.toggleBothSides();
 				}
 			})
 		);
