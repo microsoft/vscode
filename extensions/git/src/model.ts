@@ -311,10 +311,10 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 	@sequentialize
 	async openRepository(repoPath: string): Promise<void> {
 		this.outputChannelLogger.logTrace(`Opening repository: ${repoPath}`);
-		if (this.getRepository(repoPath)) {
-			this.outputChannelLogger.logTrace(`Repository for path ${repoPath} already exists`);
-			return;
-		}
+		// if (this.getRepository(repoPath)) {
+		// 	this.outputChannelLogger.logTrace(`Repository for path ${repoPath} already exists`);
+		// 	return;
+		// }
 
 		const config = workspace.getConfiguration('git', Uri.file(repoPath));
 		const enabled = config.get<boolean>('enabled') === true;
@@ -347,7 +347,12 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			const repositoryRoot = Uri.file(rawRoot).fsPath;
 			this.outputChannelLogger.logTrace(`Repository root: ${repositoryRoot}`);
 
-			if (this.getRepository(repositoryRoot)) {
+			// if (this.getRepository(repositoryRoot)) {
+			// 	this.outputChannelLogger.logTrace(`Repository for path ${repositoryRoot} already exists`);
+			// 	return;
+			// }
+
+			if (this.openRepositories.find(r => r.repository.root === repositoryRoot)) {
 				this.outputChannelLogger.logTrace(`Repository for path ${repositoryRoot} already exists`);
 				return;
 			}
