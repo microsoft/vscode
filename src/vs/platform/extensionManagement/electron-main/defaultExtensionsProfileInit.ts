@@ -9,6 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { IFileService } from 'vs/platform/files/common/files';
+import { ILogService } from 'vs/platform/log/common/log';
 import { EXTENSIONS_RESOURCE_NAME } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 
@@ -18,18 +19,23 @@ export class DefaultExtensionsProfileInitHandler extends Disposable {
 		@IFileService private readonly fileService: IFileService,
 		@IExtensionsScannerService private readonly extensionsScannerService: IExtensionsScannerService,
 		@IExtensionsProfileScannerService private readonly extensionsProfileScannerService: IExtensionsProfileScannerService,
+		@ILogService logService: ILogService,
 	) {
 		super();
-		this._register(userDataProfilesService.onWillCreateProfile(e => {
-			if (userDataProfilesService.profiles.length === 1) {
-				e.join(this.initialize());
-			}
-		}));
-		this._register(userDataProfilesService.onDidChangeProfiles(e => {
-			if (userDataProfilesService.profiles.length === 1) {
-				this.uninitialize();
-			}
-		}));
+		if (userDataProfilesService.isEnabled()) {
+			this._register(userDataProfilesService.onWillCreateProfile(e => {
+				if (userDataProfilesService.profiles.length === 1) {
+					e.join(this.initialize());
+				}
+			}));
+			this._register(userDataProfilesService.onDidChangeProfiles(e => {
+				if (userDataProfilesService.profiles.length === 1) {
+					this.uninitialize();
+				}
+			}));
+		} else {
+			this.uninitialize().then(null, e => logService.error(e));
+		}
 	}
 
 	private async initialize(): Promise<void> {

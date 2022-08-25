@@ -144,7 +144,11 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 			if (this.environmentService.editSessionId !== undefined) {
 				await this.resumeEditSession(this.environmentService.editSessionId).finally(() => this.environmentService.editSessionId = undefined);
-			} else if (this.configurationService.getValue('workbench.experimental.editSessions.autoResume') === 'onReload' && this.editSessionsStorageService.isSignedIn) {
+			} else if (
+				this.configurationService.getValue('workbench.experimental.editSessions.enabled') === true &&
+				this.configurationService.getValue('workbench.experimental.editSessions.autoResume') === 'onReload' &&
+				this.editSessionsStorageService.isSignedIn
+			) {
 				// Attempt to resume edit session based on edit workspace identifier
 				// Note: at this point if the user is not signed into edit sessions,
 				// we don't want them to be prompted to sign in and should just return early
@@ -702,7 +706,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			],
 			'type': 'string',
 			'tags': ['experimental', 'usesOnlineServices'],
-			'default': 'off',
+			'default': 'onReload',
 			'markdownDescription': localize('autoResume', "Controls whether to automatically resume an available edit session for the current workspace."),
 		},
 	}

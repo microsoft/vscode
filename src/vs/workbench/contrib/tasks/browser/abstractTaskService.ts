@@ -330,11 +330,16 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._waitForSupportedExecutions = new Promise(resolve => {
 			once(this._onDidRegisterSupportedExecutions.event)(() => resolve());
 		});
-		if (this._terminalService.getReconnectedTerminals('Task')) {
+		if (this._terminalService.getReconnectedTerminals('Task')?.length) {
 			this._attemptTaskReconnection();
 		} else {
-			this._register(this._terminalService.onDidChangeConnectionState(() => this._attemptTaskReconnection()));
+			this._register(this._terminalService.onDidChangeConnectionState(() => {
+				if (this._terminalService.getReconnectedTerminals('Task')?.length) {
+					this._attemptTaskReconnection();
+				}
+			}));
 		}
+
 		this._upgrade();
 	}
 
@@ -356,25 +361,23 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private _attemptTaskReconnection(): void {
+		if (this._lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
+			this._tasksReconnected = true;
+			this._storageService.remove(AbstractTaskService.PersistentTasks_Key, StorageScope.WORKSPACE);
+		}
+		if (!this._configurationService.getValue(TaskSettingId.Reconnection) || this._tasksReconnected) {
+			this._tasksReconnected = true;
+			return;
+		}
 		this._getTaskSystem();
 		this._waitForSupportedExecutions.then(() => {
-			this._activateTaskProviders(undefined).then(() => {
-				this.getWorkspaceTasks().then(async () => {
-					if (this._configurationService.getValue(TaskSettingId.Reconnection) === true && !this._tasksReconnected) {
-						await this._reconnectTasks();
-					}
-				});
+			this.getWorkspaceTasks().then(async () => {
+				this._tasksReconnected = await this._reconnectTasks();
 			});
 		});
 	}
 
 	private async _reconnectTasks(): Promise<boolean> {
-		if (this._lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
-			this._tasksReconnected = true;
-			this._storageService.remove(AbstractTaskService.PersistentTasks_Key, StorageScope.WORKSPACE);
-			return true;
-		}
-
 		const tasks = await this.getSavedTasks('persistent');
 		if (!tasks.length) {
 			return true;
