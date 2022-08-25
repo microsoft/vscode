@@ -31,13 +31,13 @@ class CopyPasteEditProvider implements vscode.DocumentPasteEditProvider {
 		}
 
 		// get filename data from paste
-		const pasteFilename = dataItem.asFile()?.name;
-		if (!pasteFilename) {
+		const clipboardFilename = dataItem.asFile()?.name;
+		if (!clipboardFilename) {
 			return undefined;
 		}
-		const separatorIndex = pasteFilename?.lastIndexOf('.');
-		const filename = pasteFilename?.slice(0, separatorIndex);
-		const filetype = pasteFilename?.slice(separatorIndex);
+		const separatorIndex = clipboardFilename?.lastIndexOf('.');
+		const filename = clipboardFilename?.slice(0, separatorIndex);
+		const filetype = clipboardFilename?.slice(separatorIndex);
 		if (!filename || !filetype) {
 			return undefined;
 		}
@@ -46,24 +46,23 @@ class CopyPasteEditProvider implements vscode.DocumentPasteEditProvider {
 		if (!currentCell) {
 			return undefined;
 		}
-
 		const notebookUri = currentCell.notebook.uri;
 
 		// create updated metadata for cell (prep for WorkspaceEdit)
 		const b64string = encodeBase64(fileDataAsUint8);
 		const startingAttachments = currentCell.metadata.custom?.attachments;
-		const newMetadata = buildMetadata(b64string, currentCell, pasteFilename, filetype, startingAttachments);
+		const newAttachment = buildAttachment(b64string, currentCell, filename, filetype, startingAttachments);
 
 		// build edits
-		const nbEdit = vscode.NotebookEdit.updateCellMetadata(currentCell.index, newMetadata);
+		const nbEdit = vscode.NotebookEdit.updateCellMetadata(currentCell.index, newAttachment.metadata);
 		const workspaceEdit = new vscode.WorkspaceEdit();
 		workspaceEdit.set(notebookUri, [nbEdit]);
 
 		// create a snippet for paste
 		const pasteSnippet = new vscode.SnippetString();
 		pasteSnippet.appendText('![');
-		pasteSnippet.appendPlaceholder(`${pasteFilename}`);
-		pasteSnippet.appendText(`](attachment:${pasteFilename})`);
+		pasteSnippet.appendPlaceholder(`${clipboardFilename}`);
+		pasteSnippet.appendText(`](attachment:${newAttachment.filename})`);
 
 		return { insertText: pasteSnippet, additionalEdit: workspaceEdit };
 	}
@@ -123,27 +122,30 @@ function encodeBase64(buffer: Uint8Array, padded = true, urlSafe = false) {
 	return output;
 }
 
-function buildMetadata(b64: string, cell: vscode.NotebookCell, filename: string, filetype: string, startingAttachments: any): { [key: string]: any } {
+function buildAttachment(b64: string, cell: vscode.NotebookCell, filename: string, filetype: string, startingAttachments: any): { metadata: { [key: string]: any }; filename: string } {
 	const outputMetadata = { ...cell.metadata };
+	let tempFilename = filename + filetype;
 
 	if (!outputMetadata.custom) {
-		outputMetadata['custom'] = { 'attachments': { [filename]: { 'image/png': b64 } } };
+		outputMetadata['custom'] = { 'attachments': { [tempFilename]: { 'image/png': b64 } } };
 	} else if (!outputMetadata.custom.attachments) {
-		outputMetadata.custom['attachments'] = { [filename]: { 'image/png': b64 } };
+		outputMetadata.custom['attachments'] = { [tempFilename]: { 'image/png': b64 } };
 	} else {
-		for (let appendValue = 2; filename in startingAttachments; appendValue++) {
-			const objEntries = Object.entries(startingAttachments[filename]);
+		for (let appendValue = 2; tempFilename in startingAttachments; appendValue++) {
+			const objEntries = Object.entries(startingAttachments[tempFilename]);
 			if (objEntries.length) { // check that mime:b64 are present
 				const [, attachmentb64] = objEntries[0];
 				if (attachmentb64 !== b64) {	// append a "-#" here. same name, diff data. this matches jupyter behavior
-					filename = filename.concat(`-${appendValue}`) + filetype;
+					tempFilename = filename.concat(`-${appendValue}`) + filetype;
 				}
 			}
 		}
-		outputMetadata.custom.attachments[filename] = { 'image/png': b64 };
+		outputMetadata.custom.attachments[tempFilename] = { 'image/png': b64 };
 	}
-
-	return outputMetadata;
+	return {
+		metadata: outputMetadata,
+		filename: tempFilename
+	};
 }
 
 export function imagePasteSetup() {
