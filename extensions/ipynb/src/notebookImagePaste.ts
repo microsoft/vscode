@@ -51,18 +51,18 @@ class CopyPasteEditProvider implements vscode.DocumentPasteEditProvider {
 		// create updated metadata for cell (prep for WorkspaceEdit)
 		const b64string = encodeBase64(fileDataAsUint8);
 		const startingAttachments = currentCell.metadata.custom?.attachments;
-		const [newMetadata, revisedFilename] = buildMetadata(b64string, currentCell, filename, filetype, startingAttachments);
+		const newAttachment = buildAttachment(b64string, currentCell, filename, filetype, startingAttachments);
 
 		// build edits
-		const nbEdit = vscode.NotebookEdit.updateCellMetadata(currentCell.index, newMetadata);
+		const nbEdit = vscode.NotebookEdit.updateCellMetadata(currentCell.index, newAttachment.metadata);
 		const workspaceEdit = new vscode.WorkspaceEdit();
 		workspaceEdit.set(notebookUri, [nbEdit]);
 
 		// create a snippet for paste
 		const pasteSnippet = new vscode.SnippetString();
 		pasteSnippet.appendText('![');
-		pasteSnippet.appendPlaceholder(`${revisedFilename}`);
-		pasteSnippet.appendText(`](attachment:${revisedFilename})`);
+		pasteSnippet.appendPlaceholder(`${clipboardFilename}`);
+		pasteSnippet.appendText(`](attachment:${newAttachment.filename})`);
 
 		return { insertText: pasteSnippet, additionalEdit: workspaceEdit };
 	}
@@ -122,7 +122,7 @@ function encodeBase64(buffer: Uint8Array, padded = true, urlSafe = false) {
 	return output;
 }
 
-function buildMetadata(b64: string, cell: vscode.NotebookCell, filename: string, filetype: string, startingAttachments: any): [{ [key: string]: any }, string] {
+function buildAttachment(b64: string, cell: vscode.NotebookCell, filename: string, filetype: string, startingAttachments: any): { metadata: { [key: string]: any }; filename: string } {
 	const outputMetadata = { ...cell.metadata };
 	let tempFilename = filename + filetype;
 
@@ -142,7 +142,10 @@ function buildMetadata(b64: string, cell: vscode.NotebookCell, filename: string,
 		}
 		outputMetadata.custom.attachments[tempFilename] = { 'image/png': b64 };
 	}
-	return [outputMetadata, tempFilename];
+	return {
+		metadata: outputMetadata,
+		filename: tempFilename
+	};
 }
 
 export function imagePasteSetup() {
