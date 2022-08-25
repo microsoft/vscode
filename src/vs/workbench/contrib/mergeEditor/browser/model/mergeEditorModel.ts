@@ -187,7 +187,7 @@ export class MergeEditorModel extends EditorModel {
 
 		if (options.resetUnknownOnInitialization) {
 			this.onInitialized.then(() => {
-				this.resetUnknown();
+				this.resetDirtyConflictsToBase();
 			});
 		}
 	}
@@ -217,20 +217,23 @@ export class MergeEditorModel extends EditorModel {
 		}
 	}
 
-	public resetUnknown(): void {
+	public resetDirtyConflictsToBase(): void {
 		transaction(tx => {
 			/** @description Reset Unknown Base Range States */
+			this.resultTextModel.pushStackElement();
 			for (const range of this.modifiedBaseRanges.get()) {
 				if (this.getState(range).get().conflicting) {
-					this.setState(range, ModifiedBaseRangeState.default, false, tx);
+					this.setState(range, ModifiedBaseRangeState.default, false, tx, false);
 				}
 			}
+			this.resultTextModel.pushStackElement();
 		});
 	}
 
-	public mergeNonConflictingDiffs(): void {
+	public acceptNonConflictingDiffs(): void {
 		transaction((tx) => {
 			/** @description Merge None Conflicting Diffs */
+			this.resultTextModel.pushStackElement();
 			for (const m of this.modifiedBaseRanges.get()) {
 				if (m.isConflicting) {
 					continue;
@@ -241,9 +244,11 @@ export class MergeEditorModel extends EditorModel {
 						? ModifiedBaseRangeState.default.withInput1(true)
 						: ModifiedBaseRangeState.default.withInput2(true),
 					true,
-					tx
+					tx,
+					false
 				);
 			}
+			this.resultTextModel.pushStackElement();
 		});
 	}
 
@@ -259,7 +264,8 @@ export class MergeEditorModel extends EditorModel {
 		baseRange: ModifiedBaseRange,
 		state: ModifiedBaseRangeState,
 		markHandled: boolean,
-		transaction: ITransaction
+		transaction: ITransaction,
+		pushStackElement: boolean = false
 	): void {
 		if (!this.isUpToDate.get()) {
 			throw new BugIndicatingError('Cannot set state while updating');
@@ -282,7 +288,13 @@ export class MergeEditorModel extends EditorModel {
 		existingState.set(effectiveState, transaction);
 
 		if (edit) {
+			if (pushStackElement) {
+				this.resultTextModel.pushStackElement();
+			}
 			this.resultTextModelDiffs.applyEditRelativeToOriginal(edit, transaction);
+			if (pushStackElement) {
+				this.resultTextModel.pushStackElement();
+			}
 		}
 
 		if (markHandled) {
@@ -352,6 +364,12 @@ export class MergeEditorModel extends EditorModel {
 		this.modelService.setMode(this.input1.textModel, language);
 		this.modelService.setMode(this.input2.textModel, language);
 		this.modelService.setMode(this.resultTextModel, language);
+	}
+
+	public async resetResultToBaseAndAutoMerge() {
+		this.resultTextModel.setValue(this.base.getValue());
+		await waitForState(this.state, state => state === MergeEditorModelState.upToDate);
+		this.acceptNonConflictingDiffs();
 	}
 }
 

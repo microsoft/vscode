@@ -3,13 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { IAction } from 'vs/base/common/actions';
 import { CompareResult } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { autorun, derived } from 'vs/base/common/observable';
 import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
+import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MergeMarkersController } from 'vs/workbench/contrib/mergeEditor/browser/mergeMarkers/mergeMarkersController';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
@@ -112,7 +117,10 @@ export class ResultCodeEditorView extends CodeEditorView {
 	});
 
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IMenuService menuService: IMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super(instantiationService);
 
@@ -160,5 +168,19 @@ export class ResultCodeEditorView extends CodeEditorView {
 				);
 
 		}));
+
+
+		// title menu
+		const titleMenu = menuService.createMenu(MenuId.MergeInputResultToolbar, contextKeyService);
+		const toolBar = new ToolBar(this.htmlElements.toolbar, contextMenuService);
+		const toolBarUpdate = () => {
+			const secondary: IAction[] = [];
+			createAndFillInActionBarActions(titleMenu, { renderShortTitle: true }, secondary);
+			toolBar.setActions([], secondary);
+		};
+		this._store.add(toolBar);
+		this._store.add(titleMenu);
+		this._store.add(titleMenu.onDidChange(toolBarUpdate));
+		toolBarUpdate();
 	}
 }
