@@ -13,6 +13,8 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { Range } from 'vs/editor/common/core/range';
 import { Emitter } from 'vs/base/common/event';
 import { binarySearch } from 'vs/base/common/arrays';
+import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
+import { FoldingModel } from 'vs/editor/contrib/folding/browser/foldingModel';
 
 export class StickyRange {
 	constructor(
@@ -88,11 +90,29 @@ export class StickyLineCandidateProvider extends Disposable {
 		if (this._editor.hasModel()) {
 			const model = this._editor.getModel();
 			const modelVersionId = model.getVersionId();
+			console.log('this._languageFeaturesService.documentSymbolProvider : ', this._languageFeaturesService.documentSymbolProvider);
+			// TODO: Actually I should probably check what method to choose in the constructor
 			const outlineModel = await OutlineModel.create(this._languageFeaturesService.documentSymbolProvider, model, token) as OutlineModel;
 			if (token.isCancellationRequested) {
 				return;
 			}
-			this._outlineModel = StickyOutlineElement.fromOutlineModel(outlineModel);
+			console.log('outline model : ', outlineModel);
+			if (outlineModel.children.size !== 0) {
+				this._outlineModel = StickyOutlineElement.fromOutlineModel(outlineModel);
+			} else {
+				const foldingController = FoldingController.get(this._editor);
+				const foldingModel = await foldingController?.getFoldingModel();
+				if (foldingModel) {
+					this._outlineModel = StickyOutlineElement.fromFoldingModel(foldingModel);
+				} else {
+					this._outlineModel = new StickyOutlineElement(
+						new StickyRange(-1, -1),
+						[],
+						undefined
+					);
+				}
+			}
+			console.log('this._outlineModel : ', this._outlineModel);
 			this._modelVersionId = modelVersionId;
 		}
 	}
@@ -183,9 +203,32 @@ class StickyOutlineElement {
 		}
 		return new StickyOutlineElement(
 			range,
-			children
+			children,
+			undefined
 		);
 	}
+
+	public static fromFoldingModel(foldingModel: FoldingModel): StickyOutlineElement {
+		const regions = foldingModel.getRegions();
+		const startIndexes = regions.getStartIndexes();
+		const endIndexes = regions.getEndIndexes();
+		console.log('startIndexes : ', startIndexes);
+		console.log('endIndexes : ', endIndexes);
+		let range = undefined;
+		const children = [];
+		const stack = [];
+		for (let i = 1; i < startIndexes.length; i++) {
+			range = new StickyRange(startIndexes[i], endIndexes[i]);
+		}
+
+		//
+		return new StickyOutlineElement(
+			new StickyRange(-1, -1),
+			[],
+			undefined
+		);
+	}
+
 	constructor(
 		/**
 		 * Range of line numbers spanned by the current scope
@@ -195,6 +238,10 @@ class StickyOutlineElement {
 		 * Must be sorted by start line number
 		*/
 		public readonly children: readonly StickyOutlineElement[],
+		/**
+		 * Parent sticky outline element
+		 */
+		public readonly parent: StickyOutlineElement | undefined
 	) {
 	}
 }
