@@ -44,6 +44,7 @@ const windowsLinks = [
 	'foo/bar',
 	'foo\\bar',
 	'foo\\bar+more',
+	'foo bar'
 ];
 
 interface LinkFormatInfo {
@@ -144,7 +145,7 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 		});
 	});
 
-	suite('Windows', () => {
+	suite.only('Windows', () => {
 		setup(() => {
 			detector = instantiationService.createInstance(TerminalLocalLinkDetector, xterm, new TerminalCapabilityStore(), OperatingSystem.Windows, resolveLinkForTest);
 		});
