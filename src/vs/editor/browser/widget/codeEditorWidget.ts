@@ -1359,12 +1359,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			const opts = this._resolveDecorationOptions(typeKey, !!decorationOption.hoverMessage);
 			if (decorationOption.hoverMessage) {
 				opts.hoverMessage = decorationOption.hoverMessage;
-
-				if (decorationOption.renderOptions?.before ||
-					decorationOption.renderOptions?.dark?.before ||
-					decorationOption.renderOptions?.light?.before) {
-					opts.hoverMessageBefore = true;
-				}
 			}
 
 			newModelDecorations.push({ range: decorationOption.range, options: opts });

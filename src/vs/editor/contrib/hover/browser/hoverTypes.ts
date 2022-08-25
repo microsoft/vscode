@@ -27,6 +27,9 @@ export interface IHoverPart {
 	 */
 	readonly forceShowAtRange?: boolean;
 
+	/**
+	 * If true, the hover item should appear before content
+	 */
 	readonly isBeforeContent?: boolean;
 	/**
 	 * Is this hover part still valid for this new anchor?

@@ -93,9 +93,6 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 				continue;
 			}
 
-			// if (d.options.hoverMessageBefore) {
-			// 	isBeforeContent = true;
-			// }
 			if (d.options.beforeContentClassName) {
 				isBeforeContent = true;
 			}

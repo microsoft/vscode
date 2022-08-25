@@ -431,6 +431,8 @@ class Widget {
 				firstLineMinLeft = visibleRange.left;
 			}
 		}
+
+		// Left-align widgets that should appear :before content
 		if (this._affinity === PositionAffinity.LeftOfInjectedText &&
 			this._viewRange.startColumn === 1) {
 			firstLineMinLeft = 0;

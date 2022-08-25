@@ -139,8 +139,6 @@ export class ContentHoverController extends Disposable {
 
 		this._hoverOperation.cancel();
 
-		// console.log(`--- HOVER CHANGE s-line: ${anchor.range.startLineNumber}  s-col: ${anchor.range.startColumn}  e-line: ${anchor.range.endLineNumber}  e-col: ${anchor.range.endColumn}`);
-
 		if (this._widget.position) {
 			// The range might have changed, but the hover is visible
 			// Instead of hiding it completely, filter out messages that are still in the new range and
@@ -227,7 +225,7 @@ export class ContentHoverController extends Disposable {
 			}
 		}
 
-		const isBefore = messages.some(m => m.isBeforeContent);
+		const isBeforeContent = messages.some(m => m.isBeforeContent);
 
 		if (statusBar.hasContent) {
 			fragment.appendChild(statusBar.hoverElement);
@@ -261,7 +259,7 @@ export class ContentHoverController extends Disposable {
 				showAtRange,
 				this._editor.getOption(EditorOption.hover).above,
 				this._computer.shouldFocus,
-				isBefore,
+				isBeforeContent,
 				disposables
 			));
 		} else {
@@ -309,7 +307,7 @@ class ContentHoverVisibleData {
 		public readonly showAtRange: Range,
 		public readonly preferAbove: boolean,
 		public readonly stoleFocus: boolean,
-		public readonly isBefore: boolean,
+		public readonly isBeforeContent: boolean,
 		public readonly disposables: DisposableStore
 	) { }
 }
@@ -380,7 +378,8 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			preferAbove = true;
 		}
 
-		const affinity = this._visibleData.isBefore ? PositionAffinity.LeftOfInjectedText : undefined;
+		// :before content can align left of the text content
+		const affinity = this._visibleData.isBeforeContent ? PositionAffinity.LeftOfInjectedText : undefined;
 
 		return {
 			position: this._visibleData.showAtPosition,
