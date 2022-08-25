@@ -46,7 +46,7 @@ import { ITelemetryInfo, ITelemetryService, TelemetryLevel } from 'vs/platform/t
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { StandaloneServicesNLS } from 'vs/editor/common/standaloneStrings';
-import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
+import { ClassifiedEvent, StrictPropertyCheck, OmitMetadata, IGDPRProperty } from 'vs/platform/telemetry/common/gdprTypings';
 import { basename } from 'vs/base/common/resources';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ConsoleLogger, ILogService, LogService } from 'vs/platform/log/common/log';
@@ -89,6 +89,7 @@ import { staticObservableValue } from 'vs/base/common/observableValue';
 
 import 'vs/editor/common/services/languageFeaturesService';
 import { DefaultConfigurationModel } from 'vs/platform/configuration/common/configurations';
+import { WorkspaceEdit } from 'vs/editor/common/languages';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -670,7 +671,7 @@ class StandaloneTelemetryService implements ITelemetryService {
 		return Promise.resolve(undefined);
 	}
 
-	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
 		return this.publicLog(eventName, data as any);
 	}
 
@@ -678,7 +679,7 @@ class StandaloneTelemetryService implements ITelemetryService {
 		return Promise.resolve(undefined);
 	}
 
-	publicLogError2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+	publicLogError2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
 		return this.publicLogError(eventName, data as any);
 	}
 
@@ -781,8 +782,8 @@ class StandaloneBulkEditService implements IBulkEditService {
 		return Disposable.None;
 	}
 
-	async apply(edits: ResourceEdit[], _options?: IBulkEditOptions): Promise<IBulkEditResult> {
-
+	async apply(editsIn: ResourceEdit[] | WorkspaceEdit, _options?: IBulkEditOptions): Promise<IBulkEditResult> {
+		const edits = Array.isArray(editsIn) ? editsIn : ResourceEdit.convert(editsIn);
 		const textEdits = new Map<ITextModel, ISingleEditOperation[]>();
 
 		for (const edit of edits) {

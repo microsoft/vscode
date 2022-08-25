@@ -243,7 +243,7 @@ export class GitHubServer implements IGitHubServer {
 			try {
 				return await Promise.race([
 					codeExchangePromise.promise,
-					new Promise<string>((_, reject) => setTimeout(() => reject('Cancelled'), 60000)),
+					new Promise<string>((_, reject) => setTimeout(() => reject('Timed out'), 300_000)), // 5min timeout
 					promiseFromEvent<any, any>(token.onCancellationRequested, (_, __, reject) => { reject('User Cancelled'); }).promise
 				]);
 			} finally {
@@ -276,7 +276,7 @@ export class GitHubServer implements IGitHubServer {
 				vscode.env.openExternal(vscode.Uri.parse(`http://127.0.0.1:${port}/signin?nonce=${encodeURIComponent(server.nonce)}`));
 				const { code } = await Promise.race([
 					server.waitForOAuthResponse(),
-					new Promise<any>((_, reject) => setTimeout(() => reject('Cancelled'), 60000)),
+					new Promise<any>((_, reject) => setTimeout(() => reject('Timed out'), 300_000)), // 5min timeout
 					promiseFromEvent<any, any>(token.onCancellationRequested, (_, __, reject) => { reject('User Cancelled'); }).promise
 				]);
 				codeToExchange = code;

@@ -83,7 +83,7 @@ export class RemoteExtensionsInitializerContribution implements IWorkbenchContri
 
 		const userDataSyncStoreClient = this.instantiationService.createInstance(UserDataSyncStoreClient, this.userDataSyncStoreManagementService.userDataSyncStore.url);
 		userDataSyncStoreClient.setAuthToken(session.accessToken, resolvedAuthority.options.authenticationSession.providerId);
-		const userData = await userDataSyncStoreClient.read(SyncResource.Extensions, null);
+		const userData = await userDataSyncStoreClient.readResource(SyncResource.Extensions, null);
 
 		const serviceCollection = new ServiceCollection();
 		serviceCollection.set(IExtensionManagementService, remoteExtensionManagementServer.extensionManagementService);

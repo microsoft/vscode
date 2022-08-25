@@ -11,7 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { DataTransferDTO, ExtHostTreeViewsShape, MainThreadTreeViewsShape } from './extHost.protocol';
-import { ITreeItem, TreeViewItemHandleArg, ITreeItemLabel, IRevealOptions } from 'vs/workbench/common/views';
+import { ITreeItem, TreeViewItemHandleArg, ITreeItemLabel, IRevealOptions, TreeCommand } from 'vs/workbench/common/views';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { asPromise } from 'vs/base/common/async';
 import { TreeItemCollapsibleState, ThemeIcon, MarkdownString as MarkdownStringType, TreeItem } from 'vs/workbench/api/common/extHostTypes';
@@ -22,7 +22,6 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { MarkdownString, ViewBadge, DataTransfer } from 'vs/workbench/api/common/extHostTypeConverters';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Command } from 'vs/editor/common/languages';
 import { ITreeViewsService, TreeviewsService } from 'vs/workbench/services/views/common/treeViewsService';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
@@ -696,8 +695,8 @@ class ExtHostTreeView<T> extends Disposable {
 		return tooltip;
 	}
 
-	private getCommand(disposable: DisposableStore, command?: vscode.Command): Command | undefined {
-		return command ? this.commands.toInternal(command, disposable) : undefined;
+	private getCommand(disposable: DisposableStore, command?: vscode.Command): TreeCommand | undefined {
+		return command ? { ...this.commands.toInternal(command, disposable), originalId: command.command } : undefined;
 	}
 
 	private validateTreeItem(extensionTreeItem: vscode.TreeItem) {

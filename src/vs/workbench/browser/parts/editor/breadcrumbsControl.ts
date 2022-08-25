@@ -711,9 +711,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		}
 		widget.setFocused(undefined);
 		widget.setSelection(undefined);
-		if (groups.activeGroup.activeEditorPane) {
-			groups.activeGroup.activeEditorPane.focus();
-		}
+		groups.activeGroup.activeEditorPane?.focus();
 	}
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule({

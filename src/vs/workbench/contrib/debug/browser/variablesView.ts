@@ -15,7 +15,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
-import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -99,7 +99,10 @@ export class VariablesView extends ViewPane {
 			// Automatically expand the first non-expensive scope
 			const scopes = await stackFrame.getScopes();
 			const toExpand = scopes.find(s => !s.expensive);
-			if (toExpand) {
+
+			// A race condition could be present causing the scopes here to be different from the scopes that the tree just retrieved.
+			// If that happened, don't try to reveal anything, it will be straightened out on the next update
+			if (toExpand && this.tree.hasNode(toExpand)) {
 				this.autoExpandedScopes.add(toExpand.getId());
 				await this.tree.expand(toExpand);
 			}
@@ -171,7 +174,7 @@ export class VariablesView extends ViewPane {
 			}
 		}));
 		this._register(this.debugService.getViewModel().onDidEvaluateLazyExpression(async e => {
-			if (e instanceof Variable) {
+			if (e instanceof Variable && this.tree.hasNode(e)) {
 				await this.tree.updateChildren(e, false, true);
 				await this.tree.expand(e);
 			}
@@ -216,11 +219,10 @@ export class VariablesView extends ViewPane {
 
 			const context: IVariablesContext = getVariablesContext(variable);
 			const secondary: IAction[] = [];
-			const actionsDisposable = createAndFillInContextMenuActions(menu, { arg: context, shouldForwardArgs: false }, { primary: [], secondary }, 'inline');
+			createAndFillInContextMenuActions(menu, { arg: context, shouldForwardArgs: false }, { primary: [], secondary }, 'inline');
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
-				getActions: () => secondary,
-				onHide: () => dispose(actionsDisposable)
+				getActions: () => secondary
 			});
 		} finally {
 			toDispose.dispose();
@@ -437,14 +439,14 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 		};
 	}
 
-	protected override renderActionBar(actionBar: ActionBar, expression: IExpression, data: IExpressionTemplateData) {
+	protected override renderActionBar(actionBar: ActionBar, expression: IExpression) {
 		const variable = expression as Variable;
 		const contextKeyService = getContextForVariableMenu(this.contextKeyService, variable);
 		const menu = this.menuService.createMenu(MenuId.DebugVariablesContext, contextKeyService);
 
 		const primary: IAction[] = [];
 		const context = getVariablesContext(variable);
-		data.elementDisposable.push(createAndFillInContextMenuActions(menu, { arg: context, shouldForwardArgs: false }, { primary, secondary: [] }, 'inline'));
+		createAndFillInContextMenuActions(menu, { arg: context, shouldForwardArgs: false }, { primary, secondary: [] }, 'inline');
 
 		actionBar.clear();
 		actionBar.context = context;

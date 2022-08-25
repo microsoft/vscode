@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { toSlashes } from 'vs/base/common/extpath';
+import { isUNC, toSlashes } from 'vs/base/common/extpath';
 import * as json from 'vs/base/common/json';
 import * as jsonEdit from 'vs/base/common/jsonEdit';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
-import { isAbsolute } from 'vs/base/common/path';
+import { isAbsolute, posix } from 'vs/base/common/path';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { IExtUri, isEqualAuthority } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -124,53 +124,75 @@ export interface IEnterWorkspaceResult {
 }
 
 /**
- * Given a folder URI and the workspace config folder, computes the IStoredWorkspaceFolder using
-* a relative or absolute path or a uri.
- * Undefined is returned if the folderURI and the targetConfigFolderURI don't have the same schema or authority
+ * Given a folder URI and the workspace config folder, computes the `IStoredWorkspaceFolder`
+ * using a relative or absolute path or a uri.
+ * Undefined is returned if the `folderURI` and the `targetConfigFolderURI` don't have the
+ * same schema or authority.
  *
  * @param folderURI a workspace folder
  * @param forceAbsolute if set, keep the path absolute
  * @param folderName a workspace name
  * @param targetConfigFolderURI the folder where the workspace is living in
- * @param useSlashForPath if set, use forward slashes for file paths on windows
  */
-export function getStoredWorkspaceFolder(folderURI: URI, forceAbsolute: boolean, folderName: string | undefined, targetConfigFolderURI: URI, useSlashForPath = !isWindows, extUri: IExtUri): IStoredWorkspaceFolder {
+export function getStoredWorkspaceFolder(folderURI: URI, forceAbsolute: boolean, folderName: string | undefined, targetConfigFolderURI: URI, extUri: IExtUri): IStoredWorkspaceFolder {
+
+	// Scheme mismatch: use full absolute URI as `uri`
 	if (folderURI.scheme !== targetConfigFolderURI.scheme) {
 		return { name: folderName, uri: folderURI.toString(true) };
 	}
 
+	// Always prefer a relative path if possible unless
+	// prevented to make the workspace file shareable
+	// with other users
 	let folderPath = !forceAbsolute ? extUri.relativePath(targetConfigFolderURI, folderURI) : undefined;
 	if (folderPath !== undefined) {
 		if (folderPath.length === 0) {
 			folderPath = '.';
-		} else if (isWindows && folderURI.scheme === Schemas.file && !useSlashForPath) {
-			// Windows gets special treatment:
-			// - use backslahes unless slash is used by other existing folders
-			folderPath = folderPath.replace(/\//g, '\\');
+		} else {
+			if (isWindows) {
+				folderPath = massagePathForWindows(folderPath);
+			}
 		}
-	} else {
+	}
 
-		// use absolute path
+	// We could not resolve a relative path
+	else {
+
+		// Local file: use `fsPath`
 		if (folderURI.scheme === Schemas.file) {
 			folderPath = folderURI.fsPath;
 			if (isWindows) {
-				// Windows gets special treatment:
-				// - normalize all paths to get nice casing of drive letters
-				// - use backslahes unless slash is used by other existing folders
-				folderPath = normalizeDriveLetter(folderPath);
-				if (useSlashForPath) {
-					folderPath = toSlashes(folderPath);
-				}
+				folderPath = massagePathForWindows(folderPath);
 			}
-		} else {
-			if (!extUri.isEqualAuthority(folderURI.authority, targetConfigFolderURI.authority)) {
-				return { name: folderName, uri: folderURI.toString(true) };
-			}
+		}
+
+		// Different authority: use full absolute URI
+		else if (!extUri.isEqualAuthority(folderURI.authority, targetConfigFolderURI.authority)) {
+			return { name: folderName, uri: folderURI.toString(true) };
+		}
+
+		// Non-local file: use `path` of URI
+		else {
 			folderPath = folderURI.path;
 		}
 	}
 
 	return { name: folderName, path: folderPath };
+}
+
+function massagePathForWindows(folderPath: string) {
+
+	// Drive letter should be upper case
+	folderPath = normalizeDriveLetter(folderPath);
+
+	// Always prefer slash over backslash unless
+	// we deal with UNC paths where backslash is
+	// mandatory.
+	if (!isUNC(folderPath)) {
+		folderPath = toSlashes(folderPath);
+	}
+
+	return folderPath;
 }
 
 export function toWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], workspaceConfigFile: URI, extUri: IExtUri): WorkspaceFolder[] {
@@ -187,8 +209,8 @@ export function toWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], 
 		} else if (isRawUriWorkspaceFolder(configuredFolder)) {
 			try {
 				uri = URI.parse(configuredFolder.uri);
-				if (uri.path[0] !== '/') {
-					uri = uri.with({ path: '/' + uri.path }); // this makes sure all workspace folder are absolute
+				if (uri.path[0] !== posix.sep) {
+					uri = uri.with({ path: posix.sep + uri.path }); // this makes sure all workspace folder are absolute
 				}
 			} catch (e) {
 				console.warn(e); // ignore
@@ -222,7 +244,6 @@ export function rewriteWorkspaceFileForNewLocation(rawWorkspaceContents: string,
 	const targetConfigFolder = extUri.dirname(targetConfigPathURI);
 
 	const rewrittenFolders: IStoredWorkspaceFolder[] = [];
-	const slashForPath = useSlashForPath(storedWorkspace.folders);
 
 	for (const folder of storedWorkspace.folders) {
 		const folderURI = isRawFileWorkspaceFolder(folder) ? extUri.resolvePath(sourceConfigFolder, folder.path) : URI.parse(folder.uri);
@@ -232,7 +253,7 @@ export function rewriteWorkspaceFileForNewLocation(rawWorkspaceContents: string,
 		} else {
 			absolute = !isRawFileWorkspaceFolder(folder) || isAbsolute(folder.path); // for existing workspaces, preserve whether a path was absolute or relative
 		}
-		rewrittenFolders.push(getStoredWorkspaceFolder(folderURI, absolute, folder.name, targetConfigFolder, slashForPath, extUri));
+		rewrittenFolders.push(getStoredWorkspaceFolder(folderURI, absolute, folder.name, targetConfigFolder, extUri));
 	}
 
 	// Preserve as much of the existing workspace as possible by using jsonEdit
@@ -262,14 +283,6 @@ function doParseStoredWorkspace(path: URI, contents: string): IStoredWorkspace {
 	}
 
 	return storedWorkspace;
-}
-
-export function useSlashForPath(storedFolders: IStoredWorkspaceFolder[]): boolean {
-	if (isWindows) {
-		return storedFolders.some(folder => isRawFileWorkspaceFolder(folder) && folder.path.indexOf('/') >= 0);
-	}
-
-	return true;
 }
 
 //#endregion

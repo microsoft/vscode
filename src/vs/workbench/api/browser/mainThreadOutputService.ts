@@ -80,9 +80,7 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 
 	public async $dispose(channelId: string): Promise<void> {
 		const channel = this._getChannel(channelId);
-		if (channel) {
-			channel.dispose();
-		}
+		channel?.dispose();
 	}
 
 	private _getChannel(channelId: string): IOutputChannel | undefined {

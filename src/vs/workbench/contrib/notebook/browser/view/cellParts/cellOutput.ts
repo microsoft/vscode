@@ -9,7 +9,7 @@ import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { Action, IAction } from 'vs/base/common/actions';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import * as nls from 'vs/nls';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -60,7 +60,6 @@ interface IRenderResult {
 //  |                        |  #output-element
 export class CellOutputElement extends Disposable {
 	private readonly _renderDisposableStore = this._register(new DisposableStore());
-	private readonly _actionsDisposable = this._register(new MutableDisposable());
 
 	innerContainer?: HTMLElement;
 	renderedOutputContainer!: HTMLElement;
@@ -87,7 +86,11 @@ export class CellOutputElement extends Disposable {
 		this.contextKeyService = parentContextKeyService;
 
 		this._register(this.output.model.onDidChangeData(() => {
-			this.updateOutputData();
+			this.rerender();
+		}));
+
+		this._register(this.output.onDidResetRenderer(() => {
+			this.rerender();
 		}));
 	}
 
@@ -120,7 +123,7 @@ export class CellOutputElement extends Disposable {
 		}
 	}
 
-	updateOutputData() {
+	rerender() {
 		if (
 			this.notebookEditor.hasModel() &&
 			this.innerContainer &&
@@ -286,7 +289,7 @@ export class CellOutputElement extends Disposable {
 				const secondary: IAction[] = [];
 				const result = { primary, secondary };
 
-				this._actionsDisposable.value = createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result, () => false);
+				createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result, () => false);
 				toolbar.setActions([], [pickAction, ...secondary]);
 			};
 			updateMenuToolbar();

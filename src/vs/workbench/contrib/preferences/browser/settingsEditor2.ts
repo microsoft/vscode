@@ -20,7 +20,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
-import { isArray, withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
+import { withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/settingsEditor2';
 import { localize } from 'vs/nls';
@@ -133,7 +133,7 @@ export class SettingsEditor2 extends EditorPane {
 	];
 
 	private static shouldSettingUpdateFast(type: SettingValueType | SettingValueType[]): boolean {
-		if (isArray(type)) {
+		if (Array.isArray(type)) {
 			// nullable integer/number or complex
 			return false;
 		}
@@ -349,8 +349,9 @@ export class SettingsEditor2 extends EditorPane {
 		this.defaultSettingsEditorModel = model;
 
 		options = options || validateSettingsEditorOptions({});
-		if (!this.viewState.settingsTarget) {
-			if (!options.target) {
+		if (!this.viewState.settingsTarget || !this.settingsTargetsWidget.settingsTarget) {
+			const optionsHasViewStateTarget = options.viewState && (options.viewState as ISettingsEditorViewState).settingsTarget;
+			if (!options.target && !optionsHasViewStateTarget) {
 				options.target = ConfigurationTarget.USER_LOCAL;
 			}
 		}
@@ -387,6 +388,10 @@ export class SettingsEditor2 extends EditorPane {
 		return withUndefinedAsNull(cachedState);
 	}
 
+	override getViewState(): object | undefined {
+		return this.viewState;
+	}
+
 	override setOptions(options: ISettingsEditorOptions | undefined): void {
 		super.setOptions(options);
 
@@ -401,11 +406,16 @@ export class SettingsEditor2 extends EditorPane {
 			this.focusSearch();
 		}
 
-		if (options.query) {
-			this.searchWidget.setValue(options.query);
+		const recoveredViewState = options.viewState ?
+			options.viewState as ISettingsEditorViewState : undefined;
+
+		const query: string | undefined = recoveredViewState?.query ?? options.query;
+		if (query !== undefined) {
+			this.searchWidget.setValue(query);
+			this.viewState.query = query;
 		}
 
-		const target: SettingsTarget = options.folderUri || <SettingsTarget>options.target;
+		const target: SettingsTarget | undefined = options.folderUri ?? recoveredViewState?.settingsTarget ?? <SettingsTarget | undefined>options.target;
 		if (target) {
 			this.settingsTargetsWidget.settingsTarget = target;
 			this.viewState.settingsTarget = target;
@@ -642,6 +652,7 @@ export class SettingsEditor2 extends EditorPane {
 
 	private onDidClickSetting(evt: ISettingLinkClickEvent, recursed?: boolean): void {
 		const targetElement = this.currentSettingsModel.getElementsByName(evt.targetKey)?.[0];
+		let revealFailed = false;
 		if (targetElement) {
 			let sourceTop = 0.5;
 			try {
@@ -661,23 +672,34 @@ export class SettingsEditor2 extends EditorPane {
 			if (this.viewState.filterToCategory && evt.source.displayCategory !== targetElement.displayCategory) {
 				this.tocTree.setFocus([]);
 			}
-			this.settingsTree.reveal(targetElement, sourceTop);
+			try {
+				this.settingsTree.reveal(targetElement, sourceTop);
+			} catch (_) {
+				// The listwidget couldn't find the setting to reveal,
+				// even though it's in the model, meaning there might be a filter
+				// preventing it from showing up.
+				revealFailed = true;
+			}
 
-			// We need to shift focus from the setting that contains the link to the setting that's
-			// linked. Clicking on the link sets focus on the setting that contains the link,
-			// which is why we need the setTimeout.
-			setTimeout(() => {
-				this.settingsTree.setFocus([targetElement]);
-			}, 50);
+			if (!revealFailed) {
+				// We need to shift focus from the setting that contains the link to the setting that's
+				// linked. Clicking on the link sets focus on the setting that contains the link,
+				// which is why we need the setTimeout.
+				setTimeout(() => {
+					this.settingsTree.setFocus([targetElement]);
+				}, 50);
 
-			const domElements = this.settingRenderers.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), evt.targetKey);
-			if (domElements && domElements[0]) {
-				const control = domElements[0].querySelector(AbstractSettingRenderer.CONTROL_SELECTOR);
-				if (control) {
-					(<HTMLElement>control).focus();
+				const domElements = this.settingRenderers.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), evt.targetKey);
+				if (domElements && domElements[0]) {
+					const control = domElements[0].querySelector(AbstractSettingRenderer.CONTROL_SELECTOR);
+					if (control) {
+						(<HTMLElement>control).focus();
+					}
 				}
 			}
-		} else if (!recursed) {
+		}
+
+		if (!recursed && revealFailed) {
 			// We'll call this event handler again after clearing the search query,
 			// so that more settings show up in the list.
 			const p = this.triggerSearch('');
@@ -1208,9 +1230,7 @@ export class SettingsEditor2 extends EditorPane {
 			}
 		}
 
-		if (this.searchResultModel) {
-			this.searchResultModel.updateChildren();
-		}
+		this.searchResultModel?.updateChildren();
 
 		if (this.settingsTreeModel) {
 			this.settingsTreeModel.update(resolvedSettingsRoot);
@@ -1227,8 +1247,9 @@ export class SettingsEditor2 extends EditorPane {
 			this.settingsTreeModel.update(resolvedSettingsRoot);
 			this.tocTreeModel.settingsTreeRoot = this.settingsTreeModel.root as SettingsTreeGroupElement;
 
-			const cachedState = this.restoreCachedState();
-			if (cachedState && cachedState.searchQuery || !!this.searchWidget.getValue()) {
+			// Don't restore the cached state if we already have a query value from calling _setOptions().
+			const cachedState = !this.viewState.query ? this.restoreCachedState() : undefined;
+			if (cachedState?.searchQuery || this.searchWidget.getValue()) {
 				await this.onSearchInputChanged();
 			} else {
 				this.refreshTOCTree();
@@ -1348,6 +1369,7 @@ export class SettingsEditor2 extends EditorPane {
 		}
 
 		const query = this.searchWidget.getValue().trim();
+		this.viewState.query = query;
 		this.delayedFilterLogging.cancel();
 		await this.triggerSearch(query.replace(/\u203A/g, ' '));
 
@@ -1615,6 +1637,8 @@ export class SettingsEditor2 extends EditorPane {
 						'message': string;
 					};
 					type SettingsSearchErrorClassification = {
+						owner: 'rzhao271';
+						comment: 'Helps understand when settings search errors out';
 						'message': { 'classification': 'CallstackOrException'; 'purpose': 'FeatureInsight'; 'owner': 'rzhao271'; 'comment': 'The error message of the search error.' };
 					};
 

@@ -63,7 +63,7 @@ suite('CommandDetectionCapability', () => {
 	}
 
 	setup(() => {
-		xterm = new Terminal({ cols: 80 });
+		xterm = new Terminal({ allowProposedApi: true, cols: 80 });
 		capability = new TestCommandDetectionCapability(xterm, new NullLogService());
 		addEvents = [];
 		capability.onCommandFinished(e => addEvents.push(e));

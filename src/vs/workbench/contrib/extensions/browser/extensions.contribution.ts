@@ -60,8 +60,7 @@ import { ShowRuntimeExtensionsAction } from 'vs/workbench/contrib/extensions/bro
 import { ExtensionEnablementWorkspaceTrustTransitionParticipant } from 'vs/workbench/contrib/extensions/browser/extensionEnablementWorkspaceTrustTransitionParticipant';
 import { clearSearchResultsIcon, configureRecommendedIcon, extensionsViewIcon, filterIcon, installWorkspaceRecommendedIcon, refreshIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { EXTENSION_CATEGORIES } from 'vs/platform/extensions/common/extensions';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { isArray } from 'vs/base/common/types';
+import { Disposable, DisposableStore, IDisposable, isDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
@@ -111,7 +110,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(
 	{
 		id: VIEWLET_ID,
-		title: localize('extensions', "Extensions"),
+		title: { value: localize('extensions', "Extensions"), original: 'Extensions' },
 		openCommandActionDescriptor: {
 			id: VIEWLET_ID,
 			mnemonicTitle: localize({ key: 'miViewExtensions', comment: ['&& denotes a mnemonic'] }, "E&&xtensions"),
@@ -229,6 +228,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			},
 			'extensions.experimental.useUtilityProcess': {
 				type: 'boolean',
+				tags: ['experimental'],
 				description: localize('extensionsUseUtilityProcess', "When enabled, the extension host will be launched using the new UtilityProcess Electron API."),
 				default: product.quality === 'stable' ? false : true // disabled by default in stable for now
 			},
@@ -447,7 +447,9 @@ async function runAction(action: IAction): Promise<void> {
 	try {
 		await action.run();
 	} finally {
-		action.dispose();
+		if (isDisposable(action)) {
+			action.dispose();
+		}
 	}
 }
 
@@ -1549,7 +1551,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 	}
 
 	private registerExtensionAction(extensionActionOptions: IExtensionActionOptions): IDisposable {
-		const menus = extensionActionOptions.menu ? isArray(extensionActionOptions.menu) ? extensionActionOptions.menu : [extensionActionOptions.menu] : [];
+		const menus = extensionActionOptions.menu ? Array.isArray(extensionActionOptions.menu) ? extensionActionOptions.menu : [extensionActionOptions.menu] : [];
 		let menusWithOutTitles: ({ id: MenuId } & Omit<IMenuItem, 'command'>)[] = [];
 		const menusWithTitles: { id: MenuId; item: IMenuItem }[] = [];
 		if (extensionActionOptions.menuTitles) {

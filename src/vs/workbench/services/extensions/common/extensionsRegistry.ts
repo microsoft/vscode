@@ -305,6 +305,11 @@ export const schema: IJSONSchema = {
 						body: 'onFileSystem:${1:scheme}'
 					},
 					{
+						label: 'onEditSession',
+						description: nls.localize('vscode.extension.activationEvents.onEditSession', 'An activation event emitted whenever an edit session is accessed with the given scheme.'),
+						body: 'onEditSession:${1:scheme}'
+					},
+					{
 						label: 'onSearch',
 						description: nls.localize('vscode.extension.activationEvents.onSearch', 'An activation event emitted whenever a search is started in the folder with the given scheme.'),
 						body: 'onSearch:${7:scheme}'

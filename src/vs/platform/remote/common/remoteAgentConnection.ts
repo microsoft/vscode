@@ -333,9 +333,7 @@ async function connectToRemoteExtensionHostAgentAndReadOneMessage<T>(options: IS
 			}
 			result.reject(error);
 		} else {
-			if (options.reconnectionProtocol) {
-				options.reconnectionProtocol.endAcceptReconnection();
-			}
+			options.reconnectionProtocol?.endAcceptReconnection();
 			options.logService.trace(`${logPrefix} 6/6. handshake finished, connection is up and running after ${logElapsed(startTime)}!`);
 			result.resolve({ protocol, firstMessage: msg });
 		}
@@ -597,9 +595,9 @@ export abstract class PersistentConnection extends Disposable {
 			}
 			this._beginReconnecting();
 		}));
-		this._register(protocol.onSocketTimeout(() => {
+		this._register(protocol.onSocketTimeout((e) => {
 			const logPrefix = commonLogPrefix(this._connectionType, this.reconnectionToken, true);
-			this._options.logService.info(`${logPrefix} received socket timeout event.`);
+			this._options.logService.info(`${logPrefix} received socket timeout event (unacknowledgedMsgCount: ${e.unacknowledgedMsgCount}, timeSinceOldestUnacknowledgedMsg: ${e.timeSinceOldestUnacknowledgedMsg}, timeSinceLastReceivedSomeData: ${e.timeSinceLastReceivedSomeData}).`);
 			this._beginReconnecting();
 		}));
 

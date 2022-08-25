@@ -18,6 +18,12 @@ import { DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workb
 import { EXTENSIONS_RESOURCE_NAME } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { joinPath } from 'vs/base/common/resources';
 import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
+import { Schemas } from 'vs/base/common/network';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IDownloadService } from 'vs/platform/download/common/download';
+import { IFileService } from 'vs/platform/files/common/files';
+import { generateUuid } from 'vs/base/common/uuid';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export class NativeExtensionManagementService extends ExtensionManagementChannelClient implements IProfileAwareExtensionManagementService {
 
@@ -40,6 +46,10 @@ export class NativeExtensionManagementService extends ExtensionManagementChannel
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IExtensionsProfileScannerService private readonly extensionsProfileScannerService: IExtensionsProfileScannerService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IFileService private readonly fileService: IFileService,
+		@IDownloadService private readonly downloadService: IDownloadService,
+		@INativeEnvironmentService private readonly nativeEnvironmentService: INativeEnvironmentService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super(channel);
 		this._register(userDataProfileService.onDidChangeCurrentProfile(e => e.join(this.whenProfileChanged(e))));
@@ -49,8 +59,13 @@ export class NativeExtensionManagementService extends ExtensionManagementChannel
 		return applicationScoped || this.uriIdentityService.extUri.isEqual(this.userDataProfileService.currentProfile.extensionsResource, profileLocation);
 	}
 
-	override install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension> {
-		return super.install(vsix, { ...options, profileLocation: this.userDataProfileService.currentProfile.extensionsResource });
+	override async install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension> {
+		const { location, cleanup } = await this.downloadVsix(vsix);
+		try {
+			return await super.install(location, { ...options, profileLocation: this.userDataProfileService.currentProfile.extensionsResource });
+		} finally {
+			await cleanup();
+		}
 	}
 
 	override installFromGallery(extension: IGalleryExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {
@@ -63,6 +78,24 @@ export class NativeExtensionManagementService extends ExtensionManagementChannel
 
 	override getInstalled(type: ExtensionType | null = null): Promise<ILocalExtension[]> {
 		return super.getInstalled(type, this.userDataProfileService.currentProfile.extensionsResource);
+	}
+
+	private async downloadVsix(vsix: URI): Promise<{ location: URI; cleanup: () => Promise<void> }> {
+		if (vsix.scheme === Schemas.file) {
+			return { location: vsix, async cleanup() { } };
+		}
+		this.logService.trace('Downloading extension from', vsix.toString());
+		const location = joinPath(URI.file(this.nativeEnvironmentService.extensionsDownloadPath), generateUuid());
+		await this.downloadService.download(vsix, location);
+		this.logService.info('Downloaded extension to', location.toString());
+		const cleanup = async () => {
+			try {
+				await this.fileService.del(location);
+			} catch (error) {
+				this.logService.error(error);
+			}
+		};
+		return { location, cleanup };
 	}
 
 	private async whenProfileChanged(e: DidChangeUserDataProfileEvent): Promise<void> {

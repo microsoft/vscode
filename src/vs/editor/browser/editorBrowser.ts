@@ -19,7 +19,7 @@ import { OverviewRulerZone } from 'vs/editor/common/viewModel/overviewZoneManage
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorWhitespace, IViewModel } from 'vs/editor/common/viewModel';
 import { InjectedText } from 'vs/editor/common/modelLineProjectionData';
-import { IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/diffComputer';
+import { ILineChange, IDiffComputationResult } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import { IDimension } from 'vs/editor/common/core/dimension';
 
 /**
@@ -915,9 +915,10 @@ export interface ICodeEditor extends editorCommon.IEditor {
 
 	/**
 	 * Set the model ranges that will be hidden in the view.
+	 * Hidden areas are stored per source.
 	 * @internal
 	 */
-	setHiddenAreas(ranges: IRange[]): void;
+	setHiddenAreas(ranges: IRange[], source?: unknown): void;
 
 	/**
 	 * Sets the editor aria options, primarily the active descendent.
