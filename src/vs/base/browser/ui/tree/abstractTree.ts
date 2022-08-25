@@ -761,6 +761,9 @@ class FindWidget<T, TFilterData> extends Disposable {
 			const startY = e.pageY;
 			this.elements.grab.classList.add('grabbing');
 
+			const transition = this.elements.root.style.transition;
+			this.elements.root.style.transition = 'unset';
+
 			const update = (e: MouseEvent) => {
 				const deltaX = e.pageX - startX;
 				this.right = startRight - deltaX;
@@ -773,6 +776,7 @@ class FindWidget<T, TFilterData> extends Disposable {
 			disposables.add(onWindowMouseUp.event(e => {
 				update(e);
 				this.elements.grab.classList.remove('grabbing');
+				this.elements.root.style.transition = transition;
 				disposables.dispose();
 			}));
 		}));
@@ -783,6 +787,7 @@ class FindWidget<T, TFilterData> extends Disposable {
 
 		this._register(onGrabKeyDown((e): any => {
 			let right: number | undefined;
+			let top: number | undefined;
 
 			if (e.keyCode === KeyCode.LeftArrow) {
 				right = Number.POSITIVE_INFINITY;
@@ -792,11 +797,29 @@ class FindWidget<T, TFilterData> extends Disposable {
 				right = this.right === 0 ? Number.POSITIVE_INFINITY : 0;
 			}
 
+			if (e.keyCode === KeyCode.UpArrow) {
+				top = 0;
+			} else if (e.keyCode === KeyCode.DownArrow) {
+				top = Number.POSITIVE_INFINITY;
+			}
+
 			if (right !== undefined) {
 				e.preventDefault();
 				e.stopPropagation();
 				this.right = right;
 				this.layout();
+			}
+
+			if (top !== undefined) {
+				e.preventDefault();
+				e.stopPropagation();
+				this.top = top;
+				const transition = this.elements.root.style.transition;
+				this.elements.root.style.transition = 'unset';
+				this.layout();
+				setTimeout(() => {
+					this.elements.root.style.transition = transition;
+				}, 100);
 			}
 		}));
 
