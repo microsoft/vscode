@@ -21,9 +21,9 @@ function createSwcClientStream() {
         }
         exec() {
             try {
-                const out1 = (0, child_process_1.execSync)(`npx swc --config-file ${pathConfigAmd} ${srcDir}/ --copy-files --out-dir ${outDir}`, { encoding: 'utf-8' });
+                const out1 = (0, child_process_1.execSync)(`npx swc --config-file ${pathConfigAmd} ${srcDir}/ --out-dir ${outDir}`, { encoding: 'utf-8' });
                 console.log(out1);
-                const out2 = (0, child_process_1.execSync)(`npx swc --config-file ${pathConfigNoModule} ${srcDir}/vs/base/worker/workerMain.ts --copy-files --out-dir ${outDir}`, { encoding: 'utf-8' });
+                const out2 = (0, child_process_1.execSync)(`npx swc --config-file ${pathConfigNoModule} ${srcDir}/vs/base/worker/workerMain.ts --out-dir ${outDir}`, { encoding: 'utf-8' });
                 console.log(out2);
                 return true;
             }
