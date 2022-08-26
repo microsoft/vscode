@@ -93,10 +93,8 @@ export class StickyLineCandidateProvider extends Disposable {
 
 	private findSumOfRangesOfGroup(outline: OutlineGroup | OutlineElement): number {
 		let res = 0;
-		if (outline.children.size !== 0) {
-			for (const child of outline.children.values()) {
-				res += this.findSumOfRangesOfGroup(child);
-			}
+		for (const child of outline.children.values()) {
+			res += this.findSumOfRangesOfGroup(child);
 		}
 		if (outline instanceof OutlineElement) {
 			return res + outline.symbol.range.endLineNumber - outline.symbol.selectionRange.startLineNumber;
@@ -110,16 +108,18 @@ export class StickyLineCandidateProvider extends Disposable {
 			const model = this._editor.getModel();
 			const modelVersionId = model.getVersionId();
 			let outlineModel = await OutlineModel.create(this._languageFeaturesService.documentSymbolProvider, model, token) as OutlineModel;
+
+			// When several possible outline providers
 			if (outlineModel.children.size !== 0 && outlineModel.children.values().next().value instanceof OutlineGroup) {
 				if (outlineModel.children.has(this._providerString)) {
 					outlineModel = outlineModel.children.get(this._providerString) as unknown as OutlineModel;
 				} else {
 					let providerString = '';
-					let maxTotalSumRanges = 0;
+					let maxTotalSumOfRanges = 0;
 					for (const [key, outlineGroup] of outlineModel.children.entries()) {
 						const totalSumRanges = this.findSumOfRangesOfGroup(outlineGroup);
-						if (totalSumRanges > maxTotalSumRanges) {
-							maxTotalSumRanges = totalSumRanges;
+						if (totalSumRanges > maxTotalSumOfRanges) {
+							maxTotalSumOfRanges = totalSumRanges;
 							providerString = key;
 						}
 					}
