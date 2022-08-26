@@ -236,10 +236,6 @@ export class FoldingModel {
 		this._decorationProvider.removeDecorations(this._editorDecorationIds);
 	}
 
-	getRegions() {
-		return this._regions;
-	}
-
 	getAllRegionsAtLine(lineNumber: number, filter?: (r: FoldingRegion, level: number) => boolean): FoldingRegion[] {
 		const result: FoldingRegion[] = [];
 		if (this._regions) {

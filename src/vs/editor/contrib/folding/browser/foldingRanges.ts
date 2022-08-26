@@ -100,14 +100,6 @@ export class FoldingRegions {
 		}
 	}
 
-	public getStartIndexes(): Uint32Array {
-		return this._startIndexes;
-	}
-
-	public getEndIndexes(): Uint32Array {
-		return this._endIndexes;
-	}
-
 	public get length(): number {
 		return this._startIndexes.length;
 	}

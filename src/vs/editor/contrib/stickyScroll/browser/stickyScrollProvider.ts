@@ -99,7 +99,10 @@ export class StickyLineCandidateProvider extends Disposable {
 			} else {
 				const foldingController = FoldingController.get(this._editor);
 				const foldingModel = await foldingController?.getFoldingModel();
-				if (foldingModel) {
+				if (token.isCancellationRequested) {
+					return;
+				}
+				if (foldingModel && foldingModel.regions.length !== 0) {
 					this._outlineModel = StickyOutlineElement.fromFoldingModel(foldingModel);
 				} else {
 					this._outlineModel = new StickyOutlineElement(
@@ -205,17 +208,9 @@ class StickyOutlineElement {
 	}
 
 	public static fromFoldingModel(foldingModel: FoldingModel): StickyOutlineElement {
-		const regions = foldingModel.getRegions();
-		const startIndexes = regions.getStartIndexes();
-		const endIndexes = regions.getEndIndexes();
-		if (startIndexes.length === 0) {
-			return new StickyOutlineElement(
-				new StickyRange(-1, -1),
-				[],
-				undefined
-			);
-		}
-		let range = undefined;
+		const regions = foldingModel.regions;
+		const length = regions.length;
+		let range: StickyRange | undefined;
 		const stackOfParents: StickyRange[] = [];
 
 		const stickyOutlineElement = new StickyOutlineElement(
@@ -225,9 +220,9 @@ class StickyOutlineElement {
 		);
 		let parentStickyOutlineElement = stickyOutlineElement;
 
-		for (let i = 0; i < startIndexes.length; i++) {
-			range = new StickyRange(startIndexes[i], endIndexes[i]);
-			while (stackOfParents.length !== 0 && (range.startLineNumber < (stackOfParents[stackOfParents.length - 1] as StickyRange).startLineNumber || range.endLineNumber > (stackOfParents[stackOfParents.length - 1] as StickyRange).endLineNumber)) {
+		for (let i = 0; i < length; i++) {
+			range = new StickyRange(regions.getStartLineNumber(i), regions.getEndLineNumber(i));
+			while (stackOfParents.length !== 0 && (range.startLineNumber < stackOfParents[stackOfParents.length - 1].startLineNumber || range.endLineNumber > stackOfParents[stackOfParents.length - 1].endLineNumber)) {
 				stackOfParents.pop();
 				if (parentStickyOutlineElement.parent !== undefined) {
 					parentStickyOutlineElement = parentStickyOutlineElement.parent;
@@ -253,7 +248,7 @@ class StickyOutlineElement {
 		/**
 		 * Must be sorted by start line number
 		*/
-		public children: StickyOutlineElement[],
+		public readonly children: StickyOutlineElement[],
 		/**
 		 * Parent sticky outline element
 		 */
