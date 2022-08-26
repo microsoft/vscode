@@ -46,6 +46,26 @@ class JumpToBracketAction extends EditorAction {
 	}
 }
 
+class RemoveBracketsAction extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.removeBrackets',
+			label: nls.localize('smartSelect.jumpBracke2t', "Remove brackets"),
+			alias: 'Remove brackets',
+			precondition: undefined,
+			// kbOpts: {
+			// 	kbExpr: EditorContextKeys.editorTextFocus,
+			// 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Backslash,
+			// 	weight: KeybindingWeight.EditorContrib
+			// }
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		BracketMatchingController.get(editor)?.removeBrackets();
+	}
+}
+
 class SelectToBracketAction extends EditorAction {
 	constructor() {
 		super({
@@ -286,6 +306,55 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 					[{ range: brackets[0], text: '', }, { range: brackets[1], text: '' }]);
 			}
 		});
+	}
+
+	public removeBrackets(): void {
+		if (!this._editor.hasModel()) {
+			return;
+		}
+
+		const model = this._editor.getModel();
+		const removeBrackets: Array<[Position, Position]> = [];
+
+		this._editor.getSelections().forEach(selection => {
+			const position = selection.getStartPosition();
+			let brackets = model.bracketPairs.matchBracket(position);
+
+			if (!brackets) {
+				brackets = model.bracketPairs.findEnclosingBrackets(position);
+				if (!brackets) {
+					const nextBracket = model.bracketPairs.findNextBracket(position);
+					if (nextBracket && nextBracket.range) {
+						brackets = model.bracketPairs.matchBracket(nextBracket.range.getStartPosition());
+					}
+				}
+			}
+
+			let firstBracket: Position | null = null;
+			let lastBracket: Position | null = null;
+
+			if (brackets) {
+				brackets.sort(Range.compareRangesUsingStarts);
+				const [open, close] = brackets;
+				firstBracket = open.getStartPosition();
+				lastBracket = close.getEndPosition();
+			}
+
+			if (firstBracket && lastBracket) {
+				removeBrackets.push([firstBracket, lastBracket]);
+			}
+		});
+
+		if (removeBrackets.length > 0) {
+
+			this._editor.executeEdits('source', removeBrackets.map((brackets) => {
+
+				return brackets.map((pos, i) => ({
+					range: { startColumn: pos.column, endColumn: pos.column + (i === 0 ? 1 : -1), startLineNumber: pos.lineNumber, endLineNumber: pos.lineNumber },
+					text: ''
+				}));
+			}).flat(1));
+		}
 	}
 
 	private static readonly _DECORATION_OPTIONS_WITH_OVERVIEW_RULER = ModelDecorationOptions.register({
