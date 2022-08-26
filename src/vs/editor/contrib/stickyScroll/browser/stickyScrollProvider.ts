@@ -163,7 +163,7 @@ class StickyOutlineElement {
 		const children: StickyOutlineElement[] = [];
 		for (const child of outlineModel.children.values()) {
 			if (child instanceof OutlineGroup || child instanceof OutlineModel) {
-				children.push(StickyOutlineElement.fromOutlineModel(child, -1));
+				children.push(StickyOutlineElement.fromOutlineModel(child, previousStartLine));
 			} else if (child instanceof OutlineElement && child.symbol.selectionRange.startLineNumber !== child.symbol.range.endLineNumber) {
 				if (child.symbol.selectionRange.startLineNumber !== previousStartLine) {
 					children.push(StickyOutlineElement.fromOutlineModel(child, child.symbol.selectionRange.startLineNumber));
