@@ -108,7 +108,9 @@ export class StickyLineCandidateProvider extends Disposable {
 			const model = this._editor.getModel();
 			const modelVersionId = model.getVersionId();
 			let outlineModel = await OutlineModel.create(this._languageFeaturesService.documentSymbolProvider, model, token) as OutlineModel;
-
+			if (token.isCancellationRequested) {
+				return;
+			}
 			// When several possible outline providers
 			if (outlineModel.children.size !== 0 && outlineModel.children.values().next().value instanceof OutlineGroup) {
 				if (outlineModel.children.has(this._providerString)) {
@@ -126,9 +128,6 @@ export class StickyLineCandidateProvider extends Disposable {
 					this._providerString = providerString;
 					outlineModel = outlineModel.children.get(this._providerString) as unknown as OutlineModel;
 				}
-			}
-			if (token.isCancellationRequested) {
-				return;
 			}
 			this._outlineModel = StickyOutlineElement.fromOutlineModel(outlineModel);
 			this._modelVersionId = modelVersionId;
