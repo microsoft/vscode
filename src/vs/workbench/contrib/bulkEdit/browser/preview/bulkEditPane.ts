@@ -39,6 +39,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ButtonBar } from 'vs/base/browser/ui/button/button';
+import { IEditorPane } from 'vs/workbench/common/editor';
 
 const enum State {
 	Data = 'data',
@@ -69,6 +70,7 @@ export class BulkEditPane extends ViewPane {
 	private _currentResolve?: (edit?: ResourceEdit[]) => void;
 	private _currentInput?: BulkFileOperations;
 	private _currentProvider?: BulkEditPreviewProvider;
+	private _activeEditor?: IEditorPane;
 
 
 	constructor(
@@ -99,6 +101,20 @@ export class BulkEditPane extends ViewPane {
 		this._ctxHasCategories = BulkEditPane.ctxHasCategories.bindTo(_contextKeyService);
 		this._ctxGroupByFile = BulkEditPane.ctxGroupByFile.bindTo(_contextKeyService);
 		this._ctxHasCheckedChanges = BulkEditPane.ctxHasCheckedChanges.bindTo(_contextKeyService);
+
+		this.onDidFocus(e => {
+			if (
+				!this._activeEditor
+				|| this._activeEditor.isVisible()
+				|| !this._activeEditor?.group?.previewEditor
+			) {
+				return;
+			}
+
+			this._activeEditor.group.openEditor(
+				this._activeEditor.group.previewEditor
+			);
+		});
 	}
 
 	override dispose(): void {
@@ -212,6 +228,7 @@ export class BulkEditPane extends ViewPane {
 			this._currentResolve = resolve;
 			this._setTreeInput(input);
 
+			this._openEditorOnFirstApplicableEdit(input);
 			// refresh when check state changes
 			this._sessionDisposables.add(input.checked.onDidChange(() => {
 				this._tree.updateChildren();
@@ -246,6 +263,47 @@ export class BulkEditPane extends ViewPane {
 				expand.push(...this._tree.getNode(element).children);
 			}
 		}
+	}
+
+	private async _openEditorOnFirstApplicableEdit(input: BulkFileOperations) {
+		const elements = await this._treeDataSource.getChildren(input);
+		// if no item is selected, first FileElement is returned
+		const hasNoCheckedEdit = !input.checked.checkedCount;
+		const element = await this._getFirstApplicableElement(elements, hasNoCheckedEdit);
+		if (!element) { return; }
+
+		await this._openElementAsEditor({
+			editorOptions: {
+				pinned: false,
+				preserveFocus: true,
+				revealIfOpened: true
+			},
+			sideBySide: false,
+			element,
+		});
+	}
+
+	private async _getFirstApplicableElement(elements: BulkEditElement[], hasNoCheckedEdit: boolean):
+		Promise<FileElement | TextEditElement | undefined> {
+		let applicableElement: FileElement | TextEditElement | undefined;
+		for (const element of elements) {
+			if (element instanceof FileElement) {
+				if (hasNoCheckedEdit) { return element; }
+				applicableElement = await this._getTextEditElement(element);
+			} else if (element instanceof CategoryElement) {
+				applicableElement = await this._getFirstApplicableElement(
+					await this._treeDataSource.getChildren(element),
+					hasNoCheckedEdit);
+			}
+			if (applicableElement) { return applicableElement; }
+		}
+		return applicableElement;
+	}
+
+	private async _getTextEditElement(element: FileElement):
+		Promise<TextEditElement | undefined> {
+		const textEditElements = await this._treeDataSource.getChildren(element) as TextEditElement[];
+		return textEditElements.find(element => element.isChecked());
 	}
 
 	accept(): void {
@@ -339,11 +397,11 @@ export class BulkEditPane extends ViewPane {
 
 		if (fileElement.edit.type & BulkFileOperationType.Delete) {
 			// delete -> show single editor
-			this._editorService.openEditor({
+			this._activeEditor = await this._editorService.openEditor({
 				label: localize('edt.title.del', "{0} (delete, refactor preview)", basename(fileElement.edit.uri)),
 				resource: previewUri,
 				options
-			});
+			}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 
 		} else {
 			// rename, create, edits -> show diff editr
@@ -369,7 +427,7 @@ export class BulkEditPane extends ViewPane {
 				label = localize('edt.title.1', "{0} (refactor preview)", basename(fileElement.edit.uri));
 			}
 
-			this._editorService.openEditor({
+			this._activeEditor = await this._editorService.openEditor({
 				original: { resource: leftResource },
 				modified: { resource: previewUri },
 				label,
