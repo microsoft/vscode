@@ -81,6 +81,7 @@ export class StickyLineCandidateProvider extends Disposable {
 		this._cts?.dispose(true);
 		this._cts = new CancellationTokenSource();
 		await this.updateOutlineModel(this._cts.token);
+		console.log('this._outlineModel : ', this._outlineModel);
 		this.onStickyScrollChangeEmitter.fire();
 	}
 
@@ -88,6 +89,7 @@ export class StickyLineCandidateProvider extends Disposable {
 		if (this._editor.hasModel()) {
 			const model = this._editor.getModel();
 			const modelVersionId = model.getVersionId();
+			console.log('this._languageFeaturesService.documentSymbolProvider : ', this._languageFeaturesService.documentSymbolProvider);
 			const outlineModel = await OutlineModel.create(this._languageFeaturesService.documentSymbolProvider, model, token) as OutlineModel;
 			if (token.isCancellationRequested) {
 				return;
