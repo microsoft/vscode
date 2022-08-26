@@ -609,6 +609,18 @@
         "command": "git.openMergeEditor",
         "title": "%command.git.openMergeEditor%",
         "category": "Git"
+      },
+      {
+        "command": "git.runGitMerge",
+        "title": "%command.git.runGitMerge%",
+        "category": "Git",
+        "enablement": "isMergeEditor"
+      },
+      {
+        "command": "git.runGitMergeDiff3",
+        "title": "%command.git.runGitMergeDiff3%",
+        "category": "Git",
+        "enablement": "isMergeEditor"
       }
     ],
     "keybindings": [
@@ -1566,6 +1578,16 @@
           "command": "git.openMergeEditor",
           "group": "navigation@-10",
           "when": "config.git.enabled && !git.missing && !isInDiffEditor && !isMergeEditor && resource in git.mergeChanges"
+        }
+      ],
+      "mergeEditor/result/context": [
+        {
+          "command": "git.runGitMerge",
+          "when": "isMergeEditor"
+        },
+        {
+          "command": "git.runGitMergeDiff3",
+          "when": "isMergeEditor"
         }
       ],
       "scm/change/title": [
