@@ -535,7 +535,7 @@ registerEditorCommand(new CodeActionContribution({
 }));
 
 registerEditorCommand(new CodeActionContribution({
-	id: 'selectPreviousCodeAction',
+	id: 'selectPrevCodeAction',
 	precondition: Context.Visible,
 	handler(x) {
 		x.navigateCodeActionList(true);
