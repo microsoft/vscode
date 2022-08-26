@@ -648,4 +648,4 @@ export function getPartByLocation(viewContainerLocation: ViewContainerLocation):
 	}
 }
 
-registerSingleton(IViewsService, ViewsService);
+registerSingleton(IViewsService, ViewsService, false);

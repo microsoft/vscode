@@ -152,4 +152,4 @@ export class PaneCompositeParts extends Disposable implements IPaneCompositePart
 	}
 }
 
-registerSingleton(IPaneCompositePartService, PaneCompositeParts);
+registerSingleton(IPaneCompositePartService, PaneCompositeParts, false);

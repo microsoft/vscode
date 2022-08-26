@@ -819,4 +819,4 @@ class UserDataSyncPreview extends Disposable implements IUserDataSyncPreview {
 
 }
 
-registerSingleton(IUserDataSyncWorkbenchService, UserDataSyncWorkbenchService);
+registerSingleton(IUserDataSyncWorkbenchService, UserDataSyncWorkbenchService, false);
