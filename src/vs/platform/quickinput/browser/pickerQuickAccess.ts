@@ -175,6 +175,10 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 					}
 				}
 
+				if (items.length > 1) {
+					items = this.reorderPicks(items);
+				}
+
 				picker.items = items;
 				if (activeItem) {
 					picker.activeItems = [activeItem];
@@ -363,6 +367,17 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 		}));
 
 		return disposables;
+	}
+
+	/**
+	 * If needed, returns the array of picks reordered.
+	 *
+	 * @param picks the original list of picks and separators
+	 * @returns the picks, possibly in a new array in a better order
+	 */
+	protected reorderPicks(picks: readonly Pick<T>[]): readonly Pick<T>[] {
+		// by default picks don't need reordering
+		return picks;
 	}
 
 	/**
