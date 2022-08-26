@@ -42,6 +42,7 @@ export class StickyLineCandidateProvider extends Disposable {
 	private _outlineModel: StickyOutlineElement | undefined;
 	private readonly _sessionStore: DisposableStore = new DisposableStore();
 	private _modelVersionId: number = 0;
+	private _providerString: string = '';
 
 	constructor(
 		editor: ICodeEditor,
@@ -65,10 +66,16 @@ export class StickyLineCandidateProvider extends Disposable {
 			this._sessionStore.clear();
 			return;
 		} else {
-			this._sessionStore.add(this._editor.onDidChangeModel(() => this.update()));
+			this._sessionStore.add(this._editor.onDidChangeModel(() => {
+				this._providerString = '';
+				this.update();
+			}));
 			this._sessionStore.add(this._editor.onDidChangeHiddenAreas(() => this.update()));
 			this._sessionStore.add(this._editor.onDidChangeModelContent(() => this._updateSoon.schedule()));
-			this._sessionStore.add(this._languageFeaturesService.documentSymbolProvider.onDidChange(() => this.update()));
+			this._sessionStore.add(this._languageFeaturesService.documentSymbolProvider.onDidChange(() => {
+				this._providerString = '';
+				this.update();
+			}));
 			this.update();
 		}
 	}
@@ -81,16 +88,45 @@ export class StickyLineCandidateProvider extends Disposable {
 		this._cts?.dispose(true);
 		this._cts = new CancellationTokenSource();
 		await this.updateOutlineModel(this._cts.token);
-		console.log('this._outlineModel : ', this._outlineModel);
 		this.onStickyScrollChangeEmitter.fire();
+	}
+
+	private findSumOfRangesOfGroup(outline: OutlineGroup | OutlineElement): number {
+		let res = 0;
+		if (outline.children.size !== 0) {
+			for (const child of outline.children.values()) {
+				res += this.findSumOfRangesOfGroup(child);
+			}
+		}
+		if (outline instanceof OutlineElement) {
+			return res + outline.symbol.range.endLineNumber - outline.symbol.selectionRange.startLineNumber;
+		} else {
+			return res;
+		}
 	}
 
 	private async updateOutlineModel(token: CancellationToken) {
 		if (this._editor.hasModel()) {
 			const model = this._editor.getModel();
 			const modelVersionId = model.getVersionId();
-			console.log('this._languageFeaturesService.documentSymbolProvider : ', this._languageFeaturesService.documentSymbolProvider);
-			const outlineModel = await OutlineModel.create(this._languageFeaturesService.documentSymbolProvider, model, token) as OutlineModel;
+			let outlineModel = await OutlineModel.create(this._languageFeaturesService.documentSymbolProvider, model, token) as OutlineModel;
+			if (outlineModel.children.size !== 0 && outlineModel.children.values().next().value instanceof OutlineGroup) {
+				if (outlineModel.children.has(this._providerString)) {
+					outlineModel = outlineModel.children.get(this._providerString) as unknown as OutlineModel;
+				} else {
+					let providerString = '';
+					let maxTotalSumRanges = 0;
+					for (const [key, outlineGroup] of outlineModel.children.entries()) {
+						const totalSumRanges = this.findSumOfRangesOfGroup(outlineGroup);
+						if (totalSumRanges > maxTotalSumRanges) {
+							maxTotalSumRanges = totalSumRanges;
+							providerString = key;
+						}
+					}
+					this._providerString = providerString;
+					outlineModel = outlineModel.children.get(this._providerString) as unknown as OutlineModel;
+				}
+			}
 			if (token.isCancellationRequested) {
 				return;
 			}
