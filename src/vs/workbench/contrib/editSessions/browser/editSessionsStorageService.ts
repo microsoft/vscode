@@ -14,20 +14,21 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { createSyncHeaders, IAuthenticationProvider, IResourceRefHandle, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { createSyncHeaders, IAuthenticationProvider, IResourceRefHandle } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { EDIT_SESSIONS_SIGNED_IN, EditSession, EDIT_SESSION_SYNC_CATEGORY, IEditSessionsWorkbenchService, EDIT_SESSIONS_SIGNED_IN_KEY, IEditSessionsLogService } from 'vs/workbench/contrib/editSessions/common/editSessions';
+import { EDIT_SESSIONS_SIGNED_IN, EditSession, EDIT_SESSION_SYNC_CATEGORY, IEditSessionsStorageService, EDIT_SESSIONS_SIGNED_IN_KEY, IEditSessionsLogService } from 'vs/workbench/contrib/editSessions/common/editSessions';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { getCurrentAuthenticationSessionInfo } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { isWeb } from 'vs/base/common/platform';
 
 type ExistingSession = IQuickPickItem & { session: AuthenticationSession & { providerId: string } };
 type AuthenticationProviderOption = IQuickPickItem & { provider: IAuthenticationProvider };
 
-export class EditSessionsWorkbenchService extends Disposable implements IEditSessionsWorkbenchService {
+export class EditSessionsWorkbenchService extends Disposable implements IEditSessionsStorageService {
 
 	_serviceBrand = undefined;
 
@@ -39,6 +40,10 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 
 	private initialized = false;
 	private readonly signedInContext: IContextKey<boolean>;
+
+	get isSignedIn() {
+		return this.existingSessionId !== undefined;
+	}
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -53,7 +58,6 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		@IRequestService private readonly requestService: IRequestService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ICredentialsService private readonly credentialsService: ICredentialsService,
-		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 	) {
 		super();
 
@@ -189,20 +193,20 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	private async getAuthenticationSession() {
 		// If the user signed in previously and the session is still available, reuse that without prompting the user again
 		if (this.existingSessionId) {
-			this.logService.trace(`Searching for existing authentication session with ID ${this.existingSessionId}`);
+			this.logService.info(`Searching for existing authentication session with ID ${this.existingSessionId}`);
 			const existingSession = await this.getExistingSession();
 			if (existingSession) {
-				this.logService.trace(`Found existing authentication session with ID ${existingSession.session.id}`);
+				this.logService.info(`Found existing authentication session with ID ${existingSession.session.id}`);
 				return { sessionId: existingSession.session.id, token: existingSession.session.idToken ?? existingSession.session.accessToken, providerId: existingSession.session.providerId };
 			}
 		}
 
 		// If settings sync is already enabled, avoid asking again to authenticate
-		if (this.userDataSyncEnablementService.isEnabled()) {
-			this.logService.trace(`Reusing user data sync enablement`);
+		if (this.shouldAttemptEditSessionInit()) {
+			this.logService.info(`Reusing user data sync enablement`);
 			const authenticationSessionInfo = await getCurrentAuthenticationSessionInfo(this.credentialsService, this.productService);
 			if (authenticationSessionInfo !== undefined) {
-				this.logService.trace(`Using current authentication session with ID ${authenticationSessionInfo.id}`);
+				this.logService.info(`Using current authentication session with ID ${authenticationSessionInfo.id}`);
 				this.existingSessionId = authenticationSessionInfo.id;
 				return { sessionId: authenticationSessionInfo.id, token: authenticationSessionInfo.accessToken, providerId: authenticationSessionInfo.providerId };
 			}
@@ -216,6 +220,10 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		}
 
 		return undefined;
+	}
+
+	private shouldAttemptEditSessionInit(): boolean {
+		return isWeb && this.storageService.isNew(StorageScope.APPLICATION) && this.storageService.isNew(StorageScope.WORKSPACE);
 	}
 
 	/**

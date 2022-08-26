@@ -66,6 +66,7 @@ export async function startServer(connection: Connection) {
 				documentLinkProvider: { resolveProvider: true },
 				documentSymbolProvider: true,
 				foldingRangeProvider: true,
+				referencesProvider: true,
 				renameProvider: { prepareProvider: true, },
 				selectionRangeProvider: true,
 				workspaceSymbolProvider: true,

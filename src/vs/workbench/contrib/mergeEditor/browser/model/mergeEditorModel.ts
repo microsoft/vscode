@@ -128,10 +128,6 @@ export class MergeEditorModel extends EditorModel {
 		return chunks.join();
 	}
 
-	public discardMergeChanges(): void {
-		this.resultTextModel.setValue(this.resultSnapshot);
-	}
-
 	constructor(
 		readonly base: ITextModel,
 		readonly input1: InputData,
@@ -336,6 +332,10 @@ export class MergeEditorModel extends EditorModel {
 		}
 
 		return ModifiedBaseRangeState.conflicting;
+	}
+
+	public has(baseRange: ModifiedBaseRange): boolean {
+		return this.modifiedBaseRangeHandlingStateStores.get().has(baseRange);
 	}
 
 	public isHandled(baseRange: ModifiedBaseRange): IObservable<boolean> {

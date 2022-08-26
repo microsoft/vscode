@@ -161,8 +161,8 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		this._horizontalRevealRequest = null;
 
 		// sticky scroll widget
-		this._stickyScrollEnabled = options.get(EditorOption.experimental).stickyScroll.enabled;
-		this._maxNumberStickyLines = options.get(EditorOption.experimental).stickyScroll.maxLineCount;
+		this._stickyScrollEnabled = options.get(EditorOption.stickyScroll).enabled;
+		this._maxNumberStickyLines = options.get(EditorOption.stickyScroll).maxLineCount;
 	}
 
 	public override dispose(): void {
@@ -206,8 +206,8 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		this._canUseLayerHinting = !options.get(EditorOption.disableLayerHinting);
 
 		// sticky scroll
-		this._stickyScrollEnabled = options.get(EditorOption.experimental).stickyScroll.enabled;
-		this._maxNumberStickyLines = options.get(EditorOption.experimental).stickyScroll.maxLineCount;
+		this._stickyScrollEnabled = options.get(EditorOption.stickyScroll).enabled;
+		this._maxNumberStickyLines = options.get(EditorOption.stickyScroll).maxLineCount;
 
 		applyFontInfo(this.domNode, fontInfo);
 
@@ -745,8 +745,9 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 	private _computeScrollLeftToReveal(horizontalRevealRequest: HorizontalRevealRequest): { scrollLeft: number; maxHorizontalOffset: number } | null {
 
 		const viewport = this._context.viewLayout.getCurrentViewport();
+		const layoutInfo = this._context.configuration.options.get(EditorOption.layoutInfo);
 		const viewportStartX = viewport.left;
-		const viewportEndX = viewportStartX + viewport.width;
+		const viewportEndX = viewportStartX + viewport.width - layoutInfo.verticalScrollbarWidth;
 
 		let boxStartX = Constants.MAX_SAFE_SMALL_INTEGER;
 		let boxEndX = 0;

@@ -383,6 +383,7 @@ export class TerminalService implements ITerminalService {
 	private _setConnected() {
 		this._connectionState = TerminalConnectionState.Connected;
 		this._onDidChangeConnectionState.fire();
+		this._logService.trace('Reconnected to terminals');
 	}
 
 	private async _reconnectToRemoteTerminals(): Promise<void> {

@@ -228,6 +228,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			},
 			'extensions.experimental.useUtilityProcess': {
 				type: 'boolean',
+				tags: ['experimental'],
 				description: localize('extensionsUseUtilityProcess', "When enabled, the extension host will be launched using the new UtilityProcess Electron API."),
 				default: product.quality === 'stable' ? false : true // disabled by default in stable for now
 			},

@@ -41,14 +41,14 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { QuickPickItem, IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalCapabilityStoreMultiplexer } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { IProcessDataEvent, IProcessPropertyMap, IReconnectionProperties, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, PosixShellType, ProcessPropertyType, ShellIntegrationStatus, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalSettingId, TerminalShellType, TitleEventSource, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 import { escapeNonWindowsPath, collapseTildePath } from 'vs/platform/terminal/common/terminalEnvironment';
-import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
+import { activeContrastBorder, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
@@ -88,6 +88,9 @@ import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProc
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
+import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
+import { showWithPinnedItems } from 'vs/platform/quickinput/browser/quickPickPin';
+import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 
 const enum Constants {
 	/**
@@ -849,6 +852,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this.xterm) {
 			return;
 		}
+		const runRecentStorageKey = `${TerminalStorageKeys.PinnedRecentCommandsPrefix}.${this._shellType}`;
 		let placeholder: string;
 		type Item = IQuickPickItem & { command?: ITerminalCommand; rawLabel: string };
 		let items: (Item | IQuickPickItem & { rawLabel: string } | IQuickPickSeparator)[] = [];
@@ -857,6 +861,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const removeFromCommandHistoryButton: IQuickInputButton = {
 			iconClass: ThemeIcon.asClassName(Codicon.close),
 			tooltip: nls.localize('removeCommand', "Remove from Command History")
+		};
+
+		const commandOutputButton: IQuickInputButton = {
+			iconClass: ThemeIcon.asClassName(Codicon.output),
+			tooltip: nls.localize('viewCommandOutput', "View Command Output"),
+			alwaysVisible: false
 		};
 
 		if (type === 'command') {
@@ -895,12 +905,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						}
 					}
 					description = description.trim();
-					const iconClass = ThemeIcon.asClassName(Codicon.output);
-					const buttons: IQuickInputButton[] = [{
-						iconClass,
-						tooltip: nls.localize('viewCommandOutput', "View Command Output"),
-						alwaysVisible: false
-					}];
+					const buttons: IQuickInputButton[] = [commandOutputButton];
 					// Merge consecutive commands
 					const lastItem = items.length > 0 ? items[items.length - 1] : undefined;
 					if (lastItem?.type !== 'separator' && lastItem?.label === label) {
@@ -1006,27 +1011,25 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (items.length === 0) {
 			return;
 		}
+		const fuzzySearchToggle = new Toggle({
+			title: 'Fuzzy search',
+			icon: Codicon.searchFuzzy,
+			isChecked: filterMode === 'fuzzy',
+			inputActiveOptionBorder: this._themeService.getColorTheme().getColor(inputActiveOptionBorder),
+			inputActiveOptionForeground: this._themeService.getColorTheme().getColor(inputActiveOptionForeground),
+			inputActiveOptionBackground: this._themeService.getColorTheme().getColor(inputActiveOptionBackground)
+		});
+		fuzzySearchToggle.onChange(() => {
+			this.runRecent(type, fuzzySearchToggle.checked ? 'fuzzy' : 'contiguous', quickPick.value);
+		});
 		const outputProvider = this._instantiationService.createInstance(TerminalOutputProvider);
 		const quickPick = this._quickInputService.createQuickPick<IQuickPickItem & { rawLabel: string }>();
 		const originalItems = items;
 		quickPick.items = [...originalItems];
 		quickPick.sortByLabel = false;
 		quickPick.placeholder = placeholder;
-		quickPick.customButton = true;
 		quickPick.matchOnLabelMode = filterMode || 'contiguous';
-		if (filterMode === 'fuzzy') {
-			quickPick.customLabel = nls.localize('terminal.contiguousSearch', 'Use Contiguous Search');
-			quickPick.onDidCustom(() => {
-				quickPick.hide();
-				this.runRecent(type, 'contiguous', quickPick.value);
-			});
-		} else {
-			quickPick.customLabel = nls.localize('terminal.fuzzySearch', 'Use Fuzzy Search');
-			quickPick.onDidCustom(() => {
-				quickPick.hide();
-				this.runRecent(type, 'fuzzy', quickPick.value);
-			});
-		}
+		quickPick.toggles = [fuzzySearchToggle];
 		quickPick.onDidTriggerItemButton(async e => {
 			if (e.button === removeFromCommandHistoryButton) {
 				if (type === 'command') {
@@ -1034,7 +1037,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				} else {
 					this._instantiationService.invokeFunction(getDirectoryHistory)?.remove(e.item.label);
 				}
-			} else {
+			} else if (e.button === commandOutputButton) {
 				const selectedCommand = (e.item as Item).command;
 				const output = selectedCommand?.getOutput();
 				if (output && selectedCommand?.command) {
@@ -1052,7 +1055,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					}
 				}
 			}
-			quickPick.hide();
+			await this.runRecent(type, filterMode, value);
+		}
+		);
+		quickPick.onDidChangeValue(async value => {
+			if (!value) {
+				await this.runRecent(type, filterMode, value);
+			}
 		});
 		quickPick.onDidAccept(async () => {
 			const result = quickPick.activeItems[0];
@@ -1064,13 +1073,16 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 			this.sendText(text, !quickPick.keyMods.alt, true);
 			quickPick.hide();
+			if (quickPick.keyMods.alt) {
+				this.focus();
+			}
 		});
 		if (value) {
 			quickPick.value = value;
 		}
 		return new Promise<void>(r => {
-			quickPick.show();
 			this._terminalInRunCommandPicker.set(true);
+			showWithPinnedItems(this._storageService, runRecentStorageKey, quickPick, true);
 			quickPick.onDidHide(() => {
 				this._terminalInRunCommandPicker.set(false);
 				r();
@@ -1473,8 +1485,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	async detachProcessAndDispose(reason: TerminalExitReason): Promise<void> {
 		// Detach the process and dispose the instance, without the instance dispose the terminal
-		// won't go away
-		await this._processManager.detachFromProcess();
+		// won't go away. Force persist if the detach was requested by the user (not shutdown).
+		await this._processManager.detachFromProcess(reason === TerminalExitReason.User);
 		this.dispose(reason);
 	}
 
@@ -2502,7 +2514,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const colorTheme = this._themeService.getColorTheme();
 		const standardColors: string[] = getStandardColors(colorTheme);
 		const styleElement = getColorStyleElement(colorTheme);
-		const items: (IQuickPickItem | IQuickPickSeparator)[] = [];
+		const items: QuickPickItem[] = [];
 		for (const colorKey of standardColors) {
 			const colorClass = getColorClass(colorKey);
 			items.push({

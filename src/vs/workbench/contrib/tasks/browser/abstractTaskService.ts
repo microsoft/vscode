@@ -8,7 +8,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
 import * as json from 'vs/base/common/json';
-import { Disposable, IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { LRUCache, Touch } from 'vs/base/common/map';
 import * as Objects from 'vs/base/common/objects';
 import { ValidationState, ValidationStatus } from 'vs/base/common/parsers';
@@ -209,7 +209,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	protected _workspaceTasksPromise?: Promise<Map<string, IWorkspaceFolderTaskResult>>;
 
 	protected _taskSystem?: ITaskSystem;
-	protected _taskSystemListener?: IDisposable;
+	protected _taskSystemListeners?: IDisposable[] = [];
 	private _recentlyUsedTasksV1: LRUCache<string, string> | undefined;
 	private _recentlyUsedTasks: LRUCache<string, string> | undefined;
 
@@ -219,6 +219,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	protected _outputChannel: IOutputChannel;
 	protected readonly _onDidStateChange: Emitter<ITaskEvent>;
+	protected readonly _onDidReconnectToTerminals: Emitter<void> = new Emitter();
 	private _waitForSupportedExecutions: Promise<void>;
 	private _onDidRegisterSupportedExecutions: Emitter<void> = new Emitter();
 	private _onDidChangeTaskSystemInfo: Emitter<void> = new Emitter();
@@ -265,7 +266,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 		this._workspaceTasksPromise = undefined;
 		this._taskSystem = undefined;
-		this._taskSystemListener = undefined;
+		this._taskSystemListeners = undefined;
 		this._outputChannel = this._outputService.getChannel(AbstractTaskService.OutputChannelId)!;
 		this._providers = new Map<number, ITaskProvider>();
 		this._providerTypes = new Map<number, string>();
@@ -283,6 +284,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			if (!this._taskSystem && !this._workspaceTasksPromise) {
 				return;
 			}
+
 			if (!this._taskSystem || this._taskSystem instanceof TerminalTaskSystem) {
 				this._outputChannel.clear();
 			}
@@ -328,6 +330,16 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._waitForSupportedExecutions = new Promise(resolve => {
 			once(this._onDidRegisterSupportedExecutions.event)(() => resolve());
 		});
+		if (this._terminalService.getReconnectedTerminals('Task')?.length) {
+			this._attemptTaskReconnection();
+		} else {
+			this._register(this._terminalService.onDidChangeConnectionState(() => {
+				if (this._terminalService.getReconnectedTerminals('Task')?.length) {
+					this._attemptTaskReconnection();
+				}
+			}));
+		}
+
 		this._upgrade();
 	}
 
@@ -346,26 +358,30 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			processContext.set(process && !isVirtual);
 		}
 		this._onDidRegisterSupportedExecutions.fire();
-		if (this._configurationService.getValue(TaskSettingId.Reconnection) === true && this._jsonTasksSupported && !this._tasksReconnected) {
-			this._reconnectTasks();
-		}
 	}
 
-	private async _reconnectTasks(): Promise<void> {
+	private _attemptTaskReconnection(): void {
 		if (this._lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
 			this._tasksReconnected = true;
 			this._storageService.remove(AbstractTaskService.PersistentTasks_Key, StorageScope.WORKSPACE);
-			return;
 		}
-		const tasks = await this.getSavedTasks('persistent');
-		if (!this._taskSystem) {
-			await this._getTaskSystem();
-		}
-		if (!tasks.length) {
+		if (!this._configurationService.getValue(TaskSettingId.Reconnection) || this._tasksReconnected) {
 			this._tasksReconnected = true;
 			return;
 		}
+		this._getTaskSystem();
+		this._waitForSupportedExecutions.then(() => {
+			this.getWorkspaceTasks().then(async () => {
+				this._tasksReconnected = await this._reconnectTasks();
+			});
+		});
+	}
 
+	private async _reconnectTasks(): Promise<boolean> {
+		const tasks = await this.getSavedTasks('persistent');
+		if (!tasks.length) {
+			return true;
+		}
 		for (const task of tasks) {
 			if (ConfiguringTask.is(task)) {
 				const resolved = await this.tryResolveTask(task);
@@ -376,11 +392,15 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				this.run(task, undefined, TaskRunSource.Reconnect);
 			}
 		}
-		this._tasksReconnected = true;
+		return true;
 	}
 
 	public get onDidStateChange(): Event<ITaskEvent> {
 		return this._onDidStateChange.event;
+	}
+
+	public get onDidReconnectToTerminals(): Event<void> {
+		return this._onDidReconnectToTerminals.event;
 	}
 
 	public get supportsMultipleTaskExecutions(): boolean {
@@ -607,7 +627,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	protected _disposeTaskSystemListeners(): void {
-		this._taskSystemListener?.dispose();
+		if (this._taskSystemListeners) {
+			dispose(this._taskSystemListeners);
+			this._taskSystemListeners = undefined;
+		}
 	}
 
 	public registerTaskProvider(provider: ITaskProvider, type: string): IDisposable {
@@ -1100,11 +1123,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					key = customized[configuration].getRecentlyUsedKey()!;
 				}
 			}
-			// isBackground is still false at this pt bc problem matchers
-			// for contributed tasks get attached later
-			// they're set to [] for this case,
-			// so checking if they're defined is sufficient
-			if (!task.configurationProperties.problemMatchers) {
+			if (!task.configurationProperties.isBackground) {
 				return;
 			}
 			this._getTasksFromStorage('persistent').set(key, JSON.stringify(customizations));
@@ -2748,10 +2767,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _trust(): Promise<boolean> {
-		return (await this._workspaceTrustRequestService.requestWorkspaceTrust(
-			{
-				message: nls.localize('TaskService.requestTrust', "Listing and running tasks requires that some of the files in this workspace be executed as code.")
-			})) === true;
+		await this._workspaceTrustManagementService.workspaceTrustInitialized;
+		if (!this._workspaceTrustManagementService.isWorkspaceTrusted()) {
+			return (await this._workspaceTrustRequestService.requestWorkspaceTrust(
+				{
+					message: nls.localize('TaskService.requestTrust', "Listing and running tasks requires that some of the files in this workspace be executed as code.")
+				})) === true;
+		}
+		return true;
 	}
 
 	private async _runTaskCommand(filter?: any | { type?: string; task?: string }): Promise<void> {

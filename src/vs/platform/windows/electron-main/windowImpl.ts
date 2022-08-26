@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, BrowserWindowConstructorOptions, Display, Event, nativeImage, NativeImage, Rectangle, screen, SegmentedControlSegment, systemPreferences, TouchBar, TouchBarSegmentedControl } from 'electron';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { app, BrowserWindow, BrowserWindowConstructorOptions, Display, Event as ElectronEvent, nativeImage, NativeImage, Rectangle, screen, SegmentedControlSegment, systemPreferences, TouchBar, TouchBarSegmentedControl } from 'electron';
+import { DeferredPromise, RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
@@ -40,10 +40,10 @@ import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electro
 import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState } from 'vs/platform/window/electron-main/window';
 import { Color } from 'vs/base/common/color';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { revive } from 'vs/base/common/marshalling';
+import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import product from 'vs/platform/product/common/product';
+import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -119,9 +119,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	get backupPath(): string | undefined { return this._config?.backupPath; }
 
+	private _previousWorkspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined;
+	get previousWorkspace(): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined { return this._previousWorkspace; }
 	get openedWorkspace(): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined { return this._config?.workspace; }
 
-	get profile(): IUserDataProfile | undefined { return this.config ? this.userDataProfilesService.getProfile(this.config.workspace ?? 'empty-window', revive(this.config.profiles.current)) : undefined; }
+	get profile(): IUserDataProfile | undefined { return this.config ? this.userDataProfilesService.getOrSetProfileForWorkspace(this.config.workspace ?? 'empty-window', this.userDataProfilesService.profiles.find(profile => profile.id === this.config?.profiles.profile.id) ?? this.userDataProfilesService.defaultProfile) : undefined; }
 
 	get remoteAuthority(): string | undefined { return this._config?.remoteAuthority; }
 
@@ -136,9 +138,14 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	//#endregion
 
-
 	private readonly windowState: IWindowState;
 	private currentMenuBarVisibility: MenuBarVisibility | undefined;
+
+	// TODO@electron workaround for https://github.com/electron/electron/issues/35360
+	// where on macOS the window will report a wrong state for `isFullScreen()` while
+	// transitioning into and out of native full screen.
+	private transientIsNativeFullScreen: boolean | undefined = undefined;
+	private joinNativeFullScreenTransition: DeferredPromise<void> | undefined = undefined;
 
 	private representedFilename: string | undefined;
 	private documentEdited: boolean | undefined;
@@ -161,7 +168,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@IPolicyService private readonly policyService: IPolicyService,
-		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+		@IUserDataProfilesMainService private readonly userDataProfilesService: IUserDataProfilesMainService,
 		@IFileService private readonly fileService: IFileService,
 		@IApplicationStorageMainService private readonly applicationStorageMainService: IApplicationStorageMainService,
 		@IStorageMainService private readonly storageMainService: IStorageMainService,
@@ -550,7 +557,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		});
 
 		// Window (Un)Maximize
-		this._win.on('maximize', (e: Event) => {
+		this._win.on('maximize', (e: ElectronEvent) => {
 			if (this._config) {
 				this._config.maximized = true;
 			}
@@ -558,7 +565,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			app.emit('browser-window-maximize', e, this._win);
 		});
 
-		this._win.on('unmaximize', (e: Event) => {
+		this._win.on('unmaximize', (e: ElectronEvent) => {
 			if (this._config) {
 				this._config.maximized = false;
 			}
@@ -569,10 +576,16 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Window Fullscreen
 		this._win.on('enter-full-screen', () => {
 			this.sendWhenReady('vscode:enterFullScreen', CancellationToken.None);
+
+			this.joinNativeFullScreenTransition?.complete();
+			this.joinNativeFullScreenTransition = undefined;
 		});
 
 		this._win.on('leave-full-screen', () => {
 			this.sendWhenReady('vscode:leaveFullScreen', CancellationToken.None);
+
+			this.joinNativeFullScreenTransition?.complete();
+			this.joinNativeFullScreenTransition = undefined;
 		});
 
 		// Handle configuration changes
@@ -841,6 +854,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			this._win.setTitle(this.productService.nameLong);
 		}
 
+		this._previousWorkspace = this.openedWorkspace;
+
 		// Update configuration values based on our window context
 		// and set it into the config object URL for usage.
 		this.updateConfiguration(configuration, options);
@@ -961,7 +976,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		configuration.policiesData = this.policyService.serialize(); // set policies data again
 		configuration.profiles = {
 			all: this.userDataProfilesService.profiles,
-			current: this.profile || this.userDataProfilesService.defaultProfile,
+			profile: this.profile || this.userDataProfilesService.defaultProfile
 		};
 
 		// Load config
@@ -1280,11 +1295,30 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 	}
 
-	get isFullScreen(): boolean { return this._win.isFullScreen() || this._win.isSimpleFullScreen(); }
+	get isFullScreen(): boolean {
+		if (isMacintosh && typeof this.transientIsNativeFullScreen === 'boolean') {
+			return this.transientIsNativeFullScreen;
+		}
+
+		return this._win.isFullScreen() || this._win.isSimpleFullScreen();
+	}
 
 	private setNativeFullScreen(fullscreen: boolean): void {
 		if (this._win.isSimpleFullScreen()) {
 			this._win.setSimpleFullScreen(false);
+		}
+
+		this.doSetNativeFullScreen(fullscreen);
+	}
+
+	private doSetNativeFullScreen(fullscreen: boolean): void {
+		if (isMacintosh) {
+			this.transientIsNativeFullScreen = fullscreen;
+			this.joinNativeFullScreenTransition = new DeferredPromise<void>();
+			Promise.race([
+				this.joinNativeFullScreenTransition.p,
+				timeout(1000) // still timeout after some time in case we miss the event
+			]).finally(() => this.transientIsNativeFullScreen = undefined);
 		}
 
 		this._win.setFullScreen(fullscreen);
@@ -1292,7 +1326,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private setSimpleFullScreen(fullscreen: boolean): void {
 		if (this._win.isFullScreen()) {
-			this._win.setFullScreen(false);
+			this.doSetNativeFullScreen(false);
 		}
 
 		this._win.setSimpleFullScreen(fullscreen);

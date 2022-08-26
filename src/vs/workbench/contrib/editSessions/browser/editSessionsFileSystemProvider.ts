@@ -6,18 +6,19 @@
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileDeleteOptions, IFileOverwriteOptions, IFileSystemProviderWithFileReadCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
-import { ChangeType, decodeEditSessionFileContent, EDIT_SESSIONS_SCHEME, IEditSessionsWorkbenchService } from 'vs/workbench/contrib/editSessions/common/editSessions';
+import { FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileDeleteOptions, IFileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
+import { ChangeType, decodeEditSessionFileContent, EDIT_SESSIONS_SCHEME, IEditSessionsStorageService } from 'vs/workbench/contrib/editSessions/common/editSessions';
+import { NotSupportedError } from 'vs/base/common/errors';
 
-export class EditSessionsFileSystemProvider implements IFileSystemProviderWithFileReadCapability {
+export class EditSessionsFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability {
 
 	static readonly SCHEMA = EDIT_SESSIONS_SCHEME;
 
 	constructor(
-		@IEditSessionsWorkbenchService private editSessionsWorkbenchService: IEditSessionsWorkbenchService,
+		@IEditSessionsStorageService private editSessionsStorageService: IEditSessionsStorageService,
 	) { }
 
-	readonly capabilities: FileSystemProviderCapabilities = FileSystemProviderCapabilities.Readonly;
+	readonly capabilities: FileSystemProviderCapabilities = FileSystemProviderCapabilities.Readonly + FileSystemProviderCapabilities.FileReadWrite;
 
 	async readFile(resource: URI): Promise<Uint8Array> {
 		const match = /(?<ref>[^/]+)\/(?<folderName>[^/]+)\/(?<filePath>.*)/.exec(resource.path.substring(1));
@@ -25,7 +26,7 @@ export class EditSessionsFileSystemProvider implements IFileSystemProviderWithFi
 			throw FileSystemProviderErrorCode.FileNotFound;
 		}
 		const { ref, folderName, filePath } = match.groups;
-		const data = await this.editSessionsWorkbenchService.read(ref);
+		const data = await this.editSessionsStorageService.read(ref);
 		if (!data) {
 			throw FileSystemProviderErrorCode.FileNotFound;
 		}
@@ -59,5 +60,9 @@ export class EditSessionsFileSystemProvider implements IFileSystemProviderWithFi
 
 	async rename(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> { }
 	async delete(resource: URI, opts: IFileDeleteOptions): Promise<void> { }
+
+	async writeFile() {
+		throw new NotSupportedError();
+	}
 	//#endregion
 }

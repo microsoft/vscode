@@ -468,10 +468,9 @@
 			"type": "node",
 			"request": "launch",
 			"name": "Launch Smoke Test",
-			"program": "${workspaceFolder}/test/smoke/out/main.js",
+			"program": "${workspaceFolder}/test/smoke/test/index.js",
 			"cwd": "${workspaceFolder}/test/smoke",
 			"timeout": 240000,
-			"port": 9999,
 			"args": [
 				"-l",
 				"${workspaceFolder}/.build/electron/Code - OSS.app/Contents/MacOS/Electron"
