@@ -3,13 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { execSync } from 'child_process';
+import { exec } from 'child_process';
 import { Readable } from 'stream';
 import { join } from 'path';
+import * as util from 'util';
 import * as gulp from 'gulp';
 
-export function createSwcClientStream() {
+export function createSwcClientStream(): Readable & { exec(print?: boolean): Promise<boolean> } {
 
+	const execAsync = util.promisify(exec);
+
+	const cwd = join(__dirname, '../../../');
 	const srcDir = join(__dirname, '../../../src');
 	const outDir = join(__dirname, '../../../out');
 
@@ -24,18 +28,25 @@ export function createSwcClientStream() {
 			super({ objectMode: true, highWaterMark: Number.MAX_SAFE_INTEGER });
 		}
 
-		exec() {
+		async exec(print?: boolean) {
+			const t1 = Date.now();
+			const errors: string[] = [];
 			try {
-				const out1 = execSync(`npx swc --config-file ${pathConfigAmd} ${srcDir}/ --out-dir ${outDir}`, { encoding: 'utf-8' });
-				console.log(out1);
+				const data1 = await execAsync(`npx swc --config-file ${pathConfigAmd} ${srcDir}/ --out-dir ${outDir}`, { encoding: 'utf-8', cwd });
+				errors.push(data1.stderr);
 
-				const out2 = execSync(`npx swc --config-file ${pathConfigNoModule} ${srcDir}/vs/base/worker/workerMain.ts --out-dir ${outDir}`, { encoding: 'utf-8' });
-				console.log(out2);
+				const data2 = await execAsync(`npx swc --config-file ${pathConfigNoModule} ${srcDir}/vs/base/worker/workerMain.ts --out-dir ${outDir}`, { encoding: 'utf-8', cwd });
+				errors.push(data2.stderr);
 				return true;
 			} catch (error) {
-				console.error();
+				console.error(errors);
+				console.error(error);
 				this.destroy(error);
 				return false;
+			} finally {
+				if (print) {
+					console.log(`DONE with SWC after ${Date.now() - t1}ms`);
+				}
 			}
 		}
 
@@ -57,5 +68,5 @@ export function createSwcClientStream() {
 }
 
 if (process.argv[1] === __filename) {
-	createSwcClientStream().exec();
+	createSwcClientStream().exec(true);
 }

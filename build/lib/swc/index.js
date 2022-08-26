@@ -8,8 +8,11 @@ exports.createSwcClientStream = void 0;
 const child_process_1 = require("child_process");
 const stream_1 = require("stream");
 const path_1 = require("path");
+const util = require("util");
 const gulp = require("gulp");
 function createSwcClientStream() {
+    const execAsync = util.promisify(child_process_1.exec);
+    const cwd = (0, path_1.join)(__dirname, '../../../');
     const srcDir = (0, path_1.join)(__dirname, '../../../src');
     const outDir = (0, path_1.join)(__dirname, '../../../out');
     const pathConfigAmd = (0, path_1.join)(__dirname, '.swcrc-amd');
@@ -19,18 +22,26 @@ function createSwcClientStream() {
             super({ objectMode: true, highWaterMark: Number.MAX_SAFE_INTEGER });
             this._isStarted = false;
         }
-        exec() {
+        async exec(print) {
+            const t1 = Date.now();
+            const errors = [];
             try {
-                const out1 = (0, child_process_1.execSync)(`npx swc --config-file ${pathConfigAmd} ${srcDir}/ --out-dir ${outDir}`, { encoding: 'utf-8' });
-                console.log(out1);
-                const out2 = (0, child_process_1.execSync)(`npx swc --config-file ${pathConfigNoModule} ${srcDir}/vs/base/worker/workerMain.ts --out-dir ${outDir}`, { encoding: 'utf-8' });
-                console.log(out2);
+                const data1 = await execAsync(`npx swc --config-file ${pathConfigAmd} ${srcDir}/ --out-dir ${outDir}`, { encoding: 'utf-8', cwd });
+                errors.push(data1.stderr);
+                const data2 = await execAsync(`npx swc --config-file ${pathConfigNoModule} ${srcDir}/vs/base/worker/workerMain.ts --out-dir ${outDir}`, { encoding: 'utf-8', cwd });
+                errors.push(data2.stderr);
                 return true;
             }
             catch (error) {
-                console.error();
+                console.error(errors);
+                console.error(error);
                 this.destroy(error);
                 return false;
+            }
+            finally {
+                if (print) {
+                    console.log(`DONE with SWC after ${Date.now() - t1}ms`);
+                }
             }
         }
         async _read(_size) {
@@ -51,5 +62,5 @@ function createSwcClientStream() {
 }
 exports.createSwcClientStream = createSwcClientStream;
 if (process.argv[1] === __filename) {
-    createSwcClientStream().exec();
+    createSwcClientStream().exec(true);
 }
