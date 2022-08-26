@@ -75,7 +75,7 @@ class FeatureDebounceInformation implements IFeatureDebounceInformation {
 			this._cache.set(key, avg);
 		}
 		const newValue = clamp(avg.update(value), this._min, this._max);
-		if (!matchesScheme(model.uri, 'output')) {
+		if (!matchesScheme(model.uri, 'output') && this._logService) {
 			this._logService.trace(`[DEBOUNCE: ${this._name}] for ${model.uri.toString()} is ${newValue}ms`);
 		}
 		return newValue;
