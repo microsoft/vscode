@@ -23,13 +23,22 @@
 }
 
 .monaco-workbench .merge-editor .code-view>.title>SPAN.description {
-	opacity: 0.7;
-	font-size: 90%;
+	display: flex;
+	font-size: 12px;
+	align-items: center;
+	color: var(--vscode-descriptionForeground);
+}
+
+.monaco-workbench .merge-editor .code-view>.title>SPAN.description .codicon {
+	font-size: 14px;
+	color: var(--vscode-descriptionForeground);
 }
 
 .monaco-workbench .merge-editor .code-view>.title>SPAN.detail {
 	margin-left: auto;
 	flex-shrink: 0;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
 }
 
 .monaco-workbench .merge-editor .code-view>.title>SPAN.detail .codicon {
@@ -49,28 +58,45 @@
 	flex-grow: 0;
 }
 
+.merge-editor-diff {
+	background-color: var(--vscode-mergeEditor-change-background);
+}
+
 .merge-editor-diff-word {
 	background-color: var(--vscode-mergeEditor-change-word-background);
 }
 
-.merge-editor-block {
+/* BEGIN: .merge-editor-block */
+
+.merge-editor-block:not(.handled) {
 	background-color: var(--vscode-mergeEditor-conflict-unhandledUnfocused-background);
-	border: 1px dashed var(--vscode-mergeEditor-conflict-unhandledUnfocused-border);
 }
 
-.merge-editor-block.focused {
-	border: 1px dashed var(--vscode-mergeEditor-conflict-unhandledFocused-border);
+.merge-editor-block:not(.handled):not(.focused) {
+	border: 1px solid var(--vscode-mergeEditor-conflict-unhandledUnfocused-border);
 }
 
-.merge-editor-block.handled {
+.merge-editor-block:not(.handled).focused {
+	border: 1px solid var(--vscode-mergeEditor-conflict-unhandledFocused-border);
+}
+
+.merge-editor-block.handled:not(.focused) {
 	border: 1px solid var(--vscode-mergeEditor-conflict-handledUnfocused-border);
+}
+
+.merge-editor-block.handled:not(.focused).conflicting {
 	background-color: var(--vscode-mergeEditor-conflict-handledUnfocused-background);
 }
 
 .merge-editor-block.handled.focused {
 	border: 1px solid var(--vscode-mergeEditor-conflict-handledFocused-border);
+}
+
+.merge-editor-block.handled.focused.conflicting {
 	background-color: var(--vscode-mergeEditor-conflict-handledFocused-background);
 }
+
+/* END: .merge-editor-block */
 
 .gutter.monaco-editor>div {
 	position: absolute;
@@ -88,22 +114,24 @@
 }
 
 .merge-accept-gutter-marker.multi-line.focused .background {
-	border: 1px dashed var(--vscode-mergeEditor-conflict-unhandledFocused-border);
+	border: 2px solid var(--vscode-mergeEditor-conflict-unhandledFocused-border);
 	border-right: 0;
 }
 
 .merge-accept-gutter-marker.multi-line .background {
-	border: 1px dashed var(--vscode-mergeEditor-conflict-unhandledUnfocused-border);
+	border: 2px solid var(--vscode-mergeEditor-conflict-unhandledUnfocused-border);
 	border-right: 0;
+	border-top-left-radius: 3px;
+	border-bottom-left-radius: 3px;
 }
 
 .merge-accept-gutter-marker.multi-line.handled.focused .background {
-	border: 1px solid var(--vscode-mergeEditor-conflict-handledFocused-border);
+	border: 2px solid var(--vscode-mergeEditor-conflict-handledFocused-border);
 	border-right: 0;
 }
 
 .merge-accept-gutter-marker.multi-line.handled .background {
-	border: 1px solid var(--vscode-checkbox-border);
+	border: 2px solid var(--vscode-checkbox-border);
 	border-right: 0;
 }
 
@@ -152,9 +180,8 @@
 }
 
 .conflict-zone-root {
-	border: 1px dashed var(--vscode-mergeEditor-conflict-unhandledUnfocused-border);
-	background-color: var(--vscode-mergeEditor-conflict-unhandledUnfocused-background);
-
+	background-color: var(--vscode-mergeEditor-change-background);
+	border: 1px solid var(--vscode-mergeEditor-conflict-unhandledUnfocused-border);
 	height: 90%;
 	display: flex;
 	align-items: center;
@@ -171,11 +198,11 @@
 }
 
 .conflict-zone-root .text {
+	background: var(--vscode-mergeEditor-conflictingLines-background);
 	margin-left: auto;
 	padding: 0 8px;
 	display: flex;
 	align-items: center;
-	/* background: var(--vscode-mergeEditor-conflict-unhandledUnfocused-background); */
 	height: 100%;
 	white-space: nowrap;
 	overflow: hidden;
@@ -183,5 +210,5 @@
 
 
 .focused.conflict-zone .conflict-zone-root {
-	border: 1px dashed var(--vscode-mergeEditor-conflict-unhandledFocused-border);
+	border: 1px solid var(--vscode-mergeEditor-conflict-unhandledFocused-border);
 }

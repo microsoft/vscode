@@ -4162,7 +4162,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 				},
 				'editor.suggest.matchOnWordStartOnly': {
 					type: 'boolean',
-					default: false,
+					default: true,
 					markdownDescription: nls.localize('editor.suggest.matchOnWordStartOnly', "When enabled IntelliSense filtering requires that the first character matches on a word start, e.g `c` on `Console` or `WebContext` but _not_ on `description`. When disabled IntelliSense will show more results but still sorts them by match quality.")
 				},
 				'editor.suggest.showFields': {

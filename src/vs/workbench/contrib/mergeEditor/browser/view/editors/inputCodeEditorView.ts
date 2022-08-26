@@ -53,6 +53,9 @@ export class InputCodeEditorView extends CodeEditorView {
 				if (modifiedBaseRange === activeModifiedBaseRange) {
 					blockClassNames.push('focused');
 				}
+				if (modifiedBaseRange.isConflicting) {
+					blockClassNames.push('conflicting');
+				}
 				const inputClassName = this.inputNumber === 1 ? 'input1' : 'input2';
 				blockClassNames.push(inputClassName);
 
@@ -317,7 +320,11 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 
 		this.item = observableValue('item', item);
 
-		const checkBox = new Toggle({ isChecked: false, title: localize('accept', "Accept"), icon: Codicon.check });
+		const checkBox = new Toggle({
+			isChecked: false,
+			title: '',
+			icon: Codicon.check
+		});
 
 		this._register(attachToggleStyler(checkBox, themeService));
 
@@ -329,18 +336,19 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 				}
 
 				if (e.button === /* Right */ 2) {
+					e.stopPropagation();
+					e.preventDefault();
+
 					contextMenuService.showContextMenu({
 						getAnchor: () => checkBox.domNode,
 						getActions: item.getContextMenuActions,
 					});
 
-					e.stopPropagation();
-					e.preventDefault();
 				} else if (e.button === /* Middle */ 1) {
-					item.toggleBothSides();
-
 					e.stopPropagation();
 					e.preventDefault();
+
+					item.toggleBothSides();
 				}
 			})
 		);
@@ -351,14 +359,16 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 			autorun('Update Checkbox', (reader) => {
 				const item = this.item.read(reader)!;
 				const value = item.toggleState.read(reader);
-				const iconMap: Record<InputState, { icon: Codicon | undefined; checked: boolean }> = {
-					[InputState.excluded]: { icon: undefined, checked: false },
-					[InputState.conflicting]: { icon: Codicon.circleFilled, checked: false },
-					[InputState.first]: { icon: Codicon.check, checked: true },
-					[InputState.second]: { icon: Codicon.checkAll, checked: true },
+				const iconMap: Record<InputState, { icon: Codicon | undefined; checked: boolean; title: string }> = {
+					[InputState.excluded]: { icon: undefined, checked: false, title: localize('accept.excluded', "Accept") },
+					[InputState.conflicting]: { icon: Codicon.circleFilled, checked: false, title: localize('accept.conflicting', "Accept (result is dirty)") },
+					[InputState.first]: { icon: Codicon.check, checked: true, title: localize('accept.first', "Undo accept") },
+					[InputState.second]: { icon: Codicon.checkAll, checked: true, title: localize('accept.second', "Undo accept (currently second)") },
 				};
-				checkBox.setIcon(iconMap[value].icon);
-				checkBox.checked = iconMap[value].checked;
+				const state = iconMap[value];
+				checkBox.setIcon(state.icon);
+				checkBox.checked = state.checked;
+				checkBox.setTitle(state.title);
 
 				if (!item.enabled.read(reader)) {
 					checkBox.disable();
@@ -393,7 +403,6 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 	}
 
 	layout(top: number, height: number, viewTop: number, viewHeight: number): void {
-
 		const checkboxHeight = this.checkboxDiv.clientHeight;
 		const middleHeight = height / 2 - checkboxHeight / 2;
 
@@ -413,7 +422,7 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 
 		if (preferredParentRange[0] < preferredParentRange[1]) {
 			effectiveCheckboxTop = clamp(effectiveCheckboxTop, preferredViewPortRange[0], preferredViewPortRange[1]);
-			effectiveCheckboxTop = clampIfIntervalIsNonEmpty(effectiveCheckboxTop, preferredParentRange[0], preferredParentRange[1]);
+			effectiveCheckboxTop = clamp(effectiveCheckboxTop, preferredParentRange[0], preferredParentRange[1]);
 		}
 
 		this.checkboxDiv.style.top = `${effectiveCheckboxTop - top}px`;
@@ -430,11 +439,4 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 			this.item.set(baseRange, tx);
 		});
 	}
-}
-
-function clampIfIntervalIsNonEmpty(value: number, min: number, max: number): number {
-	if (min >= max) {
-		return value;
-	}
-	return Math.min(Math.max(value, min), max);
 }

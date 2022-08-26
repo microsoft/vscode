@@ -1073,6 +1073,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 			this.sendText(text, !quickPick.keyMods.alt, true);
 			quickPick.hide();
+			if (quickPick.keyMods.alt) {
+				this.focus();
+			}
 		});
 		if (value) {
 			quickPick.value = value;

@@ -6,6 +6,7 @@
 import Severity from 'vs/base/common/severity';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 import { ExtensionKind } from 'vs/platform/environment/common/environment';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
@@ -17,8 +18,8 @@ export const UNDEFINED_PUBLISHER = 'undefined_publisher';
 
 export interface ICommand {
 	command: string;
-	title: string;
-	category?: string;
+	title: string | ILocalizedString;
+	category?: string | ILocalizedString;
 }
 
 export interface IConfigurationProperty {

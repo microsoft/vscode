@@ -8,7 +8,7 @@ import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import * as platform from 'vs/base/common/platform';
 import { IVisibleLine } from 'vs/editor/browser/view/viewLayer';
 import { RangeUtil } from 'vs/editor/browser/viewParts/lines/rangeUtil';
-import { IStringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { FloatHorizontalRange, VisibleRanges } from 'vs/editor/browser/view/renderingContext';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
@@ -186,7 +186,7 @@ export class ViewLine implements IVisibleLine {
 		return false;
 	}
 
-	public renderLine(lineNumber: number, deltaTop: number, viewportData: ViewportData, sb: IStringBuilder): boolean {
+	public renderLine(lineNumber: number, deltaTop: number, viewportData: ViewportData, sb: StringBuilder): boolean {
 		if (this._isMaybeInvalid === false) {
 			// it appears that nothing relevant has changed
 			return false;
