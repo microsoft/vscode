@@ -8,8 +8,7 @@
 	"plugins": [
 		"@typescript-eslint",
 		"jsdoc",
-		"header",
-		"@vscode"
+		"header"
 	],
 	"rules": {
 		"constructor-super": "warn",
@@ -62,17 +61,17 @@
 				]
 			}
 		],
-		"@vscode/code-no-unused-expressions": [
+		"code-no-unused-expressions": [
 			"warn",
 			{
 				"allowTernary": true
 			}
 		],
-		"@vscode/code-translation-remind": "warn",
-		"@vscode/code-no-nls-in-standalone-editor": "warn",
-		"@vscode/code-no-standalone-editor": "warn",
-		"@vscode/code-no-unexternalized-strings": "warn",
-		"@vscode/code-layering": [
+		"code-translation-remind": "warn",
+		"code-no-nls-in-standalone-editor": "warn",
+		"code-no-standalone-editor": "warn",
+		"code-no-unexternalized-strings": "warn",
+		"code-layering": [
 			"warn",
 			{
 				"common": [],
@@ -123,8 +122,8 @@
 				"**/*.test.ts"
 			],
 			"rules": {
-				"@vscode/code-no-test-only": "error",
-				"@vscode/code-no-unexternalized-strings": "off"
+				"code-no-test-only": "error",
+				"code-no-unexternalized-strings": "off"
 			}
 		},
 		{
@@ -133,14 +132,14 @@
 				"**/vscode.proposed.*.d.ts"
 			],
 			"rules": {
-				"@vscode/vscode-dts-create-func": "warn",
-				"@vscode/vscode-dts-literal-or-types": "warn",
-				"@vscode/vscode-dts-interface-naming": "warn",
-				"@vscode/vscode-dts-cancellation": "warn",
-				"@vscode/vscode-dts-use-thenable": "warn",
-				"@vscode/vscode-dts-region-comments": "warn",
-				"@vscode/vscode-dts-vscode-in-comments": "warn",
-				"@vscode/vscode-dts-provider-naming": [
+				"vscode-dts-create-func": "warn",
+				"vscode-dts-literal-or-types": "warn",
+				"vscode-dts-interface-naming": "warn",
+				"vscode-dts-cancellation": "warn",
+				"vscode-dts-use-thenable": "warn",
+				"vscode-dts-region-comments": "warn",
+				"vscode-dts-vscode-in-comments": "warn",
+				"vscode-dts-provider-naming": [
 					"warn",
 					{
 						"allowed": [
@@ -155,7 +154,7 @@
 						]
 					}
 				],
-				"@vscode/vscode-dts-event-naming": [
+				"vscode-dts-event-naming": [
 					"warn",
 					{
 						"allowed": [
@@ -201,8 +200,8 @@
 				"src/**/*.ts"
 			],
 			"rules": {
-				"@vscode/code-no-look-behind-regex": "warn",
-				"@vscode/code-import-patterns": [
+				"code-no-look-behind-regex": "warn",
+				"code-import-patterns": [
 					"warn",
 					{
 						// imports that are allowed in all files of layers:
@@ -577,7 +576,7 @@
 				"test/**/*.ts"
 			],
 			"rules": {
-				"@vscode/code-import-patterns": [
+				"code-import-patterns": [
 					"warn",
 					{
 						"target": "test/smoke/**",
