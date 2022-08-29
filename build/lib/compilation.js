@@ -219,7 +219,7 @@ function generateApiProposalNames() {
             '// THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.',
             '',
             'export const allApiProposals = Object.freeze({',
-            `${names.map(name => `\t${name}: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.${name}.d.ts'`).join(`,${os.EOL}`)}`,
+            `${names.map(name => `\t${name}: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.${name}.d.ts'`).join(`,${eol}`)}`,
             '});',
             'export type ApiProposalName = keyof typeof allApiProposals;',
             '',

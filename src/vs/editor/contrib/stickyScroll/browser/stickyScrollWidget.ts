@@ -6,7 +6,7 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/
 import { IActiveCodeEditor, ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import * as dom from 'vs/base/browser/dom';
 import { EditorLayoutInfo, EditorOption, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
-import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { Position } from 'vs/editor/common/core/position';
@@ -210,7 +210,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 				lineRenderingData.tabSize, lineRenderingData.startVisibleColumn,
 				1, 1, 1, 500, 'none', true, true, null);
 
-		const sb = createStringBuilder(2000);
+		const sb = new StringBuilder(2000);
 		renderViewLine(renderLineInput, sb);
 
 		let newLine;
