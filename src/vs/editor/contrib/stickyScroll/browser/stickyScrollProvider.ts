@@ -95,7 +95,7 @@ export class StickyLineCandidateProvider extends Disposable {
 				return;
 			}
 			if (outlineModel.children.size !== 0) {
-				this._outlineModel = StickyOutlineElement.fromOutlineModel(outlineModel);
+				this._outlineModel = StickyOutlineElement.fromOutlineModel(outlineModel, -1);
 			} else {
 				const foldingController = FoldingController.get(this._editor);
 				const foldingModel = await foldingController?.getFoldingModel();
