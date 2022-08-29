@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import * as nls from 'vscode-nls';
 import * as cp from 'child_process';
 
 import { Disposable } from '../utils/dispose';
 
-export async function hasNode(): Promise<boolean> {
+const localize = nls.loadMessageBundle();
+
+export async function nodeWasResolvable(): Promise<boolean> {
 	let execStr: string;
 	switch (process.platform) {
 		case 'win32':
@@ -30,7 +33,7 @@ export async function hasNode(): Promise<boolean> {
 	}
 
 	return new Promise(resolve => {
-		cp.exec(execStr, err => {
+		cp.exec(execStr, { windowsHide: true }, err => {
 			resolve(!err);
 		});
 	});
@@ -82,6 +85,15 @@ async function createNewJSFile(walkthroughState: JsWalkthroughState) {
 }
 
 async function debugJsFile(walkthroughState: JsWalkthroughState) {
+	const hasNode = await nodeWasResolvable();
+	const reloadResponse = localize('reload-window-to-find-node', 'Reload VS Code');
+	if (!hasNode) {
+		const response = await vscode.window.showErrorMessage(localize('noNodeInstallFound', 'We couldn\'t find Node.js installed. If you just installed it, you might need to reload VS Code.'), reloadResponse, localize('dismiss-dialog-find-node', 'Dismiss'));
+		if (response === reloadResponse) {
+			vscode.commands.executeCommand('workbench.action.reloadWindow');
+		}
+		return;
+	}
 	tryDebugRelevantDocument(walkthroughState.exampleJsDocument, 'javascript', ['.mjs', '.js'], () => createNewJSFile(walkthroughState));
 }
 
