@@ -581,18 +581,18 @@ export function registerAction2(ctor: { new(): Action2 }): IDisposable {
 	// keybinding
 	if (Array.isArray(keybinding)) {
 		for (const item of keybinding) {
-			KeybindingsRegistry.registerKeybindingRule({
+			disposables.add(KeybindingsRegistry.registerKeybindingRule({
 				...item,
 				id: command.id,
 				when: command.precondition ? ContextKeyExpr.and(command.precondition, item.when) : item.when
-			});
+			}));
 		}
 	} else if (keybinding) {
-		KeybindingsRegistry.registerKeybindingRule({
+		disposables.add(KeybindingsRegistry.registerKeybindingRule({
 			...keybinding,
 			id: command.id,
 			when: command.precondition ? ContextKeyExpr.and(command.precondition, keybinding.when) : keybinding.when
-		});
+		}));
 	}
 
 	return disposables;

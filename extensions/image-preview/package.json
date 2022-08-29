@@ -22,7 +22,8 @@
   "activationEvents": [
     "onCustomEditor:imagePreview.previewEditor",
     "onCommand:imagePreview.zoomIn",
-    "onCommand:imagePreview.zoomOut"
+    "onCommand:imagePreview.zoomOut",
+    "onCustomEditor:vscode.mediaPreview.audioView"
   ],
   "capabilities": {
     "virtualWorkspaces": true,
@@ -39,6 +40,16 @@
         "selector": [
           {
             "filenamePattern": "*.{jpg,jpe,jpeg,png,bmp,gif,ico,webp,avif}"
+          }
+        ]
+      },
+      {
+        "viewType": "vscode.mediaPreview.audioView",
+        "displayName": "%customEditors.displayName%",
+        "priority": "builtin",
+        "selector": [
+          {
+            "filenamePattern": "*.{mp3,wav,opus,aac}"
           }
         ]
       }

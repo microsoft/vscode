@@ -888,4 +888,4 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 }
 
-registerSingleton(IWebExtensionsScannerService, WebExtensionsScannerService);
+registerSingleton(IWebExtensionsScannerService, WebExtensionsScannerService, false);

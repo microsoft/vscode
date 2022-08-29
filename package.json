@@ -201,7 +201,7 @@
     "style-loader": "^1.3.0",
     "ts-loader": "^9.2.7",
     "tsec": "0.1.4",
-    "typescript": "^4.9.0-dev.20220811",
+    "typescript": "^4.9.0-dev.20220825",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.12.1",
     "util": "^0.12.4",

@@ -36,4 +36,4 @@ class UserDataAutoSyncService implements IUserDataAutoSyncService {
 
 }
 
-registerSingleton(IUserDataAutoSyncService, UserDataAutoSyncService);
+registerSingleton(IUserDataAutoSyncService, UserDataAutoSyncService, false);

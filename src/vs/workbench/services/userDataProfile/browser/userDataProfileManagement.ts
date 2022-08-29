@@ -132,4 +132,4 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 	}
 }
 
-registerSingleton(IUserDataProfileManagementService, UserDataProfileManagementService);
+registerSingleton(IUserDataProfileManagementService, UserDataProfileManagementService, false);

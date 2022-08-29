@@ -37,4 +37,4 @@ class UserDataSyncStoreManagementService extends AbstractUserDataSyncStoreManage
 
 }
 
-registerSingleton(IUserDataSyncStoreManagementService, UserDataSyncStoreManagementService);
+registerSingleton(IUserDataSyncStoreManagementService, UserDataSyncStoreManagementService, false);

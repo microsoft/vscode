@@ -34,7 +34,7 @@ import { CATEGORIES } from 'vs/workbench/common/actions';
 import { EditorExtensions } from 'vs/workbench/common/editor';
 
 // Register Service
-registerSingleton(IOutputService, OutputService);
+registerSingleton(IOutputService, OutputService, false);
 
 // Register Output Mode
 ModesRegistry.registerLanguage({
