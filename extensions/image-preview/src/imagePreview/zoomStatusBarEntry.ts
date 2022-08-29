@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import { PreviewStatusBarEntry as OwnedStatusBarEntry } from './ownedStatusBarEntry';
+import { PreviewStatusBarEntry as OwnedStatusBarEntry } from '../ownedStatusBarEntry';
 
 const localize = nls.loadMessageBundle();
 

@@ -92,7 +92,7 @@ export class StickyLineCandidateProvider extends Disposable {
 			if (token.isCancellationRequested) {
 				return;
 			}
-			this._outlineModel = StickyOutlineElement.fromOutlineModel(outlineModel);
+			this._outlineModel = StickyOutlineElement.fromOutlineModel(outlineModel, -1);
 			this._modelVersionId = modelVersionId;
 		}
 	}
@@ -158,12 +158,20 @@ export class StickyLineCandidateProvider extends Disposable {
 }
 
 class StickyOutlineElement {
-	public static fromOutlineModel(outlineModel: OutlineModel | OutlineElement | OutlineGroup): StickyOutlineElement {
+	public static fromOutlineModel(outlineModel: OutlineModel | OutlineElement | OutlineGroup, previousStartLine: number): StickyOutlineElement {
 
 		const children: StickyOutlineElement[] = [];
 		for (const child of outlineModel.children.values()) {
-			if (child instanceof OutlineElement && child.symbol.selectionRange.startLineNumber !== child.symbol.range.endLineNumber || child instanceof OutlineGroup || child instanceof OutlineModel) {
-				children.push(StickyOutlineElement.fromOutlineModel(child));
+			if (child instanceof OutlineGroup || child instanceof OutlineModel) {
+				children.push(StickyOutlineElement.fromOutlineModel(child, previousStartLine));
+			} else if (child instanceof OutlineElement && child.symbol.selectionRange.startLineNumber !== child.symbol.range.endLineNumber) {
+				if (child.symbol.selectionRange.startLineNumber !== previousStartLine) {
+					children.push(StickyOutlineElement.fromOutlineModel(child, child.symbol.selectionRange.startLineNumber));
+				} else {
+					for (const subchild of child.children.values()) {
+						children.push(StickyOutlineElement.fromOutlineModel(subchild, child.symbol.selectionRange.startLineNumber));
+					}
+				}
 			}
 		}
 		children.sort((child1, child2) => {

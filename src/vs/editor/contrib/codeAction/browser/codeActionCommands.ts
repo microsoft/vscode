@@ -32,7 +32,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CodeActionModel, CodeActionsState, SUPPORTED_CODE_ACTIONS } from './codeActionModel';
 import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionFilter, CodeActionKind, CodeActionTrigger, CodeActionTriggerSource } from './types';
-import { Context } from 'vs/editor/contrib/codeAction/browser/codeActionMenu';
+import { acceptSelectedCodeActionCommand, Context, previewSelectedCodeActionCommand } from 'vs/editor/contrib/codeAction/browser/codeActionMenu';
 
 function contextKeyForSupportedActions(kind: CodeActionKind) {
 	return ContextKeyExpr.regex(
@@ -522,7 +522,7 @@ const CodeActionContribution = EditorCommand.bindToContribution<QuickFixControll
 const weight = KeybindingWeight.EditorContrib + 90;
 
 registerEditorCommand(new CodeActionContribution({
-	id: 'hideCodeActionMenuWidget',
+	id: 'hideCodeActionWidget',
 	precondition: Context.Visible,
 	handler(x) {
 		x.hideCodeActionMenu();
@@ -535,7 +535,7 @@ registerEditorCommand(new CodeActionContribution({
 }));
 
 registerEditorCommand(new CodeActionContribution({
-	id: 'focusPreviousCodeAction',
+	id: 'selectPrevCodeAction',
 	precondition: Context.Visible,
 	handler(x) {
 		x.navigateCodeActionList(true);
@@ -548,7 +548,7 @@ registerEditorCommand(new CodeActionContribution({
 }));
 
 registerEditorCommand(new CodeActionContribution({
-	id: 'focusNextCodeAction',
+	id: 'selectNextCodeAction',
 	precondition: Context.Visible,
 	handler(x) {
 		x.navigateCodeActionList(false);
@@ -561,7 +561,7 @@ registerEditorCommand(new CodeActionContribution({
 }));
 
 registerEditorCommand(new CodeActionContribution({
-	id: 'onEnterSelectCodeAction',
+	id: acceptSelectedCodeActionCommand,
 	precondition: Context.Visible,
 	handler(x) {
 		x.selectedOption();
@@ -574,7 +574,7 @@ registerEditorCommand(new CodeActionContribution({
 }));
 
 registerEditorCommand(new CodeActionContribution({
-	id: 'onEnterSelectCodeActionWithPreview',
+	id: previewSelectedCodeActionCommand,
 	precondition: Context.Visible,
 	handler(x) {
 		x.selectedOptionWithPreview();

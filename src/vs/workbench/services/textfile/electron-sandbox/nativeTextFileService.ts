@@ -124,4 +124,4 @@ export class NativeTextFileService extends AbstractTextFileService {
 	}
 }
 
-registerSingleton(ITextFileService, NativeTextFileService);
+registerSingleton(ITextFileService, NativeTextFileService, false);

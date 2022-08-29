@@ -18,4 +18,4 @@ export class TextMateService extends AbstractTextMateService {
 	}
 }
 
-registerSingleton(ITextMateService, TextMateService);
+registerSingleton(ITextMateService, TextMateService, false);

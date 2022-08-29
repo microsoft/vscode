@@ -12,11 +12,13 @@ import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeatu
 import { DocumentSymbol, SymbolKind } from 'vs/editor/common/languages';
 import { StickyLineCandidate, StickyLineCandidateProvider } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollProvider';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 
 suite('Sticky Scroll Tests', () => {
 
 	const serviceCollection = new ServiceCollection(
-		[ILanguageFeaturesService, new LanguageFeaturesService()]
+		[ILanguageFeaturesService, new LanguageFeaturesService()],
+		[ILogService, new NullLogService()]
 	);
 
 	const text = [
@@ -121,10 +123,10 @@ suite('Sticky Scroll Tests', () => {
 		await withAsyncTestCodeEditor(model, { serviceCollection }, async (editor, _viewModel, instantiationService) => {
 
 			const stickyScrollController: StickyScrollController = editor.registerAndInstantiateContribution(StickyScrollController.ID, StickyScrollController);
-			await stickyScrollController.stickyScrollCandidateProvider.update();
 			const lineHeight: number = editor.getOption(EditorOption.lineHeight);
 			const languageService: ILanguageFeaturesService = instantiationService.get(ILanguageFeaturesService);
 			languageService.documentSymbolProvider.register('*', documentSymbolProviderForTestModel());
+			await stickyScrollController.stickyScrollCandidateProvider.update();
 			let state;
 
 			editor.setScrollTop(1);
@@ -163,12 +165,11 @@ suite('Sticky Scroll Tests', () => {
 		await withAsyncTestCodeEditor(model, { serviceCollection }, async (editor, viewModel, instantiationService) => {
 
 			const stickyScrollController: StickyScrollController = editor.registerAndInstantiateContribution(StickyScrollController.ID, StickyScrollController);
-			await stickyScrollController.stickyScrollCandidateProvider.update();
 			const lineHeight = editor.getOption(EditorOption.lineHeight);
 
 			const languageService = instantiationService.get(ILanguageFeaturesService);
 			languageService.documentSymbolProvider.register('*', documentSymbolProviderForTestModel());
-
+			await stickyScrollController.stickyScrollCandidateProvider.update();
 			editor.setHiddenAreas([{ startLineNumber: 2, endLineNumber: 2, startColumn: 1, endColumn: 1 }, { startLineNumber: 10, endLineNumber: 11, startColumn: 1, endColumn: 1 }]);
 			let state;
 
@@ -189,6 +190,92 @@ suite('Sticky Scroll Tests', () => {
 			assert.deepStrictEqual(state.lineNumbers, [7]);
 
 			editor.setScrollTop(10 * lineHeight + 1);
+			state = stickyScrollController.getScrollWidgetState();
+			assert.deepStrictEqual(state.lineNumbers, []);
+
+			stickyScrollController.dispose();
+			stickyScrollController.stickyScrollCandidateProvider.dispose();
+			model.dispose();
+		});
+	});
+
+	const textWithScopesWithSameStartingLines = [
+		'class TestClass { foo() {',
+		'function bar(){',
+		'',
+		'}}',
+		'}',
+		''
+	].join('\n');
+
+	function documentSymbolProviderForSecondTestModel() {
+		return {
+			provideDocumentSymbols() {
+				return [
+					{
+						name: 'TestClass',
+						detail: 'TestClass',
+						kind: SymbolKind.Class,
+						tags: [],
+						range: { startLineNumber: 1, endLineNumber: 5, startColumn: 1, endColumn: 1 },
+						selectionRange: { startLineNumber: 1, endLineNumber: 1, startColumn: 1, endColumn: 1 },
+						children: [
+							{
+								name: 'foo',
+								detail: 'foo',
+								kind: SymbolKind.Function,
+								tags: [],
+								range: { startLineNumber: 1, endLineNumber: 4, startColumn: 1, endColumn: 1 },
+								selectionRange: { startLineNumber: 1, endLineNumber: 1, startColumn: 1, endColumn: 1 },
+								children: [
+									{
+										name: 'bar',
+										detail: 'bar',
+										kind: SymbolKind.Function,
+										tags: [],
+										range: { startLineNumber: 2, endLineNumber: 4, startColumn: 1, endColumn: 1 },
+										selectionRange: { startLineNumber: 2, endLineNumber: 2, startColumn: 1, endColumn: 1 },
+										children: []
+									} as DocumentSymbol
+								]
+							} as DocumentSymbol,
+						]
+					} as DocumentSymbol
+				];
+			}
+		};
+	}
+
+	test('issue #159271 : render the correct widget state when the child scope starts on the same line as the parent scope', async () => {
+
+		const model = createTextModel(textWithScopesWithSameStartingLines);
+		await withAsyncTestCodeEditor(model, { serviceCollection }, async (editor, _viewModel, instantiationService) => {
+
+			const stickyScrollController: StickyScrollController = editor.registerAndInstantiateContribution(StickyScrollController.ID, StickyScrollController);
+			const lineHeight = editor.getOption(EditorOption.lineHeight);
+
+			const languageService = instantiationService.get(ILanguageFeaturesService);
+			languageService.documentSymbolProvider.register('*', documentSymbolProviderForSecondTestModel());
+			await stickyScrollController.stickyScrollCandidateProvider.update();
+			let state;
+
+			editor.setScrollTop(1);
+			state = stickyScrollController.getScrollWidgetState();
+			assert.deepStrictEqual(state.lineNumbers, [1, 2]);
+
+			editor.setScrollTop(lineHeight + 1);
+			state = stickyScrollController.getScrollWidgetState();
+			assert.deepStrictEqual(state.lineNumbers, [1, 2]);
+
+			editor.setScrollTop(2 * lineHeight + 1);
+			state = stickyScrollController.getScrollWidgetState();
+			assert.deepStrictEqual(state.lineNumbers, [1]);
+
+			editor.setScrollTop(3 * lineHeight + 1);
+			state = stickyScrollController.getScrollWidgetState();
+			assert.deepStrictEqual(state.lineNumbers, [1]);
+
+			editor.setScrollTop(4 * lineHeight + 1);
 			state = stickyScrollController.getScrollWidgetState();
 			assert.deepStrictEqual(state.lineNumbers, []);
 

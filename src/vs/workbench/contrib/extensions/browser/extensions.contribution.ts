@@ -80,9 +80,9 @@ import product from 'vs/platform/product/common/product';
 import { IStringDictionary } from 'vs/base/common/collections';
 
 // Singletons
-registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
-registerSingleton(IExtensionRecommendationNotificationService, ExtensionRecommendationNotificationService);
-registerSingleton(IExtensionRecommendationsService, ExtensionRecommendationsService);
+registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService, false);
+registerSingleton(IExtensionRecommendationNotificationService, ExtensionRecommendationNotificationService, false);
+registerSingleton(IExtensionRecommendationsService, ExtensionRecommendationsService, false);
 
 Registry.as<IOutputChannelRegistry>(OutputExtensions.OutputChannels)
 	.registerChannel({ id: ExtensionsChannelId, label: ExtensionsLabel, log: false });
