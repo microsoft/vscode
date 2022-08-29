@@ -7,7 +7,7 @@ import { SimpleFindWidget } from 'vs/workbench/contrib/codeEditor/browser/find/s
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
-import { ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -27,8 +27,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ITerminalService private readonly _terminalService: ITerminalService
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super(findState, { showOptionButtons: true, showResultCount: true, type: 'Terminal' }, _contextViewService, _contextKeyService, keybindingService);
 
@@ -113,9 +112,6 @@ export class TerminalFindWidget extends SimpleFindWidget {
 	}
 
 	protected _onFocusTrackerBlur() {
-		if (this._terminalService.activeInstance !== this._instance) {
-			return;
-		}
 		this._instance.xterm?.clearActiveSearchDecoration();
 		this._findWidgetFocused.reset();
 	}
@@ -125,9 +121,6 @@ export class TerminalFindWidget extends SimpleFindWidget {
 	}
 
 	protected _onFindInputFocusTrackerBlur() {
-		if (this._terminalService.activeInstance !== this._instance) {
-			return;
-		}
 		this._findInputFocused.reset();
 	}
 
