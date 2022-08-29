@@ -12,7 +12,7 @@ import { ILanguageService, ILanguageSelection } from 'vs/editor/common/languages
 import { IModelService } from 'vs/editor/common/services/model';
 import { MutableDisposable } from 'vs/base/common/lifecycle';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { withUndefinedAsNull } from 'vs/base/common/types';
+import { assertIsDefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -75,6 +75,7 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 		return true;
 	}
 
+	private _inLanguageSettingRoundtrip: boolean = false;
 	private _hasLanguageSetExplicitly: boolean = false;
 	get hasLanguageSetExplicitly(): boolean { return this._hasLanguageSetExplicitly; }
 
@@ -95,7 +96,27 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 			return;
 		}
 
+		this._inLanguageSettingRoundtrip = true;
 		this.modelService.setMode(this.textEditorModel, this.languageService.createById(languageId));
+	}
+
+	override resolve(): Promise<void> {
+		// If the language changed deeper in the stack, we mark that language was explicitly set
+		const textEditorModel = assertIsDefined(this.textEditorModel);
+		const dispose = textEditorModel.onDidChangeLanguage(() => {
+			if (!this._inLanguageSettingRoundtrip) {
+				this._hasLanguageSetExplicitly = true;
+			} else {
+				this._inLanguageSettingRoundtrip = false;
+			}
+
+			// Once the language is explicitly set, we can dispose of this listener
+			// since auto-detection is no longer relevant
+			if (this._hasLanguageSetExplicitly) {
+				dispose.dispose();
+			}
+		});
+		return super.resolve();
 	}
 
 	getLanguageId(): string | undefined {
