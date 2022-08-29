@@ -13,7 +13,7 @@ import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { RequestService } from 'vs/platform/request/node/requestService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-// eslint-disable-next-line code-import-patterns
+// eslint-disable-next-line @vscode/code-import-patterns
 import 'vs/workbench/workbench.desktop.main';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { mock } from 'vs/base/test/common/mock';
