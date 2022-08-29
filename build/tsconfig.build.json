@@ -7,8 +7,5 @@
 	},
 	"include": [
 		"**/*.ts"
-	],
-	"exclude": [
-		"lib/eslint-plugin-vscode/**/*"
 	]
 }

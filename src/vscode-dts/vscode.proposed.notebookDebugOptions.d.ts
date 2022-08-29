@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	// eslint-disable-next-line @vscode/vscode-dts-region-comments
+	// eslint-disable-next-line vscode-dts-region-comments
 	// @roblourens: debugUI.simple: https://github.com/microsoft/vscode/issues/147264. Used for Jupyter's Run By Line.
 	// suppressSaveBeforeStart: https://github.com/microsoft/vscode/issues/147263. Used to enable debugging untitled/unsaved notebooks.
 
