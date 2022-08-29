@@ -129,4 +129,4 @@ export class CodeLensCache implements ICodeLensCache {
 	}
 }
 
-registerSingleton(ICodeLensCache, CodeLensCache);
+registerSingleton(ICodeLensCache, CodeLensCache, false);

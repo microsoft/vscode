@@ -54,8 +54,8 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IOutputService } from 'vs/workbench/services/output/common/output';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 
-registerSingleton(IEditSessionsLogService, EditSessionsLogService);
-registerSingleton(IEditSessionsStorageService, EditSessionsWorkbenchService);
+registerSingleton(IEditSessionsLogService, EditSessionsLogService, false);
+registerSingleton(IEditSessionsStorageService, EditSessionsWorkbenchService, false);
 
 const continueEditSessionCommand: IAction2Options = {
 	id: '_workbench.experimental.editSessions.actions.continueEditSession',

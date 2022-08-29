@@ -198,4 +198,90 @@ suite('Sticky Scroll Tests', () => {
 			model.dispose();
 		});
 	});
+
+	const textWithScopesWithSameStartingLines = [
+		'class TestClass { foo() {',
+		'function bar(){',
+		'',
+		'}}',
+		'}',
+		''
+	].join('\n');
+
+	function documentSymbolProviderForSecondTestModel() {
+		return {
+			provideDocumentSymbols() {
+				return [
+					{
+						name: 'TestClass',
+						detail: 'TestClass',
+						kind: SymbolKind.Class,
+						tags: [],
+						range: { startLineNumber: 1, endLineNumber: 5, startColumn: 1, endColumn: 1 },
+						selectionRange: { startLineNumber: 1, endLineNumber: 1, startColumn: 1, endColumn: 1 },
+						children: [
+							{
+								name: 'foo',
+								detail: 'foo',
+								kind: SymbolKind.Function,
+								tags: [],
+								range: { startLineNumber: 1, endLineNumber: 4, startColumn: 1, endColumn: 1 },
+								selectionRange: { startLineNumber: 1, endLineNumber: 1, startColumn: 1, endColumn: 1 },
+								children: [
+									{
+										name: 'bar',
+										detail: 'bar',
+										kind: SymbolKind.Function,
+										tags: [],
+										range: { startLineNumber: 2, endLineNumber: 4, startColumn: 1, endColumn: 1 },
+										selectionRange: { startLineNumber: 2, endLineNumber: 2, startColumn: 1, endColumn: 1 },
+										children: []
+									} as DocumentSymbol
+								]
+							} as DocumentSymbol,
+						]
+					} as DocumentSymbol
+				];
+			}
+		};
+	}
+
+	test('issue #159271 : render the correct widget state when the child scope starts on the same line as the parent scope', async () => {
+
+		const model = createTextModel(textWithScopesWithSameStartingLines);
+		await withAsyncTestCodeEditor(model, { serviceCollection }, async (editor, _viewModel, instantiationService) => {
+
+			const stickyScrollController: StickyScrollController = editor.registerAndInstantiateContribution(StickyScrollController.ID, StickyScrollController);
+			const lineHeight = editor.getOption(EditorOption.lineHeight);
+
+			const languageService = instantiationService.get(ILanguageFeaturesService);
+			languageService.documentSymbolProvider.register('*', documentSymbolProviderForSecondTestModel());
+			await stickyScrollController.stickyScrollCandidateProvider.update();
+			let state;
+
+			editor.setScrollTop(1);
+			state = stickyScrollController.getScrollWidgetState();
+			assert.deepStrictEqual(state.lineNumbers, [1, 2]);
+
+			editor.setScrollTop(lineHeight + 1);
+			state = stickyScrollController.getScrollWidgetState();
+			assert.deepStrictEqual(state.lineNumbers, [1, 2]);
+
+			editor.setScrollTop(2 * lineHeight + 1);
+			state = stickyScrollController.getScrollWidgetState();
+			assert.deepStrictEqual(state.lineNumbers, [1]);
+
+			editor.setScrollTop(3 * lineHeight + 1);
+			state = stickyScrollController.getScrollWidgetState();
+			assert.deepStrictEqual(state.lineNumbers, [1]);
+
+			editor.setScrollTop(4 * lineHeight + 1);
+			state = stickyScrollController.getScrollWidgetState();
+			assert.deepStrictEqual(state.lineNumbers, []);
+
+			stickyScrollController.dispose();
+			stickyScrollController.stickyScrollCandidateProvider.dispose();
+			model.dispose();
+		});
+	});
 });

@@ -29,13 +29,13 @@ import { IExtHostVariableResolverProvider } from 'vs/workbench/api/common/extHos
 // ###                                                                   ###
 // #########################################################################
 
-registerSingleton(IExtHostExtensionService, ExtHostExtensionService);
-registerSingleton(ILoggerService, ExtHostLoggerService);
-registerSingleton(IExtensionStoragePaths, ExtensionStoragePaths);
+registerSingleton(IExtHostExtensionService, ExtHostExtensionService, false);
+registerSingleton(ILoggerService, ExtHostLoggerService, false);
+registerSingleton(IExtensionStoragePaths, ExtensionStoragePaths, false);
 
-registerSingleton(IExtHostDebugService, ExtHostDebugService);
-registerSingleton(IExtHostSearch, NativeExtHostSearch);
-registerSingleton(IExtHostTask, ExtHostTask);
-registerSingleton(IExtHostTerminalService, ExtHostTerminalService);
-registerSingleton(IExtHostTunnelService, ExtHostTunnelService);
-registerSingleton(IExtHostVariableResolverProvider, NodeExtHostVariableResolverProviderService);
+registerSingleton(IExtHostDebugService, ExtHostDebugService, false);
+registerSingleton(IExtHostSearch, NativeExtHostSearch, false);
+registerSingleton(IExtHostTask, ExtHostTask, false);
+registerSingleton(IExtHostTerminalService, ExtHostTerminalService, false);
+registerSingleton(IExtHostTunnelService, ExtHostTunnelService, false);
+registerSingleton(IExtHostVariableResolverProvider, NodeExtHostVariableResolverProviderService, false);
