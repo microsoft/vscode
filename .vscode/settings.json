@@ -41,6 +41,11 @@
 			}
 		}
 	],
+	"eslint.options": {
+		"rulePaths": [
+			"./build/lib/eslint"
+		]
+	},
 	"typescript.tsdk": "node_modules/typescript/lib",
 	"npm.exclude": "**/extensions/**",
 	"npm.packageManager": "yarn",

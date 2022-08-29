@@ -27,7 +27,9 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 import { applyZoom, zoomIn, zoomOut } from 'vs/platform/window/electron-sandbox/window';
 
-const MAX_URL_LENGTH = 2045;
+// GitHub has let us know that we could up our limit here to 8k. We chose 7500 to play it safe.
+// ref https://github.com/microsoft/vscode/issues/159191
+const MAX_URL_LENGTH = 7500;
 
 interface SearchResult {
 	html_url: string;

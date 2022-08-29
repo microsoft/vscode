@@ -23,7 +23,7 @@ declare module 'vscode' {
 		 *
 		 * @return Thenable indicating that the webview editor has been moved.
 		 */
-		// eslint-disable-next-line @vscode/vscode-dts-provider-naming
+		// eslint-disable-next-line vscode-dts-provider-naming
 		moveCustomTextEditor?(newDocument: TextDocument, existingWebviewPanel: WebviewPanel, token: CancellationToken): Thenable<void>;
 	}
 }
