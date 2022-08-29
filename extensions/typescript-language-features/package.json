@@ -1582,6 +1582,14 @@
             "media": {
               "markdown": "resources/walkthroughs/TODO.md"
             }
+          },
+          {
+            "id": "walkthroughs.jsWelcome.learnMoreAboutJs",
+            "title": "%walkthroughs.jsWelcome.learnMoreAboutJs.title%",
+            "description": "%walkthroughs.jsWelcome.learnMoreAboutJs.description%",
+            "media": {
+              "markdown": "resources/walkthroughs/TODO.md"
+            }
           }
         ]
       }

@@ -212,5 +212,5 @@
 	"walkthroughs.jsWelcome.debugJsFile.description": "VS Code has a debugger for JavaScript which can run your code, pause at different points, and help you understand what's going on step-by-step. To get started with debugging, you can just hit ``F5``. When prompted, you can select the Node.js debugger.\n[Start Debugging](command:javascript-walkthrough.commands.debugJsFile)",
 
 	"walkthroughs.jsWelcome.learnMoreAboutJs.title": "Explore More",
-	"walkthroughs.jsWelcome.learnMoreAboutJs.description": "VS Code has plenty of resources on [working with JavaScript](https://code.visualstudio.com/docs/nodejs/working-with-javascript) and [learning Node.js](https://code.visualstudio.com/docs/nodejs/nodejs-tutorial).\n\n[Learn More](https://code.visualstudio.com/docs/nodejs/nodejs-tutorial)"
+	"walkthroughs.jsWelcome.learnMoreAboutJs.description": "VS Code has plenty of resources for [learning JavaScript](https://code.visualstudio.com/docs/nodejs/working-with-javascript) and [learning Node.js](https://code.visualstudio.com/docs/nodejs/nodejs-tutorial).\n\n[Learn More](https://code.visualstudio.com/docs/nodejs/nodejs-tutorial)"
 }
