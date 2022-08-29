@@ -294,7 +294,7 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 		await provideCalled;
 
 		const edit = new vscode.WorkspaceEdit();
-		edit.replaceNotebookCellMetadata(notebook.uri, 0, { inputCollapsed: true });
+		edit.set(notebook.uri, [vscode.NotebookEdit.updateCellMetadata(0, { inputCollapsed: true })]);
 		await vscode.workspace.applyEdit(edit);
 		await provideCalled;
 	});
