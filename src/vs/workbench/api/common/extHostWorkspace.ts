@@ -7,13 +7,14 @@ import { delta as arrayDelta, mapArrayOrNot } from 'vs/base/common/arrays';
 import { Barrier } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
+import { toDisposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { Counter } from 'vs/base/common/numbers';
 import { basename, basenameOrAuthority, dirname, ExtUri, relativePath } from 'vs/base/common/resources';
 import { compare } from 'vs/base/common/strings';
 import { withUndefinedAsNull } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
@@ -24,11 +25,13 @@ import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspa
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { Range, RelativePattern } from 'vs/workbench/api/common/extHostTypes';
-import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
+import { GlobPattern } from 'vs/workbench/api/common/extHostTypeConverters';
+import { Range } from 'vs/workbench/api/common/extHostTypes';
+import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
+import { ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
 import { IRawFileMatch2, resultIsMatch } from 'vs/workbench/services/search/common/search';
 import * as vscode from 'vscode';
-import { ExtHostWorkspaceShape, IWorkspaceData, MainContext, MainThreadMessageServiceShape, MainThreadWorkspaceShape } from './extHost.protocol';
+import { ExtHostWorkspaceShape, IRelativePatternDto, IWorkspaceData, MainContext, MainThreadMessageOptions, MainThreadMessageServiceShape, MainThreadWorkspaceShape } from './extHost.protocol';
 
 export interface IExtHostWorkspaceProvider {
 	getWorkspaceFolder2(uri: vscode.Uri, resolveParent?: boolean): Promise<vscode.WorkspaceFolder | undefined>;
@@ -53,7 +56,7 @@ function compareWorkspaceFolderByUriAndNameAndIndex(a: vscode.WorkspaceFolder, b
 	return isFolderEqual(a.uri, b.uri, extHostFileSystemInfo) ? compare(a.name, b.name) : compare(a.uri.toString(), b.uri.toString());
 }
 
-function delta(oldFolders: vscode.WorkspaceFolder[], newFolders: vscode.WorkspaceFolder[], compare: (a: vscode.WorkspaceFolder, b: vscode.WorkspaceFolder, extHostFileSystemInfo: IExtHostFileSystemInfo) => number, extHostFileSystemInfo: IExtHostFileSystemInfo): { removed: vscode.WorkspaceFolder[], added: vscode.WorkspaceFolder[] } {
+function delta(oldFolders: vscode.WorkspaceFolder[], newFolders: vscode.WorkspaceFolder[], compare: (a: vscode.WorkspaceFolder, b: vscode.WorkspaceFolder, extHostFileSystemInfo: IExtHostFileSystemInfo) => number, extHostFileSystemInfo: IExtHostFileSystemInfo): { removed: vscode.WorkspaceFolder[]; added: vscode.WorkspaceFolder[] } {
 	const oldSortedFolders = oldFolders.slice(0).sort((a, b) => compare(a, b, extHostFileSystemInfo));
 	const newSortedFolders = newFolders.slice(0).sort((a, b) => compare(a, b, extHostFileSystemInfo));
 
@@ -72,7 +75,7 @@ interface MutableWorkspaceFolder extends vscode.WorkspaceFolder {
 
 class ExtHostWorkspaceImpl extends Workspace {
 
-	static toExtHostWorkspace(data: IWorkspaceData | null, previousConfirmedWorkspace: ExtHostWorkspaceImpl | undefined, previousUnconfirmedWorkspace: ExtHostWorkspaceImpl | undefined, extHostFileSystemInfo: IExtHostFileSystemInfo): { workspace: ExtHostWorkspaceImpl | null, added: vscode.WorkspaceFolder[], removed: vscode.WorkspaceFolder[] } {
+	static toExtHostWorkspace(data: IWorkspaceData | null, previousConfirmedWorkspace: ExtHostWorkspaceImpl | undefined, previousUnconfirmedWorkspace: ExtHostWorkspaceImpl | undefined, extHostFileSystemInfo: IExtHostFileSystemInfo): { workspace: ExtHostWorkspaceImpl | null; added: vscode.WorkspaceFolder[]; removed: vscode.WorkspaceFolder[] } {
 		if (!data) {
 			return { workspace: null, added: [], removed: [] };
 		}
@@ -181,19 +184,24 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	private readonly _proxy: MainThreadWorkspaceShape;
 	private readonly _messageService: MainThreadMessageServiceShape;
 	private readonly _extHostFileSystemInfo: IExtHostFileSystemInfo;
+	private readonly _uriTransformerService: IURITransformerService;
 
 	private readonly _activeSearchCallbacks: ((match: IRawFileMatch2) => any)[] = [];
 
 	private _trusted: boolean = false;
+
+	private readonly _editSessionIdentityProviders = new Map<string, vscode.EditSessionIdentityProvider>();
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
 		@IExtHostInitDataService initData: IExtHostInitDataService,
 		@IExtHostFileSystemInfo extHostFileSystemInfo: IExtHostFileSystemInfo,
 		@ILogService logService: ILogService,
+		@IURITransformerService uriTransformerService: IURITransformerService,
 	) {
 		this._logService = logService;
 		this._extHostFileSystemInfo = extHostFileSystemInfo;
+		this._uriTransformerService = uriTransformerService;
 		this._requestIdProvider = new Counter();
 		this._barrier = new Barrier();
 
@@ -227,7 +235,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		if (this._actualWorkspace) {
 			if (this._actualWorkspace.configuration) {
 				if (this._actualWorkspace.isUntitled) {
-					return URI.from({ scheme: Schemas.untitled, path: basename(dirname(this._actualWorkspace.configuration)) }); // Untitled Worspace: return untitled URI
+					return URI.from({ scheme: Schemas.untitled, path: basename(dirname(this._actualWorkspace.configuration)) }); // Untitled Workspace: return untitled URI
 				}
 
 				return this._actualWorkspace.configuration; // Workspace: return the configuration location
@@ -256,8 +264,8 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		return this._actualWorkspace.workspaceFolders.slice(0);
 	}
 
-	updateWorkspaceFolders(extension: IExtensionDescription, index: number, deleteCount: number, ...workspaceFoldersToAdd: { uri: vscode.Uri, name?: string }[]): boolean {
-		const validatedDistinctWorkspaceFoldersToAdd: { uri: vscode.Uri, name?: string }[] = [];
+	updateWorkspaceFolders(extension: IExtensionDescription, index: number, deleteCount: number, ...workspaceFoldersToAdd: { uri: vscode.Uri; name?: string }[]): boolean {
+		const validatedDistinctWorkspaceFoldersToAdd: { uri: vscode.Uri; name?: string }[] = [];
 		if (Array.isArray(workspaceFoldersToAdd)) {
 			workspaceFoldersToAdd.forEach(folderToAdd => {
 				if (URI.isUri(folderToAdd.uri) && !validatedDistinctWorkspaceFoldersToAdd.some(f => isFolderEqual(f.uri, folderToAdd.uri, this._extHostFileSystemInfo))) {
@@ -310,7 +318,8 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 				this._unconfirmedWorkspace = undefined;
 
 				// show error to user
-				this._messageService.$showMessage(Severity.Error, localize('updateerror', "Extension '{0}' failed to update workspace folders: {1}", extName, error.toString()), { extension }, []);
+				const options: MainThreadMessageOptions = { source: { identifier: extension.identifier, label: extension.displayName || extension.name } };
+				this._messageService.$showMessage(Severity.Error, localize('updateerror', "Extension '{0}' failed to update workspace folders: {1}", extName, error.toString()), options, []);
 			});
 		}
 
@@ -432,7 +441,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	/**
 	 * Note, null/undefined have different and important meanings for "exclude"
 	 */
-	findFiles(include: string | RelativePattern | undefined, exclude: vscode.GlobPattern | null | undefined, maxResults: number | undefined, extensionId: ExtensionIdentifier, token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
+	findFiles(include: vscode.GlobPattern | undefined, exclude: vscode.GlobPattern | null | undefined, maxResults: number | undefined, extensionId: ExtensionIdentifier, token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
 		this._logService.trace(`extHostWorkspace#findFiles: fileSearch, extension: ${extensionId.value}, entryPoint: findFiles`);
 
 		let excludePatternOrDisregardExcludes: string | false | undefined = undefined;
@@ -450,7 +459,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			return Promise.resolve([]);
 		}
 
-		const { includePattern, folder } = parseSearchInclude(include);
+		const { includePattern, folder } = parseSearchInclude(GlobPattern.from(include));
 		return this._proxy.$startFileSearch(
 			withUndefinedAsNull(includePattern),
 			withUndefinedAsNull(folder),
@@ -473,13 +482,14 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			} :
 			options.previewOptions;
 
-		const { includePattern, folder } = parseSearchInclude(options.include);
+		const { includePattern, folder } = parseSearchInclude(GlobPattern.from(options.include));
 		const excludePattern = (typeof options.exclude === 'string') ? options.exclude :
 			options.exclude ? options.exclude.pattern : undefined;
 		const queryOptions: ITextQueryBuilderOptions = {
 			ignoreSymlinks: typeof options.followSymlinks === 'boolean' ? !options.followSymlinks : undefined,
 			disregardIgnoreFiles: typeof options.useIgnoreFiles === 'boolean' ? !options.useIgnoreFiles : undefined,
 			disregardGlobalIgnoreFiles: typeof options.useGlobalIgnoreFiles === 'boolean' ? !options.useGlobalIgnoreFiles : undefined,
+			disregardParentIgnoreFiles: typeof options.useParentIgnoreFiles === 'boolean' ? !options.useParentIgnoreFiles : undefined,
 			disregardExcludeSettings: typeof options.useDefaultExcludes === 'boolean' ? !options.useDefaultExcludes : true,
 			fileEncoding: options.encoding,
 			maxResults: options.maxResults,
@@ -543,9 +553,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	}
 
 	$handleTextSearchResult(result: IRawFileMatch2, requestId: number): void {
-		if (this._activeSearchCallbacks[requestId]) {
-			this._activeSearchCallbacks[requestId](result);
-		}
+		this._activeSearchCallbacks[requestId]?.(result);
 	}
 
 	saveAll(includeUntitled?: boolean): Promise<boolean> {
@@ -572,12 +580,56 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			this._onDidGrantWorkspaceTrust.fire();
 		}
 	}
+
+	// --- edit sessions ---
+
+	// called by ext host
+	registerEditSessionIdentityProvider(scheme: string, provider: vscode.EditSessionIdentityProvider) {
+		if (this._editSessionIdentityProviders.has(scheme)) {
+			throw new Error(`A provider has already been registered for scheme ${scheme}`);
+		}
+
+		this._editSessionIdentityProviders.set(scheme, provider);
+		const outgoingScheme = this._uriTransformerService.transformOutgoingScheme(scheme);
+		this._proxy.$registerEditSessionIdentityProvider(outgoingScheme);
+
+		return toDisposable(() => {
+			this._editSessionIdentityProviders.delete(scheme);
+			this._proxy.$unregisterEditSessionIdentityProvider(outgoingScheme);
+		});
+	}
+
+	// called by main thread
+	async $getEditSessionIdentifier(workspaceFolder: UriComponents, cancellationToken: CancellationToken): Promise<string | undefined> {
+		this._logService.info('Getting edit session identifier for workspaceFolder', workspaceFolder);
+		const folder = await this.resolveWorkspaceFolder(URI.revive(workspaceFolder));
+		if (!folder) {
+			this._logService.warn('Unable to resolve workspace folder');
+			return undefined;
+		}
+
+		this._logService.info('Invoking #provideEditSessionIdentity for workspaceFolder', folder);
+
+		const provider = this._editSessionIdentityProviders.get(folder.uri.scheme);
+		this._logService.info(`Provider for scheme ${folder.uri.scheme} is defined: `, !!provider);
+		if (!provider) {
+			return undefined;
+		}
+
+		const result = await provider.provideEditSessionIdentity(folder, cancellationToken);
+		this._logService.info('Provider returned edit session identifier: ', result);
+		if (!result) {
+			return undefined;
+		}
+
+		return result;
+	}
 }
 
 export const IExtHostWorkspace = createDecorator<IExtHostWorkspace>('IExtHostWorkspace');
 export interface IExtHostWorkspace extends ExtHostWorkspace, ExtHostWorkspaceShape, IExtHostWorkspaceProvider { }
 
-function parseSearchInclude(include: RelativePattern | string | undefined): { includePattern?: string, folder?: URI } {
+function parseSearchInclude(include: string | IRelativePatternDto | undefined | null): { includePattern?: string; folder?: URI } {
 	let includePattern: string | undefined;
 	let includeFolder: URI | undefined;
 	if (include) {
@@ -585,7 +637,7 @@ function parseSearchInclude(include: RelativePattern | string | undefined): { in
 			includePattern = include;
 		} else {
 			includePattern = include.pattern;
-			includeFolder = include.baseFolder || URI.file(include.base);
+			includeFolder = URI.revive(include.baseUri);
 		}
 	}
 

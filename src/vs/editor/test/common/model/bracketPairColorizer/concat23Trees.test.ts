@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert = require('assert');
-import { AstNode, AstNodeKind, ListAstNode, TextAstNode } from 'vs/editor/common/model/bracketPairColorizer/ast';
-import { toLength } from 'vs/editor/common/model/bracketPairColorizer/length';
-import { concat23Trees } from 'vs/editor/common/model/bracketPairColorizer/concat23Trees';
+import * as assert from 'assert';
+import { AstNode, AstNodeKind, ListAstNode, TextAstNode } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/ast';
+import { toLength } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/length';
+import { concat23Trees } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/concat23Trees';
 
 suite('Bracket Pair Colorizer - mergeItems', () => {
 	test('Clone', () => {

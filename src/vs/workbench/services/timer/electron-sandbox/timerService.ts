@@ -38,11 +38,11 @@ export class TimerService extends AbstractTimerService {
 		@IStorageService private readonly _storageService: IStorageService
 	) {
 		super(lifecycleService, contextService, extensionService, updateService, paneCompositeService, editorService, accessibilityService, telemetryService, layoutService);
-		this.setPerformanceMarks('main', _environmentService.configuration.perfMarks);
+		this.setPerformanceMarks('main', _environmentService.window.perfMarks);
 	}
 
 	protected _isInitialStartup(): boolean {
-		return Boolean(this._environmentService.configuration.isInitialStartup);
+		return Boolean(this._environmentService.window.isInitialStartup);
 	}
 	protected _didUseCachedData(): boolean {
 		return didUseCachedData(this._productService, this._storageService, this._environmentService);
@@ -85,7 +85,7 @@ export class TimerService extends AbstractTimerService {
 	}
 }
 
-registerSingleton(ITimerService, TimerService);
+registerSingleton(ITimerService, TimerService, false);
 
 //#region cached data logic
 
@@ -97,12 +97,12 @@ export function didUseCachedData(productService: IProductService, storageService
 	// this being the first start with the commit
 	// or subsequent
 	if (typeof _didUseCachedData !== 'boolean') {
-		if (!environmentService.configuration.codeCachePath || !productService.commit) {
+		if (!environmentService.window.isCodeCaching || !productService.commit) {
 			_didUseCachedData = false; // we only produce cached data whith commit and code cache path
-		} else if (storageService.get(lastRunningCommitStorageKey, StorageScope.GLOBAL) === productService.commit) {
+		} else if (storageService.get(lastRunningCommitStorageKey, StorageScope.APPLICATION) === productService.commit) {
 			_didUseCachedData = true; // subsequent start on same commit, assume cached data is there
 		} else {
-			storageService.store(lastRunningCommitStorageKey, productService.commit, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			storageService.store(lastRunningCommitStorageKey, productService.commit, StorageScope.APPLICATION, StorageTarget.MACHINE);
 			_didUseCachedData = false; // first time start on commit, assume cached data is not yet there
 		}
 	}

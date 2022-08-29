@@ -15,13 +15,18 @@ const util = require('./lib/util');
 const task = require('./lib/task');
 const packageJson = require('../package.json');
 const product = require('../product.json');
-const rpmDependencies = require('../resources/linux/rpm/dependencies.json');
+const dependenciesGenerator = require('./linux/dependencies-generator');
+const sysrootInstaller = require('./linux/debian/install-sysroot');
+const debianRecommendedDependencies = require('./linux/debian/dep-lists').recommendedDeps;
 const path = require('path');
 const root = path.dirname(__dirname);
 const commit = util.getVersion(root);
 
 const linuxPackageRevision = Math.floor(new Date().getTime() / 1000);
 
+/**
+ * @param {string} arch
+ */
 function getDebPackageArch(arch) {
 	return { x64: 'amd64', armhf: 'armhf', arm64: 'arm64' }[arch];
 }
@@ -74,12 +79,16 @@ function prepareDebPackage(arch) {
 		let size = 0;
 		const control = code.pipe(es.through(
 			function (f) { size += f.isDirectory() ? 4096 : f.contents.length; },
-			function () {
+			async function () {
 				const that = this;
+				const sysroot = await sysrootInstaller.getSysroot(debArch);
+				const dependencies = dependenciesGenerator.getDependencies('deb', binaryDir, product.applicationName, debArch, sysroot);
 				gulp.src('resources/linux/debian/control.template', { base: '.' })
 					.pipe(replace('@@NAME@@', product.applicationName))
 					.pipe(replace('@@VERSION@@', packageJson.version + '-' + linuxPackageRevision))
 					.pipe(replace('@@ARCHITECTURE@@', debArch))
+					.pipe(replace('@@DEPENDS@@', dependencies.join(', ')))
+					.pipe(replace('@@RECOMMENDS@@', debianRecommendedDependencies.join(', ')))
 					.pipe(replace('@@INSTALLEDSIZE@@', Math.ceil(size / 1024)))
 					.pipe(rename('DEBIAN/control'))
 					.pipe(es.through(function (f) { that.emit('data', f); }, function () { that.emit('end'); }));
@@ -103,6 +112,9 @@ function prepareDebPackage(arch) {
 	};
 }
 
+/**
+ * @param {string} arch
+ */
 function buildDebPackage(arch) {
 	const debArch = getDebPackageArch(arch);
 	return shell.task([
@@ -112,14 +124,23 @@ function buildDebPackage(arch) {
 	], { cwd: '.build/linux/deb/' + debArch });
 }
 
+/**
+ * @param {string} rpmArch
+ */
 function getRpmBuildPath(rpmArch) {
 	return '.build/linux/rpm/' + rpmArch + '/rpmbuild';
 }
 
+/**
+ * @param {string} arch
+ */
 function getRpmPackageArch(arch) {
 	return { x64: 'x86_64', armhf: 'armv7hl', arm64: 'aarch64' }[arch];
 }
 
+/**
+ * @param {string} arch
+ */
 function prepareRpmPackage(arch) {
 	const binaryDir = '../VSCode-linux-' + arch;
 	const rpmArch = getRpmPackageArch(arch);
@@ -164,6 +185,7 @@ function prepareRpmPackage(arch) {
 		const code = gulp.src(binaryDir + '/**/*', { base: binaryDir })
 			.pipe(rename(function (p) { p.dirname = 'BUILD/usr/share/' + product.applicationName + '/' + p.dirname; }));
 
+		const dependencies = dependenciesGenerator.getDependencies('rpm', binaryDir, product.applicationName, rpmArch);
 		const spec = gulp.src('resources/linux/rpm/code.spec.template', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
@@ -174,7 +196,7 @@ function prepareRpmPackage(arch) {
 			.pipe(replace('@@LICENSE@@', product.licenseName))
 			.pipe(replace('@@QUALITY@@', product.quality || '@@QUALITY@@'))
 			.pipe(replace('@@UPDATEURL@@', product.updateUrl || '@@UPDATEURL@@'))
-			.pipe(replace('@@DEPENDENCIES@@', rpmDependencies[rpmArch].join(', ')))
+			.pipe(replace('@@DEPENDENCIES@@', dependencies.join(', ')))
 			.pipe(rename('SPECS/' + product.applicationName + '.spec'));
 
 		const specIcon = gulp.src('resources/linux/rpm/code.xpm', { base: '.' })
@@ -186,6 +208,9 @@ function prepareRpmPackage(arch) {
 	};
 }
 
+/**
+ * @param {string} arch
+ */
 function buildRpmPackage(arch) {
 	const rpmArch = getRpmPackageArch(arch);
 	const rpmBuildPath = getRpmBuildPath(rpmArch);
@@ -194,15 +219,21 @@ function buildRpmPackage(arch) {
 
 	return shell.task([
 		'mkdir -p ' + destination,
-		'HOME="$(pwd)/' + destination + '" fakeroot rpmbuild -bb ' + rpmBuildPath + '/SPECS/' + product.applicationName + '.spec --target=' + rpmArch,
+		'HOME="$(pwd)/' + destination + '" rpmbuild -bb ' + rpmBuildPath + '/SPECS/' + product.applicationName + '.spec --target=' + rpmArch,
 		'cp "' + rpmOut + '/$(ls ' + rpmOut + ')" ' + destination + '/'
 	]);
 }
 
+/**
+ * @param {string} arch
+ */
 function getSnapBuildPath(arch) {
 	return `.build/linux/snap/${arch}/${product.applicationName}-${arch}`;
 }
 
+/**
+ * @param {string} arch
+ */
 function prepareSnapPackage(arch) {
 	const binaryDir = '../VSCode-linux-' + arch;
 	const destination = getSnapBuildPath(arch);
@@ -247,6 +278,9 @@ function prepareSnapPackage(arch) {
 	};
 }
 
+/**
+ * @param {string} arch
+ */
 function buildSnapPackage(arch) {
 	const snapBuildPath = getSnapBuildPath(arch);
 	// Default target for snapcraft runs: pull, build, stage and prime, and finally assembles the snap.

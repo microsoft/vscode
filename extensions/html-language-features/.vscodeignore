@@ -12,6 +12,7 @@ server/tsconfig.json
 server/test/**
 server/bin/**
 server/build/**
+server/lib/cgmanifest.json
 server/yarn.lock
 server/.npmignore
 yarn.lock

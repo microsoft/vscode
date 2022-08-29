@@ -48,6 +48,9 @@
 	line-height: inherit;
 	padding-top: 0;
 	padding-bottom: 0;
+
+	/* The debug view title is crowded, let this one get narrower than others */
+	min-width: 70px;
 }
 
 
@@ -129,7 +132,7 @@
 .debug-pane .monaco-list-row .monaco-action-bar {
 	display: none;
 	flex-shrink: 0;
-	margin-right: 1px;
+	margin-right: 6px;
 }
 
 .debug-pane .monaco-list-row:hover .monaco-action-bar,
@@ -216,9 +219,17 @@
 	font-size: 11px;
 }
 
+.debug-pane .monaco-list-row .expression .actionbar-spacer {
+	flex-grow: 1;
+}
+
+.debug-pane .monaco-list-row .expression .value {
+	overflow: hidden;
+	white-space: pre;
+	text-overflow: ellipsis;
+}
+
 .debug-pane .monaco-list-row .expression .value.changed {
-	padding: 2px;
-	margin: 4px;
 	border-radius: 4px;
 }
 
@@ -308,4 +319,13 @@
 .debug-pane .debug-breakpoints .breakpoint .name {
 	overflow: hidden;
 	text-overflow: ellipsis
+}
+
+.debug-pane .pane-header .breakpoint-warning {
+	margin-left: 3px;
+}
+
+.debug-pane .pane-header .breakpoint-warning .monaco-icon-label .codicon {
+	display: flex;
+	align-items: center;
 }

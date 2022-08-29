@@ -11,8 +11,6 @@
  * @author Michael Ficarra
  */
 
-'use strict';
-
 import * as eslint from 'eslint';
 import { TSESTree } from '@typescript-eslint/experimental-utils';
 import * as ESTree from 'estree';
@@ -133,14 +131,18 @@ module.exports = {
 				return true;
 			}
 
-			return /^(?:Assignment|OptionalCall|Call|New|Update|Yield|Await)Expression$/u.test(node.type) ||
+			if (node.type === 'ExpressionStatement') {
+				return isValidExpression(node.expression);
+			}
+
+			return /^(?:Assignment|OptionalCall|Call|New|Update|Yield|Await|Chain)Expression$/u.test(node.type) ||
 				(node.type === 'UnaryExpression' && ['delete', 'void'].indexOf(node.operator) >= 0);
 		}
 
 		return {
 			ExpressionStatement(node: TSESTree.ExpressionStatement) {
 				if (!isValidExpression(node.expression) && !isDirective(node, <TSESTree.Node[]>context.getAncestors())) {
-					context.report({ node: <ESTree.Node>node, message: 'Expected an assignment or function call and instead saw an expression.' });
+					context.report({ node: <ESTree.Node>node, message: `Expected an assignment or function call and instead saw an expression. ${node.expression}` });
 				}
 			}
 		};

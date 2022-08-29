@@ -9,7 +9,8 @@
 	--dropdown-padding-bottom: 1px;
 }
 
-.hc-black .monaco-select-box-dropdown-padding {
+.hc-black .monaco-select-box-dropdown-padding,
+.hc-light .monaco-select-box-dropdown-padding {
 	--dropdown-padding-top: 3px;
 	--dropdown-padding-bottom: 4px;
 }

@@ -90,7 +90,7 @@ class RemovedResources {
 			dest.push(element.resourceLabel);
 		}
 
-		let messages: string[] = [];
+		const messages: string[] = [];
 		if (externalRemoval.length > 0) {
 			messages.push(
 				nls.localize(
@@ -156,7 +156,7 @@ class WorkspaceStackElement {
 		this.invalidatedResources = null;
 	}
 
-	public canSplit(): this is WorkspaceStackElement & { actual: { split(): IResourceUndoRedoElement[]; } } {
+	public canSplit(): this is WorkspaceStackElement & { actual: { split(): IResourceUndoRedoElement[] } } {
 		return (typeof this.actual.split === 'function');
 	}
 
@@ -226,7 +226,7 @@ class ResourceEditStack {
 	}
 
 	public toString(): string {
-		let result: string[] = [];
+		const result: string[] = [];
 		result.push(`* ${this.strResource}:`);
 		for (let i = 0; i < this._past.length; i++) {
 			result.push(`   * [UNDO] ${this._past[i]}`);
@@ -495,7 +495,7 @@ export class UndoRedoService implements IUndoRedoService {
 	private _print(label: string): void {
 		console.log(`------------------------------------`);
 		console.log(`AFTER ${label}: `);
-		let str: string[] = [];
+		const str: string[] = [];
 		for (const element of this._editStacks) {
 			str.push(element[1].toString());
 		}
@@ -564,7 +564,7 @@ export class UndoRedoService implements IUndoRedoService {
 		return null;
 	}
 
-	private _splitPastWorkspaceElement(toRemove: WorkspaceStackElement & { actual: { split(): IResourceUndoRedoElement[]; } }, ignoreResources: RemovedResources | null): void {
+	private _splitPastWorkspaceElement(toRemove: WorkspaceStackElement & { actual: { split(): IResourceUndoRedoElement[] } }, ignoreResources: RemovedResources | null): void {
 		const individualArr = toRemove.actual.split();
 		const individualMap = new Map<string, ResourceStackElement>();
 		for (const _element of individualArr) {
@@ -583,7 +583,7 @@ export class UndoRedoService implements IUndoRedoService {
 		}
 	}
 
-	private _splitFutureWorkspaceElement(toRemove: WorkspaceStackElement & { actual: { split(): IResourceUndoRedoElement[]; } }, ignoreResources: RemovedResources | null): void {
+	private _splitFutureWorkspaceElement(toRemove: WorkspaceStackElement & { actual: { split(): IResourceUndoRedoElement[] } }, ignoreResources: RemovedResources | null): void {
 		const individualArr = toRemove.actual.split();
 		const individualMap = new Map<string, ResourceStackElement>();
 		for (const _element of individualArr) {
@@ -1110,7 +1110,7 @@ export class UndoRedoService implements IUndoRedoService {
 			nls.localize('confirmDifferentSource', "Would you like to undo '{0}'?", element.label),
 			[
 				nls.localize('confirmDifferentSource.yes', "Yes"),
-				nls.localize('cancel', "Cancel"),
+				nls.localize('confirmDifferentSource.no', "No"),
 			],
 			{
 				cancelId: 1
@@ -1393,4 +1393,4 @@ class WorkspaceVerificationError {
 	constructor(public readonly returnValue: Promise<void> | void) { }
 }
 
-registerSingleton(IUndoRedoService, UndoRedoService);
+registerSingleton(IUndoRedoService, UndoRedoService, false);

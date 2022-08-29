@@ -6,17 +6,16 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { isArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IManualSyncTask, IResourcePreview, ISyncResourceHandle, ISyncResourcePreview, ISyncTask, IUserDataManifest, IUserDataSyncService, SyncResource, SyncStatus, UserDataSyncError } from 'vs/platform/userDataSync/common/userDataSync';
 
-type ManualSyncTaskEvent<T> = { manualSyncTaskId: string, data: T };
+type ManualSyncTaskEvent<T> = { manualSyncTaskId: string; data: T };
 
 export class UserDataSyncChannel implements IServerChannel {
 
-	private readonly manualSyncTasks = new Map<string, { manualSyncTask: IManualSyncTask, disposables: DisposableStore }>();
+	private readonly manualSyncTasks = new Map<string, { manualSyncTask: IManualSyncTask; disposables: DisposableStore }>();
 	private readonly onManualSynchronizeResources = new Emitter<ManualSyncTaskEvent<[SyncResource, URI[]][]>>();
 
 	constructor(private readonly service: IUserDataSyncService, private readonly logService: ILogService) { }
@@ -103,7 +102,7 @@ export class UserDataSyncChannel implements IServerChannel {
 		return value.manualSyncTask;
 	}
 
-	private async createManualSyncTask(): Promise<{ id: string, manifest: IUserDataManifest | null, status: SyncStatus }> {
+	private async createManualSyncTask(): Promise<{ id: string; manifest: IUserDataManifest | null; status: SyncStatus }> {
 		const disposables = new DisposableStore();
 		const manualSyncTask = disposables.add(await this.service.createManualSyncTask());
 		disposables.add(manualSyncTask.onSynchronizeResources(synchronizeResources => this.onManualSynchronizeResources.fire({ manualSyncTaskId: manualSyncTask.id, data: synchronizeResources })));
@@ -180,15 +179,15 @@ export class UserDataSyncChannelClient extends Disposable implements IUserDataSy
 	}
 
 	async createManualSyncTask(): Promise<IManualSyncTask> {
-		const { id, manifest, status } = await this.channel.call<{ id: string, manifest: IUserDataManifest | null, status: SyncStatus }>('createManualSyncTask');
+		const { id, manifest, status } = await this.channel.call<{ id: string; manifest: IUserDataManifest | null; status: SyncStatus }>('createManualSyncTask');
 		const that = this;
 		const manualSyncTaskChannelClient = new ManualSyncTaskChannelClient(id, manifest, status, {
 			async call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T> {
-				return that.channel.call<T>(`manualSync/${command}`, [id, ...(isArray(arg) ? arg : [arg])], cancellationToken);
+				return that.channel.call<T>(`manualSync/${command}`, [id, ...(Array.isArray(arg) ? arg : [arg])], cancellationToken);
 			},
 			listen<T>(event: string, arg?: any): Event<T> {
 				return Event.map(
-					Event.filter(that.channel.listen<{ manualSyncTaskId: string, data: T }>(`manualSync/${event}`, arg), e => !manualSyncTaskChannelClient.isDiposed() && e.manualSyncTaskId === id),
+					Event.filter(that.channel.listen<{ manualSyncTaskId: string; data: T }>(`manualSync/${event}`, arg), e => !manualSyncTaskChannelClient.isDiposed() && e.manualSyncTaskId === id),
 					e => e.data);
 			}
 		});
@@ -237,8 +236,8 @@ export class UserDataSyncChannelClient extends Disposable implements IUserDataSy
 		return handles.map(({ created, uri }) => ({ created, uri: URI.revive(uri) }));
 	}
 
-	async getAssociatedResources(resource: SyncResource, syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI, comparableResource: URI }[]> {
-		const result = await this.channel.call<{ resource: URI, comparableResource: URI }[]>('getAssociatedResources', [resource, syncResourceHandle]);
+	async getAssociatedResources(resource: SyncResource, syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI }[]> {
+		const result = await this.channel.call<{ resource: URI; comparableResource: URI }[]>('getAssociatedResources', [resource, syncResourceHandle]);
 		return result.map(({ resource, comparableResource }) => ({ resource: URI.revive(resource), comparableResource: URI.revive(comparableResource) }));
 	}
 
@@ -259,6 +258,7 @@ export class UserDataSyncChannelClient extends Disposable implements IUserDataSy
 			conflicts.map(r =>
 			({
 				...r,
+				baseResource: URI.revive(r.baseResource),
 				localResource: URI.revive(r.localResource),
 				remoteResource: URI.revive(r.remoteResource),
 				previewResource: URI.revive(r.previewResource),
@@ -369,6 +369,7 @@ class ManualSyncTaskChannelClient extends Disposable implements IManualSyncTask 
 				isLastSyncFromCurrentMachine: preview.isLastSyncFromCurrentMachine,
 				resourcePreviews: preview.resourcePreviews.map(r => ({
 					...r,
+					baseResource: URI.revive(r.baseResource),
 					localResource: URI.revive(r.localResource),
 					remoteResource: URI.revive(r.remoteResource),
 					previewResource: URI.revive(r.previewResource),

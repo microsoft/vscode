@@ -5,7 +5,6 @@
 
 import { URI } from 'vs/base/common/uri';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { ExtensionKind } from 'vs/platform/extensions/common/extensions';
 import { createDecorator, refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
@@ -18,7 +17,15 @@ export interface IDebugParams {
 
 export interface IExtensionHostDebugParams extends IDebugParams {
 	debugId?: string;
+	env?: Record<string, string>;
 }
+
+/**
+ * Type of extension.
+ *
+ * **NOTE**: This is defined in `platform/environment` because it can appear as a CLI argument.
+ */
+export type ExtensionKind = 'ui' | 'workspace' | 'web';
 
 /**
  * A basic environment service that can be used in various processes,
@@ -41,22 +48,25 @@ export interface IEnvironmentService {
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 	// --- user roaming data
+	stateResource: URI;
 	userRoamingDataHome: URI;
-	settingsResource: URI;
-	keybindingsResource: URI;
 	keyboardLayoutResource: URI;
 	argvResource: URI;
-	snippetsHome: URI;
 
 	// --- data paths
 	untitledWorkspacesHome: URI;
-	globalStorageHome: URI;
 	workspaceStorageHome: URI;
+	localHistoryHome: URI;
+	cacheHome: URI;
 
 	// --- settings sync
 	userDataSyncHome: URI;
 	userDataSyncLogResource: URI;
 	sync: 'on' | 'off' | undefined;
+
+	// --- continue edit session
+	editSessionId?: string;
+	editSessionsLogResource: URI;
 
 	// --- extension development
 	debugExtensionHost: IExtensionHostDebugParams;
@@ -67,9 +77,6 @@ export interface IEnvironmentService {
 	extensionDevelopmentKind?: ExtensionKind[];
 	extensionTestsLocationURI?: URI;
 
-	// --- workspace trust
-	disableWorkspaceTrust: boolean;
-
 	// --- logging
 	logsPath: string;
 	logLevel?: string;
@@ -79,7 +86,11 @@ export interface IEnvironmentService {
 	// --- telemetry
 	disableTelemetry: boolean;
 	telemetryLogResource: URI;
+	extensionTelemetryLogResource: URI;
 	serviceMachineIdResource: URI;
+
+	// --- Policy
+	policyFile?: URI;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//
@@ -126,8 +137,8 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	extensionsDownloadPath: string;
 	builtinExtensionsPath: string;
 
-	// --- smoke test support
-	driverHandle?: string;
+	// --- use keytar for credentials
+	disableKeytar?: boolean;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//

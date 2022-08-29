@@ -11,7 +11,6 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import Messages from 'vs/workbench/contrib/markers/browser/messages';
-import Constants from 'vs/workbench/contrib/markers/browser/constants';
 import { IThemeService, registerThemingParticipant, ICssStyleCollector, IColorTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { toDisposable, Disposable } from 'vs/base/common/lifecycle';
@@ -19,7 +18,7 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { badgeBackground, badgeForeground, contrastBorder, inputActiveOptionBorder, inputActiveOptionBackground, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
+import { ContextScopedHistoryInputBox } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { Marker } from 'vs/workbench/contrib/markers/browser/markersModel';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -30,7 +29,8 @@ import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdown
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IMarkersView } from 'vs/workbench/contrib/markers/browser/markers';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { showHistoryKeybindingHint } from 'vs/platform/browser/historyWidgetKeybindingHint';
+import { showHistoryKeybindingHint } from 'vs/platform/history/browser/historyWidgetKeybindingHint';
+import { MarkersContextKeys } from 'vs/workbench/contrib/markers/common/markers';
 
 export interface IMarkersFiltersChangeEvent {
 	filterText?: boolean;
@@ -182,8 +182,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 				id: 'showErrors',
 				label: Messages.MARKERS_PANEL_FILTER_LABEL_SHOW_ERRORS,
 				run: async () => this.filters.showErrors = !this.filters.showErrors,
-				tooltip: '',
-				dispose: () => null
+				tooltip: ''
 			},
 			{
 				checked: this.filters.showWarnings,
@@ -192,8 +191,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 				id: 'showWarnings',
 				label: Messages.MARKERS_PANEL_FILTER_LABEL_SHOW_WARNINGS,
 				run: async () => this.filters.showWarnings = !this.filters.showWarnings,
-				tooltip: '',
-				dispose: () => null
+				tooltip: ''
 			},
 			{
 				checked: this.filters.showInfos,
@@ -202,8 +200,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 				id: 'showInfos',
 				label: Messages.MARKERS_PANEL_FILTER_LABEL_SHOW_INFOS,
 				run: async () => this.filters.showInfos = !this.filters.showInfos,
-				tooltip: '',
-				dispose: () => null
+				tooltip: ''
 			},
 			new Separator(),
 			{
@@ -213,8 +210,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 				id: 'activeFile',
 				label: Messages.MARKERS_PANEL_FILTER_LABEL_ACTIVE_FILE,
 				run: async () => this.filters.activeFile = !this.filters.activeFile,
-				tooltip: '',
-				dispose: () => null
+				tooltip: ''
 			},
 			{
 				checked: this.filters.excludedFiles,
@@ -223,8 +219,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 				id: 'useFilesExclude',
 				label: Messages.MARKERS_PANEL_FILTER_LABEL_EXCLUDED_FILES,
 				run: async () => this.filters.excludedFiles = !this.filters.excludedFiles,
-				tooltip: '',
-				dispose: () => null
+				tooltip: ''
 			},
 		];
 	}
@@ -260,7 +255,7 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 	) {
 		super(null, action);
 		this.keybindingService = keybindingService;
-		this.focusContextKey = Constants.MarkerViewFilterFocusContextKey.bindTo(contextKeyService);
+		this.focusContextKey = MarkersContextKeys.MarkerViewFilterFocusContextKey.bindTo(contextKeyService);
 		this.delayedFilterUpdate = new Delayer<void>(400);
 		this._register(toDisposable(() => this.delayedFilterUpdate.cancel()));
 		this._register(markersView.onDidFocusFilter(() => this.focus()));
@@ -284,15 +279,11 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 	}
 
 	override focus(): void {
-		if (this.filterInputBox) {
-			this.filterInputBox.focus();
-		}
+		this.filterInputBox?.focus();
 	}
 
 	override blur(): void {
-		if (this.filterInputBox) {
-			this.filterInputBox.blur();
-		}
+		this.filterInputBox?.blur();
 	}
 
 	override setFocusable(): void {
@@ -411,7 +402,6 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 		if (event.equals(KeyCode.Space)
 			|| event.equals(KeyCode.LeftArrow)
 			|| event.equals(KeyCode.RightArrow)
-			|| event.equals(KeyCode.Escape)
 		) {
 			event.stopPropagation();
 		}
@@ -419,10 +409,6 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 
 	private onInputKeyDown(event: StandardKeyboardEvent, filterInputBox: HistoryInputBox) {
 		let handled = false;
-		if (event.equals(KeyCode.Escape)) {
-			this.clearFilterText();
-			handled = true;
-		}
 		if (event.equals(KeyCode.Tab)) {
 			this.actionbar?.focus();
 			handled = true;
@@ -507,7 +493,7 @@ export class QuickFixActionViewItem extends ActionViewItem {
 			return;
 		}
 		const elementPosition = DOM.getDomNodePagePosition(this.element);
-		const quickFixes = (<QuickFixAction>this.getAction()).quickFixes;
+		const quickFixes = (<QuickFixAction>this.action).quickFixes;
 		if (quickFixes.length) {
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => ({ x: elementPosition.left + 10, y: elementPosition.top + elementPosition.height + 4 }),

@@ -8,8 +8,7 @@ import { WorkbenchAsyncDataTree, IOpenEvent } from 'vs/platform/list/browser/lis
 import { BulkEditElement, BulkEditDelegate, TextEditElementRenderer, FileElementRenderer, BulkEditDataSource, BulkEditIdentityProvider, FileElement, TextEditElement, BulkEditAccessibilityProvider, CategoryElementRenderer, BulkEditNaviLabelProvider, CategoryElement, BulkEditSorter } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditTree';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { registerThemingParticipant, IColorTheme, ICssStyleCollector, IThemeService } from 'vs/platform/theme/common/themeService';
-import { diffInserted, diffRemoved } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { localize } from 'vs/nls';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -39,6 +38,7 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
+import { ButtonBar } from 'vs/base/browser/ui/button/button';
 
 const enum State {
 	Data = 'data',
@@ -68,6 +68,7 @@ export class BulkEditPane extends ViewPane {
 	private readonly _sessionDisposables = new DisposableStore();
 	private _currentResolve?: (edit?: ResourceEdit[]) => void;
 	private _currentInput?: BulkFileOperations;
+	private _currentProvider?: BulkEditPreviewProvider;
 
 
 	constructor(
@@ -114,15 +115,16 @@ export class BulkEditPane extends ViewPane {
 		);
 		this._disposables.add(resourceLabels);
 
+		const contentContainer = document.createElement('div');
+		contentContainer.className = 'content';
+		parent.appendChild(contentContainer);
+
 		// tree
 		const treeContainer = document.createElement('div');
-		treeContainer.className = 'tree';
-		treeContainer.style.width = '100%';
-		treeContainer.style.height = '100%';
-		parent.appendChild(treeContainer);
+		contentContainer.appendChild(treeContainer);
 
 		this._treeDataSource = this._instaService.createInstance(BulkEditDataSource);
-		this._treeDataSource.groupByFile = this._storageService.getBoolean(BulkEditPane._memGroupByFile, StorageScope.GLOBAL, true);
+		this._treeDataSource.groupByFile = this._storageService.getBoolean(BulkEditPane._memGroupByFile, StorageScope.PROFILE, true);
 		this._ctxGroupByFile.set(this._treeDataSource.groupByFile);
 
 		this._tree = <WorkbenchAsyncDataTree<BulkFileOperations, BulkEditElement, FuzzyScore>>this._instaService.createInstance(
@@ -144,6 +146,21 @@ export class BulkEditPane extends ViewPane {
 		this._disposables.add(this._tree.onContextMenu(this._onContextMenu, this));
 		this._disposables.add(this._tree.onDidOpen(e => this._openElementAsEditor(e)));
 
+		// buttons
+		const buttonsContainer = document.createElement('div');
+		buttonsContainer.className = 'buttons';
+		contentContainer.appendChild(buttonsContainer);
+		const buttonBar = new ButtonBar(buttonsContainer);
+		this._disposables.add(buttonBar);
+
+		const btnConfirm = buttonBar.addButton({ supportIcons: true });
+		btnConfirm.label = localize('ok', 'Apply');
+		btnConfirm.onDidClick(() => this.accept(), this, this._disposables);
+
+		const btnCancel = buttonBar.addButton({ /* secondary: true */ });
+		btnCancel.label = localize('cancel', 'Discard');
+		btnCancel.onDidClick(() => this.discard(), this, this._disposables);
+
 		// message
 		this._message = document.createElement('span');
 		this._message.className = 'message';
@@ -156,7 +173,9 @@ export class BulkEditPane extends ViewPane {
 
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
-		this._tree.layout(height, width);
+		const treeHeight = height - 50;
+		this._tree.getHTMLElement().parentElement!.style.height = `${treeHeight}px`;
+		this._tree.layout(treeHeight, width);
 	}
 
 	private _setState(state: State): void {
@@ -174,8 +193,8 @@ export class BulkEditPane extends ViewPane {
 		}
 
 		const input = await this._instaService.invokeFunction(BulkFileOperations.create, edit);
-		const provider = this._instaService.createInstance(BulkEditPreviewProvider, input);
-		this._sessionDisposables.add(provider);
+		this._currentProvider = this._instaService.createInstance(BulkEditPreviewProvider, input);
+		this._sessionDisposables.add(this._currentProvider);
 		this._sessionDisposables.add(input);
 
 		//
@@ -186,7 +205,7 @@ export class BulkEditPane extends ViewPane {
 
 		this._currentInput = input;
 
-		return new Promise<ResourceEdit[] | undefined>(async resolve => {
+		return new Promise<ResourceEdit[] | undefined>(resolve => {
 
 			token.onCancellationRequested(() => resolve(undefined));
 
@@ -253,9 +272,7 @@ export class BulkEditPane extends ViewPane {
 	}
 
 	private _done(accept: boolean): void {
-		if (this._currentResolve) {
-			this._currentResolve(accept ? this._currentInput?.getWorkspaceEdit() : undefined);
-		}
+		this._currentResolve?.(accept ? this._currentInput?.getWorkspaceEdit() : undefined);
 		this._currentInput = undefined;
 		this._setState(State.Message);
 		this._sessionDisposables.clear();
@@ -285,7 +302,7 @@ export class BulkEditPane extends ViewPane {
 		if (input) {
 
 			// (1) capture view state
-			let oldViewState = this._tree.getViewState();
+			const oldViewState = this._tree.getViewState();
 			this._treeViewStates.set(this._treeDataSource.groupByFile, oldViewState);
 
 			// (2) toggle and update
@@ -293,7 +310,7 @@ export class BulkEditPane extends ViewPane {
 			this._setTreeInput(input);
 
 			// (3) remember preference
-			this._storageService.store(BulkEditPane._memGroupByFile, this._treeDataSource.groupByFile, StorageScope.GLOBAL, StorageTarget.USER);
+			this._storageService.store(BulkEditPane._memGroupByFile, this._treeDataSource.groupByFile, StorageScope.PROFILE, StorageTarget.USER);
 			this._ctxGroupByFile.set(this._treeDataSource.groupByFile);
 		}
 	}
@@ -303,7 +320,7 @@ export class BulkEditPane extends ViewPane {
 			-readonly [P in keyof T]: T[P]
 		};
 
-		let options: Mutable<ITextEditorOptions> = { ...e.editorOptions };
+		const options: Mutable<ITextEditorOptions> = { ...e.editorOptions };
 		let fileElement: FileElement;
 		if (e.element instanceof TextEditElement) {
 			fileElement = e.element.parent;
@@ -318,7 +335,7 @@ export class BulkEditPane extends ViewPane {
 			return;
 		}
 
-		const previewUri = BulkEditPreviewProvider.asPreviewUri(fileElement.edit.uri);
+		const previewUri = this._currentProvider!.asPreviewUri(fileElement.edit.uri);
 
 		if (fileElement.edit.type & BulkFileOperationType.Delete) {
 			// delete -> show single editor
@@ -365,27 +382,14 @@ export class BulkEditPane extends ViewPane {
 	private _onContextMenu(e: ITreeContextMenuEvent<any>): void {
 		const menu = this._menuService.createMenu(MenuId.BulkEditContext, this._contextKeyService);
 		const actions: IAction[] = [];
-		const disposable = createAndFillInContextMenuActions(menu, undefined, actions);
+		createAndFillInContextMenuActions(menu, undefined, actions);
 
 		this._contextMenuService.showContextMenu({
 			getActions: () => actions,
 			getAnchor: () => e.anchor,
 			onHide: () => {
-				disposable.dispose();
 				menu.dispose();
 			}
 		});
 	}
 }
-
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-
-	const diffInsertedColor = theme.getColor(diffInserted);
-	if (diffInsertedColor) {
-		collector.addRule(`.monaco-workbench .bulk-edit-panel .highlight.insert { background-color: ${diffInsertedColor}; }`);
-	}
-	const diffRemovedColor = theme.getColor(diffRemoved);
-	if (diffRemovedColor) {
-		collector.addRule(`.monaco-workbench .bulk-edit-panel .highlight.remove { background-color: ${diffRemovedColor}; }`);
-	}
-});

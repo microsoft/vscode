@@ -6,9 +6,13 @@
 import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
-import { IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
+import { IRequestContext, IRequestOptions, OfflineError } from 'vs/base/parts/request/common/request';
 
 export function request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
+	if (!navigator.onLine) {
+		throw new OfflineError();
+	}
+
 	if (options.proxyAuthorization) {
 		options.headers = {
 			...(options.headers || {}),
@@ -51,7 +55,7 @@ export function request(options: IRequestOptions, token: CancellationToken): Pro
 
 function setRequestHeaders(xhr: XMLHttpRequest, options: IRequestOptions): void {
 	if (options.headers) {
-		outer: for (let k in options.headers) {
+		outer: for (const k in options.headers) {
 			switch (k) {
 				case 'User-Agent':
 				case 'Accept-Encoding':

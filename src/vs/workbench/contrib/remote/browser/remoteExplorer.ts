@@ -21,7 +21,7 @@ import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal
 import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { isWeb, OperatingSystem } from 'vs/base/common/platform';
-import { isPortPrivileged, ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
+import { isPortPrivileged, ITunnelService, RemoteTunnel } from 'vs/platform/tunnel/common/tunnel';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
@@ -60,7 +60,7 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 			id: TUNNEL_VIEW_CONTAINER_ID,
 			title: nls.localize('ports', "Ports"),
 			icon: portsViewIcon,
-			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [TUNNEL_VIEW_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
+			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [TUNNEL_VIEW_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]),
 			storageId: TUNNEL_VIEW_CONTAINER_ID,
 			hideIfEmpty: true,
 			order: 5
@@ -112,9 +112,7 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 	}
 
 	private async updateActivityBadge() {
-		if (this._activityBadge) {
-			this._activityBadge.dispose();
-		}
+		this._activityBadge?.dispose();
 		if (this.remoteExplorerService.tunnelModel.forwarded.size > 0) {
 			this._activityBadge = this.activityService.showViewActivity(TUNNEL_VIEW_ID, {
 				badge: new NumberBadge(this.remoteExplorerService.tunnelModel.forwarded.size, n => n === 1 ? nls.localize('1forwardedPort', "1 forwarded port") : nls.localize('nForwardedPorts', "{0} forwarded ports", n))
@@ -131,10 +129,9 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 	}
 
 	private get entry(): IStatusbarEntry {
-		let text: string;
 		let tooltip: string;
 		const count = this.remoteExplorerService.tunnelModel.forwarded.size + this.remoteExplorerService.tunnelModel.detected.size;
-		text = `${count}`;
+		const text = `${count}`;
 		if (count === 0) {
 			tooltip = nls.localize('remote.forwardedPorts.statusbarTextNone', "No Ports Forwarded");
 		} else {
@@ -200,7 +197,7 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 		remoteAgentService.getEnvironment().then(environment => {
 			if (environment?.os !== OperatingSystem.Linux) {
 				Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
-					.registerDefaultConfigurations([{ 'remote.autoForwardPortsSource': PORT_AUTO_SOURCE_SETTING_OUTPUT }]);
+					.registerDefaultConfigurations([{ overrides: { 'remote.autoForwardPortsSource': PORT_AUTO_SOURCE_SETTING_OUTPUT } }]);
 				this._register(new OutputAutomaticPortForwarding(terminalService, notificationService, openerService, externalOpenerService,
 					remoteExplorerService, configurationService, debugService, tunnelService, remoteAgentService, hostService, logService, () => false));
 			} else {
@@ -264,12 +261,13 @@ class OnAutoForwardedAction extends Disposable {
 					break;
 				}
 				case OnPortForward.Silent: break;
-				default:
+				default: {
 					const elapsed = new Date().getTime() - this.lastNotifyTime.getTime();
 					this.logService.trace(`ForwardedPorts: (OnAutoForwardedAction) time elapsed since last notification ${elapsed} ms`);
 					if (elapsed > OnAutoForwardedAction.NOTIFY_COOL_DOWN) {
 						await this.showNotification(tunnel);
 					}
+				}
 			}
 		}
 	}
@@ -334,9 +332,7 @@ class OnAutoForwardedAction extends Disposable {
 			return;
 		}
 
-		if (this.lastNotification) {
-			this.lastNotification.close();
-		}
+		this.lastNotification?.close();
 		let message = this.basicMessage(tunnel);
 		const choices = [this.openBrowserChoice(tunnel)];
 		if (!isWeb) {
@@ -391,9 +387,7 @@ class OnAutoForwardedAction extends Disposable {
 				if (!newTunnel) {
 					return;
 				}
-				if (this.lastNotification) {
-					this.lastNotification.close();
-				}
+				this.lastNotification?.close();
 				this.lastShownPort = newTunnel.tunnelRemotePort;
 				this.lastNotification = this.notificationService.prompt(Severity.Info,
 					this.basicMessage(newTunnel) + this.linkMessage(),
@@ -453,9 +447,7 @@ class OutputAutomaticPortForwarding extends Disposable {
 		if (!this.urlFinder && !this.remoteExplorerService.portsFeaturesEnabled) {
 			return;
 		}
-		if (this.portsFeatures) {
-			this.portsFeatures.dispose();
-		}
+		this.portsFeatures?.dispose();
 		this.urlFinder = this._register(new UrlFinder(this.terminalService, this.debugService));
 		this._register(this.urlFinder.onDidMatchLocalUrl(async (localUrl) => {
 			if (mapHasAddressLocalhostOrAllInterfaces(this.remoteExplorerService.tunnelModel.detected, localUrl.host, localUrl.port)) {
@@ -543,9 +535,7 @@ class ProcAutomaticPortForwarding extends Disposable {
 		if (this.candidateListener || !this.remoteExplorerService.portsFeaturesEnabled) {
 			return;
 		}
-		if (this.portsFeatures) {
-			this.portsFeatures.dispose();
-		}
+		this.portsFeatures?.dispose();
 
 		// Capture list of starting candidates so we don't auto forward them later.
 		await this.setInitialCandidates();
@@ -612,7 +602,7 @@ class ProcAutomaticPortForwarding extends Disposable {
 		return allTunnels;
 	}
 
-	private async handleCandidateUpdate(removed: Map<string, { host: string, port: number }>) {
+	private async handleCandidateUpdate(removed: Map<string, { host: string; port: number }>) {
 		const removedPorts: number[] = [];
 		for (const removedPort of removed) {
 			const key = removedPort[0];

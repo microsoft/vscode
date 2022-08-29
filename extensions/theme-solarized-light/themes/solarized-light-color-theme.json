@@ -9,7 +9,8 @@
 		{
 			"scope": [
 				"meta.embedded",
-				"source.groovy.embedded"
+				"source.groovy.embedded",
+				"string meta.image.inline.markdown"
 			],
 			"settings": {
 				"foreground": "#657B83"
@@ -34,7 +35,7 @@
 			"name": "Regexp",
 			"scope": "string.regexp",
 			"settings": {
-				"foreground": "#D30102"
+				"foreground": "#DC322F"
 			}
 		},
 		{
@@ -66,7 +67,7 @@
 			"scope": "storage",
 			"settings": {
 				"fontStyle": "bold",
-				"foreground": "#073642"
+				"foreground": "#586E75"
 			}
 		},
 		{
@@ -78,7 +79,8 @@
 				"entity.name.scope-resolution"
 			],
 			"settings": {
-				"foreground": "#268BD2"
+				"fontStyle": "",
+				"foreground": "#CB4B16"
 			}
 		},
 		{
@@ -102,7 +104,7 @@
 				"punctuation.section.embedded.end"
 			],
 			"settings": {
-				"foreground": "#D30102"
+				"foreground": "#DC322F"
 			}
 		},
 		{
@@ -122,7 +124,7 @@
 				"keyword.other.new"
 			],
 			"settings": {
-				"foreground": "#D30102"
+				"foreground": "#CB4B16"
 			}
 		},
 		{
@@ -138,7 +140,9 @@
 		{
 			"name": "Inherited class",
 			"scope": "entity.other.inherited-class",
-			"settings": {}
+			"settings": {
+				"foreground": "#6C71C4"
+			}
 		},
 		{
 			"name": "Function argument",
@@ -154,10 +158,7 @@
 		},
 		{
 			"name": "Tag start/end",
-			"scope": [
-				"punctuation.definition.tag.begin",
-				"punctuation.definition.tag.end"
-			],
+			"scope": "punctuation.definition.tag",
 			"settings": {
 				"foreground": "#93A1A1"
 			}
@@ -180,7 +181,7 @@
 			"name": "Continuation",
 			"scope": "punctuation.separator.continuation",
 			"settings": {
-				"foreground": "#D30102"
+				"foreground": "#DC322F"
 			}
 		},
 		{
@@ -217,7 +218,7 @@
 			"name": "Invalid",
 			"scope": "invalid",
 			"settings": {
-				"foreground": "#cd3131"
+				"foreground": "#DC322F"
 			}
 		},
 		{
@@ -228,7 +229,7 @@
 			],
 			"settings": {
 				"fontStyle": "italic",
-				"foreground": "#268bd2"
+				"foreground": "#268BD2"
 			}
 		},
 		{
@@ -236,7 +237,7 @@
 			"scope": "markup.deleted",
 			"settings": {
 				"fontStyle": "",
-				"foreground": "#dc322f"
+				"foreground": "#DC322F"
 			}
 		},
 		{
@@ -244,14 +245,14 @@
 			"scope": "markup.changed",
 			"settings": {
 				"fontStyle": "",
-				"foreground": "#cb4b16"
+				"foreground": "#CB4B16"
 			}
 		},
 		{
 			"name": "diff: inserted",
 			"scope": "markup.inserted",
 			"settings": {
-				"foreground": "#219186"
+				"foreground": "#859900"
 			}
 		},
 		{
@@ -290,6 +291,12 @@
 			"scope": "markup.italic",
 			"settings": {
 				"fontStyle": "italic"
+			}
+		},
+		{
+			"scope": "markup.strikethrough",
+			"settings": {
+				"fontStyle": "strikethrough"
 			}
 		},
 		{
@@ -355,7 +362,8 @@
 		// "scrollbarSlider.hoverBackground": "",
 		// Editor
 		"editor.background": "#FDF6E3",
-		// "editor.foreground": "#6688cc",
+		"editor.foreground": "#657B83",
+		"notebook.cellEditorBackground": "#F7F0E0",
 		"editorWidget.background": "#EEE8D5",
 		"editorCursor.foreground": "#657B83",
 		"editorWhitespace.foreground": "#586E7580",
@@ -473,14 +481,17 @@
 		"terminal.ansiMagenta": "#d33682",
 		"terminal.ansiCyan": "#2aa198",
 		"terminal.ansiWhite": "#eee8d5",
-		"terminal.ansiBrightBlack": "#586e75",
+		"terminal.ansiBrightBlack": "#002b36",
 		"terminal.ansiBrightRed": "#cb4b16",
 		"terminal.ansiBrightGreen": "#586e75",
 		"terminal.ansiBrightYellow": "#657b83",
 		"terminal.ansiBrightBlue": "#839496",
 		"terminal.ansiBrightMagenta": "#6c71c4",
 		"terminal.ansiBrightCyan": "#93a1a1",
-		"terminal.ansiBrightWhite": "#eee8d5",
+		"terminal.ansiBrightWhite": "#fdf6e3",
+		// Set terminal background explicitly, otherwise selection becomes invisible when the
+		// terminal is in the side bar
+		"terminal.background": "#FDF6E3",
 		// Interactive Playground
 		"walkThrough.embeddedEditorBackground": "#00000014"
 	},

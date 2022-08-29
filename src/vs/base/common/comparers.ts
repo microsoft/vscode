@@ -11,7 +11,7 @@ import { sep } from 'vs/base/common/path';
 // than it is to use String.prototype.localeCompare()
 
 // A collator with numeric sorting enabled, and no sensitivity to case, accents or diacritics.
-const intlFileNameCollatorBaseNumeric: IdleValue<{ collator: Intl.Collator, collatorIsNumeric: boolean }> = new IdleValue(() => {
+const intlFileNameCollatorBaseNumeric: IdleValue<{ collator: Intl.Collator; collatorIsNumeric: boolean }> = new IdleValue(() => {
 	const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
 	return {
 		collator: collator,
@@ -219,7 +219,7 @@ function extractExtension(str?: string | null): string {
 
 function compareAndDisambiguateByLength(collator: Intl.Collator, one: string, other: string) {
 	// Check for differences
-	let result = collator.compare(one, other);
+	const result = collator.compare(one, other);
 	if (result !== 0) {
 		return result;
 	}

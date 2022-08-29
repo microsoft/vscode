@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
-import { applyTestItemUpdate, InternalTestItem, ITestItemUpdate } from 'vs/workbench/contrib/testing/common/testCollection';
+import { applyTestItemUpdate, InternalTestItem, ITestItemUpdate } from 'vs/workbench/contrib/testing/common/testTypes';
 
 /**
  * Test tree element element that groups be hierarchy.
  */
 export class ByLocationTestItemElement extends TestItemTreeElement {
 	private errorChild?: TestTreeErrorMessage;
-
 
 	constructor(
 		test: InternalTestItem,

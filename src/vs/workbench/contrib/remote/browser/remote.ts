@@ -15,9 +15,9 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { FilterViewPaneContainer } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { AutomaticPortForwarding, ForwardedPortsView, PortRestore, VIEWLET_ID } from 'vs/workbench/contrib/remote/browser/remoteExplorer';
+import { VIEWLET_ID } from 'vs/workbench/contrib/remote/browser/remoteExplorer';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewDescriptor, IViewsRegistry, Extensions, ViewContainerLocation, IViewContainersRegistry, IViewDescriptorService } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -27,14 +27,13 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { IProgress, IProgressStep, IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ReconnectionWaitEvent, PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 import Severity from 'vs/base/common/severity';
 import { ReloadWindowAction } from 'vs/workbench/browser/actions/windowActions';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { SwitchRemoteViewItem, SwitchRemoteAction } from 'vs/workbench/contrib/remote/browser/explorerViewItems';
 import { Action } from 'vs/base/common/actions';
 import { isStringArray } from 'vs/base/common/types';
@@ -48,13 +47,11 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Event } from 'vs/base/common/event';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { RemoteStatusIndicator } from 'vs/workbench/contrib/remote/browser/remoteIndicator';
 import * as icons from 'vs/workbench/contrib/remote/browser/remoteIcons';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-
 
 export interface HelpInformation {
 	extensionDescription: IExtensionDescription;
@@ -149,7 +146,7 @@ class HelpDataSource implements IAsyncDataSource<HelpModel, IHelpItem> {
 	}
 }
 interface IHelpItem {
-	icon: ThemeIcon,
+	icon: ThemeIcon;
 	iconClasses: string[];
 	label: string;
 	handleClick(): Promise<void>;
@@ -166,7 +163,7 @@ class HelpModel {
 		remoteExplorerService: IRemoteExplorerService,
 		environmentService: IWorkbenchEnvironmentService
 	) {
-		let helpItems: IHelpItem[] = [];
+		const helpItems: IHelpItem[] = [];
 		const getStarted = viewModel.helpInformation.filter(info => info.getStarted);
 
 		if (getStarted.length) {
@@ -265,25 +262,27 @@ class HelpItemValue {
 	constructor(private commandService: ICommandService, public extensionDescription: IExtensionDescription, public remoteAuthority: string[] | undefined, private urlOrCommand?: string) { }
 
 	get url(): Promise<string> {
-		return new Promise<string>(async (resolve) => {
-			if (this._url === undefined) {
-				if (this.urlOrCommand) {
-					let url = URI.parse(this.urlOrCommand);
-					if (url.authority) {
-						this._url = this.urlOrCommand;
-					} else {
-						const urlCommand: Promise<string | undefined> = this.commandService.executeCommand(this.urlOrCommand);
-						// We must be defensive. The command may never return, meaning that no help at all is ever shown!
-						const emptyString: Promise<string> = new Promise(resolve => setTimeout(() => resolve(''), 500));
-						this._url = await Promise.race([urlCommand, emptyString]);
-					}
+		return this.getUrl();
+	}
+
+	private async getUrl(): Promise<string> {
+		if (this._url === undefined) {
+			if (this.urlOrCommand) {
+				const url = URI.parse(this.urlOrCommand);
+				if (url.authority) {
+					this._url = this.urlOrCommand;
+				} else {
+					const urlCommand: Promise<string | undefined> = this.commandService.executeCommand(this.urlOrCommand);
+					// We must be defensive. The command may never return, meaning that no help at all is ever shown!
+					const emptyString: Promise<string> = new Promise(resolve => setTimeout(() => resolve(''), 500));
+					this._url = await Promise.race([urlCommand, emptyString]);
 				}
 			}
-			if (this._url === undefined) {
-				this._url = '';
-			}
-			resolve(this._url);
-		});
+		}
+		if (this._url === undefined) {
+			this._url = '';
+		}
+		return this._url;
 	}
 }
 
@@ -306,9 +305,9 @@ abstract class HelpItemBase implements IHelpItem {
 		if (remoteAuthority) {
 			for (let i = 0; i < this.remoteExplorerService.targetType.length; i++) {
 				if (remoteAuthority.startsWith(this.remoteExplorerService.targetType[i])) {
-					for (let value of this.values) {
+					for (const value of this.values) {
 						if (value.remoteAuthority) {
-							for (let authority of value.remoteAuthority) {
+							for (const authority of value.remoteAuthority) {
 								if (remoteAuthority.startsWith(authority)) {
 									await this.takeAction(value.extensionDescription, await value.url);
 									return;
@@ -321,7 +320,7 @@ abstract class HelpItemBase implements IHelpItem {
 		}
 
 		if (this.values.length > 1) {
-			let actions = (await Promise.all(this.values.map(async (value) => {
+			const actions = (await Promise.all(this.values.map(async (value) => {
 				return {
 					label: value.extensionDescription.displayName || value.extensionDescription.identifier.value,
 					description: await value.url,
@@ -329,14 +328,16 @@ abstract class HelpItemBase implements IHelpItem {
 				};
 			}))).filter(item => item.description);
 
-			const action = await this.quickInputService.pick(actions, { placeHolder: nls.localize('pickRemoteExtension', "Select url to open") });
-
-			if (action) {
-				await this.takeAction(action.extensionDescription, action.description);
+			if (actions.length) {
+				const action = await this.quickInputService.pick(actions, { placeHolder: nls.localize('pickRemoteExtension', "Select url to open") });
+				if (action) {
+					await this.takeAction(action.extensionDescription, action.description);
+				}
 			}
 		} else {
 			await this.takeAction(this.values[0].extensionDescription, await this.values[0].url);
 		}
+
 	}
 
 	protected abstract takeAction(extensionDescription: IExtensionDescription, url?: string): Promise<void>;
@@ -479,8 +480,8 @@ export class RemoteViewPaneContainer extends FilterViewPaneContainer implements 
 		super(VIEWLET_ID, remoteExplorerService.onDidChangeTargetType, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService, viewDescriptorService);
 		this.addConstantViewDescriptors([this.helpPanelDescriptor]);
 		remoteHelpExtPoint.setHandler((extensions) => {
-			let helpInformation: HelpInformation[] = [];
-			for (let extension of extensions) {
+			const helpInformation: HelpInformation[] = [];
+			for (const extension of extensions) {
 				this._handleRemoteInfoExtensionPoint(extension, helpInformation);
 			}
 
@@ -496,7 +497,7 @@ export class RemoteViewPaneContainer extends FilterViewPaneContainer implements 
 	}
 
 	private _handleRemoteInfoExtensionPoint(extension: IExtensionPointUser<HelpInformation>, helpInformation: HelpInformation[]) {
-		if (!extension.description.enableProposedApi) {
+		if (!isProposedApiEnabled(extension.description, 'contribRemoteHelp')) {
 			return;
 		}
 
@@ -548,7 +549,7 @@ registerAction2(SwitchRemoteAction);
 Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
 	{
 		id: VIEWLET_ID,
-		title: nls.localize('remote.explorer', "Remote Explorer"),
+		title: { value: nls.localize('remote.explorer', "Remote Explorer"), original: 'Remote Explorer' },
 		ctorDescriptor: new SyncDescriptor(RemoteViewPaneContainer),
 		hideIfEmpty: true,
 		viewOrderDelegate: {
@@ -580,7 +581,7 @@ Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).register
 		order: 4
 	}, ViewContainerLocation.Sidebar);
 
-class RemoteMarkers implements IWorkbenchContribution {
+export class RemoteMarkers implements IWorkbenchContribution {
 
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
@@ -601,7 +602,7 @@ class VisibleProgress {
 	private _lastReport: string | null;
 	private _currentProgressPromiseResolve: (() => void) | null;
 	private _currentProgress: IProgress<IProgressStep> | null;
-	private _currentTimer: ReconnectionTimer2 | null;
+	private _currentTimer: ReconnectionTimer | null;
 
 	public get lastReport(): string | null {
 		return this._lastReport;
@@ -653,7 +654,7 @@ class VisibleProgress {
 
 	public startTimer(completionTime: number): void {
 		this.stopTimer();
-		this._currentTimer = new ReconnectionTimer2(this, completionTime);
+		this._currentTimer = new ReconnectionTimer(this, completionTime);
 	}
 
 	public stopTimer(): void {
@@ -664,7 +665,7 @@ class VisibleProgress {
 	}
 }
 
-class ReconnectionTimer2 implements IDisposable {
+class ReconnectionTimer implements IDisposable {
 	private readonly _parent: VisibleProgress;
 	private readonly _completionTime: number;
 	private readonly _token: any;
@@ -699,7 +700,7 @@ class ReconnectionTimer2 implements IDisposable {
  */
 const DISCONNECT_PROMPT_TIME = 40 * 1000; // 40 seconds
 
-class RemoteAgentConnectionStatusListener extends Disposable implements IWorkbenchContribution {
+export class RemoteAgentConnectionStatusListener extends Disposable implements IWorkbenchContribution {
 
 	private _reloadWindowShown: boolean = false;
 
@@ -724,7 +725,7 @@ class RemoteAgentConnectionStatusListener extends Disposable implements IWorkben
 			let reconnectWaitEvent: ReconnectionWaitEvent | null = null;
 			let disposableListener: IDisposable | null = null;
 
-			function showProgress(location: ProgressLocation.Dialog | ProgressLocation.Notification | null, buttons: { label: string, callback: () => void }[], initialReport: string | null = null): VisibleProgress {
+			function showProgress(location: ProgressLocation.Dialog | ProgressLocation.Notification | null, buttons: { label: string; callback: () => void }[], initialReport: string | null = null): VisibleProgress {
 				if (visibleProgress) {
 					visibleProgress.dispose();
 					visibleProgress = null;
@@ -765,9 +766,7 @@ class RemoteAgentConnectionStatusListener extends Disposable implements IWorkben
 			const reconnectButton = {
 				label: nls.localize('reconnectNow', "Reconnect Now"),
 				callback: () => {
-					if (reconnectWaitEvent) {
-						reconnectWaitEvent.skipWait();
-					}
+					reconnectWaitEvent?.skipWait();
 				}
 			};
 
@@ -776,10 +775,12 @@ class RemoteAgentConnectionStatusListener extends Disposable implements IWorkben
 				callback: () => {
 
 					type ReconnectReloadClassification = {
-						remoteName: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-						reconnectionToken: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-						millisSinceLastIncomingData: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-						attempt: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+						owner: 'alexdima';
+						comment: 'The reload button in the builtin permanent reconnection failure dialog was pressed';
+						remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the resolver.' };
+						reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the connection.' };
+						millisSinceLastIncomingData: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Elapsed time (in ms) since data was last received.' };
+						attempt: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The reconnection attempt counter.' };
 					};
 					type ReconnectReloadEvent = {
 						remoteName: string | undefined;
@@ -805,9 +806,7 @@ class RemoteAgentConnectionStatusListener extends Disposable implements IWorkben
 			// ReconnectionRunning -> ConnectionGain, ReconnectionPermanentFailure
 
 			connection.onDidStateChange((e) => {
-				if (visibleProgress) {
-					visibleProgress.stopTimer();
-				}
+				visibleProgress?.stopTimer();
 
 				if (disposableListener) {
 					disposableListener.dispose();
@@ -820,8 +819,10 @@ class RemoteAgentConnectionStatusListener extends Disposable implements IWorkben
 						reconnectionAttempts = 0;
 
 						type RemoteConnectionLostClassification = {
-							remoteName: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-							reconnectionToken: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+							owner: 'alexdima';
+							comment: 'The remote connection state is now `ConnectionLost`';
+							remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the resolver.' };
+							reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the connection.' };
 						};
 						type RemoteConnectionLostEvent = {
 							remoteName: string | undefined;
@@ -854,10 +855,12 @@ class RemoteAgentConnectionStatusListener extends Disposable implements IWorkben
 						reconnectionAttempts = e.attempt;
 
 						type RemoteReconnectionRunningClassification = {
-							remoteName: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-							reconnectionToken: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-							millisSinceLastIncomingData: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-							attempt: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+							owner: 'alexdima';
+							comment: 'The remote connection state is now `ReconnectionRunning`';
+							remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the resolver.' };
+							reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the connection.' };
+							millisSinceLastIncomingData: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Elapsed time (in ms) since data was last received.' };
+							attempt: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The reconnection attempt counter.' };
 						};
 						type RemoteReconnectionRunningEvent = {
 							remoteName: string | undefined;
@@ -893,11 +896,13 @@ class RemoteAgentConnectionStatusListener extends Disposable implements IWorkben
 						reconnectionAttempts = e.attempt;
 
 						type RemoteReconnectionPermanentFailureClassification = {
-							remoteName: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-							reconnectionToken: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-							millisSinceLastIncomingData: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-							attempt: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-							handled: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+							owner: 'alexdima';
+							comment: 'The remote connection state is now `ReconnectionPermanentFailure`';
+							remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the resolver.' };
+							reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the connection.' };
+							millisSinceLastIncomingData: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Elapsed time (in ms) since data was last received.' };
+							attempt: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The reconnection attempt counter.' };
+							handled: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The error was handled by the resolver.' };
 						};
 						type RemoteReconnectionPermanentFailureEvent = {
 							remoteName: string | undefined;
@@ -936,10 +941,12 @@ class RemoteAgentConnectionStatusListener extends Disposable implements IWorkben
 						reconnectionAttempts = e.attempt;
 
 						type RemoteConnectionGainClassification = {
-							remoteName: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-							reconnectionToken: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-							millisSinceLastIncomingData: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-							attempt: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+							owner: 'alexdima';
+							comment: 'The remote connection state is now `ConnectionGain`';
+							remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the resolver.' };
+							reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the connection.' };
+							millisSinceLastIncomingData: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Elapsed time (in ms) since data was last received.' };
+							attempt: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The reconnection attempt counter.' };
 						};
 						type RemoteConnectionGainEvent = {
 							remoteName: string | undefined;
@@ -961,11 +968,3 @@ class RemoteAgentConnectionStatusListener extends Disposable implements IWorkben
 		}
 	}
 }
-
-const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentConnectionStatusListener, LifecyclePhase.Eventually);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteStatusIndicator, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(ForwardedPortsView, LifecyclePhase.Eventually);
-workbenchContributionsRegistry.registerWorkbenchContribution(PortRestore, LifecyclePhase.Eventually);
-workbenchContributionsRegistry.registerWorkbenchContribution(AutomaticPortForwarding, LifecyclePhase.Eventually);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteMarkers, LifecyclePhase.Eventually);

@@ -59,7 +59,8 @@
 		"terminal.ansiBrightBlue": "#819aff", // hue shifted #AE81FF
 		"terminal.ansiBrightMagenta": "#AE81FF",
 		"terminal.ansiBrightCyan": "#66D9EF",
-		"terminal.ansiBrightWhite": "#f8f8f2"
+		"terminal.ansiBrightWhite": "#f8f8f2",
+		"terminal.inactiveSelectionBackground": "#676b7140"
 	},
 	"tokenColors": [
 		{
@@ -347,7 +348,7 @@
 		},
 		{
 			"name": "HTML String",
-			"scope": "string.quoted.double.html, punctuation.definition.string.begin.html, punctuation.definition.string.end.html",
+			"scope": "string.quoted.double.html, punctuation.definition.string.begin.html, punctuation.definition.string.end.html, punctuation.definition.string.end.html source, string.quoted.double.html source",
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#9AA83A"
@@ -599,6 +600,12 @@
 			"scope": "markup.italic.markdown",
 			"settings": {
 				"fontStyle": "italic"
+			}
+		},
+		{
+			"scope": "markup.strikethrough",
+			"settings": {
+				"fontStyle": "strikethrough"
 			}
 		},
 		{

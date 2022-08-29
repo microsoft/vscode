@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { IExtHostContext, IWorkspaceEditDto, MainThreadBulkEditsShape, MainContext } from 'vs/workbench/api/common/extHost.protocol'; import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { reviveWorkspaceEditDto2 } from 'vs/workbench/api/browser/mainThreadEditors';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IWorkspaceEditDto, MainContext, MainThreadBulkEditsShape, reviveWorkspaceEditDto } from 'vs/workbench/api/common/extHost.protocol';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+
 
 @extHostNamedCustomer(MainContext.MainThreadBulkEdits)
 export class MainThreadBulkEdits implements MainThreadBulkEditsShape {
@@ -20,7 +21,7 @@ export class MainThreadBulkEdits implements MainThreadBulkEditsShape {
 	dispose(): void { }
 
 	$tryApplyWorkspaceEdit(dto: IWorkspaceEditDto, undoRedoGroupId?: number): Promise<boolean> {
-		const edits = reviveWorkspaceEditDto2(dto);
+		const edits = reviveWorkspaceEditDto(dto);
 		return this._bulkEditService.apply(edits, { undoRedoGroupId }).then(() => true, err => {
 			this._logService.warn('IGNORING workspace edit', err);
 			return false;

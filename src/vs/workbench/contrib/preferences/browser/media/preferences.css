@@ -198,6 +198,10 @@
 	outline: 1px dotted #f38518;
 }
 
+.monaco-editor.hc-light .settings-group-title-widget .title-container.focused {
+	outline: 1px dotted #0F4A85;
+}
+
 .monaco-editor .settings-group-title-widget .title-container .codicon {
 	margin: 0 2px;
 	width: 16px;

@@ -147,8 +147,13 @@ export class HistoryNavigator2<T> {
 		}
 	}
 
-	replaceLast(value: T): void {
+	/**
+	 * @returns old last value
+	 */
+	replaceLast(value: T): T {
+		const oldValue = this.tail.value;
 		this.tail.value = value;
+		return oldValue;
 	}
 
 	isAtEnd(): boolean {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/scm';
-import { IDisposable, Disposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, DisposableStore, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { append, $ } from 'vs/base/browser/dom';
 import { ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
@@ -110,7 +110,18 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 			templateData.countContainer.setAttribute('data-count', String(count));
 			templateData.count.setCount(count);
 		};
-		disposables.add(repository.provider.onDidChange(onDidChangeProvider, null));
+
+		// TODO@joao TODO@lszomoru
+		let disposed = false;
+		disposables.add(toDisposable(() => disposed = true));
+		disposables.add(repository.provider.onDidChange(() => {
+			if (disposed) {
+				return;
+			}
+
+			onDidChangeProvider();
+		}));
+
 		onDidChangeProvider();
 
 		const menus = this.scmViewService.menus.getRepositoryMenus(repository.provider);

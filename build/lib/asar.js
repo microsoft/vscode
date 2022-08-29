@@ -1,8 +1,8 @@
+"use strict";
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createAsar = void 0;
 const path = require("path");
@@ -81,7 +81,7 @@ function createAsar(folderPath, unpackGlobs, destFilename) {
             out.push(file.contents);
         }
     }, function () {
-        let finish = () => {
+        const finish = () => {
             {
                 const headerPickle = pickle.createEmpty();
                 headerPickle.writeString(JSON.stringify(filesystem.header));

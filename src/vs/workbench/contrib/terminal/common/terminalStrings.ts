@@ -6,18 +6,13 @@
 import { localize } from 'vs/nls';
 
 /**
- * Formats a message from the product to be written to the terminal.
- */
-export function formatMessageForTerminal(message: string, excludeLeadingNewLine: boolean = false): string {
-	// Wrap in bold and ensure it's on a new line
-	return `${excludeLeadingNewLine ? '' : '\r\n'}\x1b[1m${message}\x1b[0m\n\r`;
-}
-
-/**
  * An object holding strings shared by multiple parts of the terminal
  */
 export const terminalStrings = {
 	terminal: localize('terminal', "Terminal"),
+	doNotShowAgain: localize('doNotShowAgain', 'Do Not Show Again'),
+	currentSessionCategory: localize('currentSessionCategory', 'current session'),
+	previousSessionCategory: localize('previousSessionCategory', 'previous session'),
 	focus: {
 		value: localize('workbench.action.terminal.focus', "Focus Terminal"),
 		original: 'Focus Terminal'
@@ -30,7 +25,6 @@ export const terminalStrings = {
 	moveToEditor: {
 		value: localize('moveToEditor', "Move Terminal into Editor Area"),
 		original: 'Move Terminal into Editor Area',
-		short: localize('moveToEditorShort', "Move into Editor Area")
 	},
 	moveToTerminalPanel: {
 		value: localize('workbench.action.terminal.moveToTerminalPanel', "Move Terminal into Panel"),
@@ -57,8 +51,8 @@ export const terminalStrings = {
 		value: localize('workbench.action.terminal.rename', "Rename..."),
 		original: 'Rename...'
 	},
-	sizeToContentWidth: {
-		value: localize('workbench.action.terminal.sizeToContentWidthInstance', "Fixed Content Width"),
-		original: 'Fixed Content Width'
+	toggleSizeToContentWidth: {
+		value: localize('workbench.action.terminal.sizeToContentWidthInstance', "Toggle Size to Content Width"),
+		original: 'Toggle Size to Content Width'
 	}
 };

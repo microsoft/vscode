@@ -7,14 +7,14 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as nls from 'vs/nls';
 import { CustomEditorPriority, CustomEditorSelector } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
+import { languagesExtPoint } from 'vs/workbench/services/language/common/languageService';
 
-namespace Fields {
-	export const viewType = 'viewType';
-	export const displayName = 'displayName';
-	export const selector = 'selector';
-	export const priority = 'priority';
-}
+const Fields = Object.freeze({
+	viewType: 'viewType',
+	displayName: 'displayName',
+	selector: 'selector',
+	priority: 'priority',
+});
 
 export interface ICustomEditorsExtensionPoint {
 	readonly [Fields.viewType]: string;

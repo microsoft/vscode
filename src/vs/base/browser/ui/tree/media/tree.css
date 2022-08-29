@@ -10,6 +10,9 @@
 	position: relative;
 }
 
+.monaco-tl-row.disabled {
+	cursor: default;
+}
 .monaco-tl-indent {
 	height: 100%;
 	position: absolute;
@@ -66,4 +69,56 @@
 .monaco-tl-twistie.codicon-tree-item-loading::before {
 	/* Use steps to throttle FPS to reduce CPU usage */
 	animation: codicon-spin 1.25s steps(30) infinite;
+}
+
+.monaco-tree-type-filter {
+	position: absolute;
+	top: 0;
+	display: flex;
+	padding: 3px;
+	transition: top 0.3s;
+	max-width: 200px;
+	z-index: 100;
+	margin: 0 6px;
+}
+
+.monaco-tree-type-filter.disabled {
+	top: -40px;
+}
+
+.monaco-tree-type-filter-grab {
+	display: flex !important;
+	align-items: center;
+	justify-content: center;
+	cursor: grab;
+	margin-right: 2px;
+}
+
+.monaco-tree-type-filter-grab.grabbing {
+	cursor: grabbing;
+}
+
+.monaco-tree-type-filter-input {
+	flex: 1;
+}
+
+.monaco-tree-type-filter-input .monaco-inputbox {
+	height: 23px;
+}
+
+.monaco-tree-type-filter-input .monaco-inputbox > .ibwrapper > .input,
+.monaco-tree-type-filter-input .monaco-inputbox > .ibwrapper > .mirror {
+	padding: 2px 4px;
+}
+
+.monaco-tree-type-filter-input .monaco-findInput > .controls {
+	top: 2px;
+}
+
+.monaco-tree-type-filter-actionbar {
+	margin-left: 4px;
+}
+
+.monaco-tree-type-filter-actionbar .monaco-action-bar .action-label {
+	padding: 2px;
 }

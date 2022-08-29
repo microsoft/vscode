@@ -6,7 +6,6 @@
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -18,23 +17,26 @@ import { compareAnything } from 'vs/base/common/comparers';
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMatch } from 'vs/base/common/filters';
-import { matchesFuzzyIconAware, parseLabelWithIcons } from 'vs/base/common/iconLabels';
+import { IParsedLabelWithIcons, matchesFuzzyIconAware, parseLabelWithIcons } from 'vs/base/common/iconLabels';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
+import { ltrim } from 'vs/base/common/strings';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IQuickInputOptions } from 'vs/base/parts/quickinput/browser/quickInput';
 import { getIconClass } from 'vs/base/parts/quickinput/browser/quickInputUtils';
-import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator } from 'vs/base/parts/quickinput/common/quickInput';
+import { QuickPickItem, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator } from 'vs/base/parts/quickinput/common/quickInput';
 import 'vs/css!./media/quickInput';
 import { localize } from 'vs/nls';
 
 const $ = dom.$;
 
 interface IListElement {
+	readonly hasCheckbox: boolean;
 	readonly index: number;
 	readonly item: IQuickPickItem;
 	readonly saneLabel: string;
+	readonly saneSortLabel: string;
 	readonly saneMeta?: string;
 	readonly saneAriaLabel: string;
 	readonly saneDescription?: string;
@@ -48,9 +50,11 @@ interface IListElement {
 }
 
 class ListElement implements IListElement, IDisposable {
+	hasCheckbox!: boolean;
 	index!: number;
 	item!: IQuickPickItem;
 	saneLabel!: string;
+	saneSortLabel!: string;
 	saneMeta!: string;
 	saneAriaLabel!: string;
 	saneDescription?: string;
@@ -88,7 +92,7 @@ interface IListElementTemplateData {
 	checkbox: HTMLInputElement;
 	label: IconLabel;
 	keybinding: KeybindingLabel;
-	detail: HighlightedLabel;
+	detail: IconLabel;
 	separator: HTMLDivElement;
 	actionBar: ActionBar;
 	element: ListElement;
@@ -138,7 +142,7 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 
 		// Detail
 		const detailContainer = dom.append(row2, $('.quick-input-list-label-meta'));
-		data.detail = new HighlightedLabel(detailContainer, true);
+		data.detail = new IconLabel(detailContainer, { supportHighlights: true, supportIcons: true });
 
 		// Separator
 		data.separator = dom.append(data.entry, $('.quick-input-list-separator'));
@@ -173,7 +177,12 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 		data.keybinding.set(element.item.keybinding);
 
 		// Meta
-		data.detail.set(element.saneDetail, detailHighlights);
+		if (element.saneDetail) {
+			data.detail.setLabel(element.saneDetail, undefined, {
+				matches: detailHighlights,
+				title: element.saneDetail
+			});
+		}
 
 		// Separator
 		if (element.separator && element.separator.label) {
@@ -244,12 +253,13 @@ export class QuickInputList {
 	readonly id: string;
 	private container: HTMLElement;
 	private list: List<ListElement>;
-	private inputElements: Array<IQuickPickItem | IQuickPickSeparator> = [];
+	private inputElements: Array<QuickPickItem> = [];
 	private elements: ListElement[] = [];
 	private elementsToIndexes = new Map<IQuickPickItem, number>();
 	matchOnDescription = false;
 	matchOnDetail = false;
 	matchOnLabel = true;
+	matchOnLabelMode: 'fuzzy' | 'contiguous' = 'fuzzy';
 	matchOnMeta = true;
 	sortByLabel = true;
 	private readonly _onChangedAllVisibleChecked = new Emitter<boolean>();
@@ -294,23 +304,25 @@ export class QuickInputList {
 				case KeyCode.Space:
 					this.toggleCheckbox();
 					break;
-				case KeyCode.KEY_A:
+				case KeyCode.KeyA:
 					if (platform.isMacintosh ? e.metaKey : e.ctrlKey) {
 						this.list.setFocus(range(this.list.length));
 					}
 					break;
-				case KeyCode.UpArrow:
+				case KeyCode.UpArrow: {
 					const focus1 = this.list.getFocus();
 					if (focus1.length === 1 && focus1[0] === 0) {
 						this._onLeave.fire();
 					}
 					break;
-				case KeyCode.DownArrow:
+				}
+				case KeyCode.DownArrow: {
 					const focus2 = this.list.getFocus();
 					if (focus2.length === 1 && focus2[0] === this.list.length - 1) {
 						this._onLeave.fire();
 					}
 					break;
+				}
 			}
 
 			this._onKeyDown.fire(event);
@@ -424,7 +436,7 @@ export class QuickInputList {
 		}
 	}
 
-	setElements(inputElements: Array<IQuickPickItem | IQuickPickSeparator>): void {
+	setElements(inputElements: Array<QuickPickItem>): void {
 		this.elementDisposables = dispose(this.elementDisposables);
 		const fireButtonTriggered = (event: IQuickPickItemButtonEvent<IQuickPickItem>) => this.fireButtonTriggered(event);
 		this.inputElements = inputElements;
@@ -432,6 +444,7 @@ export class QuickInputList {
 			if (item.type !== 'separator') {
 				const previous = index && inputElements[index - 1];
 				const saneLabel = item.label && item.label.replace(/\r?\n/g, ' ');
+				const saneSortLabel = parseLabelWithIcons(saneLabel).text.trim();
 				const saneMeta = item.meta && item.meta.replace(/\r?\n/g, ' ');
 				const saneDescription = item.description && item.description.replace(/\r?\n/g, ' ');
 				const saneDetail = item.detail && item.detail.replace(/\r?\n/g, ' ');
@@ -440,10 +453,13 @@ export class QuickInputList {
 					.filter(s => !!s)
 					.join(', ');
 
+				const hasCheckbox = this.parent.classList.contains('show-checkboxes');
 				result.push(new ListElement({
+					hasCheckbox,
 					index,
 					item,
 					saneLabel,
+					saneSortLabel,
 					saneMeta,
 					saneAriaLabel,
 					saneDescription,
@@ -596,6 +612,8 @@ export class QuickInputList {
 			this.list.layout();
 			return false;
 		}
+
+		const queryWithWhitespace = query;
 		query = query.trim();
 
 		// Reset filtering
@@ -614,7 +632,12 @@ export class QuickInputList {
 		else {
 			let currentSeparator: IQuickPickSeparator | undefined;
 			this.elements.forEach(element => {
-				const labelHighlights = this.matchOnLabel ? withNullAsUndefined(matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneLabel))) : undefined;
+				let labelHighlights: IMatch[] | undefined;
+				if (this.matchOnLabelMode === 'fuzzy') {
+					labelHighlights = this.matchOnLabel ? withNullAsUndefined(matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneLabel))) : undefined;
+				} else {
+					labelHighlights = this.matchOnLabel ? withNullAsUndefined(matchesContiguousIconAware(queryWithWhitespace, parseLabelWithIcons(element.saneLabel))) : undefined;
+				}
 				const descriptionHighlights = this.matchOnDescription ? withNullAsUndefined(matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneDescription || ''))) : undefined;
 				const detailHighlights = this.matchOnDetail ? withNullAsUndefined(matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneDetail || ''))) : undefined;
 				const metaHighlights = this.matchOnMeta ? withNullAsUndefined(matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneMeta || ''))) : undefined;
@@ -712,6 +735,43 @@ export class QuickInputList {
 	}
 }
 
+export function matchesContiguousIconAware(query: string, target: IParsedLabelWithIcons): IMatch[] | null {
+
+	const { text, iconOffsets } = target;
+
+	// Return early if there are no icon markers in the word to match against
+	if (!iconOffsets || iconOffsets.length === 0) {
+		return matchesContiguous(query, text);
+	}
+
+	// Trim the word to match against because it could have leading
+	// whitespace now if the word started with an icon
+	const wordToMatchAgainstWithoutIconsTrimmed = ltrim(text, ' ');
+	const leadingWhitespaceOffset = text.length - wordToMatchAgainstWithoutIconsTrimmed.length;
+
+	// match on value without icon
+	const matches = matchesContiguous(query, wordToMatchAgainstWithoutIconsTrimmed);
+
+	// Map matches back to offsets with icon and trimming
+	if (matches) {
+		for (const match of matches) {
+			const iconOffset = iconOffsets[match.start + leadingWhitespaceOffset] /* icon offsets at index */ + leadingWhitespaceOffset /* overall leading whitespace offset */;
+			match.start += iconOffset;
+			match.end += iconOffset;
+		}
+	}
+
+	return matches;
+}
+
+function matchesContiguous(word: string, wordToMatchAgainst: string): IMatch[] | null {
+	const matchIndex = wordToMatchAgainst.toLowerCase().indexOf(word.toLowerCase());
+	if (matchIndex !== -1) {
+		return [{ start: matchIndex, end: matchIndex + word.length }];
+	}
+	return null;
+}
+
 function compareEntries(elementA: ListElement, elementB: ListElement, lookFor: string): number {
 
 	const labelHighlightsA = elementA.labelHighlights || [];
@@ -728,7 +788,7 @@ function compareEntries(elementA: ListElement, elementB: ListElement, lookFor: s
 		return 0;
 	}
 
-	return compareAnything(elementA.saneLabel, elementB.saneLabel, lookFor);
+	return compareAnything(elementA.saneSortLabel, elementB.saneSortLabel, lookFor);
 }
 
 class QuickInputAccessibilityProvider implements IListAccessibilityProvider<ListElement> {
@@ -738,14 +798,27 @@ class QuickInputAccessibilityProvider implements IListAccessibilityProvider<List
 	}
 
 	getAriaLabel(element: ListElement): string | null {
-		return element.saneAriaLabel;
+		return element.separator?.label
+			? `${element.saneAriaLabel}, ${element.separator.label}`
+			: element.saneAriaLabel;
 	}
 
 	getWidgetRole() {
 		return 'listbox';
 	}
 
-	getRole() {
-		return 'option';
+	getRole(element: ListElement) {
+		return element.hasCheckbox ? 'checkbox' : 'option';
+	}
+
+	isChecked(element: ListElement) {
+		if (!element.hasCheckbox) {
+			return undefined;
+		}
+
+		return {
+			value: element.checked,
+			onDidChange: element.onChecked
+		};
 	}
 }

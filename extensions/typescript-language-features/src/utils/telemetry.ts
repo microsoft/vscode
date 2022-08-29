@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import VsCodeTelemetryReporter from 'vscode-extension-telemetry';
+import VsCodeTelemetryReporter from '@vscode/extension-telemetry';
 import { memoize } from './memoize';
 
 interface PackageInfo {
@@ -55,7 +55,7 @@ export class VSCodeTelemetryReporter implements TelemetryReporter {
 
 	@memoize
 	private get reporter(): VsCodeTelemetryReporter | null {
-		if (this.packageInfo && this.packageInfo.aiKey) {
+		if (this.packageInfo?.aiKey) {
 			this._reporter = new VsCodeTelemetryReporter(
 				this.packageInfo.name,
 				this.packageInfo.version,

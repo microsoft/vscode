@@ -5,16 +5,16 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IOverviewRulerLayoutInfo, SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollableElementChangeOptions, ScrollableElementCreationOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
 import { INewScrollPosition, ScrollType } from 'vs/editor/common/editorCommon';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import * as viewEvents from 'vs/editor/common/viewEvents';
+import { registerThemingParticipant, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 
 export class EditorScrollbar extends ViewPart {
 
@@ -89,7 +89,7 @@ export class EditorScrollbar extends ViewPart {
 				}
 			}
 
-			this._context.model.setScrollPosition(newScrollPosition, ScrollType.Immediate);
+			this._context.viewModel.viewLayout.setScrollPosition(newScrollPosition, ScrollType.Immediate);
 		};
 
 		// I've seen this happen both on the view dom node & on the lines content dom node.
@@ -127,8 +127,8 @@ export class EditorScrollbar extends ViewPart {
 		return this.scrollbarDomNode;
 	}
 
-	public delegateVerticalScrollbarMouseDown(browserEvent: IMouseEvent): void {
-		this.scrollbar.delegateVerticalScrollbarMouseDown(browserEvent);
+	public delegateVerticalScrollbarPointerDown(browserEvent: PointerEvent): void {
+		this.scrollbar.delegateVerticalScrollbarPointerDown(browserEvent);
 	}
 
 	// --- begin event handlers
@@ -180,3 +180,51 @@ export class EditorScrollbar extends ViewPart {
 		this.scrollbar.renderNow();
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+
+	// Scrollbars
+	const scrollbarShadowColor = theme.getColor(scrollbarShadow);
+	if (scrollbarShadowColor) {
+		collector.addRule(`
+			.monaco-scrollable-element > .shadow.top {
+				box-shadow: ${scrollbarShadowColor} 0 6px 6px -6px inset;
+			}
+
+			.monaco-scrollable-element > .shadow.left {
+				box-shadow: ${scrollbarShadowColor} 6px 0 6px -6px inset;
+			}
+
+			.monaco-scrollable-element > .shadow.top.left {
+				box-shadow: ${scrollbarShadowColor} 6px 6px 6px -6px inset;
+			}
+		`);
+	}
+
+	const scrollbarSliderBackgroundColor = theme.getColor(scrollbarSliderBackground);
+	if (scrollbarSliderBackgroundColor) {
+		collector.addRule(`
+			.monaco-scrollable-element > .scrollbar > .slider {
+				background: ${scrollbarSliderBackgroundColor};
+			}
+		`);
+	}
+
+	const scrollbarSliderHoverBackgroundColor = theme.getColor(scrollbarSliderHoverBackground);
+	if (scrollbarSliderHoverBackgroundColor) {
+		collector.addRule(`
+			.monaco-scrollable-element > .scrollbar > .slider:hover {
+				background: ${scrollbarSliderHoverBackgroundColor};
+			}
+		`);
+	}
+
+	const scrollbarSliderActiveBackgroundColor = theme.getColor(scrollbarSliderActiveBackground);
+	if (scrollbarSliderActiveBackgroundColor) {
+		collector.addRule(`
+			.monaco-scrollable-element > .scrollbar > .slider.active {
+				background: ${scrollbarSliderActiveBackgroundColor};
+			}
+		`);
+	}
+});

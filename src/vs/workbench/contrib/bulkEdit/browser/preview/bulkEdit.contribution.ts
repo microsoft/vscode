@@ -8,7 +8,8 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IBulkEditService, ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 import { BulkEditPane } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPane';
-import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry, FocusedViewContext, IViewsService } from 'vs/workbench/common/views';
+import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry, IViewsService } from 'vs/workbench/common/views';
+import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
 import { localize } from 'vs/nls';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { RawContextKey, IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -48,28 +49,32 @@ class UXState {
 		this._activePanel = _paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel)?.getId();
 	}
 
-	async restore(): Promise<void> {
+	async restore(panels: boolean, editors: boolean): Promise<void> {
 
 		// (1) restore previous panel
-		if (typeof this._activePanel === 'string') {
-			await this._paneCompositeService.openPaneComposite(this._activePanel, ViewContainerLocation.Panel);
-		} else {
-			this._paneCompositeService.hideActivePaneComposite(ViewContainerLocation.Panel);
+		if (panels) {
+			if (typeof this._activePanel === 'string') {
+				await this._paneCompositeService.openPaneComposite(this._activePanel, ViewContainerLocation.Panel);
+			} else {
+				this._paneCompositeService.hideActivePaneComposite(ViewContainerLocation.Panel);
+			}
 		}
 
 		// (2) close preview editors
-		for (let group of this._editorGroupsService.groups) {
-			let previewEditors: EditorInput[] = [];
-			for (let input of group.editors) {
+		if (editors) {
+			for (const group of this._editorGroupsService.groups) {
+				const previewEditors: EditorInput[] = [];
+				for (const input of group.editors) {
 
-				let resource = EditorResourceAccessor.getCanonicalUri(input, { supportSideBySide: SideBySideEditor.PRIMARY });
-				if (resource?.scheme === BulkEditPreviewProvider.Schema) {
-					previewEditors.push(input);
+					const resource = EditorResourceAccessor.getCanonicalUri(input, { supportSideBySide: SideBySideEditor.PRIMARY });
+					if (resource?.scheme === BulkEditPreviewProvider.Schema) {
+						previewEditors.push(input);
+					}
 				}
-			}
 
-			if (previewEditors.length) {
-				group.closeEditors(previewEditors, { preserveFocus: true });
+				if (previewEditors.length) {
+					group.closeEditors(previewEditors, { preserveFocus: true });
+				}
 			}
 		}
 	}
@@ -117,11 +122,14 @@ class BulkEditPreviewContribution {
 			const choice = await this._dialogService.show(
 				Severity.Info,
 				localize('overlap', "Another refactoring is being previewed."),
-				[localize('cancel', "Cancel"), localize('continue', "Continue")],
-				{ detail: localize('detail', "Press 'Continue' to discard the previous refactoring and continue with the current refactoring.") }
+				[localize('continue', "Continue"), localize('cancel', "Cancel")],
+				{
+					detail: localize('detail', "Press 'Continue' to discard the previous refactoring and continue with the current refactoring."),
+					cancelId: 1
+				}
 			);
 
-			if (choice.choice === 0) {
+			if (choice.choice === 1) {
 				// this refactoring is being cancelled
 				return [];
 			}
@@ -130,6 +138,7 @@ class BulkEditPreviewContribution {
 		// session
 		let session: PreviewSession;
 		if (this._activeSession) {
+			await this._activeSession.uxState.restore(false, true);
 			this._activeSession.cts.dispose(true);
 			session = new PreviewSession(uxState);
 		} else {
@@ -145,7 +154,7 @@ class BulkEditPreviewContribution {
 		} finally {
 			// restore UX state
 			if (this._activeSession === session) {
-				await this._activeSession.uxState.restore();
+				await this._activeSession.uxState.restore(true, true);
 				this._activeSession.cts.dispose();
 				this._ctxEnabled.set(false);
 				this._activeSession = undefined;
@@ -166,9 +175,6 @@ registerAction2(class ApplyAction extends Action2 {
 			icon: Codicon.check,
 			precondition: ContextKeyExpr.and(BulkEditPreviewContribution.ctxEnabled, BulkEditPane.ctxHasCheckedChanges),
 			menu: [{
-				id: MenuId.BulkEditTitle,
-				group: 'navigation'
-			}, {
 				id: MenuId.BulkEditContext,
 				order: 1
 			}],
@@ -183,9 +189,7 @@ registerAction2(class ApplyAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<any> {
 		const viewsService = accessor.get(IViewsService);
 		const view = await getBulkEditPane(viewsService);
-		if (view) {
-			view.accept();
-		}
+		view?.accept();
 	}
 });
 
@@ -200,9 +204,6 @@ registerAction2(class DiscardAction extends Action2 {
 			icon: Codicon.clearAll,
 			precondition: BulkEditPreviewContribution.ctxEnabled,
 			menu: [{
-				id: MenuId.BulkEditTitle,
-				group: 'navigation'
-			}, {
 				id: MenuId.BulkEditContext,
 				order: 2
 			}]
@@ -212,9 +213,7 @@ registerAction2(class DiscardAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const viewsService = accessor.get(IViewsService);
 		const view = await getBulkEditPane(viewsService);
-		if (view) {
-			view.discard();
-		}
+		view?.discard();
 	}
 });
 
@@ -243,9 +242,7 @@ registerAction2(class ToggleAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const viewsService = accessor.get(IViewsService);
 		const view = await getBulkEditPane(viewsService);
-		if (view) {
-			view.toggleChecked();
-		}
+		view?.toggleChecked();
 	}
 });
 
@@ -272,9 +269,7 @@ registerAction2(class GroupByFile extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const viewsService = accessor.get(IViewsService);
 		const view = await getBulkEditPane(viewsService);
-		if (view) {
-			view.groupByFile();
-		}
+		view?.groupByFile();
 	}
 });
 
@@ -299,9 +294,7 @@ registerAction2(class GroupByType extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const viewsService = accessor.get(IViewsService);
 		const view = await getBulkEditPane(viewsService);
-		if (view) {
-			view.groupByType();
-		}
+		view?.groupByType();
 	}
 });
 
@@ -325,9 +318,7 @@ registerAction2(class ToggleGrouping extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const viewsService = accessor.get(IViewsService);
 		const view = await getBulkEditPane(viewsService);
-		if (view) {
-			view.toggleGrouping();
-		}
+		view?.toggleGrouping();
 	}
 });
 
@@ -343,7 +334,7 @@ const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.V
 	hideIfEmpty: true,
 	ctorDescriptor: new SyncDescriptor(
 		ViewPaneContainer,
-		[BulkEditPane.ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]
+		[BulkEditPane.ID, { mergeViewWithContainerWhenSingleView: true }]
 	),
 	icon: refactorPreviewViewIcon,
 	storageId: BulkEditPane.ID

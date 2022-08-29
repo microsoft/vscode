@@ -8,7 +8,7 @@ import { illegalArgument, readonly } from 'vs/base/common/errors';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 import { IRange } from 'vs/editor/common/core/range';
-import { ISingleEditOperation } from 'vs/editor/common/model';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, MainThreadTextEditorsShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as TypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { EndOfLine, Position, Range, Selection, SnippetString, TextEditorLineNumbersStyle, TextEditorRevealType } from 'vs/workbench/api/common/extHostTypes';
@@ -60,7 +60,7 @@ export class TextEditorEdit {
 	private _setEndOfLine: EndOfLine | undefined = undefined;
 	private _finalized: boolean = false;
 
-	constructor(document: vscode.TextDocument, options: { undoStopBefore: boolean; undoStopAfter: boolean; }) {
+	constructor(document: vscode.TextDocument, options: { undoStopBefore: boolean; undoStopAfter: boolean }) {
 		this._document = document;
 		this._documentVersionId = document.version;
 		this._undoStopBefore = options.undoStopBefore;
@@ -226,7 +226,7 @@ export class ExtHostTextEditorOptions {
 			// reflect the new tabSize value immediately
 			this._tabSize = tabSize;
 		}
-		this._warnOnError(this._proxy.$trySetOptions(this._id, {
+		this._warnOnError('setTabSize', this._proxy.$trySetOptions(this._id, {
 			tabSize: tabSize
 		}));
 	}
@@ -250,7 +250,7 @@ export class ExtHostTextEditorOptions {
 			// reflect the new insertSpaces value immediately
 			this._insertSpaces = insertSpaces;
 		}
-		this._warnOnError(this._proxy.$trySetOptions(this._id, {
+		this._warnOnError('setInsertSpaces', this._proxy.$trySetOptions(this._id, {
 			insertSpaces: insertSpaces
 		}));
 	}
@@ -263,7 +263,7 @@ export class ExtHostTextEditorOptions {
 			return;
 		}
 		this._cursorStyle = value;
-		this._warnOnError(this._proxy.$trySetOptions(this._id, {
+		this._warnOnError('setCursorStyle', this._proxy.$trySetOptions(this._id, {
 			cursorStyle: value
 		}));
 	}
@@ -276,7 +276,7 @@ export class ExtHostTextEditorOptions {
 			return;
 		}
 		this._lineNumbers = value;
-		this._warnOnError(this._proxy.$trySetOptions(this._id, {
+		this._warnOnError('setLineNumbers', this._proxy.$trySetOptions(this._id, {
 			lineNumbers: TypeConverters.TextEditorLineNumbersStyle.from(value)
 		}));
 	}
@@ -341,12 +341,15 @@ export class ExtHostTextEditorOptions {
 		}
 
 		if (hasUpdate) {
-			this._warnOnError(this._proxy.$trySetOptions(this._id, bulkConfigurationUpdate));
+			this._warnOnError('setOptions', this._proxy.$trySetOptions(this._id, bulkConfigurationUpdate));
 		}
 	}
 
-	private _warnOnError(promise: Promise<any>): void {
-		promise.catch(err => this._logService.warn(err));
+	private _warnOnError(action: string, promise: Promise<any>): void {
+		promise.catch(err => {
+			this._logService.warn(`ExtHostTextEditorOptions '${action}' failed:'`);
+			this._logService.warn(err);
+		});
 	}
 }
 
@@ -428,7 +431,7 @@ export class ExtHostTextEditor {
 				throw readonly('viewColumn');
 			},
 			// --- edit
-			edit(callback: (edit: TextEditorEdit) => void, options: { undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Promise<boolean> {
+			edit(callback: (edit: TextEditorEdit) => void, options: { undoStopBefore: boolean; undoStopAfter: boolean } = { undoStopBefore: true, undoStopAfter: true }): Promise<boolean> {
 				if (that._disposed) {
 					return Promise.reject(new Error('TextEditor#edit not possible on closed editors'));
 				}
@@ -437,7 +440,7 @@ export class ExtHostTextEditor {
 				return that._applyEdit(edit);
 			},
 			// --- snippet edit
-			insertSnippet(snippet: SnippetString, where?: Position | readonly Position[] | Range | readonly Range[], options: { undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Promise<boolean> {
+			insertSnippet(snippet: SnippetString, where?: Position | readonly Position[] | Range | readonly Range[], options: { undoStopBefore: boolean; undoStopAfter: boolean } = { undoStopBefore: true, undoStopAfter: true }): Promise<boolean> {
 				if (that._disposed) {
 					return Promise.reject(new Error('TextEditor#insertSnippet not possible on closed editors'));
 				}
@@ -463,7 +466,7 @@ export class ExtHostTextEditor {
 						}
 					}
 				}
-				return _proxy.$tryInsertSnippet(id, snippet.value, ranges, options);
+				return _proxy.$tryInsertSnippet(id, document.getValue().version, snippet.value, ranges, options);
 			},
 			setDecorations(decorationType: vscode.TextEditorDecorationType, ranges: Range[] | vscode.DecorationOptions[]): void {
 				const willBeEmpty = (ranges.length === 0);

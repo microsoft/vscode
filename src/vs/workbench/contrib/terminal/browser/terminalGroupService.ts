@@ -5,22 +5,21 @@
 
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { timeout } from 'vs/base/common/async';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { FindReplaceState } from 'vs/editor/contrib/find/findState';
+import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IShellLaunchConfig, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
 import { ITerminalFindHost, ITerminalGroup, ITerminalGroupService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalGroup } from 'vs/workbench/contrib/terminal/browser/terminalGroup';
 import { getInstanceFromResource } from 'vs/workbench/contrib/terminal/browser/terminalUri';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
 import { TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 
 export class TerminalGroupService extends Disposable implements ITerminalGroupService, ITerminalFindHost {
 	declare _serviceBrand: undefined;
@@ -32,7 +31,6 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	}
 
 	private _terminalGroupCountContextKey: IContextKey<number>;
-	private _terminalCountContextKey: IContextKey<number>;
 
 	private _container: HTMLElement | undefined;
 
@@ -44,6 +42,8 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	readonly onDidDisposeGroup = this._onDidDisposeGroup.event;
 	private readonly _onDidChangeGroups = new Emitter<void>();
 	readonly onDidChangeGroups = this._onDidChangeGroups.event;
+	private readonly _onDidShow = new Emitter<void>();
+	readonly onDidShow = this._onDidShow.event;
 
 	private readonly _onDidDisposeInstance = new Emitter<ITerminalInstance>();
 	readonly onDidDisposeInstance = this._onDidDisposeInstance.event;
@@ -53,6 +53,8 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	readonly onDidChangeActiveInstance = this._onDidChangeActiveInstance.event;
 	private readonly _onDidChangeInstances = new Emitter<void>();
 	readonly onDidChangeInstances = this._onDidChangeInstances.event;
+	private readonly _onDidChangeInstanceCapability = new Emitter<ITerminalInstance>();
+	readonly onDidChangeInstanceCapability = this._onDidChangeInstanceCapability.event;
 
 	private readonly _onDidChangePanelOrientation = new Emitter<Orientation>();
 	readonly onDidChangePanelOrientation = this._onDidChangePanelOrientation.event;
@@ -61,7 +63,6 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IViewsService private readonly _viewsService: IViewsService,
-		@IWorkbenchLayoutService private _layoutService: IWorkbenchLayoutService,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
@@ -70,23 +71,20 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		this.onDidDisposeGroup(group => this._removeGroup(group));
 
 		this._terminalGroupCountContextKey = TerminalContextKeys.groupCount.bindTo(this._contextKeyService);
-		this._terminalCountContextKey = TerminalContextKeys.count.bindTo(this._contextKeyService);
 
 		this.onDidChangeGroups(() => this._terminalGroupCountContextKey.set(this.groups.length));
-		this.onDidChangeInstances(() => this._terminalCountContextKey.set(this.instances.length));
 
 		this._findState = new FindReplaceState();
+
+		Event.any(this.onDidChangeActiveGroup, this.onDidChangeInstances)(() => this.updateVisibility());
 	}
 
 	hidePanel(): void {
 		// Hide the panel if the terminal is in the panel and it has no sibling views
-		const location = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID);
-		if (location === ViewContainerLocation.Panel) {
-			const panel = this._viewDescriptorService.getViewContainerByViewId(TERMINAL_VIEW_ID);
-			if (panel && this._viewDescriptorService.getViewContainerModel(panel).activeViewDescriptors.length === 1) {
-				this._layoutService.setPartHidden(true, Parts.PANEL_PART);
-				TerminalContextKeys.tabsMouse.bindTo(this._contextKeyService).set(false);
-			}
+		const panel = this._viewDescriptorService.getViewContainerByViewId(TERMINAL_VIEW_ID);
+		if (panel && this._viewDescriptorService.getViewContainerModel(panel).activeViewDescriptors.length === 1) {
+			this._viewsService.closeView(TERMINAL_VIEW_ID);
+			TerminalContextKeys.tabsMouse.bindTo(this._contextKeyService).set(false);
 		}
 	}
 
@@ -118,7 +116,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	}
 
 	private _getIndexFromId(terminalId: number): number {
-		let terminalIndex = this.instances.findIndex(e => e.instanceId === terminalId);
+		const terminalIndex = this.instances.findIndex(e => e.instanceId === terminalId);
 		if (terminalIndex === -1) {
 			throw new Error(`Terminal with ID ${terminalId} does not exist (has it already been disposed?)`);
 		}
@@ -151,6 +149,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 				this._onDidChangeActiveInstance.fire(e);
 			}
 		}));
+		group.addDisposable(group.onDidChangeInstanceCapability(this._onDidChangeInstanceCapability.fire, this._onDidChangeInstanceCapability));
 		group.addDisposable(group.onInstancesChanged(this._onDidChangeInstances.fire, this._onDidChangeInstances));
 		group.addDisposable(group.onDisposed(this._onDidDisposeGroup.fire, this._onDidDisposeGroup));
 		if (group.terminalInstances.length > 0) {
@@ -177,8 +176,14 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 			const instance = this.activeInstance;
 			if (instance) {
 				await instance.focusWhenReady(true);
+				// HACK: as a workaround for https://github.com/microsoft/vscode/issues/134692,
+				// this will trigger a forced refresh of the viewport to sync the viewport and scroll bar.
+				// This can likely be removed after https://github.com/xtermjs/xterm.js/issues/291 is
+				// fixed upstream.
+				instance.setVisible(true);
 			}
 		}
+		this._onDidShow.fire();
 	}
 
 	getInstanceFromResource(resource: URI | undefined): ITerminalInstance | undefined {
@@ -226,14 +231,23 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 			this._onDidChangeGroups.fire();
 		}
 
-		// Adjust focus if the group was active
-		if (wasActiveGroup && this.groups.length > 0) {
-			const newIndex = index < this.groups.length ? index : this.groups.length - 1;
-			this.setActiveGroupByIndex(newIndex, true);
-			this.activeInstance?.focus(true);
-		} else if (this.activeGroupIndex >= this.groups.length) {
-			const newIndex = this.groups.length - 1;
-			this.setActiveGroupByIndex(newIndex);
+		if (wasActiveGroup) {
+			// Adjust focus if the group was active
+			if (this.groups.length > 0) {
+				const newIndex = index < this.groups.length ? index : this.groups.length - 1;
+				this.setActiveGroupByIndex(newIndex, true);
+				this.activeInstance?.focus(true);
+			}
+		} else {
+			// Adjust the active group if the removed group was above the active group
+			if (this.activeGroupIndex > index) {
+				this.setActiveGroupByIndex(this.activeGroupIndex - 1);
+			}
+		}
+		// Ensure the active group is still valid, this should set the activeGroupIndex to -1 if
+		// there are no groups
+		if (this.activeGroupIndex >= this.groups.length) {
+			this.setActiveGroupByIndex(this.groups.length - 1);
 		}
 
 		this._onDidChangeInstances.fire();
@@ -268,7 +282,6 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		const oldActiveGroup = this.activeGroup;
 		this.activeGroupIndex = index;
 		if (force || oldActiveGroup !== this.activeGroup) {
-			this.groups.forEach((g, i) => g.setVisible(i === this.activeGroupIndex));
 			this._onDidChangeActiveGroup.fire(this.activeGroup);
 			this._onDidChangeActiveInstance.fire(this.activeInstance);
 		}
@@ -306,8 +319,6 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		this.activeGroupIndex = instanceLocation.groupIndex;
 		this._onDidChangeActiveGroup.fire(this.activeGroup);
 		instanceLocation.group.setActiveInstanceByIndex(activeInstanceIndex, true);
-		this.groups.forEach((g, i) => g.setVisible(i === instanceLocation.groupIndex));
-
 	}
 
 	setActiveGroupToNext() {
@@ -400,14 +411,15 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 
 	joinInstances(instances: ITerminalInstance[]) {
 		const group = this.getGroupForInstance(instances[0]);
-		let allInSameGroup = true;
 		if (group) {
+			let differentGroups = true;
 			for (let i = 1; i < group.terminalInstances.length; i++) {
-				if (!group.terminalInstances.includes(instances[i])) {
-					allInSameGroup = false;
+				if (group.terminalInstances.includes(instances[i])) {
+					differentGroups = false;
+					break;
 				}
 			}
-			if (allInSameGroup) {
+			if (!differentGroups) {
 				return;
 			}
 		}
@@ -472,11 +484,22 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 			return `${index + 1}: ${group.title ? group.title : ''}`;
 		});
 	}
+
+	/**
+	 * Visibility should be updated in the following cases:
+	 * 1. Toggle `TERMINAL_VIEW_ID` visibility
+	 * 2. Change active group
+	 * 3. Change instances in active group
+	 */
+	updateVisibility() {
+		const visible = this._viewsService.isViewVisible(TERMINAL_VIEW_ID);
+		this.groups.forEach((g, i) => g.setVisible(visible && i === this.activeGroupIndex));
+	}
 }
 
 interface IInstanceLocation {
-	group: ITerminalGroup,
-	groupIndex: number,
-	instance: ITerminalInstance,
-	instanceIndex: number
+	group: ITerminalGroup;
+	groupIndex: number;
+	instance: ITerminalInstance;
+	instanceIndex: number;
 }

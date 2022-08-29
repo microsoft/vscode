@@ -37,11 +37,11 @@ export interface ICustomEditorService {
 	getUserConfiguredCustomEditors(resource: URI): CustomEditorInfoCollection;
 
 	registerCustomEditorCapabilities(viewType: string, options: CustomEditorCapabilities): IDisposable;
-	getCustomEditorCapabilities(viewType: string): CustomEditorCapabilities | undefined
+	getCustomEditorCapabilities(viewType: string): CustomEditorCapabilities | undefined;
 }
 
 export interface ICustomEditorModelManager {
-	getAllModels(resource: URI): Promise<ICustomEditorModel[]>
+	getAllModels(resource: URI): Promise<ICustomEditorModel[]>;
 
 	get(resource: URI, viewType: string): Promise<ICustomEditorModel | undefined>;
 

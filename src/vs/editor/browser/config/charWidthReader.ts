@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 
 export const enum CharWidthRequestType {
@@ -68,30 +69,16 @@ class DomCharWidthReader {
 		container.style.width = '50000px';
 
 		const regularDomNode = document.createElement('div');
-		regularDomNode.style.fontFamily = this._bareFontInfo.getMassagedFontFamily();
-		regularDomNode.style.fontWeight = this._bareFontInfo.fontWeight;
-		regularDomNode.style.fontSize = this._bareFontInfo.fontSize + 'px';
-		regularDomNode.style.fontFeatureSettings = this._bareFontInfo.fontFeatureSettings;
-		regularDomNode.style.lineHeight = this._bareFontInfo.lineHeight + 'px';
-		regularDomNode.style.letterSpacing = this._bareFontInfo.letterSpacing + 'px';
+		applyFontInfo(regularDomNode, this._bareFontInfo);
 		container.appendChild(regularDomNode);
 
 		const boldDomNode = document.createElement('div');
-		boldDomNode.style.fontFamily = this._bareFontInfo.getMassagedFontFamily();
+		applyFontInfo(boldDomNode, this._bareFontInfo);
 		boldDomNode.style.fontWeight = 'bold';
-		boldDomNode.style.fontSize = this._bareFontInfo.fontSize + 'px';
-		boldDomNode.style.fontFeatureSettings = this._bareFontInfo.fontFeatureSettings;
-		boldDomNode.style.lineHeight = this._bareFontInfo.lineHeight + 'px';
-		boldDomNode.style.letterSpacing = this._bareFontInfo.letterSpacing + 'px';
 		container.appendChild(boldDomNode);
 
 		const italicDomNode = document.createElement('div');
-		italicDomNode.style.fontFamily = this._bareFontInfo.getMassagedFontFamily();
-		italicDomNode.style.fontWeight = this._bareFontInfo.fontWeight;
-		italicDomNode.style.fontSize = this._bareFontInfo.fontSize + 'px';
-		italicDomNode.style.fontFeatureSettings = this._bareFontInfo.fontFeatureSettings;
-		italicDomNode.style.lineHeight = this._bareFontInfo.lineHeight + 'px';
-		italicDomNode.style.letterSpacing = this._bareFontInfo.letterSpacing + 'px';
+		applyFontInfo(italicDomNode, this._bareFontInfo);
 		italicDomNode.style.fontStyle = 'italic';
 		container.appendChild(italicDomNode);
 

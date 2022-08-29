@@ -14,15 +14,13 @@ import { IListService, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/l
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IAsyncDataSource, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IColorMapping } from 'vs/platform/theme/common/styler';
 import { Delegate, Renderer } from 'vs/workbench/contrib/extensions/browser/extensionsList';
-import { listFocusForeground, listFocusBackground } from 'vs/platform/theme/common/colorRegistry';
+import { listFocusForeground, listFocusBackground, foreground, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -244,8 +242,6 @@ export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, IExte
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IExtensionsWorkbenchService extensionsWorkdbenchService: IExtensionsWorkbenchService
 	) {
 		const delegate = new VirualDelegate();
@@ -278,7 +274,7 @@ export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, IExte
 					}
 				}
 			},
-			contextKeyService, listService, themeService, configurationService, keybindingService, accessibilityService
+			instantiationService, contextKeyService, listService, themeService, configurationService
 		);
 
 		this.setInput(input);
@@ -334,8 +330,8 @@ export async function getExtensions(extensions: string[], extensionsWorkbenchSer
 		}
 	}
 	if (toQuery.length) {
-		const galleryResult = await extensionsWorkbenchService.queryGallery({ names: toQuery, pageSize: toQuery.length }, CancellationToken.None);
-		result.push(...galleryResult.firstPage);
+		const galleryResult = await extensionsWorkbenchService.getExtensions(toQuery.map(id => ({ id })), CancellationToken.None);
+		result.push(...galleryResult);
 	}
 	return result;
 }
@@ -348,5 +344,13 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	const focusForeground = theme.getColor(listFocusForeground);
 	if (focusForeground) {
 		collector.addRule(`.extensions-grid-view .extension-container:focus { color: ${focusForeground}; }`);
+	}
+	const foregroundColor = theme.getColor(foreground);
+	const editorBackgroundColor = theme.getColor(editorBackground);
+	if (foregroundColor && editorBackgroundColor) {
+		const authorForeground = foregroundColor.transparent(.9).makeOpaque(editorBackgroundColor);
+		collector.addRule(`.extensions-grid-view .extension-container:not(.disabled) .author { color: ${authorForeground}; }`);
+		const disabledExtensionForeground = foregroundColor.transparent(.5).makeOpaque(editorBackgroundColor);
+		collector.addRule(`.extensions-grid-view .extension-container.disabled { color: ${disabledExtensionForeground}; }`);
 	}
 });

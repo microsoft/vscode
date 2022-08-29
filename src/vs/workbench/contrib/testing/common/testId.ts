@@ -39,7 +39,7 @@ export class TestId {
 			return new TestId([rootId]);
 		}
 
-		let path = [item.id];
+		const path = [item.id];
 		for (let i = parent; i && i.id !== rootId; i = i.parent) {
 			path.push(i.id);
 		}
@@ -53,6 +53,14 @@ export class TestId {
 	 */
 	public static isRoot(idString: string) {
 		return !idString.includes(TestIdPathParts.Delimiter);
+	}
+
+	/**
+	 * Cheaply ets whether the ID refers to the root .
+	 */
+	public static root(idString: string) {
+		const idx = idString.indexOf(TestIdPathParts.Delimiter);
+		return idx === -1 ? idString : idString.slice(0, idx);
 	}
 
 	/**

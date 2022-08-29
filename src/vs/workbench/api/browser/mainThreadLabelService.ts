@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MainContext, MainThreadLabelServiceShape, IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
+import { MainContext, MainThreadLabelServiceShape } from 'vs/workbench/api/common/extHost.protocol';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { ResourceLabelFormatter, ILabelService } from 'vs/platform/label/common/label';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
@@ -21,7 +21,7 @@ export class MainThreadLabelService implements MainThreadLabelServiceShape {
 	$registerResourceLabelFormatter(handle: number, formatter: ResourceLabelFormatter): void {
 		// Dynamicily registered formatters should have priority over those contributed via package.json
 		formatter.priority = true;
-		const disposable = this._labelService.registerFormatter(formatter);
+		const disposable = this._labelService.registerCachedFormatter(formatter);
 		this._resourceLabelFormatters.set(handle, disposable);
 	}
 

@@ -121,6 +121,8 @@ suite('HTML Embedded Support', () => {
 		assertEmbeddedLanguageContent('<script type="text/javascript">var i = 0;</script>', 'javascript', '                               var i = 0;         ');
 
 		assertEmbeddedLanguageContent('<div onKeyUp="foo()" onkeydown="bar()"/>', 'javascript', '              foo();            bar();  ');
+		assertEmbeddedLanguageContent('<div onKeyUp="return"/>', 'javascript', '              return;  ');
+
 	});
 
 });

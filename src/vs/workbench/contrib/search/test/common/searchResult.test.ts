@@ -7,21 +7,23 @@ import * as sinon from 'sinon';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { Match, FileMatch, SearchResult, SearchModel } from 'vs/workbench/contrib/search/common/searchModel';
 import { URI } from 'vs/base/common/uri';
-import { IFileMatch, TextSearchMatch, OneLineRange, ITextSearchMatch } from 'vs/workbench/services/search/common/search';
+import { IFileMatch, TextSearchMatch, OneLineRange, ITextSearchMatch, QueryType } from 'vs/workbench/services/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { Range } from 'vs/editor/common/core/range';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { ModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { MockLabelService } from 'vs/workbench/services/label/test/common/mockLabelService';
 
 const lineOneRange = new OneLineRange(1, 0, 1);
 
@@ -35,7 +37,8 @@ suite('SearchResult', () => {
 		instantiationService.stub(IModelService, stubModelService(instantiationService));
 		instantiationService.stub(IUriIdentityService, new UriIdentityService(new FileService(new NullLogService())));
 		instantiationService.stubPromise(IReplaceService, {});
-		instantiationService.stubPromise(IReplaceService, 'replace', null);
+		instantiationService.stub(IReplaceService, 'replace', () => Promise.resolve(null));
+		instantiationService.stub(ILabelService, new MockLabelService());
 	});
 
 	test('Line Match', function () {
@@ -339,6 +342,56 @@ suite('SearchResult', () => {
 		return voidPromise.then(() => assert.ok(testObject.isEmpty()));
 	});
 
+	test('batchRemove should trigger the onChange event correctly', function () {
+		const target = sinon.spy();
+		const testObject = getPopulatedSearchResult();
+
+		const folderMatch = testObject.folderMatches()[0];
+		const fileMatch = testObject.folderMatches()[1].matches()[0];
+		const match = testObject.folderMatches()[1].matches()[1].matches()[0];
+
+		const arrayToRemove = [folderMatch, fileMatch, match];
+		const expectedArrayResult = folderMatch.matches().concat([fileMatch, match.parent()]);
+
+		testObject.onChange(target);
+		testObject.batchRemove(arrayToRemove);
+
+		assert.ok(target.calledOnce);
+		assert.deepStrictEqual([{ elements: expectedArrayResult, removed: true, added: false }], target.args[0]);
+	});
+
+	test('batchReplace should trigger the onChange event correctly', async function () {
+		const replaceSpy = sinon.spy();
+		instantiationService.stub(IReplaceService, 'replace', (arg: any) => {
+			if (Array.isArray(arg)) {
+				replaceSpy(arg[0]);
+			} else {
+				replaceSpy(arg);
+			}
+			return Promise.resolve();
+		});
+
+		const target = sinon.spy();
+		const testObject = getPopulatedSearchResult();
+
+		const folderMatch = testObject.folderMatches()[0];
+		const fileMatch = testObject.folderMatches()[1].matches()[0];
+		const match = testObject.folderMatches()[1].matches()[1].matches()[0];
+
+		const firstExpectedMatch = folderMatch.matches()[0];
+
+		const arrayToRemove = [folderMatch, fileMatch, match];
+
+		testObject.onChange(target);
+		await testObject.batchReplace(arrayToRemove);
+
+		assert.ok(target.calledOnce);
+		sinon.assert.calledThrice(replaceSpy);
+		sinon.assert.calledWith(replaceSpy.firstCall, firstExpectedMatch);
+		sinon.assert.calledWith(replaceSpy.secondCall, fileMatch);
+		sinon.assert.calledWith(replaceSpy.thirdCall, match);
+	});
+
 	function aFileMatch(path: string, searchResult?: SearchResult, ...lineMatches: ITextSearchMatch[]): FileMatch {
 		const rawMatch: IFileMatch = {
 			resource: URI.file('/' + path),
@@ -360,6 +413,30 @@ suite('SearchResult', () => {
 	function stubModelService(instantiationService: TestInstantiationService): IModelService {
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IThemeService, new TestThemeService());
-		return instantiationService.createInstance(ModelServiceImpl);
+		return instantiationService.createInstance(ModelService);
+	}
+
+	function getPopulatedSearchResult() {
+		const testObject = aSearchResult();
+
+		testObject.query = {
+			type: QueryType.Text,
+			contentPattern: { pattern: 'foo' },
+			folderQueries: [{
+				folder: URI.parse('file://c:/voo')
+			},
+			{ folder: URI.parse('file://c:/with') },
+			]
+		};
+
+		testObject.add([
+			aRawMatch('file://c:/voo/foo.a',
+				new TextSearchMatch('preview 1', lineOneRange), new TextSearchMatch('preview 2', lineOneRange)),
+			aRawMatch('file://c:/with/path/bar.b',
+				new TextSearchMatch('preview 3', lineOneRange)),
+			aRawMatch('file://c:/with/path.c',
+				new TextSearchMatch('preview 4', lineOneRange), new TextSearchMatch('preview 5', lineOneRange)),
+		]);
+		return testObject;
 	}
 });

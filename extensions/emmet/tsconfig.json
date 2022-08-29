@@ -8,6 +8,8 @@
 		".vscode-test"
 	],
 	"include": [
-		"src/**/*"
+		"src/**/*",
+		"../../src/vscode-dts/vscode.d.ts",
+		"../../src/vscode-dts/vscode.proposed.inlineCompletionsNew.d.ts",
 	]
 }

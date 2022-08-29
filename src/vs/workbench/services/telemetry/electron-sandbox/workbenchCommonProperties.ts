@@ -5,7 +5,7 @@
 
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
-import { instanceStorageKey, firstSessionDateStorageKey, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
+import { firstSessionDateStorageKey, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtils';
 import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -18,14 +18,13 @@ export async function resolveWorkbenchCommonProperties(
 	commit: string | undefined,
 	version: string | undefined,
 	machineId: string,
-	msftInternalDomains: string[] | undefined,
+	isInternalTelemetry: boolean,
 	installSourcePath: string,
 	remoteAuthority?: string
 ): Promise<{ [name: string]: string | boolean | undefined }> {
-	const result = await resolveCommonProperties(fileService, release, hostname, process.arch, commit, version, machineId, msftInternalDomains, installSourcePath);
-	const instanceId = storageService.get(instanceStorageKey, StorageScope.GLOBAL)!;
-	const firstSessionDate = storageService.get(firstSessionDateStorageKey, StorageScope.GLOBAL)!;
-	const lastSessionDate = storageService.get(lastSessionDateStorageKey, StorageScope.GLOBAL)!;
+	const result = await resolveCommonProperties(fileService, release, hostname, process.arch, commit, version, machineId, isInternalTelemetry, installSourcePath);
+	const firstSessionDate = storageService.get(firstSessionDateStorageKey, StorageScope.APPLICATION)!;
+	const lastSessionDate = storageService.get(lastSessionDateStorageKey, StorageScope.APPLICATION)!;
 
 	// __GDPR__COMMON__ "common.version.shell" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 	result['common.version.shell'] = process.versions['electron'];
@@ -37,10 +36,12 @@ export async function resolveWorkbenchCommonProperties(
 	result['common.lastSessionDate'] = lastSessionDate || '';
 	// __GDPR__COMMON__ "common.isNewSession" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['common.isNewSession'] = !lastSessionDate ? '1' : '0';
-	// __GDPR__COMMON__ "common.instanceId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-	result['common.instanceId'] = instanceId;
 	// __GDPR__COMMON__ "common.remoteAuthority" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 	result['common.remoteAuthority'] = cleanRemoteAuthority(remoteAuthority);
+	// __GDPR__COMMON__ "common.sandboxed" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	result['common.sandboxed'] = process.sandboxed ? '1' : '0'; // TODO@bpasero remove this property when sandbox is on
+	// __GDPR__COMMON__ "common.cli" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	result['common.cli'] = !!process.env['VSCODE_CLI'];
 
 	return result;
 }

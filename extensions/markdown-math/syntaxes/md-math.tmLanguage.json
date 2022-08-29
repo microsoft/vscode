@@ -14,7 +14,7 @@
 			"patterns": [
 				{
 					"name": "comment.line.math.tex",
-					"match": "(%)(.+)$",
+					"match": "((?<!\\\\)%)(.+)$",
 					"captures": {
 						"1": {
 							"name": "punctuation.definition.comment.math.tex"
@@ -32,7 +32,7 @@
 				},
 				{
 					"name": "meta.function.math.tex",
-					"begin": "((\\\\)([a-zA-Z_]+))(\\{)",
+					"begin": "((\\\\)([a-zA-Z_]+))\\s*(\\{)",
 					"beginCaptures": {
 						"1": {
 							"name": "storage.type.function.math.tex"
@@ -74,7 +74,7 @@
 							"name": "punctuation.definition.constant.math.tex"
 						}
 					},
-					"match": "(\\\\)(?!begin\\{|verb)([A-Za-z]+)",
+					"match": "(\\\\)(?!begin\\*\\{|verb)([A-Za-z]+)",
 					"name": "constant.other.general.math.tex"
 				},
 				{

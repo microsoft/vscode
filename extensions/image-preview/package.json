@@ -9,9 +9,8 @@
   "version": "1.0.0",
   "publisher": "vscode",
   "icon": "icon.png",
-  "enableProposedApi": true,
   "license": "MIT",
-  "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
+  "aiKey": "0c6ae279ed8443289764825290e4f9e2-1a736e7c-1324-4338-be46-fc2a58ae4d14-7255",
   "engines": {
     "vscode": "^1.39.0"
   },
@@ -23,7 +22,8 @@
   "activationEvents": [
     "onCustomEditor:imagePreview.previewEditor",
     "onCommand:imagePreview.zoomIn",
-    "onCommand:imagePreview.zoomOut"
+    "onCommand:imagePreview.zoomOut",
+    "onCustomEditor:vscode.mediaPreview.audioView"
   ],
   "capabilities": {
     "virtualWorkspaces": true,
@@ -40,6 +40,16 @@
         "selector": [
           {
             "filenamePattern": "*.{jpg,jpe,jpeg,png,bmp,gif,ico,webp,avif}"
+          }
+        ]
+      },
+      {
+        "viewType": "vscode.mediaPreview.audioView",
+        "displayName": "%customEditors.displayName%",
+        "priority": "builtin",
+        "selector": [
+          {
+            "filenamePattern": "*.{mp3,wav,opus,aac}"
           }
         ]
       }
@@ -80,8 +90,8 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "dependencies": {
-    "vscode-extension-telemetry": "0.4.1",
-    "vscode-nls": "^5.0.0"
+    "@vscode/extension-telemetry": "0.6.2",
+    "vscode-nls": "^5.1.0"
   },
   "repository": {
     "type": "git",

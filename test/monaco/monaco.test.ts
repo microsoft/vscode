@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as playwright from 'playwright';
+import * as playwright from '@playwright/test';
 import { assert } from 'chai';
 
 const PORT = 8563;

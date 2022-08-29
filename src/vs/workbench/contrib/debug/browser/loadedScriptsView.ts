@@ -39,6 +39,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { TreeFindMode } from 'vs/base/browser/ui/tree/abstractTree';
 
 const NEW_STYLE_COMPRESS = true;
 
@@ -164,7 +165,7 @@ class BaseTreeItem {
 			return child.getChildren();
 		}
 		const array: BaseTreeItem[] = [];
-		for (let child of this._children.values()) {
+		for (const child of this._children.values()) {
 			array.push(child);
 		}
 		return array.sort((a, b) => this.compare(a, b));
@@ -185,7 +186,7 @@ class BaseTreeItem {
 		if (this._source && this._parent && this._parent._source) {
 			return this._source.raw.path || this._source.raw.name;
 		}
-		let label = this.getLabel(false);
+		const label = this.getLabel(false);
 		const parent = this.getParent();
 		if (parent) {
 			const hover = parent.getHoverLabel();
@@ -339,7 +340,7 @@ class SessionTreeItem extends BaseTreeItem {
 				folder = this.rootProvider ? this.rootProvider.getWorkspaceFolder(resource) : null;
 				if (folder) {
 					// strip off the root folder path
-					path = normalize(ltrim(resource.path.substr(folder.uri.path.length), posix.sep));
+					path = normalize(ltrim(resource.path.substring(folder.uri.path.length), posix.sep));
 					const hasMultipleRoots = this.rootProvider.getWorkspace().folders.length > 1;
 					if (hasMultipleRoots) {
 						path = posix.sep + path;
@@ -585,8 +586,8 @@ export class LoadedScriptsView extends ViewPane {
 
 		// feature: expand all nodes when filtering (not when finding)
 		let viewState: IViewState | undefined;
-		this._register(this.tree.onDidChangeTypeFilterPattern(pattern => {
-			if (!this.tree.options.filterOnType) {
+		this._register(this.tree.onDidChangeFindPattern(pattern => {
+			if (this.tree.findMode === TreeFindMode.Highlight) {
 				return;
 			}
 

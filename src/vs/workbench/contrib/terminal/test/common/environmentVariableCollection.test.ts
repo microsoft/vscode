@@ -78,7 +78,7 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 	});
 
 	suite('applyToProcessEnvironment', () => {
-		test('should apply the collection to an environment', () => {
+		test('should apply the collection to an environment', async () => {
 			const merged = new MergedEnvironmentVariableCollection(new Map([
 				['ext', {
 					map: deserializeEnvironmentVariableCollection([
@@ -93,7 +93,7 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 				B: 'bar',
 				C: 'baz'
 			};
-			merged.applyToProcessEnvironment(env);
+			await merged.applyToProcessEnvironment(env);
 			deepStrictEqual(env, {
 				A: 'a',
 				B: 'barb',
@@ -101,7 +101,7 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 			});
 		});
 
-		test('should apply the collection to environment entries with no values', () => {
+		test('should apply the collection to environment entries with no values', async () => {
 			const merged = new MergedEnvironmentVariableCollection(new Map([
 				['ext', {
 					map: deserializeEnvironmentVariableCollection([
@@ -112,7 +112,7 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 				}]
 			]));
 			const env: IProcessEnvironment = {};
-			merged.applyToProcessEnvironment(env);
+			await merged.applyToProcessEnvironment(env);
 			deepStrictEqual(env, {
 				A: 'a',
 				B: 'b',
@@ -120,7 +120,7 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 			});
 		});
 
-		test('should apply to variable case insensitively on Windows only', () => {
+		test('should apply to variable case insensitively on Windows only', async () => {
 			const merged = new MergedEnvironmentVariableCollection(new Map([
 				['ext', {
 					map: deserializeEnvironmentVariableCollection([
@@ -135,7 +135,7 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 				B: 'B',
 				C: 'C'
 			};
-			merged.applyToProcessEnvironment(env);
+			await merged.applyToProcessEnvironment(env);
 			if (isWindows) {
 				deepStrictEqual(env, {
 					A: 'a',

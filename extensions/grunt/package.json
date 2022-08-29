@@ -17,14 +17,14 @@
     "watch": "gulp watch-extension:grunt"
   },
   "dependencies": {
-    "vscode-nls": "^4.0.0"
+    "vscode-nls": "^5.1.0"
   },
   "devDependencies": {
-    "@types/node": "14.x"
+    "@types/node": "16.x"
   },
   "main": "./out/main",
   "activationEvents": [
-    "onCommand:workbench.action.tasks.runTask"
+    "onTaskType:grunt"
   ],
   "capabilities": {
     "virtualWorkspaces": false,

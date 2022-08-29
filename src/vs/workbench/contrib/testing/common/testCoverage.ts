@@ -5,11 +5,11 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
-import { IFileCoverage, CoverageDetails, ICoveredCount } from 'vs/workbench/contrib/testing/common/testCollection';
+import { IFileCoverage, CoverageDetails, ICoveredCount } from 'vs/workbench/contrib/testing/common/testTypes';
 
 export interface ICoverageAccessor {
-	provideFileCoverage: (token: CancellationToken) => Promise<IFileCoverage[]>,
-	resolveFileCoverage: (fileIndex: number, token: CancellationToken) => Promise<CoverageDetails[]>,
+	provideFileCoverage: (token: CancellationToken) => Promise<IFileCoverage[]>;
+	resolveFileCoverage: (fileIndex: number, token: CancellationToken) => Promise<CoverageDetails[]>;
 }
 
 /**

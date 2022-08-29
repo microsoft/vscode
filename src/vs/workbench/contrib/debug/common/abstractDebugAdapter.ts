@@ -155,16 +155,12 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 
 			switch (message.type) {
 				case 'event':
-					if (this.eventCallback) {
-						this.eventCallback(<DebugProtocol.Event>message);
-					}
+					this.eventCallback?.(<DebugProtocol.Event>message);
 					break;
 				case 'request':
-					if (this.requestCallback) {
-						this.requestCallback(<DebugProtocol.Request>message);
-					}
+					this.requestCallback?.(<DebugProtocol.Request>message);
 					break;
-				case 'response':
+				case 'response': {
 					const response = <DebugProtocol.Response>message;
 					const clb = this.pendingRequests.get(response.request_seq);
 					if (clb) {
@@ -172,6 +168,7 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 						clb(response);
 					}
 					break;
+				}
 			}
 		}
 	}

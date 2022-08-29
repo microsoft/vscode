@@ -17,7 +17,8 @@
 					// see https://github.com/w3c/webappsec-trusted-types/wiki/Trusted-Types-for-function-constructor
 					const fnArgs = args.slice(0, -1).join(',');
 					const fnBody = args.pop()!.toString();
-					const body = `(function anonymous(${fnArgs}) {\n${fnBody}\n})`;
+					// Do not add a new line to fnBody, as this will confuse source maps.
+					const body = `(function anonymous(${fnArgs}) { ${fnBody}\n})`;
 					return body;
 				}
 			})
@@ -76,30 +77,42 @@
 		});
 	}
 
-	const loadCode = function (moduleId: string) {
+	function configureAMDLoader() {
+		require.config({
+			baseUrl: monacoBaseUrl,
+			catchError: true,
+			trustedTypesPolicy,
+			amdModulesPattern: /^vs\//
+		});
+	}
+
+	function loadCode(moduleId: string) {
 		loadAMDLoader().then(() => {
-			require.config({
-				baseUrl: monacoBaseUrl,
-				catchError: true,
-				trustedTypesPolicy,
-			});
+			configureAMDLoader();
 			require([moduleId], function (ws) {
 				setTimeout(function () {
-					let messageHandler = ws.create((msg: any, transfer?: Transferable[]) => {
+					const messageHandler = ws.create((msg: any, transfer?: Transferable[]) => {
 						(<any>self).postMessage(msg, transfer);
 					}, null);
 
-					self.onmessage = (e: MessageEvent) => messageHandler.onmessage(e.data);
+					self.onmessage = (e: MessageEvent) => messageHandler.onmessage(e.data, e.ports);
 					while (beforeReadyMessages.length > 0) {
 						self.onmessage(beforeReadyMessages.shift()!);
 					}
 				}, 0);
 			});
 		});
-	};
+	}
+
+	// If the loader is already defined, configure it immediately
+	// This helps in the bundled case, where we must load nls files
+	// and they need a correct baseUrl to be loaded.
+	if (typeof (<any>self).define === 'function' && (<any>self).define.amd) {
+		configureAMDLoader();
+	}
 
 	let isFirstMessage = true;
-	let beforeReadyMessages: MessageEvent[] = [];
+	const beforeReadyMessages: MessageEvent[] = [];
 	self.onmessage = (message: MessageEvent) => {
 		if (!isFirstMessage) {
 			beforeReadyMessages.push(message);

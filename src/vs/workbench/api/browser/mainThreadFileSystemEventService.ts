@@ -4,14 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { FileChangeType, FileOperation, IFileService } from 'vs/platform/files/common/files';
-import { extHostCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { ExtHostContext, FileSystemEvents, IExtHostContext } from '../common/extHost.protocol';
+import { FileOperation, IFileService } from 'vs/platform/files/common/files';
+import { extHostCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { ExtHostContext, reviveWorkspaceEditDto } from '../common/extHost.protocol';
 import { localize } from 'vs/nls';
-import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkingCopyFileOperationParticipant, IWorkingCopyFileService, SourceTargetPair, IFileOperationUndoRedoInfo } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { reviveWorkspaceEditDto2 } from 'vs/workbench/api/browser/mainThreadEditors';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { raceCancellation } from 'vs/base/common/async';
@@ -45,33 +42,13 @@ export class MainThreadFileSystemEventService {
 
 		const proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystemEventService);
 
-		// file system events - (changes the editor and other make)
-		const events: FileSystemEvents = {
-			created: [],
-			changed: [],
-			deleted: []
-		};
-		this._listener.add(fileService.onDidChangeFilesRaw(event => {
-			for (let change of event.changes) {
-				switch (change.type) {
-					case FileChangeType.ADDED:
-						events.created.push(change.resource);
-						break;
-					case FileChangeType.UPDATED:
-						events.changed.push(change.resource);
-						break;
-					case FileChangeType.DELETED:
-						events.deleted.push(change.resource);
-						break;
-				}
-			}
-
-			proxy.$onFileEvent(events);
-			events.created.length = 0;
-			events.changed.length = 0;
-			events.deleted.length = 0;
+		this._listener.add(fileService.onDidFilesChange(event => {
+			proxy.$onFileEvent({
+				created: event.rawAdded,
+				changed: event.rawUpdated,
+				deleted: event.rawDeleted
+			});
 		}));
-
 
 		const fileOperationParticipant = new class implements IWorkingCopyFileOperationParticipant {
 			async participate(files: SourceTargetPair[], operation: FileOperation, undoInfo: IFileOperationUndoRedoInfo | undefined, timeout: number, token: CancellationToken) {
@@ -89,7 +66,7 @@ export class MainThreadFileSystemEventService {
 					delay: Math.min(timeout / 2, 3000)
 				}, () => {
 					// race extension host event delivery against timeout AND user-cancel
-					const onWillEvent = proxy.$onWillRunFileOperation(operation, files, timeout, token);
+					const onWillEvent = proxy.$onWillRunFileOperation(operation, files, timeout, cts.token);
 					return raceCancellation(onWillEvent, cts.token);
 				}, () => {
 					// user-cancel
@@ -100,13 +77,13 @@ export class MainThreadFileSystemEventService {
 					clearTimeout(timer);
 				});
 
-				if (!data) {
-					// cancelled or no reply
+				if (!data || data.edit.edits.length === 0) {
+					// cancelled, no reply, or no edits
 					return;
 				}
 
 				const needsConfirmation = data.edit.edits.some(edit => edit.metadata?.needsConfirmation);
-				let showPreview = storageService.getBoolean(MainThreadFileSystemEventService.MementoKeyAdditionalEdits, StorageScope.GLOBAL);
+				let showPreview = storageService.getBoolean(MainThreadFileSystemEventService.MementoKeyAdditionalEdits, StorageScope.PROFILE);
 
 				if (envService.extensionTestsLocationURI) {
 					// don't show dialog in tests
@@ -162,7 +139,7 @@ export class MainThreadFileSystemEventService {
 						}
 						showPreview = answer.choice === 1;
 						if (answer.checkboxChecked /* && answer.choice !== 2 */) {
-							storageService.store(MainThreadFileSystemEventService.MementoKeyAdditionalEdits, showPreview, StorageScope.GLOBAL, StorageTarget.USER);
+							storageService.store(MainThreadFileSystemEventService.MementoKeyAdditionalEdits, showPreview, StorageScope.PROFILE, StorageTarget.USER);
 						}
 					}
 				}
@@ -170,7 +147,7 @@ export class MainThreadFileSystemEventService {
 				logService.info('[onWill-handler] applying additional workspace edit from extensions', data.extensionNames);
 
 				await bulkEditService.apply(
-					reviveWorkspaceEditDto2(data.edit),
+					reviveWorkspaceEditDto(data.edit),
 					{ undoRedoGroupId: undoInfo?.undoRedoGroupId, showPreview }
 				);
 			}
@@ -185,6 +162,8 @@ export class MainThreadFileSystemEventService {
 						return localize('msg-copy', "Running 'File Copy' participants...");
 					case FileOperation.DELETE:
 						return localize('msg-delete', "Running 'File Delete' participants...");
+					case FileOperation.WRITE:
+						return localize('msg-write', "Running 'File Write' participants...");
 				}
 			}
 		};
@@ -205,23 +184,14 @@ registerAction2(class ResetMemento extends Action2 {
 	constructor() {
 		super({
 			id: 'files.participants.resetChoice',
-			title: localize('label', "Reset choice for 'File operation needs preview'"),
+			title: {
+				value: localize('label', "Reset choice for 'File operation needs preview'"),
+				original: `Reset choice for 'File operation needs preview'`
+			},
 			f1: true
 		});
 	}
 	run(accessor: ServicesAccessor) {
-		accessor.get(IStorageService).remove(MainThreadFileSystemEventService.MementoKeyAdditionalEdits, StorageScope.GLOBAL);
-	}
-});
-
-
-Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-	id: 'files',
-	properties: {
-		'files.participants.timeout': {
-			type: 'number',
-			default: 60000,
-			markdownDescription: localize('files.participants.timeout', "Timeout in milliseconds after which file participants for create, rename, and delete are cancelled. Use `0` to disable participants."),
-		}
+		accessor.get(IStorageService).remove(MainThreadFileSystemEventService.MementoKeyAdditionalEdits, StorageScope.PROFILE);
 	}
 });

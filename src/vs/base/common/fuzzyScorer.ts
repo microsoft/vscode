@@ -208,8 +208,11 @@ function computeCharScore(queryCharAtIndex: string, queryLowerCharAtIndex: strin
 			// }
 		}
 
-		// Inside word upper case bonus (camel case)
-		else if (isUpper(target.charCodeAt(targetIndex))) {
+		// Inside word upper case bonus (camel case). We only give this bonus if we're not in a contiguous sequence.
+		// For example:
+		// NPE => NullPointerException = boost
+		// HTTP => HTTP = not boost
+		else if (isUpper(target.charCodeAt(targetIndex)) && matchesSequenceLength === 0) {
 			score += 2;
 
 			// if (DEBUG) {
@@ -312,7 +315,7 @@ function doScoreFuzzy2Multiple(target: string, query: IPreparedQueryPiece[], pat
 }
 
 function doScoreFuzzy2Single(target: string, query: IPreparedQueryPiece, patternStart: number, wordStart: number): FuzzyScore2 {
-	const score = fuzzyScore(query.original, query.originalLowercase, patternStart, target, target.toLowerCase(), wordStart, true);
+	const score = fuzzyScore(query.original, query.originalLowercase, patternStart, target, target.toLowerCase(), wordStart, { firstMatchCanBeWeak: true, boostFullMatch: true });
 	if (!score) {
 		return NO_SCORE2;
 	}
@@ -346,7 +349,7 @@ export interface IItemScore {
 	descriptionMatch?: IMatch[];
 }
 
-const NO_ITEM_SCORE: IItemScore = Object.freeze({ score: 0 });
+const NO_ITEM_SCORE = Object.freeze<IItemScore>({ score: 0 });
 
 export interface IItemAccessor<T> {
 
@@ -882,7 +885,7 @@ export function prepareQuery(original: string): IPreparedQuery {
 	return { original, originalLowercase, pathNormalized, normalized, normalizedLowercase, values, containsPathSeparator, expectContiguousMatch: expectExactMatch };
 }
 
-function normalizeQuery(original: string): { pathNormalized: string, normalized: string, normalizedLowercase: string } {
+function normalizeQuery(original: string): { pathNormalized: string; normalized: string; normalizedLowercase: string } {
 	let pathNormalized: string;
 	if (isWindows) {
 		pathNormalized = original.replace(/\//g, sep); // Help Windows users to search for paths when using slash

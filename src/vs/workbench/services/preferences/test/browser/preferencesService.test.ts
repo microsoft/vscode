@@ -4,30 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { TestCommandService } from 'vs/editor/test/browser/editorTestServices';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { EditorResolution } from 'vs/platform/editor/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { TestJSONEditingService } from 'vs/workbench/services/configuration/test/common/testServices';
 import { PreferencesService } from 'vs/workbench/services/preferences/browser/preferencesService';
 import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { TestRemoteAgentService } from 'vs/workbench/services/remote/test/common/testServices';
-import { ITestInstantiationService, TestEditorService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestRemoteAgentService, ITestInstantiationService, TestEditorService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('PreferencesService', () => {
 
+	let disposables: DisposableStore;
 	let testInstantiationService: ITestInstantiationService;
 	let testObject: PreferencesService;
 	let editorService: TestEditorService2;
 
 	setup(() => {
+		disposables = new DisposableStore();
 		editorService = new TestEditorService2();
 		testInstantiationService = workbenchInstantiationService({
 			editorService: () => editorService
-		});
+		}, disposables);
 
 		testInstantiationService.stub(IJSONEditingService, TestJSONEditingService);
 		testInstantiationService.stub(IRemoteAgentService, TestRemoteAgentService);
@@ -40,11 +42,15 @@ suite('PreferencesService', () => {
 		testObject = instantiationService.createInstance(PreferencesService);
 	});
 
+	teardown(() => {
+		disposables.dispose();
+	});
+
 	test('options are preserved when calling openEditor', async () => {
 		testObject.openSettings({ jsonEditor: false, query: 'test query' });
 		const options = editorService.lastOpenEditorOptions as ISettingsEditorOptions;
 		assert.strictEqual(options.focusSearch, true);
-		assert.strictEqual(options.override, EditorResolution.DISABLED);
+		assert.strictEqual(options.override, DEFAULT_EDITOR_ASSOCIATION.id);
 		assert.strictEqual(options.query, 'test query');
 	});
 });

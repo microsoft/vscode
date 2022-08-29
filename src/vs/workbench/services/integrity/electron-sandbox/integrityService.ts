@@ -33,7 +33,7 @@ class IntegrityStorage {
 	}
 
 	private _read(): IStorageData | null {
-		let jsonValue = this.storageService.get(IntegrityStorage.KEY, StorageScope.GLOBAL);
+		const jsonValue = this.storageService.get(IntegrityStorage.KEY, StorageScope.APPLICATION);
 		if (!jsonValue) {
 			return null;
 		}
@@ -50,11 +50,11 @@ class IntegrityStorage {
 
 	set(data: IStorageData | null): void {
 		this.value = data;
-		this.storageService.store(IntegrityStorage.KEY, JSON.stringify(this.value), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this.storageService.store(IntegrityStorage.KEY, JSON.stringify(this.value), StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 }
 
-export class IntegrityServiceImpl implements IIntegrityService {
+export class IntegrityService implements IIntegrityService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -147,9 +147,9 @@ export class IntegrityServiceImpl implements IIntegrityService {
 		try {
 			const checksum = await this.checksumService.checksum(fileUri);
 
-			return IntegrityServiceImpl._createChecksumPair(fileUri, checksum, expected);
+			return IntegrityService._createChecksumPair(fileUri, checksum, expected);
 		} catch (error) {
-			return IntegrityServiceImpl._createChecksumPair(fileUri, '', expected);
+			return IntegrityService._createChecksumPair(fileUri, '', expected);
 		}
 	}
 
@@ -163,4 +163,4 @@ export class IntegrityServiceImpl implements IIntegrityService {
 	}
 }
 
-registerSingleton(IIntegrityService, IntegrityServiceImpl, true);
+registerSingleton(IIntegrityService, IntegrityService, true);

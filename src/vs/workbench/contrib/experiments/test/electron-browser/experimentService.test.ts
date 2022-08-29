@@ -5,34 +5,34 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { ExperimentActionType, ExperimentState, IExperiment, ExperimentService, getCurrentActivationRecord, currentSchemaVersion } from 'vs/workbench/contrib/experiments/common/experimentService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
-import {
-	IExtensionManagementService, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, ILocalExtension, InstallExtensionResult
-} from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
-import { Emitter } from 'vs/base/common/event';
-import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
-import { NativeURLService } from 'vs/platform/url/common/urlService';
-import { IURLService } from 'vs/platform/url/common/url';
-import { ITelemetryService, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { timeout } from 'vs/base/common/async';
+import { Emitter, Event } from 'vs/base/common/event';
+import { OS } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { DidUninstallExtensionEvent, IExtensionIdentifier, ILocalExtension, InstallExtensionEvent, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IWillActivateEvent, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { timeout } from 'vs/base/common/async';
-import { TestExtensionService } from 'vs/workbench/test/common/workbenchTestServices';
-import { OS } from 'vs/base/common/platform';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { ITelemetryService, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+import { IURLService } from 'vs/platform/url/common/url';
+import { NativeURLService } from 'vs/platform/url/common/urlService';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
+import { currentSchemaVersion, ExperimentActionType, ExperimentService, ExperimentState, getCurrentActivationRecord, IExperiment } from 'vs/workbench/contrib/experiments/common/experimentService';
+import { IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { ExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagementService';
+import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
+import { IExtensionService, IWillActivateEvent } from 'vs/workbench/services/extensions/common/extensions';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { TestWorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
+import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestExtensionService } from 'vs/workbench/test/common/workbenchTestServices';
 
 interface ExperimentSettings {
 	enabled?: boolean;
@@ -40,7 +40,7 @@ interface ExperimentSettings {
 	state?: ExperimentState;
 }
 
-let experimentData: { [i: string]: any; } = {
+let experimentData: { [i: string]: any } = {
 	experiments: []
 };
 
@@ -83,15 +83,17 @@ suite('Experiment Service', () => {
 
 		instantiationService.stub(IExtensionService, TestExtensionService);
 		instantiationService.stub(IExtensionService, 'onWillActivateByEvent', activationEvent.event);
-		instantiationService.stub(IExtensionManagementService, ExtensionManagementService);
-		instantiationService.stub(IExtensionManagementService, 'onInstallExtension', installEvent.event);
-		instantiationService.stub(IExtensionManagementService, 'onDidInstallExtensions', didInstallEvent.event);
-		instantiationService.stub(IExtensionManagementService, 'onUninstallExtension', uninstallEvent.event);
-		instantiationService.stub(IExtensionManagementService, 'onDidUninstallExtension', didUninstallEvent.event);
+		instantiationService.stub(IUriIdentityService, UriIdentityService);
+		instantiationService.stub(IWorkbenchExtensionManagementService, ExtensionManagementService);
+		instantiationService.stub(IWorkbenchExtensionManagementService, 'onInstallExtension', installEvent.event);
+		instantiationService.stub(IWorkbenchExtensionManagementService, 'onDidInstallExtensions', didInstallEvent.event);
+		instantiationService.stub(IWorkbenchExtensionManagementService, 'onUninstallExtension', uninstallEvent.event);
+		instantiationService.stub(IWorkbenchExtensionManagementService, 'onDidUninstallExtension', didUninstallEvent.event);
+		instantiationService.stub(IWorkbenchExtensionManagementService, 'onDidChangeProfileExtensions', Event.None);
 		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IURLService, NativeURLService);
-		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+		instantiationService.stubPromise(IWorkbenchExtensionManagementService, 'getInstalled', [local]);
 		testConfigurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, testConfigurationService);
 		instantiationService.stub(ILifecycleService, new TestLifecycleService());
@@ -104,9 +106,7 @@ suite('Experiment Service', () => {
 		});
 
 		teardown(() => {
-			if (testObject) {
-				testObject.dispose();
-			}
+			testObject?.dispose();
 		});
 	});
 
@@ -407,6 +407,35 @@ suite('Experiment Service', () => {
 		});
 	});
 
+	test('Activation event allows multiple', () => {
+		experimentData = {
+			experiments: [
+				{
+					id: 'experiment1',
+					enabled: true,
+					condition: {
+						activationEvent: {
+							event: ['other:event', 'my:event'],
+							minEvents: 5,
+						}
+					}
+				}
+			]
+		};
+
+		instantiationService.stub(IStorageService, 'get', (a: string, b: StorageScope, c?: string) => {
+			return a === 'experimentEventRecord-my-event'
+				? JSON.stringify({ count: [10], mostRecentBucket: Date.now() })
+				: undefined;
+		});
+
+		testObject = instantiationService.createInstance(TestExperimentService);
+		return testObject.getExperimentById('experiment1').then(result => {
+			assert.strictEqual(result.enabled, true);
+			assert.strictEqual(result.state, ExperimentState.Run);
+		});
+	});
+
 	test('Activation event does not work with old data', () => {
 		experimentData = {
 			experiments: [
@@ -505,7 +534,7 @@ suite('Experiment Service', () => {
 				didGetCall = true;
 				assert.strictEqual(key, 'experimentEventRecord-my-event');
 				assert.deepStrictEqual(JSON.parse(value).count, [1, 0, 10, 0, 0, 0, 0]);
-				assert.strictEqual(scope, StorageScope.GLOBAL);
+				assert.strictEqual(scope, StorageScope.APPLICATION);
 			}
 		});
 

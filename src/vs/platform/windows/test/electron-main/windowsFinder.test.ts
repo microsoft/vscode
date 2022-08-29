@@ -8,15 +8,15 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { join } from 'vs/base/common/path';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { UriDto } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriDto } from 'vs/base/common/uri';
 import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
-import { ICommandAction } from 'vs/platform/actions/common/actions';
+import { ICommandAction } from 'vs/platform/action/common/action';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { INativeWindowConfiguration } from 'vs/platform/windows/common/windows';
-import { ICodeWindow, ILoadEvent, IWindowState } from 'vs/platform/windows/electron-main/windows';
+import { INativeWindowConfiguration } from 'vs/platform/window/common/window';
+import { ICodeWindow, ILoadEvent, IWindowState } from 'vs/platform/window/electron-main/window';
 import { findWindowOnFile } from 'vs/platform/windows/electron-main/windowsFinder';
-import { IWorkspaceIdentifier, toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
+import { toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 suite('WindowsFinder', () => {
 
@@ -30,9 +30,10 @@ suite('WindowsFinder', () => {
 	const testWorkspaceFolders = toWorkspaceFolders([{ path: join(fixturesFolder, 'vscode_workspace_1_folder') }, { path: join(fixturesFolder, 'vscode_workspace_2_folder') }], testWorkspace.configPath, extUriBiasedIgnorePathCase);
 	const localWorkspaceResolver = (workspace: any) => { return workspace === testWorkspace ? { id: testWorkspace.id, configPath: workspace.configPath, folders: testWorkspaceFolders } : undefined; };
 
-	function createTestCodeWindow(options: { lastFocusTime: number, openedFolderUri?: URI, openedWorkspace?: IWorkspaceIdentifier }): ICodeWindow {
+	function createTestCodeWindow(options: { lastFocusTime: number; openedFolderUri?: URI; openedWorkspace?: IWorkspaceIdentifier }): ICodeWindow {
 		return new class implements ICodeWindow {
 			onWillLoad: Event<ILoadEvent> = Event.None;
+			onDidTriggerSystemContextMenu: Event<{ x: number; y: number }> = Event.None;
 			onDidSignalReady: Event<void> = Event.None;
 			onDidClose: Event<void> = Event.None;
 			onDidDestroy: Event<void> = Event.None;
@@ -48,14 +49,13 @@ suite('WindowsFinder', () => {
 			lastFocusTime = options.lastFocusTime;
 			isFullScreen = false;
 			isReady = true;
-			hasHiddenTitleBarStyle = false;
 
 			ready(): Promise<ICodeWindow> { throw new Error('Method not implemented.'); }
 			setReady(): void { throw new Error('Method not implemented.'); }
 			addTabbedWindow(window: ICodeWindow): void { throw new Error('Method not implemented.'); }
 			load(config: INativeWindowConfiguration, options: { isReload?: boolean }): void { throw new Error('Method not implemented.'); }
 			reload(cli?: NativeParsedArgs): void { throw new Error('Method not implemented.'); }
-			focus(options?: { force: boolean; }): void { throw new Error('Method not implemented.'); }
+			focus(options?: { force: boolean }): void { throw new Error('Method not implemented.'); }
 			close(): void { throw new Error('Method not implemented.'); }
 			getBounds(): Electron.Rectangle { throw new Error('Method not implemented.'); }
 			send(channel: string, ...args: any[]): void { throw new Error('Method not implemented.'); }
@@ -69,6 +69,7 @@ suite('WindowsFinder', () => {
 			handleTitleDoubleClick(): void { throw new Error('Method not implemented.'); }
 			updateTouchBar(items: UriDto<ICommandAction>[][]): void { throw new Error('Method not implemented.'); }
 			serializeWindowState(): IWindowState { throw new Error('Method not implemented'); }
+			updateWindowControls(options: { height?: number | undefined; backgroundColor?: string | undefined; foregroundColor?: string | undefined }): void { throw new Error('Method not implemented.'); }
 			dispose(): void { }
 		};
 	}

@@ -58,7 +58,7 @@ class BackwardIterator {
 			this.lineNumber = -1;
 			return BOF;
 		}
-		let ch = this.line.charCodeAt(this.offset);
+		const ch = this.line.charCodeAt(this.offset);
 		this.offset--;
 		return ch;
 	}
@@ -69,36 +69,36 @@ class BackwardIterator {
 export default class PHPSignatureHelpProvider implements SignatureHelpProvider {
 
 	public provideSignatureHelp(document: TextDocument, position: Position, _token: CancellationToken): Promise<SignatureHelp> | null {
-		let enable = workspace.getConfiguration('php').get<boolean>('suggest.basic', true);
+		const enable = workspace.getConfiguration('php').get<boolean>('suggest.basic', true);
 		if (!enable) {
 			return null;
 		}
 
-		let iterator = new BackwardIterator(document, position.character - 1, position.line);
+		const iterator = new BackwardIterator(document, position.character - 1, position.line);
 
-		let paramCount = this.readArguments(iterator);
+		const paramCount = this.readArguments(iterator);
 		if (paramCount < 0) {
 			return null;
 		}
 
-		let ident = this.readIdent(iterator);
+		const ident = this.readIdent(iterator);
 		if (!ident) {
 			return null;
 		}
 
-		let entry = phpGlobalFunctions.globalfunctions[ident] || phpGlobals.keywords[ident];
+		const entry = phpGlobalFunctions.globalfunctions[ident] || phpGlobals.keywords[ident];
 		if (!entry || !entry.signature) {
 			return null;
 		}
-		let paramsString = entry.signature.substring(0, entry.signature.lastIndexOf(')') + 1);
-		let signatureInfo = new SignatureInformation(ident + paramsString, entry.description);
+		const paramsString = entry.signature.substring(0, entry.signature.lastIndexOf(')') + 1);
+		const signatureInfo = new SignatureInformation(ident + paramsString, entry.description);
 
-		let re = /\w*\s+\&?\$[\w_\.]+|void/g;
+		const re = /\w*\s+\&?\$[\w_\.]+|void/g;
 		let match: RegExpExecArray | null = null;
 		while ((match = re.exec(paramsString)) !== null) {
 			signatureInfo.parameters.push({ label: match[0], documentation: '' });
 		}
-		let ret = new SignatureHelp();
+		const ret = new SignatureHelp();
 		ret.signatures.push(signatureInfo);
 		ret.activeSignature = 0;
 		ret.activeParameter = Math.min(paramCount, signatureInfo.parameters.length - 1);
@@ -111,7 +111,7 @@ export default class PHPSignatureHelpProvider implements SignatureHelpProvider {
 		let curlyNesting = 0;
 		let paramCount = 0;
 		while (iterator.hasNext()) {
-			let ch = iterator.next();
+			const ch = iterator.next();
 			switch (ch) {
 				case _LParent:
 					parentNesting--;
@@ -156,7 +156,7 @@ export default class PHPSignatureHelpProvider implements SignatureHelpProvider {
 		let identStarted = false;
 		let ident = '';
 		while (iterator.hasNext()) {
-			let ch = iterator.next();
+			const ch = iterator.next();
 			if (!identStarted && (ch === _WSB || ch === _TAB || ch === _NL)) {
 				continue;
 			}

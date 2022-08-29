@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEditorFactoryRegistry, IEditorIdentifier, GroupIdentifier, EditorExtensions, IEditorPartOptionsChangeEvent, EditorsOrder } from 'vs/workbench/common/editor';
+import { IEditorFactoryRegistry, IEditorIdentifier, GroupIdentifier, EditorExtensions, IEditorPartOptionsChangeEvent, EditorsOrder, GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IEditorGroupsService, IEditorGroup, GroupChangeKind, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { coalesce } from 'vs/base/common/arrays';
 import { LinkedMap, Touch, ResourceMap } from 'vs/base/common/map';
 import { equals } from 'vs/base/common/objects';
@@ -115,23 +115,13 @@ export class EditorsObserver extends Disposable {
 
 	private registerGroupListeners(group: IEditorGroup): void {
 		const groupDisposables = new DisposableStore();
-		groupDisposables.add(group.onDidGroupChange(e => {
+		groupDisposables.add(group.onDidModelChange(e => {
 			switch (e.kind) {
 
 				// Group gets active: put active editor as most recent
-				case GroupChangeKind.GROUP_ACTIVE: {
+				case GroupModelChangeKind.GROUP_ACTIVE: {
 					if (this.editorGroupsService.activeGroup === group && group.activeEditor) {
 						this.addMostRecentEditor(group, group.activeEditor, true /* is active */, false /* editor already opened */);
-					}
-
-					break;
-				}
-
-				// Editor gets active: put active editor as most recent
-				// if group is active, otherwise second most recent
-				case GroupChangeKind.EDITOR_ACTIVE: {
-					if (e.editor) {
-						this.addMostRecentEditor(group, e.editor, this.editorGroupsService.activeGroup === group, false /* editor already opened */);
 					}
 
 					break;
@@ -141,7 +131,7 @@ export class EditorsObserver extends Disposable {
 				//
 				// Also check for maximum allowed number of editors and
 				// start to close oldest ones if needed.
-				case GroupChangeKind.EDITOR_OPEN: {
+				case GroupModelChangeKind.EDITOR_OPEN: {
 					if (e.editor) {
 						this.addMostRecentEditor(group, e.editor, false /* is not active */, true /* is new */);
 						this.ensureOpenedEditorsLimit({ groupId: group.id, editor: e.editor }, group.id);
@@ -149,15 +139,19 @@ export class EditorsObserver extends Disposable {
 
 					break;
 				}
+			}
+		}));
 
-				// Editor closes: remove from recently opened
-				case GroupChangeKind.EDITOR_CLOSE: {
-					if (e.editor) {
-						this.removeMostRecentEditor(group, e.editor);
-					}
+		// Editor closes: remove from recently opened
+		groupDisposables.add(group.onDidCloseEditor(e => {
+			this.removeMostRecentEditor(group, e.editor);
+		}));
 
-					break;
-				}
+		// Editor gets active: put active editor as most recent
+		// if group is active, otherwise second most recent
+		groupDisposables.add(group.onDidActiveEditorChange(e => {
+			if (e.editor) {
+				this.addMostRecentEditor(group, e.editor, this.editorGroupsService.activeGroup === group, false /* editor already opened */);
 			}
 		}));
 
@@ -345,12 +339,28 @@ export class EditorsObserver extends Disposable {
 	}
 
 	private async doEnsureOpenedEditorsLimit(limit: number, mostRecentEditors: IEditorIdentifier[], exclude?: IEditorIdentifier): Promise<void> {
-		if (limit >= mostRecentEditors.length) {
+
+		// Check for `excludeDirty` setting and apply it by excluding
+		// any recent editor that is dirty from the opened editors limit
+		let mostRecentEditorsCountingForLimit: IEditorIdentifier[];
+		if (this.editorGroupsService.partOptions.limit?.excludeDirty) {
+			mostRecentEditorsCountingForLimit = mostRecentEditors.filter(({ editor }) => {
+				if (editor.isDirty() && !editor.isSaving()) {
+					return false;
+				}
+
+				return true;
+			});
+		} else {
+			mostRecentEditorsCountingForLimit = mostRecentEditors;
+		}
+
+		if (limit >= mostRecentEditorsCountingForLimit.length) {
 			return; // only if opened editors exceed setting and is valid and enabled
 		}
 
 		// Extract least recently used editors that can be closed
-		const leastRecentlyClosableEditors = mostRecentEditors.reverse().filter(({ editor, groupId }) => {
+		const leastRecentlyClosableEditors = mostRecentEditorsCountingForLimit.reverse().filter(({ editor, groupId }) => {
 			if (editor.isDirty() && !editor.isSaving()) {
 				return false; // not dirty editors (unless in the process of saving)
 			}
@@ -367,7 +377,7 @@ export class EditorsObserver extends Disposable {
 		});
 
 		// Close editors until we reached the limit again
-		let editorsToCloseCount = mostRecentEditors.length - limit;
+		let editorsToCloseCount = mostRecentEditorsCountingForLimit.length - limit;
 		const mapGroupToEditorsToClose = new Map<GroupIdentifier, EditorInput[]>();
 		for (const { groupId, editor } of leastRecentlyClosableEditors) {
 			let editorsInGroupToClose = mapGroupToEditorsToClose.get(groupId);

@@ -33,7 +33,8 @@ export interface IHoverService {
 	showHover(options: IHoverOptions, focus?: boolean): IHoverWidget | undefined;
 
 	/**
-	 * Hides the hover if it was visible.
+	 * Hides the hover if it was visible. This call will be ignored if the the hover is currently
+	 * "locked" via the alt/option key.
 	 */
 	hideHover(): void;
 }
@@ -68,7 +69,7 @@ export interface IHoverOptions {
 	additionalClasses?: string[];
 
 	/**
-	 * An optional  link handler for markdown links, if this is not provided the IOpenerService will
+	 * An optional link handler for markdown links, if this is not provided the IOpenerService will
 	 * be used to open the links using its default options.
 	 */
 	linkHandler?(url: string): void;
@@ -86,6 +87,11 @@ export interface IHoverOptions {
 	hideOnHover?: boolean;
 
 	/**
+	 * Whether to hide the hover when a key is pressed.
+	 */
+	hideOnKeyDown?: boolean;
+
+	/**
 	 * Position of the hover. The default is to show above the target. This option will be ignored
 	 * if there is not enough room to layout the hover in the specified position, unless the
 	 * forcePosition option is set.
@@ -96,7 +102,7 @@ export interface IHoverOptions {
 	 * Force the hover position, reducing the size of the hover instead of adjusting the hover
 	 * position.
 	 */
-	forcePosition?: boolean
+	forcePosition?: boolean;
 
 	/**
 	 * Whether to show the hover pointer

@@ -30,9 +30,7 @@
 }
 
 .monaco-workbench .part.sidebar > .title > .title-actions .switch-output > .monaco-select-box {
-	border: none !important;
 	display: block !important;
-	background-color: unset !important;
 }
 
 .monaco-pane-view .pane > .pane-header .monaco-action-bar .switch-output.action-item.select-container {

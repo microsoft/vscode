@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Action } from 'vs/base/common/actions';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionHostKind, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -29,8 +29,8 @@ export class DebugExtensionHostAction extends Action {
 
 	override async run(): Promise<any> {
 
-		const inspectPort = await this._extensionService.getInspectPort(false);
-		if (!inspectPort) {
+		const inspectPorts = await this._extensionService.getInspectPorts(ExtensionHostKind.LocalProcess, false);
+		if (inspectPorts.length === 0) {
 			const res = await this._dialogService.confirm({
 				type: 'info',
 				message: nls.localize('restart1', "Profile Extensions"),
@@ -45,11 +45,16 @@ export class DebugExtensionHostAction extends Action {
 			return;
 		}
 
+		if (inspectPorts.length > 1) {
+			// TODO
+			console.warn(`There are multiple extension hosts available for debugging. Picking the first one...`);
+		}
+
 		return this._debugService.startDebugging(undefined, {
 			type: 'node',
 			name: nls.localize('debugExtensionHost.launch.name', "Attach Extension Host"),
 			request: 'attach',
-			port: inspectPort
+			port: inspectPorts[0]
 		});
 	}
 }

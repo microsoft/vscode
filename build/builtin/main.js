@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+// @ts-check
 
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const url = require('url');
@@ -29,8 +30,7 @@ app.once('ready', () => {
 		webPreferences: {
 			nodeIntegration: true,
 			contextIsolation: false,
-			enableWebSQL: false,
-			nativeWindowOpen: true
+			enableWebSQL: false
 		}
 	});
 	window.setMenuBarVisibility(false);

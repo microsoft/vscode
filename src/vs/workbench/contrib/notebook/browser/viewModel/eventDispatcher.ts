@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
-import { NotebookLayoutChangedEvent, NotebookMetadataChangedEvent, NotebookCellStateChangedEvent, NotebookViewEvent, NotebookViewEventType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { NotebookCellStateChangedEvent, NotebookLayoutChangedEvent, NotebookMetadataChangedEvent, NotebookViewEvent, NotebookViewEventType } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 
 export class NotebookEventDispatcher extends Disposable {
 	private readonly _onDidChangeLayout = this._register(new Emitter<NotebookLayoutChangedEvent>());

@@ -47,8 +47,7 @@
 
 .search-view .search-widget .monaco-inputbox > .ibwrapper > .mirror,
 .search-view .search-widget .monaco-inputbox > .ibwrapper > textarea.input {
-	padding: 3px;
-	padding-left: 4px;
+	padding: 3px 0px 3px 4px;
 }
 
 /* NOTE: height is also used in searchWidget.ts as a constant*/
@@ -154,6 +153,7 @@
 
 .search-view .message {
 	padding: 0 22px 8px;
+	overflow-wrap: break-word;
 }
 
 .search-view .message p:first-child {
@@ -244,6 +244,7 @@
 }
 
 .search-view .monaco-list .monaco-list-row:hover:not(.highlighted) .monaco-action-bar,
+.search-view .monaco-list .monaco-list-row.selected .monaco-action-bar,
 .search-view .monaco-list .monaco-list-row.focused .monaco-action-bar {
 	display: inline-block;
 }
@@ -257,7 +258,8 @@
 }
 
 /* Adjusts spacing in high contrast mode so that actions are vertically centered */
-.monaco-workbench.hc-black .search-view .monaco-list .monaco-list-row .monaco-action-bar .action-label {
+.monaco-workbench.hc-black .search-view .monaco-list .monaco-list-row .monaco-action-bar .action-label,
+.monaco-workbench.hc-light .search-view .monaco-list .monaco-list-row .monaco-action-bar .action-label {
 	margin-top: 2px;
 }
 
@@ -284,7 +286,9 @@
 }
 
 .monaco-workbench.hc-black .search-view .replaceMatch,
-.monaco-workbench.hc-black .search-view .findInFileMatch {
+.monaco-workbench.hc-black .search-view .findInFileMatch,
+.monaco-workbench.hc-light .search-view .replaceMatch,
+.monaco-workbench.hc-light .search-view .findInFileMatch {
 	background: none !important;
 	box-sizing: border-box;
 }
@@ -293,7 +297,10 @@
 
 .monaco-workbench.hc-black .search-view .foldermatch,
 .monaco-workbench.hc-black .search-view .filematch,
-.monaco-workbench.hc-black .search-view .linematch {
+.monaco-workbench.hc-black .search-view .linematch,
+.monaco-workbench.hc-light .search-view .foldermatch,
+.monaco-workbench.hc-light .search-view .filematch,
+.monaco-workbench.hc-light .search-view .linematch {
 	line-height: 20px;
 }
 

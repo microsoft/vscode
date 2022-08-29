@@ -1,6 +1,6 @@
 {
 	"fileTypes": [],
-	"injectionSelector": "L:text.html.markdown - (comment, string, meta.paragraph.markdown, markup.math.block.markdown, markup.fenced_code.block.markdown)",
+	"injectionSelector": "L:text.html.markdown - (comment, string, meta.paragraph.markdown, markup.math.block.markdown, markup.fenced_code.block.markdown, markup.raw.block.markdown)",
 	"patterns": [
 		{
 			"include": "#double_dollar_math_block"
@@ -12,23 +12,31 @@
 	"repository": {
 		"double_dollar_math_block": {
 			"name": "markup.math.block.markdown",
-			"begin": "(?<=(^|\\G)\\s*)(\\${2})(?=\\s*$)",
+			"contentName": "meta.embedded.math.markdown",
+			"begin": "(?<=^\\s*)(\\${2})(?![^$]*\\${2})",
 			"beginCaptures": {
-				"2": {
+				"1": {
 					"name": "punctuation.definition.math.begin.markdown"
 				}
 			},
-			"end": "(\\${2})",
+			"end": "(.*)(\\${2})",
 			"endCaptures": {
 				"1": {
+					"name": "meta.embedded.math.markdown",
+					"patterns": [
+						{
+							"include": "text.html.markdown.math#math"
+						}
+					]
+				},
+				"2": {
 					"name": "punctuation.definition.math.end.markdown"
 				}
 			},
 			"patterns": [
 				{
-					"begin": "(^|\\G)(\\s*)(.*)",
+					"begin": "(^|\\G)",
 					"while": "(^|\\G)(?!.*(\\${2}))",
-					"contentName": "meta.embedded.math.markdown",
 					"patterns": [
 						{
 							"include": "text.html.markdown.math#math"
@@ -39,23 +47,31 @@
 		},
 		"single_dollar_math_block": {
 			"name": "markup.math.block.markdown",
-			"begin": "(?<=(^|\\G)\\s*)(\\${1})(?=\\s*$)",
+			"contentName": "meta.embedded.math.markdown",
+			"begin": "(?<=^\\s*)(\\$)(?![^$]*\\$|\\d)",
 			"beginCaptures": {
-				"2": {
+				"1": {
 					"name": "punctuation.definition.math.begin.markdown"
 				}
 			},
-			"end": "(\\${1})",
+			"end": "(.*)(\\${1})",
 			"endCaptures": {
 				"1": {
+					"name": "meta.embedded.math.markdown",
+					"patterns": [
+						{
+							"include": "text.html.markdown.math#math"
+						}
+					]
+				},
+				"2": {
 					"name": "punctuation.definition.math.end.markdown"
 				}
 			},
 			"patterns": [
 				{
-					"begin": "(^|\\G)(\\s*)(.*)",
+					"begin": "(^|\\G)",
 					"while": "(^|\\G)(?!.*(\\${1}))",
-					"contentName": "meta.embedded.math.markdown",
 					"patterns": [
 						{
 							"include": "text.html.markdown.math#math"

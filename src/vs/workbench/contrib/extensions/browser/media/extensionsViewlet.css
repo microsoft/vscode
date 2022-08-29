@@ -20,7 +20,7 @@
 .extensions-viewlet > .header {
 	height: 41px;
 	box-sizing: border-box;
-	padding: 5px 12px 6px 16px;
+	padding: 5px 12px 6px 20px;
 }
 
 .extensions-viewlet > .header > .search-box {
@@ -38,10 +38,13 @@
 	height: calc(100% - 41px);
 }
 
-.extensions-viewlet > .extensions .extension-view-header .count-badge-wrapper,
 .extensions-viewlet > .extensions .extension-list-item .monaco-action-bar,
 .extensions-viewlet > .extensions .extension-view-header .monaco-action-bar {
 	margin-right: 4px;
+}
+
+.extensions-viewlet > .extensions .extension-view-header .count-badge-wrapper {
+	margin-right: 12px;
 }
 
 .extensions-viewlet > .extensions .extension-view-header .monaco-action-bar .action-item > .action-label.icon.codicon {

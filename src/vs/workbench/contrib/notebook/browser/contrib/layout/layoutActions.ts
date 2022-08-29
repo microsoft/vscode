@@ -8,7 +8,7 @@ import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/act
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { INotebookActionContext, NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { CellToolbarLocation } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const TOGGLE_CELL_TOOLBAR_POSITION = 'notebook.toggleCellToolbarPosition';
 
@@ -33,9 +33,9 @@ export class ToggleCellToolbarPositionAction extends Action2 {
 			// from toolbar
 			const viewType = editor.textModel.viewType;
 			const configurationService = accessor.get(IConfigurationService);
-			const toolbarPosition = configurationService.getValue<string | { [key: string]: string }>(CellToolbarLocation);
+			const toolbarPosition = configurationService.getValue<string | { [key: string]: string }>(NotebookSetting.cellToolbarLocation);
 			const newConfig = this.togglePosition(viewType, toolbarPosition);
-			await configurationService.updateValue(CellToolbarLocation, newConfig);
+			await configurationService.updateValue(NotebookSetting.cellToolbarLocation, newConfig);
 		}
 	}
 
@@ -45,14 +45,14 @@ export class ToggleCellToolbarPositionAction extends Action2 {
 			if (['left', 'right', 'hidden'].indexOf(toolbarPosition) >= 0) {
 				// valid position
 				const newViewValue = toolbarPosition === 'right' ? 'left' : 'right';
-				let config: { [key: string]: string } = {
+				const config: { [key: string]: string } = {
 					default: toolbarPosition
 				};
 				config[viewType] = newViewValue;
 				return config;
 			} else {
 				// invalid position
-				let config: { [key: string]: string } = {
+				const config: { [key: string]: string } = {
 					default: 'right',
 				};
 				config[viewType] = 'left';
@@ -61,7 +61,7 @@ export class ToggleCellToolbarPositionAction extends Action2 {
 		} else {
 			const oldValue = toolbarPosition[viewType] ?? toolbarPosition['default'] ?? 'right';
 			const newViewValue = oldValue === 'right' ? 'left' : 'right';
-			let newConfig = {
+			const newConfig = {
 				...toolbarPosition
 			};
 			newConfig[viewType] = newViewValue;

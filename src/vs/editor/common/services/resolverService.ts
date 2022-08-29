@@ -58,9 +58,9 @@ export interface ITextEditorModel extends IEditorModel {
 	isReadonly(): boolean;
 
 	/**
-	 * The mode id of the text model if known.
+	 * The language id of the text model if known.
 	 */
-	getMode(): string | undefined;
+	getLanguageId(): string | undefined;
 }
 
 export interface IResolvedTextEditorModel extends ITextEditorModel {
@@ -69,4 +69,10 @@ export interface IResolvedTextEditorModel extends ITextEditorModel {
 	 * Same as ITextEditorModel#textEditorModel, but never null.
 	 */
 	readonly textEditorModel: ITextModel;
+}
+
+export function isResolvedTextEditorModel(model: ITextEditorModel): model is IResolvedTextEditorModel {
+	const candidate = model as IResolvedTextEditorModel;
+
+	return !!candidate.textEditorModel;
 }

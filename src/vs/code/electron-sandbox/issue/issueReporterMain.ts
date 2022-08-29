@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/issueReporter';
+import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
+import { localize } from 'vs/nls';
 import { $, reset, safeInnerHtml, windowOpenNoOpener } from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
-import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Delayer } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
@@ -17,17 +19,13 @@ import { escape } from 'vs/base/common/strings';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IssueReporterData as IssueReporterModelData, IssueReporterModel } from 'vs/code/electron-sandbox/issue/issueReporterModel';
 import BaseHtml from 'vs/code/electron-sandbox/issue/issueReporterPage';
-import 'vs/css!./media/issueReporter';
-import { localize } from 'vs/nls';
 import { isRemoteDiagnosticError, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IssueReporterWindowConfiguration, IssueType } from 'vs/platform/issue/common/issue';
 import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
-import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox/window';
+import { applyZoom, zoomIn, zoomOut } from 'vs/platform/window/electron-sandbox/window';
 
 const MAX_URL_LENGTH = 2045;
 
@@ -70,10 +68,12 @@ export class IssueReporter extends Disposable {
 	constructor(private readonly configuration: IssueReporterWindowConfiguration) {
 		super();
 
-		this.initServices(configuration);
+		const mainProcessService = new ElectronIPCMainProcessService(configuration.windowId);
+		this.nativeHostService = new NativeHostService(configuration.windowId, mainProcessService) as INativeHostService;
 
 		const targetExtension = configuration.data.extensionId ? configuration.data.enabledExtensions.find(extension => extension.id === configuration.data.extensionId) : undefined;
 		this.issueReporterModel = new IssueReporterModel({
+			...configuration.data,
 			issueType: configuration.data.issueType || IssueType.Bug,
 			versionInfo: {
 				vscodeVersion: `${configuration.product.nameShort} ${!!configuration.product.darwinUniversalAssetId ? `${configuration.product.version} (Universal)` : configuration.product.version} (${configuration.product.commit || 'Commit unknown'}, ${configuration.product.date || 'Date unknown'})`,
@@ -81,7 +81,7 @@ export class IssueReporter extends Disposable {
 			},
 			extensionsDisabled: !!configuration.disableExtensions,
 			fileOnExtension: configuration.data.extensionId ? !targetExtension?.isBuiltin : undefined,
-			selectedExtension: targetExtension,
+			selectedExtension: targetExtension
 		});
 
 		const issueReporterElement = this.getElementById('issue-reporter');
@@ -141,6 +141,7 @@ export class IssueReporter extends Disposable {
 		this.handleExtensionData(configuration.data.enabledExtensions);
 		this.updateExperimentsInfo(configuration.data.experiments);
 		this.updateRestrictedMode(configuration.data.restrictedMode);
+		this.updateUnsupportedMode(configuration.data.isUnsupported);
 	}
 
 	render(): void {
@@ -151,14 +152,10 @@ export class IssueReporter extends Disposable {
 		const { fileOnExtension } = this.issueReporterModel.getData();
 		if (fileOnExtension) {
 			const issueTitle = document.getElementById('issue-title');
-			if (issueTitle) {
-				issueTitle.focus();
-			}
+			issueTitle?.focus();
 		} else {
 			const issueType = document.getElementById('issue-type');
-			if (issueType) {
-				issueType.focus();
-			}
+			issueType?.focus();
 		}
 	}
 
@@ -253,15 +250,6 @@ export class IssueReporter extends Disposable {
 		}
 
 		this.updateExtensionSelector(installedExtensions);
-	}
-
-	private initServices(configuration: IssueReporterWindowConfiguration): void {
-		const serviceCollection = new ServiceCollection();
-		const mainProcessService = new ElectronIPCMainProcessService(configuration.windowId);
-		serviceCollection.set(IMainProcessService, mainProcessService);
-
-		this.nativeHostService = new NativeHostService(configuration.windowId, mainProcessService) as INativeHostService;
-		serviceCollection.set(INativeHostService, this.nativeHostService);
 	}
 
 	private setEventHandlers(): void {
@@ -739,7 +727,7 @@ export class IssueReporter extends Disposable {
 			} else if (!fileOnMarketplace) {
 				show(extensionsBlock);
 			}
-			reset(descriptionTitle, localize('stepsToReproduce', "Steps to Reproduce"), $('span.required-input', undefined, '*'));
+			reset(descriptionTitle, localize('stepsToReproduce', "Steps to Reproduce") + ' ', $('span.required-input', undefined, '*'));
 			reset(descriptionSubtitle, localize('bugDescription', "Share the steps needed to reliably reproduce the problem. Please include actual and expected results. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
 		} else if (issueType === IssueType.PerformanceIssue) {
 			show(problemSource);
@@ -758,10 +746,10 @@ export class IssueReporter extends Disposable {
 				show(extensionsBlock);
 			}
 
-			reset(descriptionTitle, localize('stepsToReproduce', "Steps to Reproduce"), $('span.required-input', undefined, '*'));
+			reset(descriptionTitle, localize('stepsToReproduce', "Steps to Reproduce") + ' ', $('span.required-input', undefined, '*'));
 			reset(descriptionSubtitle, localize('performanceIssueDesciption', "When did this performance issue happen? Does it occur on startup or after a specific series of actions? We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
 		} else if (issueType === IssueType.FeatureRequest) {
-			reset(descriptionTitle, localize('description', "Description"), $('span.required-input', undefined, '*'));
+			reset(descriptionTitle, localize('description', "Description") + ' ', $('span.required-input', undefined, '*'));
 			reset(descriptionSubtitle, localize('featureRequestDescription', "Please describe the feature you would like to see. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
 			show(problemSource);
 
@@ -798,7 +786,7 @@ export class IssueReporter extends Disposable {
 		return isValid;
 	}
 
-	private async submitToGitHub(issueTitle: string, issueBody: string, gitHubDetails: { owner: string, repositoryName: string }): Promise<boolean> {
+	private async submitToGitHub(issueTitle: string, issueBody: string, gitHubDetails: { owner: string; repositoryName: string }): Promise<boolean> {
 		const url = `https://api.github.com/repos/${gitHubDetails.owner}/${gitHubDetails.repositoryName}/issues`;
 		const init = {
 			method: 'POST',
@@ -906,7 +894,7 @@ export class IssueReporter extends Disposable {
 				: this.configuration.product.reportIssueUrl!;
 	}
 
-	private parseGitHubUrl(url: string): undefined | { repositoryName: string, owner: string } {
+	private parseGitHubUrl(url: string): undefined | { repositoryName: string; owner: string } {
 		// Assumes a GitHub url to a particular repo, https://github.com/repositoryName/owner.
 		// Repository name and owner cannot contain '/'
 		const match = /^https?:\/\/github\.com\/([^\/]*)\/([^\/]*).*/.exec(url);
@@ -1164,6 +1152,10 @@ export class IssueReporter extends Disposable {
 		this.issueReporterModel.update({ restrictedMode });
 	}
 
+	private updateUnsupportedMode(isUnsupported: boolean) {
+		this.issueReporterModel.update({ isUnsupported });
+	}
+
 	private updateExperimentsInfo(experimentInfo: string | undefined) {
 		this.issueReporterModel.update({ experimentInfo });
 		const target = document.querySelector<HTMLElement>('.block-experiments .block-info');
@@ -1207,21 +1199,15 @@ export class IssueReporter extends Disposable {
 
 	private addEventListener(elementId: string, eventType: string, handler: (event: Event) => void): void {
 		const element = this.getElementById(elementId);
-		if (element) {
-			element.addEventListener(eventType, handler);
-		}
+		element?.addEventListener(eventType, handler);
 	}
 }
 
 // helper functions
 
 function hide(el: Element | undefined | null) {
-	if (el) {
-		el.classList.add('hidden');
-	}
+	el?.classList.add('hidden');
 }
 function show(el: Element | undefined | null) {
-	if (el) {
-		el.classList.remove('hidden');
-	}
+	el?.classList.remove('hidden');
 }

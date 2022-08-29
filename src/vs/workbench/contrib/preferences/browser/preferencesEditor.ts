@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -15,7 +15,8 @@ import { SettingsEditorModel } from 'vs/workbench/services/preferences/common/pr
 export class SettingsEditorContribution extends Disposable {
 	static readonly ID: string = 'editor.contrib.settings';
 
-	private _currentRenderer: IPreferencesRenderer | undefined;
+	private currentRenderer: IPreferencesRenderer | undefined;
+	private readonly disposables = this._register(new DisposableStore());
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -30,24 +31,25 @@ export class SettingsEditorContribution extends Disposable {
 	}
 
 	private async _createPreferencesRenderer(): Promise<void> {
-		this._currentRenderer?.dispose();
-		this._currentRenderer = undefined;
+		this.disposables.clear();
+		this.currentRenderer = undefined;
 
 		const model = this.editor.getModel();
 		if (model) {
 			const settingsModel = await this.preferencesService.createPreferencesEditorModel(model.uri);
 			if (settingsModel instanceof SettingsEditorModel && this.editor.getModel()) {
+				this.disposables.add(settingsModel);
 				switch (settingsModel.configurationTarget) {
 					case ConfigurationTarget.WORKSPACE:
-						this._currentRenderer = this.instantiationService.createInstance(WorkspaceSettingsRenderer, this.editor, settingsModel);
+						this.currentRenderer = this.disposables.add(this.instantiationService.createInstance(WorkspaceSettingsRenderer, this.editor, settingsModel));
 						break;
 					default:
-						this._currentRenderer = this.instantiationService.createInstance(UserSettingsRenderer, this.editor, settingsModel);
+						this.currentRenderer = this.disposables.add(this.instantiationService.createInstance(UserSettingsRenderer, this.editor, settingsModel));
 						break;
 				}
 			}
 
-			this._currentRenderer?.render();
+			this.currentRenderer?.render();
 		}
 	}
 }

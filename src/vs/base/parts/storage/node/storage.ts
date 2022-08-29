@@ -301,9 +301,9 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 		return new Promise((resolve, reject) => {
 			import('@vscode/sqlite3').then(sqlite3 => {
 				const connection: IDatabaseConnection = {
-					db: new (this.logger.isTracing ? sqlite3.verbose().Database : sqlite3.Database)(path, error => {
+					db: new (this.logger.isTracing ? sqlite3.verbose().Database : sqlite3.Database)(path, (error: (Error & { code?: string }) | null) => {
 						if (error) {
-							return connection.db ? connection.db.close(() => reject(error)) : reject(error);
+							return (connection.db && error.code !== 'SQLITE_CANTOPEN' /* https://github.com/TryGhost/node-sqlite3/issues/1617 */) ? connection.db.close(() => reject(error)) : reject(error);
 						}
 
 						// The following exec() statement serves two purposes:
@@ -360,7 +360,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 		});
 	}
 
-	private all(connection: IDatabaseConnection, sql: string): Promise<{ key: string, value: string }[]> {
+	private all(connection: IDatabaseConnection, sql: string): Promise<{ key: string; value: string }[]> {
 		return new Promise((resolve, reject) => {
 			connection.db.all(sql, (error, rows) => {
 				if (error) {
@@ -440,14 +440,10 @@ class SQLiteStorageDatabaseLogger {
 	}
 
 	trace(msg: string): void {
-		if (this.logTrace) {
-			this.logTrace(msg);
-		}
+		this.logTrace?.(msg);
 	}
 
 	error(error: string | Error): void {
-		if (this.logError) {
-			this.logError(error);
-		}
+		this.logError?.(error);
 	}
 }

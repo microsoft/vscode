@@ -56,11 +56,13 @@ export class TypeScriptServerSpawner {
 	): ITypeScriptServer {
 		let primaryServer: ITypeScriptServer;
 		const serverType = this.getCompositeServerType(version, capabilities, configuration);
+		const shouldUseSeparateDiagnosticsServer = this.shouldUseSeparateDiagnosticsServer(configuration);
+
 		switch (serverType) {
 			case CompositeServerType.SeparateSyntax:
 			case CompositeServerType.DynamicSeparateSyntax:
 				{
-					const enableDynamicRouting = serverType === CompositeServerType.DynamicSeparateSyntax;
+					const enableDynamicRouting = !shouldUseSeparateDiagnosticsServer && serverType === CompositeServerType.DynamicSeparateSyntax;
 					primaryServer = new SyntaxRoutingTsServer({
 						syntax: this.spawnTsServer(TsServerProcessKind.Syntax, version, configuration, pluginManager, cancellerFactory),
 						semantic: this.spawnTsServer(TsServerProcessKind.Semantic, version, configuration, pluginManager, cancellerFactory),
@@ -79,7 +81,7 @@ export class TypeScriptServerSpawner {
 				}
 		}
 
-		if (this.shouldUseSeparateDiagnosticsServer(configuration)) {
+		if (shouldUseSeparateDiagnosticsServer) {
 			return new GetErrRoutingTsServer({
 				getErr: this.spawnTsServer(TsServerProcessKind.Diagnostics, version, configuration, pluginManager, cancellerFactory),
 				primary: primaryServer,
@@ -150,7 +152,7 @@ export class TypeScriptServerSpawner {
 		}
 
 		this._logger.info(`<${kind}> Forking...`);
-		const process = this._factory.fork(version.tsServerPath, args, kind, configuration, this._versionManager);
+		const process = this._factory.fork(version, args, kind, configuration, this._versionManager);
 		this._logger.info(`<${kind}> Starting...`);
 
 		return new ProcessBasedTsServer(
@@ -184,7 +186,7 @@ export class TypeScriptServerSpawner {
 		apiVersion: API,
 		pluginManager: PluginManager,
 		cancellationPipeName: string | undefined,
-	): { args: string[], tsServerLogFile: string | undefined, tsServerTraceDirectory: string | undefined } {
+	): { args: string[]; tsServerLogFile: string | undefined; tsServerTraceDirectory: string | undefined } {
 		const args: string[] = [];
 		let tsServerLogFile: string | undefined;
 		let tsServerTraceDirectory: string | undefined;
@@ -235,40 +237,32 @@ export class TypeScriptServerSpawner {
 			}
 		}
 
-		if (!isWeb()) {
-			const pluginPaths = this._pluginPathsProvider.getPluginPaths();
+		const pluginPaths = isWeb() ? [] : this._pluginPathsProvider.getPluginPaths();
 
-			if (pluginManager.plugins.length) {
-				args.push('--globalPlugins', pluginManager.plugins.map(x => x.name).join(','));
+		if (pluginManager.plugins.length) {
+			args.push('--globalPlugins', pluginManager.plugins.map(x => x.name).join(','));
 
-				const isUsingBundledTypeScriptVersion = currentVersion.path === this._versionProvider.defaultVersion.path;
-				for (const plugin of pluginManager.plugins) {
-					if (isUsingBundledTypeScriptVersion || plugin.enableForWorkspaceTypeScriptVersions) {
-						pluginPaths.push(plugin.path);
-					}
+			const isUsingBundledTypeScriptVersion = currentVersion.path === this._versionProvider.defaultVersion.path;
+			for (const plugin of pluginManager.plugins) {
+				if (isUsingBundledTypeScriptVersion || plugin.enableForWorkspaceTypeScriptVersions) {
+					pluginPaths.push(isWeb() ? plugin.uri.toString() : plugin.uri.fsPath);
 				}
-			}
-
-			if (pluginPaths.length !== 0) {
-				args.push('--pluginProbeLocations', pluginPaths.join(','));
 			}
 		}
 
-		if (configuration.npmLocation) {
+		if (pluginPaths.length !== 0) {
+			args.push('--pluginProbeLocations', pluginPaths.join(','));
+		}
+
+		if (configuration.npmLocation && !isWeb()) {
 			args.push('--npmLocation', `"${configuration.npmLocation}"`);
 		}
 
-		if (apiVersion.gte(API.v260)) {
-			args.push('--locale', TypeScriptServerSpawner.getTsLocale(configuration));
-		}
+		args.push('--locale', TypeScriptServerSpawner.getTsLocale(configuration));
 
-		if (apiVersion.gte(API.v291)) {
-			args.push('--noGetErrOnBackgroundUpdate');
-		}
+		args.push('--noGetErrOnBackgroundUpdate');
 
-		if (apiVersion.gte(API.v345)) {
-			args.push('--validateDefaultNpmLocation');
-		}
+		args.push('--validateDefaultNpmLocation');
 
 		return { args, tsServerLogFile, tsServerTraceDirectory };
 	}

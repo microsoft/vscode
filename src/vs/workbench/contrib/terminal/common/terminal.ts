@@ -8,11 +8,14 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, TerminalLocationString, IProcessProperty, TerminalShellType, TitleEventSource, ProcessPropertyType, IFixedTerminalDimensions } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, TerminalLocationString, IProcessProperty, TitleEventSource, ProcessPropertyType, IFixedTerminalDimensions, IExtensionTerminalProfile, ICreateContributedTerminalProfileOptions, IProcessPropertyMap, ITerminalEnvironment, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
-import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
+import { IGenericMarkProperties, IProcessDetails, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { ITerminalCapabilityStore, IXtermMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export const TERMINAL_VIEW_ID = 'terminal';
 
@@ -52,8 +55,39 @@ export interface ITerminalProfileResolverService {
 	getDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile>;
 	getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string>;
 	getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<string | string[]>;
+	getDefaultIcon(): TerminalIcon & ThemeIcon;
 	getEnvironment(remoteAuthority: string | undefined): Promise<IProcessEnvironment>;
 	createProfileFromShellAndShellArgs(shell?: unknown, shellArgs?: unknown): Promise<ITerminalProfile | string>;
+}
+
+/*
+ * When there were shell integration args injected
+ * and createProcess returns an error, this exit code will be used.
+ */
+export const ShellIntegrationExitCode = 633;
+
+export interface IRegisterContributedProfileArgs {
+	extensionIdentifier: string; id: string; title: string; options: ICreateContributedTerminalProfileOptions;
+}
+
+export const ITerminalProfileService = createDecorator<ITerminalProfileService>('terminalProfileService');
+export interface ITerminalProfileService {
+	readonly _serviceBrand: undefined;
+	readonly availableProfiles: ITerminalProfile[];
+	readonly contributedProfiles: IExtensionTerminalProfile[];
+	readonly profilesReady: Promise<void>;
+	getPlatformKey(): Promise<string>;
+	refreshAvailableProfiles(): void;
+	getDefaultProfileName(): string | undefined;
+	onDidChangeAvailableProfiles: Event<ITerminalProfile[]>;
+	getContributedDefaultProfile(shellLaunchConfig: IShellLaunchConfig): Promise<IExtensionTerminalProfile | undefined>;
+	registerContributedProfile(args: IRegisterContributedProfileArgs): Promise<void>;
+	getContributedProfileProvider(extensionIdentifier: string, id: string): ITerminalProfileProvider | undefined;
+	registerTerminalProfileProvider(extensionIdentifier: string, id: string, profileProvider: ITerminalProfileProvider): IDisposable;
+}
+
+export interface ITerminalProfileProvider {
+	createContributedTerminalProfile(options: ICreateContributedTerminalProfileOptions): Promise<void>;
 }
 
 export interface IShellLaunchConfigResolveOptions {
@@ -62,8 +96,8 @@ export interface IShellLaunchConfigResolveOptions {
 	allowAutomationShell?: boolean;
 }
 
-export interface IOffProcessTerminalService {
-	readonly _serviceBrand: undefined;
+export interface ITerminalBackend {
+	readonly remoteAuthority: string | undefined;
 
 	/**
 	 * Fired when the ptyHost process becomes non-responsive, this should disable stdin for all
@@ -81,9 +115,10 @@ export interface IOffProcessTerminalService {
 	 */
 	onPtyHostRestart: Event<void>;
 
-	onDidRequestDetach: Event<{ requestId: number, workspaceId: string, instanceId: number }>;
+	onDidRequestDetach: Event<{ requestId: number; workspaceId: string; instanceId: number }>;
 
 	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
+	attachToRevivedProcess(id: number): Promise<ITerminalChildProcess | undefined>;
 	listProcesses(): Promise<IProcessDetails[]>;
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
 	getProfiles(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
@@ -98,10 +133,7 @@ export interface IOffProcessTerminalService {
 	requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined>;
 	acceptDetachInstanceReply(requestId: number, persistentProcessId?: number): Promise<void>;
 	persistTerminalState(): Promise<void>;
-}
 
-export const ILocalTerminalService = createDecorator<ILocalTerminalService>('localTerminalService');
-export interface ILocalTerminalService extends IOffProcessTerminalService {
 	createProcess(
 		shellLaunchConfig: IShellLaunchConfig,
 		cwd: string,
@@ -109,10 +141,48 @@ export interface ILocalTerminalService extends IOffProcessTerminalService {
 		rows: number,
 		unicodeVersion: '6' | '11',
 		env: IProcessEnvironment,
-		windowsEnableConpty: boolean,
+		options: ITerminalProcessOptions,
 		shouldPersist: boolean
 	): Promise<ITerminalChildProcess>;
 }
+
+export const TerminalExtensions = {
+	Backend: 'workbench.contributions.terminal.processBackend'
+};
+
+export interface ITerminalBackendRegistry {
+	/**
+	 * Registers a terminal backend for a remote authority.
+	 */
+	registerTerminalBackend(backend: ITerminalBackend): void;
+
+	/**
+	 * Returns the registered terminal backend for a remote authority.
+	 */
+	getTerminalBackend(remoteAuthority?: string): ITerminalBackend | undefined;
+}
+
+class TerminalBackendRegistry implements ITerminalBackendRegistry {
+	private readonly _backends = new Map<string, ITerminalBackend>();
+
+	registerTerminalBackend(backend: ITerminalBackend): void {
+		const key = this._sanitizeRemoteAuthority(backend.remoteAuthority);
+		if (this._backends.has(key)) {
+			throw new Error(`A terminal backend with remote authority '${key}' was already registered.`);
+		}
+		this._backends.set(key, backend);
+	}
+
+	getTerminalBackend(remoteAuthority: string | undefined): ITerminalBackend | undefined {
+		return this._backends.get(this._sanitizeRemoteAuthority(remoteAuthority));
+	}
+
+	private _sanitizeRemoteAuthority(remoteAuthority: string | undefined) {
+		// Normalize the key to lowercase as the authority is case-insensitive
+		return remoteAuthority?.toLowerCase() ?? '';
+	}
+}
+Registry.add(TerminalExtensions.Backend, new TerminalBackendRegistry());
 
 export type FontWeight = 'normal' | 'bold' | number;
 
@@ -124,6 +194,23 @@ export interface ITerminalProfiles {
 
 export type ConfirmOnKill = 'never' | 'always' | 'editor' | 'panel';
 export type ConfirmOnExit = 'never' | 'always' | 'hasChildProcesses';
+
+export interface ICompleteTerminalConfiguration {
+	'terminal.integrated.automationShell.windows': string;
+	'terminal.integrated.automationShell.osx': string;
+	'terminal.integrated.automationShell.linux': string;
+	'terminal.integrated.shell.windows': string;
+	'terminal.integrated.shell.osx': string;
+	'terminal.integrated.shell.linux': string;
+	'terminal.integrated.shellArgs.windows': string | string[];
+	'terminal.integrated.shellArgs.osx': string | string[];
+	'terminal.integrated.shellArgs.linux': string | string[];
+	'terminal.integrated.env.windows': ITerminalEnvironment;
+	'terminal.integrated.env.osx': ITerminalEnvironment;
+	'terminal.integrated.env.linux': ITerminalEnvironment;
+	'terminal.integrated.cwd': string;
+	'terminal.integrated.detectLocale': 'auto' | 'off' | 'on';
+}
 
 export interface ITerminalConfiguration {
 	shell: {
@@ -152,7 +239,7 @@ export interface ITerminalConfiguration {
 	macOptionIsMeta: boolean;
 	macOptionClickForcesSelection: boolean;
 	gpuAcceleration: 'auto' | 'on' | 'canvas' | 'off';
-	rightClickBehavior: 'default' | 'copyPaste' | 'paste' | 'selectWord';
+	rightClickBehavior: 'default' | 'copyPaste' | 'paste' | 'selectWord' | 'nothing';
 	cursorBlinking: boolean;
 	cursorStyle: 'block' | 'underline' | 'line';
 	cursorWidth: number;
@@ -190,9 +277,9 @@ export interface ITerminalConfiguration {
 	wordSeparators: string;
 	enableFileLinks: boolean;
 	unicodeVersion: '6' | '11';
-	experimentalLinkProvider: boolean;
 	localEchoLatencyThreshold: number;
 	localEchoExcludePrograms: ReadonlyArray<string>;
+	localEchoEnabled: 'auto' | 'on' | 'off';
 	localEchoStyle: 'bold' | 'dim' | 'italic' | 'underlined' | 'inverted' | string;
 	enablePersistentSessions: boolean;
 	tabs: {
@@ -204,11 +291,18 @@ export interface ITerminalConfiguration {
 		title: string;
 		description: string;
 		separator: string;
-	},
+	};
 	bellDuration: number;
 	defaultLocation: TerminalLocationString;
 	customGlyphs: boolean;
 	persistentSessionReviveProcess: 'onExit' | 'onExitAndWindowClose' | 'never';
+	ignoreProcessNames: string[];
+	autoReplies: { [key: string]: string };
+	shellIntegration?: {
+		enabled: boolean;
+		decorationsEnabled: boolean;
+	};
+	smoothScrolling: boolean;
 }
 
 export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];
@@ -239,24 +333,28 @@ export interface IRemoteTerminalAttachTarget {
 	workspaceId: string;
 	workspaceName: string;
 	isOrphan: boolean;
-	icon: URI | { light: URI; dark: URI } | { id: string, color?: { id: string } } | undefined;
+	icon: URI | { light: URI; dark: URI } | { id: string; color?: { id: string } } | undefined;
 	color: string | undefined;
 	fixedDimensions: IFixedTerminalDimensions | undefined;
 }
 
-export interface ICommandTracker {
-	scrollToPreviousCommand(): void;
-	scrollToNextCommand(): void;
-	selectToPreviousCommand(): void;
-	selectToNextCommand(): void;
-	selectToPreviousLine(): void;
-	selectToNextLine(): void;
+export interface ITerminalCommand {
+	command: string;
+	timestamp: number;
+	cwd?: string;
+	exitCode?: number;
+	marker?: IXtermMarker;
+	hasOutput(): boolean;
+	getOutput(): string | undefined;
+	genericMarkProperties?: IGenericMarkProperties;
 }
 
 export interface INavigationMode {
 	exitNavigationMode(): void;
 	focusPreviousLine(): void;
 	focusNextLine(): void;
+	focusPreviousPage(): void;
+	focusNextPage(): void;
 }
 
 export interface IBeforeProcessDataEvent {
@@ -285,6 +383,8 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly isDisconnected: boolean;
 	readonly hasWrittenData: boolean;
 	readonly hasChildProcesses: boolean;
+	readonly backend: ITerminalBackend | undefined;
+	readonly capabilities: ITerminalCapabilityStore;
 
 	readonly onPtyDisconnect: Event<void>;
 	readonly onPtyReconnect: Event<void>;
@@ -292,17 +392,13 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly onProcessReady: Event<IProcessReadyEvent>;
 	readonly onBeforeProcessData: Event<IBeforeProcessDataEvent>;
 	readonly onProcessData: Event<IProcessDataEvent>;
-	readonly onProcessTitle: Event<string>;
-	readonly onProcessShellTypeChanged: Event<TerminalShellType>;
-	readonly onProcessExit: Event<number | undefined>;
-	readonly onProcessOverrideDimensions: Event<ITerminalDimensionsOverride | undefined>;
-	readonly onProcessResolvedShellLaunchConfig: Event<IShellLaunchConfig>;
-	readonly onProcessDidChangeHasChildProcesses: Event<boolean>;
 	readonly onEnvironmentVariableInfoChanged: Event<IEnvironmentVariableInfo>;
 	readonly onDidChangeProperty: Event<IProcessProperty<any>>;
+	readonly onProcessExit: Event<number | undefined>;
+	readonly onRestoreCommands: Event<ISerializedCommandDetectionCapability>;
 
 	dispose(immediate?: boolean): void;
-	detachFromProcess(): Promise<void>;
+	detachFromProcess(forcePersist?: boolean): Promise<void>;
 	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean): Promise<ITerminalLaunchError | undefined>;
 	relaunch(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean, reset: boolean): Promise<ITerminalLaunchError | undefined>;
 	write(data: string): Promise<void>;
@@ -314,10 +410,10 @@ export interface ITerminalProcessManager extends IDisposable {
 	processBinary(data: string): void;
 
 	getInitialCwd(): Promise<string>;
-	getCwd(): Promise<string>;
 	getLatency(): Promise<number>;
-	refreshProperty(property: ProcessPropertyType): any;
-	updateProperty(property: ProcessPropertyType, value: any): any;
+	refreshProperty<T extends ProcessPropertyType>(type: T): Promise<IProcessPropertyMap[T]>;
+	updateProperty<T extends ProcessPropertyType>(property: T, value: IProcessPropertyMap[T]): void;
+	getBackendOS(): Promise<OperatingSystem>;
 }
 
 export const enum ProcessState {
@@ -343,18 +439,14 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 	readonly instanceId: number;
 
 	emitData(data: string): void;
-	emitTitle(title: string): void;
+	emitProcessProperty(property: IProcessProperty<any>): void;
 	emitReady(pid: number, cwd: string): void;
-	emitExit(exitCode: number | undefined): void;
-	emitOverrideDimensions(dimensions: ITerminalDimensions | undefined): void;
-	emitResolvedShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig): void;
-	emitInitialCwd(initialCwd: string): void;
-	emitCwd(cwd: string): void;
 	emitLatency(latency: number): void;
+	emitExit(exitCode: number | undefined): void;
 
 	onInput: Event<string>;
 	onBinary: Event<string>;
-	onResize: Event<{ cols: number, rows: number }>;
+	onResize: Event<{ cols: number; rows: number }>;
 	onAcknowledgeDataEvent: Event<number>;
 	onShutdown: Event<boolean>;
 	onRequestInitialCwd: Event<void>;
@@ -369,11 +461,6 @@ export interface IStartExtensionTerminalRequest {
 	callback: (error: ITerminalLaunchError | undefined) => void;
 }
 
-export interface IDefaultShellAndArgsRequest {
-	useAutomationShell: boolean;
-	callback: (shell: string, args: string[] | string | undefined) => void;
-}
-
 export const QUICK_LAUNCH_PROFILE_CHOICE = 'workbench.action.terminal.profile.choice';
 
 export const enum TerminalCommandId {
@@ -383,9 +470,19 @@ export const enum TerminalCommandId {
 	Kill = 'workbench.action.terminal.kill',
 	KillEditor = 'workbench.action.terminal.killEditor',
 	KillInstance = 'workbench.action.terminal.killInstance',
+	KillAll = 'workbench.action.terminal.killAll',
 	QuickKill = 'workbench.action.terminal.quickKill',
 	ConfigureTerminalSettings = 'workbench.action.terminal.openSettings',
+	OpenDetectedLink = 'workbench.action.terminal.openDetectedLink',
+	OpenWordLink = 'workbench.action.terminal.openWordLink',
+	ShellIntegrationLearnMore = 'workbench.action.terminal.learnMore',
+	OpenFileLink = 'workbench.action.terminal.openFileLink',
+	OpenWebLink = 'workbench.action.terminal.openUrlLink',
+	RunRecentCommand = 'workbench.action.terminal.runRecentCommand',
+	CopyLastCommand = 'workbench.action.terminal.copyLastCommand',
+	GoToRecentDirectory = 'workbench.action.terminal.goToRecentDirectory',
 	CopySelection = 'workbench.action.terminal.copySelection',
+	CopySelectionAsHtml = 'workbench.action.terminal.copySelectionAsHtml',
 	SelectAll = 'workbench.action.terminal.selectAll',
 	DeleteWordLeft = 'workbench.action.terminal.deleteWordLeft',
 	DeleteWordRight = 'workbench.action.terminal.deleteWordRight',
@@ -403,6 +500,7 @@ export const enum TerminalCommandId {
 	Unsplit = 'workbench.action.terminal.unsplit',
 	UnsplitInstance = 'workbench.action.terminal.unsplitInstance',
 	JoinInstance = 'workbench.action.terminal.joinInstance',
+	Join = 'workbench.action.terminal.join',
 	Relaunch = 'workbench.action.terminal.relaunch',
 	FocusPreviousPane = 'workbench.action.terminal.focusPreviousPane',
 	ShowTabs = 'workbench.action.terminal.showTabs',
@@ -460,7 +558,9 @@ export const enum TerminalCommandId {
 	ToggleFindCaseSensitive = 'workbench.action.terminal.toggleFindCaseSensitive',
 	NavigationModeExit = 'workbench.action.terminal.navigationModeExit',
 	NavigationModeFocusNext = 'workbench.action.terminal.navigationModeFocusNext',
+	NavigationModeFocusNextPage = 'workbench.action.terminal.navigationModeFocusNextPage',
 	NavigationModeFocusPrevious = 'workbench.action.terminal.navigationModeFocusPrevious',
+	NavigationModeFocusPreviousPage = 'workbench.action.terminal.navigationModeFocusPreviousPage',
 	ShowEnvironmentInformation = 'workbench.action.terminal.showEnvironmentInformation',
 	SearchWorkspace = 'workbench.action.terminal.searchWorkspace',
 	AttachToSession = 'workbench.action.terminal.attachToSession',
@@ -469,12 +569,16 @@ export const enum TerminalCommandId {
 	MoveToEditorInstance = 'workbench.action.terminal.moveToEditorInstance',
 	MoveToTerminalPanel = 'workbench.action.terminal.moveToTerminalPanel',
 	SetDimensions = 'workbench.action.terminal.setDimensions',
+	ClearCommandHistory = 'workbench.action.terminal.clearCommandHistory',
+	WriteDataToTerminal = 'workbench.action.terminal.writeDataToTerminal',
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.ClearSelection,
 	TerminalCommandId.Clear,
 	TerminalCommandId.CopySelection,
+	TerminalCommandId.CopySelectionAsHtml,
+	TerminalCommandId.CopyLastCommand,
 	TerminalCommandId.DeleteToLineStart,
 	TerminalCommandId.DeleteWordLeft,
 	TerminalCommandId.DeleteWordRight,
@@ -482,6 +586,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.FindHide,
 	TerminalCommandId.FindNext,
 	TerminalCommandId.FindPrevious,
+	TerminalCommandId.GoToRecentDirectory,
 	TerminalCommandId.ToggleFindRegex,
 	TerminalCommandId.ToggleFindWholeWord,
 	TerminalCommandId.ToggleFindCaseSensitive,
@@ -507,6 +612,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.ResizePaneUp,
 	TerminalCommandId.RunActiveFile,
 	TerminalCommandId.RunSelectedText,
+	TerminalCommandId.RunRecentCommand,
 	TerminalCommandId.ScrollDownLine,
 	TerminalCommandId.ScrollDownPage,
 	TerminalCommandId.ScrollToBottom,

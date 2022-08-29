@@ -38,7 +38,7 @@ import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { EditorResolution } from 'vs/platform/editor/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 
 export class UserDataSyncMergesViewPane extends TreeViewPane {
 
@@ -108,7 +108,7 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 		this.buttonsContainer.style.width = `${width}px`;
 
 		const numberOfChanges = this.userDataSyncPreview.resources.filter(r => r.syncResource !== SyncResource.GlobalState && (r.localChange !== Change.None || r.remoteChange !== Change.None)).length;
-		const messageHeight = 44;
+		const messageHeight = 66 /* max 3 lines */;
 		super.layoutTreeView(Math.min(height - buttonContainerHeight, ((22 * numberOfChanges) + messageHeight)), width);
 	}
 
@@ -324,7 +324,7 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 					preserveFocus: true,
 					revealIfVisible: true,
 					pinned: true,
-					override: EditorResolution.DISABLED
+					override: DEFAULT_EDITOR_ASSOCIATION.id
 				},
 			});
 		}
@@ -410,14 +410,9 @@ class UserDataSyncResourcesDecorationProvider extends Disposable implements IDec
 	}
 }
 
-type AcceptChangesClassification = {
-	source: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-	action: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-};
-
 class AcceptChangesContribution extends Disposable implements IEditorContribution {
 
-	static get(editor: ICodeEditor): AcceptChangesContribution {
+	static get(editor: ICodeEditor): AcceptChangesContribution | null {
 		return editor.getContribution<AcceptChangesContribution>(AcceptChangesContribution.ID);
 	}
 
@@ -430,7 +425,6 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IUserDataSyncWorkbenchService private readonly userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
 	) {
 		super();
@@ -487,7 +481,6 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 			this._register(this.acceptChangesButton.onClick(async () => {
 				const model = this.editor.getModel();
 				if (model) {
-					this.telemetryService.publicLog2<{ source: string, action: string }, AcceptChangesClassification>('sync/acceptChanges', { source: userDataSyncResource.syncResource, action: isRemoteResource ? 'acceptRemote' : isLocalResource ? 'acceptLocal' : 'acceptMerges' });
 					await this.userDataSyncWorkbenchService.userDataSyncPreview.accept(userDataSyncResource.syncResource, model.uri, model.getValue());
 				}
 			}));

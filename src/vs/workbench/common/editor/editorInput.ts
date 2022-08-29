@@ -11,6 +11,31 @@ import { EditorInputCapabilities, Verbosity, GroupIdentifier, ISaveOptions, IRev
 import { isEqual } from 'vs/base/common/resources';
 import { ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 
+export interface IEditorCloseHandler {
+
+	/**
+	 * If `true`, will call into the `confirm` method to ask for confirmation
+	 * before closing the editor.
+	 */
+	showConfirm(): boolean;
+
+	/**
+	 * Allows an editor to control what should happen when the editor
+	 * (or a list of editor of the same kind) is being closed.
+	 *
+	 * By default a file specific dialog will open if the editor is
+	 * dirty and not in the process of saving.
+	 *
+	 * If the editor is not dealing with files or another condition
+	 * should be used besides dirty state, this method should be
+	 * implemented to show a different dialog.
+	 *
+	 * @param editors All editors of the same kind that are being closed. Should be used
+	 * to show a combined dialog.
+	 */
+	confirm(editors: ReadonlyArray<IEditorIdentifier>): Promise<ConfirmResult>;
+}
+
 /**
  * Editor inputs are lightweight objects that can be passed to the workbench API to open inside the editor part.
  * Each editor input is mapped to an editor that is capable of opening it through the Platform facade.
@@ -20,6 +45,7 @@ export abstract class EditorInput extends AbstractEditorInput {
 	protected readonly _onDidChangeDirty = this._register(new Emitter<void>());
 	protected readonly _onDidChangeLabel = this._register(new Emitter<void>());
 	protected readonly _onDidChangeCapabilities = this._register(new Emitter<void>());
+
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 
 	/**
@@ -43,6 +69,12 @@ export abstract class EditorInput extends AbstractEditorInput {
 	readonly onWillDispose = this._onWillDispose.event;
 
 	private disposed: boolean = false;
+
+	/**
+	 * Optional: subclasses can override to implement
+	 * custom confirmation on close behavior.
+	 */
+	readonly closeHandler?: IEditorCloseHandler;
 
 	/**
 	 * Unique type identifier for this input. Every editor input of the
@@ -168,20 +200,6 @@ export abstract class EditorInput extends AbstractEditorInput {
 	}
 
 	/**
-	 * Optional: if this method is implemented, allows an editor to
-	 * control what should happen when the editor (or a list of editors
-	 * of the same kind) is dirty and there is an intent to close it.
-	 *
-	 * By default a file specific dialog will open. If the editor is
-	 * not dealing with files, this method should be implemented to
-	 * show a different dialog.
-	 *
-	 * @param editors if more than one editor is closed, will pass in
-	 * each editor of the same kind to be able to show a combined dialog.
-	 */
-	confirm?(editors?: ReadonlyArray<IEditorIdentifier>): Promise<ConfirmResult>;
-
-	/**
 	 * Saves the editor. The provided groupId helps implementors
 	 * to e.g. preserve view state of the editor and re-open it
 	 * in the correct group after saving.
@@ -190,7 +208,7 @@ export abstract class EditorInput extends AbstractEditorInput {
 	 * this operation or `undefined` to indicate that the operation
 	 * failed or was canceled.
 	 */
-	async save(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | undefined> {
+	async save(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | IUntypedEditorInput | undefined> {
 		return this;
 	}
 
@@ -203,7 +221,7 @@ export abstract class EditorInput extends AbstractEditorInput {
 	 * of this operation or `undefined` to indicate that the operation
 	 * failed or was canceled.
 	 */
-	async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | undefined> {
+	async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | IUntypedEditorInput | undefined> {
 		return this;
 	}
 
@@ -271,7 +289,7 @@ export abstract class EditorInput extends AbstractEditorInput {
 	 * resource editor input that e.g. can be used to serialize the
 	 * editor input into a form that it can be restored.
 	 *
-	 * May return `undefined` if a untyped representatin is not supported.
+	 * May return `undefined` if an untyped representation is not supported.
 	 *
 	 * @param options additional configuration for the expected return type.
 	 * When `preserveViewState` is provided, implementations should try to

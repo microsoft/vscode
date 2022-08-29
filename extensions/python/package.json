@@ -8,10 +8,6 @@
   "engines": {
     "vscode": "*"
   },
-  "extensionKind": [
-    "ui",
-    "workspace"
-  ],
   "contributes": {
     "languages": [
       {

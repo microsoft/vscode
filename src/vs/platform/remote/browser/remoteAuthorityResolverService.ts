@@ -7,7 +7,9 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { RemoteAuthorities } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { IRemoteAuthorityResolverService, IRemoteConnectionData, ResolvedAuthority, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { getRemoteServerRootPath, parseAuthorityWithOptionalPort } from 'vs/platform/remote/common/remoteHosts';
 
 export class RemoteAuthorityResolverService extends Disposable implements IRemoteAuthorityResolverService {
 
@@ -16,28 +18,28 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 	private readonly _onDidChangeConnectionData = this._register(new Emitter<void>());
 	public readonly onDidChangeConnectionData = this._onDidChangeConnectionData.event;
 
-	private readonly _cache: Map<string, ResolverResult>;
-	private readonly _connectionToken: string | undefined;
+	private readonly _promiseCache = new Map<string, Promise<ResolverResult>>();
+	private readonly _cache = new Map<string, ResolverResult>();
+	private readonly _connectionToken: Promise<string> | string | undefined;
 	private readonly _connectionTokens: Map<string, string>;
 
-	constructor(connectionToken: string | undefined, resourceUriProvider: ((uri: URI) => URI) | undefined) {
+	constructor(@IProductService productService: IProductService, connectionToken: Promise<string> | string | undefined, resourceUriProvider: ((uri: URI) => URI) | undefined) {
 		super();
-		this._cache = new Map<string, ResolverResult>();
 		this._connectionToken = connectionToken;
 		this._connectionTokens = new Map<string, string>();
 		if (resourceUriProvider) {
 			RemoteAuthorities.setDelegate(resourceUriProvider);
 		}
+		RemoteAuthorities.setServerRootPath(getRemoteServerRootPath(productService));
 	}
 
 	async resolveAuthority(authority: string): Promise<ResolverResult> {
-		if (!this._cache.has(authority)) {
-			const result = this._doResolveAuthority(authority);
-			RemoteAuthorities.set(authority, result.authority.host, result.authority.port);
-			this._cache.set(authority, result);
-			this._onDidChangeConnectionData.fire();
+		let result = this._promiseCache.get(authority);
+		if (!result) {
+			result = this._doResolveAuthority(authority);
+			this._promiseCache.set(authority, result);
 		}
-		return this._cache.get(authority)!;
+		return result;
 	}
 
 	async getCanonicalURI(uri: URI): Promise<URI> {
@@ -49,7 +51,7 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 			return null;
 		}
 		const resolverResult = this._cache.get(authority)!;
-		const connectionToken = this._connectionTokens.get(authority) || this._connectionToken;
+		const connectionToken = this._connectionTokens.get(authority) || resolverResult.authority.connectionToken;
 		return {
 			host: resolverResult.authority.host,
 			port: resolverResult.authority.port,
@@ -57,13 +59,15 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 		};
 	}
 
-	private _doResolveAuthority(authority: string): ResolverResult {
-		const connectionToken = this._connectionTokens.get(authority) || this._connectionToken;
-		if (authority.indexOf(':') >= 0) {
-			const pieces = authority.split(':');
-			return { authority: { authority, host: pieces[0], port: parseInt(pieces[1], 10), connectionToken } };
-		}
-		return { authority: { authority, host: authority, port: 80, connectionToken } };
+	private async _doResolveAuthority(authority: string): Promise<ResolverResult> {
+		const connectionToken = await Promise.resolve(this._connectionTokens.get(authority) || this._connectionToken);
+		const defaultPort = (/^https:/.test(window.location.href) ? 443 : 80);
+		const { host, port } = parseAuthorityWithOptionalPort(authority, defaultPort);
+		const result: ResolverResult = { authority: { authority, host: host, port: port, connectionToken } };
+		RemoteAuthorities.set(authority, result.authority.host, result.authority.port);
+		this._cache.set(authority, result);
+		this._onDidChangeConnectionData.fire();
+		return result;
 	}
 
 	_clearResolvedAuthority(authority: string): void {

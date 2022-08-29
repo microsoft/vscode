@@ -40,9 +40,10 @@
  */
 
 .xterm {
-	font-feature-settings: "liga" 0;
+	cursor: text;
 	position: relative;
 	user-select: none;
+	-ms-user-select: none;
 	-webkit-user-select: none;
 }
 
@@ -54,10 +55,7 @@
 .xterm .xterm-helpers {
 	position: absolute;
 	top: 0;
-	/**
-	 * The z-index of the helpers must be higher than the canvases in order for
-	 * IMEs to appear on top.
-	 */
+	/* The z-index of the helpers must be higher than the canvases in order for IMEs to appear on top. */
 	z-index: 5;
 }
 
@@ -128,16 +126,13 @@
 	line-height: normal;
 }
 
-.xterm {
-	cursor: text;
-}
-
 .xterm.enable-mouse-events {
 	/* When mouse events are enabled (eg. tmux), revert to the standard pointer cursor */
 	cursor: default;
 }
 
-.xterm.xterm-cursor-pointer {
+.xterm.xterm-cursor-pointer,
+.xterm .xterm-cursor-pointer {
 	cursor: pointer;
 }
 
@@ -169,10 +164,44 @@
 	opacity: 0.5;
 }
 
-.xterm-underline {
+.xterm-underline-1 {
 	text-decoration: underline;
+}
+
+.xterm-underline-2 {
+	text-decoration: double underline;
+}
+
+.xterm-underline-3 {
+	text-decoration: wavy underline;
+}
+
+.xterm-underline-4 {
+	text-decoration: dotted underline;
+}
+
+.xterm-underline-5 {
+	text-decoration: dashed underline;
 }
 
 .xterm-strikethrough {
 	text-decoration: line-through;
+}
+
+.xterm-screen .xterm-decoration-container .xterm-decoration {
+	z-index: 6;
+	position: absolute;
+}
+
+.xterm-decoration-overview-ruler {
+	z-index: 7;
+	position: absolute;
+	top: 0;
+	right: 0;
+	pointer-events: none;
+}
+
+.xterm-decoration-top {
+	z-index: 2;
+	position: relative;
 }

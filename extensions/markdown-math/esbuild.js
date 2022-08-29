@@ -2,6 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+//@ts-check
+
 const path = require('path');
 const fse = require('fs-extra');
 const esbuild = require('esbuild');
@@ -16,25 +18,45 @@ if (outputRootIndex >= 0) {
 	outputRoot = args[outputRootIndex + 1];
 }
 
+const srcDir = path.join(__dirname, 'notebook');
 const outDir = path.join(outputRoot, 'notebook-out');
-esbuild.build({
-	entryPoints: [
-		path.join(__dirname, 'notebook', 'katex.ts'),
-	],
-	bundle: true,
-	minify: true,
-	sourcemap: false,
-	format: 'esm',
-	outdir: outDir,
-	platform: 'browser',
-	target: ['es2020'],
-	incremental: isWatch,
-}).catch(() => process.exit(1));
 
-fse.copySync(
-	path.join(__dirname, 'node_modules/katex/dist/katex.min.css'),
-	path.join(outDir, 'katex.min.css'));
+async function build() {
+	await esbuild.build({
+		entryPoints: [
+			path.join(srcDir, 'katex.ts'),
+		],
+		bundle: true,
+		minify: true,
+		sourcemap: false,
+		format: 'esm',
+		outdir: outDir,
+		platform: 'browser',
+		target: ['es2020'],
+	});
 
-fse.copySync(
-	path.join(__dirname, 'node_modules/katex/dist/fonts'),
-	path.join(outDir, 'fonts/'));
+	fse.copySync(
+		path.join(__dirname, 'node_modules', 'katex', 'dist', 'katex.min.css'),
+		path.join(outDir, 'katex.min.css'));
+
+	const fontsDir = path.join(__dirname, 'node_modules', 'katex', 'dist', 'fonts');
+	const fontsOutDir = path.join(outDir, 'fonts/');
+
+	fse.mkdirSync(fontsOutDir, { recursive: true });
+
+	for (const file of fse.readdirSync(fontsDir)) {
+		if (file.endsWith('.woff2')) {
+			fse.copyFileSync(path.join(fontsDir, file), path.join(fontsOutDir, file));
+		}
+	}
+}
+
+
+build().catch(() => process.exit(1));
+
+if (isWatch) {
+	const watcher = require('@parcel/watcher');
+	watcher.subscribe(srcDir, () => {
+		return build();
+	});
+}

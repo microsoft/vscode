@@ -4,16 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { StandardWheelEvent } from 'vs/base/browser/mouseEvent';
-import { AbstractScrollbar, ISimplifiedMouseEvent, ScrollbarHost } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
+import { AbstractScrollbar, ISimplifiedPointerEvent, ScrollbarHost } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
 import { ScrollableElementResolvedOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import { ARROW_IMG_SIZE } from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
 import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
-import { Codicon, registerCodicon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
 import { INewScrollPosition, Scrollable, ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
 
 
-const scrollbarButtonLeftIcon = registerCodicon('scrollbar-button-left', Codicon.triangleLeft);
-const scrollbarButtonRightIcon = registerCodicon('scrollbar-button-right', Codicon.triangleRight);
+
 
 export class HorizontalScrollbar extends AbstractScrollbar {
 
@@ -43,7 +42,7 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 
 			this._createArrow({
 				className: 'scra',
-				icon: scrollbarButtonLeftIcon,
+				icon: Codicon.scrollbarButtonLeft,
 				top: scrollbarDelta,
 				left: arrowDelta,
 				bottom: undefined,
@@ -55,7 +54,7 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 
 			this._createArrow({
 				className: 'scra',
-				icon: scrollbarButtonRightIcon,
+				icon: Codicon.scrollbarButtonRight,
 				top: scrollbarDelta,
 				left: undefined,
 				bottom: undefined,
@@ -88,16 +87,16 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 		return this._shouldRender;
 	}
 
-	protected _mouseDownRelativePosition(offsetX: number, offsetY: number): number {
+	protected _pointerDownRelativePosition(offsetX: number, offsetY: number): number {
 		return offsetX;
 	}
 
-	protected _sliderMousePosition(e: ISimplifiedMouseEvent): number {
-		return e.posx;
+	protected _sliderPointerPosition(e: ISimplifiedPointerEvent): number {
+		return e.pageX;
 	}
 
-	protected _sliderOrthogonalMousePosition(e: ISimplifiedMouseEvent): number {
-		return e.posy;
+	protected _sliderOrthogonalPointerPosition(e: ISimplifiedPointerEvent): number {
+		return e.pageY;
 	}
 
 	protected _updateScrollbarSize(size: number): void {

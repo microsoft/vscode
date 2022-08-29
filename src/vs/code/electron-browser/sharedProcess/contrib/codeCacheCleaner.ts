@@ -36,7 +36,7 @@ export class CodeCacheCleaner extends Disposable {
 	}
 
 	private async cleanUpCodeCaches(currentCodeCachePath: string): Promise<void> {
-		this.logService.info('[code cache cleanup]: Starting to clean up old code cache folders.');
+		this.logService.trace('[code cache cleanup]: Starting to clean up old code cache folders.');
 
 		try {
 			const now = Date.now();
@@ -56,7 +56,7 @@ export class CodeCacheCleaner extends Disposable {
 				const codeCacheEntryPath = join(codeCacheRootPath, codeCache);
 				const codeCacheEntryStat = await Promises.stat(codeCacheEntryPath);
 				if (codeCacheEntryStat.isDirectory() && (now - codeCacheEntryStat.mtime.getTime()) > this._DataMaxAge) {
-					this.logService.info(`[code cache cleanup]: Removing code cache folder ${codeCache}.`);
+					this.logService.trace(`[code cache cleanup]: Removing code cache folder ${codeCache}.`);
 
 					return Promises.rm(codeCacheEntryPath);
 				}

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/ionide/ionide-fsgrammar/commit/fc4cac6d9bc1787f54ce48bbc77bcbb1de8160ff",
+	"version": "https://github.com/ionide/ionide-fsgrammar/commit/713cd4a34e7729e444cf85ae287dd94c19e34337",
 	"name": "fsharp",
 	"scopeName": "source.fsharp",
 	"patterns": [
@@ -526,9 +526,18 @@
 		"comments": {
 			"patterns": [
 				{
+					"name": "comment.literate.command.fsharp",
+					"match": "(\\(\\*{3}.*\\*{3}\\))",
+					"beginCaptures": {
+						"1": {
+							"name": "comment.block.fsharp"
+						}
+					}
+				},
+				{
 					"name": "comment.block.markdown.fsharp",
-					"begin": "^\\s*(\\(\\*\\*(?!\\)))(?!\\*\\))$",
-					"while": "^(?!\\s*\\*\\)$)",
+					"begin": "^\\s*(\\(\\*\\*(?!\\)))((?!\\*\\)).)*$",
+					"while": "^(?!\\s*(\\*)+\\)\\s*$)",
 					"beginCaptures": {
 						"1": {
 							"name": "comment.block.fsharp"
@@ -548,7 +557,7 @@
 				{
 					"name": "comment.block.fsharp",
 					"begin": "(\\(\\*(?!\\)))",
-					"end": "(\\*\\))",
+					"end": "(\\*+\\))",
 					"beginCaptures": {
 						"1": {
 							"name": "comment.block.fsharp"
@@ -572,7 +581,7 @@
 				},
 				{
 					"name": "comment.block.markdown.fsharp.end",
-					"match": "(\\*\\))",
+					"match": "((?<!\\()(\\*)+\\))",
 					"captures": {
 						"1": {
 							"name": "comment.block.fsharp"
@@ -610,8 +619,12 @@
 					"match": "\\b(-?((0(x|X)[0-9a-fA-F][0-9a-fA-F_]*)|(0(o|O)[0-7][0-7_]*)|(0(b|B)[01][01_]*)|([0-9][0-9_]*)))"
 				},
 				{
+					"name": "constant.language.boolean.fsharp",
+					"match": "\\b(true|false)\\b"
+				},
+				{
 					"name": "constant.other.fsharp",
-					"match": "\\b(true|false|null|unit|void)\\b"
+					"match": "\\b(null|unit|void)\\b"
 				}
 			]
 		},
@@ -915,7 +928,7 @@
 			"patterns": [
 				{
 					"name": "binding.fsharp",
-					"begin": "\\b(let mutable|static let mutable|static let|let inline|let|member val|static member inline|static member|default|member|override|let!)(\\s+rec|mutable)?(\\s+\\[\\<.*\\>\\])?\\s*(private|internal|public)?\\s+(\\[[^-=]*\\]|[_[:alpha:]]([_[:alpha:]0-9\\._]+)*|``[_[:alpha:]]([_[:alpha:]0-9\\._`\\s]+|(?<=,)\\s)*)?",
+					"begin": "\\b(let mutable|static let mutable|static let|let inline|let|and|member val|static member inline|static member|default|member|override|let!)(\\s+rec|mutable)?(\\s+\\[\\<.*\\>\\])?\\s*(private|internal|public)?\\s+(\\[[^-=]*\\]|[_[:alpha:]]([_[:alpha:]0-9\\._]+)*|``[_[:alpha:]]([_[:alpha:]0-9\\._`\\s]+|(?<=,)\\s)*)?",
 					"end": "\\s*(with\\b|=|\\n+=|(?<=\\=))",
 					"beginCaptures": {
 						"1": {
@@ -932,6 +945,26 @@
 						},
 						"5": {
 							"name": "variable.fsharp"
+						}
+					},
+					"endCaptures": {
+						"1": {
+							"name": "keyword.fsharp"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#common_binding_definition"
+						}
+					]
+				},
+				{
+					"name": "binding.fsharp",
+					"begin": "\\b(use|use!|and|and!)\\s+(\\[[^-=]*\\]|[_[:alpha:]]([_[:alpha:]0-9\\._]+)*|``[_[:alpha:]]([_[:alpha:]0-9\\._`\\s]+|(?<=,)\\s)*)?",
+					"end": "\\s*(=)",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.fsharp"
 						}
 					},
 					"endCaptures": {
@@ -1135,7 +1168,7 @@
 				},
 				{
 					"name": "namespace.open.fsharp",
-					"begin": "\\b(open)\\s+([[:alpha:]][[:alpha:]0-9'_]*)(?=(\\.[A-Z][[:alpha:]0-9_]*)*)",
+					"begin": "\\b(open type|open)\\s+([[:alpha:]][[:alpha:]0-9'_]*)(?=(\\.[A-Z][[:alpha:]0-9_]*)*)",
 					"end": "(\\s|$)",
 					"beginCaptures": {
 						"1": {
@@ -1262,11 +1295,11 @@
 						},
 						{
 							"name": "constant.character.string.escape.fsharp",
-							"match": "\\\\([\\\\''ntbr]|x[a-fA-F0-9]{2}|u[a-fA-F0-9]{4}|u[a-fA-F0-9]{8})"
+							"match": "\\\\(['\"\\\\abfnrtv]|([01][0-9][0-9]|2[0-4][0-9]|25[0-5])|(x[0-9a-fA-F]{2})|(u[0-9a-fA-F]{4})|(U00(0[0-9a-fA-F]|10)[0-9a-fA-F]{4}))"
 						},
 						{
-							"name": "invalid.illeagal.character.string.fsharp",
-							"match": "\\\\(?![\\\\''ntbr]|x[a-fA-F0-9]{2}|u[a-fA-F0-9]{4}|u[a-fA-F0-9]{8})."
+							"name": "invalid.illegal.character.string.fsharp",
+							"match": "\\\\(([0-9]{1,3})|(x[^\\s]{0,2})|(u[^\\s]{0,4})|(U[^\\s]{0,8})|[^\\s])"
 						},
 						{
 							"include": "#string_formatter"

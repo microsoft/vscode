@@ -57,11 +57,24 @@ function getIgnoredSettingsFromContent(settingsContent: string): string[] {
 	return parsed ? parsed['settingsSync.ignoredSettings'] || parsed['sync.ignoredSettings'] || [] : [];
 }
 
+export function removeComments(content: string, formattingOptions: FormattingOptions): string {
+	const source = parse(content) || {};
+	let result = '{}';
+	for (const key of Object.keys(source)) {
+		const edits = setProperty(result, [key], source[key], formattingOptions);
+		result = applyEdits(result, edits);
+	}
+	return result;
+}
+
 export function updateIgnoredSettings(targetContent: string, sourceContent: string, ignoredSettings: string[], formattingOptions: FormattingOptions): string {
 	if (ignoredSettings.length) {
 		const sourceTree = parseSettings(sourceContent);
-		const source = parse(sourceContent);
+		const source = parse(sourceContent) || {};
 		const target = parse(targetContent);
+		if (!target) {
+			return targetContent;
+		}
 		const settingsToAdd: INode[] = [];
 		for (const key of ignoredSettings) {
 			const sourceValue = source[key];
@@ -88,7 +101,7 @@ export function updateIgnoredSettings(targetContent: string, sourceContent: stri
 	return targetContent;
 }
 
-export function merge(originalLocalContent: string, originalRemoteContent: string, baseContent: string | null, ignoredSettings: string[], resolvedConflicts: { key: string, value: any | undefined }[], formattingOptions: FormattingOptions): IMergeResult {
+export function merge(originalLocalContent: string, originalRemoteContent: string, baseContent: string | null, ignoredSettings: string[], resolvedConflicts: { key: string; value: any | undefined }[], formattingOptions: FormattingOptions): IMergeResult {
 
 	const localContentWithoutIgnoredSettings = updateIgnoredSettings(originalLocalContent, originalRemoteContent, ignoredSettings, formattingOptions);
 	const localForwarded = baseContent !== localContentWithoutIgnoredSettings;
@@ -282,7 +295,7 @@ export function isEmpty(content: string): boolean {
 	return true;
 }
 
-function compare(from: IStringDictionary<any> | null, to: IStringDictionary<any>, ignored: Set<string>): { added: Set<string>, removed: Set<string>, updated: Set<string> } {
+function compare(from: IStringDictionary<any> | null, to: IStringDictionary<any>, ignored: Set<string>): { added: Set<string>; removed: Set<string>; updated: Set<string> } {
 	const fromKeys = from ? Object.keys(from).filter(key => !ignored.has(key)) : [];
 	const toKeys = Object.keys(to).filter(key => !ignored.has(key));
 	const added = toKeys.filter(key => fromKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
@@ -314,7 +327,7 @@ export function addSetting(key: string, sourceContent: string, targetContent: st
 }
 
 interface InsertLocation {
-	index: number,
+	index: number;
 	insertAfter: boolean;
 }
 

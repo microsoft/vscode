@@ -71,22 +71,13 @@ export class Win32UpdateService extends AbstractUpdateService {
 		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService);
 	}
 
-	override initialize(): void {
-		super.initialize();
-
-		if (getUpdateType() === UpdateType.Setup) {
-			/* __GDPR__
-				"update:win32SetupTarget" : {
-					"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			/* __GDPR__
-				"update:win<NUMBER>SetupTarget" : {
-					"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			this.telemetryService.publicLog('update:win32SetupTarget', { target: this.productService.target });
+	override async initialize(): Promise<void> {
+		if (this.productService.target === 'user' && await this.nativeHostMainService.isAdmin(undefined)) {
+			this.logService.info('update#ctor - updates are disabled due to running as Admin in user setup');
+			return;
 		}
+
+		super.initialize();
 	}
 
 	protected buildUpdateFeedUrl(quality: string): string | undefined {
@@ -259,5 +250,27 @@ export class Win32UpdateService extends AbstractUpdateService {
 
 	protected override getUpdateType(): UpdateType {
 		return getUpdateType();
+	}
+
+	override async _applySpecificUpdate(packagePath: string): Promise<void> {
+		if (this.state.type !== StateType.Idle) {
+			return;
+		}
+
+		const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
+		const update: IUpdate = { version: 'unknown', productVersion: 'unknown', supportsFastUpdate: !!fastUpdatesEnabled };
+
+		this.setState(State.Downloading(update));
+		this.availableUpdate = { packagePath };
+
+		if (fastUpdatesEnabled) {
+			if (this.productService.target === 'user') {
+				this.doApplyUpdate();
+			} else {
+				this.setState(State.Downloaded(update));
+			}
+		} else {
+			this.setState(State.Ready(update));
+		}
 	}
 }

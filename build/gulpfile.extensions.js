@@ -20,6 +20,7 @@ const root = path.dirname(__dirname);
 const commit = util.getVersion(root);
 const plumber = require('gulp-plumber');
 const ext = require('./lib/extensions');
+const product = require('../product.json');
 
 const extensionsPath = path.join(path.dirname(__dirname), 'extensions');
 
@@ -29,6 +30,7 @@ const extensionsPath = path.join(path.dirname(__dirname), 'extensions');
 // 	ignore: ['**/out/**', '**/node_modules/**']
 // });
 const compilations = [
+	'authentication-proxy/tsconfig.json',
 	'configuration-editing/build/tsconfig.json',
 	'configuration-editing/tsconfig.json',
 	'css-language-features/client/tsconfig.json',
@@ -38,6 +40,7 @@ const compilations = [
 	'emmet/tsconfig.json',
 	'extension-editing/tsconfig.json',
 	'git/tsconfig.json',
+	'git-base/tsconfig.json',
 	'github-authentication/tsconfig.json',
 	'github/tsconfig.json',
 	'grunt/tsconfig.json',
@@ -50,6 +53,7 @@ const compilations = [
 	'json-language-features/client/tsconfig.json',
 	'json-language-features/server/tsconfig.json',
 	'markdown-language-features/preview-src/tsconfig.json',
+	'markdown-language-features/server/tsconfig.json',
 	'markdown-language-features/tsconfig.json',
 	'markdown-math/tsconfig.json',
 	'merge-conflict/tsconfig.json',
@@ -57,12 +61,12 @@ const compilations = [
 	'npm/tsconfig.json',
 	'php-language-features/tsconfig.json',
 	'search-result/tsconfig.json',
+	'references-view/tsconfig.json',
 	'simple-browser/tsconfig.json',
 	'typescript-language-features/test-workspace/tsconfig.json',
 	'typescript-language-features/tsconfig.json',
 	'vscode-api-tests/tsconfig.json',
 	'vscode-colorize-tests/tsconfig.json',
-	'vscode-custom-editor-tests/tsconfig.json',
 	'vscode-notebook-tests/tsconfig.json',
 	'vscode-test-resolver/tsconfig.json'
 ];
@@ -87,7 +91,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 	const baseUrl = getBaseUrl(out);
 
 	let headerId, headerOut;
-	let index = relativeDirname.indexOf('/');
+	const index = relativeDirname.indexOf('/');
 	if (index < 0) {
 		headerId = 'vscode.' + relativeDirname;
 		headerOut = 'out';
@@ -96,9 +100,9 @@ const tasks = compilations.map(function (tsconfigFile) {
 		headerOut = relativeDirname.substr(index + 1) + '/out';
 	}
 
-	function createPipeline(build, emitError) {
+	function createPipeline(build, emitError, transpileOnly) {
 		const nlsDev = require('vscode-nls-dev');
-		const tsb = require('gulp-tsb');
+		const tsb = require('./lib/tsb');
 		const sourcemaps = require('gulp-sourcemaps');
 
 		const reporter = createReporter('extensions');
@@ -106,7 +110,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 		overrideOptions.inlineSources = Boolean(build);
 		overrideOptions.base = path.dirname(absolutePath);
 
-		const compilation = tsb.create(absolutePath, overrideOptions, false, err => reporter(err.toString()));
+		const compilation = tsb.create(absolutePath, overrideOptions, { verbose: false, transpileOnly, transpileOnlyIncludesDts: transpileOnly }, err => reporter(err.toString()));
 
 		const pipeline = function () {
 			const input = es.through();
@@ -148,6 +152,16 @@ const tasks = compilations.map(function (tsconfigFile) {
 
 	const cleanTask = task.define(`clean-extension-${name}`, util.rimraf(out));
 
+	const transpileTask = task.define(`transpile-extension:${name}`, task.series(cleanTask, () => {
+		const pipeline = createPipeline(false, true, true);
+		const nonts = gulp.src(src, srcOpts).pipe(filter(['**', '!**/*.ts']));
+		const input = es.merge(nonts, pipeline.tsProjectSrc());
+
+		return input
+			.pipe(pipeline())
+			.pipe(gulp.dest(out));
+	}));
+
 	const compileTask = task.define(`compile-extension:${name}`, task.series(cleanTask, () => {
 		const pipeline = createPipeline(false, true);
 		const nonts = gulp.src(src, srcOpts).pipe(filter(['**', '!**/*.ts']));
@@ -180,11 +194,15 @@ const tasks = compilations.map(function (tsconfigFile) {
 	}));
 
 	// Tasks
+	gulp.task(transpileTask);
 	gulp.task(compileTask);
 	gulp.task(watchTask);
 
-	return { compileTask, watchTask, compileBuildTask };
+	return { transpileTask, compileTask, watchTask, compileBuildTask };
 });
+
+const transpileExtensionsTask = task.define('transpile-extensions', task.parallel(...tasks.map(t => t.transpileTask)));
+gulp.task(transpileExtensionsTask);
 
 const compileExtensionsTask = task.define('compile-extensions', task.parallel(...tasks.map(t => t.compileTask)));
 gulp.task(compileExtensionsTask);
@@ -209,6 +227,7 @@ exports.watchExtensionMedia = watchExtensionMedia;
 
 const compileExtensionMediaBuildTask = task.define('compile-extension-media-build', () => ext.buildExtensionMedia(false, '.build/extensions'));
 gulp.task(compileExtensionMediaBuildTask);
+exports.compileExtensionMediaBuildTask = compileExtensionMediaBuildTask;
 
 //#endregion
 
@@ -217,8 +236,8 @@ gulp.task(compileExtensionMediaBuildTask);
 const cleanExtensionsBuildTask = task.define('clean-extensions-build', util.rimraf('.build/extensions'));
 const compileExtensionsBuildTask = task.define('compile-extensions-build', task.series(
 	cleanExtensionsBuildTask,
-	task.define('bundle-extensions-build', () => ext.packageLocalExtensionsStream(false).pipe(gulp.dest('.build'))),
 	task.define('bundle-marketplace-extensions-build', () => ext.packageMarketplaceExtensionsStream(false).pipe(gulp.dest('.build'))),
+	task.define('bundle-extensions-build', () => ext.packageLocalExtensionsStream(false).pipe(gulp.dest('.build'))),
 ));
 
 gulp.task(compileExtensionsBuildTask);
@@ -236,6 +255,9 @@ const watchWebExtensionsTask = task.define('watch-web', () => buildWebExtensions
 gulp.task(watchWebExtensionsTask);
 exports.watchWebExtensionsTask = watchWebExtensionsTask;
 
+/**
+ * @param {boolean} isWatch
+ */
 async function buildWebExtensions(isWatch) {
 	const webpackConfigLocations = await nodeUtil.promisify(glob)(
 		path.join(extensionsPath, '**', 'extension-browser.webpack.config.js'),

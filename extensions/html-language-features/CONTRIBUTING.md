@@ -30,7 +30,7 @@ However, within this extension, you can run a development version of `vscode-htm
 - Clone [microsoft/vscode-html-languageservice](https://github.com/microsoft/vscode-html-languageservice)
 - Run `yarn` in `vscode-html-languageservice`
 - Run `yarn link` in `vscode-html-languageservice`. This will compile and link `vscode-html-languageservice`
-- In `html-language-features/server/`, run `npm link vscode-html-languageservice`
+- In `html-language-features/server/`, run `yarn link vscode-html-languageservice`
 
 #### Testing the development version of `vscode-html-languageservice`
 

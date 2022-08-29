@@ -14,9 +14,10 @@
 		"types": [],
 		"lib": [
 			"es5",
+			"ES2015.Iterable"
 		],
 	},
 	"include": [
-		"vs/vscode.d.ts"
+		"vscode-dts/vscode.d.ts"
 	]
 }

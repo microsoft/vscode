@@ -50,7 +50,7 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 		folder = pick.folder.uri;
 	}
 
-	let quickpick = vscode.window.createQuickPick<vscode.QuickPickItem & { repo?: string, auth?: 'https' | 'ssh', isPrivate?: boolean }>();
+	let quickpick = vscode.window.createQuickPick<vscode.QuickPickItem & { repo?: string; auth?: 'https' | 'ssh'; isPrivate?: boolean }>();
 	quickpick.ignoreFocusOut = true;
 
 	quickpick.placeholder = 'Repository Name';
@@ -197,7 +197,9 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 		progress.report({ message: localize('publishing_uploading', "Uploading files"), increment: 25 });
 
 		const branch = await repository.getBranch('HEAD');
-		await repository.addRemote('origin', createdGithubRepository.clone_url);
+		const protocol = vscode.workspace.getConfiguration('github').get<'https' | 'ssh'>('gitProtocol');
+		const remoteUrl = protocol === 'https' ? createdGithubRepository.clone_url : createdGithubRepository.ssh_url;
+		await repository.addRemote('origin', remoteUrl);
 		await repository.push('origin', branch.name, true);
 
 		return createdGithubRepository;

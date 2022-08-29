@@ -383,7 +383,7 @@ export interface IStartupMetrics {
 	readonly totalmem?: number;
 	readonly freemem?: number;
 	readonly meminfo?: IMemoryInfo;
-	readonly cpus?: { count: number; speed: number; model: string; };
+	readonly cpus?: { count: number; speed: number; model: string };
 	readonly loadavg?: number[];
 }
 
@@ -439,7 +439,7 @@ class PerfMarks {
 	}
 
 	private _findEntry(name: string): perf.PerformanceMark | void {
-		for (let [, marks] of this._entries) {
+		for (const [, marks] of this._entries) {
 			for (let i = marks.length - 1; i >= 0; i--) {
 				if (marks[i].name === name) {
 					return marks[i];
@@ -514,6 +514,7 @@ export abstract class AbstractTimerService implements ITimerService {
 		// report IStartupMetrics as telemetry
 		/* __GDPR__
 			"startupTimeVaried" : {
+				"owner": "jrieken",
 				"${include}": [
 					"${IStartupMetrics}"
 				]
@@ -526,17 +527,19 @@ export abstract class AbstractTimerService implements ITimerService {
 		// event and it is "normalized" to a relative timestamp where the first mark
 		// defines the start
 		for (const [source, marks] of this.getPerformanceMarks()) {
-			type Mark = { source: string; name: string; relativeStartTime: number; startTime: number; };
+			type Mark = { source: string; name: string; relativeStartTime: number; startTime: number };
 			type MarkClassification = {
-				source: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth'; },
-				name: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth'; },
-				relativeStartTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true; },
-				startTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true; },
+				owner: 'jrieken';
+				comment: 'Information about a performance marker';
+				source: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Where this marker was generated, e.g main, renderer, extension host' };
+				name: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of this marker (as defined in source code)' };
+				relativeStartTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The duration between the previous and this marker' };
+				startTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The absolute timestamp (unix time)' };
 			};
 
 			let lastMark: perf.PerformanceMark = marks[0];
 			for (const mark of marks) {
-				let delta = mark.startTime - lastMark.startTime;
+				const delta = mark.startTime - lastMark.startTime;
 				this._telemetryService.publicLog2<Mark, MarkClassification>('startup.timer.mark', {
 					source,
 					name: mark.name,

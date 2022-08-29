@@ -6,9 +6,9 @@
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Checkbox, ICheckboxStyles } from 'vs/base/browser/ui/checkbox/checkbox';
+import { Toggle, IToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { IFindInputCheckboxOpts } from 'vs/base/browser/ui/findinput/findInputCheckboxes';
+import { IFindInputToggleOpts } from 'vs/base/browser/ui/findinput/findInputToggles';
 import { HistoryInputBox, IInputBoxStyles, IInputValidator, IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Codicon } from 'vs/base/common/codicons';
@@ -40,10 +40,10 @@ export interface IReplaceInputStyles extends IInputBoxStyles {
 }
 
 const NLS_DEFAULT_LABEL = nls.localize('defaultLabel', "input");
-const NLS_PRESERVE_CASE_LABEL = nls.localize('label.preserveCaseCheckbox', "Preserve Case");
+const NLS_PRESERVE_CASE_LABEL = nls.localize('label.preserveCaseToggle', "Preserve Case");
 
-export class PreserveCaseCheckbox extends Checkbox {
-	constructor(opts: IFindInputCheckboxOpts) {
+export class PreserveCaseToggle extends Toggle {
+	constructor(opts: IFindInputToggleOpts) {
 		super({
 			// TODO: does this need its own icon?
 			icon: Codicon.preserveCase,
@@ -83,7 +83,7 @@ export class ReplaceInput extends Widget {
 	private inputValidationErrorBackground?: Color;
 	private inputValidationErrorForeground?: Color;
 
-	private preserveCase: PreserveCaseCheckbox;
+	private preserveCase: PreserveCaseToggle;
 	private cachedOptionsWidth: number = 0;
 	public domNode: HTMLElement;
 	public inputBox: HistoryInputBox;
@@ -164,7 +164,7 @@ export class ReplaceInput extends Widget {
 			flexibleMaxHeight
 		}));
 
-		this.preserveCase = this._register(new PreserveCaseCheckbox({
+		this.preserveCase = this._register(new PreserveCaseToggle({
 			appendTitle: appendPreserveCaseLabel,
 			isChecked: false,
 			inputActiveOptionBorder: this.inputActiveOptionBorder,
@@ -189,10 +189,10 @@ export class ReplaceInput extends Widget {
 		}
 
 		// Arrow-Key support to navigate between options
-		let indexes = [this.preserveCase.domNode];
+		const indexes = [this.preserveCase.domNode];
 		this.onkeydown(this.domNode, (event: IKeyboardEvent) => {
 			if (event.equals(KeyCode.LeftArrow) || event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Escape)) {
-				let index = indexes.indexOf(<HTMLElement>document.activeElement);
+				const index = indexes.indexOf(<HTMLElement>document.activeElement);
 				if (index >= 0) {
 					let newIndex: number = -1;
 					if (event.equals(KeyCode.RightArrow)) {
@@ -218,16 +218,14 @@ export class ReplaceInput extends Widget {
 		});
 
 
-		let controls = document.createElement('div');
+		const controls = document.createElement('div');
 		controls.className = 'controls';
 		controls.style.display = this._showOptionButtons ? 'block' : 'none';
 		controls.appendChild(this.preserveCase.domNode);
 
 		this.domNode.appendChild(controls);
 
-		if (parent) {
-			parent.appendChild(this.domNode);
-		}
+		parent?.appendChild(this.domNode);
 
 		this.onkeydown(this.inputBox.inputElement, (e) => this._onKeyDown.fire(e));
 		this.onkeyup(this.inputBox.inputElement, (e) => this._onKeyUp.fire(e));
@@ -302,12 +300,12 @@ export class ReplaceInput extends Widget {
 
 	protected applyStyles(): void {
 		if (this.domNode) {
-			const checkBoxStyles: ICheckboxStyles = {
+			const toggleStyles: IToggleStyles = {
 				inputActiveOptionBorder: this.inputActiveOptionBorder,
 				inputActiveOptionForeground: this.inputActiveOptionForeground,
 				inputActiveOptionBackground: this.inputActiveOptionBackground,
 			};
-			this.preserveCase.style(checkBoxStyles);
+			this.preserveCase.style(toggleStyles);
 
 			const inputBoxStyles: IInputBoxStyles = {
 				inputBackground: this.inputBackground,
@@ -355,27 +353,19 @@ export class ReplaceInput extends Widget {
 	}
 
 	public validate(): void {
-		if (this.inputBox) {
-			this.inputBox.validate();
-		}
+		this.inputBox?.validate();
 	}
 
 	public showMessage(message: InputBoxMessage): void {
-		if (this.inputBox) {
-			this.inputBox.showMessage(message);
-		}
+		this.inputBox?.showMessage(message);
 	}
 
 	public clearMessage(): void {
-		if (this.inputBox) {
-			this.inputBox.hideMessage();
-		}
+		this.inputBox?.hideMessage();
 	}
 
 	private clearValidation(): void {
-		if (this.inputBox) {
-			this.inputBox.hideMessage();
-		}
+		this.inputBox?.hideMessage();
 	}
 
 	public set width(newWidth: number) {

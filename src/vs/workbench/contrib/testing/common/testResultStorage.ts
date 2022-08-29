@@ -14,7 +14,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
-import { ISerializedTestResults } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ISerializedTestResults } from 'vs/workbench/contrib/testing/common/testTypes';
 import { HydratedTestResult, ITestResult, LiveOutputController, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 
 export const RETAIN_MAX_RESULTS = 128;
@@ -53,7 +53,7 @@ const currentRevision = 1;
 export abstract class BaseTestResultStorage implements ITestResultStorage {
 	declare readonly _serviceBrand: undefined;
 
-	protected readonly stored = new StoredValue<ReadonlyArray<{ rev: number, id: string, bytes: number }>>({
+	protected readonly stored = new StoredValue<ReadonlyArray<{ rev: number; id: string; bytes: number }>>({
 		key: 'storedTestResults',
 		scope: StorageScope.WORKSPACE,
 		target: StorageTarget.MACHINE
@@ -80,7 +80,7 @@ export abstract class BaseTestResultStorage implements ITestResultStorage {
 					return undefined;
 				}
 
-				return new HydratedTestResult(contents, () => this.readOutputForResultId(id));
+				return new HydratedTestResult(contents, () => this.readOutputForResultId(id), (o, l) => this.readOutputRangeForResultId(id, o, l));
 			} catch (e) {
 				this.logService.warn(`Error deserializing stored test result ${id}`, e);
 				return undefined;
@@ -101,6 +101,7 @@ export abstract class BaseTestResultStorage implements ITestResultStorage {
 				return [stream, promise];
 			}),
 			() => this.readOutputForResultId(resultId),
+			(o, l) => this.readOutputRangeForResultId(resultId, o, l)
 		);
 	}
 
@@ -118,7 +119,7 @@ export abstract class BaseTestResultStorage implements ITestResultStorage {
 	 */
 	public async persist(results: ReadonlyArray<ITestResult>): Promise<void> {
 		const toDelete = new Map(this.stored.get([]).map(({ id, bytes }) => [id, bytes]));
-		const toStore: { rev: number, id: string; bytes: number }[] = [];
+		const toStore: { rev: number; id: string; bytes: number }[] = [];
 		const todo: Promise<unknown>[] = [];
 		let budget = RETAIN_MAX_BYTES;
 
@@ -169,9 +170,14 @@ export abstract class BaseTestResultStorage implements ITestResultStorage {
 	protected abstract readForResultId(id: string): Promise<ISerializedTestResults | undefined>;
 
 	/**
-	 * Reads serialized results for the test. Is allowed to throw.
+	 * Reads output as a stream for the test.
 	 */
 	protected abstract readOutputForResultId(id: string): Promise<VSBufferReadableStream>;
+
+	/**
+	 * Reads an output range for the test.
+	 */
+	protected abstract readOutputRangeForResultId(id: string, offset: number, length: number): Promise<VSBuffer>;
 
 	/**
 	 * Deletes serialized results for the test.
@@ -213,6 +219,10 @@ export class InMemoryResultStorage extends BaseTestResultStorage {
 	protected storeOutputForResultId(id: string, input: VSBufferWriteableStream): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
+
+	protected readOutputRangeForResultId(id: string, offset: number, length: number): Promise<VSBuffer> {
+		throw new Error('Method not implemented.');
+	}
 }
 
 export class TestResultStorage extends BaseTestResultStorage {
@@ -241,6 +251,16 @@ export class TestResultStorage extends BaseTestResultStorage {
 	protected deleteForResultId(id: string) {
 		return this.fileService.del(this.getResultJsonPath(id)).catch(() => undefined);
 	}
+
+	protected async readOutputRangeForResultId(id: string, offset: number, length: number): Promise<VSBuffer> {
+		try {
+			const { value } = await this.fileService.readFile(this.getResultOutputPath(id), { position: offset, length });
+			return value;
+		} catch {
+			return VSBuffer.alloc(0);
+		}
+	}
+
 
 	protected async readOutputForResultId(id: string): Promise<VSBufferReadableStream> {
 		try {

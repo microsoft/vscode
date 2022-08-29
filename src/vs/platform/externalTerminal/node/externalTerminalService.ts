@@ -141,7 +141,7 @@ export class MacExternalTerminalService extends ExternalTerminalService implemen
 					'-w', dir,
 				];
 
-				for (let a of args) {
+				for (const a of args) {
 					osaArgs.push('-a');
 					osaArgs.push(a);
 				}
@@ -150,7 +150,7 @@ export class MacExternalTerminalService extends ExternalTerminalService implemen
 					// merge environment variables into a copy of the process.env
 					const env = Object.assign({}, getSanitizedEnvironment(process), envVars);
 
-					for (let key in env) {
+					for (const key in env) {
 						const value = env[key];
 						if (value === null) {
 							osaArgs.push('-u');
@@ -218,7 +218,7 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 
 		return new Promise<number | undefined>((resolve, reject) => {
 
-			let termArgs: string[] = [];
+			const termArgs: string[] = [];
 			//termArgs.push('--title');
 			//termArgs.push(`"${TERMINAL_TITLE}"`);
 			execPromise.then(exec => {
@@ -273,9 +273,11 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 
 	public static async getDefaultTerminalLinuxReady(): Promise<string> {
 		if (!LinuxExternalTerminalService._DEFAULT_TERMINAL_LINUX_READY) {
-			LinuxExternalTerminalService._DEFAULT_TERMINAL_LINUX_READY = new Promise(async r => {
-				if (env.isLinux) {
-					const isDebian = await pfs.Promises.exists('/etc/debian_version');
+			if (!env.isLinux) {
+				LinuxExternalTerminalService._DEFAULT_TERMINAL_LINUX_READY = Promise.resolve('xterm');
+			} else {
+				const isDebian = await pfs.Promises.exists('/etc/debian_version');
+				LinuxExternalTerminalService._DEFAULT_TERMINAL_LINUX_READY = new Promise<string>(r => {
 					if (isDebian) {
 						r('x-terminal-emulator');
 					} else if (process.env.DESKTOP_SESSION === 'gnome' || process.env.DESKTOP_SESSION === 'gnome-classic') {
@@ -289,10 +291,8 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 					} else {
 						r('xterm');
 					}
-				} else {
-					r('xterm');
-				}
-			});
+				});
+			}
 		}
 		return LinuxExternalTerminalService._DEFAULT_TERMINAL_LINUX_READY;
 	}
@@ -320,7 +320,7 @@ function getSanitizedEnvironment(process: NodeJS.Process) {
 /**
  * tries to turn OS errors into more meaningful error messages
  */
-function improveError(err: Error & { errno?: string, path?: string }): Error {
+function improveError(err: Error & { errno?: string; path?: string }): Error {
 	if ('errno' in err && err['errno'] === 'ENOENT' && 'path' in err && typeof err['path'] === 'string') {
 		return new Error(nls.localize('ext.term.app.not.found', "can't find terminal application '{0}'", err['path']));
 	}
@@ -332,7 +332,7 @@ function improveError(err: Error & { errno?: string, path?: string }): Error {
  */
 function quote(args: string[]): string {
 	let r = '';
-	for (let a of args) {
+	for (const a of args) {
 		if (a.indexOf(' ') >= 0) {
 			r += '"' + a + '"';
 		} else {

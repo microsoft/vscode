@@ -21,13 +21,10 @@ const os = require('os');
 const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
 const { getUserDataPath } = require('./vs/platform/environment/node/userDataPath');
+const { stripComments } = require('./vs/base/common/stripComments');
 /** @type {Partial<IProductConfiguration>} */
 const product = require('../product.json');
 const { app, protocol, crashReporter } = require('electron');
-
-// Disable render process reuse, we still have
-// non-context aware native modules in the renderer.
-app.allowRendererProcessReuse = false;
 
 // Enable portable support
 const portable = bootstrapNode.configurePortable(product);
@@ -156,9 +153,6 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		// alias from us for --disable-gpu
 		'disable-hardware-acceleration',
 
-		// provided by Electron
-		'disable-color-correct-rendering',
-
 		// override for the color profile to use
 		'force-color-profile'
 	];
@@ -224,6 +218,12 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		}
 	});
 
+	/* Following features are disabled from the runtime.
+	 * `CalculateNativeWinOcclusion` - Disable native window occlusion tracker,
+	 *	Refs https://groups.google.com/a/chromium.org/g/embedder-dev/c/ZF3uHHyWLKw/m/VDN2hDXMAAAJ
+	 */
+	app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+
 	// Support JS Flags
 	const jsFlags = getJSFlags(cliArgs);
 	if (jsFlags) {
@@ -250,9 +250,7 @@ function readArgvConfigSync() {
 
 	// Fallback to default
 	if (!argvConfig) {
-		argvConfig = {
-			'disable-color-correct-rendering': true // Force pre-Chrome-60 color profile handling (for https://github.com/microsoft/vscode/issues/51791)
-		};
+		argvConfig = {};
 	}
 
 	return argvConfig;
@@ -282,11 +280,7 @@ function createDefaultArgvConfigSync(argvConfigPath) {
 			'{',
 			'	// Use software rendering instead of hardware accelerated rendering.',
 			'	// This can help in cases where you see rendering issues in VS Code.',
-			'	// "disable-hardware-acceleration": true,',
-			'',
-			'	// Enabled by default by VS Code to resolve color issues in the renderer',
-			'	// See https://github.com/microsoft/vscode/issues/51791 for details',
-			'	"disable-color-correct-rendering": true',
+			'	// "disable-hardware-acceleration": true',
 			'}'
 		];
 
@@ -325,7 +319,7 @@ function configureCrashReporter() {
 
 		if (!fs.existsSync(crashReporterDirectory)) {
 			try {
-				fs.mkdirSync(crashReporterDirectory);
+				fs.mkdirSync(crashReporterDirectory, { recursive: true });
 			} catch (error) {
 				console.error(`The path '${crashReporterDirectory}' specified for --crash-reporter-directory does not seem to exist or cannot be created.`);
 				app.exit(1);
@@ -515,8 +509,6 @@ function getCodeCachePath() {
  * @returns {Promise<string>}
  */
 function mkdirp(dir) {
-	const fs = require('fs');
-
 	return new Promise((resolve, reject) => {
 		fs.mkdir(dir, { recursive: true }, err => (err && err.code !== 'EEXIST') ? reject(err) : resolve(dir));
 	});
@@ -576,34 +568,6 @@ async function resolveNlsConfiguration() {
 	}
 
 	return nlsConfiguration;
-}
-
-/**
- * @param {string} content
- * @returns {string}
- */
-function stripComments(content) {
-	const regexp = /("(?:[^\\"]*(?:\\.)?)*")|('(?:[^\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
-
-	return content.replace(regexp, function (match, m1, m2, m3, m4) {
-		// Only one of m1, m2, m3, m4 matches
-		if (m3) {
-			// A block comment. Replace with nothing
-			return '';
-		} else if (m4) {
-			// A line comment. If it ends in \r?\n then keep it.
-			const length_1 = m4.length;
-			if (length_1 > 2 && m4[length_1 - 1] === '\n') {
-				return m4[length_1 - 2] === '\r' ? '\r\n' : '\n';
-			}
-			else {
-				return '';
-			}
-		} else {
-			// We match a string
-			return match;
-		}
-	});
 }
 
 /**

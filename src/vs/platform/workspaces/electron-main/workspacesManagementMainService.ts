@@ -11,7 +11,6 @@ import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { dirname, join } from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
 import { basename, extUriBiasedIgnorePathCase, joinPath, originalFSPath } from 'vs/base/common/resources';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -23,9 +22,11 @@ import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/e
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
+import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
+import { ICodeWindow } from 'vs/platform/window/electron-main/window';
 import { findWindowOnWorkspaceOrFolder } from 'vs/platform/windows/electron-main/windowsFinder';
-import { getStoredWorkspaceFolder, hasWorkspaceFileExtension, IEnterWorkspaceResult, IResolvedWorkspace, isStoredWorkspaceFolder, IStoredWorkspace, IStoredWorkspaceFolder, isUntitledWorkspace, isWorkspaceIdentifier, IUntitledWorkspaceInfo, IWorkspaceFolderCreationData, IWorkspaceIdentifier, toWorkspaceFolders, UNTITLED_WORKSPACE_NAME } from 'vs/platform/workspaces/common/workspaces';
+import { isWorkspaceIdentifier, IWorkspaceIdentifier, IResolvedWorkspace, hasWorkspaceFileExtension, UNTITLED_WORKSPACE_NAME, isUntitledWorkspace } from 'vs/platform/workspace/common/workspace';
+import { getStoredWorkspaceFolder, IEnterWorkspaceResult, isStoredWorkspaceFolder, IStoredWorkspace, IStoredWorkspaceFolder, IUntitledWorkspaceInfo, IWorkspaceFolderCreationData, toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
 import { getWorkspaceIdentifier } from 'vs/platform/workspaces/electron-main/workspaces';
 
 export const IWorkspacesManagementMainService = createDecorator<IWorkspacesManagementMainService>('workspacesManagementMainService');
@@ -74,6 +75,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 	constructor(
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ILogService private readonly logService: ILogService,
+		@IUserDataProfilesMainService private readonly userDataProfilesMainService: IUserDataProfilesMainService,
 		@IBackupMainService private readonly backupMainService: IBackupMainService,
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@IProductService private readonly productService: IProductService
@@ -169,7 +171,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		return workspace;
 	}
 
-	private newUntitledWorkspace(folders: IWorkspaceFolderCreationData[] = [], remoteAuthority?: string): { workspace: IWorkspaceIdentifier, storedWorkspace: IStoredWorkspace } {
+	private newUntitledWorkspace(folders: IWorkspaceFolderCreationData[] = [], remoteAuthority?: string): { workspace: IWorkspaceIdentifier; storedWorkspace: IStoredWorkspace } {
 		const randomId = (Date.now() + Math.round(Math.random() * 1000)).toString();
 		const untitledWorkspaceConfigFolder = joinPath(this.untitledWorkspacesHome, randomId);
 		const untitledWorkspaceConfigPath = joinPath(untitledWorkspaceConfigFolder, UNTITLED_WORKSPACE_NAME);
@@ -177,7 +179,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		const storedWorkspaceFolder: IStoredWorkspaceFolder[] = [];
 
 		for (const folder of folders) {
-			storedWorkspaceFolder.push(getStoredWorkspaceFolder(folder.uri, true, folder.name, untitledWorkspaceConfigFolder, !isWindows, extUriBiasedIgnorePathCase));
+			storedWorkspaceFolder.push(getStoredWorkspaceFolder(folder.uri, true, folder.name, untitledWorkspaceConfigFolder, extUriBiasedIgnorePathCase));
 		}
 
 		return {
@@ -201,6 +203,11 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 
 		// Delete from disk
 		this.doDeleteUntitledWorkspaceSync(workspace);
+
+		if (this.userDataProfilesMainService.isEnabled()) {
+			// unset workspace from profiles
+			this.userDataProfilesMainService.unsetWorkspace(workspace);
+		}
 
 		// Event
 		this._onDidDeleteUntitledWorkspace.fire(workspace);

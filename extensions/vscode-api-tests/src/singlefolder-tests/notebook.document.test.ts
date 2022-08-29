@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import * as utils from '../utils';
 
-suite.skip('Notebook Document', function () {
+suite('Notebook Document', function () {
 
 	const simpleContentProvider = new class implements vscode.NotebookSerializer {
 		deserializeNotebook(_data: Uint8Array): vscode.NotebookData | Thenable<vscode.NotebookData> {
@@ -124,11 +124,10 @@ suite.skip('Notebook Document', function () {
 
 		const p = utils.asPromise(vscode.workspace.onDidOpenNotebookDocument).then(notebook => {
 			for (let i = 0; i < notebook.cellCount; i++) {
-				let cell = notebook.cellAt(i);
+				const cell = notebook.cellAt(i);
 
 				const doc = vscode.workspace.textDocuments.find(doc => doc.uri.toString() === cell.document.uri.toString());
 				assert.ok(doc);
-				assert.strictEqual(doc.notebook === notebook, true);
 				assert.strictEqual(doc === cell.document, true);
 				assert.strictEqual(doc?.languageId, cell.document.languageId);
 				assert.strictEqual(doc?.isDirty, false);
@@ -261,7 +260,7 @@ suite.skip('Notebook Document', function () {
 			value: 'new_code'
 		}]);
 
-		const event = utils.asPromise<vscode.NotebookCellsChangeEvent>(vscode.notebooks.onDidChangeNotebookCells);
+		const event = utils.asPromise<vscode.NotebookDocumentChangeEvent>(vscode.workspace.onDidChangeNotebookDocument);
 
 		const success = await vscode.workspace.applyEdit(edit);
 		assert.strictEqual(success, true);
@@ -274,13 +273,13 @@ suite.skip('Notebook Document', function () {
 		assert.strictEqual(document.cellAt(1).document.getText(), 'new_code');
 
 		// check event data
-		assert.strictEqual(data.document === document, true);
-		assert.strictEqual(data.changes.length, 1);
-		assert.strictEqual(data.changes[0].deletedCount, 0);
-		assert.strictEqual(data.changes[0].deletedItems.length, 0);
-		assert.strictEqual(data.changes[0].items.length, 2);
-		assert.strictEqual(data.changes[0].items[0], document.cellAt(0));
-		assert.strictEqual(data.changes[0].items[1], document.cellAt(1));
+		assert.strictEqual(data.notebook === document, true);
+		assert.strictEqual(data.contentChanges.length, 1);
+		assert.strictEqual(data.contentChanges[0].range.isEmpty, true);
+		assert.strictEqual(data.contentChanges[0].removedCells.length, 0);
+		assert.strictEqual(data.contentChanges[0].addedCells.length, 2);
+		assert.strictEqual(data.contentChanges[0].addedCells[0], document.cellAt(0));
+		assert.strictEqual(data.contentChanges[0].addedCells[1], document.cellAt(1));
 	});
 
 	test('workspace edit API (replaceMetadata)', async function () {
@@ -299,7 +298,7 @@ suite.skip('Notebook Document', function () {
 		const document = await vscode.workspace.openNotebookDocument(uri);
 
 		const edit = new vscode.WorkspaceEdit();
-		const event = utils.asPromise<vscode.NotebookCellMetadataChangeEvent>(vscode.notebooks.onDidChangeCellMetadata);
+		const event = utils.asPromise<vscode.NotebookDocumentChangeEvent>(vscode.workspace.onDidChangeNotebookDocument);
 
 		edit.replaceNotebookCellMetadata(document.uri, 0, { inputCollapsed: true });
 		const success = await vscode.workspace.applyEdit(edit);
@@ -310,8 +309,22 @@ suite.skip('Notebook Document', function () {
 		assert.strictEqual(document.cellAt(0).metadata.inputCollapsed, true);
 
 		// check event data
-		assert.strictEqual(data.document === document, true);
-		assert.strictEqual(data.cell.index, 0);
+		assert.strictEqual(data.notebook === document, true);
+		assert.strictEqual(data.contentChanges.length, 0);
+		assert.strictEqual(data.cellChanges.length, 1);
+		assert.strictEqual(data.cellChanges[0].cell.index, 0);
+	});
+
+	test('workspace edit API (notebookMetadata)', async function () {
+		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
+		const document = await vscode.workspace.openNotebookDocument(uri);
+
+		const edit = new vscode.WorkspaceEdit();
+		const metdataEdit = vscode.NotebookEdit.updateNotebookMetadata({ ...document.metadata, custom: { ...(document.metadata.custom || {}), extraNotebookMetadata: true } });
+		edit.set(document.uri, [metdataEdit]);
+		const success = await vscode.workspace.applyEdit(edit);
+		assert.equal(success, true);
+		assert.ok(document.metadata.custom.extraNotebookMetadata, `Test metadata not found`);
 	});
 
 	test('document save API', async function () {
@@ -410,7 +423,7 @@ suite.skip('Notebook Document', function () {
 		assert.strictEqual(document.isDirty, false);
 	});
 
-	test('onDidOpenNotebookDocument - emit event only once when opened in two editors', async function () {
+	test.skip('onDidOpenNotebookDocument - emit event only once when opened in two editors', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/157222
 		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 		let counter = 0;
 		testDisposables.push(vscode.workspace.onDidOpenNotebookDocument(nb => {

@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
+import { IAction } from 'vs/base/common/actions';
+import { Emitter } from 'vs/base/common/event';
+import Severity from 'vs/base/common/severity';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { EditorExtensions, EditorInputCapabilities, IEditorOpenContext, IVisibleEditorPane } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
@@ -14,12 +18,14 @@ import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
 import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
-import { Emitter } from 'vs/base/common/event';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { UnavailableResourceErrorEditor, UnknownErrorEditor, WorkspaceTrustRequiredEditor } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
+import { ErrorPlaceholderEditor, IErrorEditorPlaceholderOptions, WorkspaceTrustRequiredPlaceholderEditor } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
+import { EditorOpenSource, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { isCancellationError } from 'vs/base/common/errors';
+import { isErrorWithActions, toErrorMessage } from 'vs/base/common/errorMessage';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 export interface IOpenEditorResult {
 
@@ -28,16 +34,16 @@ export interface IOpenEditorResult {
 	 * placeholder in certain cases, e.g. when workspace trust
 	 * is required, or an editor fails to restore.
 	 *
-	 * Will be `undefined` if an error occured while trying to
+	 * Will be `undefined` if an error occurred while trying to
 	 * open the editor and in cases where no placeholder is being
 	 * used.
 	 */
-	readonly editorPane?: EditorPane;
+	readonly pane?: EditorPane;
 
 	/**
 	 * Whether the editor changed as a result of opening.
 	 */
-	readonly editorChanged?: boolean;
+	readonly changed?: boolean;
 
 	/**
 	 * This property is set when an editor fails to restore and
@@ -45,6 +51,14 @@ export interface IOpenEditorResult {
 	 * to still present the error to the user in that case.
 	 */
 	readonly error?: Error;
+
+	/**
+	 * This property indicates whether the open editor operation was
+	 * cancelled or not. The operation may have been cancelled
+	 * in case another editor open operation was triggered right
+	 * after cancelling this one out.
+	 */
+	readonly cancelled?: boolean;
 }
 
 export class EditorPanes extends Disposable {
@@ -54,7 +68,7 @@ export class EditorPanes extends Disposable {
 	private readonly _onDidFocus = this._register(new Emitter<void>());
 	readonly onDidFocus = this._onDidFocus.event;
 
-	private _onDidChangeSizeConstraints = this._register(new Emitter<{ width: number; height: number; } | undefined>());
+	private _onDidChangeSizeConstraints = this._register(new Emitter<{ width: number; height: number } | undefined>());
 	readonly onDidChangeSizeConstraints = this._onDidChangeSizeConstraints.event;
 
 	//#endregion
@@ -80,7 +94,9 @@ export class EditorPanes extends Disposable {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustService: IWorkspaceTrustManagementService
+		@IWorkspaceTrustManagementService private readonly workspaceTrustService: IWorkspaceTrustManagementService,
+		@ILogService private readonly logService: ILogService,
+		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super();
 
@@ -109,38 +125,111 @@ export class EditorPanes extends Disposable {
 		try {
 			return await this.doOpenEditor(this.getEditorPaneDescriptor(editor), editor, options, context);
 		} catch (error) {
-			if (!context.newInGroup) {
-				const isUnavailableResource = (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND;
-				const editorPlaceholder = isUnavailableResource ? UnavailableResourceErrorEditor.DESCRIPTOR : UnknownErrorEditor.DESCRIPTOR;
 
-				// The editor is restored (as opposed to being newly opened) and as
-				// such we want to preserve the fact that an editor was opened here
-				// before by falling back to a editor placeholder that allows the
-				// user to retry the operation.
-				//
-				// This is especially important when an editor is dirty and fails to
-				// restore after a restart to prevent the impression that any user
-				// data is lost.
-				//
-				// Related: https://github.com/microsoft/vscode/issues/110062
-				return {
-					...(await this.doOpenEditor(editorPlaceholder, editor, options, context)),
-					error
-				};
+			// First check if caller instructed us to ignore error handling
+			if (options?.ignoreError) {
+				return { error };
 			}
 
+			// In case of an error when opening an editor, we still want to show
+			// an editor in the desired location to preserve the user intent and
+			// view state (e.g. when restoring).
+			//
+			// For that reason we have place holder editors that can convey a
+			// message with actions the user can click on.
+
+			return this.doShowError(error, editor, options, context);
+		}
+	}
+
+	private async doShowError(error: Error, editor: EditorInput, options?: IEditorOptions, context?: IEditorOpenContext): Promise<IOpenEditorResult> {
+
+		// Always log the error to figure out what is going on
+		this.logService.error(error);
+
+		// Show as modal dialog when explicit user action
+		let errorHandled = false;
+		if (options?.source === EditorOpenSource.USER) {
+
+			// Extract possible error actions from the error
+			let errorActions: readonly IAction[] | undefined = undefined;
+			if (isErrorWithActions(error)) {
+				errorActions = error.actions;
+			}
+
+			const buttons: string[] = [];
+			if (errorActions && errorActions.length > 0) {
+				for (const errorAction of errorActions) {
+					buttons.push(errorAction.label);
+				}
+			} else {
+				buttons.push(localize('ok', 'OK'));
+			}
+
+			let cancelId: number | undefined = undefined;
+			if (buttons.length === 1) {
+				buttons.push(localize('cancel', "Cancel"));
+				cancelId = 1;
+			}
+
+			const result = await this.dialogService.show(
+				Severity.Error,
+				localize('editorOpenErrorDialog', "Unable to open '{0}'", editor.getName()),
+				buttons,
+				{
+					detail: toErrorMessage(error),
+					cancelId
+				}
+			);
+
+			// Make sure to run any error action if present
+			if (result.choice !== cancelId && errorActions) {
+				const errorAction = errorActions[result.choice];
+				if (errorAction) {
+					const result = errorAction.run();
+					if (result instanceof Promise) {
+						result.catch(error => this.dialogService.show(Severity.Error, toErrorMessage(error)));
+					}
+
+					errorHandled = true; // consider the error as handled!
+				}
+			}
+		}
+
+		// Return early if the user dealt with the error already
+		if (errorHandled) {
 			return { error };
 		}
+
+		// Show as editor placeholder: pass over the error to display
+		const editorPlaceholderOptions: IErrorEditorPlaceholderOptions = { ...options };
+		if (!isCancellationError(error)) {
+			editorPlaceholderOptions.error = error;
+		}
+
+		return {
+			...(await this.doOpenEditor(ErrorPlaceholderEditor.DESCRIPTOR, editor, editorPlaceholderOptions, context)),
+			error
+		};
 	}
 
 	private async doOpenEditor(descriptor: IEditorPaneDescriptor, editor: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext = Object.create(null)): Promise<IOpenEditorResult> {
 
 		// Editor pane
-		const editorPane = this.doShowEditorPane(descriptor);
+		const pane = this.doShowEditorPane(descriptor);
 
 		// Apply input to pane
-		const editorChanged = await this.doSetInput(editorPane, editor, options, context);
-		return { editorPane, editorChanged };
+		const { changed, cancelled } = await this.doSetInput(pane, editor, options, context);
+
+		// Focus unless cancelled
+		if (!cancelled) {
+			const focus = !options || !options.preserveFocus;
+			if (focus) {
+				pane.focus();
+			}
+		}
+
+		return { pane, changed, cancelled };
 	}
 
 	private getEditorPaneDescriptor(editor: EditorInput): IEditorPaneDescriptor {
@@ -149,7 +238,7 @@ export class EditorPanes extends Disposable {
 			// but the current workspace is untrusted, we fallback to a generic
 			// editor descriptor to indicate this an do NOT load the registered
 			// editor.
-			return WorkspaceTrustRequiredEditor.DESCRIPTOR;
+			return WorkspaceTrustRequiredPlaceholderEditor.DESCRIPTOR;
 		}
 
 		return assertIsDefined(this.editorPanesRegistry.getEditorPane(editor));
@@ -234,47 +323,43 @@ export class EditorPanes extends Disposable {
 		this._onDidChangeSizeConstraints.fire(undefined);
 	}
 
-	private async doSetInput(editorPane: EditorPane, editor: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext): Promise<boolean> {
+	private async doSetInput(editorPane: EditorPane, editor: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext): Promise<{ changed: boolean; cancelled: boolean }> {
 
-		// If the input did not change, return early and only apply the options
-		// unless the options instruct us to force open it even if it is the same
-		const forceReload = options?.forceReload;
-		const inputMatches = editorPane.input && editorPane.input.matches(editor);
-		if (inputMatches && !forceReload) {
-
-			// Forward options
+		// If the input did not change, return early and only
+		// apply the options unless the options instruct us to
+		// force open it even if it is the same
+		const inputMatches = editorPane.input?.matches(editor);
+		if (inputMatches && !options?.forceReload) {
 			editorPane.setOptions(options);
 
-			// Still focus as needed
-			const focus = !options || !options.preserveFocus;
-			if (focus) {
-				editorPane.focus();
-			}
-
-			return false;
+			return { changed: false, cancelled: false };
 		}
 
-		// Show progress while setting input after a certain timeout. If the workbench is opening
-		// be more relaxed about progress showing by increasing the delay a little bit to reduce flicker.
+		// Start a new editor input operation to report progress
+		// and to support cancellation. Any new operation that is
+		// started will cancel the previous one.
 		const operation = this.editorOperation.start(this.layoutService.isRestored() ? 800 : 3200);
 
-		// Call into editor pane
-		const editorWillChange = !inputMatches;
+		let cancelled = false;
 		try {
+
+			// Clear the current input before setting new input
+			// This ensures that a slow loading input will not
+			// be visible for the duration of the new input to
+			// load (https://github.com/microsoft/vscode/issues/34697)
+			editorPane.clearInput();
+
+			// Set the input to the editor pane
 			await editorPane.setInput(editor, options, context, operation.token);
 
-			// Focus (unless prevented or another operation is running)
-			if (operation.isCurrent()) {
-				const focus = !options || !options.preserveFocus;
-				if (focus) {
-					editorPane.focus();
-				}
+			if (!operation.isCurrent()) {
+				cancelled = true;
 			}
-
-			return editorWillChange;
 		} finally {
 			operation.stop();
 		}
+
+		return { changed: !inputMatches, cancelled };
 	}
 
 	private doHideActiveEditorPane(): void {
@@ -303,7 +388,7 @@ export class EditorPanes extends Disposable {
 	}
 
 	closeEditor(editor: EditorInput): void {
-		if (this._activeEditorPane && this._activeEditorPane.input && editor.matches(this._activeEditorPane.input)) {
+		if (this._activeEditorPane?.input && editor.matches(this._activeEditorPane.input)) {
 			this.doHideActiveEditorPane();
 		}
 	}

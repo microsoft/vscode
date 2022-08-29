@@ -8,7 +8,7 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export interface IContentActionHandler {
-	callback: (content: string, event?: IMouseEvent) => void;
+	callback: (content: string, event: IMouseEvent) => void;
 	readonly disposables: DisposableStore;
 }
 
@@ -100,7 +100,6 @@ function _renderFormattedText(element: Node, treeNode: IFormatParseTree, actionH
 		child = document.createElement('code');
 	} else if (treeNode.type === FormatType.Action && actionHandler) {
 		const a = document.createElement('a');
-		a.href = '#';
 		actionHandler.disposables.add(DOM.addStandardDisposableListener(a, 'click', (event) => {
 			actionHandler.callback(String(treeNode.index), event);
 		}));

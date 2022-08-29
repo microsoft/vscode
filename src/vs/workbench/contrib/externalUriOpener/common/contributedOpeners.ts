@@ -12,15 +12,13 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 interface RegisteredExternalOpener {
 	readonly extensionId: string;
 
-	isCurrentlyRegistered: boolean
+	isCurrentlyRegistered: boolean;
 }
 
 interface OpenersMemento {
 	[id: string]: RegisteredExternalOpener;
 }
 
-/**
- */
 export class ContributedExternalUriOpenersStore extends Disposable {
 
 	private static readonly STORAGE_ID = 'externalUriOpeners';
@@ -36,9 +34,9 @@ export class ContributedExternalUriOpenersStore extends Disposable {
 		super();
 
 		this._memento = new Memento(ContributedExternalUriOpenersStore.STORAGE_ID, storageService);
-		this._mementoObject = this._memento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
-		for (const id of Object.keys(this._mementoObject || {})) {
-			this.add(id, this._mementoObject[id].extensionId, { isCurrentlyRegistered: false });
+		this._mementoObject = this._memento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
+		for (const [id, value] of Object.entries(this._mementoObject || {})) {
+			this.add(id, value.extensionId, { isCurrentlyRegistered: false });
 		}
 
 		this.invalidateOpenersOnExtensionsChanged();

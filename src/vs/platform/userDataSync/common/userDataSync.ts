@@ -10,7 +10,7 @@ import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IExtUri, isEqualOrParent, joinPath } from 'vs/base/common/resources';
-import { isArray, isObject, isString } from 'vs/base/common/types';
+import { isObject, isString } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IHeaders } from 'vs/base/parts/request/common/request';
 import { localize } from 'vs/nls';
@@ -112,7 +112,7 @@ export interface IUserData {
 	content: string | null;
 }
 
-export type IAuthenticationProvider = { id: string, scopes: string[] };
+export type IAuthenticationProvider = { id: string; scopes: string[] };
 
 export interface IUserDataSyncStore {
 	readonly url: URI;
@@ -128,24 +128,25 @@ export function isAuthenticationProvider(thing: any): thing is IAuthenticationPr
 	return thing
 		&& isObject(thing)
 		&& isString(thing.id)
-		&& isArray(thing.scopes);
+		&& Array.isArray(thing.scopes);
 }
 
 export const enum SyncResource {
 	Settings = 'settings',
 	Keybindings = 'keybindings',
 	Snippets = 'snippets',
+	Tasks = 'tasks',
 	Extensions = 'extensions',
-	GlobalState = 'globalState'
+	GlobalState = 'globalState',
 }
-export const ALL_SYNC_RESOURCES: SyncResource[] = [SyncResource.Settings, SyncResource.Keybindings, SyncResource.Snippets, SyncResource.Extensions, SyncResource.GlobalState];
+export const ALL_SYNC_RESOURCES: SyncResource[] = [SyncResource.Settings, SyncResource.Keybindings, SyncResource.Snippets, SyncResource.Tasks, SyncResource.Extensions, SyncResource.GlobalState];
 
 export function getLastSyncResourceUri(syncResource: SyncResource, environmentService: IEnvironmentService, extUri: IExtUri): URI {
 	return extUri.joinPath(environmentService.userDataSyncHome, syncResource, `lastSync${syncResource}.json`);
 }
 
 export interface IUserDataManifest {
-	readonly latest?: Record<ServerResource, string>
+	readonly latest?: Record<ServerResource, string>;
 	readonly session: string;
 	readonly ref: string;
 }
@@ -155,7 +156,7 @@ export interface IResourceRefHandle {
 	created: number;
 }
 
-export type ServerResource = SyncResource | 'machines';
+export type ServerResource = SyncResource | 'machines' | 'editSessions' | 'profiles';
 export type UserDataSyncStoreType = 'insiders' | 'stable';
 
 export const IUserDataSyncStoreManagementService = createDecorator<IUserDataSyncStoreManagementService>('IUserDataSyncStoreManagementService');
@@ -167,7 +168,9 @@ export interface IUserDataSyncStoreManagementService {
 	getPreviousUserDataSyncStore(): Promise<IUserDataSyncStore | undefined>;
 }
 
-export interface IUserDataSyncStoreClient {
+export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreService>('IUserDataSyncStoreService');
+export interface IUserDataSyncStoreService {
+	readonly _serviceBrand: undefined;
 	readonly onDidChangeDonotMakeRequestsUntil: Event<void>;
 	readonly donotMakeRequestsUntil: Date | undefined;
 
@@ -175,20 +178,13 @@ export interface IUserDataSyncStoreClient {
 	readonly onTokenSucceed: Event<void>;
 	setAuthToken(token: string, type: string): void;
 
-	// Sync requests
 	manifest(oldValue: IUserDataManifest | null, headers?: IHeaders): Promise<IUserDataManifest | null>;
-	read(resource: ServerResource, oldValue: IUserData | null, headers?: IHeaders): Promise<IUserData>;
-	write(resource: ServerResource, content: string, ref: string | null, headers?: IHeaders): Promise<string>;
+	read(resource: ServerResource, oldValue: IUserData | null, profile?: string, headers?: IHeaders): Promise<IUserData>;
+	write(resource: ServerResource, content: string, ref: string | null, profile?: string, headers?: IHeaders): Promise<string>;
+	delete(resource: ServerResource, ref: string | null, profile?: string): Promise<void>;
+	getAllRefs(resource: ServerResource, profile?: string): Promise<IResourceRefHandle[]>;
+	resolveContent(resource: ServerResource, ref: string, profile?: string, headers?: IHeaders): Promise<string | null>;
 	clear(): Promise<void>;
-	delete(resource: ServerResource): Promise<void>;
-
-	getAllRefs(resource: ServerResource): Promise<IResourceRefHandle[]>;
-	resolveContent(resource: ServerResource, ref: string): Promise<string | null>;
-}
-
-export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreService>('IUserDataSyncStoreService');
-export interface IUserDataSyncStoreService extends IUserDataSyncStoreClient {
-	readonly _serviceBrand: undefined;
 }
 
 export const IUserDataSyncBackupStoreService = createDecorator<IUserDataSyncBackupStoreService>('IUserDataSyncBackupStoreService');
@@ -301,6 +297,7 @@ export namespace UserDataSyncError {
 
 export interface ISyncExtension {
 	identifier: IExtensionIdentifier;
+	preRelease?: boolean;
 	version?: string;
 	disabled?: boolean;
 	installed?: boolean;
@@ -357,6 +354,7 @@ export const enum MergeState {
 }
 
 export interface IResourcePreview {
+	readonly baseResource: URI;
 	readonly remoteResource: URI;
 	readonly localResource: URI;
 	readonly previewResource: URI;
@@ -403,7 +401,7 @@ export interface IUserDataSynchroniser {
 	resolveContent(resource: URI): Promise<string | null>;
 	getRemoteSyncResourceHandles(): Promise<ISyncResourceHandle[]>;
 	getLocalSyncResourceHandles(): Promise<ISyncResourceHandle[]>;
-	getAssociatedResources(syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI, comparableResource: URI }[]>;
+	getAssociatedResources(syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI }[]>;
 	getMachineId(syncResourceHandle: ISyncResourceHandle): Promise<string | undefined>;
 }
 
@@ -417,10 +415,14 @@ export function getEnablementKey(resource: SyncResource) { return `sync.enable.$
 // #endregion
 
 // #region User Data Sync Services
-
-export const IUserDataSyncResourceEnablementService = createDecorator<IUserDataSyncResourceEnablementService>('IUserDataSyncResourceEnablementService');
-export interface IUserDataSyncResourceEnablementService {
+export const IUserDataSyncEnablementService = createDecorator<IUserDataSyncEnablementService>('IUserDataSyncEnablementService');
+export interface IUserDataSyncEnablementService {
 	_serviceBrand: any;
+
+	readonly onDidChangeEnablement: Event<boolean>;
+	isEnabled(): boolean;
+	canToggleEnablement(): boolean;
+	setEnablement(enabled: boolean): void;
 
 	readonly onDidChangeResourceEnablement: Event<[SyncResource, boolean]>;
 	isResourceEnabled(resource: SyncResource): boolean;
@@ -485,16 +487,8 @@ export interface IUserDataSyncService {
 
 	getLocalSyncResourceHandles(resource: SyncResource): Promise<ISyncResourceHandle[]>;
 	getRemoteSyncResourceHandles(resource: SyncResource): Promise<ISyncResourceHandle[]>;
-	getAssociatedResources(resource: SyncResource, syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI, comparableResource: URI }[]>;
+	getAssociatedResources(resource: SyncResource, syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI }[]>;
 	getMachineId(resource: SyncResource, syncResourceHandle: ISyncResourceHandle): Promise<string | undefined>;
-}
-
-export const IUserDataAutoSyncEnablementService = createDecorator<IUserDataAutoSyncEnablementService>('IUserDataAutoSyncEnablementService');
-export interface IUserDataAutoSyncEnablementService {
-	_serviceBrand: any;
-	readonly onDidChangeEnablement: Event<boolean>;
-	isEnabled(): boolean;
-	canToggleEnablement(): boolean;
 }
 
 export const IUserDataAutoSyncService = createDecorator<IUserDataAutoSyncService>('IUserDataAutoSyncService');

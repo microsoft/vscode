@@ -9,9 +9,9 @@ import * as glob from 'vs/base/common/glob';
 import { IListVirtualDelegate, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
 import { IProgressService, ProgressLocation, } from 'vs/platform/progress/common/progress';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IFileService, FileKind, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
+import { IFileService, FileKind, FileOperationError, FileOperationResult, FileChangeType } from 'vs/platform/files/common/files';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, Disposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IFileLabelOptions, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
@@ -19,7 +19,7 @@ import { ITreeNode, ITreeFilter, TreeVisibility, IAsyncDataSource, ITreeSorter, 
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
+import { IFilesConfiguration, UndoConfirmLevel } from 'vs/workbench/contrib/files/common/files';
 import { dirname, joinPath, distinctParents } from 'vs/base/common/resources';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { localize } from 'vs/nls';
@@ -30,7 +30,8 @@ import { equals, deepClone } from 'vs/base/common/objects';
 import * as path from 'vs/base/common/path';
 import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { compareFileExtensionsDefault, compareFileNamesDefault, compareFileNamesUpper, compareFileExtensionsUpper, compareFileNamesLower, compareFileExtensionsLower, compareFileNamesUnicode, compareFileExtensionsUnicode } from 'vs/base/common/comparers';
-import { fillEditorsDragData, CodeDataTransfers, containsDragType } from 'vs/workbench/browser/dnd';
+import { CodeDataTransfers, containsDragType } from 'vs/platform/dnd/browser/dnd';
+import { fillEditorsDragData } from 'vs/workbench/browser/dnd';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
 import { Schemas } from 'vs/base/common/network';
@@ -51,11 +52,14 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { isNumber } from 'vs/base/common/types';
 import { IEditableData } from 'vs/workbench/common/views';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { BrowserFileUpload, ExternalFileImport, getMultipleFilesOverwriteConfirm } from 'vs/workbench/contrib/files/browser/fileImportExport';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
+import { IgnoreFile } from 'vs/workbench/services/search/common/ignoreFile';
+import { ResourceSet, TernarySearchTree } from 'vs/base/common/map';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -74,7 +78,9 @@ export const explorerRootErrorEmitter = new Emitter<URI>();
 export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | ExplorerItem[], ExplorerItem> {
 
 	constructor(
+		private fileFilter: FilesFilter,
 		@IProgressService private readonly progressService: IProgressService,
+		@IConfigurationService private readonly configService: IConfigurationService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IFileService private readonly fileService: IFileService,
@@ -83,17 +89,23 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 	) { }
 
 	hasChildren(element: ExplorerItem | ExplorerItem[]): boolean {
-		return Array.isArray(element) || element.isDirectory;
+		// don't render nest parents as containing children when all the children are filtered out
+		return Array.isArray(element) || element.hasChildren((stat) => this.fileFilter.filter(stat, TreeVisibility.Visible));
 	}
 
-	getChildren(element: ExplorerItem | ExplorerItem[]): Promise<ExplorerItem[]> {
+	getChildren(element: ExplorerItem | ExplorerItem[]): ExplorerItem[] | Promise<ExplorerItem[]> {
 		if (Array.isArray(element)) {
-			return Promise.resolve(element);
+			return element;
 		}
 
 		const wasError = element.isError;
 		const sortOrder = this.explorerService.sortOrderConfiguration.sortOrder;
-		const promise = element.fetchChildren(sortOrder).then(
+		const children = element.fetchChildren(sortOrder);
+		if (Array.isArray(children)) {
+			// fast path when children are known sync (i.e. nested children)
+			return children;
+		}
+		const promise = children.then(
 			children => {
 				// Clear previous error decoration on root folder
 				if (element instanceof ExplorerItem && element.isRoot && !element.isError && wasError && this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER) {
@@ -106,7 +118,7 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 				if (element instanceof ExplorerItem && element.isRoot) {
 					if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 						// Single folder create a dummy explorer item to show error
-						const placeholder = new ExplorerItem(element.resource, this.fileService, undefined, false);
+						const placeholder = new ExplorerItem(element.resource, this.fileService, this.configService, undefined, undefined, false);
 						placeholder.isError = true;
 						return [placeholder];
 					} else {
@@ -251,6 +263,7 @@ export interface IFileTemplateData {
 export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, FuzzyScore, IFileTemplateData>, IListAccessibilityProvider<ExplorerItem>, IDisposable {
 	static readonly ID = 'file';
 
+	private styler: HTMLStyleElement;
 	private config: IFilesConfiguration;
 	private configListener: IDisposable;
 	private compressedNavigationControllers = new Map<ExplorerItem, CompressedNavigationController>();
@@ -269,11 +282,25 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
 		this.config = this.configurationService.getValue<IFilesConfiguration>();
+
+		this.styler = DOM.createStyleSheet();
+		const buildOffsetStyles = () => {
+			const indent = this.configurationService.getValue<number>('workbench.tree.indent');
+			const offset = Math.max(22 - indent, 0); // derived via inspection
+			const rule = `.explorer-viewlet .explorer-item.align-nest-icon-with-parent-icon { margin-left: ${offset}px }`;
+			if (this.styler.innerText !== rule) { this.styler.innerText = rule; }
+		};
+
 		this.configListener = this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('explorer')) {
 				this.config = this.configurationService.getValue();
 			}
+			if (e.affectsConfiguration('workbench.tree.indent')) {
+				buildOffsetStyles();
+			}
 		});
+
+		buildOffsetStyles();
 	}
 
 	getWidgetAriaLabel(): string {
@@ -358,28 +385,54 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 	}
 
 	private renderStat(stat: ExplorerItem, label: string | string[], domId: string | undefined, filterData: FuzzyScore | undefined, templateData: IFileTemplateData): IDisposable {
+		const elementDisposables = new DisposableStore();
 		templateData.label.element.style.display = 'flex';
 		const extraClasses = ['explorer-item'];
 		if (this.explorerService.isCut(stat)) {
 			extraClasses.push('cut');
 		}
 
-		templateData.label.setResource({ resource: stat.resource, name: label }, {
-			fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
-			extraClasses,
-			fileDecorations: this.config.explorer.decorations,
-			matches: createMatches(filterData),
-			separator: this.labelService.getSeparator(stat.resource.scheme, stat.resource.authority),
-			domId
-		});
+		const setResourceData = () => {
+			// Offset nested children unless folders have both chevrons and icons, otherwise alignment breaks
+			const theme = this.themeService.getFileIconTheme();
 
-		return templateData.label.onDidRender(() => {
+			// Hack to always render chevrons for file nests, or else may not be able to identify them.
+			const twistieContainer = (templateData.container.parentElement?.parentElement?.querySelector('.monaco-tl-twistie') as HTMLElement);
+			if (twistieContainer) {
+				if (stat.hasNests && theme.hidesExplorerArrows) {
+					twistieContainer.classList.add('force-twistie');
+				} else {
+					twistieContainer.classList.remove('force-twistie');
+				}
+			}
+
+			// when explorer arrows are hidden or there are no folder icons, nests get misaligned as they are forced to have arrows and files typically have icons
+			// Apply some CSS magic to get things looking as reasonable as possible.
+			const themeIsUnhappyWithNesting = theme.hasFileIcons && (theme.hidesExplorerArrows || !theme.hasFolderIcons);
+			const realignNestedChildren = stat.nestedParent && themeIsUnhappyWithNesting;
+
+			templateData.label.setResource({ resource: stat.resource, name: label }, {
+				fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
+				extraClasses: realignNestedChildren ? [...extraClasses, 'align-nest-icon-with-parent-icon'] : extraClasses,
+				fileDecorations: this.config.explorer.decorations,
+				matches: createMatches(filterData),
+				separator: this.labelService.getSeparator(stat.resource.scheme, stat.resource.authority),
+				domId
+			});
+		};
+
+		elementDisposables.add(this.themeService.onDidFileIconThemeChange(() => setResourceData()));
+		setResourceData();
+
+		elementDisposables.add(templateData.label.onDidRender(() => {
 			try {
 				this.updateWidth(stat);
 			} catch (e) {
-				// noop since the element might no longer be in the tree, no update of width necessery
+				// noop since the element might no longer be in the tree, no update of width necessary
 			}
-		});
+		}));
+
+		return elementDisposables;
 	}
 
 	private renderInputBox(container: HTMLElement, stat: ExplorerItem, editableData: IEditableData): IDisposable {
@@ -388,7 +441,18 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		const label = this.labels.create(container);
 		const extraClasses = ['explorer-item', 'explorer-item-edited'];
 		const fileKind = stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE;
-		const labelOptions: IFileLabelOptions = { hidePath: true, hideLabel: true, fileKind, extraClasses };
+
+		const theme = this.themeService.getFileIconTheme();
+		const themeIsUnhappyWithNesting = theme.hasFileIcons && (theme.hidesExplorerArrows || !theme.hasFolderIcons);
+		const realignNestedChildren = stat.nestedParent && themeIsUnhappyWithNesting;
+
+		const labelOptions: IFileLabelOptions = {
+			hidePath: true,
+			hideLabel: true,
+			fileKind,
+			extraClasses: realignNestedChildren ? [...extraClasses, 'align-nest-icon-with-parent-icon'] : extraClasses,
+		};
+
 
 		const parent = stat.name ? dirname(stat.resource) : stat.resource;
 		const value = stat.name || '';
@@ -419,6 +483,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		const styler = attachInputBoxStyler(inputBox, this.themeService);
 
 		const lastDot = value.lastIndexOf('.');
+		let currentSelectionState = 'prefix';
 
 		inputBox.value = value;
 		inputBox.focus();
@@ -456,7 +521,22 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 				label.setFile(joinPath(parent, value || ' '), labelOptions); // update label icon while typing!
 			}),
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
-				if (e.equals(KeyCode.Enter)) {
+				if (e.equals(KeyCode.F2)) {
+					const dotIndex = inputBox.value.lastIndexOf('.');
+					if (stat.isDirectory || dotIndex === -1) {
+						return;
+					}
+					if (currentSelectionState === 'prefix') {
+						currentSelectionState = 'all';
+						inputBox.select({ start: 0, end: inputBox.value.length });
+					} else if (currentSelectionState === 'all') {
+						currentSelectionState = 'suffix';
+						inputBox.select({ start: dotIndex + 1, end: inputBox.value.length });
+					} else {
+						currentSelectionState = 'prefix';
+						inputBox.select({ start: 0, end: dotIndex });
+					}
+				} else if (e.equals(KeyCode.Enter)) {
 					if (!inputBox.validate()) {
 						done(true, true);
 					}
@@ -525,6 +605,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 	dispose(): void {
 		this.configListener.dispose();
+		this.styler.innerText = '';
 	}
 }
 
@@ -542,18 +623,40 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	private editorsAffectingFilter = new Set<EditorInput>();
 	private _onDidChange = new Emitter<void>();
 	private toDispose: IDisposable[] = [];
+	// List of ignoreFile resources. Used to detect changes to the ignoreFiles.
+	private ignoreFileResourcesPerRoot = new Map<string, ResourceSet>();
+	// Ignore tree per root. Similar to `hiddenExpressionPerRoot`
+	// Note: URI in the ternary search tree is the URI of the folder containing the ignore file
+	// It is not the ignore file itself. This is because of the way the IgnoreFile works and nested paths
+	private ignoreTreesPerRoot = new Map<string, TernarySearchTree<URI, IgnoreFile>>();
 
 	constructor(
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		this.toDispose.push(this.contextService.onDidChangeWorkspaceFolders(() => this.updateConfiguration()));
 		this.toDispose.push(this.configurationService.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration('files.exclude')) {
+			if (e.affectsConfiguration('files.exclude') || e.affectsConfiguration('explorer.excludeGitIgnore')) {
 				this.updateConfiguration();
+			}
+		}));
+		this.toDispose.push(this.fileService.onDidFilesChange(e => {
+			// Check to see if the update contains any of the ignoreFileResources
+			for (const [root, ignoreFileResourceSet] of this.ignoreFileResourcesPerRoot.entries()) {
+				ignoreFileResourceSet.forEach(async ignoreResource => {
+					if (e.contains(ignoreResource, FileChangeType.UPDATED)) {
+						await this.processIgnoreFile(root, ignoreResource, true);
+					}
+					if (e.contains(ignoreResource, FileChangeType.DELETED)) {
+						this.ignoreTreesPerRoot.get(root)?.delete(dirname(ignoreResource));
+						ignoreFileResourceSet.delete(ignoreResource);
+						this._onDidChange.fire();
+					}
+				});
 			}
 		}));
 		this.toDispose.push(this.editorService.onDidVisibleEditorsChange(() => {
@@ -595,9 +698,25 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 
 	private updateConfiguration(): void {
 		let shouldFire = false;
+		let updatedGitIgnoreSetting = false;
 		this.contextService.getWorkspace().folders.forEach(folder => {
 			const configuration = this.configurationService.getValue<IFilesConfiguration>({ resource: folder.uri });
 			const excludesConfig: glob.IExpression = configuration?.files?.exclude || Object.create(null);
+			const parseIgnoreFile: boolean = configuration.explorer.excludeGitIgnore;
+
+			// If we should be parsing ignoreFiles for this workspace and don't have an ignore tree initialize one
+			if (parseIgnoreFile && !this.ignoreTreesPerRoot.has(folder.uri.toString())) {
+				updatedGitIgnoreSetting = true;
+				this.ignoreFileResourcesPerRoot.set(folder.uri.toString(), new ResourceSet());
+				this.ignoreTreesPerRoot.set(folder.uri.toString(), TernarySearchTree.forUris((uri) => this.uriIdentityService.extUri.ignorePathCasing(uri)));
+			}
+
+			// If we shouldn't be parsing ignore files but have an ignore tree, clear the ignore tree
+			if (!parseIgnoreFile && this.ignoreTreesPerRoot.has(folder.uri.toString())) {
+				updatedGitIgnoreSetting = true;
+				this.ignoreFileResourcesPerRoot.delete(folder.uri.toString());
+				this.ignoreTreesPerRoot.delete(folder.uri.toString());
+			}
 
 			if (!shouldFire) {
 				const cached = this.hiddenExpressionPerRoot.get(folder.uri.toString());
@@ -609,13 +728,59 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 			this.hiddenExpressionPerRoot.set(folder.uri.toString(), { original: excludesConfigCopy, parsed: glob.parse(excludesConfigCopy) });
 		});
 
-		if (shouldFire) {
+		if (shouldFire || updatedGitIgnoreSetting) {
 			this.editorsAffectingFilter.clear();
 			this._onDidChange.fire();
 		}
 	}
 
+	/**
+	 * Given a .gitignore file resource, processes the resource and adds it to the ignore tree which hides explorer items
+	 * @param root The root folder of the workspace as a string. Used for lookup key for ignore tree and resource list
+	 * @param ignoreFileResource The resource of the .gitignore file
+	 * @param update Whether or not we're updating an existing ignore file. If true it deletes the old entry
+	 */
+	private async processIgnoreFile(root: string, ignoreFileResource: URI, update?: boolean) {
+		// Get the name of the directory which the ignore file is in
+		const dirUri = dirname(ignoreFileResource);
+		const ignoreTree = this.ignoreTreesPerRoot.get(root);
+		if (!ignoreTree) {
+			return;
+		}
+
+		// Don't process a directory if we already have it in the tree
+		if (!update && ignoreTree.has(dirUri)) {
+			return;
+		}
+		// Maybe we need a cancellation token here in case it's super long?
+		const content = await this.fileService.readFile(ignoreFileResource);
+
+		// If it's just an update we update the contents keeping all references the same
+		if (update) {
+			const ignoreFile = ignoreTree.get(dirUri);
+			ignoreFile?.updateContents(content.value.toString());
+		} else {
+			// Otherwise we create a new ignorefile and add it to the tree
+			const ignoreParent = ignoreTree.findSubstr(dirUri);
+			const ignoreFile = new IgnoreFile(content.value.toString(), dirUri.path, ignoreParent);
+			ignoreTree.set(dirUri, ignoreFile);
+			// If we haven't seen this resource before then we need to add it to the list of resources we're tracking
+			if (!this.ignoreFileResourcesPerRoot.get(root)?.has(ignoreFileResource)) {
+				this.ignoreFileResourcesPerRoot.get(root)?.add(ignoreFileResource);
+			}
+		}
+
+		// Notify the explorer of the change so we may ignore these files
+		this._onDidChange.fire();
+	}
+
 	filter(stat: ExplorerItem, parentVisibility: TreeVisibility): boolean {
+		// Add newly visited .gitignore files to the ignore tree
+		if (stat.name === '.gitignore' && this.ignoreTreesPerRoot.has(stat.root.resource.toString())) {
+			this.processIgnoreFile(stat.root.resource.toString(), stat.resource, false);
+			return true;
+		}
+
 		return this.isVisible(stat, parentVisibility);
 	}
 
@@ -631,7 +796,13 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 
 		// Hide those that match Hidden Patterns
 		const cached = this.hiddenExpressionPerRoot.get(stat.root.resource.toString());
-		if ((cached && cached.parsed(path.relative(stat.root.resource.path, stat.resource.path), stat.name, name => !!(stat.parent && stat.parent.getChild(name)))) || stat.parent?.isExcluded) {
+		const globMatch = cached?.parsed(path.relative(stat.root.resource.path, stat.resource.path), stat.name, name => !!(stat.parent && stat.parent.getChild(name)));
+		// Small optimization to only traverse gitIgnore if the globMatch from fileExclude returned nothing
+		const ignoreFile = globMatch ? undefined : this.ignoreTreesPerRoot.get(stat.root.resource.toString())?.findSubstr(stat.resource);
+		const isIncludedInTraversal = ignoreFile?.isPathIncludedInTraversal(stat.resource.path, stat.isDirectory);
+		// Doing !undefined returns true and we want it to be false when undefined because that means it's not included in the ignore file
+		const isIgnoredByIgnoreFile = isIncludedInTraversal === undefined ? false : !isIncludedInTraversal;
+		if (isIgnoredByIgnoreFile || globMatch || stat.parent?.isExcluded) {
 			stat.isExcluded = true;
 			const editors = this.editorService.visibleEditors;
 			const editor = editors.find(e => e.resource && this.uriIdentityService.extUri.isEqualOrParent(e.resource, stat.resource));
@@ -727,6 +898,25 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 
 				break;
 
+			case 'foldersNestsFiles':
+				if (statA.isDirectory && !statB.isDirectory) {
+					return -1;
+				}
+
+				if (statB.isDirectory && !statA.isDirectory) {
+					return 1;
+				}
+
+				if (statA.hasNests && !statB.hasNests) {
+					return -1;
+				}
+
+				if (statB.hasNests && !statA.hasNests) {
+					return 1;
+				}
+
+				break;
+
 			case 'mixed':
 				break; // not sorting when "mixed" is on
 
@@ -770,6 +960,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	private dropEnabled = false;
 
 	constructor(
+		private isCollapsed: (item: ExplorerItem) => boolean,
 		@IExplorerService private explorerService: IExplorerService,
 		@IEditorService private editorService: IEditorService,
 		@IDialogService private dialogService: IDialogService,
@@ -837,10 +1028,6 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		// Native DND
 		if (isNative) {
 			if (!containsDragType(originalEvent, DataTransfers.FILES, CodeDataTransfers.FILES, DataTransfers.RESOURCES)) {
-				return false;
-			}
-			if (isWeb && !containsDragType(originalEvent, 'Files')) {
-				// DnD from vscode to web is not supported #115535. Only if we are dragging from native finder / explorer then the "Files" data transfer will be set
 				return false;
 			}
 		}
@@ -982,17 +1169,15 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 			// External file DND (Import/Upload file)
 			if (data instanceof NativeDragAndDropData) {
-				// Native OS file DND into Web
-				if (containsDragType(originalEvent, 'Files') && isWeb) {
-					const browserUpload = this.instantiationService.createInstance(BrowserFileUpload);
-					await browserUpload.upload(target, originalEvent);
-				}
-				// 2 Cases handled for import:
-				// FS-Provided file DND into Web/Desktop
-				// Native OS file DND into Desktop
-				else {
+				// Use local file import when supported
+				if (!isWeb || (isTemporaryWorkspace(this.contextService.getWorkspace()) && WebFileSystemAccess.supported(window))) {
 					const fileImport = this.instantiationService.createInstance(ExternalFileImport);
 					await fileImport.import(resolvedTarget, originalEvent);
+				}
+				// Otherwise fallback to browser based file upload
+				else {
+					const browserUpload = this.instantiationService.createInstance(BrowserFileUpload);
+					await browserUpload.upload(target, originalEvent);
 				}
 			}
 
@@ -1007,7 +1192,22 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 	private async handleExplorerDrop(data: ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
 		const elementsData = FileDragAndDrop.getStatsFromDragAndDropData(data);
-		const items = distinctParents(elementsData, s => s.resource);
+		const distinctItems = new Map(elementsData.map(element => [element, this.isCollapsed(element)]));
+
+		for (const [item, collapsed] of distinctItems) {
+			if (collapsed) {
+				const nestedChildren = item.nestedChildren;
+				if (nestedChildren) {
+					for (const child of nestedChildren) {
+						// if parent is collapsed, then the nested children is considered collapsed to operate as a group
+						// and skip collapsed state check since they're not in the tree
+						distinctItems.set(child, true);
+					}
+				}
+			}
+		}
+
+		const items = distinctParents([...distinctItems.keys()], s => s.resource);
 		const isCopy = (originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh);
 
 		// Handle confirm setting
@@ -1086,10 +1286,12 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	private async doHandleExplorerDropOnCopy(sources: ExplorerItem[], target: ExplorerItem): Promise<void> {
 
 		// Reuse duplicate action when user copies
-		const incrementalNaming = this.configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
-		const resourceFileEdits = sources.map(({ resource, isDirectory }) => (new ResourceFileEdit(resource, findValidPasteFileTarget(this.explorerService, target, { resource, isDirectory, allowOverwrite: false }, incrementalNaming), { copy: true })));
+		const explorerConfig = this.configurationService.getValue<IFilesConfiguration>().explorer;
+		const resourceFileEdits = sources.map(({ resource, isDirectory }) =>
+			(new ResourceFileEdit(resource, findValidPasteFileTarget(this.explorerService, target, { resource, isDirectory, allowOverwrite: false }, explorerConfig.incrementalNaming), { copy: true })));
 		const labelSufix = getFileOrFolderLabelSufix(sources);
 		await this.explorerService.applyBulkEdit(resourceFileEdits, {
+			confirmBeforeUndo: explorerConfig.confirmUndo === UndoConfirmLevel.Default || explorerConfig.confirmUndo === UndoConfirmLevel.Verbose,
 			undoLabel: localize('copy', "Copy {0}", labelSufix),
 			progressLabel: localize('copying', "Copying {0}", labelSufix),
 		});
@@ -1108,6 +1310,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		const resourceFileEdits = sources.filter(source => !source.isReadonly).map(source => new ResourceFileEdit(source.resource, joinPath(target.resource, source.name)));
 		const labelSufix = getFileOrFolderLabelSufix(sources);
 		const options = {
+			confirmBeforeUndo: this.configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo === UndoConfirmLevel.Verbose,
 			undoLabel: localize('move', "Move {0}", labelSufix),
 			progressLabel: localize('moving', "Moving {0}", labelSufix)
 		};
@@ -1179,7 +1382,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	}
 }
 
-function getIconLabelNameFromHTMLElement(target: HTMLElement | EventTarget | Element | null): { element: HTMLElement, count: number, index: number } | null {
+function getIconLabelNameFromHTMLElement(target: HTMLElement | EventTarget | Element | null): { element: HTMLElement; count: number; index: number } | null {
 	if (!(target instanceof HTMLElement)) {
 		return null;
 	}

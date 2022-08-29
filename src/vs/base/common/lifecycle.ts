@@ -131,7 +131,7 @@ export function dispose<T extends IDisposable>(disposables: Array<T>): Array<T>;
 export function dispose<T extends IDisposable>(disposables: ReadonlyArray<T>): ReadonlyArray<T>;
 export function dispose<T extends IDisposable>(arg: T | IterableIterator<T> | undefined): any {
 	if (Iterable.is(arg)) {
-		let errors: any[] = [];
+		const errors: any[] = [];
 
 		for (const d of arg) {
 			if (d) {
@@ -156,6 +156,14 @@ export function dispose<T extends IDisposable>(arg: T | IterableIterator<T> | un
 	}
 }
 
+export function disposeIfDisposable<T extends IDisposable | object>(disposables: Array<T>): Array<T> {
+	for (const d of disposables) {
+		if (isDisposable(d)) {
+			d.dispose();
+		}
+	}
+	return [];
+}
 
 export function combinedDisposable(...disposables: IDisposable[]): IDisposable {
 	const parent = toDisposable(() => dispose(disposables));
@@ -200,6 +208,13 @@ export class DisposableStore implements IDisposable {
 	}
 
 	/**
+	 * Returns `true` if this object has been disposed
+	 */
+	public get isDisposed(): boolean {
+		return this._isDisposed;
+	}
+
+	/**
 	 * Dispose of all registered disposables but do not mark this object as disposed.
 	 */
 	public clear(): void {
@@ -235,7 +250,7 @@ export abstract class Disposable implements IDisposable {
 
 	static readonly None = Object.freeze<IDisposable>({ dispose() { } });
 
-	private readonly _store = new DisposableStore();
+	protected readonly _store = new DisposableStore();
 
 	constructor() {
 		trackDisposable(this);
@@ -332,13 +347,42 @@ export class RefCountedDisposable {
 	}
 }
 
+/**
+ * A safe disposable can be `unset` so that a leaked reference (listener)
+ * can be cut-off.
+ */
+export class SafeDisposable implements IDisposable {
+
+	dispose: () => void = () => { };
+	unset: () => void = () => { };
+	isset: () => boolean = () => false;
+
+	constructor() {
+		trackDisposable(this);
+	}
+
+	set(fn: Function) {
+		let callback: Function | undefined = fn;
+		this.unset = () => callback = undefined;
+		this.isset = () => callback !== undefined;
+		this.dispose = () => {
+			if (callback) {
+				callback();
+				callback = undefined;
+				markAsDisposed(this);
+			}
+		};
+		return this;
+	}
+}
+
 export interface IReference<T> extends IDisposable {
 	readonly object: T;
 }
 
 export abstract class ReferenceCollection<T> {
 
-	private readonly references: Map<string, { readonly object: T; counter: number; }> = new Map();
+	private readonly references: Map<string, { readonly object: T; counter: number }> = new Map();
 
 	acquire(key: string, ...args: any[]): IReference<T> {
 		let reference = this.references.get(key);

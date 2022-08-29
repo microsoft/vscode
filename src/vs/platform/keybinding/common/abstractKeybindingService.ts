@@ -7,12 +7,13 @@ import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } f
 import * as arrays from 'vs/base/common/arrays';
 import { IntervalTimer, TimeoutTimer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Keybinding, KeyCode, KeybindingModifier, ResolvedKeybinding, ResolvedKeybindingPart } from 'vs/base/common/keyCodes';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { Keybinding, KeybindingModifier, ResolvedKeybinding, ResolvedKeybindingPart } from 'vs/base/common/keybindings';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingEvent, IKeybindingService, IKeyboardEvent, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingService, IKeyboardEvent, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
 import { IResolveResult, KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -29,8 +30,8 @@ const HIGH_FREQ_COMMANDS = /^(cursor|delete)/;
 export abstract class AbstractKeybindingService extends Disposable implements IKeybindingService {
 	public _serviceBrand: undefined;
 
-	protected readonly _onDidUpdateKeybindings: Emitter<IKeybindingEvent> = this._register(new Emitter<IKeybindingEvent>());
-	get onDidUpdateKeybindings(): Event<IKeybindingEvent> {
+	protected readonly _onDidUpdateKeybindings: Emitter<void> = this._register(new Emitter<void>());
+	get onDidUpdateKeybindings(): Event<void> {
 		return this._onDidUpdateKeybindings ? this._onDidUpdateKeybindings.event : Event.None; // Sinon stubbing walks properties on prototype
 	}
 
@@ -124,6 +125,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	}
 
 	public softDispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget): IResolveResult | null {
+		this._log(`/ Soft dispatching keyboard event`);
 		const keybinding = this.resolveKeyboardEvent(e);
 		if (keybinding.isChord()) {
 			console.warn('Unexpected keyboard event mapped to a chord');
@@ -132,6 +134,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		const [firstPart,] = keybinding.getDispatchParts();
 		if (firstPart === null) {
 			// cannot be dispatched, probably only modifier keys
+			this._log(`\\ Keyboard event cannot be dispatched`);
 			return null;
 		}
 
@@ -173,8 +176,11 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	}
 
 	public dispatchByUserSettingsLabel(userSettingsLabel: string, target: IContextKeyServiceTarget): void {
+		this._log(`/ Dispatching keybinding triggered via menu entry accelerator - ${userSettingsLabel}`);
 		const keybindings = this.resolveUserBinding(userSettingsLabel);
-		if (keybindings.length >= 1) {
+		if (keybindings.length === 0) {
+			this._log(`\\ Could not resolve - ${userSettingsLabel}`);
+		} else {
 			this._doDispatch(keybindings[0], target, /*isSingleModiferChord*/false);
 		}
 	}
@@ -272,11 +278,13 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		if (resolveResult && resolveResult.enterChord) {
 			shouldPreventDefault = true;
 			this._enterChordMode(firstPart, keypressLabel);
+			this._log(`+ Entering chord mode...`);
 			return shouldPreventDefault;
 		}
 
 		if (this._currentChord) {
 			if (!resolveResult || !resolveResult.commandId) {
+				this._log(`+ Leaving chord mode: Nothing bound to "${this._currentChord.label} ${keypressLabel}".`);
 				this._notificationService.status(nls.localize('missing.chord', "The key combination ({0}, {1}) is not a command.", this._currentChord.label, keypressLabel), { hideAfter: 10 * 1000 /* 10s */ });
 				shouldPreventDefault = true;
 			}
@@ -288,6 +296,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 			if (!resolveResult.bubble) {
 				shouldPreventDefault = true;
 			}
+			this._log(`+ Invoking command ${resolveResult.commandId}.`);
 			if (typeof resolveResult.commandArgs === 'undefined') {
 				this._commandService.executeCommand(resolveResult.commandId).then(undefined, err => this._notificationService.warn(err));
 			} else {
@@ -308,8 +317,8 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		}
 		// weak check for certain ranges. this is properly implemented in a subclass
 		// with access to the KeyboardMapperFactory.
-		if ((event.keyCode >= KeyCode.KEY_A && event.keyCode <= KeyCode.KEY_Z)
-			|| (event.keyCode >= KeyCode.KEY_0 && event.keyCode <= KeyCode.KEY_9)) {
+		if ((event.keyCode >= KeyCode.KeyA && event.keyCode <= KeyCode.KeyZ)
+			|| (event.keyCode >= KeyCode.Digit0 && event.keyCode <= KeyCode.Digit9)) {
 			return true;
 		}
 		return false;

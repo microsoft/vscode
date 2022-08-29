@@ -6,15 +6,25 @@
 import { IRemoteConsoleLog, parse } from 'vs/base/common/console';
 import { ILogService } from 'vs/platform/log/common/log';
 
-export function logRemoteEntry(logService: ILogService, entry: IRemoteConsoleLog): void {
+export function logRemoteEntry(logService: ILogService, entry: IRemoteConsoleLog, label: string | null = null): void {
 	const args = parse(entry).args;
-	const firstArg = args.shift();
+	let firstArg = args.shift();
 	if (typeof firstArg !== 'string') {
 		return;
 	}
 
 	if (!entry.severity) {
 		entry.severity = 'info';
+	}
+
+	if (label) {
+		if (!/^\[/.test(label)) {
+			label = `[${label}]`;
+		}
+		if (!/ $/.test(label)) {
+			label = `${label} `;
+		}
+		firstArg = label + firstArg;
 	}
 
 	switch (entry.severity) {
@@ -38,5 +48,12 @@ export function logRemoteEntryIfError(logService: ILogService, entry: IRemoteCon
 		return;
 	}
 
-	logService.error(`[${label}] ` + firstArg, ...args);
+	if (!/^\[/.test(label)) {
+		label = `[${label}]`;
+	}
+	if (!/ $/.test(label)) {
+		label = `${label} `;
+	}
+
+	logService.error(label + firstArg, ...args);
 }

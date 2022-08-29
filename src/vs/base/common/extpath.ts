@@ -133,10 +133,13 @@ export function isUNC(path: string): boolean {
 	if (code !== CharCode.Backslash) {
 		return false;
 	}
+
 	code = path.charCodeAt(1);
+
 	if (code !== CharCode.Backslash) {
 		return false;
 	}
+
 	let pos = 2;
 	const start = pos;
 	for (; pos < path.length; pos++) {
@@ -145,13 +148,17 @@ export function isUNC(path: string): boolean {
 			break;
 		}
 	}
+
 	if (start === pos) {
 		return false;
 	}
+
 	code = path.charCodeAt(pos + 1);
+
 	if (isNaN(code) || code === CharCode.Backslash) {
 		return false;
 	}
+
 	return true;
 }
 
@@ -194,6 +201,11 @@ export function isValidBasename(name: string | null | undefined, isWindowsOS: bo
 	return true;
 }
 
+/**
+ * @deprecated please use `IUriIdentityService.extUri.isEqual` instead. If you are
+ * in a context without services, consider to pass down the `extUri` from the outside
+ * or use `extUriBiasedIgnorePathCase` if you know what you are doing.
+ */
 export function isEqual(pathA: string, pathB: string, ignoreCase?: boolean): boolean {
 	const identityEquals = (pathA === pathB);
 	if (!ignoreCase || identityEquals) {
@@ -207,6 +219,11 @@ export function isEqual(pathA: string, pathB: string, ignoreCase?: boolean): boo
 	return equalsIgnoreCase(pathA, pathB);
 }
 
+/**
+ * @deprecated please use `IUriIdentityService.extUri.isEqualOrParent` instead. If
+ * you are in a context without services, consider to pass down the `extUri` from the
+ * outside, or use `extUriBiasedIgnorePathCase` if you know what you are doing.
+ */
 export function isEqualOrParent(base: string, parentCandidate: string, ignoreCase?: boolean, separator = sep): boolean {
 	if (base === parentCandidate) {
 		return true;
@@ -300,8 +317,8 @@ export function isRootOrDriveLetter(path: string): boolean {
 	return pathNormalized === posix.sep;
 }
 
-export function hasDriveLetter(path: string): boolean {
-	if (isWindows) {
+export function hasDriveLetter(path: string, isWindowsOS: boolean = isWindows): boolean {
+	if (isWindowsOS) {
 		return isWindowsDriveLetter(path.charCodeAt(0)) && path.charCodeAt(1) === CharCode.Colon;
 	}
 
@@ -342,7 +359,7 @@ export function parseLineAndColumnAware(rawPath: string): IPathWithLineAndColumn
 	let line: number | undefined = undefined;
 	let column: number | undefined = undefined;
 
-	segments.forEach(segment => {
+	for (const segment of segments) {
 		const segmentAsNumber = Number(segment);
 		if (!isNumber(segmentAsNumber)) {
 			path = !!path ? [path, segment].join(':') : segment; // a colon can well be part of a path (e.g. C:\...)
@@ -351,7 +368,7 @@ export function parseLineAndColumnAware(rawPath: string): IPathWithLineAndColumn
 		} else if (column === undefined) {
 			column = segmentAsNumber;
 		}
-	});
+	}
 
 	if (!path) {
 		throw new Error('Format for `--goto` should be: `FILE:LINE(:COLUMN)`');
@@ -362,4 +379,26 @@ export function parseLineAndColumnAware(rawPath: string): IPathWithLineAndColumn
 		line: line !== undefined ? line : undefined,
 		column: column !== undefined ? column : line !== undefined ? 1 : undefined // if we have a line, make sure column is also set
 	};
+}
+
+const pathChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+
+export function randomPath(parent?: string, prefix?: string, randomLength = 8): string {
+	let suffix = '';
+	for (let i = 0; i < randomLength; i++) {
+		suffix += pathChars.charAt(Math.floor(Math.random() * pathChars.length));
+	}
+
+	let randomFileName: string;
+	if (prefix) {
+		randomFileName = `${prefix}-${suffix}`;
+	} else {
+		randomFileName = suffix;
+	}
+
+	if (parent) {
+		return join(parent, randomFileName);
+	}
+
+	return randomFileName;
 }

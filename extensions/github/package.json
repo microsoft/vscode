@@ -9,7 +9,6 @@
     "vscode": "^1.41.0"
   },
   "icon": "images/icon.png",
-  "enableProposedApi": true,
   "categories": [
     "Other"
   ],
@@ -17,7 +16,7 @@
     "*"
   ],
   "extensionDependencies": [
-    "vscode.git"
+    "vscode.git-base"
   ],
   "main": "./out/extension.js",
   "capabilities": {
@@ -26,13 +25,68 @@
       "supported": true
     }
   },
+  "enabledApiProposals": [
+    "contribShareMenu",
+    "contribEditSessions"
+  ],
   "contributes": {
     "commands": [
       {
         "command": "github.publish",
         "title": "Publish to GitHub"
+      },
+      {
+        "command": "github.copyVscodeDevLink",
+        "title": "Copy vscode.dev Link"
+      },
+      {
+        "command": "github.copyVscodeDevLinkFile",
+        "title": "Copy vscode.dev Link"
+      },
+      {
+        "command": "github.openOnVscodeDev",
+        "title": "Open on vscode.dev",
+        "icon": "$(globe)"
       }
     ],
+    "continueEditSession": [
+      {
+        "command": "github.openOnVscodeDev",
+        "when": "github.hasGitHubRepo"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "github.publish",
+          "when": "git-base.gitEnabled"
+        },
+        {
+          "command": "github.copyVscodeDevLink",
+          "when": "false"
+        },
+        {
+          "command": "github.copyVscodeDevLinkFile",
+          "when": "false"
+        },
+        {
+          "command": "github.openOnVscodeDev",
+          "when": "false"
+        }
+      ],
+      "file/share": [
+        {
+            "command": "github.copyVscodeDevLinkFile",
+            "when": "github.hasGitHubRepo"
+        }
+      ],
+      "editor/context/share": [
+        {
+            "command": "github.copyVscodeDevLink",
+            "when": "github.hasGitHubRepo && resourceScheme != untitled"
+        }
+      ]
+    },
     "configuration": [
       {
         "title": "GitHub",
@@ -42,6 +96,15 @@
             "scope": "resource",
             "default": true,
             "description": "%config.gitAuthentication%"
+          },
+          "github.gitProtocol": {
+            "type": "string",
+            "enum": [
+              "https",
+              "ssh"
+            ],
+            "default": "https",
+            "description": "%config.gitProtocol%"
           }
         }
       }
@@ -57,6 +120,9 @@
         "contents": "%welcome.publishWorkspaceFolder%",
         "when": "config.git.enabled && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0"
       }
+    ],
+    "markdown.previewStyles": [
+      "./markdown.css"
     ]
   },
   "scripts": {
@@ -67,10 +133,10 @@
   "dependencies": {
     "@octokit/rest": "^18.0.1",
     "tunnel": "^0.0.6",
-    "vscode-nls": "^4.1.2"
+    "vscode-nls": "^5.1.0"
   },
   "devDependencies": {
-    "@types/node": "14.x"
+    "@types/node": "16.x"
   },
   "repository": {
     "type": "git",

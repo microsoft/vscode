@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
+import { CoreNavigationCommands } from 'vs/editor/browser/coreCommands';
 import { IEditorMouseEvent, IPartialEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { ViewUserInputEvents } from 'vs/editor/browser/view/viewUserInputEvents';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IConfiguration } from 'vs/editor/common/editorCommon';
-import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
+import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
+import { IViewModel } from 'vs/editor/common/viewModel';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as platform from 'vs/base/common/platform';
@@ -32,6 +32,7 @@ export interface IMouseDispatchData {
 
 	leftButton: boolean;
 	middleButton: boolean;
+	onInjectedText: boolean;
 }
 
 export interface ICommandDelegate {
@@ -45,13 +46,13 @@ export interface ICommandDelegate {
 
 export class ViewController {
 
-	private readonly configuration: IConfiguration;
+	private readonly configuration: IEditorConfiguration;
 	private readonly viewModel: IViewModel;
 	private readonly userInputEvents: ViewUserInputEvents;
 	private readonly commandDelegate: ICommandDelegate;
 
 	constructor(
-		configuration: IConfiguration,
+		configuration: IEditorConfiguration,
 		viewModel: IViewModel,
 		userInputEvents: ViewUserInputEvents,
 		commandDelegate: ICommandDelegate
@@ -165,13 +166,15 @@ export class ViewController {
 				}
 			}
 		} else if (data.mouseDownCount === 2) {
-			if (this._hasMulticursorModifier(data)) {
-				this._lastCursorWordSelect(data.position);
-			} else {
-				if (data.inSelectionMode) {
-					this._wordSelectDrag(data.position);
+			if (!data.onInjectedText) {
+				if (this._hasMulticursorModifier(data)) {
+					this._lastCursorWordSelect(data.position);
 				} else {
-					this._wordSelect(data.position);
+					if (data.inSelectionMode) {
+						this._wordSelectDrag(data.position);
+					} else {
+						this._wordSelect(data.position);
+					}
 				}
 			}
 		} else {

@@ -6,11 +6,11 @@
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { firstOrDefault } from 'vs/base/common/arrays';
-import { IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, EditorsOrder, EditorInputCapabilities, IEditorFactoryRegistry, EditorExtensions, DEFAULT_EDITOR_ASSOCIATION, GroupIdentifier } from 'vs/workbench/common/editor';
+import { IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, EditorsOrder, EditorInputCapabilities, DEFAULT_EDITOR_ASSOCIATION, GroupIdentifier, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { GoFilter, IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, ActiveEditorMoveCopyArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, COPY_ACTIVE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
@@ -19,13 +19,18 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
+import { IFileDialogService, ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ItemActivation, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { AllEditorsByMostRecentlyUsedQuickAccess, ActiveGroupEditorsByMostRecentlyUsedQuickAccess, AllEditorsByAppearanceQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
 import { Codicon } from 'vs/base/common/codicons';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
+import { isLinux, isNative, isWindows } from 'vs/base/common/platform';
+import { Action2, MenuId } from 'vs/platform/actions/common/actions';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export class ExecuteCommandAction extends Action {
 
@@ -273,9 +278,7 @@ abstract class AbstractFocusGroupAction extends Action {
 
 	override async run(): Promise<void> {
 		const group = this.editorGroupService.findGroup(this.scope, this.editorGroupService.activeGroup, true);
-		if (group) {
-			group.focus();
-		}
+		group?.focus();
 	}
 }
 
@@ -459,13 +462,15 @@ export class CloseOneEditorAction extends Action {
 		if (typeof editorIndex === 'number') {
 			const editorAtIndex = group.getEditorByIndex(editorIndex);
 			if (editorAtIndex) {
-				return group.closeEditor(editorAtIndex);
+				await group.closeEditor(editorAtIndex, { preserveFocus: context?.preserveFocus });
+				return;
 			}
 		}
 
 		// Otherwise close active editor in group
 		if (group.activeEditor) {
-			return group.closeEditor(group.activeEditor);
+			await group.closeEditor(group.activeEditor, { preserveFocus: context?.preserveFocus });
+			return;
 		}
 	}
 }
@@ -500,7 +505,7 @@ export class RevertAndCloseEditorAction extends Action {
 				await this.editorService.revert({ editor, groupId: group.id }, { soft: true });
 			}
 
-			return group.closeEditor(editor);
+			await group.closeEditor(editor);
 		}
 	}
 }
@@ -521,11 +526,11 @@ export class CloseLeftEditorsInGroupAction extends Action {
 	override async run(context?: IEditorIdentifier): Promise<void> {
 		const { group, editor } = this.getTarget(context);
 		if (group && editor) {
-			return group.closeEditors({ direction: CloseDirection.LEFT, except: editor, excludeSticky: true });
+			await group.closeEditors({ direction: CloseDirection.LEFT, except: editor, excludeSticky: true });
 		}
 	}
 
-	private getTarget(context?: IEditorIdentifier): { editor: EditorInput | null, group: IEditorGroup | undefined } {
+	private getTarget(context?: IEditorIdentifier): { editor: EditorInput | null; group: IEditorGroup | undefined } {
 		if (context) {
 			return { editor: context.editor, group: this.editorGroupService.getGroup(context.groupId) };
 		}
@@ -566,23 +571,31 @@ abstract class AbstractCloseAllAction extends Action {
 	override async run(): Promise<void> {
 
 		// Depending on the editor and auto save configuration,
-		// split dirty editors into buckets
+		// split editors into buckets for handling confirmation
 
 		const dirtyEditorsWithDefaultConfirm = new Set<IEditorIdentifier>();
-		const dirtyAutoSaveableEditors = new Set<IEditorIdentifier>();
-		const dirtyEditorsWithCustomConfirm = new Map<string /* typeId */, Set<IEditorIdentifier>>();
+		const dirtyAutoSaveOnFocusChangeEditors = new Set<IEditorIdentifier>();
+		const dirtyAutoSaveOnWindowChangeEditors = new Set<IEditorIdentifier>();
+		const editorsWithCustomConfirm = new Map<string /* typeId */, Set<IEditorIdentifier>>();
 
 		for (const { editor, groupId } of this.editorService.getEditors(EditorsOrder.SEQUENTIAL, { excludeSticky: this.excludeSticky })) {
-			if (!editor.isDirty() || editor.isSaving()) {
-				continue; // only interested in dirty editors that are not in the process of saving
+			let confirmClose = false;
+			if (editor.closeHandler) {
+				confirmClose = editor.closeHandler.showConfirm(); // custom handling of confirmation on close
+			} else {
+				confirmClose = editor.isDirty() && !editor.isSaving(); // default confirm only when dirty and not saving
+			}
+
+			if (!confirmClose) {
+				continue;
 			}
 
 			// Editor has custom confirm implementation
-			if (typeof editor.confirm === 'function') {
-				let customEditorsToConfirm = dirtyEditorsWithCustomConfirm.get(editor.typeId);
+			if (typeof editor.closeHandler?.confirm === 'function') {
+				let customEditorsToConfirm = editorsWithCustomConfirm.get(editor.typeId);
 				if (!customEditorsToConfirm) {
 					customEditorsToConfirm = new Set();
-					dirtyEditorsWithCustomConfirm.set(editor.typeId, customEditorsToConfirm);
+					editorsWithCustomConfirm.set(editor.typeId, customEditorsToConfirm);
 				}
 
 				customEditorsToConfirm.add({ editor, groupId });
@@ -591,7 +604,14 @@ abstract class AbstractCloseAllAction extends Action {
 			// Editor will be saved on focus change when a
 			// dialog appears, so just track that separate
 			else if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.ON_FOCUS_CHANGE && !editor.hasCapability(EditorInputCapabilities.Untitled)) {
-				dirtyAutoSaveableEditors.add({ editor, groupId });
+				dirtyAutoSaveOnFocusChangeEditors.add({ editor, groupId });
+			}
+
+			// Windows, Linux: editor will be saved on window change
+			// when a native dialog appears, so just track that separate
+			// (see https://github.com/microsoft/vscode/issues/134250)
+			else if ((isNative && (isWindows || isLinux)) && this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.ON_WINDOW_CHANGE && !editor.hasCapability(EditorInputCapabilities.Untitled)) {
+				dirtyAutoSaveOnWindowChangeEditors.add({ editor, groupId });
 			}
 
 			// Editor will show in generic file based dialog
@@ -604,7 +624,7 @@ abstract class AbstractCloseAllAction extends Action {
 		if (dirtyEditorsWithDefaultConfirm.size > 0) {
 			const editors = Array.from(dirtyEditorsWithDefaultConfirm.values());
 
-			await this.revealDirtyEditors(editors); // help user make a decision by revealing editors
+			await this.revealEditorsToConfirm(editors); // help user make a decision by revealing editors
 
 			const confirmation = await this.fileDialogService.showSaveConfirm(editors.map(({ editor }) => {
 				if (editor instanceof SideBySideEditorInput) {
@@ -627,12 +647,12 @@ abstract class AbstractCloseAllAction extends Action {
 		}
 
 		// 2.) Show custom confirm based dialog
-		for (const [, editorIdentifiers] of dirtyEditorsWithCustomConfirm) {
+		for (const [, editorIdentifiers] of editorsWithCustomConfirm) {
 			const editors = Array.from(editorIdentifiers.values());
 
-			await this.revealDirtyEditors(editors); // help user make a decision by revealing editors
+			await this.revealEditorsToConfirm(editors); // help user make a decision by revealing editors
 
-			const confirmation = await firstOrDefault(editors)?.editor.confirm?.(editors);
+			const confirmation = await firstOrDefault(editors)?.editor.closeHandler?.confirm?.(editors);
 			if (typeof confirmation === 'number') {
 				switch (confirmation) {
 					case ConfirmResult.CANCEL:
@@ -647,21 +667,28 @@ abstract class AbstractCloseAllAction extends Action {
 			}
 		}
 
-		// 3.) Save autosaveable editors
-		if (dirtyAutoSaveableEditors.size > 0) {
-			const editors = Array.from(dirtyAutoSaveableEditors.values());
+		// 3.) Save autosaveable editors (focus change)
+		if (dirtyAutoSaveOnFocusChangeEditors.size > 0) {
+			const editors = Array.from(dirtyAutoSaveOnFocusChangeEditors.values());
 
 			await this.editorService.save(editors, { reason: SaveReason.FOCUS_CHANGE });
 		}
 
-		// 4.) Finally close all editors: even if an editor failed to
+		// 4.) Save autosaveable editors (window change)
+		if (dirtyAutoSaveOnWindowChangeEditors.size > 0) {
+			const editors = Array.from(dirtyAutoSaveOnWindowChangeEditors.values());
+
+			await this.editorService.save(editors, { reason: SaveReason.WINDOW_CHANGE });
+		}
+
+		// 5.) Finally close all editors: even if an editor failed to
 		// save or revert and still reports dirty, the editor part makes
 		// sure to bring up another confirm dialog for those editors
 		// specifically.
 		return this.doCloseAll();
 	}
 
-	private async revealDirtyEditors(editors: ReadonlyArray<IEditorIdentifier>): Promise<void> {
+	private async revealEditorsToConfirm(editors: ReadonlyArray<IEditorIdentifier>): Promise<void> {
 		try {
 			const handledGroups = new Set<GroupIdentifier>();
 			for (const { editor, groupId } of editors) {
@@ -994,7 +1021,7 @@ export class MinimizeOtherGroupsAction extends Action {
 	}
 
 	override async run(): Promise<void> {
-		this.editorGroupService.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS);
+		this.editorGroupService.arrangeGroups(GroupsArrangement.MAXIMIZE);
 	}
 }
 
@@ -1029,7 +1056,7 @@ export class ToggleGroupSizesAction extends Action {
 export class MaximizeGroupAction extends Action {
 
 	static readonly ID = 'workbench.action.maximizeEditor';
-	static readonly LABEL = localize('maximizeEditor', "Maximize Editor Group and Hide Side Bar");
+	static readonly LABEL = localize('maximizeEditor', "Maximize Editor Group and Hide Side Bars");
 
 	constructor(
 		id: string,
@@ -1043,8 +1070,9 @@ export class MaximizeGroupAction extends Action {
 
 	override async run(): Promise<void> {
 		if (this.editorService.activeEditor) {
-			this.editorGroupService.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS);
 			this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
+			this.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
+			this.editorGroupService.arrangeGroups(GroupsArrangement.MAXIMIZE);
 		}
 	}
 }
@@ -1104,11 +1132,19 @@ export class OpenNextEditor extends AbstractNavigateEditorAction {
 			return { editor: activeGroupEditors[activeEditorIndex + 1], groupId: activeGroup.id };
 		}
 
-		// Otherwise try in next group
-		const nextGroup = this.editorGroupService.findGroup({ location: GroupLocation.NEXT }, this.editorGroupService.activeGroup, true);
-		if (nextGroup) {
-			const previousGroupEditors = nextGroup.getEditors(EditorsOrder.SEQUENTIAL);
-			return { editor: previousGroupEditors[0], groupId: nextGroup.id };
+		// Otherwise try in next group that has editors
+		const handledGroups = new Set<number>();
+		let currentGroup: IEditorGroup | undefined = this.editorGroupService.activeGroup;
+		while (currentGroup && !handledGroups.has(currentGroup.id)) {
+			currentGroup = this.editorGroupService.findGroup({ location: GroupLocation.NEXT }, currentGroup, true);
+			if (currentGroup) {
+				handledGroups.add(currentGroup.id);
+
+				const groupEditors = currentGroup.getEditors(EditorsOrder.SEQUENTIAL);
+				if (groupEditors.length > 0) {
+					return { editor: groupEditors[0], groupId: currentGroup.id };
+				}
+			}
 		}
 
 		return undefined;
@@ -1139,11 +1175,19 @@ export class OpenPreviousEditor extends AbstractNavigateEditorAction {
 			return { editor: activeGroupEditors[activeEditorIndex - 1], groupId: activeGroup.id };
 		}
 
-		// Otherwise try in previous group
-		const previousGroup = this.editorGroupService.findGroup({ location: GroupLocation.PREVIOUS }, this.editorGroupService.activeGroup, true);
-		if (previousGroup) {
-			const previousGroupEditors = previousGroup.getEditors(EditorsOrder.SEQUENTIAL);
-			return { editor: previousGroupEditors[previousGroupEditors.length - 1], groupId: previousGroup.id };
+		// Otherwise try in previous group that has editors
+		const handledGroups = new Set<number>();
+		let currentGroup: IEditorGroup | undefined = this.editorGroupService.activeGroup;
+		while (currentGroup && !handledGroups.has(currentGroup.id)) {
+			currentGroup = this.editorGroupService.findGroup({ location: GroupLocation.PREVIOUS }, currentGroup, true);
+			if (currentGroup) {
+				handledGroups.add(currentGroup.id);
+
+				const groupEditors = currentGroup.getEditors(EditorsOrder.SEQUENTIAL);
+				if (groupEditors.length > 0) {
+					return { editor: groupEditors[groupEditors.length - 1], groupId: currentGroup.id };
+				}
+			}
 		}
 
 		return undefined;
@@ -1240,31 +1284,139 @@ export class OpenLastEditorInGroup extends AbstractNavigateEditorAction {
 	}
 }
 
-export class NavigateForwardAction extends Action {
+export class NavigateForwardAction extends Action2 {
 
 	static readonly ID = 'workbench.action.navigateForward';
-	static readonly LABEL = localize('navigateNext', "Go Forward");
+	static readonly LABEL = localize('navigateForward', "Go Forward");
 
-	constructor(id: string, label: string, @IHistoryService private readonly historyService: IHistoryService) {
-		super(id, label);
+	constructor() {
+		super({
+			id: NavigateForwardAction.ID,
+			title: { value: localize('navigateForward', "Go Forward"), original: 'Go Forward', mnemonicTitle: localize({ key: 'miForward', comment: ['&& denotes a mnemonic'] }, "&&Forward") },
+			f1: true,
+			icon: Codicon.arrowRight,
+			precondition: ContextKeyExpr.has('canNavigateForward'),
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				win: { primary: KeyMod.Alt | KeyCode.RightArrow },
+				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Minus },
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus }
+			},
+			menu: [
+				{ id: MenuId.MenubarGoMenu, group: '1_history_nav', order: 2 },
+				{ id: MenuId.CommandCenter, order: 2 }
+			]
+		});
 	}
 
-	override async run(): Promise<void> {
-		this.historyService.forward();
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const historyService = accessor.get(IHistoryService);
+
+		await historyService.goForward(GoFilter.NONE);
 	}
 }
 
-export class NavigateBackwardsAction extends Action {
+export class NavigateBackwardsAction extends Action2 {
 
 	static readonly ID = 'workbench.action.navigateBack';
-	static readonly LABEL = localize('navigatePrevious', "Go Back");
+	static readonly LABEL = localize('navigateBack', "Go Back");
 
-	constructor(id: string, label: string, @IHistoryService private readonly historyService: IHistoryService) {
+	constructor() {
+		super({
+			id: NavigateBackwardsAction.ID,
+			title: { value: localize('navigateBack', "Go Back"), original: 'Go Back', mnemonicTitle: localize({ key: 'miBack', comment: ['&& denotes a mnemonic'] }, "&&Back") },
+			f1: true,
+			precondition: ContextKeyExpr.has('canNavigateBack'),
+			icon: Codicon.arrowLeft,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				win: { primary: KeyMod.Alt | KeyCode.LeftArrow },
+				mac: { primary: KeyMod.WinCtrl | KeyCode.Minus },
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus }
+			},
+			menu: [
+				{ id: MenuId.MenubarGoMenu, group: '1_history_nav', order: 1 },
+				{ id: MenuId.CommandCenter, order: 1 }
+			]
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const historyService = accessor.get(IHistoryService);
+
+		await historyService.goBack(GoFilter.NONE);
+	}
+}
+
+export class NavigatePreviousAction extends Action {
+
+	static readonly ID = 'workbench.action.navigateLast';
+	static readonly LABEL = localize('navigatePrevious', "Go Previous");
+
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService
+	) {
 		super(id, label);
 	}
 
 	override async run(): Promise<void> {
-		this.historyService.back();
+		await this.historyService.goPrevious(GoFilter.NONE);
+	}
+}
+
+export class NavigateForwardInEditsAction extends Action {
+
+	static readonly ID = 'workbench.action.navigateForwardInEditLocations';
+	static readonly LABEL = localize('navigateForwardInEdits', "Go Forward in Edit Locations");
+
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService
+	) {
+		super(id, label);
+	}
+
+	override async run(): Promise<void> {
+		await this.historyService.goForward(GoFilter.EDITS);
+	}
+}
+
+export class NavigateBackwardsInEditsAction extends Action {
+
+	static readonly ID = 'workbench.action.navigateBackInEditLocations';
+	static readonly LABEL = localize('navigateBackInEdits', "Go Back in Edit Locations");
+
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService
+	) {
+		super(id, label);
+	}
+
+	override async run(): Promise<void> {
+		await this.historyService.goBack(GoFilter.EDITS);
+	}
+}
+
+export class NavigatePreviousInEditsAction extends Action {
+
+	static readonly ID = 'workbench.action.navigatePreviousInEditLocations';
+	static readonly LABEL = localize('navigatePreviousInEdits', "Go Previous in Edit Locations");
+
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService
+	) {
+		super(id, label);
+	}
+
+	override async run(): Promise<void> {
+		await this.historyService.goPrevious(GoFilter.EDITS);
 	}
 }
 
@@ -1273,26 +1425,88 @@ export class NavigateToLastEditLocationAction extends Action {
 	static readonly ID = 'workbench.action.navigateToLastEditLocation';
 	static readonly LABEL = localize('navigateToLastEditLocation', "Go to Last Edit Location");
 
-	constructor(id: string, label: string, @IHistoryService private readonly historyService: IHistoryService) {
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService
+	) {
 		super(id, label);
 	}
 
 	override async run(): Promise<void> {
-		this.historyService.openLastEditLocation();
+		await this.historyService.goLast(GoFilter.EDITS);
 	}
 }
 
-export class NavigateLastAction extends Action {
+export class NavigateForwardInNavigationsAction extends Action {
 
-	static readonly ID = 'workbench.action.navigateLast';
-	static readonly LABEL = localize('navigateLast', "Go Last");
+	static readonly ID = 'workbench.action.navigateForwardInNavigationLocations';
+	static readonly LABEL = localize('navigateForwardInNavigations', "Go Forward in Navigation Locations");
 
-	constructor(id: string, label: string, @IHistoryService private readonly historyService: IHistoryService) {
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService
+	) {
 		super(id, label);
 	}
 
 	override async run(): Promise<void> {
-		this.historyService.last();
+		await this.historyService.goForward(GoFilter.NAVIGATION);
+	}
+}
+
+export class NavigateBackwardsInNavigationsAction extends Action {
+
+	static readonly ID = 'workbench.action.navigateBackInNavigationLocations';
+	static readonly LABEL = localize('navigateBackInNavigations', "Go Back in Navigation Locations");
+
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService
+	) {
+		super(id, label);
+	}
+
+	override async run(): Promise<void> {
+		await this.historyService.goBack(GoFilter.NAVIGATION);
+	}
+}
+
+export class NavigatePreviousInNavigationsAction extends Action {
+
+	static readonly ID = 'workbench.action.navigatePreviousInNavigationLocations';
+	static readonly LABEL = localize('navigatePreviousInNavigationLocations', "Go Previous in Navigation Locations");
+
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService
+	) {
+		super(id, label);
+	}
+
+	override async run(): Promise<void> {
+		await this.historyService.goPrevious(GoFilter.NAVIGATION);
+	}
+}
+
+export class NavigateToLastNavigationLocationAction extends Action {
+
+	static readonly ID = 'workbench.action.navigateToLastNavigationLocation';
+	static readonly LABEL = localize('navigateToLastNavigationLocation', "Go to Last Navigation Location");
+
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService
+	) {
+		super(id, label);
+	}
+
+	override async run(): Promise<void> {
+		await this.historyService.goLast(GoFilter.NAVIGATION);
 	}
 }
 
@@ -1310,7 +1524,7 @@ export class ReopenClosedEditorAction extends Action {
 	}
 
 	override async run(): Promise<void> {
-		this.historyService.reopenLastClosedEditor();
+		await this.historyService.reopenLastClosedEditor();
 	}
 }
 
@@ -1323,12 +1537,25 @@ export class ClearRecentFilesAction extends Action {
 		id: string,
 		label: string,
 		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
-		@IHistoryService private readonly historyService: IHistoryService
+		@IHistoryService private readonly historyService: IHistoryService,
+		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super(id, label);
 	}
 
 	override async run(): Promise<void> {
+
+		// Ask for confirmation
+		const { confirmed } = await this.dialogService.confirm({
+			message: localize('confirmClearRecentsMessage', "Do you want to clear all recently opened files and workspaces?"),
+			detail: localize('confirmClearDetail', "This action is irreversible!"),
+			primaryButton: localize({ key: 'clearButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Clear"),
+			type: 'warning'
+		});
+
+		if (!confirmed) {
+			return;
+		}
 
 		// Clear global recently opened
 		this.workspacesService.clearRecentlyOpened();
@@ -1586,14 +1813,27 @@ export class ClearEditorHistoryAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IHistoryService private readonly historyService: IHistoryService
+		@IHistoryService private readonly historyService: IHistoryService,
+		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super(id, label);
 	}
 
 	override async run(): Promise<void> {
 
-		// Editor history
+		// Ask for confirmation
+		const { confirmed } = await this.dialogService.confirm({
+			message: localize('confirmClearEditorHistoryMessage', "Do you want to clear the history of recently opened editors?"),
+			detail: localize('confirmClearDetail', "This action is irreversible!"),
+			primaryButton: localize({ key: 'clearButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Clear"),
+			type: 'warning'
+		});
+
+		if (!confirmed) {
+			return;
+		}
+
+		// Clear editor history
 		this.historyService.clear();
 	}
 }
@@ -2054,16 +2294,12 @@ export class ToggleEditorTypeAction extends Action {
 			return;
 		}
 
-		const activeEditorResource = activeEditorPane.input.resource;
+		const activeEditorResource = EditorResourceAccessor.getCanonicalUri(activeEditorPane.input);
 		if (!activeEditorResource) {
 			return;
 		}
 
-		const options = activeEditorPane.options;
-		const group = activeEditorPane.group;
-
 		const editorIds = this.editorResolverService.getEditors(activeEditorResource).map(editor => editor.id).filter(id => id !== activeEditorPane.input.editorId);
-
 		if (editorIds.length === 0) {
 			return;
 		}
@@ -2072,10 +2308,14 @@ export class ToggleEditorTypeAction extends Action {
 		await this.editorService.replaceEditors([
 			{
 				editor: activeEditorPane.input,
-				replacement: activeEditorPane.input,
-				options: { ...options, override: editorIds[0] },
+				replacement: {
+					resource: activeEditorResource,
+					options: {
+						override: editorIds[0]
+					}
+				}
 			}
-		], group);
+		], activeEditorPane.group);
 	}
 }
 
@@ -2084,12 +2324,10 @@ export class ReOpenInTextEditorAction extends Action {
 	static readonly ID = 'workbench.action.reopenTextEditor';
 	static readonly LABEL = localize('workbench.action.reopenTextEditor', "Reopen Editor With Text Editor");
 
-	private readonly fileEditorFactory = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).getFileEditorFactory();
-
 	constructor(
 		id: string,
 		label: string,
-		@IEditorService private readonly editorService: IEditorService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super(id, label);
 	}
@@ -2100,25 +2338,22 @@ export class ReOpenInTextEditorAction extends Action {
 			return;
 		}
 
-		const activeEditorResource = activeEditorPane.input.resource;
+		const activeEditorResource = EditorResourceAccessor.getCanonicalUri(activeEditorPane.input);
 		if (!activeEditorResource) {
 			return;
 		}
 
-		const options = activeEditorPane.options;
-		const group = activeEditorPane.group;
-
-		if (this.fileEditorFactory.isFileEditor(this.editorService.activeEditor)) {
-			return;
-		}
-
 		// Replace the current editor with the text editor
-		await group.replaceEditors([
+		await this.editorService.replaceEditors([
 			{
 				editor: activeEditorPane.input,
-				replacement: activeEditorPane.input,
-				options: { ...options, override: DEFAULT_EDITOR_ASSOCIATION.id },
+				replacement: {
+					resource: activeEditorResource,
+					options: {
+						override: DEFAULT_EDITOR_ASSOCIATION.id
+					}
+				}
 			}
-		]);
+		], activeEditorPane.group);
 	}
 }

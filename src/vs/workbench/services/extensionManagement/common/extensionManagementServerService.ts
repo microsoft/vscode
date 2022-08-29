@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IExtensionManagementServer, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { ExtensionInstallLocation, IExtensionManagementServer, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { Schemas } from 'vs/base/common/network';
+import { Event } from 'vs/base/common/event';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -31,7 +32,9 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 	) {
 		const remoteAgentConnection = remoteAgentService.getConnection();
 		if (remoteAgentConnection) {
-			const extensionManagementService = new ExtensionManagementChannelClient(remoteAgentConnection.getChannel<IChannel>('extensions'));
+			const extensionManagementService = new class extends ExtensionManagementChannelClient {
+				readonly onDidChangeProfileExtensions = Event.None;
+			}(remoteAgentConnection.getChannel<IChannel>('extensions'));
 			this.remoteExtensionManagementServer = {
 				id: 'remote',
 				extensionManagementService,
@@ -57,6 +60,11 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 		}
 		throw new Error(`Invalid Extension ${extension.location}`);
 	}
+
+	getExtensionInstallLocation(extension: IExtension): ExtensionInstallLocation | null {
+		const server = this.getExtensionManagementServer(extension);
+		return server === this.remoteExtensionManagementServer ? ExtensionInstallLocation.Remote : ExtensionInstallLocation.Web;
+	}
 }
 
-registerSingleton(IExtensionManagementServerService, ExtensionManagementServerService);
+registerSingleton(IExtensionManagementServerService, ExtensionManagementServerService, false);

@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as strings from 'vs/base/common/strings';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
-import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
+import { ITextModel } from 'vs/editor/common/model';
 
 export class TrimTrailingWhitespaceCommand implements ICommand {
 
@@ -24,9 +24,9 @@ export class TrimTrailingWhitespaceCommand implements ICommand {
 	}
 
 	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
-		let ops = trimTrailingWhitespace(model, this._cursors);
+		const ops = trimTrailingWhitespace(model, this._cursors);
 		for (let i = 0, len = ops.length; i < len; i++) {
-			let op = ops[i];
+			const op = ops[i];
 
 			builder.addEditOperation(op.range, op.text);
 		}
@@ -42,7 +42,7 @@ export class TrimTrailingWhitespaceCommand implements ICommand {
 /**
  * Generate commands for trimming trailing whitespace on a model and ignore lines on which cursors are sitting.
  */
-export function trimTrailingWhitespace(model: ITextModel, cursors: Position[]): IIdentifiedSingleEditOperation[] {
+export function trimTrailingWhitespace(model: ITextModel, cursors: Position[]): ISingleEditOperation[] {
 	// Sort cursors ascending
 	cursors.sort((a, b) => {
 		if (a.lineNumber === b.lineNumber) {
@@ -59,14 +59,14 @@ export function trimTrailingWhitespace(model: ITextModel, cursors: Position[]): 
 		}
 	}
 
-	let r: IIdentifiedSingleEditOperation[] = [];
+	const r: ISingleEditOperation[] = [];
 	let rLen = 0;
 	let cursorIndex = 0;
-	let cursorLen = cursors.length;
+	const cursorLen = cursors.length;
 
 	for (let lineNumber = 1, lineCount = model.getLineCount(); lineNumber <= lineCount; lineNumber++) {
-		let lineContent = model.getLineContent(lineNumber);
-		let maxLineColumn = lineContent.length + 1;
+		const lineContent = model.getLineContent(lineNumber);
+		const maxLineColumn = lineContent.length + 1;
 		let minEditColumn = 0;
 
 		if (cursorIndex < cursorLen && cursors[cursorIndex].lineNumber === lineNumber) {
@@ -82,7 +82,7 @@ export function trimTrailingWhitespace(model: ITextModel, cursors: Position[]): 
 			continue;
 		}
 
-		let lastNonWhitespaceIndex = strings.lastNonWhitespaceIndex(lineContent);
+		const lastNonWhitespaceIndex = strings.lastNonWhitespaceIndex(lineContent);
 
 		let fromColumn = 0;
 		if (lastNonWhitespaceIndex === -1) {

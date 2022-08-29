@@ -6,6 +6,7 @@
 import * as sinon from 'sinon';
 import * as assert from 'assert';
 import * as json from 'vs/base/common/json';
+import { Event } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -14,7 +15,7 @@ import * as uuid from 'vs/base/common/uuid';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { ConfigurationEditingService, ConfigurationEditingErrorCode, EditableConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditingService';
-import { WORKSPACE_STANDALONE_CONFIGURATIONS, FOLDER_SETTINGS_PATH, USER_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
+import { WORKSPACE_STANDALONE_CONFIGURATIONS, FOLDER_SETTINGS_PATH, USER_STANDALONE_CONFIGURATIONS, IConfigurationCache } from 'vs/workbench/services/configuration/common/configuration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -30,24 +31,36 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
 import { IFileService } from 'vs/platform/files/common/files';
 import { KeybindingsEditingService, IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
-import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { joinPath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { ConfigurationCache } from 'vs/workbench/services/configuration/browser/configurationCache';
-import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentServiceImpl';
-import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
+import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentService';
 import { getSingleFolderWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
-import { IUserConfigurationFileService, UserConfigurationFileService } from 'vs/platform/configuration/common/userConfigurationFileService';
+import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { hash } from 'vs/base/common/hash';
+import { FilePolicyService } from 'vs/platform/policy/common/filePolicyService';
+import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
+
+export class ConfigurationCache implements IConfigurationCache {
+	needsCaching(resource: URI): boolean { return false; }
+	async read(): Promise<string> { return ''; }
+	async write(): Promise<void> { }
+	async remove(): Promise<void> { }
+}
 
 suite('ConfigurationEditingService', () => {
 
 	let instantiationService: TestInstantiationService;
-	let environmentService: BrowserWorkbenchEnvironmentService;
+	let userDataProfileService: IUserDataProfileService;
+	let environmentService: IWorkbenchEnvironmentService;
 	let fileService: IFileService;
 	let workspaceService: WorkspaceService;
 	let testObject: ConfigurationEditingService;
@@ -71,6 +84,14 @@ suite('ConfigurationEditingService', () => {
 				'configurationEditing.service.testSettingThree': {
 					'type': 'string',
 					'default': 'isSet'
+				},
+				'configurationEditing.service.policySetting': {
+					'type': 'string',
+					'default': 'isSet',
+					policy: {
+						name: 'configurationEditing.service.policySetting',
+						minimumVersion: '1.0.0',
+					}
 				}
 			}
 		});
@@ -87,12 +108,20 @@ suite('ConfigurationEditingService', () => {
 
 		instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
 		environmentService = TestEnvironmentService;
+		environmentService.policyFile = joinPath(workspaceFolder, 'policies.json');
 		instantiationService.stub(IEnvironmentService, environmentService);
+		const uriIdentityService = new UriIdentityService(fileService);
+		const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
+		userDataProfileService = new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService);
 		const remoteAgentService = disposables.add(instantiationService.createInstance(RemoteAgentService, null));
-		disposables.add(fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.userData, logService))));
+		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, logService))));
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
-		workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
+		workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, new NullLogService(), new FilePolicyService(environmentService.policyFile, fileService, logService)));
+		await workspaceService.initialize({
+			id: hash(workspaceFolder.toString()).toString(16),
+			uri: workspaceFolder
+		});
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
 
 		await workspaceService.initialize(getSingleFolderWorkspaceIdentifier(workspaceFolder));
@@ -101,7 +130,6 @@ suite('ConfigurationEditingService', () => {
 		instantiationService.stub(ITextFileService, disposables.add(instantiationService.createInstance(TestTextFileService)));
 		instantiationService.stub(ITextModelService, <ITextModelService>disposables.add(instantiationService.createInstance(TextModelResolverService)));
 		instantiationService.stub(ICommandService, CommandService);
-		instantiationService.stub(IUserConfigurationFileService, new UserConfigurationFileService(environmentService, fileService, logService));
 		testObject = instantiationService.createInstance(ConfigurationEditingService);
 	});
 
@@ -109,99 +137,127 @@ suite('ConfigurationEditingService', () => {
 
 	test('errors cases - invalid key', async () => {
 		try {
-			await testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'unknown.key', value: 'value' });
-			assert.fail('Should fail with ERROR_UNKNOWN_KEY');
+			await testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'unknown.key', value: 'value' }, { donotNotifyError: true });
 		} catch (error) {
 			assert.strictEqual(error.code, ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY);
+			return;
 		}
+		assert.fail('Should fail with ERROR_UNKNOWN_KEY');
 	});
 
 	test('errors cases - no workspace', async () => {
 		await workspaceService.initialize({ id: uuid.generateUuid() });
 		try {
-			await testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'configurationEditing.service.testSetting', value: 'value' });
-			assert.fail('Should fail with ERROR_NO_WORKSPACE_OPENED');
+			await testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotNotifyError: true });
 		} catch (error) {
 			assert.strictEqual(error.code, ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED);
+			return;
 		}
+		assert.fail('Should fail with ERROR_NO_WORKSPACE_OPENED');
 	});
 
 	test('errors cases - invalid configuration', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(',,,,,,,,,,,,,,'));
+		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString(',,,,,,,,,,,,,,'));
 		try {
-			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' });
-			assert.fail('Should fail with ERROR_INVALID_CONFIGURATION');
+			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotNotifyError: true });
 		} catch (error) {
 			assert.strictEqual(error.code, ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION);
+			return;
 		}
+		assert.fail('Should fail with ERROR_INVALID_CONFIGURATION');
 	});
 
 	test('errors cases - invalid global tasks configuration', async () => {
 		const resource = joinPath(environmentService.userRoamingDataHome, USER_STANDALONE_CONFIGURATIONS['tasks']);
 		await fileService.writeFile(resource, VSBuffer.fromString(',,,,,,,,,,,,,,'));
 		try {
-			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'tasks.configurationEditing.service.testSetting', value: 'value' });
-			assert.fail('Should fail with ERROR_INVALID_CONFIGURATION');
+			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'tasks.configurationEditing.service.testSetting', value: 'value' }, { donotNotifyError: true });
 		} catch (error) {
 			assert.strictEqual(error.code, ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION);
+			return;
 		}
+		assert.fail('Should fail with ERROR_INVALID_CONFIGURATION');
 	});
 
 	test('errors cases - dirty', async () => {
 		instantiationService.stub(ITextFileService, 'isDirty', true);
 		try {
-			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' });
-			assert.fail('Should fail with ERROR_CONFIGURATION_FILE_DIRTY error.');
+			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotNotifyError: true });
 		} catch (error) {
 			assert.strictEqual(error.code, ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY);
+			return;
 		}
+		assert.fail('Should fail with ERROR_CONFIGURATION_FILE_DIRTY error.');
 	});
 
 	test('do not notify error', async () => {
 		instantiationService.stub(ITextFileService, 'isDirty', true);
 		const target = sinon.stub();
-		instantiationService.stub(INotificationService, <INotificationService>{ prompt: target, _serviceBrand: undefined, onDidAddNotification: undefined!, onDidRemoveNotification: undefined!, notify: null!, error: null!, info: null!, warn: null!, status: null!, setFilter: null! });
+		instantiationService.stub(INotificationService, <INotificationService>{ prompt: target, _serviceBrand: undefined, doNotDisturbMode: false, onDidAddNotification: undefined!, onDidRemoveNotification: undefined!, onDidChangeDoNotDisturbMode: undefined!, notify: null!, error: null!, info: null!, warn: null!, status: null! });
 		try {
 			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotNotifyError: true });
-			assert.fail('Should fail with ERROR_CONFIGURATION_FILE_DIRTY error.');
 		} catch (error) {
 			assert.strictEqual(false, target.calledOnce);
 			assert.strictEqual(error.code, ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY);
+			return;
 		}
+		assert.fail('Should fail with ERROR_CONFIGURATION_FILE_DIRTY error.');
+	});
+
+	test('errors cases - ERROR_POLICY_CONFIGURATION', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const promise = Event.toPromise(instantiationService.get(IConfigurationService).onDidChangeConfiguration);
+			await fileService.writeFile(environmentService.policyFile!, VSBuffer.fromString('{ "configurationEditing.service.policySetting": "policyValue" }'));
+			await promise;
+		});
+		try {
+			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.policySetting', value: 'value' }, { donotNotifyError: true });
+		} catch (error) {
+			assert.strictEqual(error.code, ConfigurationEditingErrorCode.ERROR_POLICY_CONFIGURATION);
+			return;
+		}
+		assert.fail('Should fail with ERROR_POLICY_CONFIGURATION');
+	});
+
+	test('write policy setting - when not set', async () => {
+		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.policySetting', value: 'value' }, { donotNotifyError: true });
+		const contents = await fileService.readFile(userDataProfileService.currentProfile.settingsResource);
+		const parsed = json.parse(contents.value.toString());
+		assert.strictEqual(parsed['configurationEditing.service.policySetting'], 'value');
 	});
 
 	test('write one setting - empty file', async () => {
 		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' });
-		const contents = await fileService.readFile(environmentService.settingsResource);
+		const contents = await fileService.readFile(userDataProfileService.currentProfile.settingsResource);
 		const parsed = json.parse(contents.value.toString());
 		assert.strictEqual(parsed['configurationEditing.service.testSetting'], 'value');
 	});
 
 	test('write one setting - existing file', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "my.super.setting": "my.super.value" }'));
+		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "my.super.setting": "my.super.value" }'));
 		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' });
 
-		const contents = await fileService.readFile(environmentService.settingsResource);
+		const contents = await fileService.readFile(userDataProfileService.currentProfile.settingsResource);
 		const parsed = json.parse(contents.value.toString());
 		assert.strictEqual(parsed['configurationEditing.service.testSetting'], 'value');
 		assert.strictEqual(parsed['my.super.setting'], 'my.super.value');
 	});
 
 	test('remove an existing setting - existing file', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "my.super.setting": "my.super.value", "configurationEditing.service.testSetting": "value" }'));
+		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "my.super.setting": "my.super.value", "configurationEditing.service.testSetting": "value" }'));
 		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: undefined });
 
-		const contents = await fileService.readFile(environmentService.settingsResource);
+		const contents = await fileService.readFile(userDataProfileService.currentProfile.settingsResource);
 		const parsed = json.parse(contents.value.toString());
 		assert.deepStrictEqual(Object.keys(parsed), ['my.super.setting']);
 		assert.strictEqual(parsed['my.super.setting'], 'my.super.value');
 	});
 
 	test('remove non existing setting - existing file', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "my.super.setting": "my.super.value" }'));
+		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "my.super.setting": "my.super.value" }'));
 		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: undefined });
 
-		const contents = await fileService.readFile(environmentService.settingsResource);
+		const contents = await fileService.readFile(userDataProfileService.currentProfile.settingsResource);
 		const parsed = json.parse(contents.value.toString());
 		assert.deepStrictEqual(Object.keys(parsed), ['my.super.setting']);
 		assert.strictEqual(parsed['my.super.setting'], 'my.super.value');
@@ -212,7 +268,7 @@ suite('ConfigurationEditingService', () => {
 		const value = { 'configurationEditing.service.testSetting': 'overridden value' };
 		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key, value });
 
-		const contents = await fileService.readFile(environmentService.settingsResource);
+		const contents = await fileService.readFile(userDataProfileService.currentProfile.settingsResource);
 		const parsed = json.parse(contents.value.toString());
 		assert.deepStrictEqual(parsed[key], value);
 	});

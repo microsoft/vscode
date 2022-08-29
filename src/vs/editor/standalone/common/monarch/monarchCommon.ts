@@ -28,7 +28,7 @@ export interface ILexerMin {
 	unicode: boolean;
 	usesEmbedded: boolean;
 	defaultToken: string;
-	stateNames: { [stateName: string]: any; };
+	stateNames: { [stateName: string]: any };
 	[attr: string]: any;
 }
 
@@ -39,7 +39,7 @@ export interface ILexer extends ILexerMin {
 	unicode: boolean;
 	tokenPostfix: string;
 
-	tokenizer: { [stateName: string]: IRule[]; };
+	tokenizer: { [stateName: string]: IRule[] };
 	brackets: IBracket[];
 }
 

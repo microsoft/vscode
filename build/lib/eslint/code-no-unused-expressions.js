@@ -1,14 +1,8 @@
+"use strict";
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-// FORKED FROM https://github.com/eslint/eslint/blob/b23ad0d789a909baf8d7c41a35bc53df932eaf30/lib/rules/no-unused-expressions.js
-// and added support for `OptionalCallExpression`, see https://github.com/facebook/create-react-app/issues/8107 and https://github.com/eslint/eslint/issues/12642
-/**
- * @fileoverview Flag expressions in statement position that do not side effect
- * @author Michael Ficarra
- */
-'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
 //------------------------------------------------------------------------------
 // Rule Definition
@@ -108,13 +102,16 @@ module.exports = {
             if (allowTaggedTemplates && node.type === 'TaggedTemplateExpression') {
                 return true;
             }
-            return /^(?:Assignment|OptionalCall|Call|New|Update|Yield|Await)Expression$/u.test(node.type) ||
+            if (node.type === 'ExpressionStatement') {
+                return isValidExpression(node.expression);
+            }
+            return /^(?:Assignment|OptionalCall|Call|New|Update|Yield|Await|Chain)Expression$/u.test(node.type) ||
                 (node.type === 'UnaryExpression' && ['delete', 'void'].indexOf(node.operator) >= 0);
         }
         return {
             ExpressionStatement(node) {
                 if (!isValidExpression(node.expression) && !isDirective(node, context.getAncestors())) {
-                    context.report({ node: node, message: 'Expected an assignment or function call and instead saw an expression.' });
+                    context.report({ node: node, message: `Expected an assignment or function call and instead saw an expression. ${node.expression}` });
                 }
             }
         };

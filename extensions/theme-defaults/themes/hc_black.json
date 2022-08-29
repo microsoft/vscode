@@ -17,7 +17,8 @@
 		{
 			"scope": [
 				"meta.embedded",
-				"source.groovy.embedded"
+				"source.groovy.embedded",
+				"string meta.image.inline.markdown"
 			],
 			"settings": {
 				"foreground": "#FFFFFF"
@@ -138,6 +139,12 @@
 			"scope": "markup.italic",
 			"settings": {
 				"fontStyle": "italic"
+			}
+		},
+		{
+			"scope": "markup.strikethrough",
+			"settings": {
+				"fontStyle": "strikethrough"
 			}
 		},
 		{
@@ -347,7 +354,6 @@
 		{
 			"name": "Types declaration and references",
 			"scope": [
-				"meta.return-type",
 				"support.class",
 				"support.type",
 				"entity.name.type",

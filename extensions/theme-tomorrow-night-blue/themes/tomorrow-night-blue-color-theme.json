@@ -15,8 +15,8 @@
 		"editor.foreground": "#ffffff",
 		"editor.selectionBackground": "#003f8e",
 		"minimap.selectionHighlight": "#003f8e",
-        "editor.lineHighlightBackground": "#00346e",
-        "editorLineNumber.activeForeground": "#949494",
+		"editor.lineHighlightBackground": "#00346e",
+		"editorLineNumber.activeForeground": "#949494",
 		"editorCursor.foreground": "#ffffff",
 		"editorWhitespace.foreground": "#404f7d",
 		"editorWidget.background": "#001c40",
@@ -65,7 +65,12 @@
 			}
 		},
 		{
-			"scope": ["meta.embedded", "source.groovy.embedded"],
+			"scope": [
+				"meta.embedded",
+				"source.groovy.embedded",
+				"meta.jsx.children",
+				"string meta.image.inline.markdown"
+			],
 			"settings": {
 				//"background": "#002451",
 				"foreground": "#FFFFFF"
@@ -235,6 +240,12 @@
 			"scope": "markup.italic",
 			"settings": {
 				"fontStyle": "italic"
+			}
+		},
+		{
+			"scope": "markup.strikethrough",
+			"settings": {
+				"fontStyle": "strikethrough"
 			}
 		},
 		{

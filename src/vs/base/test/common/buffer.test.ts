@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { timeout } from 'vs/base/common/async';
-import { bufferedStreamToBuffer, bufferToReadable, bufferToStream, newWriteableBufferStream, readableToBuffer, streamToBuffer, VSBuffer } from 'vs/base/common/buffer';
+import { bufferedStreamToBuffer, bufferToReadable, bufferToStream, decodeBase64, encodeBase64, newWriteableBufferStream, readableToBuffer, streamToBuffer, VSBuffer } from 'vs/base/common/buffer';
 import { peekStream } from 'vs/base/common/stream';
 
 suite('Buffer', () => {
@@ -40,7 +40,7 @@ suite('Buffer', () => {
 	test('bufferWriteableStream - basics (no error)', async () => {
 		const stream = newWriteableBufferStream();
 
-		let chunks: VSBuffer[] = [];
+		const chunks: VSBuffer[] = [];
 		stream.on('data', data => {
 			chunks.push(data);
 		});
@@ -50,7 +50,7 @@ suite('Buffer', () => {
 			ended = true;
 		});
 
-		let errors: Error[] = [];
+		const errors: Error[] = [];
 		stream.on('error', error => {
 			errors.push(error);
 		});
@@ -70,7 +70,7 @@ suite('Buffer', () => {
 	test('bufferWriteableStream - basics (error)', async () => {
 		const stream = newWriteableBufferStream();
 
-		let chunks: VSBuffer[] = [];
+		const chunks: VSBuffer[] = [];
 		stream.on('data', data => {
 			chunks.push(data);
 		});
@@ -80,7 +80,7 @@ suite('Buffer', () => {
 			ended = true;
 		});
 
-		let errors: Error[] = [];
+		const errors: Error[] = [];
 		stream.on('error', error => {
 			errors.push(error);
 		});
@@ -105,7 +105,7 @@ suite('Buffer', () => {
 		await timeout(0);
 		stream.end(VSBuffer.fromString('World'));
 
-		let chunks: VSBuffer[] = [];
+		const chunks: VSBuffer[] = [];
 		stream.on('data', data => {
 			chunks.push(data);
 		});
@@ -115,7 +115,7 @@ suite('Buffer', () => {
 			ended = true;
 		});
 
-		let errors: Error[] = [];
+		const errors: Error[] = [];
 		stream.on('error', error => {
 			errors.push(error);
 		});
@@ -134,12 +134,12 @@ suite('Buffer', () => {
 		await timeout(0);
 		stream.error(new Error());
 
-		let chunks: VSBuffer[] = [];
+		const chunks: VSBuffer[] = [];
 		stream.on('data', data => {
 			chunks.push(data);
 		});
 
-		let errors: Error[] = [];
+		const errors: Error[] = [];
 		stream.on('error', error => {
 			errors.push(error);
 		});
@@ -170,12 +170,12 @@ suite('Buffer', () => {
 			ended = true;
 		});
 
-		let chunks: VSBuffer[] = [];
+		const chunks: VSBuffer[] = [];
 		stream.on('data', data => {
 			chunks.push(data);
 		});
 
-		let errors: Error[] = [];
+		const errors: Error[] = [];
 		stream.on('error', error => {
 			errors.push(error);
 		});
@@ -189,7 +189,7 @@ suite('Buffer', () => {
 	test('bufferWriteableStream - nothing happens after end()', async () => {
 		const stream = newWriteableBufferStream();
 
-		let chunks: VSBuffer[] = [];
+		const chunks: VSBuffer[] = [];
 		stream.on('data', data => {
 			chunks.push(data);
 		});
@@ -233,7 +233,7 @@ suite('Buffer', () => {
 	test('bufferWriteableStream - pause/resume (simple)', async () => {
 		const stream = newWriteableBufferStream();
 
-		let chunks: VSBuffer[] = [];
+		const chunks: VSBuffer[] = [];
 		stream.on('data', data => {
 			chunks.push(data);
 		});
@@ -243,7 +243,7 @@ suite('Buffer', () => {
 			ended = true;
 		});
 
-		let errors: Error[] = [];
+		const errors: Error[] = [];
 		stream.on('error', error => {
 			errors.push(error);
 		});
@@ -270,7 +270,7 @@ suite('Buffer', () => {
 	test('bufferWriteableStream - pause/resume (pause after first write)', async () => {
 		const stream = newWriteableBufferStream();
 
-		let chunks: VSBuffer[] = [];
+		const chunks: VSBuffer[] = [];
 		stream.on('data', data => {
 			chunks.push(data);
 		});
@@ -280,7 +280,7 @@ suite('Buffer', () => {
 			ended = true;
 		});
 
-		let errors: Error[] = [];
+		const errors: Error[] = [];
 		stream.on('error', error => {
 			errors.push(error);
 		});
@@ -310,7 +310,7 @@ suite('Buffer', () => {
 	test('bufferWriteableStream - pause/resume (error)', async () => {
 		const stream = newWriteableBufferStream();
 
-		let chunks: VSBuffer[] = [];
+		const chunks: VSBuffer[] = [];
 		stream.on('data', data => {
 			chunks.push(data);
 		});
@@ -320,7 +320,7 @@ suite('Buffer', () => {
 			ended = true;
 		});
 
-		let errors: Error[] = [];
+		const errors: Error[] = [];
 		stream.on('error', error => {
 			errors.push(error);
 		});
@@ -348,7 +348,7 @@ suite('Buffer', () => {
 	test('bufferWriteableStream - destroy', async () => {
 		const stream = newWriteableBufferStream();
 
-		let chunks: VSBuffer[] = [];
+		const chunks: VSBuffer[] = [];
 		stream.on('data', data => {
 			chunks.push(data);
 		});
@@ -358,7 +358,7 @@ suite('Buffer', () => {
 			ended = true;
 		});
 
-		let errors: Error[] = [];
+		const errors: Error[] = [];
 		stream.on('error', error => {
 			errors.push(error);
 		});
@@ -411,5 +411,54 @@ suite('Buffer', () => {
 			assert.strictEqual(unit[1], 17);
 			assert.strictEqual(u2[0], 17);
 		}
+	});
+
+	suite('base64', () => {
+		/*
+		Generated with:
+
+		const crypto = require('crypto');
+
+		for (let i = 0; i < 16; i++) {
+			const buf =  crypto.randomBytes(i);
+			console.log(`[new Uint8Array([${Array.from(buf).join(', ')}]), '${buf.toString('base64')}'],`)
+		}
+
+		*/
+
+		const testCases: [Uint8Array, string][] = [
+			[new Uint8Array([]), ''],
+			[new Uint8Array([56]), 'OA=='],
+			[new Uint8Array([209, 4]), '0QQ='],
+			[new Uint8Array([19, 57, 119]), 'Ezl3'],
+			[new Uint8Array([199, 237, 207, 112]), 'x+3PcA=='],
+			[new Uint8Array([59, 193, 173, 26, 242]), 'O8GtGvI='],
+			[new Uint8Array([81, 226, 95, 231, 116, 126]), 'UeJf53R+'],
+			[new Uint8Array([11, 164, 253, 85, 8, 6, 56]), 'C6T9VQgGOA=='],
+			[new Uint8Array([164, 16, 88, 88, 224, 173, 144, 114]), 'pBBYWOCtkHI='],
+			[new Uint8Array([0, 196, 99, 12, 21, 229, 78, 101, 13]), 'AMRjDBXlTmUN'],
+			[new Uint8Array([167, 114, 225, 116, 226, 83, 51, 48, 88, 114]), 'p3LhdOJTMzBYcg=='],
+			[new Uint8Array([75, 33, 118, 10, 77, 5, 168, 194, 59, 47, 59]), 'SyF2Ck0FqMI7Lzs='],
+			[new Uint8Array([203, 182, 165, 51, 208, 27, 123, 223, 112, 198, 127, 147]), 'y7alM9Abe99wxn+T'],
+			[new Uint8Array([154, 93, 222, 41, 117, 234, 250, 85, 95, 144, 16, 94, 18]), 'ml3eKXXq+lVfkBBeEg=='],
+			[new Uint8Array([246, 186, 88, 105, 192, 57, 25, 168, 183, 164, 103, 162, 243, 56]), '9rpYacA5Gai3pGei8zg='],
+			[new Uint8Array([149, 240, 155, 96, 30, 55, 162, 172, 191, 187, 33, 124, 169, 183, 254]), 'lfCbYB43oqy/uyF8qbf+'],
+		];
+
+		test('encodes', () => {
+			for (const [bytes, expected] of testCases) {
+				assert.strictEqual(encodeBase64(VSBuffer.wrap(bytes)), expected);
+			}
+		});
+
+		test('decodes', () => {
+			for (const [expected, encoded] of testCases) {
+				assert.deepStrictEqual(new Uint8Array(decodeBase64(encoded).buffer), expected);
+			}
+		});
+
+		test('throws error on invalid encoding', () => {
+			assert.throws(() => decodeBase64('invalid!'));
+		});
 	});
 });

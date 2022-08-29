@@ -57,19 +57,19 @@ suite('URI', () => {
 	});
 
 	test('http#toString', () => {
-		assert.strictEqual(URI.from({ scheme: 'http', authority: 'www.msft.com', path: '/my/path' }).toString(), 'http://www.msft.com/my/path');
-		assert.strictEqual(URI.from({ scheme: 'http', authority: 'www.msft.com', path: '/my/path' }).toString(), 'http://www.msft.com/my/path');
-		assert.strictEqual(URI.from({ scheme: 'http', authority: 'www.MSFT.com', path: '/my/path' }).toString(), 'http://www.msft.com/my/path');
+		assert.strictEqual(URI.from({ scheme: 'http', authority: 'www.example.com', path: '/my/path' }).toString(), 'http://www.example.com/my/path');
+		assert.strictEqual(URI.from({ scheme: 'http', authority: 'www.example.com', path: '/my/path' }).toString(), 'http://www.example.com/my/path');
+		assert.strictEqual(URI.from({ scheme: 'http', authority: 'www.EXAMPLE.com', path: '/my/path' }).toString(), 'http://www.example.com/my/path');
 		assert.strictEqual(URI.from({ scheme: 'http', authority: '', path: 'my/path' }).toString(), 'http:/my/path');
 		assert.strictEqual(URI.from({ scheme: 'http', authority: '', path: '/my/path' }).toString(), 'http:/my/path');
-		//http://a-test-site.com/#test=true
-		assert.strictEqual(URI.from({ scheme: 'http', authority: 'a-test-site.com', path: '/', query: 'test=true' }).toString(), 'http://a-test-site.com/?test%3Dtrue');
-		assert.strictEqual(URI.from({ scheme: 'http', authority: 'a-test-site.com', path: '/', query: '', fragment: 'test=true' }).toString(), 'http://a-test-site.com/#test%3Dtrue');
+		//http://example.com/#test=true
+		assert.strictEqual(URI.from({ scheme: 'http', authority: 'example.com', path: '/', query: 'test=true' }).toString(), 'http://example.com/?test%3Dtrue');
+		assert.strictEqual(URI.from({ scheme: 'http', authority: 'example.com', path: '/', query: '', fragment: 'test=true' }).toString(), 'http://example.com/#test%3Dtrue');
 	});
 
 	test('http#toString, encode=FALSE', () => {
-		assert.strictEqual(URI.from({ scheme: 'http', authority: 'a-test-site.com', path: '/', query: 'test=true' }).toString(true), 'http://a-test-site.com/?test=true');
-		assert.strictEqual(URI.from({ scheme: 'http', authority: 'a-test-site.com', path: '/', query: '', fragment: 'test=true' }).toString(true), 'http://a-test-site.com/#test=true');
+		assert.strictEqual(URI.from({ scheme: 'http', authority: 'example.com', path: '/', query: 'test=true' }).toString(true), 'http://example.com/?test=true');
+		assert.strictEqual(URI.from({ scheme: 'http', authority: 'example.com', path: '/', query: '', fragment: 'test=true' }).toString(true), 'http://example.com/#test=true');
 		assert.strictEqual(URI.from({ scheme: 'http', path: '/api/files/test.me', query: 't=1234' }).toString(true), 'http:/api/files/test.me?t=1234');
 
 		const value = URI.parse('file://shares/pröjects/c%23/#l12');
@@ -88,7 +88,7 @@ suite('URI', () => {
 	});
 
 	test('with, identity', () => {
-		let uri = URI.parse('foo:bar/path');
+		const uri = URI.parse('foo:bar/path');
 
 		let uri2 = uri.with(null!);
 		assert.ok(uri === uri2);
@@ -121,7 +121,7 @@ suite('URI', () => {
 	});
 
 	test('with, validation', () => {
-		let uri = URI.parse('foo:bar/path');
+		const uri = URI.parse('foo:bar/path');
 		assert.throws(() => uri.with({ scheme: 'fai:l' }));
 		assert.throws(() => uri.with({ scheme: 'fäil' }));
 		assert.throws(() => uri.with({ authority: 'fail' }));
@@ -281,14 +281,14 @@ suite('URI', () => {
 	});
 
 	test('VSCode URI module\'s driveLetterPath regex is incorrect, #32961', function () {
-		let uri = URI.parse('file:///_:/path');
+		const uri = URI.parse('file:///_:/path');
 		assert.strictEqual(uri.fsPath, isWindows ? '\\_:\\path' : '/_:/path');
 	});
 
 	test('URI#file, no path-is-uri check', () => {
 
 		// we don't complain here
-		let value = URI.file('file://path/to/file');
+		const value = URI.file('file://path/to/file');
 		assert.strictEqual(value.scheme, 'file');
 		assert.strictEqual(value.authority, '');
 		assert.strictEqual(value.path, '/file://path/to/file');
@@ -475,10 +475,10 @@ suite('URI', () => {
 	});
 
 	test.skip('Links in markdown are broken if url contains encoded parameters #79474', function () {
-		let strIn = 'https://myhost.com/Redirect?url=http%3A%2F%2Fwww.bing.com%3Fsearch%3Dtom';
-		let uri1 = URI.parse(strIn);
-		let strOut = uri1.toString();
-		let uri2 = URI.parse(strOut);
+		const strIn = 'https://myhost.com/Redirect?url=http%3A%2F%2Fwww.bing.com%3Fsearch%3Dtom';
+		const uri1 = URI.parse(strIn);
+		const strOut = uri1.toString();
+		const uri2 = URI.parse(strOut);
 
 		assert.strictEqual(uri1.scheme, uri2.scheme);
 		assert.strictEqual(uri1.authority, uri2.authority);
@@ -489,10 +489,10 @@ suite('URI', () => {
 	});
 
 	test.skip('Uri#parse can break path-component #45515', function () {
-		let strIn = 'https://firebasestorage.googleapis.com/v0/b/brewlangerie.appspot.com/o/products%2FzVNZkudXJyq8bPGTXUxx%2FBetterave-Sesame.jpg?alt=media&token=0b2310c4-3ea6-4207-bbde-9c3710ba0437';
-		let uri1 = URI.parse(strIn);
-		let strOut = uri1.toString();
-		let uri2 = URI.parse(strOut);
+		const strIn = 'https://firebasestorage.googleapis.com/v0/b/brewlangerie.appspot.com/o/products%2FzVNZkudXJyq8bPGTXUxx%2FBetterave-Sesame.jpg?alt=media&token=0b2310c4-3ea6-4207-bbde-9c3710ba0437';
+		const uri1 = URI.parse(strIn);
+		const strOut = uri1.toString();
+		const uri2 = URI.parse(strOut);
 
 		assert.strictEqual(uri1.scheme, uri2.scheme);
 		assert.strictEqual(uri1.authority, uri2.authority);
@@ -516,9 +516,9 @@ suite('URI', () => {
 		// console.profile();
 		// let c = 100000;
 		// while (c-- > 0) {
-		for (let value of values) {
-			let data = value.toJSON() as UriComponents;
-			let clone = URI.revive(data);
+		for (const value of values) {
+			const data = value.toJSON() as UriComponents;
+			const clone = URI.revive(data);
 
 			assert.strictEqual(clone.scheme, value.scheme);
 			assert.strictEqual(clone.authority, value.authority);

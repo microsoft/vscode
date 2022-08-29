@@ -24,6 +24,7 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { OpenRecentAction } from 'vs/workbench/browser/actions/windowActions';
 
 export class NativeMenubarControl extends MenubarControl {
 
@@ -103,9 +104,9 @@ export class NativeMenubarControl extends MenubarControl {
 	}
 
 	private populateMenuItems(menu: IMenu, menuToPopulate: IMenubarMenu, keybindings: { [id: string]: IMenubarKeybinding | undefined }) {
-		let groups = menu.getActions();
+		const groups = menu.getActions();
 
-		for (let group of groups) {
+		for (const group of groups) {
 			const [, actions] = group;
 
 			actions.forEach(menuItem => {
@@ -127,7 +128,7 @@ export class NativeMenubarControl extends MenubarControl {
 					this.populateMenuItems(menuToDispose, submenu, keybindings);
 
 					if (submenu.items.length > 0) {
-						let menubarSubmenuItem: IMenubarMenuItemSubmenu = {
+						const menubarSubmenuItem: IMenubarMenuItemSubmenu = {
 							id: menuItem.id,
 							label: title,
 							submenu: submenu
@@ -138,12 +139,12 @@ export class NativeMenubarControl extends MenubarControl {
 
 					menuToDispose.dispose();
 				} else {
-					if (menuItem.id === 'workbench.action.openRecent') {
+					if (menuItem.id === OpenRecentAction.ID) {
 						const actions = this.getOpenRecentActions().map(this.transformOpenRecentAction);
 						menuToPopulate.items.push(...actions);
 					}
 
-					let menubarMenuItem: IMenubarMenuItemAction = {
+					const menubarMenuItem: IMenubarMenuItemAction = {
 						id: menuItem.id,
 						label: title
 					};

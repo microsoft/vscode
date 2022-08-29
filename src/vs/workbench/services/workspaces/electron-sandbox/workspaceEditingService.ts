@@ -6,9 +6,9 @@
 import { localize } from 'vs/nls';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { URI } from 'vs/base/common/uri';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { hasWorkspaceFileExtension, isUntitledWorkspace, isWorkspaceIdentifier, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IWorkspacesService, isUntitledWorkspace, IWorkspaceIdentifier, hasWorkspaceFileExtension, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -20,7 +20,6 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IFileDialogService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -30,8 +29,11 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { isMacintosh } from 'vs/base/common/platform';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { WorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackupService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingService {
 
@@ -39,7 +41,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		@IJSONEditingService jsonEditingService: IJSONEditingService,
 		@IWorkspaceContextService contextService: WorkspaceService,
 		@INativeHostService private nativeHostService: INativeHostService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IWorkbenchConfigurationService configurationService: IWorkbenchConfigurationService,
 		@IStorageService private storageService: IStorageService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IWorkingCopyBackupService private workingCopyBackupService: IWorkingCopyBackupService,
@@ -55,9 +57,11 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		@ILabelService private readonly labelService: ILabelService,
 		@IHostService hostService: IHostService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
-		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService
+		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 	) {
-		super(jsonEditingService, contextService, configurationService, notificationService, commandService, fileService, textFileService, workspacesService, environmentService, fileDialogService, dialogService, hostService, uriIdentityService, workspaceTrustManagementService);
+		super(jsonEditingService, contextService, configurationService, notificationService, commandService, fileService, textFileService, workspacesService, environmentService, fileDialogService, dialogService, hostService, uriIdentityService, workspaceTrustManagementService, userDataProfilesService, userDataProfileService);
 
 		this.registerListeners();
 	}
@@ -125,7 +129,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 					await this.workspacesService.addRecentlyOpened([{
 						label: this.labelService.getWorkspaceLabel(newWorkspaceIdentifier, { verbose: true }),
 						workspace: newWorkspaceIdentifier,
-						remoteAuthority: this.environmentService.remoteAuthority
+						remoteAuthority: this.environmentService.remoteAuthority // remember whether this was a remote window
 					}]);
 
 					// Delete the untitled one
@@ -139,14 +143,14 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		}
 	}
 
-	override async isValidTargetWorkspacePath(path: URI): Promise<boolean> {
+	override async isValidTargetWorkspacePath(workspaceUri: URI): Promise<boolean> {
 		const windows = await this.nativeHostService.getWindows();
 
 		// Prevent overwriting a workspace that is currently opened in another window
-		if (windows.some(window => isWorkspaceIdentifier(window.workspace) && this.uriIdentityService.extUri.isEqual(window.workspace.configPath, path))) {
+		if (windows.some(window => isWorkspaceIdentifier(window.workspace) && this.uriIdentityService.extUri.isEqual(window.workspace.configPath, workspaceUri))) {
 			await this.dialogService.show(
 				Severity.Info,
-				localize('workspaceOpenedMessage', "Unable to save workspace '{0}'", basename(path)),
+				localize('workspaceOpenedMessage', "Unable to save workspace '{0}'", basename(workspaceUri)),
 				undefined,
 				{
 					detail: localize('workspaceOpenedDetail', "The workspace is already opened in another window. Please close that window first and then try again.")
@@ -159,12 +163,12 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		return true; // OK
 	}
 
-	async enterWorkspace(path: URI): Promise<void> {
-		const result = await this.doEnterWorkspace(path);
+	async enterWorkspace(workspaceUri: URI): Promise<void> {
+		const result = await this.doEnterWorkspace(workspaceUri);
 		if (result) {
 
 			// Migrate storage to new workspace
-			await this.migrateStorage(result.workspace);
+			await this.storageService.switch(result.workspace, true /* preserve data */);
 
 			// Reinitialize backup service
 			if (this.workingCopyBackupService instanceof WorkingCopyBackupService) {
@@ -183,10 +187,6 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		else {
 			this.extensionService.restartExtensionHost();
 		}
-	}
-
-	private migrateStorage(toWorkspace: IWorkspaceIdentifier): Promise<void> {
-		return this.storageService.migrate(toWorkspace);
 	}
 }
 

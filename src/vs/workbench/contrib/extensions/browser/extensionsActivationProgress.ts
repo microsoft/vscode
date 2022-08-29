@@ -8,7 +8,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { localize } from 'vs/nls';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { timeout } from 'vs/base/common/async';
+import { DeferredPromise, timeout } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export class ExtensionActivationProgress implements IWorkbenchContribution {
@@ -26,9 +26,25 @@ export class ExtensionActivationProgress implements IWorkbenchContribution {
 			title: localize('activation', "Activating Extensions...")
 		};
 
+		let deferred: DeferredPromise<any> | undefined;
+		let count = 0;
+
 		this._listener = extensionService.onWillActivateByEvent(e => {
 			logService.trace('onWillActivateByEvent: ', e.event);
-			progressService.withProgress(options, _ => Promise.race([e.activation, timeout(5000)]));
+
+			if (!deferred) {
+				deferred = new DeferredPromise();
+				progressService.withProgress(options, _ => deferred!.p);
+			}
+
+			count++;
+
+			Promise.race([e.activation, timeout(5000)]).finally(() => {
+				if (--count === 0) {
+					deferred!.complete(undefined);
+					deferred = undefined;
+				}
+			});
 		});
 	}
 

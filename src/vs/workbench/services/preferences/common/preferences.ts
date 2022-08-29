@@ -7,16 +7,16 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { Event } from 'vs/base/common/event';
 import { IMatch } from 'vs/base/common/filters';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope, EditPresentationTypes, IConfigurationExtensionInfo } from 'vs/platform/configuration/common/configurationRegistry';
-import { EditorResolution, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { ConfigurationScope, EditPresentationTypes, IExtensionInfo } from 'vs/platform/configuration/common/configurationRegistry';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { IEditorPane } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, IEditorPane } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 
@@ -28,13 +28,14 @@ export enum SettingValueType {
 	Integer = 'integer',
 	Number = 'number',
 	Boolean = 'boolean',
-	StringOrEnumArray = 'string-or-enum-array',
+	Array = 'array',
 	Exclude = 'exclude',
 	Complex = 'complex',
 	NullableInteger = 'nullable-integer',
 	NullableNumber = 'nullable-number',
 	Object = 'object',
-	BooleanObject = 'boolean-object'
+	BooleanObject = 'boolean-object',
+	LanguageTag = 'language-tag'
 }
 
 export interface ISettingsGroup {
@@ -42,9 +43,9 @@ export interface ISettingsGroup {
 	range: IRange;
 	title: string;
 	titleRange: IRange;
-	order: number;
 	sections: ISettingsSection[];
-	extensionInfo?: IConfigurationExtensionInfo;
+	order?: number;
+	extensionInfo?: IExtensionInfo;
 }
 
 export interface ISettingsSection {
@@ -69,10 +70,11 @@ export interface ISetting {
 
 	scope?: ConfigurationScope;
 	type?: string | string[];
+	order?: number;
 	arrayItemType?: string;
-	objectProperties?: IJSONSchemaMap,
-	objectPatternProperties?: IJSONSchemaMap,
-	objectAdditionalProperties?: boolean | IJSONSchema,
+	objectProperties?: IJSONSchemaMap;
+	objectPatternProperties?: IJSONSchemaMap;
+	objectAdditionalProperties?: boolean | IJSONSchema;
 	enum?: string[];
 	enumDescriptions?: string[];
 	enumDescriptionsAreMarkdown?: boolean;
@@ -80,11 +82,15 @@ export interface ISetting {
 	tags?: string[];
 	disallowSyncIgnore?: boolean;
 	restricted?: boolean;
-	extensionInfo?: IConfigurationExtensionInfo;
+	extensionInfo?: IExtensionInfo;
 	validator?: (value: any) => string | null;
 	enumItemLabels?: string[];
 	allKeysAreBoolean?: boolean;
 	editPresentation?: EditPresentationTypes;
+	nonLanguageSpecificDefaultValueSource?: string | IExtensionInfo;
+	isLanguageTagSetting?: boolean;
+	categoryOrder?: number;
+	categoryLabel?: string;
 }
 
 export interface IExtensionSetting extends ISetting {
@@ -114,9 +120,21 @@ export interface IFilterResult {
 	exactMatch?: boolean;
 }
 
+/**
+ * The ways a setting could match a query,
+ * sorted in increasing order of relevance.
+ * For now, ignore description and value matches.
+ */
+export enum SettingMatchType {
+	None = 0,
+	WholeWordMatch = 1 << 0,
+	KeyMatch = 1 << 1
+}
+
 export interface ISettingMatch {
 	setting: ISetting;
 	matches: IRange[] | null;
+	matchType: SettingMatchType;
 	score: number;
 }
 
@@ -156,7 +174,7 @@ export interface IPreferencesEditorModel<T> {
 }
 
 export type IGroupFilter = (group: ISettingsGroup) => boolean | null;
-export type ISettingMatcher = (setting: ISetting, group: ISettingsGroup) => { matches: IRange[], score: number } | null;
+export type ISettingMatcher = (setting: ISetting, group: ISettingsGroup) => { matches: IRange[]; matchType: SettingMatchType; score: number } | null;
 
 export interface ISettingsEditorModel extends IPreferencesEditorModel<ISetting> {
 	readonly onDidChangeGroups: Event<void>;
@@ -188,7 +206,7 @@ export function validateSettingsEditorOptions(options: ISettingsEditorOptions): 
 		...options,
 
 		// Enforce some options for settings specifically
-		override: EditorResolution.DISABLED,
+		override: DEFAULT_EDITOR_ASSOCIATION.id,
 		pinned: true
 	};
 }
@@ -215,12 +233,14 @@ export interface IPreferencesService {
 
 	openRawDefaultSettings(): Promise<IEditorPane | undefined>;
 	openSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
+	openApplicationSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
 	openUserSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
 	openRemoteSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
 	openWorkspaceSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
 	openFolderSettings(options: IOpenSettingsOptions & { folderUri: IOpenSettingsOptions['folderUri'] }): Promise<IEditorPane | undefined>;
 	openGlobalKeybindingSettings(textual: boolean, options?: IKeybindingsEditorOptions): Promise<void>;
 	openDefaultKeybindingsFile(): Promise<IEditorPane | undefined>;
+	openLanguageSpecificSettings(languageId: string, options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
 	getEditableSettingsURI(configurationTarget: ConfigurationTarget, resource?: URI): Promise<URI | null>;
 
 	createSplitJsonEditorInput(configurationTarget: ConfigurationTarget, resource: URI): EditorInput;

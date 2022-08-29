@@ -12,8 +12,8 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { once } from 'vs/base/common/functional';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { isSafari } from 'vs/base/browser/browser';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 
 export class BrowserClipboardService extends BaseBrowserClipboardService {
 
@@ -21,9 +21,10 @@ export class BrowserClipboardService extends BaseBrowserClipboardService {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@ILogService private readonly logService: ILogService
+		@ILogService logService: ILogService,
+		@ILayoutService layoutService: ILayoutService
 	) {
-		super();
+		super(layoutService, logService);
 	}
 
 	override async readText(type?: string): Promise<string> {
@@ -36,12 +37,6 @@ export class BrowserClipboardService extends BaseBrowserClipboardService {
 		} catch (error) {
 			if (!!this.environmentService.extensionTestsLocationURI) {
 				return ''; // do not ask for input in tests (https://github.com/microsoft/vscode/issues/112264)
-			}
-
-			if (isSafari) {
-				this.logService.error(error);
-
-				return ''; // Safari does not seem to provide anyway to enable cipboard access (https://github.com/microsoft/vscode-internalbacklog/issues/2162#issuecomment-852042867)
 			}
 
 			return new Promise<string>(resolve => {

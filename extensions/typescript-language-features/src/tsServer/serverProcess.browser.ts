@@ -9,6 +9,7 @@ import type * as Proto from '../protocol';
 import { TypeScriptServiceConfiguration } from '../utils/configuration';
 import { memoize } from '../utils/memoize';
 import { TsServerProcess, TsServerProcessKind } from './server';
+import { TypeScriptVersion } from './versionProvider';
 
 
 const localize = nls.loadMessageBundle();
@@ -19,11 +20,12 @@ declare type Worker = any;
 export class WorkerServerProcess implements TsServerProcess {
 
 	public static fork(
-		tsServerPath: string,
+		version: TypeScriptVersion,
 		args: readonly string[],
 		_kind: TsServerProcessKind,
 		_configuration: TypeScriptServiceConfiguration,
 	) {
+		const tsServerPath = version.tsServerPath;
 		const worker = new Worker(tsServerPath);
 		return new WorkerServerProcess(worker, [
 			...args,
@@ -44,7 +46,7 @@ export class WorkerServerProcess implements TsServerProcess {
 	) {
 		worker.addEventListener('message', (msg: any) => {
 			if (msg.data.type === 'log') {
-				this.output.appendLine(msg.data.body);
+				this.output.append(msg.data.body);
 				return;
 			}
 

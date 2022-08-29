@@ -4,16 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/feedback';
-import * as nls from 'vs/nls';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Dropdown } from 'vs/base/browser/ui/dropdown/dropdown';
+import { localize } from 'vs/nls';
+import { IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import * as dom from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { attachButtonStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { editorWidgetBackground, editorWidgetForeground, widgetShadow, inputBorder, inputForeground, inputBackground, inputActiveOptionBorder, editorBackground, textLinkForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { append, $, addDisposableListener, EventType, EventHelper, prepend } from 'vs/base/browser/dom';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -24,6 +23,8 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Codicon } from 'vs/base/common/codicons';
+import { Emitter } from 'vs/base/common/event';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 
 export interface IFeedback {
 	feedback: string;
@@ -36,17 +37,18 @@ export interface IFeedbackDelegate {
 }
 
 export interface IFeedbackWidgetOptions {
-	contextViewProvider: IContextViewService;
 	feedbackService: IFeedbackDelegate;
-	onFeedbackVisibilityChange?: (visible: boolean) => void;
 }
 
-export class FeedbackWidget extends Dropdown {
+export class FeedbackWidget extends Disposable {
+	private visible: boolean | undefined;
+	private _onDidChangeVisibility = new Emitter<boolean>();
+	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
+
 	private maxFeedbackCharacters: number;
 
 	private feedback: string = '';
 	private sentiment: number = 1;
-	private autoHideTimeout?: number;
 
 	private readonly feedbackDelegate: IFeedbackDelegate;
 
@@ -63,8 +65,9 @@ export class FeedbackWidget extends Dropdown {
 	private isPure: boolean = true;
 
 	constructor(
-		container: HTMLElement,
-		private options: IFeedbackWidgetOptions,
+		options: IFeedbackWidgetOptions,
+		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IIntegrityService private readonly integrityService: IIntegrityService,
@@ -73,7 +76,7 @@ export class FeedbackWidget extends Dropdown {
 		@IProductService productService: IProductService,
 		@IOpenerService private readonly openerService: IOpenerService
 	) {
-		super(container, options);
+		super();
 
 		this.feedbackDelegate = options.feedbackService;
 		this.maxFeedbackCharacters = this.feedbackDelegate.getCharacterLimit(this.sentiment);
@@ -88,46 +91,49 @@ export class FeedbackWidget extends Dropdown {
 			}
 		});
 
-		this.element.classList.add('send-feedback');
-		this.element.title = nls.localize('sendFeedback', "Tweet Feedback");
+		// Hide feedback widget whenever notifications appear
+		this._register(this.layoutService.onDidChangeNotificationsVisibility(visible => {
+			if (visible) {
+				this.hide();
+			}
+		}));
 	}
 
-	protected override getAnchor(): HTMLElement | IAnchor {
-		const position = dom.getDomNodePagePosition(this.element);
+	private getAnchor(): HTMLElement | IAnchor {
+		const dimension = this.layoutService.dimension;
 
 		return {
-			x: position.left + position.width, // center above the container
-			y: position.top - 26, // above status bar and beak
-			width: position.width,
-			height: position.height
+			x: dimension.width - 8,
+			y: dimension.height - 31
 		};
 	}
 
-	protected override renderContents(container: HTMLElement): IDisposable {
+	private renderContents(container: HTMLElement): IDisposable {
 		const disposables = new DisposableStore();
 
 		container.classList.add('monaco-menu-container');
 
 		// Form
-		this.feedbackForm = dom.append<HTMLFormElement>(container, dom.$('form.feedback-form'));
+		this.feedbackForm = append<HTMLFormElement>(container, $('form.feedback-form'));
 		this.feedbackForm.setAttribute('action', 'javascript:void(0);');
 
 		// Title
-		dom.append(this.feedbackForm, dom.$('h2.title')).textContent = nls.localize("label.sendASmile", "Tweet us your feedback.");
+		append(this.feedbackForm, $('h2.title')).textContent = localize("label.sendASmile", "Tweet us your feedback.");
 
 		// Close Button (top right)
-		const closeBtn = dom.append(this.feedbackForm, dom.$('div.cancel' + Codicon.close.cssSelector));
+		const closeBtn = append(this.feedbackForm, $(`div.cancel${Codicon.close.cssSelector}`));
 		closeBtn.tabIndex = 0;
 		closeBtn.setAttribute('role', 'button');
-		closeBtn.title = nls.localize('close', "Close");
+		closeBtn.title = localize('close', "Close");
 
-		disposables.add(dom.addDisposableListener(container, dom.EventType.KEY_DOWN, keyboardEvent => {
+		disposables.add(addDisposableListener(container, EventType.KEY_DOWN, keyboardEvent => {
 			const standardKeyboardEvent = new StandardKeyboardEvent(keyboardEvent);
 			if (standardKeyboardEvent.keyCode === KeyCode.Escape) {
 				this.hide();
 			}
 		}));
-		disposables.add(dom.addDisposableListener(closeBtn, dom.EventType.MOUSE_OVER, () => {
+
+		disposables.add(addDisposableListener(closeBtn, EventType.MOUSE_OVER, () => {
 			const theme = this.themeService.getColorTheme();
 			let darkenFactor: number | undefined;
 			switch (theme.type) {
@@ -150,47 +156,47 @@ export class FeedbackWidget extends Dropdown {
 			}
 		}));
 
-		disposables.add(dom.addDisposableListener(closeBtn, dom.EventType.MOUSE_OUT, () => {
+		disposables.add(addDisposableListener(closeBtn, EventType.MOUSE_OUT, () => {
 			closeBtn.style.backgroundColor = '';
 		}));
 
 		this.invoke(closeBtn, disposables, () => this.hide());
 
 		// Content
-		const content = dom.append(this.feedbackForm, dom.$('div.content'));
+		const content = append(this.feedbackForm, $('div.content'));
 
 		// Sentiment Buttons
-		const sentimentContainer = dom.append(content, dom.$('div'));
+		const sentimentContainer = append(content, $('div'));
 
 		if (!this.isPure) {
-			dom.append(sentimentContainer, dom.$('span')).textContent = nls.localize("patchedVersion1", "Your installation is corrupt.");
+			append(sentimentContainer, $('span')).textContent = localize("patchedVersion1", "Your installation is corrupt.");
 			sentimentContainer.appendChild(document.createElement('br'));
-			dom.append(sentimentContainer, dom.$('span')).textContent = nls.localize("patchedVersion2", "Please specify this if you submit a bug.");
+			append(sentimentContainer, $('span')).textContent = localize("patchedVersion2", "Please specify this if you submit a bug.");
 			sentimentContainer.appendChild(document.createElement('br'));
 		}
 
-		dom.append(sentimentContainer, dom.$('span')).textContent = nls.localize("sentiment", "How was your experience?");
+		append(sentimentContainer, $('span')).textContent = localize("sentiment", "How was your experience?");
 
-		const feedbackSentiment = dom.append(sentimentContainer, dom.$('div.feedback-sentiment'));
+		const feedbackSentiment = append(sentimentContainer, $('div.feedback-sentiment'));
 
 		// Sentiment: Smiley
-		this.smileyInput = dom.append(feedbackSentiment, dom.$('div.sentiment'));
+		this.smileyInput = append(feedbackSentiment, $('div.sentiment'));
 		this.smileyInput.classList.add('smile');
 		this.smileyInput.setAttribute('aria-checked', 'false');
-		this.smileyInput.setAttribute('aria-label', nls.localize('smileCaption', "Happy Feedback Sentiment"));
+		this.smileyInput.setAttribute('aria-label', localize('smileCaption', "Happy Feedback Sentiment"));
 		this.smileyInput.setAttribute('role', 'checkbox');
-		this.smileyInput.title = nls.localize('smileCaption', "Happy Feedback Sentiment");
+		this.smileyInput.title = localize('smileCaption', "Happy Feedback Sentiment");
 		this.smileyInput.tabIndex = 0;
 
 		this.invoke(this.smileyInput, disposables, () => this.setSentiment(true));
 
 		// Sentiment: Frowny
-		this.frownyInput = dom.append(feedbackSentiment, dom.$('div.sentiment'));
+		this.frownyInput = append(feedbackSentiment, $('div.sentiment'));
 		this.frownyInput.classList.add('frown');
 		this.frownyInput.setAttribute('aria-checked', 'false');
-		this.frownyInput.setAttribute('aria-label', nls.localize('frownCaption', "Sad Feedback Sentiment"));
+		this.frownyInput.setAttribute('aria-label', localize('frownCaption', "Sad Feedback Sentiment"));
 		this.frownyInput.setAttribute('role', 'checkbox');
-		this.frownyInput.title = nls.localize('frownCaption', "Sad Feedback Sentiment");
+		this.frownyInput.title = localize('frownCaption', "Sad Feedback Sentiment");
 		this.frownyInput.tabIndex = 0;
 
 		this.invoke(this.frownyInput, disposables, () => this.setSentiment(false));
@@ -204,23 +210,23 @@ export class FeedbackWidget extends Dropdown {
 		}
 
 		// Contact Us Box
-		const contactUsContainer = dom.append(content, dom.$('div.contactus'));
+		const contactUsContainer = append(content, $('div.contactus'));
 
-		dom.append(contactUsContainer, dom.$('span')).textContent = nls.localize("other ways to contact us", "Other ways to contact us");
+		append(contactUsContainer, $('span')).textContent = localize("other ways to contact us", "Other ways to contact us");
 
-		const channelsContainer = dom.append(contactUsContainer, dom.$('div.channels'));
+		const channelsContainer = append(contactUsContainer, $('div.channels'));
 
 		// Contact: Submit a Bug
-		const submitBugLinkContainer = dom.append(channelsContainer, dom.$('div'));
+		const submitBugLinkContainer = append(channelsContainer, $('div'));
 
-		const submitBugLink = dom.append(submitBugLinkContainer, dom.$('a'));
+		const submitBugLink = append(submitBugLinkContainer, $('a'));
 		submitBugLink.setAttribute('target', '_blank');
 		submitBugLink.setAttribute('href', '#');
-		submitBugLink.textContent = nls.localize("submit a bug", "Submit a bug");
+		submitBugLink.textContent = localize("submit a bug", "Submit a bug");
 		submitBugLink.tabIndex = 0;
 
-		disposables.add(dom.addDisposableListener(submitBugLink, 'click', e => {
-			dom.EventHelper.stop(e);
+		disposables.add(addDisposableListener(submitBugLink, 'click', e => {
+			EventHelper.stop(e);
 			const actionId = 'workbench.action.openIssueReporter';
 			this.commandService.executeCommand(actionId);
 			this.hide();
@@ -229,57 +235,57 @@ export class FeedbackWidget extends Dropdown {
 
 		// Contact: Request a Feature
 		if (!!this.requestFeatureLink) {
-			const requestFeatureLinkContainer = dom.append(channelsContainer, dom.$('div'));
+			const requestFeatureLinkContainer = append(channelsContainer, $('div'));
 
-			const requestFeatureLink = dom.append(requestFeatureLinkContainer, dom.$('a'));
+			const requestFeatureLink = append(requestFeatureLinkContainer, $('a'));
 			requestFeatureLink.setAttribute('target', '_blank');
 			requestFeatureLink.setAttribute('href', this.requestFeatureLink);
-			requestFeatureLink.textContent = nls.localize("request a missing feature", "Request a missing feature");
+			requestFeatureLink.textContent = localize("request a missing feature", "Request a missing feature");
 			requestFeatureLink.tabIndex = 0;
 
-			disposables.add(dom.addDisposableListener(requestFeatureLink, 'click', e => this.hide()));
+			disposables.add(addDisposableListener(requestFeatureLink, 'click', e => this.hide()));
 		}
 
 		// Remaining Characters
-		const remainingCharacterCountContainer = dom.append(this.feedbackForm, dom.$('h3'));
-		remainingCharacterCountContainer.textContent = nls.localize("tell us why", "Tell us why?");
+		const remainingCharacterCountContainer = append(this.feedbackForm, $('h3'));
+		remainingCharacterCountContainer.textContent = localize("tell us why", "Tell us why?");
 
-		this.remainingCharacterCount = dom.append(remainingCharacterCountContainer, dom.$('span.char-counter'));
+		this.remainingCharacterCount = append(remainingCharacterCountContainer, $('span.char-counter'));
 		this.remainingCharacterCount.textContent = this.getCharCountText(0);
 
 		// Feedback Input Form
-		this.feedbackDescriptionInput = dom.append<HTMLTextAreaElement>(this.feedbackForm, dom.$('textarea.feedback-description'));
+		this.feedbackDescriptionInput = append<HTMLTextAreaElement>(this.feedbackForm, $('textarea.feedback-description'));
 		this.feedbackDescriptionInput.rows = 3;
 		this.feedbackDescriptionInput.maxLength = this.maxFeedbackCharacters;
 		this.feedbackDescriptionInput.textContent = this.feedback;
 		this.feedbackDescriptionInput.required = true;
-		this.feedbackDescriptionInput.setAttribute('aria-label', nls.localize("feedbackTextInput", "Tell us your feedback"));
+		this.feedbackDescriptionInput.setAttribute('aria-label', localize("feedbackTextInput", "Tell us your feedback"));
 		this.feedbackDescriptionInput.focus();
 
-		disposables.add(dom.addDisposableListener(this.feedbackDescriptionInput, 'keyup', () => this.updateCharCountText()));
+		disposables.add(addDisposableListener(this.feedbackDescriptionInput, 'keyup', () => this.updateCharCountText()));
 
 		// Feedback Input Form Buttons Container
-		const buttonsContainer = dom.append(this.feedbackForm, dom.$('div.form-buttons'));
+		const buttonsContainer = append(this.feedbackForm, $('div.form-buttons'));
 
 		// Checkbox: Hide Feedback Smiley
-		const hideButtonContainer = dom.append(buttonsContainer, dom.$('div.hide-button-container'));
+		const hideButtonContainer = append(buttonsContainer, $('div.hide-button-container'));
 
-		this.hideButton = dom.append(hideButtonContainer, dom.$('input.hide-button')) as HTMLInputElement;
+		this.hideButton = append(hideButtonContainer, $('input.hide-button')) as HTMLInputElement;
 		this.hideButton.type = 'checkbox';
 		this.hideButton.checked = true;
 		this.hideButton.id = 'hide-button';
 
-		const hideButtonLabel = dom.append(hideButtonContainer, dom.$('label'));
+		const hideButtonLabel = append(hideButtonContainer, $('label'));
 		hideButtonLabel.setAttribute('for', 'hide-button');
-		hideButtonLabel.textContent = nls.localize('showFeedback', "Show Feedback Icon in Status Bar");
+		hideButtonLabel.textContent = localize('showFeedback', "Show Feedback Icon in Status Bar");
 
 		// Button: Send Feedback
 		this.sendButton = new Button(buttonsContainer);
 		this.sendButton.enabled = false;
-		this.sendButton.label = nls.localize('tweet', "Tweet");
-		dom.prepend(this.sendButton.element, dom.$('span' + Codicon.twitter.cssSelector));
+		this.sendButton.label = localize('tweet', "Tweet");
+		prepend(this.sendButton.element, $(`span${Codicon.twitter.cssSelector}`));
 		this.sendButton.element.classList.add('send');
-		this.sendButton.element.title = nls.localize('tweetFeedback', "Tweet Feedback");
+		this.sendButton.element.title = localize('tweetFeedback', "Tweet Feedback");
 		disposables.add(attachButtonStyler(this.sendButton, this.themeService));
 
 		this.sendButton.onDidClick(() => this.onSubmit());
@@ -321,8 +327,8 @@ export class FeedbackWidget extends Dropdown {
 	private getCharCountText(charCount: number): string {
 		const remaining = this.maxFeedbackCharacters - charCount;
 		const text = (remaining === 1)
-			? nls.localize("character left", "character left")
-			: nls.localize("characters left", "characters left");
+			? localize("character left", "character left")
+			: localize("characters left", "characters left");
 
 		return `(${remaining} ${text})`;
 	}
@@ -365,9 +371,9 @@ export class FeedbackWidget extends Dropdown {
 	}
 
 	private invoke(element: HTMLElement, disposables: DisposableStore, callback: () => void): HTMLElement {
-		disposables.add(dom.addDisposableListener(element, 'click', callback));
+		disposables.add(addDisposableListener(element, 'click', callback));
 
-		disposables.add(dom.addDisposableListener(element, 'keypress', e => {
+		disposables.add(addDisposableListener(element, 'keypress', e => {
 			if (e instanceof KeyboardEvent) {
 				const keyboardEvent = <KeyboardEvent>e;
 				if (keyboardEvent.keyCode === 13 || keyboardEvent.keyCode === 32) { // Enter or Spacebar
@@ -379,40 +385,53 @@ export class FeedbackWidget extends Dropdown {
 		return element;
 	}
 
-	override show(): void {
-		super.show();
-
-		if (this.options.onFeedbackVisibilityChange) {
-			this.options.onFeedbackVisibilityChange(true);
+	show(): void {
+		if (this.visible) {
+			return;
 		}
+
+		this.visible = true;
+		this.contextViewService.showContextView({
+			getAnchor: () => this.getAnchor(),
+
+			render: (container) => {
+				return this.renderContents(container);
+			},
+
+			onDOMEvent: (e, activeElement) => {
+				this.onEvent(e, activeElement);
+			},
+
+			onHide: () => this._onDidChangeVisibility.fire(false)
+		});
+
+		this._onDidChangeVisibility.fire(true);
 
 		this.updateCharCountText();
 	}
 
-	protected override onHide(): void {
-		if (this.options.onFeedbackVisibilityChange) {
-			this.options.onFeedbackVisibilityChange(false);
+	hide(): void {
+		if (!this.visible) {
+			return;
 		}
-	}
 
-	override hide(): void {
 		if (this.feedbackDescriptionInput) {
 			this.feedback = this.feedbackDescriptionInput.value;
-		}
-
-		if (this.autoHideTimeout) {
-			clearTimeout(this.autoHideTimeout);
-			this.autoHideTimeout = undefined;
 		}
 
 		if (this.hideButton && !this.hideButton.checked) {
 			this.statusbarService.updateEntryVisibility('status.feedback', false);
 		}
 
-		super.hide();
+		this.visible = false;
+		this.contextViewService.hideContextView();
 	}
 
-	override onEvent(e: Event, activeElement: HTMLElement): void {
+	isVisible(): boolean {
+		return !!this.visible;
+	}
+
+	private onEvent(e: Event, activeElement: HTMLElement): void {
 		if (e instanceof KeyboardEvent) {
 			const keyboardEvent = <KeyboardEvent>e;
 			if (keyboardEvent.keyCode === 27) { // Escape

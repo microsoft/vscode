@@ -101,6 +101,23 @@ export class Range {
 	}
 
 	/**
+	 * Test if `position` is in `range`. If the position is at the edges, will return false.
+	 * @internal
+	 */
+	public static strictContainsPosition(range: IRange, position: IPosition): boolean {
+		if (position.lineNumber < range.startLineNumber || position.lineNumber > range.endLineNumber) {
+			return false;
+		}
+		if (position.lineNumber === range.startLineNumber && position.column <= range.startColumn) {
+			return false;
+		}
+		if (position.lineNumber === range.endLineNumber && position.column >= range.endColumn) {
+			return false;
+		}
+		return true;
+	}
+
+	/**
 	 * Test if range is in this range. If the range is equal to this range, will return true.
 	 */
 	public containsRange(range: IRange): boolean {
@@ -210,10 +227,10 @@ export class Range {
 		let resultStartColumn = a.startColumn;
 		let resultEndLineNumber = a.endLineNumber;
 		let resultEndColumn = a.endColumn;
-		let otherStartLineNumber = b.startLineNumber;
-		let otherStartColumn = b.startColumn;
-		let otherEndLineNumber = b.endLineNumber;
-		let otherEndColumn = b.endColumn;
+		const otherStartLineNumber = b.startLineNumber;
+		const otherStartColumn = b.startColumn;
+		const otherEndLineNumber = b.endLineNumber;
+		const otherEndColumn = b.endColumn;
 
 		if (resultStartLineNumber < otherStartLineNumber) {
 			resultStartLineNumber = otherStartLineNumber;
@@ -317,6 +334,13 @@ export class Range {
 	}
 
 	/**
+	 * Moves the range by the given amount of lines.
+	 */
+	public delta(lineCount: number): Range {
+		return new Range(this.startLineNumber + lineCount, this.startColumn, this.endLineNumber + lineCount, this.endColumn);
+	}
+
+	/**
 	 * Create a new empty range using this range's start position.
 	 */
 	public static collapseToStart(range: IRange): Range {
@@ -334,6 +358,7 @@ export class Range {
 	 */
 	public static lift(range: undefined | null): null;
 	public static lift(range: IRange): Range;
+	public static lift(range: IRange | undefined | null): Range | null;
 	public static lift(range: IRange | undefined | null): Range | null {
 		if (!range) {
 			return null;
@@ -445,5 +470,9 @@ export class Range {
 	 */
 	public static spansMultipleLines(range: IRange): boolean {
 		return range.endLineNumber > range.startLineNumber;
+	}
+
+	public toJSON(): IRange {
+		return this;
 	}
 }

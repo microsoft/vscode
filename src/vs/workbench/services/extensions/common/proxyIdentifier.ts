@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { VSBuffer } from 'vs/base/common/buffer';
+import type { CancellationToken } from 'vs/base/common/cancellation';
+
 export interface IRPCProtocol {
 	/**
 	 * Returns a proxy to an object addressable/named in the extension host process or in the renderer process.
 	 */
-	getProxy<T>(identifier: ProxyIdentifier<T>): T;
+	getProxy<T>(identifier: ProxyIdentifier<T>): Proxied<T>;
 
 	/**
 	 * Register manually created instance.
@@ -23,18 +26,18 @@ export interface IRPCProtocol {
 	 * Wait for the write buffer (if applicable) to become empty.
 	 */
 	drain(): Promise<void>;
+
+	dispose(): void;
 }
 
 export class ProxyIdentifier<T> {
 	public static count = 0;
 	_proxyIdentifierBrand: void = undefined;
 
-	public readonly isMain: boolean;
 	public readonly sid: string;
 	public readonly nid: number;
 
-	constructor(isMain: boolean, sid: string) {
-		this.isMain = isMain;
+	constructor(sid: string) {
 		this.sid = sid;
 		this.nid = (++ProxyIdentifier.count);
 	}
@@ -42,17 +45,31 @@ export class ProxyIdentifier<T> {
 
 const identifiers: ProxyIdentifier<any>[] = [];
 
-export function createMainContextProxyIdentifier<T>(identifier: string): ProxyIdentifier<T> {
-	const result = new ProxyIdentifier<T>(true, identifier);
+export function createProxyIdentifier<T>(identifier: string): ProxyIdentifier<T> {
+	const result = new ProxyIdentifier<T>(identifier);
 	identifiers[result.nid] = result;
 	return result;
 }
 
-export function createExtHostContextProxyIdentifier<T>(identifier: string): ProxyIdentifier<T> {
-	const result = new ProxyIdentifier<T>(false, identifier);
-	identifiers[result.nid] = result;
-	return result;
-}
+/**
+ * Mapped-type that replaces all JSONable-types with their toJSON-result type
+ */
+export type Dto<T> = T extends { toJSON(): infer U }
+	? U
+	: T extends VSBuffer // VSBuffer is understood by rpc-logic
+	? T
+	: T extends CancellationToken // CancellationToken is understood by rpc-logic
+	? T
+	: T extends Function // functions are dropped during JSON-stringify
+	? never
+	: T extends object // recurse
+	? { [k in keyof T]: Dto<T[k]>; }
+	: T;
+
+export type Proxied<T> = { [K in keyof T]: T[K] extends (...args: infer A) => infer R
+	? (...args: { [K in keyof A]: Dto<A[K]> }) => Promise<Dto<Awaited<R>>>
+	: never
+};
 
 export function getStringIdentifierForProxy(nid: number): string {
 	return identifiers[nid].sid;

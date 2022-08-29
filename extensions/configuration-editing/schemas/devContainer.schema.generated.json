@@ -2,7 +2,7 @@
 	"$schema": "http://json-schema.org/draft-07/schema#",
 	"description": "Defines a dev container",
 	"allowComments": true,
-	"allowTrailingCommas": true,
+	"allowTrailingCommas": false,
 	"oneOf": [
 		{
 			"type": "object",
@@ -109,14 +109,14 @@
 				},
 				"name": {
 					"type": "string",
-					"description": "A name to show for the workspace folder."
+					"description": "A name for the dev container displayed in the UI."
 				},
 				"extensions": {
 					"type": "array",
 					"description": "An array of extensions that should be installed into the container.",
 					"items": {
 						"type": "string",
-						"pattern": "^([a-z0-9A-Z][a-z0-9\\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\\-A-Z]*)(@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?)?$",
+						"pattern": "^([a-z0-9A-Z][a-z0-9A-Z-]*)\\.([a-z0-9A-Z][a-z0-9A-Z-]*)((@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?)|@prerelease)?$",
 						"errorMessage": "Expected format: '${publisher}.${name}' or '${publisher}.${name}@${version}'. Example: 'ms-dotnettools.csharp'."
 					}
 				},
@@ -141,7 +141,7 @@
 							},
 							{
 								"type": "string",
-								"pattern": "^([a-z0-9\\-]+):(\\d{1,5})$"
+								"pattern": "^([a-z0-9-]+):(\\d{1,5})$"
 							}
 						]
 					}
@@ -149,7 +149,7 @@
 				"portsAttributes": {
 					"type": "object",
 					"patternProperties": {
-						"(^\\d+(\\-\\d+)?$)|(.+)": {
+						"(^\\d+(-\\d+)?$)|(.+)": {
 							"type": "object",
 							"description": "A port, range of ports (ex. \"40000-55000\"), or regular expression (ex. \".+\\\\/server.js\").  For a port number or range, the attributes will apply to that port number or range of port numbers. Attributes which use a regular expression will apply to ports whose associated process command line matches the expression.",
 							"properties": {
@@ -276,7 +276,7 @@
 				},
 				"updateRemoteUserUID": {
 					"type": "boolean",
-					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default."
+					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default when opening from a local folder."
 				},
 				"remoteEnv": {
 					"type": "object",
@@ -375,7 +375,7 @@
 						"loginInteractiveShell",
 						"interactiveShell"
 					],
-					"description": "User environment probe to run. The default is none."
+					"description": "User environment probe to run. The default is \"loginInteractiveShell\"."
 				},
 				"codespaces": {
 					"type": "object",
@@ -403,6 +403,213 @@
 						}
 					},
 					"additionalProperties": false
+				},
+				"customizations": {
+					"type": "object",
+					"description": "Tool-specific configuration. Each tool should use a JSON object subproperty with a unique name to group its customizations.",
+					"properties": {
+						"vscode": {
+							"type": "object",
+							"properties": {
+								"extensions": {
+									"type": "array",
+									"description": "An array of extensions that should be installed into the container.",
+									"items": {
+										"type": "string",
+										"pattern": "^([a-z0-9A-Z][a-z0-9A-Z-]*)\\.([a-z0-9A-Z][a-z0-9A-Z-]*)(@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?)?$",
+										"errorMessage": "Expected format: '${publisher}.${name}' or '${publisher}.${name}@${version}'. Example: 'ms-dotnettools.csharp'."
+									}
+								},
+								"settings": {
+									"$ref": "vscode://schemas/settings/machine",
+									"description": "Machine specific settings that should be copied into the container. These are only copied when connecting to the container for the first time, rebuilding the container then triggers it again."
+								},
+								"devPort": {
+									"type": "integer",
+									"description": "The port VS Code can use to connect to its backend."
+								}
+							},
+							"additionalProperties": false
+						},
+						"codespaces": {
+							"type": "object",
+							"description": "Customizations specific to GitHub Codespaces",
+							"properties": {
+								"repositories": {
+									"type": "object",
+									"description": "Configuration relative to the given repositories, following the format 'owner/repo'.\n  A wildcard (*) is permitted for the repo name (eg: 'microsoft/*')",
+									"patternProperties": {
+										"^[a-zA-Z0-9-_.]+[.]*/[a-zA-Z0-9-_*]+[.]*$": {
+											"type": "object",
+											"additionalProperties": true,
+											"oneOf": [
+												{
+													"properties": {
+														"permissions": {
+															"type": "object",
+															"description": "Additional repository permissions.\n See https://aka.ms/ghcs/multi-repo-auth for more info.",
+															"additionalProperties": true,
+															"anyOf": [
+																{
+																	"properties": {
+																		"actions": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"checks": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"contents": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"deployments": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"discussions": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"issues": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"packages": {
+																			"type": "string",
+																			"enum": [
+																				"read"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"pages": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"pull_requests": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"repository_projects": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"statuses": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"workflows": {
+																			"type": "string",
+																			"enum": [
+																				"write"
+																			]
+																		}
+																	}
+																}
+															]
+														}
+													}
+												},
+												{
+													"properties": {
+														"permissions": {
+															"type": "string",
+															"description": "Additional repository permissions.\n See https://aka.ms/ghcs/multi-repo-auth for more info.",
+															"enum": [
+																"read-all",
+																"write-all"
+															]
+														}
+													}
+												}
+											]
+										}
+									},
+									"additionalProperties": false
+								}
+							},
+							"additionalProperties": false
+						}
+					},
+					"additionalProperties": false
+				},
+				"additionalProperties": {
+					"type": "object",
+					"additionalProperties": true
 				}
 			},
 			"required": [
@@ -512,14 +719,14 @@
 				},
 				"name": {
 					"type": "string",
-					"description": "A name to show for the workspace folder."
+					"description": "A name for the dev container displayed in the UI."
 				},
 				"extensions": {
 					"type": "array",
 					"description": "An array of extensions that should be installed into the container.",
 					"items": {
 						"type": "string",
-						"pattern": "^([a-z0-9A-Z][a-z0-9\\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\\-A-Z]*)(@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?)?$",
+						"pattern": "^([a-z0-9A-Z][a-z0-9A-Z-]*)\\.([a-z0-9A-Z][a-z0-9A-Z-]*)((@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?)|@prerelease)?$",
 						"errorMessage": "Expected format: '${publisher}.${name}' or '${publisher}.${name}@${version}'. Example: 'ms-dotnettools.csharp'."
 					}
 				},
@@ -544,7 +751,7 @@
 							},
 							{
 								"type": "string",
-								"pattern": "^([a-z0-9\\-]+):(\\d{1,5})$"
+								"pattern": "^([a-z0-9-]+):(\\d{1,5})$"
 							}
 						]
 					}
@@ -552,7 +759,7 @@
 				"portsAttributes": {
 					"type": "object",
 					"patternProperties": {
-						"(^\\d+(\\-\\d+)?$)|(.+)": {
+						"(^\\d+(-\\d+)?$)|(.+)": {
 							"type": "object",
 							"description": "A port, range of ports (ex. \"40000-55000\"), or regular expression (ex. \".+\\\\/server.js\").  For a port number or range, the attributes will apply to that port number or range of port numbers. Attributes which use a regular expression will apply to ports whose associated process command line matches the expression.",
 							"properties": {
@@ -679,7 +886,7 @@
 				},
 				"updateRemoteUserUID": {
 					"type": "boolean",
-					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default."
+					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default when opening from a local folder."
 				},
 				"remoteEnv": {
 					"type": "object",
@@ -778,7 +985,7 @@
 						"loginInteractiveShell",
 						"interactiveShell"
 					],
-					"description": "User environment probe to run. The default is none."
+					"description": "User environment probe to run. The default is \"loginInteractiveShell\"."
 				},
 				"codespaces": {
 					"type": "object",
@@ -806,6 +1013,213 @@
 						}
 					},
 					"additionalProperties": false
+				},
+				"customizations": {
+					"type": "object",
+					"description": "Tool-specific configuration. Each tool should use a JSON object subproperty with a unique name to group its customizations.",
+					"properties": {
+						"vscode": {
+							"type": "object",
+							"properties": {
+								"extensions": {
+									"type": "array",
+									"description": "An array of extensions that should be installed into the container.",
+									"items": {
+										"type": "string",
+										"pattern": "^([a-z0-9A-Z][a-z0-9A-Z-]*)\\.([a-z0-9A-Z][a-z0-9A-Z-]*)(@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?)?$",
+										"errorMessage": "Expected format: '${publisher}.${name}' or '${publisher}.${name}@${version}'. Example: 'ms-dotnettools.csharp'."
+									}
+								},
+								"settings": {
+									"$ref": "vscode://schemas/settings/machine",
+									"description": "Machine specific settings that should be copied into the container. These are only copied when connecting to the container for the first time, rebuilding the container then triggers it again."
+								},
+								"devPort": {
+									"type": "integer",
+									"description": "The port VS Code can use to connect to its backend."
+								}
+							},
+							"additionalProperties": false
+						},
+						"codespaces": {
+							"type": "object",
+							"description": "Customizations specific to GitHub Codespaces",
+							"properties": {
+								"repositories": {
+									"type": "object",
+									"description": "Configuration relative to the given repositories, following the format 'owner/repo'.\n  A wildcard (*) is permitted for the repo name (eg: 'microsoft/*')",
+									"patternProperties": {
+										"^[a-zA-Z0-9-_.]+[.]*/[a-zA-Z0-9-_*]+[.]*$": {
+											"type": "object",
+											"additionalProperties": true,
+											"oneOf": [
+												{
+													"properties": {
+														"permissions": {
+															"type": "object",
+															"description": "Additional repository permissions.\n See https://aka.ms/ghcs/multi-repo-auth for more info.",
+															"additionalProperties": true,
+															"anyOf": [
+																{
+																	"properties": {
+																		"actions": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"checks": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"contents": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"deployments": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"discussions": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"issues": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"packages": {
+																			"type": "string",
+																			"enum": [
+																				"read"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"pages": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"pull_requests": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"repository_projects": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"statuses": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"workflows": {
+																			"type": "string",
+																			"enum": [
+																				"write"
+																			]
+																		}
+																	}
+																}
+															]
+														}
+													}
+												},
+												{
+													"properties": {
+														"permissions": {
+															"type": "string",
+															"description": "Additional repository permissions.\n See https://aka.ms/ghcs/multi-repo-auth for more info.",
+															"enum": [
+																"read-all",
+																"write-all"
+															]
+														}
+													}
+												}
+											]
+										}
+									},
+									"additionalProperties": false
+								}
+							},
+							"additionalProperties": false
+						}
+					},
+					"additionalProperties": false
+				},
+				"additionalProperties": {
+					"type": "object",
+					"additionalProperties": true
 				}
 			},
 			"required": [
@@ -881,14 +1295,14 @@
 				},
 				"name": {
 					"type": "string",
-					"description": "A name to show for the workspace folder."
+					"description": "A name for the dev container displayed in the UI."
 				},
 				"extensions": {
 					"type": "array",
 					"description": "An array of extensions that should be installed into the container.",
 					"items": {
 						"type": "string",
-						"pattern": "^([a-z0-9A-Z][a-z0-9\\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\\-A-Z]*)(@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?)?$",
+						"pattern": "^([a-z0-9A-Z][a-z0-9A-Z-]*)\\.([a-z0-9A-Z][a-z0-9A-Z-]*)((@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?)|@prerelease)?$",
 						"errorMessage": "Expected format: '${publisher}.${name}' or '${publisher}.${name}@${version}'. Example: 'ms-dotnettools.csharp'."
 					}
 				},
@@ -913,7 +1327,7 @@
 							},
 							{
 								"type": "string",
-								"pattern": "^([a-z0-9\\-]+):(\\d{1,5})$"
+								"pattern": "^([a-z0-9-]+):(\\d{1,5})$"
 							}
 						]
 					}
@@ -921,7 +1335,7 @@
 				"portsAttributes": {
 					"type": "object",
 					"patternProperties": {
-						"(^\\d+(\\-\\d+)?$)|(.+)": {
+						"(^\\d+(-\\d+)?$)|(.+)": {
 							"type": "object",
 							"description": "A port, range of ports (ex. \"40000-55000\"), or regular expression (ex. \".+\\\\/server.js\").  For a port number or range, the attributes will apply to that port number or range of port numbers. Attributes which use a regular expression will apply to ports whose associated process command line matches the expression.",
 							"properties": {
@@ -1048,7 +1462,7 @@
 				},
 				"updateRemoteUserUID": {
 					"type": "boolean",
-					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default."
+					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default when opening from a local folder."
 				},
 				"remoteEnv": {
 					"type": "object",
@@ -1147,7 +1561,7 @@
 						"loginInteractiveShell",
 						"interactiveShell"
 					],
-					"description": "User environment probe to run. The default is none."
+					"description": "User environment probe to run. The default is \"loginInteractiveShell\"."
 				},
 				"codespaces": {
 					"type": "object",
@@ -1175,6 +1589,213 @@
 						}
 					},
 					"additionalProperties": false
+				},
+				"customizations": {
+					"type": "object",
+					"description": "Tool-specific configuration. Each tool should use a JSON object subproperty with a unique name to group its customizations.",
+					"properties": {
+						"vscode": {
+							"type": "object",
+							"properties": {
+								"extensions": {
+									"type": "array",
+									"description": "An array of extensions that should be installed into the container.",
+									"items": {
+										"type": "string",
+										"pattern": "^([a-z0-9A-Z][a-z0-9A-Z-]*)\\.([a-z0-9A-Z][a-z0-9A-Z-]*)(@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?)?$",
+										"errorMessage": "Expected format: '${publisher}.${name}' or '${publisher}.${name}@${version}'. Example: 'ms-dotnettools.csharp'."
+									}
+								},
+								"settings": {
+									"$ref": "vscode://schemas/settings/machine",
+									"description": "Machine specific settings that should be copied into the container. These are only copied when connecting to the container for the first time, rebuilding the container then triggers it again."
+								},
+								"devPort": {
+									"type": "integer",
+									"description": "The port VS Code can use to connect to its backend."
+								}
+							},
+							"additionalProperties": false
+						},
+						"codespaces": {
+							"type": "object",
+							"description": "Customizations specific to GitHub Codespaces",
+							"properties": {
+								"repositories": {
+									"type": "object",
+									"description": "Configuration relative to the given repositories, following the format 'owner/repo'.\n  A wildcard (*) is permitted for the repo name (eg: 'microsoft/*')",
+									"patternProperties": {
+										"^[a-zA-Z0-9-_.]+[.]*/[a-zA-Z0-9-_*]+[.]*$": {
+											"type": "object",
+											"additionalProperties": true,
+											"oneOf": [
+												{
+													"properties": {
+														"permissions": {
+															"type": "object",
+															"description": "Additional repository permissions.\n See https://aka.ms/ghcs/multi-repo-auth for more info.",
+															"additionalProperties": true,
+															"anyOf": [
+																{
+																	"properties": {
+																		"actions": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"checks": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"contents": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"deployments": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"discussions": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"issues": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"packages": {
+																			"type": "string",
+																			"enum": [
+																				"read"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"pages": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"pull_requests": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"repository_projects": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"statuses": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"workflows": {
+																			"type": "string",
+																			"enum": [
+																				"write"
+																			]
+																		}
+																	}
+																}
+															]
+														}
+													}
+												},
+												{
+													"properties": {
+														"permissions": {
+															"type": "string",
+															"description": "Additional repository permissions.\n See https://aka.ms/ghcs/multi-repo-auth for more info.",
+															"enum": [
+																"read-all",
+																"write-all"
+															]
+														}
+													}
+												}
+											]
+										}
+									},
+									"additionalProperties": false
+								}
+							},
+							"additionalProperties": false
+						}
+					},
+					"additionalProperties": false
+				},
+				"additionalProperties": {
+					"type": "object",
+					"additionalProperties": true
 				}
 			},
 			"required": [
@@ -1224,14 +1845,14 @@
 				},
 				"name": {
 					"type": "string",
-					"description": "A name to show for the workspace folder."
+					"description": "A name for the dev container displayed in the UI."
 				},
 				"extensions": {
 					"type": "array",
 					"description": "An array of extensions that should be installed into the container.",
 					"items": {
 						"type": "string",
-						"pattern": "^([a-z0-9A-Z][a-z0-9\\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\\-A-Z]*)(@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?)?$",
+						"pattern": "^([a-z0-9A-Z][a-z0-9A-Z-]*)\\.([a-z0-9A-Z][a-z0-9A-Z-]*)((@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?)|@prerelease)?$",
 						"errorMessage": "Expected format: '${publisher}.${name}' or '${publisher}.${name}@${version}'. Example: 'ms-dotnettools.csharp'."
 					}
 				},
@@ -1256,7 +1877,7 @@
 							},
 							{
 								"type": "string",
-								"pattern": "^([a-z0-9\\-]+):(\\d{1,5})$"
+								"pattern": "^([a-z0-9-]+):(\\d{1,5})$"
 							}
 						]
 					}
@@ -1264,7 +1885,7 @@
 				"portsAttributes": {
 					"type": "object",
 					"patternProperties": {
-						"(^\\d+(\\-\\d+)?$)|(.+)": {
+						"(^\\d+(-\\d+)?$)|(.+)": {
 							"type": "object",
 							"description": "A port, range of ports (ex. \"40000-55000\"), or regular expression (ex. \".+\\\\/server.js\").  For a port number or range, the attributes will apply to that port number or range of port numbers. Attributes which use a regular expression will apply to ports whose associated process command line matches the expression.",
 							"properties": {
@@ -1391,7 +2012,7 @@
 				},
 				"updateRemoteUserUID": {
 					"type": "boolean",
-					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default."
+					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default when opening from a local folder."
 				},
 				"remoteEnv": {
 					"type": "object",
@@ -1490,7 +2111,7 @@
 						"loginInteractiveShell",
 						"interactiveShell"
 					],
-					"description": "User environment probe to run. The default is none."
+					"description": "User environment probe to run. The default is \"loginInteractiveShell\"."
 				},
 				"codespaces": {
 					"type": "object",
@@ -1518,6 +2139,213 @@
 						}
 					},
 					"additionalProperties": false
+				},
+				"customizations": {
+					"type": "object",
+					"description": "Tool-specific configuration. Each tool should use a JSON object subproperty with a unique name to group its customizations.",
+					"properties": {
+						"vscode": {
+							"type": "object",
+							"properties": {
+								"extensions": {
+									"type": "array",
+									"description": "An array of extensions that should be installed into the container.",
+									"items": {
+										"type": "string",
+										"pattern": "^([a-z0-9A-Z][a-z0-9A-Z-]*)\\.([a-z0-9A-Z][a-z0-9A-Z-]*)(@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?)?$",
+										"errorMessage": "Expected format: '${publisher}.${name}' or '${publisher}.${name}@${version}'. Example: 'ms-dotnettools.csharp'."
+									}
+								},
+								"settings": {
+									"$ref": "vscode://schemas/settings/machine",
+									"description": "Machine specific settings that should be copied into the container. These are only copied when connecting to the container for the first time, rebuilding the container then triggers it again."
+								},
+								"devPort": {
+									"type": "integer",
+									"description": "The port VS Code can use to connect to its backend."
+								}
+							},
+							"additionalProperties": false
+						},
+						"codespaces": {
+							"type": "object",
+							"description": "Customizations specific to GitHub Codespaces",
+							"properties": {
+								"repositories": {
+									"type": "object",
+									"description": "Configuration relative to the given repositories, following the format 'owner/repo'.\n  A wildcard (*) is permitted for the repo name (eg: 'microsoft/*')",
+									"patternProperties": {
+										"^[a-zA-Z0-9-_.]+[.]*/[a-zA-Z0-9-_*]+[.]*$": {
+											"type": "object",
+											"additionalProperties": true,
+											"oneOf": [
+												{
+													"properties": {
+														"permissions": {
+															"type": "object",
+															"description": "Additional repository permissions.\n See https://aka.ms/ghcs/multi-repo-auth for more info.",
+															"additionalProperties": true,
+															"anyOf": [
+																{
+																	"properties": {
+																		"actions": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"checks": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"contents": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"deployments": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"discussions": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"issues": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"packages": {
+																			"type": "string",
+																			"enum": [
+																				"read"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"pages": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"pull_requests": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"repository_projects": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"statuses": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"workflows": {
+																			"type": "string",
+																			"enum": [
+																				"write"
+																			]
+																		}
+																	}
+																}
+															]
+														}
+													}
+												},
+												{
+													"properties": {
+														"permissions": {
+															"type": "string",
+															"description": "Additional repository permissions.\n See https://aka.ms/ghcs/multi-repo-auth for more info.",
+															"enum": [
+																"read-all",
+																"write-all"
+															]
+														}
+													}
+												}
+											]
+										}
+									},
+									"additionalProperties": false
+								}
+							},
+							"additionalProperties": false
+						}
+					},
+					"additionalProperties": false
+				},
+				"additionalProperties": {
+					"type": "object",
+					"additionalProperties": true
 				}
 			},
 			"required": [
@@ -1532,14 +2360,14 @@
 			"properties": {
 				"name": {
 					"type": "string",
-					"description": "A name to show for the workspace folder."
+					"description": "A name for the dev container displayed in the UI."
 				},
 				"extensions": {
 					"type": "array",
 					"description": "An array of extensions that should be installed into the container.",
 					"items": {
 						"type": "string",
-						"pattern": "^([a-z0-9A-Z][a-z0-9\\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\\-A-Z]*)(@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?)?$",
+						"pattern": "^([a-z0-9A-Z][a-z0-9A-Z-]*)\\.([a-z0-9A-Z][a-z0-9A-Z-]*)((@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?)|@prerelease)?$",
 						"errorMessage": "Expected format: '${publisher}.${name}' or '${publisher}.${name}@${version}'. Example: 'ms-dotnettools.csharp'."
 					}
 				},
@@ -1564,7 +2392,7 @@
 							},
 							{
 								"type": "string",
-								"pattern": "^([a-z0-9\\-]+):(\\d{1,5})$"
+								"pattern": "^([a-z0-9-]+):(\\d{1,5})$"
 							}
 						]
 					}
@@ -1572,7 +2400,7 @@
 				"portsAttributes": {
 					"type": "object",
 					"patternProperties": {
-						"(^\\d+(\\-\\d+)?$)|(.+)": {
+						"(^\\d+(-\\d+)?$)|(.+)": {
 							"type": "object",
 							"description": "A port, range of ports (ex. \"40000-55000\"), or regular expression (ex. \".+\\\\/server.js\").  For a port number or range, the attributes will apply to that port number or range of port numbers. Attributes which use a regular expression will apply to ports whose associated process command line matches the expression.",
 							"properties": {
@@ -1699,7 +2527,7 @@
 				},
 				"updateRemoteUserUID": {
 					"type": "boolean",
-					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default."
+					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default when opening from a local folder."
 				},
 				"remoteEnv": {
 					"type": "object",
@@ -1798,7 +2626,7 @@
 						"loginInteractiveShell",
 						"interactiveShell"
 					],
-					"description": "User environment probe to run. The default is none."
+					"description": "User environment probe to run. The default is \"loginInteractiveShell\"."
 				},
 				"codespaces": {
 					"type": "object",
@@ -1826,6 +2654,213 @@
 						}
 					},
 					"additionalProperties": false
+				},
+				"customizations": {
+					"type": "object",
+					"description": "Tool-specific configuration. Each tool should use a JSON object subproperty with a unique name to group its customizations.",
+					"properties": {
+						"vscode": {
+							"type": "object",
+							"properties": {
+								"extensions": {
+									"type": "array",
+									"description": "An array of extensions that should be installed into the container.",
+									"items": {
+										"type": "string",
+										"pattern": "^([a-z0-9A-Z][a-z0-9A-Z-]*)\\.([a-z0-9A-Z][a-z0-9A-Z-]*)(@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?)?$",
+										"errorMessage": "Expected format: '${publisher}.${name}' or '${publisher}.${name}@${version}'. Example: 'ms-dotnettools.csharp'."
+									}
+								},
+								"settings": {
+									"$ref": "vscode://schemas/settings/machine",
+									"description": "Machine specific settings that should be copied into the container. These are only copied when connecting to the container for the first time, rebuilding the container then triggers it again."
+								},
+								"devPort": {
+									"type": "integer",
+									"description": "The port VS Code can use to connect to its backend."
+								}
+							},
+							"additionalProperties": false
+						},
+						"codespaces": {
+							"type": "object",
+							"description": "Customizations specific to GitHub Codespaces",
+							"properties": {
+								"repositories": {
+									"type": "object",
+									"description": "Configuration relative to the given repositories, following the format 'owner/repo'.\n  A wildcard (*) is permitted for the repo name (eg: 'microsoft/*')",
+									"patternProperties": {
+										"^[a-zA-Z0-9-_.]+[.]*/[a-zA-Z0-9-_*]+[.]*$": {
+											"type": "object",
+											"additionalProperties": true,
+											"oneOf": [
+												{
+													"properties": {
+														"permissions": {
+															"type": "object",
+															"description": "Additional repository permissions.\n See https://aka.ms/ghcs/multi-repo-auth for more info.",
+															"additionalProperties": true,
+															"anyOf": [
+																{
+																	"properties": {
+																		"actions": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"checks": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"contents": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"deployments": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"discussions": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"issues": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"packages": {
+																			"type": "string",
+																			"enum": [
+																				"read"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"pages": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"pull_requests": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"repository_projects": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"statuses": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"workflows": {
+																			"type": "string",
+																			"enum": [
+																				"write"
+																			]
+																		}
+																	}
+																}
+															]
+														}
+													}
+												},
+												{
+													"properties": {
+														"permissions": {
+															"type": "string",
+															"description": "Additional repository permissions.\n See https://aka.ms/ghcs/multi-repo-auth for more info.",
+															"enum": [
+																"read-all",
+																"write-all"
+															]
+														}
+													}
+												}
+											]
+										}
+									},
+									"additionalProperties": false
+								}
+							},
+							"additionalProperties": false
+						}
+					},
+					"additionalProperties": false
+				},
+				"additionalProperties": {
+					"type": "object",
+					"additionalProperties": true
 				}
 			},
 			"additionalProperties": false

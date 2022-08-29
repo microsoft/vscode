@@ -1,0 +1,70 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .notebookOverlay .cell-statusbar-container {
+	height: 22px;
+	font-size: 12px;
+	display: flex;
+	position: relative;
+	overflow: hidden;
+}
+
+.monaco-workbench .notebookOverlay .cell-statusbar-hidden .cell-statusbar-container {
+	display: none;
+}
+
+.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-left {
+	display: flex;
+	flex-grow: 1;
+}
+
+.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-left,
+.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-right {
+	display: flex;
+	z-index: var(--z-index-notebook-cell-status);
+}
+
+.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-right .cell-contributed-items {
+	justify-content: flex-end;
+}
+
+.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-contributed-items {
+	display: flex;
+	flex-wrap: wrap;
+	overflow: hidden;
+}
+
+.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-item {
+	display: flex;
+	align-items: center;
+	white-space: pre;
+
+	height: 21px; /* Editor outline is -1px in, don't overlap */
+	margin: 0px 3px;
+	padding: 0px 3px;
+	overflow: hidden;
+	text-overflow: clip;
+}
+
+.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-item.cell-status-item-has-command {
+	cursor: pointer;
+}
+
+.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-left > .cell-contributed-items {
+	margin-left: 10px;
+}
+
+.monaco-workbench .notebookOverlay .cell-statusbar-container .codicon {
+	font-size: 14px;
+	color: unset; /* Inherit from parent cell-status-item */
+}
+
+.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-item-show-when-active {
+	display: none;
+}
+
+.monaco-workbench .notebookOverlay .cell-statusbar-container.is-active-cell .cell-status-item-show-when-active {
+	display: initial;
+}

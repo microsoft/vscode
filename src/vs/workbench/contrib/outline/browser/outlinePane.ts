@@ -23,7 +23,6 @@ import { ViewAction, ViewPane } from 'vs/workbench/browser/parts/views/viewPane'
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { FuzzyScore } from 'vs/base/common/filters';
-import { IDataTreeViewState } from 'vs/base/browser/ui/tree/dataTree';
 import { basename } from 'vs/base/common/resources';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -36,7 +35,7 @@ import { EditorResourceAccessor, IEditorPane } from 'vs/workbench/common/editor'
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { ITreeSorter } from 'vs/base/browser/ui/tree/tree';
-import { URI } from 'vs/base/common/uri';
+import { AbstractTreeViewState, IAbstractTreeViewState, TreeFindMode } from 'vs/base/browser/ui/tree/abstractTree';
 
 const _ctxFollowsCursor = new RawContextKey('outlineFollowsCursor', false);
 const _ctxFilterOnType = new RawContextKey('outlineFiltersOnType', false);
@@ -78,7 +77,7 @@ export class OutlinePane extends ViewPane {
 	private _treeContainer!: HTMLElement;
 	private _tree?: WorkbenchDataTree<IOutline<any> | undefined, any, FuzzyScore>;
 	private _treeDimensions?: dom.Dimension;
-	private _treeStates = new LRUCache<string, IDataTreeViewState>(10);
+	private _treeStates = new LRUCache<string, IAbstractTreeViewState>(10);
 
 	private _ctxFollowsCursor!: IContextKey<boolean>;
 	private _ctxFilterOnType!: IContextKey<boolean>;
@@ -137,7 +136,7 @@ export class OutlinePane extends ViewPane {
 		this._domNode = container;
 		container.classList.add('outline-pane');
 
-		let progressContainer = dom.$('.outline-progress');
+		const progressContainer = dom.$('.outline-progress');
 		this._message = dom.$('.outline-message');
 
 		this._progressBar = new ProgressBar(progressContainer);
@@ -181,11 +180,11 @@ export class OutlinePane extends ViewPane {
 		this._message.innerText = message;
 	}
 
-	private _captureViewState(resource: URI | undefined): boolean {
-		if (resource && this._tree) {
-			const oldOutline = this._tree?.getInput();
-			if (oldOutline) {
-				this._treeStates.set(`${oldOutline.outlineKind}/${resource}`, this._tree!.getViewState());
+	private _captureViewState(): boolean {
+		if (this._tree) {
+			const oldOutline = this._tree.getInput();
+			if (oldOutline && oldOutline.uri) {
+				this._treeStates.set(`${oldOutline.outlineKind}/${oldOutline.uri}`, this._tree.getViewState());
 				return true;
 			}
 		}
@@ -209,7 +208,7 @@ export class OutlinePane extends ViewPane {
 
 		// persist state
 		const resource = EditorResourceAccessor.getOriginalUri(pane?.input);
-		const didCapture = this._captureViewState(resource);
+		const didCapture = this._captureViewState();
 
 		this._editorControlDisposables.clear();
 
@@ -260,7 +259,7 @@ export class OutlinePane extends ViewPane {
 				expandOnlyOnTwistieClick: true,
 				multipleSelectionSupport: false,
 				hideTwistiesOfChildlessElements: true,
-				filterOnType: this._outlineViewState.filterOnType,
+				defaultFindMode: this._outlineViewState.filterOnType ? TreeFindMode.Filter : TreeFindMode.Highlight,
 				overrideStyles: { listBackground: this.getBackgroundColor() }
 			}
 		);
@@ -270,14 +269,14 @@ export class OutlinePane extends ViewPane {
 			if (newOutline.isEmpty) {
 				// no more elements
 				this._showMessage(localize('no-symbols', "No symbols found in document '{0}'", basename(resource)));
-				this._captureViewState(resource);
+				this._captureViewState();
 				tree.setInput(undefined);
 
 			} else if (!tree.getInput()) {
 				// first: init tree
 				this._domNode.classList.remove('message');
 				const state = this._treeStates.get(`${newOutline.outlineKind}/${resource}`);
-				tree.setInput(newOutline, state);
+				tree.setInput(newOutline, state && AbstractTreeViewState.lift(state));
 
 			} else {
 				// update: refresh tree
@@ -287,6 +286,7 @@ export class OutlinePane extends ViewPane {
 		};
 		updateTree();
 		this._editorControlDisposables.add(newOutline.onDidChange(updateTree));
+		tree.findMode = this._outlineViewState.filterOnType ? TreeFindMode.Filter : TreeFindMode.Highlight;
 
 		// feature: apply panel background to tree
 		this._editorControlDisposables.add(this.viewDescriptorService.onDidChangeLocation(({ views }) => {
@@ -296,7 +296,7 @@ export class OutlinePane extends ViewPane {
 		}));
 
 		// feature: filter on type - keep tree and menu in sync
-		this._editorControlDisposables.add(tree.onDidUpdateOptions(e => this._outlineViewState.filterOnType = Boolean(e.filterOnType)));
+		this._editorControlDisposables.add(tree.onDidChangeFindMode(mode => this._outlineViewState.filterOnType = mode === TreeFindMode.Filter));
 
 		// feature: reveal outline selection in editor
 		// on change -> reveal/select defining range
@@ -326,10 +326,10 @@ export class OutlinePane extends ViewPane {
 		this._editorControlDisposables.add(newOutline.onDidChange(revealActiveElement));
 
 		// feature: update view when user state changes
-		this._editorControlDisposables.add(this._outlineViewState.onDidChange((e: { followCursor?: boolean, sortBy?: boolean, filterOnType?: boolean }) => {
+		this._editorControlDisposables.add(this._outlineViewState.onDidChange((e: { followCursor?: boolean; sortBy?: boolean; filterOnType?: boolean }) => {
 			this._outlineViewState.persist(this._storageService);
 			if (e.filterOnType) {
-				tree.updateOptions({ filterOnType: this._outlineViewState.filterOnType });
+				tree.findMode = this._outlineViewState.filterOnType ? TreeFindMode.Filter : TreeFindMode.Highlight;
 			}
 			if (e.followCursor) {
 				revealActiveElement();
@@ -341,9 +341,9 @@ export class OutlinePane extends ViewPane {
 		}));
 
 		// feature: expand all nodes when filtering (not when finding)
-		let viewState: IDataTreeViewState | undefined;
-		this._editorControlDisposables.add(tree.onDidChangeTypeFilterPattern(pattern => {
-			if (!tree.options.filterOnType) {
+		let viewState: AbstractTreeViewState | undefined;
+		this._editorControlDisposables.add(tree.onDidChangeFindPattern(pattern => {
+			if (tree.findMode === TreeFindMode.Highlight) {
 				return;
 			}
 			if (!viewState && pattern) {

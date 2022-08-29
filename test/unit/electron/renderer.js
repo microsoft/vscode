@@ -56,7 +56,7 @@
 		['rmdir', 1],
 	].forEach((element) => {
 		intercept(element[0], element[1]);
-	})
+	});
 })();
 
 const { ipcRenderer } = require('electron');
@@ -72,12 +72,12 @@ if (util.inspect && util.inspect['defaultOptions']) {
 	util.inspect['defaultOptions'].customInspect = false;
 }
 
-let _tests_glob = '**/test/**/*.test.js';
+const _tests_glob = '**/test/**/*.test.js';
 let loader;
 let _out;
 
 function initLoader(opts) {
-	let outdir = opts.build ? 'out-build' : 'out';
+	const outdir = opts.build ? 'out-build' : 'out';
 	_out = path.join(__dirname, `../../../${outdir}`);
 
 	// setup loader
@@ -107,6 +107,12 @@ function createCoverageReport(opts) {
 		return coverage.createReport(opts.run || opts.runGlob);
 	}
 	return Promise.resolve(undefined);
+}
+
+function loadWorkbenchTestingUtilsModule() {
+	return new Promise((resolve, reject) => {
+		loader.require(['vs/workbench/test/common/utils'], resolve, reject);
+	});
 }
 
 function loadTestModules(opts) {
@@ -166,17 +172,31 @@ function loadTests(opts) {
 		});
 	});
 
-	return loadTestModules(opts).then(() => {
-		suite('Unexpected Errors & Loader Errors', function () {
-			test('should not have unexpected errors', function () {
-				const errors = _unexpectedErrors.concat(_loaderErrors);
-				if (errors.length) {
-					errors.forEach(function (stack) {
-						console.error('');
-						console.error(stack);
-					});
-					assert.ok(false, errors);
-				}
+	return loadWorkbenchTestingUtilsModule().then((workbenchTestingModule) => {
+		const assertCleanState = workbenchTestingModule.assertCleanState;
+
+		suite('Tests are using suiteSetup and setup correctly', () => {
+			test('assertCleanState - check that registries are clean at the start of test running', () => {
+				assertCleanState();
+			});
+		});
+
+		return loadTestModules(opts).then(() => {
+			suite('Unexpected Errors & Loader Errors', function () {
+				test('should not have unexpected errors', function () {
+					const errors = _unexpectedErrors.concat(_loaderErrors);
+					if (errors.length) {
+						errors.forEach(function (stack) {
+							console.error('');
+							console.error(stack);
+						});
+						assert.ok(false, errors);
+					}
+				});
+
+				test('assertCleanState - check that registries are clean and objects are disposed at the end of test running', () => {
+					assertCleanState();
+				});
 			});
 		});
 	});

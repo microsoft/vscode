@@ -7,10 +7,11 @@ import { findFirstInSorted } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { once } from 'vs/base/common/functional';
+import { Iterable } from 'vs/base/common/iterator';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ExtensionRunTestsRequest, ITestRunProfile, ResolvedTestRunRequest, TestResultItem, TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ExtensionRunTestsRequest, ITestRunProfile, ResolvedTestRunRequest, TestResultItem, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { ITestResult, LiveTestResult, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
@@ -21,6 +22,14 @@ export type ResultChangeEvent =
 	| { started: LiveTestResult }
 	| { inserted: ITestResult }
 	| { removed: ITestResult[] };
+
+export const allChangedResults = (evt: ResultChangeEvent): Iterable<ITestResult> => 'completed' in evt
+	? Iterable.single(evt.completed)
+	: 'started' in evt
+		? Iterable.single(evt.started)
+		: 'inserted' in evt
+			? Iterable.single(evt.inserted)
+			: evt.removed;
 
 export interface ITestResultService {
 	readonly _serviceBrand: undefined;
@@ -143,6 +152,7 @@ export class TestResultService implements ITestResultService {
 		}
 
 		const resolved: ResolvedTestRunRequest = {
+			isUiTriggered: false,
 			targets: [],
 			exclude: req.exclude,
 			isAutoRun: false,

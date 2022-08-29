@@ -125,19 +125,24 @@ function createKeyboardMapper(layoutInfo: IKeyboardLayoutInfo | null, rawMapping
 }
 
 function isUSStandard(_kbInfo: IKeyboardLayoutInfo | null): boolean {
+	if (!_kbInfo) {
+		return false;
+	}
+
 	if (OS === OperatingSystem.Linux) {
 		const kbInfo = <ILinuxKeyboardLayoutInfo>_kbInfo;
-		return (kbInfo && (kbInfo.layout === 'us' || /^us,/.test(kbInfo.layout)));
+		const layouts = kbInfo.layout.split(/,/g);
+		return (layouts[kbInfo.group] === 'us');
 	}
 
 	if (OS === OperatingSystem.Macintosh) {
 		const kbInfo = <IMacKeyboardLayoutInfo>_kbInfo;
-		return (kbInfo && kbInfo.id === 'com.apple.keylayout.US');
+		return (kbInfo.id === 'com.apple.keylayout.US');
 	}
 
 	if (OS === OperatingSystem.Windows) {
 		const kbInfo = <IWindowsKeyboardLayoutInfo>_kbInfo;
-		return (kbInfo && kbInfo.name === '00000409');
+		return (kbInfo.name === '00000409');
 	}
 
 	return false;

@@ -15,10 +15,10 @@ export class ChecksumService implements IChecksumService {
 
 	constructor(@IFileService private readonly fileService: IFileService) { }
 
-	checksum(resource: URI): Promise<string> {
-		return new Promise<string>(async (resolve, reject) => {
+	async checksum(resource: URI): Promise<string> {
+		const stream = (await this.fileService.readFileStream(resource)).value;
+		return new Promise<string>((resolve, reject) => {
 			const hash = createHash('md5');
-			const stream = (await this.fileService.readFileStream(resource)).value;
 
 			listenStream(stream, {
 				onData: data => hash.update(data.buffer),

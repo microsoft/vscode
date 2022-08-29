@@ -24,18 +24,6 @@
 	}
 
 	/**
-	 * @param {string} type
-	 * @returns {type is 'uncaughtException'}
-	 */
-	function validateProcessEventType(type) {
-		if (type !== 'uncaughtException') {
-			throw new Error(`Unsupported process event '${type}'`);
-		}
-
-		return true;
-	}
-
-	/**
 	 * @param {string} key the name of the process argument to parse
 	 * @returns {string | undefined}
 	 */
@@ -157,7 +145,7 @@
 			/**
 			 * @param {string} channel
 			 * @param {any[]} args
-			 * @returns {Promise<any> | undefined}
+			 * @returns {Promise<any> | never}
 			 */
 			invoke(channel, ...args) {
 				if (validateIPC(channel)) {
@@ -168,7 +156,7 @@
 			/**
 			 * @param {string} channel
 			 * @param {(event: IpcRendererEvent, ...args: any[]) => void} listener
-			 * @returns {IpcRenderer}
+			 * @returns {IpcRenderer | never}
 			 */
 			on(channel, listener) {
 				if (validateIPC(channel)) {
@@ -181,7 +169,7 @@
 			/**
 			 * @param {string} channel
 			 * @param {(event: IpcRendererEvent, ...args: any[]) => void} listener
-			 * @returns {IpcRenderer}
+			 * @returns {IpcRenderer | never}
 			 */
 			once(channel, listener) {
 				if (validateIPC(channel)) {
@@ -194,7 +182,7 @@
 			/**
 			 * @param {string} channel
 			 * @param {(event: IpcRendererEvent, ...args: any[]) => void} listener
-			 * @returns {IpcRenderer}
+			 * @returns {IpcRenderer | never}
 			 */
 			removeListener(channel, listener) {
 				if (validateIPC(channel)) {
@@ -211,26 +199,24 @@
 		ipcMessagePort: {
 
 			/**
-			 * @param {string} channelRequest
-			 * @param {string} channelResponse
-			 * @param {string} requestNonce
+			 * @param {string} responseChannel
+			 * @param {string} nonce
 			 */
-			connect(channelRequest, channelResponse, requestNonce) {
-				if (validateIPC(channelRequest) && validateIPC(channelResponse)) {
+			acquire(responseChannel, nonce) {
+				if (validateIPC(responseChannel)) {
 					const responseListener = (/** @type {IpcRendererEvent} */ e, /** @type {string} */ responseNonce) => {
 						// validate that the nonce from the response is the same
 						// as when requested. and if so, use `postMessage` to
 						// send the `MessagePort` safely over, even when context
 						// isolation is enabled
-						if (requestNonce === responseNonce) {
-							ipcRenderer.off(channelResponse, responseListener);
-							window.postMessage(requestNonce, '*', e.ports);
+						if (nonce === responseNonce) {
+							ipcRenderer.off(responseChannel, responseListener);
+							window.postMessage(nonce, '*', e.ports);
 						}
 					};
 
-					// request message port from main and await result
-					ipcRenderer.on(channelResponse, responseListener);
-					ipcRenderer.send(channelRequest, requestNonce);
+					// handle reply from main
+					ipcRenderer.on(responseChannel, responseListener);
 				}
 			}
 		},
@@ -266,6 +252,7 @@
 			get platform() { return process.platform; },
 			get arch() { return process.arch; },
 			get env() { return { ...process.env }; },
+			get pid() { return process.pid; },
 			get versions() { return process.versions; },
 			get type() { return 'renderer'; },
 			get execPath() { return process.execPath; },
@@ -295,15 +282,11 @@
 			/**
 			 * @param {string} type
 			 * @param {Function} callback
-			 * @returns {ISandboxNodeProcess}
+			 * @returns {void}
 			 */
 			on(type, callback) {
-				if (validateProcessEventType(type)) {
-					// @ts-ignore
-					process.on(type, callback);
-
-					return this;
-				}
+				// @ts-ignore
+				process.on(type, callback);
 			}
 		},
 

@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from 'vs/base/common/buffer';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { MessageBoxOptions, MessageBoxReturnValue, MouseInputEvent, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'vs/base/parts/sandbox/common/electronTypes';
-import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
+import { ISerializableCommandAction } from 'vs/platform/action/common/action';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
-import { IColorScheme, IOpenedWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPartsSplash, IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { IPartsSplash } from 'vs/platform/theme/common/themeService';
+import { IColorScheme, IOpenedWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IWindowOpenable } from 'vs/platform/window/common/window';
 
 export interface ICPUProperties {
 	model: string;
@@ -51,7 +53,9 @@ export interface ICommonNativeHostService {
 
 	readonly onDidChangeColorScheme: Event<IColorScheme>;
 
-	readonly onDidChangePassword: Event<{ service: string, account: string }>;
+	readonly onDidChangePassword: Event<{ service: string; account: string }>;
+
+	readonly onDidTriggerSystemContextMenu: Event<{ windowId: number; x: number; y: number }>;
 
 	// Window
 	getWindows(): Promise<IOpenedWindow[]>;
@@ -70,6 +74,13 @@ export interface ICommonNativeHostService {
 	unmaximizeWindow(): Promise<void>;
 	minimizeWindow(): Promise<void>;
 
+	/**
+	 * Only supported on Windows and macOS. Updates the window controls to match the title bar size.
+	 *
+	 * @param options `backgroundColor` and `foregroundColor` are only supported on Windows
+	 */
+	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void>;
+
 	setMinimumSize(width: number | undefined, height: number | undefined): Promise<void>;
 
 	saveWindowSplash(splash: IPartsSplash): Promise<void>;
@@ -82,7 +93,7 @@ export interface ICommonNativeHostService {
 	 * should only be used if it is necessary to steal focus from the current
 	 * focused application which may not be VSCode.
 	 */
-	focusWindow(options?: { windowId?: number, force?: boolean }): Promise<void>;
+	focusWindow(options?: { windowId?: number; force?: boolean }): Promise<void>;
 
 	// Dialogs
 	showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue>;
@@ -108,6 +119,8 @@ export interface ICommonNativeHostService {
 	getOSStatistics(): Promise<IOSStatistics>;
 	getOSVirtualMachineHint(): Promise<number>;
 
+	getOSColorScheme(): Promise<IColorScheme>;
+
 	// Process
 	killProcess(pid: number, code: string): Promise<void>;
 
@@ -116,8 +129,8 @@ export interface ICommonNativeHostService {
 	writeClipboardText(text: string, type?: 'selection' | 'clipboard'): Promise<void>;
 	readClipboardFindText(): Promise<string>;
 	writeClipboardFindText(text: string): Promise<void>;
-	writeClipboardBuffer(format: string, buffer: Uint8Array, type?: 'selection' | 'clipboard'): Promise<void>;
-	readClipboardBuffer(format: string): Promise<Uint8Array>;
+	writeClipboardBuffer(format: string, buffer: VSBuffer, type?: 'selection' | 'clipboard'): Promise<void>;
+	readClipboardBuffer(format: string): Promise<VSBuffer>;
 	hasClipboard(format: string, type?: 'selection' | 'clipboard'): Promise<boolean>;
 
 	// macOS Touchbar
@@ -134,8 +147,8 @@ export interface ICommonNativeHostService {
 	uninstallShellCommand(): Promise<void>;
 
 	// Lifecycle
-	notifyReady(): Promise<void>
-	relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void>;
+	notifyReady(): Promise<void>;
+	relaunch(options?: { addArgs?: string[]; removeArgs?: string[] }): Promise<void>;
 	reload(options?: { disableExtensions?: boolean }): Promise<void>;
 	closeWindow(): Promise<void>;
 	closeWindowById(windowId: number): Promise<void>;
@@ -150,14 +163,8 @@ export interface ICommonNativeHostService {
 
 	// Connectivity
 	resolveProxy(url: string): Promise<string | undefined>;
+	findFreePort(startPort: number, giveUpAfter: number, timeout: number, stride?: number): Promise<number>;
 
 	// Registry (windows only)
 	windowsGetStringRegKey(hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined>;
-
-	// Credentials
-	getPassword(service: string, account: string): Promise<string | null>;
-	setPassword(service: string, account: string, password: string): Promise<void>;
-	deletePassword(service: string, account: string): Promise<boolean>;
-	findPassword(service: string): Promise<string | null>;
-	findCredentials(service: string): Promise<Array<{ account: string, password: string }>>
 }

@@ -11,7 +11,7 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { Action, IAction } from 'vs/base/common/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Codicon, registerCodicon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -29,38 +29,40 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILabelService } from 'vs/platform/label/common/label';
 import { WorkbenchTable } from 'vs/platform/list/browser/listService';
 import { Link } from 'vs/platform/opener/browser/link';
-import product from 'vs/platform/product/common/product';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { isVirtualResource, isVirtualWorkspace } from 'vs/platform/remote/common/remoteHosts';
+import { isVirtualResource, isVirtualWorkspace } from 'vs/platform/workspace/common/virtualWorkspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { buttonBackground, buttonSecondaryBackground, editorErrorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceContextService, toWorkspaceIdentifier, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { attachButtonStyler, attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { ISingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ChoiceAction } from 'vs/workbench/common/notifications';
 import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/debugColors';
 import { IExtensionsWorkbenchService, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID } from 'vs/workbench/contrib/extensions/common/extensions';
-import { settingsEditIcon, settingsRemoveIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { getExtensionDependencies } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { EnablementState, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { posix } from 'vs/base/common/path';
+import { posix, win32 } from 'vs/base/common/path';
+import { hasDriveLetter, toSlashes } from 'vs/base/common/extpath';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
-export const shieldIcon = registerCodicon('workspace-trust-icon', Codicon.shield);
+export const shieldIcon = registerIcon('workspace-trust-banner', Codicon.shield, localize('shieldIcon', 'Icon for workspace trust ion the banner.'));
 
-const checkListIcon = registerCodicon('workspace-trusted-check-icon', Codicon.check);
-const xListIcon = registerCodicon('workspace-trusted-x-icon', Codicon.x);
-const folderPickerIcon = registerCodicon('folder-picker', Codicon.folder);
+const checkListIcon = registerIcon('workspace-trust-editor-check', Codicon.check, localize('checkListIcon', 'Icon for the checkmark in the workspace trust editor.'));
+const xListIcon = registerIcon('workspace-trust-editor-cross', Codicon.x, localize('xListIcon', 'Icon for the cross in the workspace trust editor.'));
+const folderPickerIcon = registerIcon('workspace-trust-editor-folder-picker', Codicon.folder, localize('folderPickerIcon', 'Icon for the pick folder icon in the workspace trust editor.'));
+const editIcon = registerIcon('workspace-trust-editor-edit-folder', Codicon.edit, localize('editIcon', 'Icon for the edit folder icon in the workspace trust editor.'));
+const removeIcon = registerIcon('workspace-trust-editor-remove-folder', Codicon.close, localize('removeIcon', 'Icon for the remove folder icon in the workspace trust editor.'));
 
 interface ITrustedUriItem {
 	parentOfWorkspaceItem: boolean;
@@ -351,7 +353,6 @@ class WorkspaceTrustedUrisTable extends Disposable {
 				canSelectMany: false,
 				defaultUri: item.uri,
 				openLabel: localize('trustUri', "Trust Folder"),
-
 				title: localize('selectTrustedUri', "Select Folder To Trust")
 			});
 
@@ -418,7 +419,7 @@ class TrustedUriActionsColumnRenderer implements ITableRenderer<ITrustedUriItem,
 
 	private createEditAction(item: ITrustedUriItem): IAction {
 		return <IAction>{
-			class: ThemeIcon.asClassName(settingsEditIcon),
+			class: ThemeIcon.asClassName(editIcon),
 			enabled: true,
 			id: 'editTrustedUri',
 			tooltip: localize('editTrustedUri', "Edit Path"),
@@ -442,7 +443,7 @@ class TrustedUriActionsColumnRenderer implements ITableRenderer<ITrustedUriItem,
 
 	private createDeleteAction(item: ITrustedUriItem): IAction {
 		return <IAction>{
-			class: ThemeIcon.asClassName(settingsRemoveIcon),
+			class: ThemeIcon.asClassName(removeIcon),
 			enabled: true,
 			id: 'deleteTrustedUri',
 			tooltip: localize('deleteTrustedUri', "Delete Path"),
@@ -529,8 +530,10 @@ class TrustedUriPathColumnRenderer implements ITableRenderer<ITrustedUriItem, IT
 
 		const accept = () => {
 			hideInputBox();
-			const uri = item.uri.with({ path: templateData.pathInput.value });
-			templateData.pathLabel.innerText = templateData.pathInput.value;
+
+			const pathToUse = templateData.pathInput.value;
+			const uri = hasDriveLetter(pathToUse) ? item.uri.with({ path: posix.sep + toSlashes(pathToUse) }) : item.uri.with({ path: pathToUse });
+			templateData.pathLabel.innerText = this.formatPath(uri);
 
 			if (uri) {
 				this.table.acceptEdit(item, uri);
@@ -562,17 +565,33 @@ class TrustedUriPathColumnRenderer implements ITableRenderer<ITrustedUriItem, IT
 			reject();
 		})));
 
-		const stringValue = item.uri.scheme === Schemas.file ? URI.revive(item.uri).fsPath : item.uri.path;
+		const stringValue = this.formatPath(item.uri);
 		templateData.pathInput.value = stringValue;
 		templateData.pathLabel.innerText = stringValue;
 		templateData.element.classList.toggle('current-workspace-parent', item.parentOfWorkspaceItem);
-
-		// templateData.pathLabel.style.display = '';
 	}
 
 	disposeTemplate(templateData: ITrustedUriPathColumnTemplateData): void {
 		templateData.disposables.dispose();
 		templateData.renderDisposables.dispose();
+	}
+
+	private formatPath(uri: URI): string {
+		if (uri.scheme === Schemas.file) {
+			return uri.fsPath;
+		}
+
+		// If the path is not a file uri, but points to a windows remote, we should create windows fs path
+		// e.g. /c:/user/directory => C:\user\directory
+		if (uri.path.startsWith(posix.sep)) {
+			const pathWithoutLeadingSeparator = uri.path.substring(1);
+			const isWindowsPath = hasDriveLetter(pathWithoutLeadingSeparator, true);
+			if (isWindowsPath) {
+				return win32.normalize(pathWithoutLeadingSeparator);
+			}
+		}
+
+		return uri.path;
 	}
 
 }
@@ -666,7 +685,8 @@ export class WorkspaceTrustEditor extends EditorPane {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkbenchConfigurationService private readonly configurationService: IWorkbenchConfigurationService,
-		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService
+		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
+		@IProductService private readonly productService: IProductService
 	) { super(WorkspaceTrustEditor.ID, telemetryService, themeService, storageService); }
 
 	protected createEditor(parent: HTMLElement): void {
@@ -770,7 +790,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 	}
 
 	private getHeaderTitleIconClassNames(trusted: boolean): string[] {
-		return shieldIcon.classNamesArray;
+		return ThemeIcon.asClassNameArray(shieldIcon);
 	}
 
 	private getFeaturesHeaderText(trusted: boolean): [string, string] {
@@ -825,7 +845,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		const headerDescriptionText = append(this.headerDescription, $('div'));
 		headerDescriptionText.innerText = isWorkspaceTrusted ?
 			localize('trustedDescription', "All features are enabled because trust has been granted to the workspace.") :
-			localize('untrustedDescription', "{0} is in a restricted mode intended for safe code browsing.", product.nameShort);
+			localize('untrustedDescription', "{0} is in a restricted mode intended for safe code browsing.", this.productService.nameShort);
 
 		const headerDescriptionActions = append(this.headerDescription, $('div'));
 		const headerDescriptionActionsText = localize({ key: 'workspaceTrustEditorHeaderActions', comment: ['Please ensure the markdown link syntax is not broken up with whitespace [text block](link block)'] }, "[Configure your settings]({0}) or [learn more](https://aka.ms/vscode-workspace-trust).", `command:workbench.trust.configure`);
@@ -954,7 +974,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 				localize('trustedSettings', "All workspace settings are applied"),
 				localize('trustedExtensions', "All extensions are enabled")
 			];
-		this.renderLimitationsListElement(this.trustedContainer, trustedContainerItems, checkListIcon.classNamesArray);
+		this.renderLimitationsListElement(this.trustedContainer, trustedContainerItems, ThemeIcon.asClassNameArray(checkListIcon));
 
 		// Restricted Mode features
 		const [untrustedTitle, untrustedSubTitle] = this.getFeaturesHeaderText(false);
@@ -964,15 +984,15 @@ export class WorkspaceTrustEditor extends EditorPane {
 			[
 				localize('untrustedTasks', "Tasks are not allowed to run"),
 				localize('untrustedDebugging', "Debugging is disabled"),
-				localize({ key: 'untrustedExtensions', comment: ['Please ensure the markdown link syntax is not broken up with whitespace [text block](link block)'] }, "[{0} extensions]({1}) are disabled or have limited functionality", numExtensions, `command:${LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID}`)
+				fixBadLocalizedLinks(localize({ key: 'untrustedExtensions', comment: ['Please ensure the markdown link syntax is not broken up with whitespace [text block](link block)'] }, "[{0} extensions]({1}) are disabled or have limited functionality", numExtensions, `command:${LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID}`))
 			] :
 			[
 				localize('untrustedTasks', "Tasks are not allowed to run"),
 				localize('untrustedDebugging', "Debugging is disabled"),
-				numSettings ? localize({ key: 'untrustedSettings', comment: ['Please ensure the markdown link syntax is not broken up with whitespace [text block](link block)'] }, "[{0} workspace settings]({1}) are not applied", numSettings, 'command:settings.filterUntrusted') : localize('no untrustedSettings', "Workspace settings requiring trust are not applied"),
-				localize({ key: 'untrustedExtensions', comment: ['Please ensure the markdown link syntax is not broken up with whitespace [text block](link block)'] }, "[{0} extensions]({1}) are disabled or have limited functionality", numExtensions, `command:${LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID}`)
+				fixBadLocalizedLinks(numSettings ? localize({ key: 'untrustedSettings', comment: ['Please ensure the markdown link syntax is not broken up with whitespace [text block](link block)'] }, "[{0} workspace settings]({1}) are not applied", numSettings, 'command:settings.filterUntrusted') : localize('no untrustedSettings', "Workspace settings requiring trust are not applied")),
+				fixBadLocalizedLinks(localize({ key: 'untrustedExtensions', comment: ['Please ensure the markdown link syntax is not broken up with whitespace [text block](link block)'] }, "[{0} extensions]({1}) are disabled or have limited functionality", numExtensions, `command:${LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID}`))
 			];
-		this.renderLimitationsListElement(this.untrustedContainer, untrustedContainerItems, xListIcon.classNamesArray);
+		this.renderLimitationsListElement(this.untrustedContainer, untrustedContainerItems, ThemeIcon.asClassNameArray(xListIcon));
 
 		if (this.workspaceTrustManagementService.isWorkspaceTrusted()) {
 			if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
@@ -1093,7 +1113,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		}
 	}
 
-	private layoutParticipants: { layout: () => void; }[] = [];
+	private layoutParticipants: { layout: () => void }[] = [];
 	layout(dimension: Dimension): void {
 		if (!this.isVisible()) {
 			return;
@@ -1107,4 +1127,10 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 		this.bodyScrollBar.scanDomNode();
 	}
+}
+
+// Highly scoped fix for #126614
+function fixBadLocalizedLinks(badString: string): string {
+	const regex = /(.*)\[(.+)\]\s*\((.+)\)(.*)/; // markdown link match with spaces
+	return badString.replace(regex, '$1[$2]($3)$4');
 }

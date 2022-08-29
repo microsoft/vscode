@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -20,6 +21,11 @@ export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleSe
 export interface BeforeShutdownEvent {
 
 	/**
+	 * The reason why the application will be shutting down.
+	 */
+	readonly reason: ShutdownReason;
+
+	/**
 	 * Allows to veto the shutdown. The veto can be a long running operation but it
 	 * will block the application from closing.
 	 *
@@ -27,11 +33,41 @@ export interface BeforeShutdownEvent {
 	 * completes.
 	 */
 	veto(value: boolean | Promise<boolean>, id: string): void;
+}
+
+export interface InternalBeforeShutdownEvent extends BeforeShutdownEvent {
 
 	/**
-	 * The reason why the application will be shutting down.
+	 * Allows to set a veto operation to run after all other
+	 * vetos have been handled from the `BeforeShutdownEvent`
+	 *
+	 * This method is hidden from the API because it is intended
+	 * to be only used once internally.
+	 */
+	finalVeto(vetoFn: () => boolean | Promise<boolean>, id: string): void;
+}
+
+/**
+ * An event that signals an error happened during `onBeforeShutdown` veto handling.
+ * In this case the shutdown operation will not proceed because this is an unexpected
+ * condition that is treated like a veto.
+ */
+export interface BeforeShutdownErrorEvent {
+
+	/**
+	 * The reason why the application is shutting down.
 	 */
 	readonly reason: ShutdownReason;
+
+	/**
+	 * The error that happened during shutdown handling.
+	 */
+	readonly error: Error;
+}
+
+export interface IWillShutdownEventJoiner {
+	id: string;
+	label: string;
 }
 
 /**
@@ -45,33 +81,58 @@ export interface BeforeShutdownEvent {
 export interface WillShutdownEvent {
 
 	/**
-	 * Allows to join the shutdown. The promise can be a long running operation but it
-	 * will block the application from closing.
-	 *
-	 * @param id to identify the join operation in case it takes very long or never
-	 * completes.
-	 */
-	join(promise: Promise<void>, id: string): void;
-
-	/**
 	 * The reason why the application is shutting down.
 	 */
 	readonly reason: ShutdownReason;
+
+	/**
+	 * A token that will signal cancellation when the
+	 * shutdown was forced by the user.
+	 */
+	readonly token: CancellationToken;
+
+	/**
+	 * Allows to join the shutdown. The promise can be a long running operation but it
+	 * will block the application from closing.
+	 *
+	 * @param joiner to identify the join operation in case it takes very long or never
+	 * completes.
+	 */
+	join(promise: Promise<void>, joiner: IWillShutdownEventJoiner): void;
+
+	/**
+	 * Allows to access the joiners that have not finished joining this event.
+	 */
+	joiners(): IWillShutdownEventJoiner[];
+
+	/**
+	 * Allows to enforce the shutdown, even when there are
+	 * pending `join` operations to complete.
+	 */
+	force(): void;
 }
 
 export const enum ShutdownReason {
 
-	/** Window is closed */
+	/**
+	 * The window is closed.
+	 */
 	CLOSE = 1,
 
-	/** Application is quit */
-	QUIT = 2,
+	/**
+	 * The window closes because the application quits.
+	 */
+	QUIT,
 
-	/** Window is reloaded */
-	RELOAD = 3,
+	/**
+	 * The window is reloaded.
+	 */
+	RELOAD,
 
-	/** Other configuration loaded into window */
-	LOAD = 4
+	/**
+	 * The window is loaded into a different workspace context.
+	 */
+	LOAD
 }
 
 export const enum StartupKind {
@@ -119,7 +180,7 @@ export const enum LifecyclePhase {
 	Eventually = 4
 }
 
-export function LifecyclePhaseToString(phase: LifecyclePhase) {
+export function LifecyclePhaseToString(phase: LifecyclePhase): string {
 	switch (phase) {
 		case LifecyclePhase.Starting: return 'Starting';
 		case LifecyclePhase.Ready: return 'Ready';
@@ -155,6 +216,20 @@ export interface ILifecycleService {
 	readonly onBeforeShutdown: Event<BeforeShutdownEvent>;
 
 	/**
+	 * Fired when the shutdown was prevented by a component giving veto.
+	 */
+	readonly onShutdownVeto: Event<void>;
+
+	/**
+	 * Fired when an error happened during `onBeforeShutdown` veto handling.
+	 * In this case the shutdown operation will not proceed because this is
+	 * an unexpected condition that is treated like a veto.
+	 *
+	 * The event carries a shutdown reason that indicates how the shutdown was triggered.
+	 */
+	readonly onBeforeShutdownError: Event<BeforeShutdownErrorEvent>;
+
+	/**
 	 * Fired when no client is preventing the shutdown from happening (from `onBeforeShutdown`).
 	 *
 	 * This event can be joined with a long running operation via `WillShutdownEvent#join()` to
@@ -185,7 +260,7 @@ export interface ILifecycleService {
 	 * **Note:** this should normally not be called. See related methods in `IHostService`
 	 * and `INativeHostService` to close a window or quit the application.
 	 */
-	shutdown(): void;
+	shutdown(): Promise<void>;
 }
 
 export const NullLifecycleService: ILifecycleService = {
@@ -193,6 +268,8 @@ export const NullLifecycleService: ILifecycleService = {
 	_serviceBrand: undefined,
 
 	onBeforeShutdown: Event.None,
+	onBeforeShutdownError: Event.None,
+	onShutdownVeto: Event.None,
 	onWillShutdown: Event.None,
 	onDidShutdown: Event.None,
 
@@ -200,5 +277,5 @@ export const NullLifecycleService: ILifecycleService = {
 	startupKind: StartupKind.NewWindow,
 
 	async when() { },
-	shutdown() { }
+	async shutdown() { }
 };

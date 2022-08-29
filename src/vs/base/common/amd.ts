@@ -26,7 +26,7 @@ export abstract class LoaderStats {
 		}
 
 		function diff(map: Map<string, number>, stat: LoaderEvent) {
-			let duration = map.get(stat.detail);
+			const duration = map.get(stat.detail);
 			if (!duration) {
 				// console.warn('BAD events, end WITHOUT start', stat);
 				// map.delete(stat.detail);
@@ -79,7 +79,7 @@ export abstract class LoaderStats {
 		nodeRequire.forEach(value => nodeRequireTotal += value);
 
 		function to2dArray(map: Map<string, number>): [string, number][] {
-			let res: [string, number][] = [];
+			const res: [string, number][] = [];
 			map.forEach((value, index) => res.push([index, value]));
 			return res;
 		}
@@ -96,7 +96,7 @@ export abstract class LoaderStats {
 	static toMarkdownTable(header: string[], rows: Array<Array<{ toString(): string } | undefined>>): string {
 		let result = '';
 
-		let lengths: number[] = [];
+		const lengths: number[] = [];
 		header.forEach((cell, ci) => {
 			lengths[ci] = cell.length;
 		});

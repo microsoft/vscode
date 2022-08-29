@@ -60,7 +60,11 @@
 			}
 		},
 		{
-			"scope": ["meta.embedded", "source.groovy.embedded"],
+			"scope": [
+				"meta.embedded",
+				"source.groovy.embedded",
+				"string meta.image.inline.markdown"
+			],
 			"settings": {
 				"foreground": "#d3af86"
 			}
@@ -293,6 +297,12 @@
 			"settings": {
 				"fontStyle": "italic",
 				"foreground": "#98676a"
+			}
+		},
+		{
+			"scope": "markup.strikethrough",
+			"settings": {
+				"fontStyle": "strikethrough"
 			}
 		},
 		{

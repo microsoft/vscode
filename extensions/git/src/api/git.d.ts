@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Uri, Event, Disposable, ProviderResult } from 'vscode';
+import { Uri, Event, Disposable, ProviderResult, Command } from 'vscode';
 export { ProviderResult } from 'vscode';
 
 export interface Git {
@@ -137,6 +137,9 @@ export interface CommitOptions {
 	empty?: boolean;
 	noVerify?: boolean;
 	requireUserConfig?: boolean;
+	useEditor?: boolean;
+	verbose?: boolean;
+	postCommitCommand?: string;
 }
 
 export interface FetchOptions {
@@ -172,6 +175,8 @@ export interface Repository {
 	show(ref: string, path: string): Promise<string>;
 	getCommit(ref: string): Promise<Commit>;
 
+	add(paths: string[]): Promise<void>;
+	revert(paths: string[]): Promise<void>;
 	clean(paths: string[]): Promise<void>;
 
 	apply(patch: string, reverse?: boolean): Promise<void>;
@@ -197,6 +202,9 @@ export interface Repository {
 	setBranchUpstream(name: string, upstream: string): Promise<void>;
 
 	getMergeBase(ref1: string, ref2: string): Promise<string>;
+
+	tag(name: string, upstream: string): Promise<void>;
+	deleteTag(name: string): Promise<void>;
 
 	status(): Promise<void>;
 	checkout(treeish: string): Promise<void>;
@@ -231,6 +239,12 @@ export interface RemoteSourceProvider {
 	publishRepository?(repository: Repository): Promise<void>;
 }
 
+export interface RemoteSourcePublisher {
+	readonly name: string;
+	readonly icon?: string; // codicon name
+	publishRepository(repository: Repository): Promise<void>;
+}
+
 export interface Credentials {
 	readonly username: string;
 	readonly password: string;
@@ -238,6 +252,12 @@ export interface Credentials {
 
 export interface CredentialsProvider {
 	getCredentials(host: Uri): ProviderResult<Credentials>;
+}
+
+export type CommitCommand = Command & { description?: string };
+
+export interface PostCommitCommandsProvider {
+	getCommands(repository: Repository): CommitCommand[];
 }
 
 export interface PushErrorHandler {
@@ -265,8 +285,10 @@ export interface API {
 	init(root: Uri): Promise<Repository | null>;
 	openRepository(root: Uri): Promise<Repository | null>
 
+	registerRemoteSourcePublisher(publisher: RemoteSourcePublisher): Disposable;
 	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable;
 	registerCredentialsProvider(provider: CredentialsProvider): Disposable;
+	registerPostCommitCommandsProvider(provider: PostCommitCommandsProvider): Disposable;
 	registerPushErrorHandler(handler: PushErrorHandler): Disposable;
 }
 
@@ -278,7 +300,7 @@ export interface GitExtension {
 	/**
 	 * Returns a specific API version.
 	 *
-	 * Throws error if git extension is disabled. You can listed to the
+	 * Throws error if git extension is disabled. You can listen to the
 	 * [GitExtension.onDidChangeEnablement](#GitExtension.onDidChangeEnablement) event
 	 * to know when the extension becomes enabled/disabled.
 	 *
@@ -324,4 +346,5 @@ export const enum GitErrorCodes {
 	PatchDoesNotApply = 'PatchDoesNotApply',
 	NoPathFound = 'NoPathFound',
 	UnknownPath = 'UnknownPath',
+	EmptyCommitMessage = 'EmptyCommitMessage'
 }

@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { SimpleBrowserManager } from './simpleBrowserManager';
+import { SimpleBrowserView } from './simpleBrowserView';
 
 declare class URL {
 	constructor(input: string, base?: string | URL);
@@ -31,12 +32,21 @@ const enabledHosts = new Set<string>([
 	'::'
 ]);
 
+const IPv6Localhost = /0\:0\:0\:0\:0\:0\:0\:1|\:\:1/;
+const IPv6AllInterfaces = /0\:0\:0\:0\:0\:0\:0\:0|\:\:/;
+
 const openerId = 'simpleBrowser.open';
 
 export function activate(context: vscode.ExtensionContext) {
 
 	const manager = new SimpleBrowserManager(context.extensionUri);
 	context.subscriptions.push(manager);
+
+	context.subscriptions.push(vscode.window.registerWebviewPanelSerializer(SimpleBrowserView.viewType, {
+		deserializeWebviewPanel: async (panel, state) => {
+			manager.restore(panel, state);
+		}
+	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand(showCommand, async (url?: string) => {
 		if (!url) {
@@ -52,15 +62,16 @@ export function activate(context: vscode.ExtensionContext) {
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand(openApiCommand, (url: vscode.Uri, showOptions?: {
-		preserveFocus?: boolean,
-		viewColumn: vscode.ViewColumn,
+		preserveFocus?: boolean;
+		viewColumn: vscode.ViewColumn;
 	}) => {
 		manager.show(url.toString(), showOptions);
 	}));
 
 	context.subscriptions.push(vscode.window.registerExternalUriOpener(openerId, {
 		canOpenExternalUri(uri: vscode.Uri) {
-			const originalUri = new URL(uri.toString());
+			// We have to replace the IPv6 hosts with IPv4 because URL can't handle IPv6.
+			const originalUri = new URL(uri.toString().replace(IPv6Localhost, '127.0.0.1').replace(IPv6AllInterfaces, '0.0.0.0'));
 			if (enabledHosts.has(originalUri.hostname)) {
 				return isWeb()
 					? vscode.ExternalUriOpenerPriority.Default

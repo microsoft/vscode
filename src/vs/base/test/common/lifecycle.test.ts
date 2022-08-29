@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { Emitter } from 'vs/base/common/event';
-import { DisposableStore, dispose, IDisposable, markAsSingleton, MultiDisposeError, ReferenceCollection, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, IDisposable, markAsSingleton, MultiDisposeError, ReferenceCollection, SafeDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite, throwIfDisposablesAreLeaked } from 'vs/base/test/common/utils';
 
 class Disposable implements IDisposable {
@@ -95,17 +95,36 @@ suite('Lifecycle', () => {
 	});
 
 	test('Action bar has broken accessibility #100273', function () {
-		let array = [{ dispose() { } }, { dispose() { } }];
-		let array2 = dispose(array);
+		const array = [{ dispose() { } }, { dispose() { } }];
+		const array2 = dispose(array);
 
 		assert.strictEqual(array.length, 2);
 		assert.strictEqual(array2.length, 0);
 		assert.ok(array !== array2);
 
-		let set = new Set<IDisposable>([{ dispose() { } }, { dispose() { } }]);
-		let setValues = set.values();
-		let setValues2 = dispose(setValues);
+		const set = new Set<IDisposable>([{ dispose() { } }, { dispose() { } }]);
+		const setValues = set.values();
+		const setValues2 = dispose(setValues);
 		assert.ok(setValues === setValues2);
+	});
+
+	test('SafeDisposable, dispose', function () {
+		let disposed = 0;
+		const actual = () => disposed += 1;
+		const d = new SafeDisposable();
+		d.set(actual);
+		d.dispose();
+		assert.strictEqual(disposed, 1);
+	});
+
+	test('SafeDisposable, unset', function () {
+		let disposed = 0;
+		const actual = () => disposed += 1;
+		const d = new SafeDisposable();
+		d.set(actual);
+		d.unset();
+		d.dispose();
+		assert.strictEqual(disposed, 0);
 	});
 });
 
@@ -259,4 +278,3 @@ suite('No Leakage Utilities', () => {
 		});
 	});
 });
-

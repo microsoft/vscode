@@ -15,8 +15,8 @@ export class ReplacePattern {
 	private _regExp: RegExp;
 	private _caseOpsRegExp: RegExp;
 
-	constructor(replaceString: string, searchPatternInfo: IPatternInfo)
-	constructor(replaceString: string, parseParameters: boolean, regEx: RegExp)
+	constructor(replaceString: string, searchPatternInfo: IPatternInfo);
+	constructor(replaceString: string, parseParameters: boolean, regEx: RegExp);
 	constructor(replaceString: string, arg2: any, arg3?: any) {
 		this._replacePattern = replaceString;
 		let searchPatternInfo: IPatternInfo;
@@ -39,7 +39,7 @@ export class ReplacePattern {
 			this._regExp = strings.createRegExp(this._regExp.source, true, { matchCase: !this._regExp.ignoreCase, wholeWord: false, multiline: this._regExp.multiline, global: false });
 		}
 
-		this._caseOpsRegExp = new RegExp(/(.*?)((?:\\[uUlL])+?|)(\$[0-9]+)(.*?)/g);
+		this._caseOpsRegExp = new RegExp(/([\s\S]*?)((?:\\[uUlL])+?|)(\$[0-9]+)([\s\S]*?)/g);
 	}
 
 	get hasParameters(): boolean {
@@ -234,7 +234,7 @@ export class ReplacePattern {
 					case CharCode.SingleQuote:
 						this._hasParameters = true;
 						break;
-					default:
+					default: {
 						// check if it is a valid string parameter $n (0 <= n <= 99). $0 is already handled by now.
 						if (!this.between(nextChCode, CharCode.Digit1, CharCode.Digit9)) {
 							break;
@@ -260,6 +260,7 @@ export class ReplacePattern {
 							break;
 						}
 						break;
+					}
 				}
 
 				if (replaceWithCharacter) {

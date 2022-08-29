@@ -7,9 +7,10 @@ import { URI } from 'vs/base/common/uri';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IMarkerListProvider, MarkerList, IMarkerNavigationService } from 'vs/editor/contrib/gotoError/markerNavigationService';
+import { IMarkerListProvider, MarkerList, IMarkerNavigationService } from 'vs/editor/contrib/gotoError/browser/markerNavigationService';
 import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 class MarkerListProvider implements IMarkerListProvider {
@@ -19,6 +20,7 @@ class MarkerListProvider implements IMarkerListProvider {
 	constructor(
 		@IMarkerService private readonly _markerService: IMarkerService,
 		@IMarkerNavigationService markerNavigation: IMarkerNavigationService,
+		@IConfigurationService private readonly _configService: IConfigurationService,
 	) {
 		this._dispoables = markerNavigation.registerProvider(this);
 	}
@@ -38,7 +40,7 @@ class MarkerListProvider implements IMarkerListProvider {
 		return new MarkerList(uri => {
 			const otherData = CellUri.parse(uri);
 			return otherData?.notebook.toString() === data.notebook.toString();
-		}, this._markerService);
+		}, this._markerService, this._configService);
 	}
 }
 

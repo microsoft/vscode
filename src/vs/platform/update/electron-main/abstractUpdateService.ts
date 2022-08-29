@@ -19,7 +19,9 @@ export function createUpdateURL(platform: string, quality: string, productServic
 }
 
 export type UpdateNotAvailableClassification = {
-	explicit: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+	owner: 'joaomoreno';
+	explicit: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the user has manually checked for updates, or this was an automatic check.' };
+	comment: 'This is used to understand how often VS Code pings the update server for an update and there\'s none available.';
 };
 
 export abstract class AbstractUpdateService implements IUpdateService {
@@ -57,7 +59,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	 * optimization, to avoid using extra CPU cycles before first window open.
 	 * https://github.com/microsoft/vscode/issues/89784
 	 */
-	initialize(): void {
+	async initialize(): Promise<void> {
 		if (!this.environmentMainService.isBuilt) {
 			return; // updates are never enabled when running out of sources
 		}
@@ -104,7 +106,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		}
 	}
 
-	private getUpdateMode(): 'none' | 'manual' | 'start' | 'default' {
+	protected getUpdateMode(): 'none' | 'manual' | 'start' | 'default' {
 		return getMigratedSettingValue<'none' | 'manual' | 'start' | 'default'>(this.configurationService, 'update.mode', 'update.channel');
 	}
 
@@ -184,7 +186,11 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	async isLatestVersion(): Promise<boolean | undefined> {
 		if (!this.url) {
 			return undefined;
-		} else if (this.getUpdateMode() === 'none') {
+		}
+
+		const mode = await this.getUpdateMode();
+
+		if (mode === 'none') {
 			return false;
 		}
 
@@ -193,6 +199,10 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		// The update server replies with 204 (No Content) when no
 		// update is available - that's all we want to know.
 		return context.res.statusCode === 204;
+	}
+
+	async _applySpecificUpdate(packagePath: string): Promise<void> {
+		// noop
 	}
 
 	protected getUpdateType(): UpdateType {

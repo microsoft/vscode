@@ -62,7 +62,7 @@ export class JSONEditingService implements IJSONEditingService {
 		const startPosition = model.getPositionAt(edit.offset);
 		const endPosition = model.getPositionAt(edit.offset + edit.length);
 		const range = new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column);
-		let currentText = model.getValueInRange(range);
+		const currentText = model.getValueInRange(range);
 		if (edit.content !== currentText) {
 			const editOperation = currentText ? EditOperation.replace(range, edit.content) : EditOperation.insert(startPosition, edit.content);
 			model.pushEditOperations([new Selection(startPosition.lineNumber, startPosition.column, startPosition.lineNumber, startPosition.column)], [editOperation], () => []);
@@ -134,7 +134,7 @@ export class JSONEditingService implements IJSONEditingService {
 				return nls.localize('errorInvalidFile', "Unable to write into the file. Please open the file to correct errors/warnings in the file and try again.");
 			}
 			case JSONEditingErrorCode.ERROR_FILE_DIRTY: {
-				return nls.localize('errorFileDirty', "Unable to write into the file because the file is dirty. Please save the file and try again.");
+				return nls.localize('errorFileDirty', "Unable to write into the file because the file has unsaved changes. Please save the file and try again.");
 			}
 		}
 	}

@@ -6,7 +6,7 @@
 import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWindowsConfiguration } from 'vs/platform/windows/common/windows';
+import { IWindowsConfiguration, IWindowSettings } from 'vs/platform/window/common/window';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
@@ -15,30 +15,33 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
-import { isMacintosh, isNative, isLinux } from 'vs/base/common/platform';
+import { isMacintosh, isNative, isLinux, isWindows } from 'vs/base/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IProductService } from 'vs/platform/product/common/productService';
 
 interface IConfiguration extends IWindowsConfiguration {
-	update?: { mode?: string; };
+	update?: { mode?: string };
 	debug?: { console?: { wordWrap?: boolean } };
 	editor?: { accessibilitySupport?: 'on' | 'off' | 'auto' };
 	security?: { workspace?: { trust?: { enabled?: boolean } } };
-	files?: { legacyWatcher?: boolean };
+	window: IWindowSettings & { experimental?: { windowControlsOverlay?: { enabled?: boolean }; useSandbox?: boolean } };
+	workbench?: { experimental?: { settingsProfiles?: { enabled?: boolean } } };
 }
 
 export class SettingsChangeRelauncher extends Disposable implements IWorkbenchContribution {
 
 	private titleBarStyle: 'native' | 'custom' | undefined;
+	private windowControlsOverlayEnabled: boolean | undefined;
+	private windowSandboxEnabled: boolean | undefined;
 	private nativeTabs: boolean | undefined;
 	private nativeFullScreen: boolean | undefined;
 	private clickThroughInactive: boolean | undefined;
 	private updateMode: string | undefined;
 	private accessibilitySupport: 'on' | 'off' | 'auto' | undefined;
 	private workspaceTrustEnabled: boolean | undefined;
-	private legacyFileWatcher: boolean | undefined = undefined;
+	private settingsProfilesEnabled: boolean | undefined;
 
 	constructor(
 		@IHostService private readonly hostService: IHostService,
@@ -60,6 +63,18 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 			// Titlebar style
 			if (typeof config.window?.titleBarStyle === 'string' && config.window?.titleBarStyle !== this.titleBarStyle && (config.window.titleBarStyle === 'native' || config.window.titleBarStyle === 'custom')) {
 				this.titleBarStyle = config.window.titleBarStyle;
+				changed = true;
+			}
+
+			// Windows: Window Controls Overlay
+			if (isWindows && typeof config.window?.experimental?.windowControlsOverlay?.enabled === 'boolean' && config.window.experimental.windowControlsOverlay.enabled !== this.windowControlsOverlayEnabled) {
+				this.windowControlsOverlayEnabled = config.window.experimental.windowControlsOverlay.enabled;
+				changed = true;
+			}
+
+			// Windows: Sandbox
+			if (typeof config.window?.experimental?.useSandbox === 'boolean' && config.window.experimental.useSandbox !== this.windowSandboxEnabled) {
+				this.windowSandboxEnabled = config.window.experimental.useSandbox;
 				changed = true;
 			}
 
@@ -100,12 +115,12 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 				this.workspaceTrustEnabled = config.security.workspace.trust.enabled;
 				changed = true;
 			}
+		}
 
-			// Legacy File Watcher
-			if (typeof config.files?.legacyWatcher === 'boolean' && config.files.legacyWatcher !== this.legacyFileWatcher) {
-				this.legacyFileWatcher = config.files.legacyWatcher;
-				changed = true;
-			}
+		// Profiles
+		if (this.productService.quality === 'stable' && typeof config.workbench?.experimental?.settingsProfiles?.enabled === 'boolean' && config.workbench.experimental.settingsProfiles.enabled !== this.settingsProfilesEnabled) {
+			this.settingsProfilesEnabled = config.workbench.experimental.settingsProfiles.enabled;
+			changed = true;
 		}
 
 		// Notify only when changed and we are the focused window (avoids notification spam across windows)
@@ -170,9 +185,7 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 			});
 
 		this._register(toDisposable(() => {
-			if (this.onDidChangeWorkspaceFoldersUnbind) {
-				this.onDidChangeWorkspaceFoldersUnbind.dispose();
-			}
+			this.onDidChangeWorkspaceFoldersUnbind?.dispose();
 		}));
 	}
 

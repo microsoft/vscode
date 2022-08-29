@@ -34,13 +34,13 @@ function uriFromRawUrl(url: string): URI | null {
  */
 export class ElectronURLListener {
 
-	private uris: { uri: URI, url: string }[] = [];
+	private uris: { uri: URI; url: string }[] = [];
 	private retryCount = 0;
 	private flushDisposable: IDisposable = Disposable.None;
 	private disposables = new DisposableStore();
 
 	constructor(
-		initialUrisToHandle: { uri: URI, url: string }[],
+		initialUrisToHandle: { uri: URI; url: string }[],
 		private readonly urlService: IURLService,
 		windowsMainService: IWindowsMainService,
 		environmentMainService: IEnvironmentMainService,
@@ -92,7 +92,7 @@ export class ElectronURLListener {
 			return;
 		}
 
-		const uris: { uri: URI, url: string }[] = [];
+		const uris: { uri: URI; url: string }[] = [];
 
 		for (const obj of this.uris) {
 			const handled = await this.urlService.open(obj.uri, { originalUrl: obj.url });

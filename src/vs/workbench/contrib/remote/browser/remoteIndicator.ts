@@ -16,8 +16,8 @@ import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/c
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Schemas } from 'vs/base/common/network';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { QuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -25,7 +25,8 @@ import { isWeb } from 'vs/base/common/platform';
 import { once } from 'vs/base/common/functional';
 import { truncate } from 'vs/base/common/strings';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { getRemoteName, getVirtualWorkspaceLocation } from 'vs/platform/remote/common/remoteHosts';
+import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
+import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtualWorkspace';
 import { getCodiconAriaLabel } from 'vs/base/common/codicons';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ReloadWindowAction } from 'vs/workbench/browser/actions/windowActions';
@@ -33,10 +34,9 @@ import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common
 import { IExtensionsViewPaneContainer, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { RemoteNameContext, VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
+import { RemoteNameContext, VirtualWorkspaceContext } from 'vs/workbench/common/contextkeys';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
-
 
 type ActionGroup = [string, Array<MenuItemAction | SubmenuItemAction>];
 export class RemoteStatusIndicator extends Disposable implements IWorkbenchContribution {
@@ -66,7 +66,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	constructor(
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IMenuService private menuService: IMenuService,
@@ -254,7 +254,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 	}
 
 	private validatedGroup(group: string) {
-		if (!group.match(/^(remote|virtualfs)_(\d\d)_(([a-z][a-z0-9+\-.]*)_(.*))$/)) {
+		if (!group.match(/^(remote|virtualfs)_(\d\d)_(([a-z][a-z0-9+.-]*)_(.*))$/)) {
 			if (!this.loggedInvalidGroupNames[group]) {
 				this.loggedInvalidGroupNames[group] = true;
 				this.logService.warn(`Invalid group name used in "statusBar/remoteIndicator" menu contribution: ${group}. Entries ignored. Expected format: 'remote_$ORDER_$REMOTENAME_$GROUPING or 'virtualfs_$ORDER_$FILESCHEME_$GROUPING.`);
@@ -273,15 +273,15 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private updateRemoteStatusIndicator(): void {
 
-		// Remote Indicator: show if provided via options
+		// Remote Indicator: show if provided via options, e.g. by the web embedder API
 		const remoteIndicator = this.environmentService.options?.windowIndicator;
 		if (remoteIndicator) {
 			this.renderRemoteStatusIndicator(truncate(remoteIndicator.label, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH), remoteIndicator.tooltip, remoteIndicator.command);
 			return;
 		}
 
-		// Remote Authority: show connection state
-		if (this.remoteAuthority) {
+		// Show for remote windows on the desktop, but not when in code server web
+		if (this.remoteAuthority && (!isWeb || this.environmentService.options?.webSocketFactory)) {
 			const hostLabel = this.labelService.getHostLabel(Schemas.vscodeRemote, this.remoteAuthority) || this.remoteAuthority;
 			switch (this.connectionState) {
 				case 'initializing':
@@ -293,7 +293,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				case 'disconnected':
 					this.renderRemoteStatusIndicator(`$(alert) ${nls.localize('disconnectedFrom', "Disconnected from {0}", truncate(hostLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH))}`);
 					break;
-				default:
+				default: {
 					const tooltip = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 					const hostNameTooltip = this.labelService.getHostTooltip(Schemas.vscodeRemote, this.remoteAuthority);
 					if (hostNameTooltip) {
@@ -302,9 +302,12 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 						tooltip.appendText(nls.localize({ key: 'host.tooltip', comment: ['{0} is a remote host name, e.g. Dev Container'] }, "Editing on {0}", hostLabel));
 					}
 					this.renderRemoteStatusIndicator(`$(remote) ${truncate(hostLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH)}`, tooltip);
+				}
 			}
 			return;
-		} else if (this.virtualWorkspaceLocation) {
+		}
+		// Show when in a virtual workspace
+		if (this.virtualWorkspaceLocation) {
 			// Workspace with label: indicate editing source
 			const workspaceLabel = this.labelService.getHostLabel(this.virtualWorkspaceLocation.scheme, this.virtualWorkspaceLocation.authority);
 			if (workspaceLabel) {
@@ -315,7 +318,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				} else {
 					tooltip.appendText(nls.localize({ key: 'workspace.tooltip', comment: ['{0} is a remote workspace name, e.g. GitHub'] }, "Editing on {0}", workspaceLabel));
 				}
-				if (!isWeb) {
+				if (!isWeb || this.remoteAuthority) {
 					tooltip.appendMarkdown('\n\n');
 					tooltip.appendMarkdown(nls.localize(
 						{ key: 'workspace.tooltip2', comment: ['[features are not available]({1}) is a link. Only translate `features are not available`. Do not change brackets and parentheses or {0}'] },
@@ -327,8 +330,8 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				return;
 			}
 		}
-		// Remote actions: offer menu
-		if (this.getRemoteMenuActions().length > 0) {
+		// Show when there are commands other than the 'install additional remote extensions' command.
+		if (this.hasRemoteMenuCommands(true)) {
 			this.renderRemoteStatusIndicator(`$(remote)`, nls.localize('noHost.tooltip', "Open a Remote Window"));
 			return;
 		}
@@ -340,7 +343,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private renderRemoteStatusIndicator(text: string, tooltip?: string | IMarkdownString, command?: string, showProgress?: boolean): void {
 		const name = nls.localize('remoteHost', "Remote Host");
-		if (typeof command !== 'string' && this.getRemoteMenuActions().length > 0) {
+		if (typeof command !== 'string' && (this.hasRemoteMenuCommands(false))) {
 			command = RemoteStatusIndicator.REMOTE_ACTIONS_COMMAND_ID;
 		}
 
@@ -383,7 +386,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		const computeItems = () => {
 			let actionGroups = this.getRemoteMenuActions(true);
 
-			const items: (IQuickPickItem | IQuickPickSeparator)[] = [];
+			const items: QuickPickItem[] = [];
 
 			const currentRemoteMatcher = matchCurrentRemote();
 			if (currentRemoteMatcher) {
@@ -400,9 +403,9 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 			let lastCategoryName: string | undefined = undefined;
 
-			for (let actionGroup of actionGroups) {
+			for (const actionGroup of actionGroups) {
 				let hasGroupCategory = false;
-				for (let action of actionGroup[1]) {
+				for (const action of actionGroup[1]) {
 					if (action instanceof MenuItemAction) {
 						if (!hasGroupCategory) {
 							const category = getCategoryLabel(action);
@@ -412,7 +415,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 							}
 							hasGroupCategory = true;
 						}
-						let label = typeof action.item.title === 'string' ? action.item.title : action.item.title.value;
+						const label = typeof action.item.title === 'string' ? action.item.title : action.item.title.value;
 						items.push({
 							type: 'item',
 							id: action.item.id,
@@ -426,7 +429,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				type: 'separator'
 			});
 
-			let entriesBeforeConfig = items.length;
+			const entriesBeforeConfig = items.length;
 
 			if (RemoteStatusIndicator.SHOW_CLOSE_REMOTE_COMMAND_ID) {
 				if (this.remoteAuthority) {
@@ -489,5 +492,16 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		quickPick.onDidHide(itemUpdater.dispose);
 
 		quickPick.show();
+	}
+
+	private hasRemoteMenuCommands(ignoreInstallAdditional: boolean): boolean {
+		if (this.remoteAuthority !== undefined || this.virtualWorkspaceLocation !== undefined) {
+			if (RemoteStatusIndicator.SHOW_CLOSE_REMOTE_COMMAND_ID) {
+				return true;
+			}
+		} else if (!ignoreInstallAdditional && this.extensionGalleryService.isEnabled()) {
+			return true;
+		}
+		return this.getRemoteMenuActions().length > 0;
 	}
 }

@@ -9,7 +9,8 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
 import { generateUuid } from 'vs/base/common/uuid';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import * as nls from 'vs/nls';
+import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -17,14 +18,22 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { IOverlayWebview } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewWindowDragMonitor } from 'vs/workbench/contrib/webview/browser/webviewWindowDragMonitor';
 import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
 import { IEditorDropService } from 'vs/workbench/services/editor/browser/editorDropService';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
+
+/**
+ * Tracks the id of the actively focused webview.
+ */
+export const CONTEXT_ACTIVE_WEBVIEW_PANEL_ID = new RawContextKey<string>('activeWebviewPanelId', '', {
+	type: 'string',
+	description: nls.localize('context.activeWebviewId', "The viewType of the currently active webview panel."),
+});
 
 export class WebviewEditor extends EditorPane {
 
@@ -47,6 +56,7 @@ export class WebviewEditor extends EditorPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
+		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IWorkbenchLayoutService private readonly _workbenchLayoutService: IWorkbenchLayoutService,
 		@IEditorDropService private readonly _editorDropService: IEditorDropService,
@@ -54,9 +64,15 @@ export class WebviewEditor extends EditorPane {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super(WebviewEditor.ID, telemetryService, themeService, storageService);
+
+		this._register(editorGroupsService.onDidScroll(() => {
+			if (this.webview && this._visible) {
+				this.synchronizeWebviewContainerDimensions(this.webview);
+			}
+		}));
 	}
 
-	private get webview(): WebviewOverlay | undefined {
+	private get webview(): IOverlayWebview | undefined {
 		return this.input instanceof WebviewInput ? this.input.webview : undefined;
 	}
 
@@ -82,7 +98,7 @@ export class WebviewEditor extends EditorPane {
 		super.dispose();
 	}
 
-	public layout(dimension: DOM.Dimension): void {
+	public override layout(dimension: DOM.Dimension): void {
 		this._dimension = dimension;
 		if (this.webview && this._visible) {
 			this.synchronizeWebviewContainerDimensions(this.webview, dimension);
@@ -175,13 +191,15 @@ export class WebviewEditor extends EditorPane {
 		this._webviewVisibleDisposables.add(this.trackFocus(input.webview));
 	}
 
-	private synchronizeWebviewContainerDimensions(webview: WebviewOverlay, dimension?: DOM.Dimension) {
-		if (this._element) {
-			webview.layoutWebviewOverElement(this._element.parentElement!, dimension);
+	private synchronizeWebviewContainerDimensions(webview: IOverlayWebview, dimension?: DOM.Dimension) {
+		if (!this._element) {
+			return;
 		}
+		const rootContainer = this._workbenchLayoutService.getContainer(Parts.EDITOR_PART);
+		webview.layoutWebviewOverElement(this._element.parentElement!, dimension, rootContainer);
 	}
 
-	private trackFocus(webview: WebviewOverlay): IDisposable {
+	private trackFocus(webview: IOverlayWebview): IDisposable {
 		const store = new DisposableStore();
 
 		// Track focus in webview content

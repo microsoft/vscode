@@ -5,11 +5,10 @@
 
 import { EditorAction, ServicesAccessor, IActionOptions } from 'vs/editor/browser/editorExtensions';
 import { grammarsExtPoint, ITMSyntaxExtensionPoint } from 'vs/workbench/services/textMate/common/TMGrammars';
-import { IModeService } from 'vs/editor/common/services/modeService';
 import { IExtensionService, ExtensionPointContribution } from 'vs/workbench/services/extensions/common/extensions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface ModeScopeMap {
 	[key: string]: string;
@@ -17,10 +16,6 @@ interface ModeScopeMap {
 
 export interface IGrammarContributions {
 	getGrammar(mode: string): string;
-}
-
-export interface ILanguageIdentifierResolver {
-	getLanguageIdentifier(modeId: string | LanguageId): LanguageIdentifier | null;
 }
 
 class GrammarContributions implements IGrammarContributions {
@@ -76,14 +71,18 @@ export abstract class EmmetEditorAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		const extensionService = accessor.get(IExtensionService);
-		const modeService = accessor.get(IModeService);
 		const commandService = accessor.get(ICommandService);
+		const configurationService = accessor.get(IConfigurationService);
+		const extensionService = accessor.get(IExtensionService);
 
 		return this._withGrammarContributions(extensionService).then((grammarContributions) => {
 
 			if (this.id === 'editor.emmet.action.expandAbbreviation' && grammarContributions) {
-				return commandService.executeCommand<void>('emmet.expandAbbreviation', EmmetEditorAction.getLanguage(modeService, editor, grammarContributions));
+				const languageInfo = EmmetEditorAction.getLanguage(editor, grammarContributions);
+				const languageId = languageInfo?.language;
+				if (configurationService.getValue('emmet.triggerExpansionOnTab', { overrideIdentifier: languageId }) === true) {
+					return commandService.executeCommand<void>('emmet.expandAbbreviation', languageInfo);
+				}
 			}
 
 			return undefined;
@@ -91,7 +90,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 
 	}
 
-	public static getLanguage(languageIdentifierResolver: ILanguageIdentifierResolver, editor: ICodeEditor, grammars: IGrammarContributions) {
+	public static getLanguage(editor: ICodeEditor, grammars: IGrammarContributions) {
 		const model = editor.getModel();
 		const selection = editor.getSelection();
 
@@ -100,22 +99,20 @@ export abstract class EmmetEditorAction extends EditorAction {
 		}
 
 		const position = selection.getStartPosition();
-		model.tokenizeIfCheap(position.lineNumber);
+		model.tokenization.tokenizeIfCheap(position.lineNumber);
 		const languageId = model.getLanguageIdAtPosition(position.lineNumber, position.column);
-		const languageIdentifier = languageIdentifierResolver.getLanguageIdentifier(languageId);
-		const language = languageIdentifier ? languageIdentifier.language : '';
-		const syntax = language.split('.').pop();
+		const syntax = languageId.split('.').pop();
 
 		if (!syntax) {
 			return null;
 		}
 
-		let checkParentMode = (): string => {
-			let languageGrammar = grammars.getGrammar(syntax);
+		const checkParentMode = (): string => {
+			const languageGrammar = grammars.getGrammar(syntax);
 			if (!languageGrammar) {
 				return syntax;
 			}
-			let languages = languageGrammar.split('.');
+			const languages = languageGrammar.split('.');
 			if (languages.length < 2) {
 				return syntax;
 			}

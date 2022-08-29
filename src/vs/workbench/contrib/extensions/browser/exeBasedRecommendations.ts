@@ -24,7 +24,7 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 		super();
 	}
 
-	getRecommendations(exe: string): { important: ExtensionRecommendation[], others: ExtensionRecommendation[] } {
+	getRecommendations(exe: string): { important: ExtensionRecommendation[]; others: ExtensionRecommendation[] } {
 		const important = this._importantTips
 			.filter(tip => tip.exeName.toLowerCase() === exe.toLowerCase())
 			.map(tip => this.toExtensionRecommendation(tip));

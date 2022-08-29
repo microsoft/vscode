@@ -64,8 +64,8 @@ suite('ExtensionManifestPropertiesService - ExtensionKind', () => {
 		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ browser: 'main.browser.js' }), ['web']);
 	});
 
-	test('simple descriptive with workspace, ui extensionKind => workspace, ui, web', () => {
-		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ extensionKind: ['workspace', 'ui'] }), ['workspace', 'ui', 'web']);
+	test('simple descriptive with workspace, ui extensionKind => workspace, ui, web in web and workspace, ui in desktop', () => {
+		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ extensionKind: ['workspace', 'ui'] }), isWeb ? ['workspace', 'ui', 'web'] : ['workspace', 'ui']);
 	});
 
 	test('opt out from web through settings even if it can run in web', () => {
@@ -87,7 +87,7 @@ suite('ExtensionManifestPropertiesService - ExtensionKind', () => {
 	});
 
 	test('extension cannot opt into web only', () => {
-		assert.deepStrictEqual(testObject.getExtensionKind(<any>{ main: 'main.js', extensionKind: ['web'] }), []);
+		assert.deepStrictEqual(testObject.getExtensionKind(<any>{ main: 'main.js', extensionKind: ['web'] }), ['workspace']);
 	});
 });
 

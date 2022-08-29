@@ -31,7 +31,7 @@ function getMockTheme(type: ColorScheme): IColorTheme {
 suite('Workbench - TerminalColorRegistry', () => {
 
 	test('hc colors', function () {
-		const theme = getMockTheme(ColorScheme.HIGH_CONTRAST);
+		const theme = getMockTheme(ColorScheme.HIGH_CONTRAST_DARK);
 		const colors = ansiColorIdentifiers.map(colorId => Color.Format.CSS.formatHexA(theme.getColor(colorId)!, true));
 
 		assert.deepStrictEqual(colors, [

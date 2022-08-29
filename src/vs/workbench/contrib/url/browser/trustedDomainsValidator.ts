@@ -8,7 +8,7 @@ import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
+import { IOpenerService, matchesScheme, OpenOptions } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -19,15 +19,11 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IdleValue } from 'vs/base/common/async';
-import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { testUrlMatchesGlob } from 'vs/workbench/contrib/url/common/urlGlob';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-
-type TrustedDomainsDialogActionClassification = {
-	action: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-};
 
 export class OpenerValidatorContributions implements IWorkbenchContribution {
 
@@ -49,7 +45,7 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustService: IWorkspaceTrustManagementService,
 	) {
-		this._openerService.registerValidator({ shouldOpen: r => this.validateLink(r) });
+		this._openerService.registerValidator({ shouldOpen: (uri, options) => this.validateLink(uri, options) });
 
 		this._readAuthenticationTrustedDomainsResult = new IdleValue(() =>
 			this._instantiationService.invokeFunction(readAuthenticationTrustedDomains));
@@ -68,12 +64,12 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 		});
 	}
 
-	async validateLink(resource: URI | string): Promise<boolean> {
+	async validateLink(resource: URI | string, openOptions?: OpenOptions): Promise<boolean> {
 		if (!matchesScheme(resource, Schemas.http) && !matchesScheme(resource, Schemas.https)) {
 			return true;
 		}
 
-		if (this._workspaceTrustService.isWorkspaceTrusted() && !this._configurationService.getValue('workbench.trustedDomains.promptInTrustedWorkspace')) {
+		if (openOptions?.fromWorkspace && this._workspaceTrustService.isWorkspaceTrusted() && !this._configurationService.getValue('workbench.trustedDomains.promptInTrustedWorkspace')) {
 			return true;
 		}
 
@@ -128,27 +124,14 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 
 			// Open Link
 			if (choice === 0) {
-				this._telemetryService.publicLog2<{ action: string }, TrustedDomainsDialogActionClassification>(
-					'trustedDomains.dialogAction',
-					{ action: 'open' }
-				);
 				return true;
 			}
 			// Copy Link
 			else if (choice === 1) {
-				this._telemetryService.publicLog2<{ action: string }, TrustedDomainsDialogActionClassification>(
-					'trustedDomains.dialogAction',
-					{ action: 'copy' }
-				);
 				this._clipboardService.writeText(typeof originalResource === 'string' ? originalResource : resource.toString(true));
 			}
 			// Configure Trusted Domains
 			else if (choice === 3) {
-				this._telemetryService.publicLog2<{ action: string }, TrustedDomainsDialogActionClassification>(
-					'trustedDomains.dialogAction',
-					{ action: 'configure' }
-				);
-
 				const pickedDomains = await configureOpenerTrustedDomainsHandler(
 					trustedDomains,
 					domainToOpen,
@@ -168,11 +151,6 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 				}
 				return false;
 			}
-
-			this._telemetryService.publicLog2<{ action: string }, TrustedDomainsDialogActionClassification>(
-				'trustedDomains.dialogAction',
-				{ action: 'cancel' }
-			);
 
 			return false;
 		}
@@ -222,7 +200,7 @@ export function isURLDomainTrusted(url: URI, trustedDomains: string[]) {
 			return true;
 		}
 
-		if (testUrlMatchesGlob(url.toString(), trustedDomains[i])) {
+		if (testUrlMatchesGlob(url, trustedDomains[i])) {
 			return true;
 		}
 	}

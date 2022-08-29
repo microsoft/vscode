@@ -9,7 +9,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
-import { InternalTestItem, ITestRunProfile, TestRunProfileBitset, testRunProfileBitsetList } from 'vs/workbench/contrib/testing/common/testCollection';
+import { InternalTestItem, ITestRunProfile, TestRunProfileBitset, testRunProfileBitsetList } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { IMainThreadTestController } from 'vs/workbench/contrib/testing/common/testService';
@@ -56,8 +56,8 @@ export interface ITestProfileService {
 	 * Gets all registered controllers, grouping by controller.
 	 */
 	all(): Iterable<Readonly<{
-		controller: IMainThreadTestController,
-		profiles: ITestRunProfile[],
+		controller: IMainThreadTestController;
+		profiles: ITestRunProfile[];
 	}>>;
 
 	/**
@@ -106,8 +106,8 @@ export class TestProfileService implements ITestProfileService {
 	private readonly capabilitiesContexts: { [K in TestRunProfileBitset]: IContextKey<boolean> };
 	private readonly changeEmitter = new Emitter<void>();
 	private readonly controllerProfiles = new Map</* controller ID */string, {
-		profiles: ITestRunProfile[],
-		controller: IMainThreadTestController,
+		profiles: ITestRunProfile[];
+		controller: IMainThreadTestController;
 	}>();
 
 	/** @inheritdoc */

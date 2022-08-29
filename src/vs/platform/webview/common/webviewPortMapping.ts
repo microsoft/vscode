@@ -7,7 +7,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IAddress } from 'vs/platform/remote/common/remoteAgentConnection';
-import { extractLocalHostUriMetaDataForPortMapping, ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
+import { extractLocalHostUriMetaDataForPortMapping, ITunnelService, RemoteTunnel } from 'vs/platform/tunnel/common/tunnel';
 
 export interface IWebviewPortMapping {
 	readonly webviewPort: number;

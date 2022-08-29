@@ -3,14 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStringDictionary } from 'vs/base/common/collections';
 import { Event } from 'vs/base/common/event';
-import * as objects from 'vs/base/common/objects';
 import * as types from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { Extensions, IConfigurationRegistry, overrideIdentifierFromKey, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 export const IConfigurationService = createDecorator<IConfigurationService>('configurationService');
@@ -27,8 +23,19 @@ export interface IConfigurationOverrides {
 	resource?: URI | null;
 }
 
+export function isConfigurationUpdateOverrides(thing: any): thing is IConfigurationUpdateOverrides {
+	return thing
+		&& typeof thing === 'object'
+		&& (!thing.overrideIdentifiers || Array.isArray(thing.overrideIdentifiers))
+		&& !thing.overrideIdentifier
+		&& (!thing.resource || thing.resource instanceof URI);
+}
+
+export type IConfigurationUpdateOverrides = Omit<IConfigurationOverrides, 'overrideIdentifier'> & { overrideIdentifiers?: string[] | null };
+
 export const enum ConfigurationTarget {
-	USER = 1,
+	APPLICATION = 1,
+	USER,
 	USER_LOCAL,
 	USER_REMOTE,
 	WORKSPACE,
@@ -38,6 +45,7 @@ export const enum ConfigurationTarget {
 }
 export function ConfigurationTargetToString(configurationTarget: ConfigurationTarget) {
 	switch (configurationTarget) {
+		case ConfigurationTarget.APPLICATION: return 'APPLICATION';
 		case ConfigurationTarget.USER: return 'USER';
 		case ConfigurationTarget.USER_LOCAL: return 'USER_LOCAL';
 		case ConfigurationTarget.USER_REMOTE: return 'USER_REMOTE';
@@ -68,21 +76,25 @@ export interface IConfigurationChangeEvent {
 export interface IConfigurationValue<T> {
 
 	readonly defaultValue?: T;
+	readonly applicationValue?: T;
 	readonly userValue?: T;
 	readonly userLocalValue?: T;
 	readonly userRemoteValue?: T;
 	readonly workspaceValue?: T;
 	readonly workspaceFolderValue?: T;
 	readonly memoryValue?: T;
+	readonly policyValue?: T;
 	readonly value?: T;
 
-	readonly default?: { value?: T, override?: T };
-	readonly user?: { value?: T, override?: T };
-	readonly userLocal?: { value?: T, override?: T };
-	readonly userRemote?: { value?: T, override?: T };
-	readonly workspace?: { value?: T, override?: T };
-	readonly workspaceFolder?: { value?: T, override?: T };
-	readonly memory?: { value?: T, override?: T };
+	readonly default?: { value?: T; override?: T };
+	readonly application?: { value?: T; override?: T };
+	readonly user?: { value?: T; override?: T };
+	readonly userLocal?: { value?: T; override?: T };
+	readonly userRemote?: { value?: T; override?: T };
+	readonly workspace?: { value?: T; override?: T };
+	readonly workspaceFolder?: { value?: T; override?: T };
+	readonly memory?: { value?: T; override?: T };
+	readonly policy?: { value?: T };
 
 	readonly overrideIdentifiers?: string[];
 }
@@ -107,10 +119,28 @@ export interface IConfigurationService {
 	getValue<T>(overrides: IConfigurationOverrides): T;
 	getValue<T>(section: string, overrides: IConfigurationOverrides): T;
 
+	/**
+	 * Update a configuration value.
+	 *
+	 * Use `target` to update the configuration in a specific `ConfigurationTarget`.
+	 *
+	 * Use `overrides` to update the configuration for a resource or for override identifiers or both.
+	 *
+	 * Passing a resource through overrides will update the configuration in the workspace folder containing that resource.
+	 *
+	 * *Note 1:* Updating configuraiton to a default value will remove the configuration from the requested target. If not target is passed, it will be removed from all writeable targets.
+	 *
+	 * *Note 2:* Use `undefined` value to remove the configuration from the given target. If not target is passed, it will be removed from all writeable targets.
+	 *
+	 * Use `donotNotifyError` and set it to `true` to surpresss errors.
+	 *
+	 * @param key setting to be updated
+	 * @param value The new value
+	 */
 	updateValue(key: string, value: any): Promise<void>;
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides): Promise<void>;
 	updateValue(key: string, value: any, target: ConfigurationTarget): Promise<void>;
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget, donotNotifyError?: boolean): Promise<void>;
+	updateValue(key: string, value: any, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides): Promise<void>;
+	updateValue(key: string, value: any, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides, target: ConfigurationTarget, donotNotifyError?: boolean): Promise<void>;
 
 	inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<Readonly<T>>;
 
@@ -139,6 +169,8 @@ export interface IOverrides {
 
 export interface IConfigurationData {
 	defaults: IConfigurationModel;
+	policy: IConfigurationModel;
+	application: IConfigurationModel;
 	user: IConfigurationModel;
 	workspace: IConfigurationModel;
 	folders: [UriComponents, IConfigurationModel][];
@@ -151,93 +183,10 @@ export interface IConfigurationCompareResult {
 	overrides: [string, string[]][];
 }
 
-export function compare(from: IConfigurationModel | undefined, to: IConfigurationModel | undefined): IConfigurationCompareResult {
-	const added = to
-		? from ? to.keys.filter(key => from.keys.indexOf(key) === -1) : [...to.keys]
-		: [];
-	const removed = from
-		? to ? from.keys.filter(key => to.keys.indexOf(key) === -1) : [...from.keys]
-		: [];
-	const updated: string[] = [];
-
-	if (to && from) {
-		for (const key of from.keys) {
-			if (to.keys.indexOf(key) !== -1) {
-				const value1 = getConfigurationValue(from.contents, key);
-				const value2 = getConfigurationValue(to.contents, key);
-				if (!objects.equals(value1, value2)) {
-					updated.push(key);
-				}
-			}
-		}
-	}
-
-	const overrides: [string, string[]][] = [];
-	const byOverrideIdentifier = (overrides: IOverrides[]): IStringDictionary<IOverrides> => {
-		const result: IStringDictionary<IOverrides> = {};
-		for (const override of overrides) {
-			for (const identifier of override.identifiers) {
-				result[keyFromOverrideIdentifier(identifier)] = override;
-			}
-		}
-		return result;
-	};
-	const toOverridesByIdentifier: IStringDictionary<IOverrides> = to ? byOverrideIdentifier(to.overrides) : {};
-	const fromOverridesByIdentifier: IStringDictionary<IOverrides> = from ? byOverrideIdentifier(from.overrides) : {};
-
-	if (Object.keys(toOverridesByIdentifier).length) {
-		for (const key of added) {
-			const override = toOverridesByIdentifier[key];
-			if (override) {
-				overrides.push([overrideIdentifierFromKey(key), override.keys]);
-			}
-		}
-	}
-	if (Object.keys(fromOverridesByIdentifier).length) {
-		for (const key of removed) {
-			const override = fromOverridesByIdentifier[key];
-			if (override) {
-				overrides.push([overrideIdentifierFromKey(key), override.keys]);
-			}
-		}
-	}
-
-	if (Object.keys(toOverridesByIdentifier).length && Object.keys(fromOverridesByIdentifier).length) {
-		for (const key of updated) {
-			const fromOverride = fromOverridesByIdentifier[key];
-			const toOverride = toOverridesByIdentifier[key];
-			if (fromOverride && toOverride) {
-				const result = compare({ contents: fromOverride.contents, keys: fromOverride.keys, overrides: [] }, { contents: toOverride.contents, keys: toOverride.keys, overrides: [] });
-				overrides.push([overrideIdentifierFromKey(key), [...result.added, ...result.removed, ...result.updated]]);
-			}
-		}
-	}
-
-	return { added, removed, updated, overrides };
-}
-
-export function toOverrides(raw: any, conflictReporter: (message: string) => void): IOverrides[] {
-	const overrides: IOverrides[] = [];
-	for (const key of Object.keys(raw)) {
-		if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
-			const overrideRaw: any = {};
-			for (const keyInOverrideRaw in raw[key]) {
-				overrideRaw[keyInOverrideRaw] = raw[key][keyInOverrideRaw];
-			}
-			overrides.push({
-				identifiers: [overrideIdentifierFromKey(key).trim()],
-				keys: Object.keys(overrideRaw),
-				contents: toValuesTree(overrideRaw, conflictReporter)
-			});
-		}
-	}
-	return overrides;
-}
-
 export function toValuesTree(properties: { [qualifiedKey: string]: any }, conflictReporter: (message: string) => void): any {
 	const root = Object.create(null);
 
-	for (let key in properties) {
+	for (const key in properties) {
 		addToValueTree(root, key, properties[key], conflictReporter);
 	}
 
@@ -250,7 +199,7 @@ export function addToValueTree(settingsTreeRoot: any, key: string, value: any, c
 
 	let curr = settingsTreeRoot;
 	for (let i = 0; i < segments.length; i++) {
-		let s = segments[i];
+		const s = segments[i];
 		let obj = curr[s];
 		switch (typeof obj) {
 			case 'undefined':
@@ -337,27 +286,6 @@ export function merge(base: any, add: any, overwrite: boolean): void {
 	});
 }
 
-export function getConfigurationKeys(): string[] {
-	const properties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
-	return Object.keys(properties);
-}
-
-export function getDefaultValues(): any {
-	const valueTreeRoot: any = Object.create(null);
-	const properties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
-
-	for (let key in properties) {
-		let value = properties[key].default;
-		addToValueTree(valueTreeRoot, key, value, message => console.error(`Conflict in default settings: ${message}`));
-	}
-
-	return valueTreeRoot;
-}
-
-export function keyFromOverrideIdentifier(overrideIdentifier: string): string {
-	return `[${overrideIdentifier}]`;
-}
-
 export function getMigratedSettingValue<T>(configurationService: IConfigurationService, currentSettingName: string, legacySettingName: string): T {
 	const setting = configurationService.inspect<T>(currentSettingName);
 	const legacySetting = configurationService.inspect<T>(legacySettingName);
@@ -369,4 +297,8 @@ export function getMigratedSettingValue<T>(configurationService: IConfigurationS
 	} else {
 		return setting.defaultValue!;
 	}
+}
+
+export function getLanguageTagSettingPlainKey(settingKey: string) {
+	return settingKey.replace(/[\[\]]/g, '');
 }

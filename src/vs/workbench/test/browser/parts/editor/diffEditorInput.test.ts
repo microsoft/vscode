@@ -9,6 +9,7 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { EditorResourceAccessor, isDiffEditorInput, isResourceDiffEditorInput, isResourceSideBySideEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('Diff editor input', () => {
 
@@ -35,8 +36,18 @@ suite('Diff editor input', () => {
 		}
 	}
 
+	let disposables: DisposableStore;
+
+	setup(() => {
+		disposables = new DisposableStore();
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
 	test('basics', () => {
-		const instantiationService = workbenchInstantiationService();
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
 
 		let counter = 0;
 		const input = new MyEditorInput();
@@ -67,7 +78,7 @@ suite('Diff editor input', () => {
 	});
 
 	test('toUntyped', () => {
-		const instantiationService = workbenchInstantiationService();
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
 
 		const input = new MyEditorInput(URI.file('foo/bar1'));
 		const otherInput = new MyEditorInput(URI.file('foo/bar2'));
@@ -81,13 +92,13 @@ suite('Diff editor input', () => {
 	});
 
 	test('disposes when input inside disposes', function () {
-		const instantiationService = workbenchInstantiationService();
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
 
 		let counter = 0;
 		let input = new MyEditorInput();
 		let otherInput = new MyEditorInput();
 
-		let diffInput = instantiationService.createInstance(DiffEditorInput, 'name', 'description', input, otherInput, undefined);
+		const diffInput = instantiationService.createInstance(DiffEditorInput, 'name', 'description', input, otherInput, undefined);
 		diffInput.onWillDispose(() => {
 			counter++;
 			assert(true);
@@ -98,7 +109,7 @@ suite('Diff editor input', () => {
 		input = new MyEditorInput();
 		otherInput = new MyEditorInput();
 
-		let diffInput2 = instantiationService.createInstance(DiffEditorInput, 'name', 'description', input, otherInput, undefined);
+		const diffInput2 = instantiationService.createInstance(DiffEditorInput, 'name', 'description', input, otherInput, undefined);
 		diffInput2.onWillDispose(() => {
 			counter++;
 			assert(true);

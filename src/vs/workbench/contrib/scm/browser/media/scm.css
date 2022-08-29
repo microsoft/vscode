@@ -132,10 +132,6 @@
 	margin-right: 3px;
 }
 
-.scm-view .monaco-list-row .resource > .name.strike-through > .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-name-container > .label-name {
-	text-decoration: line-through;
-}
-
 .scm-view .monaco-list-row .resource > .decoration-icon {
 	width: 16px;
 	height: 100%;
@@ -170,6 +166,17 @@
 	display: block;
 }
 
+.scm-view .monaco-list .monaco-list-row.force-no-hover,
+.scm-view .monaco-list .monaco-list-row:hover.force-no-hover,
+.scm-view .monaco-list .monaco-list-row.focused.force-no-hover,
+.scm-view .monaco-list .monaco-list-row.selected.force-no-hover {
+	background: transparent !important;
+}
+
+.scm-view .monaco-list .monaco-list-row.cursor-default {
+	cursor: default;
+}
+
 .scm-view.show-actions .scm-provider > .actions,
 .scm-view.show-actions > .monaco-list .monaco-list-row .resource-group > .actions,
 .scm-view.show-actions > .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions {
@@ -182,7 +189,7 @@
 
 .scm-view .scm-input {
 	height: 100%;
-	padding-left: 8px;
+	padding-left: 11px;
 }
 
 .scm-view .scm-editor {
@@ -195,20 +202,67 @@
 }
 
 .scm-view .button-container {
-	margin-left: 8px;
-	height: 100%;
 	display: flex;
+	height: 100%;
+	padding-left: 11px;
 	align-items: center;
 }
 
-.scm-view .button-container .codicon {
-	margin: 0 0.4em;
+.scm-view .button-container .monaco-description-button {
+	flex-direction: row;
+	flex-wrap: wrap;
+	padding: 0 4px;
+	overflow: hidden;
+}
+
+.scm-view .button-container .monaco-description-button > .monaco-button-label {
+	flex-grow: 1;
+	width: 0;
+	overflow: hidden;
+}
+
+.scm-view .button-container .monaco-description-button > .monaco-button-description {
+	flex-basis: 100%;
+}
+
+.scm-view .button-container .monaco-description-button > .monaco-button-label,
+.scm-view .button-container .monaco-description-button > .monaco-button-description {
+	font-weight: normal;
+	font-style: inherit;
+	padding: 4px 0;
+}
+
+.scm-view .button-container .codicon.codicon-cloud-upload,
+.scm-view .button-container .codicon.codicon-sync {
+	line-height: 22px;
+	margin: 0 0.4em 0 0;
 }
 
 .scm-view .button-container .codicon.codicon-arrow-up,
 .scm-view .button-container .codicon.codicon-arrow-down {
+	line-height: 22px;
 	font-size: small !important;
 	margin: 0 0.2em 0 0;
+}
+
+.scm-view .button-container > .monaco-button-dropdown {
+	flex-grow: 1;
+	overflow: hidden;
+}
+
+.scm-view .button-container > .monaco-button-dropdown > .monaco-dropdown-button {
+	display:flex;
+	align-items: center;
+	padding: 0 4px;
+}
+
+/* split commit button */
+.scm-view .button-container > .monaco-button-dropdown > .monaco-dropdown-button.codicon-drop-down-button {
+	border-radius: 0 2px 2px 0;
+}
+
+.scm-view .button-container > .monaco-button-dropdown > .monaco-button.monaco-text-button {
+	border-radius: 2px 0 0 2px;
 }
 
 .scm-view .scm-editor.hidden {
@@ -222,14 +276,22 @@
 	outline-offset: -1px;
 }
 
+.scm-editor-validation-container {
+	display: flex;
+	box-sizing: border-box;
+	border-width: 1px;
+	border-style: solid;
+	border-top: none;
+	padding: 2px;
+}
+
 .scm-editor-validation {
 	box-sizing: border-box;
 	font-size: 0.9em;
 	padding: 1px 3px;
 	display: block;
-	border-width: 1px;
-	border-style: solid;
-	border-top: none;
+	border-style: none;
+	flex: auto;
 }
 
 .scm-editor-validation p {
@@ -240,6 +302,11 @@
 .scm-editor-validation a {
 	-webkit-user-select: none;
 	user-select: none;
+}
+
+.scm-editor-validation-actions {
+	align-self: start;
+	margin-top: 1px;
 }
 
 .scm-view .scm-editor-placeholder {

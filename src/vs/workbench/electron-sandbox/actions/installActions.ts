@@ -5,7 +5,8 @@
 
 import { localize } from 'vs/nls';
 import Severity from 'vs/base/common/severity';
-import { Action2, ILocalizedString } from 'vs/platform/actions/common/actions';
+import { Action2 } from 'vs/platform/actions/common/actions';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 import product from 'vs/platform/product/common/product';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';

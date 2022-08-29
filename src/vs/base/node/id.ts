@@ -55,7 +55,7 @@ export const virtualMachineHint: { value(): number } = new class {
 			let interfaceCount = 0;
 
 			const interfaces = networkInterfaces();
-			for (let name in interfaces) {
+			for (const name in interfaces) {
 				const networkInterface = interfaces[name];
 				if (networkInterface) {
 					for (const { mac, internal } of networkInterface) {
@@ -93,7 +93,7 @@ export async function getMachineId(): Promise<string> {
 async function getMacMachineId(): Promise<string | undefined> {
 	try {
 		const crypto = await import('crypto');
-		const macAddress = await getMac();
+		const macAddress = getMac();
 		return crypto.createHash('sha256').update(macAddress, 'utf8').digest('hex');
 	} catch (err) {
 		errors.onUnexpectedError(err);

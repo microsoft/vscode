@@ -45,7 +45,7 @@ export namespace WebviewResourceResponse {
 export async function loadLocalResource(
 	requestUri: URI,
 	options: {
-		ifNoneMatch: string | undefined,
+		ifNoneMatch: string | undefined;
 		roots: ReadonlyArray<URI>;
 	},
 	fileService: IFileService,
@@ -65,7 +65,7 @@ export async function loadLocalResource(
 	const mime = getWebviewContentMimeType(requestUri); // Use the original path for the mime
 
 	try {
-		const result = await fileService.readFileStream(resourceToLoad, { etag: options.ifNoneMatch });
+		const result = await fileService.readFileStream(resourceToLoad, { etag: options.ifNoneMatch }, token);
 		return new WebviewResourceResponse.StreamSuccess(result.value, result.etag, result.mtime, mime);
 	} catch (err) {
 		if (err instanceof FileOperationError) {
@@ -100,7 +100,7 @@ function getResourceToLoad(
 
 function containsResource(root: URI, resource: URI): boolean {
 	if (root.scheme !== resource.scheme) {
-		return true;
+		return false;
 	}
 
 	let rootPath = root.fsPath + (root.fsPath.endsWith(sep) ? '' : sep);

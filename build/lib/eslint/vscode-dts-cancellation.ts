@@ -20,7 +20,7 @@ export = new class ApiProviderNaming implements eslint.Rule.RuleModule {
 			['TSInterfaceDeclaration[id.name=/.+Provider/] TSMethodSignature[key.name=/^(provide|resolve).+/]']: (node: any) => {
 
 				let found = false;
-				for (let param of (<TSESTree.TSMethodSignature>node).params) {
+				for (const param of (<TSESTree.TSMethodSignature>node).params) {
 					if (param.type === AST_NODE_TYPES.Identifier) {
 						found = found || param.name === 'token';
 					}

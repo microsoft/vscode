@@ -7,13 +7,12 @@ import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle'
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -24,6 +23,7 @@ import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEdit
 import { RegisteredEditorPriority, IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
 import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, IPreferencesService, USE_SPLIT_JSON_SETTING } from 'vs/workbench/services/preferences/common/preferences';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 const schemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
@@ -35,8 +35,8 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		@IModelService private readonly modelService: IModelService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@IModeService private readonly modeService: IModeService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@ILanguageService private readonly languageService: ILanguageService,
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
@@ -66,35 +66,35 @@ export class PreferencesContribution implements IWorkbenchContribution {
 					label: nls.localize('splitSettingsEditorLabel', "Split Settings Editor"),
 					priority: RegisteredEditorPriority.builtin,
 				},
+				{},
 				{
-					canHandleDiff: false,
-				},
-				({ resource, options }): EditorInputWithOptions => {
-					// Global User Settings File
-					if (isEqual(resource, this.environmentService.settingsResource)) {
-						return { editor: this.preferencesService.createSplitJsonEditorInput(ConfigurationTarget.USER_LOCAL, resource), options };
-					}
-
-					// Single Folder Workspace Settings File
-					const state = this.workspaceService.getWorkbenchState();
-					if (state === WorkbenchState.FOLDER) {
-						const folders = this.workspaceService.getWorkspace().folders;
-						if (isEqual(resource, folders[0].toResource(FOLDER_SETTINGS_PATH))) {
-							return { editor: this.preferencesService.createSplitJsonEditorInput(ConfigurationTarget.WORKSPACE, resource), options };
+					createEditorInput: ({ resource, options }): EditorInputWithOptions => {
+						// Global User Settings File
+						if (isEqual(resource, this.userDataProfileService.currentProfile.settingsResource)) {
+							return { editor: this.preferencesService.createSplitJsonEditorInput(ConfigurationTarget.USER_LOCAL, resource), options };
 						}
-					}
 
-					// Multi Folder Workspace Settings File
-					else if (state === WorkbenchState.WORKSPACE) {
-						const folders = this.workspaceService.getWorkspace().folders;
-						for (const folder of folders) {
-							if (isEqual(resource, folder.toResource(FOLDER_SETTINGS_PATH))) {
-								return { editor: this.preferencesService.createSplitJsonEditorInput(ConfigurationTarget.WORKSPACE_FOLDER, resource), options };
+						// Single Folder Workspace Settings File
+						const state = this.workspaceService.getWorkbenchState();
+						if (state === WorkbenchState.FOLDER) {
+							const folders = this.workspaceService.getWorkspace().folders;
+							if (isEqual(resource, folders[0].toResource(FOLDER_SETTINGS_PATH))) {
+								return { editor: this.preferencesService.createSplitJsonEditorInput(ConfigurationTarget.WORKSPACE, resource), options };
 							}
 						}
-					}
 
-					return { editor: this.textEditorService.createTextEditor({ resource }), options };
+						// Multi Folder Workspace Settings File
+						else if (state === WorkbenchState.WORKSPACE) {
+							const folders = this.workspaceService.getWorkspace().folders;
+							for (const folder of folders) {
+								if (isEqual(resource, folder.toResource(FOLDER_SETTINGS_PATH))) {
+									return { editor: this.preferencesService.createSplitJsonEditorInput(ConfigurationTarget.WORKSPACE_FOLDER, resource), options };
+								}
+							}
+						}
+
+						return { editor: this.textEditorService.createTextEditor({ resource }), options };
+					}
 				}
 			);
 		}
@@ -122,7 +122,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		let schema = schemaRegistry.getSchemaContributions().schemas[uri.toString()];
 		if (schema) {
 			const modelContent = JSON.stringify(schema);
-			const languageSelection = this.modeService.create('jsonc');
+			const languageSelection = this.languageService.createById('jsonc');
 			const model = this.modelService.createModel(modelContent, languageSelection, uri);
 			const disposables = new DisposableStore();
 			disposables.add(schemaRegistry.onDidChangeSchema(schemaUri => {

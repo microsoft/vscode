@@ -7,7 +7,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import { WorkbenchListFocusContextKey, IListService, WorkbenchListSupportsMultiSelectContextKey, ListWidget, WorkbenchListHasSelectionOrFocus, getSelectionKeyboardEvent, WorkbenchListWidget, WorkbenchListSelectionNavigation } from 'vs/platform/list/browser/listService';
+import { WorkbenchListFocusContextKey, IListService, WorkbenchListSupportsMultiSelectContextKey, ListWidget, WorkbenchListHasSelectionOrFocus, getSelectionKeyboardEvent, WorkbenchListWidget, WorkbenchListSelectionNavigation, WorkbenchTreeElementCanCollapse, WorkbenchTreeElementHasParent, WorkbenchTreeElementHasChild, WorkbenchTreeElementCanExpand, RawWorkbenchListFocusContextKey, WorkbenchTreeFindOpen, WorkbenchListSupportsFind } from 'vs/platform/list/browser/listService';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { equals, range } from 'vs/base/common/arrays';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -17,6 +17,7 @@ import { DataTree } from 'vs/base/browser/ui/tree/dataTree';
 import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { Table } from 'vs/base/browser/ui/table/tableWidget';
+import { AbstractTree, TreeFindMode } from 'vs/base/browser/ui/tree/abstractTree';
 
 function ensureDOMFocus(widget: ListWidget | undefined): void {
 	// it can happen that one of the commands is executed while
@@ -72,7 +73,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyCode.DownArrow,
 	mac: {
 		primary: KeyCode.DownArrow,
-		secondary: [KeyMod.WinCtrl | KeyCode.KEY_N]
+		secondary: [KeyMod.WinCtrl | KeyCode.KeyN]
 	},
 	handler: (accessor, arg2) => {
 		navigate(accessor.get(IListService).lastFocusedList, async widget => {
@@ -89,7 +90,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyCode.UpArrow,
 	mac: {
 		primary: KeyCode.UpArrow,
-		secondary: [KeyMod.WinCtrl | KeyCode.KEY_P]
+		secondary: [KeyMod.WinCtrl | KeyCode.KeyP]
 	},
 	handler: (accessor, arg2) => {
 		navigate(accessor.get(IListService).lastFocusedList, async widget => {
@@ -252,7 +253,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.collapse',
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: WorkbenchListFocusContextKey,
+	when: ContextKeyExpr.and(WorkbenchListFocusContextKey, ContextKeyExpr.or(WorkbenchTreeElementCanCollapse, WorkbenchTreeElementHasParent)),
 	primary: KeyCode.LeftArrow,
 	mac: {
 		primary: KeyCode.LeftArrow,
@@ -336,7 +337,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.expand',
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: WorkbenchListFocusContextKey,
+	when: ContextKeyExpr.and(WorkbenchListFocusContextKey, ContextKeyExpr.or(WorkbenchTreeElementCanExpand, WorkbenchTreeElementHasChild)),
 	primary: KeyCode.RightArrow,
 	handler: (accessor) => {
 		const widget = accessor.get(IListService).lastFocusedList;
@@ -458,7 +459,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.selectAll',
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(WorkbenchListFocusContextKey, WorkbenchListSupportsMultiSelectContextKey),
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_A,
+	primary: KeyMod.CtrlCmd | KeyCode.KeyA,
 	handler: (accessor) => {
 		const focused = accessor.get(IListService).lastFocusedList;
 
@@ -586,35 +587,83 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			return;
 		}
 
+		const selection = widget.getSelection();
 		const fakeKeyboardEvent = new KeyboardEvent('keydown');
-		widget.setSelection([], fakeKeyboardEvent);
-		widget.setFocus([], fakeKeyboardEvent);
+
+		if (selection.length > 1) {
+			const useSelectionNavigation = WorkbenchListSelectionNavigation.getValue(widget.contextKeyService);
+			if (useSelectionNavigation) {
+				const focus = widget.getFocus();
+				widget.setSelection([focus[0]], fakeKeyboardEvent);
+			} else {
+				widget.setSelection([], fakeKeyboardEvent);
+			}
+		} else {
+			widget.setSelection([], fakeKeyboardEvent);
+			widget.setFocus([], fakeKeyboardEvent);
+		}
+
 		widget.setAnchor(undefined);
 	}
 });
 
 CommandsRegistry.registerCommand({
-	id: 'list.toggleKeyboardNavigation',
+	id: 'list.triggerTypeNavigation',
 	handler: (accessor) => {
 		const widget = accessor.get(IListService).lastFocusedList;
-		widget?.toggleKeyboardNavigation();
+		widget?.triggerTypeNavigation();
 	}
 });
 
 CommandsRegistry.registerCommand({
-	id: 'list.toggleFilterOnType',
+	id: 'list.toggleFindMode',
 	handler: (accessor) => {
-		const focused = accessor.get(IListService).lastFocusedList;
+		const widget = accessor.get(IListService).lastFocusedList;
+
+		if (widget instanceof AbstractTree || widget instanceof AsyncDataTree) {
+			const tree = widget;
+			tree.findMode = tree.findMode === TreeFindMode.Filter ? TreeFindMode.Highlight : TreeFindMode.Filter;
+		}
+	}
+});
+
+// Deprecated commands
+CommandsRegistry.registerCommandAlias('list.toggleKeyboardNavigation', 'list.triggerTypeNavigation');
+CommandsRegistry.registerCommandAlias('list.toggleFilterOnType', 'list.toggleFindMode');
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'list.find',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.and(RawWorkbenchListFocusContextKey, WorkbenchListSupportsFind),
+	primary: KeyMod.CtrlCmd | KeyCode.KeyF,
+	secondary: [KeyCode.F3],
+	handler: (accessor) => {
+		const widget = accessor.get(IListService).lastFocusedList;
 
 		// List
-		if (focused instanceof List || focused instanceof PagedList || focused instanceof Table) {
+		if (widget instanceof List || widget instanceof PagedList || widget instanceof Table) {
 			// TODO@joao
 		}
 
 		// Tree
-		else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
-			const tree = focused;
-			tree.updateOptions({ filterOnType: !tree.filterOnType });
+		else if (widget instanceof AbstractTree || widget instanceof AsyncDataTree) {
+			const tree = widget;
+			tree.openFind();
+		}
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'list.closeFind',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.and(RawWorkbenchListFocusContextKey, WorkbenchTreeFindOpen),
+	primary: KeyCode.Escape,
+	handler: (accessor) => {
+		const widget = accessor.get(IListService).lastFocusedList;
+
+		if (widget instanceof AbstractTree || widget instanceof AsyncDataTree) {
+			const tree = widget;
+			tree.closeFind();
 		}
 	}
 });

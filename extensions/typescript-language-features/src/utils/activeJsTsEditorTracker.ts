@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { Disposable } from './dispose';
 import { isJsConfigOrTsConfigFileName } from './languageDescription';
-import { isSupportedLanguageMode } from './languageModeIds';
+import { isSupportedLanguageMode } from './languageIds';
 
 /**
  * Tracks the active JS/TS editor.
