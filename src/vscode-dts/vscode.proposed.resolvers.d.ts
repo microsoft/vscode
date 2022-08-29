@@ -196,7 +196,7 @@ declare module 'vscode' {
 	export interface ResourceLabelFormatting {
 		label: string; // myLabel:/${path}
 		// For historic reasons we use an or string here. Once we finalize this API we should start using enums instead and adopt it in extensions.
-		// eslint-disable-next-line vscode-dts-literal-or-types
+		// eslint-disable-next-line @vscode/vscode-dts-literal-or-types
 		separator: '/' | '\\' | '';
 		tildify?: boolean;
 		normalizeDriveLetter?: boolean;
