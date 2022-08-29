@@ -531,6 +531,7 @@ export class Git {
 		if (!path.isAbsolute(dotGitPath)) {
 			dotGitPath = path.join(repositoryPath, dotGitPath);
 		}
+		dotGitPath = path.normalize(dotGitPath);
 
 		if (commonDotGitPath) {
 			if (!path.isAbsolute(commonDotGitPath)) {
