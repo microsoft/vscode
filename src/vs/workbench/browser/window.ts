@@ -223,7 +223,11 @@ export class BrowserWindow extends Disposable {
 						if (showResult.choice === 0) {
 							invokeProtocolHandler();
 						} else if (showResult.choice === 1) {
-							await this.openerService.open(URI.parse(`http://aka.ms/vscode-install`));
+							await this.openerService.open(URI.parse(
+								this.productService.quality === 'stable'
+									? `http://aka.ms/vscode-install`
+									: `http://aka.ms/vscode-install-insiders`
+							));
 						}
 					}
 				}
