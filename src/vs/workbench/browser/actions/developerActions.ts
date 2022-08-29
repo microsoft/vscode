@@ -383,9 +383,9 @@ configurationRegistry.registerConfiguration({
 			maximum: 100,
 			description: localize('screencastMode.mouseIndicatorSize', "Controls the size (in pixels) of the mouse indicator in screencast mode.")
 		},
-		'screencastMode.enableOnStartup': {
+		'screencastMode.alwaysEnabled': {
 			type: 'boolean',
-			description: localize('screencastMode.enableOnStartup', "Enable screencast mode on startup."),
+			description: localize('screencastMode.alwaysEnabled', "Always enable screencast mode."),
 			default: false
 		},
 	}
@@ -397,10 +397,15 @@ export class ScreencastController implements IWorkbenchContribution {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICommandService private readonly commandService: ICommandService,
 	) {
-		const enableOnStartup = this.configurationService.getValue<boolean>('screencastMode.enableOnStartup');
-		if (enableOnStartup) {
+		const alwaysEnabled = this.configurationService.getValue<boolean>('screencastMode.alwaysEnabled');
+		if (alwaysEnabled) {
 			this.commandService.executeCommand('workbench.action.toggleScreencastMode');
 		}
+		this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('screencastMode.alwaysEnabled')) {
+				this.commandService.executeCommand('workbench.action.toggleScreencastMode');
+			}
+		});
 	}
 }
 
