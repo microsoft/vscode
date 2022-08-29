@@ -11,7 +11,7 @@
 	right: 18px;
 	max-width: calc(100% - 28px - 28px - 8px);
 	pointer-events: none;
-	padding: 0 10px 10px;
+	padding: 0 10px 0px 10px;
 }
 
 .simple-find-part .monaco-inputbox > .ibwrapper > input {
@@ -44,6 +44,17 @@
 
 .monaco-workbench .simple-find-part .monaco-findInput {
 	flex: 1;
+}
+
+.monaco-workbench .simple-find-part .matchesCount {
+	width: 68px;
+	max-width: 68px;
+	min-width: 68px;
+	padding-left: 5px;
+}
+
+.monaco-workbench .simple-find-part.reduced-find-widget .matchesCount {
+	display: none;
 }
 
 .monaco-workbench .simple-find-part .button {

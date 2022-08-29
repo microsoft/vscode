@@ -2096,6 +2096,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		this._resize();
+		this.findWidget.layout(dimension.width);
 
 		// Signal the container is ready
 		this._containerReadyBarrier.open();
