@@ -29,6 +29,10 @@ import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/wo
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
+import { Extensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+
 
 class InspectContextKeysAction extends Action2 {
 
@@ -379,5 +383,26 @@ configurationRegistry.registerConfiguration({
 			maximum: 100,
 			description: localize('screencastMode.mouseIndicatorSize', "Controls the size (in pixels) of the mouse indicator in screencast mode.")
 		},
+		'screencastMode.enableOnStartup': {
+			type: 'boolean',
+			description: localize('screencastMode.enableOnStartup', "Enable screencast mode on startup."),
+			default: false
+		},
 	}
 });
+
+export class ScreencastController implements IWorkbenchContribution {
+
+	constructor(
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ICommandService private readonly commandService: ICommandService,
+	) {
+		const enableOnStartup = this.configurationService.getValue<boolean>('screencastMode.enableOnStartup');
+		if (enableOnStartup) {
+			this.commandService.executeCommand('workbench.action.toggleScreencastMode');
+		}
+	}
+}
+
+Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench)
+	.registerWorkbenchContribution(ScreencastController, LifecyclePhase.Restored);
