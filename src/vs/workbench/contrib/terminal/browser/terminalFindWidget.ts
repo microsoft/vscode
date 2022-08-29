@@ -12,15 +12,13 @@ import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/termin
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { ISearchOptions } from 'xterm-addon-search';
 
 export class TerminalFindWidget extends SimpleFindWidget {
-	protected _findInputFocused: IContextKey<boolean>;
-	protected _findWidgetFocused: IContextKey<boolean>;
-
-	private readonly _onDidChangeVisibility = this._register(new Emitter<void>());
-	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
+	private _findInputFocused: IContextKey<boolean>;
+	private _findWidgetFocused: IContextKey<boolean>;
+	private _findWidgetVisible: IContextKey<boolean>;
 
 	constructor(
 		findState: FindReplaceState,
@@ -38,6 +36,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		}));
 		this._findInputFocused = TerminalContextKeys.findInputFocus.bindTo(this._contextKeyService);
 		this._findWidgetFocused = TerminalContextKeys.findFocus.bindTo(this._contextKeyService);
+		this._findWidgetVisible = TerminalContextKeys.findVisible.bindTo(this._contextKeyService);
 		this.updateTheme(this._themeService.getColorTheme());
 		this._register(this._themeService.onDidColorThemeChange((theme?: IColorTheme) => {
 			this.updateTheme(theme ?? this._themeService.getColorTheme());
@@ -77,18 +76,18 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		this.updateButtons(false);
 
 		super.reveal(initialInput);
-		this._onDidChangeVisibility.fire();
+		this._findWidgetVisible.set(true);
 	}
 
 	override show() {
 		const initialInput = this._instance.hasSelection() && this._instance.selection!.indexOf('\n') === -1 ? this._instance.selection : undefined;
 		super.show(initialInput);
-		this._onDidChangeVisibility.fire();
+		this._findWidgetVisible.set(true);
 	}
 
 	override hide() {
 		super.hide();
-		this._onDidChangeVisibility.fire();
+		this._findWidgetVisible.reset();
 		this._instance.focus();
 		this._instance.xterm?.clearSearchDecorations();
 	}
