@@ -205,12 +205,11 @@
 	"walkthroughs.jsWelcome.makeJsFile.title": "Create a JavaScript File",
 	"walkthroughs.jsWelcome.makeJsFile.description": "Let's write our first JavaScript file. We'll have to create a new file and save it with the ``.js`` extension at the end of the file name.\n[Create a JavaScript File](command:javascript-walkthrough.commands.createJsFile)",
 
-	"walkthroughs.jsWelcome.runJsFile.title": "Run Your JavaScript in Node.js",
-	"walkthroughs.jsWelcome.runJsFile.description": "Once you've saved your JavaScript file, you can open up a terminal and run your code by entering ``node your-file-name.js``.\n[Open a Terminal](command:workbench.action.terminal.toggleTerminal)\nIf you just installed Node.js and that command doesn't work, you might need to reload VS Code.\n[Reload Window](command:workbench.action.reloadWindow)",
-
 	"walkthroughs.jsWelcome.debugJsFile.title": "Debug your JavaScript in VS Code",
-	"walkthroughs.jsWelcome.debugJsFile.description": "VS Code has a debugger for JavaScript which can run your code, pause at different points, and help you understand what's going on step-by-step. To get started with debugging, you can just hit ``F5``. When prompted, you can select the Node.js debugger.\n[Start Debugging](command:javascript-walkthrough.commands.debugJsFile)",
+	"walkthroughs.jsWelcome.debugJsFile.description": "You can run JavaScript programs with Node.js by entering ``node your-file-name.js`` at a terminal.\n[Open a Terminal](command:workbench.action.terminal.toggleTerminal)\nAnother easy way to run programs in Node.js is by using VS Code's debugger which lets you run your code, pause at different points, and help you understand what's going on step-by-step.\n[Start Debugging](command:javascript-walkthrough.commands.debugJsFile)",
+	"walkthroughs.jsWelcome.debugJsFile.altText": "Debug and run your JavaScript code in Node.js with Visual Studio Code.",
 
 	"walkthroughs.jsWelcome.learnMoreAboutJs.title": "Explore More",
-	"walkthroughs.jsWelcome.learnMoreAboutJs.description": "VS Code has plenty of resources for [learning JavaScript](https://code.visualstudio.com/docs/nodejs/working-with-javascript) and [learning Node.js](https://code.visualstudio.com/docs/nodejs/nodejs-tutorial).\n\n[Learn More](https://code.visualstudio.com/docs/nodejs/nodejs-tutorial)"
+	"walkthroughs.jsWelcome.learnMoreAboutJs.description": "VS Code has plenty of resources for [learning JavaScript](https://code.visualstudio.com/docs/nodejs/working-with-javascript) and [learning Node.js](https://code.visualstudio.com/docs/nodejs/nodejs-tutorial).\n\n[Learn More](https://code.visualstudio.com/docs/nodejs/nodejs-tutorial)",
+	"walkthroughs.jsWelcome.learnMoreAboutJs.altText": "Learn more about JavaScript and Node.js in Visual Studio Code."
 }

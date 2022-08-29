@@ -1580,7 +1580,8 @@
             "title": "%walkthroughs.jsWelcome.debugJsFile.title%",
             "description": "%walkthroughs.jsWelcome.debugJsFile.description%",
             "media": {
-              "markdown": "resources/walkthroughs/TODO.md"
+              "image": "resources/walkthroughs/debug-and-run.svg",
+              "altText": "%walkthroughs.jsWelcome.debugJsFile.altText%"
             }
           },
           {
@@ -1588,7 +1589,8 @@
             "title": "%walkthroughs.jsWelcome.learnMoreAboutJs.title%",
             "description": "%walkthroughs.jsWelcome.learnMoreAboutJs.description%",
             "media": {
-              "markdown": "resources/walkthroughs/TODO.md"
+              "image": "resources/walkthroughs/learn-more.svg",
+              "altText": "%walkthroughs.jsWelcome.learnMoreAboutJs.altText%"
             }
           }
         ]
