@@ -9,7 +9,7 @@ import { CSSIcon } from 'vs/base/common/codicons';
 const labelWithIconsRegex = new RegExp(`(\\\\)?\\$\\((${CSSIcon.iconNameExpression}(?:${CSSIcon.iconModifierExpression})?)\\)`, 'g');
 export function renderLabelWithIcons(text: string): Array<HTMLSpanElement | string> {
 	const elements = new Array<HTMLSpanElement | string>();
-	let match: RegExpMatchArray | null;
+	let match: RegExpExecArray | null;
 
 	let textStart = 0, textStop = 0;
 	while ((match = labelWithIconsRegex.exec(text)) !== null) {

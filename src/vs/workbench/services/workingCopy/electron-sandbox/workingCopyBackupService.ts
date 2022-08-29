@@ -39,7 +39,7 @@ export class NativeWorkingCopyBackupService extends WorkingCopyBackupService {
 }
 
 // Register Service
-registerSingleton(IWorkingCopyBackupService, NativeWorkingCopyBackupService);
+registerSingleton(IWorkingCopyBackupService, NativeWorkingCopyBackupService, false);
 
 // Register Backup Tracker
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(NativeWorkingCopyBackupTracker, LifecyclePhase.Starting);

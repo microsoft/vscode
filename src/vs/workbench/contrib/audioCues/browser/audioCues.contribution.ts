@@ -15,7 +15,7 @@ import { AudioCueService, IAudioCueService } from 'vs/workbench/contrib/audioCue
 import { ShowAudioCueHelp } from 'vs/workbench/contrib/audioCues/browser/commands';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
-registerSingleton(IAudioCueService, AudioCueService);
+registerSingleton(IAudioCueService, AudioCueService, false);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(AudioCueLineFeatureContribution, LifecyclePhase.Restored);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(AudioCueLineDebuggerContribution, LifecyclePhase.Restored);

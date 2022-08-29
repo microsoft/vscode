@@ -5,10 +5,11 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import { Disposable } from './dispose';
+import { BinarySizeStatusBarEntry } from '../binarySizeStatusBarEntry';
+import { Disposable } from '../util/dispose';
+import { escapeAttribute, getNonce } from '../util/dom';
 import { SizeStatusBarEntry } from './sizeStatusBarEntry';
 import { Scale, ZoomStatusBarEntry } from './zoomStatusBarEntry';
-import { BinarySizeStatusBarEntry } from './binarySizeStatusBarEntry';
 
 const localize = nls.loadMessageBundle();
 
@@ -53,11 +54,6 @@ export class PreviewManager implements vscode.CustomReadonlyEditorProvider {
 
 	private setActivePreview(value: Preview | undefined): void {
 		this._activePreview = value;
-		this.setPreviewActiveContext(!!value);
-	}
-
-	private setPreviewActiveContext(value: boolean) {
-		vscode.commands.executeCommand('setContext', 'imagePreviewFocus', value);
 	}
 }
 
@@ -223,7 +219,7 @@ class Preview extends Disposable {
 
 	<title>Image Preview</title>
 
-	<link rel="stylesheet" href="${escapeAttribute(this.extensionResource('/media/main.css'))}" type="text/css" media="screen" nonce="${nonce}">
+	<link rel="stylesheet" href="${escapeAttribute(this.extensionResource('media', 'imagePreview.css'))}" type="text/css" media="screen" nonce="${nonce}">
 
 	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: ${cspSource}; script-src 'nonce-${nonce}'; style-src ${cspSource} 'nonce-${nonce}';">
 	<meta id="image-preview-settings" data-settings="${escapeAttribute(JSON.stringify(settings))}">
@@ -234,7 +230,7 @@ class Preview extends Disposable {
 		<p>${localize('preview.imageLoadError', "An error occurred while loading the image.")}</p>
 		<a href="#" class="open-file-link">${localize('preview.imageLoadErrorLink', "Open file using VS Code's standard text/binary editor?")}</a>
 	</div>
-	<script src="${escapeAttribute(this.extensionResource('/media/main.js'))}" nonce="${nonce}"></script>
+	<script src="${escapeAttribute(this.extensionResource('media', 'imagePreview.js'))}" nonce="${nonce}"></script>
 </body>
 </html>`;
 	}
@@ -254,22 +250,34 @@ class Preview extends Disposable {
 		return webviewEditor.webview.asWebviewUri(resource).with({ query: `version=${version}` }).toString();
 	}
 
-	private extensionResource(path: string) {
-		return this.webviewEditor.webview.asWebviewUri(this.extensionRoot.with({
-			path: this.extensionRoot.path + path
-		}));
+	private extensionResource(...parts: string[]) {
+		return this.webviewEditor.webview.asWebviewUri(vscode.Uri.joinPath(this.extensionRoot, ...parts));
 	}
 }
 
-function escapeAttribute(value: string | vscode.Uri): string {
-	return value.toString().replace(/"/g, '&quot;');
-}
 
-function getNonce() {
-	let text = '';
-	const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-	for (let i = 0; i < 64; i++) {
-		text += possible.charAt(Math.floor(Math.random() * possible.length));
-	}
-	return text;
+export function registerImagePreviewSupport(context: vscode.ExtensionContext, binarySizeStatusBarEntry: BinarySizeStatusBarEntry): vscode.Disposable {
+	const disposables: vscode.Disposable[] = [];
+
+	const sizeStatusBarEntry = new SizeStatusBarEntry();
+	disposables.push(sizeStatusBarEntry);
+
+	const zoomStatusBarEntry = new ZoomStatusBarEntry();
+	disposables.push(zoomStatusBarEntry);
+
+	const previewManager = new PreviewManager(context.extensionUri, sizeStatusBarEntry, binarySizeStatusBarEntry, zoomStatusBarEntry);
+
+	disposables.push(vscode.window.registerCustomEditorProvider(PreviewManager.viewType, previewManager, {
+		supportsMultipleEditorsPerDocument: true,
+	}));
+
+	disposables.push(vscode.commands.registerCommand('imagePreview.zoomIn', () => {
+		previewManager.activePreview?.zoomIn();
+	}));
+
+	disposables.push(vscode.commands.registerCommand('imagePreview.zoomOut', () => {
+		previewManager.activePreview?.zoomOut();
+	}));
+
+	return vscode.Disposable.from(...disposables);
 }

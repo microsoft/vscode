@@ -66,4 +66,4 @@ export class ExtensionManagementServerService extends Disposable implements IExt
 	}
 }
 
-registerSingleton(IExtensionManagementServerService, ExtensionManagementServerService);
+registerSingleton(IExtensionManagementServerService, ExtensionManagementServerService, false);

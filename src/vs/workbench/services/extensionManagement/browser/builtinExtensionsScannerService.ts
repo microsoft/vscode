@@ -113,4 +113,4 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 	}
 }
 
-registerSingleton(IBuiltinExtensionsScannerService, BuiltinExtensionsScannerService);
+registerSingleton(IBuiltinExtensionsScannerService, BuiltinExtensionsScannerService, false);

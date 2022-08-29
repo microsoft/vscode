@@ -54,8 +54,8 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IOutputService } from 'vs/workbench/services/output/common/output';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 
-registerSingleton(IEditSessionsLogService, EditSessionsLogService);
-registerSingleton(IEditSessionsStorageService, EditSessionsWorkbenchService);
+registerSingleton(IEditSessionsLogService, EditSessionsLogService, false);
+registerSingleton(IEditSessionsStorageService, EditSessionsWorkbenchService, false);
 
 const continueEditSessionCommand: IAction2Options = {
 	id: '_workbench.experimental.editSessions.actions.continueEditSession',
@@ -695,7 +695,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		'workbench.experimental.editSessions.enabled': {
 			'type': 'boolean',
 			'tags': ['experimental', 'usesOnlineServices'],
-			'default': true,
+			'default': false,
 			'markdownDescription': localize('editSessionsEnabled', "Controls whether to display cloud-enabled actions to store and resume uncommitted changes when switching between web, desktop, or devices."),
 		},
 		'workbench.experimental.editSessions.autoResume': {

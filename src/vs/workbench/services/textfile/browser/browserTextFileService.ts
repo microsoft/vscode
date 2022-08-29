@@ -68,4 +68,4 @@ export class BrowserTextFileService extends AbstractTextFileService {
 	}
 }
 
-registerSingleton(ITextFileService, BrowserTextFileService);
+registerSingleton(ITextFileService, BrowserTextFileService, false);

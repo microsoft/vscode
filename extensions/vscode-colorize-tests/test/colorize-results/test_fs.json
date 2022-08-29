@@ -744,7 +744,7 @@
 		}
 	},
 	{
-		"c": " set",
+		"c": " ",
 		"t": "source.fsharp binding.fsharp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -753,6 +753,18 @@
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
 			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "set",
+		"t": "source.fsharp binding.fsharp variable.fsharp",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE",
+			"hc_light": "variable: #001080"
 		}
 	},
 	{
