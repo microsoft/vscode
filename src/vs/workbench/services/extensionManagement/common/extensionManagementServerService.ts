@@ -67,4 +67,4 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 	}
 }
 
-registerSingleton(IExtensionManagementServerService, ExtensionManagementServerService);
+registerSingleton(IExtensionManagementServerService, ExtensionManagementServerService, false);

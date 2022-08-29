@@ -15,4 +15,4 @@ class ExtensionUrlTrustService implements IExtensionUrlTrustService {
 	}
 }
 
-registerSingleton(IExtensionUrlTrustService, ExtensionUrlTrustService);
+registerSingleton(IExtensionUrlTrustService, ExtensionUrlTrustService, false);

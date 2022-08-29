@@ -278,4 +278,4 @@ function includes(extensions: IExtensionDescription[], identifier: ExtensionIden
 	return false;
 }
 
-registerSingleton(IExtensionService, ExtensionService);
+registerSingleton(IExtensionService, ExtensionService, false);

@@ -128,21 +128,21 @@ import { IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDat
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
 import { IExtensionsProfileScannerService, ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 
-registerSingleton(IUserDataSyncLogService, UserDataSyncLogService);
-registerSingleton(IIgnoredExtensionsManagementService, IgnoredExtensionsManagementService);
-registerSingleton(IGlobalExtensionEnablementService, GlobalExtensionEnablementService);
-registerSingleton(IExtensionStorageService, ExtensionStorageService);
+registerSingleton(IUserDataSyncLogService, UserDataSyncLogService, false);
+registerSingleton(IIgnoredExtensionsManagementService, IgnoredExtensionsManagementService, false);
+registerSingleton(IGlobalExtensionEnablementService, GlobalExtensionEnablementService, false);
+registerSingleton(IExtensionStorageService, ExtensionStorageService, false);
 registerSingleton(IExtensionGalleryService, ExtensionGalleryService, true);
 registerSingleton(IContextViewService, ContextViewService, true);
 registerSingleton(IListService, ListService, true);
-registerSingleton(IEditorWorkerService, EditorWorkerService);
-registerSingleton(IMarkerDecorationsService, MarkerDecorationsService);
+registerSingleton(IEditorWorkerService, EditorWorkerService, false);
+registerSingleton(IMarkerDecorationsService, MarkerDecorationsService, false);
 registerSingleton(IMarkerService, MarkerService, true);
-registerSingleton(IContextKeyService, ContextKeyService);
-registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationService);
+registerSingleton(IContextKeyService, ContextKeyService, false);
+registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationService, false);
 registerSingleton(IDownloadService, DownloadService, true);
 registerSingleton(IOpenerService, OpenerService, true);
-registerSingleton(IExtensionsProfileScannerService, ExtensionsProfileScannerService);
+registerSingleton(IExtensionsProfileScannerService, ExtensionsProfileScannerService, false);
 
 //#endregion
 

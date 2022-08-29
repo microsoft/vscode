@@ -922,4 +922,4 @@ const keyboardConfiguration: IConfigurationNode = {
 
 configurationRegistry.registerConfiguration(keyboardConfiguration);
 
-registerSingleton(IKeybindingService, WorkbenchKeybindingService);
+registerSingleton(IKeybindingService, WorkbenchKeybindingService, false);

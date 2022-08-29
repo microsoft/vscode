@@ -88,7 +88,7 @@ import 'vs/workbench/services/extensions/electron-sandbox/sandboxExtensionServic
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 
-registerSingleton(IUserDataInitializationService, UserDataInitializationService);
+registerSingleton(IUserDataInitializationService, UserDataInitializationService, false);
 
 //#endregion
 

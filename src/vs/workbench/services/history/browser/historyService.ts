@@ -1107,7 +1107,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	//#endregion
 }
 
-registerSingleton(IHistoryService, HistoryService);
+registerSingleton(IHistoryService, HistoryService, false);
 
 class EditorSelectionState {
 

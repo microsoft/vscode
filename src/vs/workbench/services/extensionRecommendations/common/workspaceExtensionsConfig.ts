@@ -266,4 +266,4 @@ export class WorkspaceExtensionsConfigService extends Disposable implements IWor
 
 }
 
-registerSingleton(IWorkspaceExtensionsConfigService, WorkspaceExtensionsConfigService);
+registerSingleton(IWorkspaceExtensionsConfigService, WorkspaceExtensionsConfigService, false);
