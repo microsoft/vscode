@@ -123,10 +123,10 @@ suite('Sticky Scroll Tests', () => {
 		await withAsyncTestCodeEditor(model, { serviceCollection }, async (editor, _viewModel, instantiationService) => {
 
 			const stickyScrollController: StickyScrollController = editor.registerAndInstantiateContribution(StickyScrollController.ID, StickyScrollController);
-			await stickyScrollController.stickyScrollCandidateProvider.update();
 			const lineHeight: number = editor.getOption(EditorOption.lineHeight);
 			const languageService: ILanguageFeaturesService = instantiationService.get(ILanguageFeaturesService);
 			languageService.documentSymbolProvider.register('*', documentSymbolProviderForTestModel());
+			await stickyScrollController.stickyScrollCandidateProvider.update();
 			let state;
 
 			editor.setScrollTop(1);
@@ -165,12 +165,11 @@ suite('Sticky Scroll Tests', () => {
 		await withAsyncTestCodeEditor(model, { serviceCollection }, async (editor, viewModel, instantiationService) => {
 
 			const stickyScrollController: StickyScrollController = editor.registerAndInstantiateContribution(StickyScrollController.ID, StickyScrollController);
-			await stickyScrollController.stickyScrollCandidateProvider.update();
 			const lineHeight = editor.getOption(EditorOption.lineHeight);
 
 			const languageService = instantiationService.get(ILanguageFeaturesService);
 			languageService.documentSymbolProvider.register('*', documentSymbolProviderForTestModel());
-
+			await stickyScrollController.stickyScrollCandidateProvider.update();
 			editor.setHiddenAreas([{ startLineNumber: 2, endLineNumber: 2, startColumn: 1, endColumn: 1 }, { startLineNumber: 10, endLineNumber: 11, startColumn: 1, endColumn: 1 }]);
 			let state;
 
