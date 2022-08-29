@@ -13,6 +13,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { Range } from 'vs/editor/common/core/range';
 import { Emitter } from 'vs/base/common/event';
 import { binarySearch } from 'vs/base/common/arrays';
+import { Iterable } from 'vs/base/common/iterator';
 
 export class StickyRange {
 	constructor(
@@ -112,7 +113,7 @@ export class StickyLineCandidateProvider extends Disposable {
 				return;
 			}
 			// When several possible outline providers
-			if (outlineModel.children.size !== 0 && outlineModel.children.values().next().value instanceof OutlineGroup) {
+			if (outlineModel.children.size !== 0 && Iterable.first(outlineModel.children) instanceof OutlineGroup) {
 				if (outlineModel.children.has(this._providerString)) {
 					outlineModel = outlineModel.children.get(this._providerString) as unknown as OutlineModel;
 				} else {
@@ -129,7 +130,7 @@ export class StickyLineCandidateProvider extends Disposable {
 					outlineModel = outlineModel.children.get(this._providerString) as unknown as OutlineModel;
 				}
 			}
-			this._outlineModel = StickyOutlineElement.fromOutlineModel(outlineModel);
+			this._outlineModel = StickyOutlineElement.fromOutlineModel(outlineModel, -1);
 			this._modelVersionId = modelVersionId;
 		}
 	}
