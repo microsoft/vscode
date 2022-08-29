@@ -11,4 +11,4 @@ import { ITreeViewsService as ITreeViewsServiceCommon, TreeviewsService } from '
 
 export interface ITreeViewsService extends ITreeViewsServiceCommon<VSDataTransfer, ITreeItem, HTMLElement> { }
 export const ITreeViewsService = createDecorator<ITreeViewsService>('treeViewsService');
-registerSingleton(ITreeViewsService, TreeviewsService);
+registerSingleton(ITreeViewsService, TreeviewsService, false);

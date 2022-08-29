@@ -820,4 +820,4 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	}
 }
 
-registerSingleton(IEditorResolverService, EditorResolverService);
+registerSingleton(IEditorResolverService, EditorResolverService, false);

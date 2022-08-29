@@ -382,7 +382,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 	}
 }
 
-registerSingleton(IExtensionUrlHandler, ExtensionUrlHandler);
+registerSingleton(IExtensionUrlHandler, ExtensionUrlHandler, false);
 
 /**
  * This class handles URLs before `ExtensionUrlHandler` is instantiated.

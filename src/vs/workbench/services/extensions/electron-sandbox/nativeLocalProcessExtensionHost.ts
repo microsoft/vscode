@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable code-import-patterns */
-/* eslint-disable code-layering */
+/* eslint-disable @vscode/code-import-patterns */
+/* eslint-disable @vscode/code-layering */
 
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';

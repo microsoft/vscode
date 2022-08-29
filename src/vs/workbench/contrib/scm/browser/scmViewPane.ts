@@ -85,6 +85,7 @@ import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/mar
 import { Button, ButtonWithDescription, ButtonWithDropdown } from 'vs/base/browser/ui/button/button';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { RepositoryContextKeys } from 'vs/workbench/contrib/scm/browser/scmViewService';
+import { DragAndDropController } from 'vs/editor/contrib/dnd/browser/dnd';
 import { DropIntoEditorController } from 'vs/editor/contrib/dropIntoEditor/browser/dropIntoEditorContribution';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 
@@ -1951,7 +1952,7 @@ class SCMInputWidget {
 		const editorOptions: IEditorConstructionOptions = {
 			...getSimpleEditorOptions(),
 			lineDecorationsWidth: 4,
-			dragAndDrop: false,
+			dragAndDrop: true,
 			cursorWidth: 1,
 			fontSize: fontSize,
 			lineHeight: lineHeight,
@@ -1972,6 +1973,7 @@ class SCMInputWidget {
 			contributions: EditorExtensionsRegistry.getSomeEditorContributions([
 				ColorDetector.ID,
 				ContextMenuController.ID,
+				DragAndDropController.ID,
 				DropIntoEditorController.ID,
 				LinkDetector.ID,
 				MenuPreventer.ID,
@@ -2654,13 +2656,16 @@ export class SCMActionButton implements IDisposable {
 		if (button.secondaryCommands?.length) {
 			const actions: IAction[] = [];
 			for (let index = 0; index < button.secondaryCommands.length; index++) {
-				for (const command of button.secondaryCommands[index]) {
+				const commands = button.secondaryCommands[index];
+				for (const command of commands) {
 					actions.push(new Action(command.id, command.title, undefined, true, async () => await this.executeCommand(command.id, ...(command.arguments || []))));
 				}
-				if (index !== button.secondaryCommands.length - 1) {
+				if (commands.length) {
 					actions.push(new Separator());
 				}
 			}
+			// Remove last separator
+			actions.pop();
 
 			// ButtonWithDropdown
 			this.button = new ButtonWithDropdown(this.container, {
