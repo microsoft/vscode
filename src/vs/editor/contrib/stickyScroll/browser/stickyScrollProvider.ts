@@ -43,7 +43,7 @@ export class StickyLineCandidateProvider extends Disposable {
 	private _outlineModel: StickyOutlineElement | undefined;
 	private readonly _sessionStore: DisposableStore = new DisposableStore();
 	private _modelVersionId: number = 0;
-	private _providerString: string = '';
+	private _providerID: string = '';
 
 	constructor(
 		editor: ICodeEditor,
@@ -68,13 +68,13 @@ export class StickyLineCandidateProvider extends Disposable {
 			return;
 		} else {
 			this._sessionStore.add(this._editor.onDidChangeModel(() => {
-				this._providerString = '';
+				this._providerID = '';
 				this.update();
 			}));
 			this._sessionStore.add(this._editor.onDidChangeHiddenAreas(() => this.update()));
 			this._sessionStore.add(this._editor.onDidChangeModelContent(() => this._updateSoon.schedule()));
 			this._sessionStore.add(this._languageFeaturesService.documentSymbolProvider.onDidChange(() => {
-				this._providerString = '';
+				this._providerID = '';
 				this.update();
 			}));
 			this.update();
@@ -92,45 +92,17 @@ export class StickyLineCandidateProvider extends Disposable {
 		this.onStickyScrollChangeEmitter.fire();
 	}
 
-	private findSumOfRangesOfGroup(outline: OutlineGroup | OutlineElement): number {
-		let res = 0;
-		for (const child of outline.children.values()) {
-			res += this.findSumOfRangesOfGroup(child);
-		}
-		if (outline instanceof OutlineElement) {
-			return res + outline.symbol.range.endLineNumber - outline.symbol.selectionRange.startLineNumber;
-		} else {
-			return res;
-		}
-	}
-
 	private async updateOutlineModel(token: CancellationToken) {
 		if (this._editor.hasModel()) {
 			const model = this._editor.getModel();
 			const modelVersionId = model.getVersionId();
-			let outlineModel = await OutlineModel.create(this._languageFeaturesService.documentSymbolProvider, model, token) as OutlineModel;
+			const outlineModel = await OutlineModel.create(this._languageFeaturesService.documentSymbolProvider, model, token) as OutlineModel;
 			if (token.isCancellationRequested) {
 				return;
 			}
-			// When several possible outline providers
-			if (outlineModel.children.size !== 0 && Iterable.first(outlineModel.children) instanceof OutlineGroup) {
-				if (outlineModel.children.has(this._providerString)) {
-					outlineModel = outlineModel.children.get(this._providerString) as unknown as OutlineModel;
-				} else {
-					let providerString = '';
-					let maxTotalSumOfRanges = 0;
-					for (const [key, outlineGroup] of outlineModel.children.entries()) {
-						const totalSumRanges = this.findSumOfRangesOfGroup(outlineGroup);
-						if (totalSumRanges > maxTotalSumOfRanges) {
-							maxTotalSumOfRanges = totalSumRanges;
-							providerString = key;
-						}
-					}
-					this._providerString = providerString;
-					outlineModel = outlineModel.children.get(this._providerString) as unknown as OutlineModel;
-				}
-			}
-			this._outlineModel = StickyOutlineElement.fromOutlineModel(outlineModel, -1);
+			const outlineData = StickyOutlineElement.fromOutlineModel(outlineModel, this._providerID);
+			this._outlineModel = outlineData.stickyOutlineElement;
+			this._providerID = outlineData.providerID;
 			this._modelVersionId = modelVersionId;
 		}
 	}
@@ -196,18 +168,16 @@ export class StickyLineCandidateProvider extends Disposable {
 }
 
 class StickyOutlineElement {
-	public static fromOutlineModel(outlineModel: OutlineModel | OutlineElement | OutlineGroup, previousStartLine: number): StickyOutlineElement {
 
+	public static fromOutlineElement(outlineElement: OutlineElement, previousStartLine: number): StickyOutlineElement {
 		const children: StickyOutlineElement[] = [];
-		for (const child of outlineModel.children.values()) {
-			if (child instanceof OutlineGroup || child instanceof OutlineModel) {
-				children.push(StickyOutlineElement.fromOutlineModel(child, previousStartLine));
-			} else if (child instanceof OutlineElement && child.symbol.selectionRange.startLineNumber !== child.symbol.range.endLineNumber) {
+		for (const child of outlineElement.children.values()) {
+			if (child.symbol.selectionRange.startLineNumber !== child.symbol.range.endLineNumber) {
 				if (child.symbol.selectionRange.startLineNumber !== previousStartLine) {
-					children.push(StickyOutlineElement.fromOutlineModel(child, child.symbol.selectionRange.startLineNumber));
+					children.push(StickyOutlineElement.fromOutlineElement(child, child.symbol.selectionRange.startLineNumber));
 				} else {
 					for (const subchild of child.children.values()) {
-						children.push(StickyOutlineElement.fromOutlineModel(subchild, child.symbol.selectionRange.startLineNumber));
+						children.push(StickyOutlineElement.fromOutlineElement(subchild, child.symbol.selectionRange.startLineNumber));
 					}
 				}
 			}
@@ -221,17 +191,61 @@ class StickyOutlineElement {
 				return child2.range.endLineNumber - child1.range.endLineNumber;
 			}
 		});
-		let range: StickyRange | undefined;
-		if (outlineModel instanceof OutlineElement) {
-			range = new StickyRange(outlineModel.symbol.selectionRange.startLineNumber, outlineModel.symbol.range.endLineNumber);
-		} else {
-			range = undefined;
-		}
-		return new StickyOutlineElement(
-			range,
-			children
-		);
+		const range = new StickyRange(outlineElement.symbol.selectionRange.startLineNumber, outlineElement.symbol.range.endLineNumber);
+		return new StickyOutlineElement(range, children);
 	}
+
+	public static fromOutlineModel(outlineModel: OutlineModel, providerID: string): { stickyOutlineElement: StickyOutlineElement; providerID: string } {
+
+		let ID: string = providerID;
+		let outlineElements: Map<string, OutlineElement>;
+		// When several possible outline providers
+		if (outlineModel.children.size !== 0 && Iterable.first(outlineModel.children.values()) instanceof OutlineGroup) {
+			const filteredProviders = Array.from(outlineModel.children.values()).filter(outlineGroupOfModel => outlineGroupOfModel.id === providerID);
+			if (filteredProviders && filteredProviders.length !== 0) {
+				outlineElements = filteredProviders[0].children;
+			} else {
+				let tempID = '';
+				let maxTotalSumOfRanges = 0;
+				let optimalOutlineGroup = undefined;
+				for (const [_key, outlineGroup] of outlineModel.children.entries()) {
+					const totalSumRanges = StickyOutlineElement.findSumOfRangesOfGroup(outlineGroup);
+					if (totalSumRanges > maxTotalSumOfRanges) {
+						optimalOutlineGroup = outlineGroup;
+						maxTotalSumOfRanges = totalSumRanges;
+						tempID = outlineGroup.id;
+					}
+				}
+				ID = tempID;
+				outlineElements = optimalOutlineGroup?.children as Map<string, OutlineElement>;
+			}
+		} else {
+			outlineElements = outlineModel.children as Map<string, OutlineElement>;
+		}
+		const stickyChildren: StickyOutlineElement[] = [];
+		for (const outlineElement of outlineElements.values()) {
+			stickyChildren.push(StickyOutlineElement.fromOutlineElement(outlineElement, outlineElement.symbol.selectionRange.startLineNumber));
+		}
+		const stickyOutlineElement = new StickyOutlineElement(undefined, stickyChildren);
+
+		return {
+			stickyOutlineElement: stickyOutlineElement,
+			providerID: ID
+		};
+	}
+
+	private static findSumOfRangesOfGroup(outline: OutlineGroup | OutlineElement): number {
+		let res = 0;
+		for (const child of outline.children.values()) {
+			res += this.findSumOfRangesOfGroup(child);
+		}
+		if (outline instanceof OutlineElement) {
+			return res + outline.symbol.range.endLineNumber - outline.symbol.selectionRange.startLineNumber;
+		} else {
+			return res;
+		}
+	}
+
 	constructor(
 		/**
 		 * Range of line numbers spanned by the current scope
