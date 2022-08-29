@@ -85,7 +85,7 @@ export class TimerService extends AbstractTimerService {
 	}
 }
 
-registerSingleton(ITimerService, TimerService);
+registerSingleton(ITimerService, TimerService, false);
 
 //#region cached data logic
 

@@ -248,7 +248,7 @@ export class GettingStartedDetailsRenderer {
 
 const transformUri = (src: string, base: URI) => {
 	const path = joinPath(base, src);
-	return asWebviewUri(path).toString();
+	return asWebviewUri(path).toString(true);
 };
 
 const transformUris = (content: string, base: URI): string => content

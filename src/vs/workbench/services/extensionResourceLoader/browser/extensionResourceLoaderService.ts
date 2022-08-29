@@ -52,4 +52,4 @@ class ExtensionResourceLoaderService extends AbstractExtensionResourceLoaderServ
 	}
 }
 
-registerSingleton(IExtensionResourceLoaderService, ExtensionResourceLoaderService);
+registerSingleton(IExtensionResourceLoaderService, ExtensionResourceLoaderService, false);
