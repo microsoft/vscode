@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { BinarySizeStatusBarEntry } from './binarySizeStatusBarEntry';
-import { Disposable } from './util/dispose';
+import { MediaPreview, reopenAsText } from './mediaPreview';
 import { escapeAttribute, getNonce } from './util/dom';
 
 const localize = nls.loadMessageBundle();
@@ -29,113 +29,34 @@ class AudioPreviewProvider implements vscode.CustomReadonlyEditorProvider {
 	}
 }
 
-const enum PreviewState {
-	Disposed,
-	Visible,
-	Active,
-}
 
-class AudioPreview extends Disposable {
-
-	private readonly id: string = `${Date.now()}-${Math.random().toString()}`;
-
-	private _previewState = PreviewState.Visible;
-	private _binarySize: number | undefined;
+class AudioPreview extends MediaPreview {
 
 	private readonly emptyAudioDataUri = 'data:audio/wav;base64,';
 
 	constructor(
 		private readonly extensionRoot: vscode.Uri,
-		private readonly resource: vscode.Uri,
-		private readonly webviewEditor: vscode.WebviewPanel,
-		private readonly binarySizeStatusBarEntry: BinarySizeStatusBarEntry,
+		resource: vscode.Uri,
+		webviewEditor: vscode.WebviewPanel,
+		binarySizeStatusBarEntry: BinarySizeStatusBarEntry,
 	) {
-		super();
-
-		const resourceRoot = resource.with({
-			path: resource.path.replace(/\/[^\/]+?\.\w+$/, '/'),
-		});
-
-		webviewEditor.webview.options = {
-			enableScripts: true,
-			enableForms: false,
-			localResourceRoots: [
-				resourceRoot,
-				extensionRoot,
-			]
-		};
+		super(extensionRoot, resource, webviewEditor, binarySizeStatusBarEntry);
 
 		this._register(webviewEditor.webview.onDidReceiveMessage(message => {
 			switch (message.type) {
 				case 'reopen-as-text': {
-					vscode.commands.executeCommand('vscode.openWith', resource, 'default', webviewEditor.viewColumn);
+					reopenAsText(resource, webviewEditor.viewColumn);
 					break;
 				}
 			}
 		}));
 
-		this._register(webviewEditor.onDidChangeViewState(() => {
-			this.update();
-		}));
-
-		this._register(webviewEditor.onDidDispose(() => {
-			if (this._previewState === PreviewState.Active) {
-				this.binarySizeStatusBarEntry.hide(this.id);
-			}
-			this._previewState = PreviewState.Disposed;
-		}));
-
-		const watcher = this._register(vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(resource, '*')));
-		this._register(watcher.onDidChange(e => {
-			if (e.toString() === this.resource.toString()) {
-				this.render();
-			}
-		}));
-		this._register(watcher.onDidDelete(e => {
-			if (e.toString() === this.resource.toString()) {
-				this.webviewEditor.dispose();
-			}
-		}));
-
-		vscode.workspace.fs.stat(resource).then(({ size }) => {
-			this._binarySize = size;
-			this.update();
-		});
-
+		this.updateBinarySize();
 		this.render();
-		this.update();
+		this.updateState();
 	}
 
-	private async render() {
-		if (this._previewState === PreviewState.Disposed) {
-			return;
-		}
-
-		const content = await this.getWebviewContents();
-		if (this._previewState as PreviewState === PreviewState.Disposed) {
-			return;
-		}
-
-		this.webviewEditor.webview.html = content;
-	}
-
-	private update() {
-		if (this._previewState === PreviewState.Disposed) {
-			return;
-		}
-
-		if (this.webviewEditor.active) {
-			this._previewState = PreviewState.Active;
-			this.binarySizeStatusBarEntry.show(this.id, this._binarySize);
-		} else {
-			if (this._previewState === PreviewState.Active) {
-				this.binarySizeStatusBarEntry.hide(this.id);
-			}
-			this._previewState = PreviewState.Visible;
-		}
-	}
-
-	private async getWebviewContents(): Promise<string> {
+	protected async getWebviewContents(): Promise<string> {
 		const version = Date.now().toString();
 		const settings = {
 			src: await this.getResourcePath(this.webviewEditor, this.resource, version),

@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { Disposable } from './util/dispose';
 
 export abstract class PreviewStatusBarEntry extends Disposable {
-	private _showOwner: string | undefined;
+	private _showOwner: unknown | undefined;
 
 	protected readonly entry: vscode.StatusBarItem;
 
@@ -17,13 +17,13 @@ export abstract class PreviewStatusBarEntry extends Disposable {
 		this.entry.name = name;
 	}
 
-	protected showItem(owner: string, text: string) {
+	protected showItem(owner: unknown, text: string) {
 		this._showOwner = owner;
 		this.entry.text = text;
 		this.entry.show();
 	}
 
-	public hide(owner: string) {
+	public hide(owner: unknown) {
 		if (owner === this._showOwner) {
 			this.entry.hide();
 			this._showOwner = undefined;
