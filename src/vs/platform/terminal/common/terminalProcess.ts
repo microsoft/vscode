@@ -5,7 +5,7 @@
 
 import { UriComponents } from 'vs/base/common/uri';
 import { ISerializableEnvironmentVariableCollection, ISerializableEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariable';
-import { IFixedTerminalDimensions, IRawTerminalTabLayoutInfo, ITerminalEnvironment, ITerminalTabLayoutInfoById, TerminalIcon, TerminalType, TitleEventSource, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
+import { IFixedTerminalDimensions, IRawTerminalTabLayoutInfo, IReconnectionProperties, ITerminalEnvironment, ITerminalTabLayoutInfoById, TerminalIcon, TerminalType, TitleEventSource, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
 
 export interface ISingleTerminalConfiguration<T> {
 	userValue: T | undefined;
@@ -60,8 +60,7 @@ export interface IProcessDetails {
 	color: string | undefined;
 	fixedDimensions: IFixedTerminalDimensions | undefined;
 	environmentVariableCollections: ISerializableEnvironmentVariableCollections | undefined;
-	reconnectionOwner?: string;
-	task?: { label: string; id: string; lastTask: string; group?: string };
+	reconnectionProperties?: IReconnectionProperties;
 	waitOnExit?: WaitOnExitValue;
 	hideFromUser?: boolean;
 	isFeatureTerminal?: boolean;

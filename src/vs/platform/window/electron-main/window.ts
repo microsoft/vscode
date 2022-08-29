@@ -27,6 +27,7 @@ export interface ICodeWindow extends IDisposable {
 	readonly win: BrowserWindow | null; /* `null` after being disposed */
 	readonly config: INativeWindowConfiguration | undefined;
 
+	readonly previousWorkspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
 	readonly openedWorkspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
 
 	readonly profile?: IUserDataProfile;
@@ -73,6 +74,8 @@ export interface ICodeWindow extends IDisposable {
 	updateTouchBar(items: ISerializableCommandAction[][]): void;
 
 	serializeWindowState(): IWindowState;
+
+	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): void;
 }
 
 export const enum LoadReason {

@@ -41,7 +41,6 @@ import { parse } from 'vs/base/common/json';
 import * as objects from 'vs/base/common/objects';
 import { IKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayout';
 import { getDispatchConfig } from 'vs/platform/keyboardLayout/common/dispatchConfig';
-import { isArray } from 'vs/base/common/types';
 import { INavigatorWithKeyboard, IKeyboard } from 'vs/workbench/services/keybinding/browser/navigatorKeyboard';
 import { flatten } from 'vs/base/common/arrays';
 import { BrowserFeatures, KeyboardSupport } from 'vs/base/browser/canIUse';
@@ -767,7 +766,7 @@ class UserKeybindings extends Disposable {
 		try {
 			const content = await this.fileService.readFile(this.userDataProfileService.currentProfile.keybindingsResource);
 			const value = parse(content.value.toString());
-			this._keybindings = isArray(value) ? value : [];
+			this._keybindings = Array.isArray(value) ? value : [];
 		} catch (e) {
 			this._keybindings = [];
 		}

@@ -87,8 +87,7 @@ class NotebookFindFilterActionViewItem extends DropdownMenuActionViewItem {
 			run: async () => {
 				this.filters.markupInput = !this.filters.markupInput;
 			},
-			tooltip: '',
-			dispose: () => null
+			tooltip: ''
 		};
 
 		const markdownPreview: IAction = {
@@ -100,8 +99,7 @@ class NotebookFindFilterActionViewItem extends DropdownMenuActionViewItem {
 			run: async () => {
 				this.filters.markupPreview = !this.filters.markupPreview;
 			},
-			tooltip: '',
-			dispose: () => null
+			tooltip: ''
 		};
 
 		const codeInput: IAction = {
@@ -113,8 +111,7 @@ class NotebookFindFilterActionViewItem extends DropdownMenuActionViewItem {
 			run: async () => {
 				this.filters.codeInput = !this.filters.codeInput;
 			},
-			tooltip: '',
-			dispose: () => null
+			tooltip: ''
 		};
 
 		const codeOutput = {

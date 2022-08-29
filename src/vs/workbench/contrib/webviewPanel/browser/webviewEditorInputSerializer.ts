@@ -80,7 +80,7 @@ export class WebviewEditorInputSerializer implements IEditorSerializer {
 		return this._webviewWorkbenchService.reviveWebview({
 			webviewInitInfo: {
 				id: data.id,
-				providedId: data.providedId,
+				providedViewType: data.providedId,
 				origin: data.origin,
 				options: data.webviewOptions,
 				contentOptions: data.contentOptions,

@@ -25,14 +25,14 @@ suite('platform - terminalEnvironment', () => {
 
 		suite('pwsh', () => {
 			const expectedPs1 = process.platform === 'win32'
-				? `${repoRoot}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1`
-				: `${repoRoot}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1`;
+				? `try { . "${repoRoot}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1" } catch {}`
+				: `. "${repoRoot}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"`;
 			suite('should override args', () => {
 				const enabledExpectedResult = Object.freeze<IShellIntegrationConfigInjection>({
 					newArgs: [
 						'-noexit',
 						'-command',
-						`. "${expectedPs1}"`
+						expectedPs1
 					],
 					envMixin: {
 						VSCODE_INJECTION: '1'
@@ -63,7 +63,7 @@ suite('platform - terminalEnvironment', () => {
 						'-l',
 						'-noexit',
 						'-command',
-						`. "${expectedPs1}"`
+						expectedPs1
 					],
 					envMixin: {
 						VSCODE_INJECTION: '1'

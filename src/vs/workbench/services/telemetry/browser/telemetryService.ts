@@ -12,7 +12,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { OneDataSystemWebAppender } from 'vs/platform/telemetry/browser/1dsAppender';
 import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
-import { ITelemetryData, ITelemetryInfo, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryData, ITelemetryInfo, ITelemetryService, TelemetryLevel, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryLogAppender } from 'vs/platform/telemetry/common/telemetryLogAppender';
 import { ITelemetryServiceConfig, TelemetryService as BaseTelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { isInternalTelemetry, ITelemetryAppender, NullTelemetryService, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -38,6 +38,34 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		super();
 
 		if (supportsTelemetry(productService, environmentService) && productService.aiConfig?.ariaKey) {
+			this.impl = this.initializeService(environmentService, loggerService, configurationService, storageService, productService, remoteAgentService);
+		} else {
+			this.impl = NullTelemetryService;
+		}
+
+		// When the level changes it could change from off to on and we want to make sure telemetry is properly intialized
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TELEMETRY_SETTING_ID)) {
+				this.impl = this.initializeService(environmentService, loggerService, configurationService, storageService, productService, remoteAgentService);
+			}
+		}));
+	}
+
+	/**
+	 * Initializes the telemetry service to be a full fledged service.
+	 * This is only done once and only when telemetry is enabled as this will also ping the endpoint to
+	 * ensure its not adblocked and we can send telemetry
+	 */
+	private initializeService(
+		environmentService: IBrowserWorkbenchEnvironmentService,
+		loggerService: ILoggerService,
+		configurationService: IConfigurationService,
+		storageService: IStorageService,
+		productService: IProductService,
+		remoteAgentService: IRemoteAgentService
+	) {
+		const telemetrySupported = supportsTelemetry(productService, environmentService) && productService.aiConfig?.ariaKey;
+		if (telemetrySupported && this.impl === NullTelemetryService && this.telemetryLevel.value !== TelemetryLevel.NONE) {
 			// If remote server is present send telemetry through that, else use the client side appender
 			const appenders = [];
 			const isInternal = isInternalTelemetry(productService, configurationService);
@@ -50,10 +78,9 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 				sendErrorTelemetry: this.sendErrorTelemetry,
 			};
 
-			this.impl = this._register(new BaseTelemetryService(config, configurationService, productService));
-		} else {
-			this.impl = NullTelemetryService;
+			return this._register(new BaseTelemetryService(config, configurationService, productService));
 		}
+		return NullTelemetryService;
 	}
 
 	setExperimentProperty(name: string, value: string): void {

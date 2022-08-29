@@ -1545,7 +1545,7 @@ export class ExtensionEditor extends EditorPane {
 				),
 				...commands.map(c => $('tr', undefined,
 					$('td', undefined, $('code', undefined, c.id)),
-					$('td', undefined, c.title),
+					$('td', undefined, typeof c.title === 'string' ? c.title : c.title.value),
 					$('td', undefined, ...c.keybindings.map(keybinding => renderKeybinding(keybinding))),
 					$('td', undefined, ...c.menus.map(context => $('code', undefined, context)))
 				))
@@ -1737,9 +1737,7 @@ registerAction2(class ShowExtensionEditorFindAction extends Action2 {
 	}
 	run(accessor: ServicesAccessor): any {
 		const extensionEditor = getExtensionEditor(accessor);
-		if (extensionEditor) {
-			extensionEditor.showFind();
-		}
+		extensionEditor?.showFind();
 	}
 });
 
