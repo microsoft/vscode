@@ -1568,14 +1568,6 @@
             }
           },
           {
-            "id": "walkthroughs.jsWelcome.runJsFile",
-            "title": "%walkthroughs.jsWelcome.runJsFile.title%",
-            "description": "%walkthroughs.jsWelcome.runJsFile.description%",
-            "media": {
-              "markdown": "resources/walkthroughs/TODO.md"
-            }
-          },
-          {
             "id": "walkthroughs.jsWelcome.debugJsFile",
             "title": "%walkthroughs.jsWelcome.debugJsFile.title%",
             "description": "%walkthroughs.jsWelcome.debugJsFile.description%",
