@@ -29,7 +29,7 @@ export class BrowserWorkingCopyBackupService extends WorkingCopyBackupService {
 }
 
 // Register Service
-registerSingleton(IWorkingCopyBackupService, BrowserWorkingCopyBackupService);
+registerSingleton(IWorkingCopyBackupService, BrowserWorkingCopyBackupService, false);
 
 // Register Backup Tracker
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(BrowserWorkingCopyBackupTracker, LifecyclePhase.Starting);

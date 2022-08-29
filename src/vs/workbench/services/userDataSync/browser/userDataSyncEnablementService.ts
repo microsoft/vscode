@@ -18,4 +18,4 @@ export class UserDataSyncEnablementService extends BaseUserDataSyncEnablementSer
 
 }
 
-registerSingleton(IUserDataSyncEnablementService, UserDataSyncEnablementService);
+registerSingleton(IUserDataSyncEnablementService, UserDataSyncEnablementService, false);

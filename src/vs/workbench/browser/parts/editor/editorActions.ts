@@ -1133,10 +1133,13 @@ export class OpenNextEditor extends AbstractNavigateEditorAction {
 		}
 
 		// Otherwise try in next group that has editors
+		const handledGroups = new Set<number>();
 		let currentGroup: IEditorGroup | undefined = this.editorGroupService.activeGroup;
-		while (currentGroup) {
+		while (currentGroup && !handledGroups.has(currentGroup.id)) {
 			currentGroup = this.editorGroupService.findGroup({ location: GroupLocation.NEXT }, currentGroup, true);
 			if (currentGroup) {
+				handledGroups.add(currentGroup.id);
+
 				const groupEditors = currentGroup.getEditors(EditorsOrder.SEQUENTIAL);
 				if (groupEditors.length > 0) {
 					return { editor: groupEditors[0], groupId: currentGroup.id };
@@ -1173,10 +1176,13 @@ export class OpenPreviousEditor extends AbstractNavigateEditorAction {
 		}
 
 		// Otherwise try in previous group that has editors
+		const handledGroups = new Set<number>();
 		let currentGroup: IEditorGroup | undefined = this.editorGroupService.activeGroup;
-		while (currentGroup) {
+		while (currentGroup && !handledGroups.has(currentGroup.id)) {
 			currentGroup = this.editorGroupService.findGroup({ location: GroupLocation.PREVIOUS }, currentGroup, true);
 			if (currentGroup) {
+				handledGroups.add(currentGroup.id);
+
 				const groupEditors = currentGroup.getEditors(EditorsOrder.SEQUENTIAL);
 				if (groupEditors.length > 0) {
 					return { editor: groupEditors[groupEditors.length - 1], groupId: currentGroup.id };

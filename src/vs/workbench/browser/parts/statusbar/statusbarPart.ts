@@ -618,4 +618,4 @@ registerThemingParticipant((theme, collector) => {
 	}
 });
 
-registerSingleton(IStatusbarService, StatusbarPart);
+registerSingleton(IStatusbarService, StatusbarPart, false);

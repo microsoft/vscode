@@ -605,4 +605,4 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 }
 
-registerSingleton(IPreferencesService, PreferencesService);
+registerSingleton(IPreferencesService, PreferencesService, false);

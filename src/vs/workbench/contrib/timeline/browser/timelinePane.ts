@@ -285,7 +285,9 @@ export class TimelinePane extends ViewPane {
 			// Update the storage service with the setting
 			storageService.store('timeline.excludeSources', oldSettingString, StorageScope.PROFILE, StorageTarget.USER);
 		}
-		this.excludedSources = new Set(JSON.parse(storageService.get('timeline.excludeSources', StorageScope.PROFILE, '[]')));
+		const excludedSourcesString = storageService.get('timeline.excludeSources', StorageScope.PROFILE, '[]');
+		this.timelineExcludeSourcesContext.set(excludedSourcesString);
+		this.excludedSources = new Set(JSON.parse(excludedSourcesString));
 
 		this._register(storageService.onDidChangeValue(this.onStorageServiceChanged, this));
 		this._register(configurationService.onDidChangeConfiguration(this.onConfigurationChanged, this));

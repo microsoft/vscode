@@ -383,5 +383,5 @@ MenuRegistry.appendMenuItem(MenuId.SCMSourceControl, {
 	when: ContextKeyExpr.equals('scmProviderHasRootUri', true)
 });
 
-registerSingleton(ISCMService, SCMService);
-registerSingleton(ISCMViewService, SCMViewService);
+registerSingleton(ISCMService, SCMService, false);
+registerSingleton(ISCMViewService, SCMViewService, false);

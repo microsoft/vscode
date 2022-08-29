@@ -711,4 +711,4 @@ class ExtensionsManager extends Disposable {
 	}
 }
 
-registerSingleton(IWorkbenchExtensionEnablementService, ExtensionEnablementService);
+registerSingleton(IWorkbenchExtensionEnablementService, ExtensionEnablementService, false);
