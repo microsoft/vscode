@@ -39,6 +39,9 @@ export const Context = {
 	Visible: new RawContextKey<boolean>('codeActionMenuVisible', false, localize('codeActionMenuVisible', "Whether the code action list widget is visible"))
 };
 
+export const acceptSelectedCodeActionCommand = 'acceptSelectedCodeAction';
+export const previewSelectedCodeActionCommand = 'previewSelectedCodeAction';
+
 interface CodeActionWidgetDelegate {
 	onSelectCodeAction: (action: CodeActionItem, trigger: CodeActionTrigger) => Promise<any>;
 }
@@ -288,7 +291,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		});
 
 		this._ctxMenuWidgetVisible = Context.Visible.bindTo(this._contextKeyService);
-		this.listRenderer = new CodeMenuRenderer([`onEnterSelectCodeAction`, `onEnterSelectCodeActionWithPreview`], keybindingService);
+		this.listRenderer = new CodeMenuRenderer([acceptSelectedCodeActionCommand, previewSelectedCodeActionCommand], keybindingService);
 	}
 
 	get isVisible(): boolean {
