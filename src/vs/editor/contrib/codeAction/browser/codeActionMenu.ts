@@ -436,7 +436,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 				}
 			}
 		}, [
-			new CodeActionItemRenderer([`onEnterSelectCodeAction`, `onEnterSelectCodeActionWithPreview`], this.keybindingService),
+			new CodeActionItemRenderer([acceptSelectedCodeActionCommand, previewSelectedCodeActionCommand], this.keybindingService),
 			new HeaderRenderer(),
 			new SeparatorRenderer(),
 		], {
