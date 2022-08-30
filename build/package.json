@@ -46,7 +46,7 @@
     "commander": "^7.0.0",
     "debug": "^4.3.2",
     "electron-osx-sign": "^0.4.16",
-    "esbuild": "^0.14.2",
+    "esbuild": "0.15.5",
     "extract-zip": "^2.0.1",
     "fs-extra": "^9.1.0",
     "got": "11.8.5",
