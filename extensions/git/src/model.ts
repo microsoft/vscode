@@ -311,15 +311,14 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 	@sequentialize
 	async openRepository(repoPath: string): Promise<void> {
 		this.outputChannelLogger.logTrace(`Opening repository: ${repoPath}`);
-		const config = workspace.getConfiguration('git', Uri.file(repoPath));
-		const detectNestedRepositories = config.get<boolean>('detectNestedRepositories') === true;
-
-		if (!detectNestedRepositories && this.getRepository(repoPath)) {
+		if (this.getOpenRepositoryExact(repoPath)) {
 			this.outputChannelLogger.logTrace(`Repository for path ${repoPath} already exists`);
 			return;
 		}
 
+		const config = workspace.getConfiguration('git', Uri.file(repoPath));
 		const enabled = config.get<boolean>('enabled') === true;
+
 		if (!enabled) {
 			this.outputChannelLogger.logTrace('Git is not enabled');
 			return;
@@ -348,8 +347,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			const repositoryRoot = Uri.file(rawRoot).fsPath;
 			this.outputChannelLogger.logTrace(`Repository root: ${repositoryRoot}`);
 
-			if ((!detectNestedRepositories && this.getRepository(repositoryRoot)) ||
-				(detectNestedRepositories && this.openRepositories.find(r => r.repository.root === repositoryRoot))) {
+			if (this.getOpenRepositoryExact(repositoryRoot)) {
 				this.outputChannelLogger.logTrace(`Repository for path ${repositoryRoot} already exists`);
 				return;
 			}
@@ -564,6 +562,11 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 		}
 
 		return undefined;
+	}
+
+	private getOpenRepositoryExact(repoPath: string): Repository | undefined {
+		const repository = this.openRepositories.find(r => pathEquals(r.repository.root, repoPath));
+		return repository?.repository;
 	}
 
 	getRepositoryForSubmodule(submoduleUri: Uri): Repository | undefined {

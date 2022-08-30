@@ -2248,12 +2248,6 @@
           "default": 50,
           "description": "%config.inputValidationSubjectLength%"
         },
-        "git.detectNestedRepositories": {
-          "type": "boolean",
-          "scope": "resource",
-          "default": false,
-          "description": "%config.detectNestedRepositories%"
-        },
         "git.detectSubmodules": {
           "type": "boolean",
           "scope": "resource",
