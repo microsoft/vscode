@@ -188,6 +188,14 @@ export class StickyLineCandidateProvider extends Disposable {
 
 class StickyOutlineElement {
 
+	private static comparator(range1: StickyRange, range2: StickyRange): number {
+		if (range1.startLineNumber !== range2.startLineNumber) {
+			return range1.startLineNumber - range2.startLineNumber;
+		} else {
+			return range2.endLineNumber - range1.endLineNumber;
+		}
+	}
+
 	public static fromOutlineElement(outlineElement: OutlineElement, previousStartLine: number): StickyOutlineElement {
 		const children: StickyOutlineElement[] = [];
 		for (const child of outlineElement.children.values()) {
@@ -201,15 +209,7 @@ class StickyOutlineElement {
 				}
 			}
 		}
-		children.sort((child1, child2) => {
-			if (!child1.range || !child2.range) {
-				return 1;
-			} else if (child1.range.startLineNumber !== child2.range.startLineNumber) {
-				return child1.range.startLineNumber - child2.range.startLineNumber;
-			} else {
-				return child2.range.endLineNumber - child1.range.endLineNumber;
-			}
-		});
+		children.sort((child1, child2) => this.comparator(child1.range!, child2.range!));
 		const range = new StickyRange(outlineElement.symbol.selectionRange.startLineNumber, outlineElement.symbol.range.endLineNumber);
 		return new StickyOutlineElement(range, children, undefined);
 	}
@@ -243,11 +243,9 @@ class StickyOutlineElement {
 		}
 		const stickyChildren: StickyOutlineElement[] = [];
 		const outlineElementsArray = Array.from(outlineElements.values()).sort((element1, element2) => {
-			if (element1.symbol.selectionRange.startLineNumber !== element2.symbol.selectionRange.startLineNumber) {
-				return element1.symbol.selectionRange.startLineNumber - element2.symbol.selectionRange.startLineNumber;
-			} else {
-				return element2.symbol.range.startLineNumber - element1.symbol.range.startLineNumber;
-			}
+			const range1: StickyRange = new StickyRange(element1.symbol.range.startLineNumber, element1.symbol.range.endLineNumber);
+			const range2: StickyRange = new StickyRange(element2.symbol.range.startLineNumber, element2.symbol.range.endLineNumber);
+			return this.comparator(range1, range2);
 		});
 		for (const outlineElement of outlineElementsArray) {
 			stickyChildren.push(StickyOutlineElement.fromOutlineElement(outlineElement, outlineElement.symbol.selectionRange.startLineNumber));
