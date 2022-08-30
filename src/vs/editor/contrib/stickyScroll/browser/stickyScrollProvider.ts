@@ -13,6 +13,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { Range } from 'vs/editor/common/core/range';
 import { Emitter } from 'vs/base/common/event';
 import { binarySearch } from 'vs/base/common/arrays';
+import { Iterable } from 'vs/base/common/iterator';
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
 import { FoldingModel } from 'vs/editor/contrib/folding/browser/foldingModel';
 
@@ -44,6 +45,7 @@ export class StickyLineCandidateProvider extends Disposable {
 	private _outlineModel: StickyOutlineElement | undefined;
 	private readonly _sessionStore: DisposableStore = new DisposableStore();
 	private _modelVersionId: number = 0;
+	private _providerID: string | undefined = undefined;
 
 	constructor(
 		editor: ICodeEditor,
@@ -67,10 +69,16 @@ export class StickyLineCandidateProvider extends Disposable {
 			this._sessionStore.clear();
 			return;
 		} else {
-			this._sessionStore.add(this._editor.onDidChangeModel(() => this.update()));
+			this._sessionStore.add(this._editor.onDidChangeModel(() => {
+				this._providerID = undefined;
+				this.update();
+			}));
 			this._sessionStore.add(this._editor.onDidChangeHiddenAreas(() => this.update()));
 			this._sessionStore.add(this._editor.onDidChangeModelContent(() => this._updateSoon.schedule()));
-			this._sessionStore.add(this._languageFeaturesService.documentSymbolProvider.onDidChange(() => this.update()));
+			this._sessionStore.add(this._languageFeaturesService.documentSymbolProvider.onDidChange(() => {
+				this._providerID = undefined;
+				this.update();
+			}));
 			this.update();
 		}
 	}
@@ -95,7 +103,9 @@ export class StickyLineCandidateProvider extends Disposable {
 				return;
 			}
 			if (outlineModel.children.size !== 0) {
-				this._outlineModel = StickyOutlineElement.fromOutlineModel(outlineModel, -1);
+				const { stickyOutlineElement, providerID } = StickyOutlineElement.fromOutlineModel(outlineModel, this._providerID);
+				this._outlineModel = stickyOutlineElement;
+				this._providerID = providerID;
 			} else {
 				const foldingController = FoldingController.get(this._editor);
 				const foldingModel = await foldingController?.getFoldingModel();
@@ -177,18 +187,16 @@ export class StickyLineCandidateProvider extends Disposable {
 }
 
 class StickyOutlineElement {
-	public static fromOutlineModel(outlineModel: OutlineModel | OutlineElement | OutlineGroup, previousStartLine: number): StickyOutlineElement {
 
+	public static fromOutlineElement(outlineElement: OutlineElement, previousStartLine: number): StickyOutlineElement {
 		const children: StickyOutlineElement[] = [];
-		for (const child of outlineModel.children.values()) {
-			if (child instanceof OutlineGroup || child instanceof OutlineModel) {
-				children.push(StickyOutlineElement.fromOutlineModel(child, previousStartLine));
-			} else if (child instanceof OutlineElement && child.symbol.selectionRange.startLineNumber !== child.symbol.range.endLineNumber) {
+		for (const child of outlineElement.children.values()) {
+			if (child.symbol.selectionRange.startLineNumber !== child.symbol.range.endLineNumber) {
 				if (child.symbol.selectionRange.startLineNumber !== previousStartLine) {
-					children.push(StickyOutlineElement.fromOutlineModel(child, child.symbol.selectionRange.startLineNumber));
+					children.push(StickyOutlineElement.fromOutlineElement(child, child.symbol.selectionRange.startLineNumber));
 				} else {
 					for (const subchild of child.children.values()) {
-						children.push(StickyOutlineElement.fromOutlineModel(subchild, child.symbol.selectionRange.startLineNumber));
+						children.push(StickyOutlineElement.fromOutlineElement(subchild, child.symbol.selectionRange.startLineNumber));
 					}
 				}
 			}
@@ -202,17 +210,59 @@ class StickyOutlineElement {
 				return child2.range.endLineNumber - child1.range.endLineNumber;
 			}
 		});
-		let range: StickyRange | undefined;
-		if (outlineModel instanceof OutlineElement) {
-			range = new StickyRange(outlineModel.symbol.selectionRange.startLineNumber, outlineModel.symbol.range.endLineNumber);
+		const range = new StickyRange(outlineElement.symbol.selectionRange.startLineNumber, outlineElement.symbol.range.endLineNumber);
+		return new StickyOutlineElement(range, children, undefined);
+	}
+
+	public static fromOutlineModel(outlineModel: OutlineModel, providerID: string | undefined): { stickyOutlineElement: StickyOutlineElement; providerID: string | undefined } {
+
+		let ID: string | undefined = providerID;
+		let outlineElements: Map<string, OutlineElement>;
+		// When several possible outline providers
+		if (Iterable.first(outlineModel.children.values()) instanceof OutlineGroup) {
+			const provider = Iterable.find(outlineModel.children.values(), outlineGroupOfModel => outlineGroupOfModel.id === providerID);
+			if (provider) {
+				outlineElements = provider.children;
+			} else {
+				let tempID = '';
+				let maxTotalSumOfRanges = 0;
+				let optimalOutlineGroup = undefined;
+				for (const [_key, outlineGroup] of outlineModel.children.entries()) {
+					const totalSumRanges = StickyOutlineElement.findSumOfRangesOfGroup(outlineGroup);
+					if (totalSumRanges > maxTotalSumOfRanges) {
+						optimalOutlineGroup = outlineGroup;
+						maxTotalSumOfRanges = totalSumRanges;
+						tempID = outlineGroup.id;
+					}
+				}
+				ID = tempID;
+				outlineElements = optimalOutlineGroup!.children;
+			}
 		} else {
-			range = undefined;
+			outlineElements = outlineModel.children as Map<string, OutlineElement>;
 		}
-		return new StickyOutlineElement(
-			range,
-			children,
-			undefined
-		);
+		const stickyChildren: StickyOutlineElement[] = [];
+		for (const outlineElement of outlineElements.values()) {
+			stickyChildren.push(StickyOutlineElement.fromOutlineElement(outlineElement, outlineElement.symbol.selectionRange.startLineNumber));
+		}
+		const stickyOutlineElement = new StickyOutlineElement(undefined, stickyChildren, undefined);
+
+		return {
+			stickyOutlineElement: stickyOutlineElement,
+			providerID: ID
+		};
+	}
+
+	private static findSumOfRangesOfGroup(outline: OutlineGroup | OutlineElement): number {
+		let res = 0;
+		for (const child of outline.children.values()) {
+			res += this.findSumOfRangesOfGroup(child);
+		}
+		if (outline instanceof OutlineElement) {
+			return res + outline.symbol.range.endLineNumber - outline.symbol.selectionRange.startLineNumber;
+		} else {
+			return res;
+		}
 	}
 
 	public static fromFoldingModel(foldingModel: FoldingModel): StickyOutlineElement {
