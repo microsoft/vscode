@@ -53,4 +53,4 @@ class UserDataSyncUtilService implements IUserDataSyncUtilService {
 
 }
 
-registerSingleton(IUserDataSyncUtilService, UserDataSyncUtilService);
+registerSingleton(IUserDataSyncUtilService, UserDataSyncUtilService, false);

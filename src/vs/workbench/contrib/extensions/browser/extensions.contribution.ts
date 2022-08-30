@@ -80,9 +80,9 @@ import product from 'vs/platform/product/common/product';
 import { IStringDictionary } from 'vs/base/common/collections';
 
 // Singletons
-registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
-registerSingleton(IExtensionRecommendationNotificationService, ExtensionRecommendationNotificationService);
-registerSingleton(IExtensionRecommendationsService, ExtensionRecommendationsService);
+registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService, false);
+registerSingleton(IExtensionRecommendationNotificationService, ExtensionRecommendationNotificationService, false);
+registerSingleton(IExtensionRecommendationsService, ExtensionRecommendationsService, false);
 
 Registry.as<IOutputChannelRegistry>(OutputExtensions.OutputChannels)
 	.registerChannel({ id: ExtensionsChannelId, label: ExtensionsLabel, log: false });
@@ -228,6 +228,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			},
 			'extensions.experimental.useUtilityProcess': {
 				type: 'boolean',
+				tags: ['experimental'],
 				description: localize('extensionsUseUtilityProcess', "When enabled, the extension host will be launched using the new UtilityProcess Electron API."),
 				default: product.quality === 'stable' ? false : true // disabled by default in stable for now
 			},

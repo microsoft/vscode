@@ -14,6 +14,7 @@ import { Hasher } from 'vs/base/common/hash';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { splitLines } from 'vs/base/common/strings';
 import { IMatch } from 'vs/base/common/filters';
+import { unsupportedSchemas } from 'vs/platform/markers/common/markerService';
 
 export type MarkerElement = ResourceMarkers | Marker | RelatedInformation;
 
@@ -188,6 +189,10 @@ export class MarkersModel {
 	setResourceMarkers(resourcesMarkers: [URI, IMarker[]][]): void {
 		const change: MarkerChangesEvent = { added: new Set(), removed: new Set(), updated: new Set() };
 		for (const [resource, rawMarkers] of resourcesMarkers) {
+
+			if (unsupportedSchemas.has(resource.scheme)) {
+				continue;
+			}
 
 			const key = extUri.getComparisonKey(resource, true);
 			let resourceMarkers = this.resourcesByUri.get(key);

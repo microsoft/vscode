@@ -14,7 +14,7 @@ export const diff = registerColor(
 
 export const diffWord = registerColor(
 	'mergeEditor.change.word.background',
-	{ dark: '#9bb9551e', light: '#9bb9551e', hcDark: '#9bb9551e', hcLight: '#9bb9551e', },
+	{ dark: '#9ccc2c33', light: '#9ccc2c66', hcDark: '#9ccc2c33', hcLight: '#9ccc2c66', },
 	localize('mergeEditor.change.word.background', 'The background color for word changes.')
 );
 
@@ -41,7 +41,6 @@ export const conflictBorderHandledFocused = registerColor(
 	{ dark: '#c1c1c1cc', light: '#c1c1c1cc', hcDark: '#c1c1c1cc', hcLight: '#c1c1c1cc', },
 	localize('mergeEditor.conflict.handledFocused.border', 'The border color of handled focused conflicts.')
 );
-
 
 export const handledConflictMinimapOverViewRulerColor = registerColor(
 	'mergeEditor.conflict.handled.minimapOverViewRuler',

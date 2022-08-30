@@ -13025,7 +13025,7 @@ declare module 'vscode' {
 		/**
 		 * The metadata of this cell. Can be anything but must be JSON-stringifyable.
 		 */
-		readonly metadata: { [key: string]: any };
+		readonly metadata: { readonly [key: string]: any };
 
 		/**
 		 * The outputs of this cell.

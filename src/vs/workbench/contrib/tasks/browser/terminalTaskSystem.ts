@@ -1287,7 +1287,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		for (let i = 0; i < this._reconnectedTerminals.length; i++) {
 			const terminal = this._reconnectedTerminals[i];
 			const taskForTerminal = terminal.shellLaunchConfig.attachPersistentProcess?.reconnectionProperties?.data as IReconnectionTaskData;
-			if (taskForTerminal.lastTask === task.getMapKey()) {
+			if (taskForTerminal.lastTask === task.getCommonTaskId()) {
 				this._reconnectedTerminals.splice(i, 1);
 				return terminal;
 			}
@@ -1302,7 +1302,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				reconnectedTerminal.waitOnExit = getWaitOnExitValue(task.command.presentation, task.configurationProperties);
 			}
 			reconnectedTerminal.onDisposed((terminal) => this._fireTaskEvent({ kind: TaskEventKind.Terminated, exitReason: terminal.exitReason, taskId: task.getRecentlyUsedKey() }));
-			this._logService.info('reconnected to task and terminal', task._id);
+			this._logService.trace('reconnected to task and terminal', task._id);
 			return reconnectedTerminal;
 		}
 		if (group) {
@@ -1323,27 +1323,26 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 		// Either no group is used, no terminal with the group exists or splitting an existing terminal failed.
 		const createdTerminal = await this._terminalService.createTerminal({ location: TerminalLocation.Panel, config: launchConfigs });
-		this._logService.trace('Created a new task terminal');
 		createdTerminal.onDisposed((terminal) => this._fireTaskEvent({ kind: TaskEventKind.Terminated, exitReason: terminal.exitReason, taskId: task.getRecentlyUsedKey() }));
 		return createdTerminal;
 	}
 
 	private _reconnectToTerminals(): void {
 		if (this._hasReconnected) {
-			this._logService.info(`Already reconnected, to ${this._reconnectedTerminals?.length} terminals so returning`);
+			this._logService.trace(`Already reconnected, to ${this._reconnectedTerminals?.length} terminals so returning`);
 			return;
 		}
 		this._reconnectedTerminals = this._terminalService.getReconnectedTerminals(ReconnectionType)?.filter(t => !t.isDisposed);
-		this._logService.info(`Attempting reconnection of ${this._reconnectedTerminals?.length} terminals`);
+		this._logService.trace(`Attempting reconnection of ${this._reconnectedTerminals?.length} terminals`);
 		if (!this._reconnectedTerminals?.length) {
-			this._logService.info(`No terminals to reconnect to so returning`);
+			this._logService.trace(`No terminals to reconnect to so returning`);
 			this._hasReconnected = true;
 			return;
 		} else {
 			for (const terminal of this._reconnectedTerminals) {
 				const task = terminal.shellLaunchConfig.attachPersistentProcess?.reconnectionProperties?.data as IReconnectionTaskData;
 				if (this._logService.getLevel() <= LogLevel.Trace) {
-					this._logService.info(`Reconnecting to task: ${JSON.stringify(task)}`);
+					this._logService.trace(`Reconnecting to task: ${JSON.stringify(task)}`);
 				}
 				if (!task) {
 					continue;
@@ -1455,7 +1454,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 		this._terminalCreationQueue = this._terminalCreationQueue.then(() => this._doCreateTerminal(task, group, launchConfigs!));
 		const terminal: ITerminalInstance = (await this._terminalCreationQueue)!;
-		terminal.shellLaunchConfig.reconnectionProperties = { ownerId: ReconnectionType, data: { lastTask: taskKey, group, label: task._label, id: task._id } };
+		terminal.shellLaunchConfig.reconnectionProperties = { ownerId: ReconnectionType, data: { lastTask: task.getCommonTaskId(), group, label: task._label, id: task._id } };
 		const terminalKey = terminal.instanceId.toString();
 		const terminalData = { terminal: terminal, lastTask: taskKey, group };
 		terminal.onDisposed(() => this._deleteTaskAndTerminal(terminal, terminalData));

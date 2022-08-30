@@ -960,4 +960,4 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 }
 
-registerSingleton(IViewDescriptorService, ViewDescriptorService);
+registerSingleton(IViewDescriptorService, ViewDescriptorService, false);

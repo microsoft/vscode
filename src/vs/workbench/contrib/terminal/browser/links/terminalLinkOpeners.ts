@@ -66,12 +66,18 @@ export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 		const fileNameEndIndex: number = index !== -1 ? index + fileName.length : link.length;
 
 		// Sanitize the link text such that the folders and file name do not contain whitespace.
-		link = link.slice(0, fileNameEndIndex).replace(/\s/g, '_') + link.slice(fileNameEndIndex);
+		let sanitizedLink = link.slice(0, fileNameEndIndex).replace(/\s/g, '_') + link.slice(fileNameEndIndex);
+
+		// Remove / suffixes from Windows paths such that the windows link regex works
+		// (eg. /c:/file -> c:/file)
+		if (this._os === OperatingSystem.Windows && sanitizedLink.match(/^\/[a-z]:\//i)) {
+			sanitizedLink = sanitizedLink.slice(1);
+		}
 
 		// The local link regex only works for non file:// links, check these for a simple
 		// `:line:col` suffix
-		if (link.startsWith('file://')) {
-			const simpleMatches = link.match(/:(\d+)(:(\d+))?$/);
+		if (sanitizedLink.startsWith('file://')) {
+			const simpleMatches = sanitizedLink.match(/:(\d+)(:(\d+))?$/);
 			if (simpleMatches) {
 				if (simpleMatches[1] !== undefined) {
 					lineColumnInfo.lineNumber = parseInt(simpleMatches[1]);
@@ -83,7 +89,7 @@ export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 			return lineColumnInfo;
 		}
 
-		const matches: string[] | null = getLocalLinkRegex(this._os).exec(link);
+		const matches: string[] | null = getLocalLinkRegex(this._os).exec(sanitizedLink);
 		if (!matches) {
 			return lineColumnInfo;
 		}
