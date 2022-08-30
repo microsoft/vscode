@@ -29,7 +29,10 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		@ITaskService private readonly _taskService: ITaskService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@ILogService private readonly _logService: ILogService) {
+		@ILogService private readonly _logService: ILogService,
+		@IStorageService private readonly _storageService: IStorageService,
+		@IOpenerService private readonly _openerService: IOpenerService,
+		@INotificationService private readonly _notificationService: INotificationService) {
 		super();
 		this._tryRunTasks();
 	}
@@ -42,21 +45,9 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 			await Event.toPromise(Event.once(this._taskService.onDidChangeTaskSystemInfo));
 		}
 
-		this._logService.trace('RunAutomaticTasks: Checking if automatic tasks should run.');
-		const isFolderAutomaticAllowed = this._configurationService.getValue(ALLOW_AUTOMATIC_TASKS) !== 'off';
-		await this._workspaceTrustManagementService.workspaceTrustInitialized;
-		const isWorkspaceTrusted = this._workspaceTrustManagementService.isWorkspaceTrusted();
-		// Only run if allowed. Prompting for permission occurs when a user first tries to run a task.
-		if (isFolderAutomaticAllowed && isWorkspaceTrusted) {
-			this._taskService.getWorkspaceTasks(TaskRunSource.FolderOpen).then(workspaceTaskResult => {
-				const { tasks } = RunAutomaticTasks._findAutoTasks(this._taskService, workspaceTaskResult);
-				this._logService.trace(`RunAutomaticTasks: Found ${tasks.length} automatic tasks tasks`);
-
-				if (tasks.length > 0) {
-					RunAutomaticTasks._runTasks(this._taskService, tasks);
-				}
-			});
-		}
+		const workspaceTasks = await this._taskService.getWorkspaceTasks(TaskRunSource.FolderOpen);
+		this._logService.trace(`RunAutomaticTasks: Found ${workspaceTasks.size} automatic tasks`);
+		await RunAutomaticTasks.runWithPermission(this._taskService, this._storageService, this._notificationService, this._workspaceTrustManagementService, this._openerService, this._configurationService, workspaceTasks);
 	}
 
 	private static _runTasks(taskService: ITaskService, tasks: Array<Task | Promise<Task | undefined>>) {
@@ -128,29 +119,31 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		return { tasks, taskNames, locations };
 	}
 
-	public static async promptForPermission(taskService: ITaskService, storageService: IStorageService, notificationService: INotificationService, workspaceTrustManagementService: IWorkspaceTrustManagementService,
+	public static async runWithPermission(taskService: ITaskService, storageService: IStorageService, notificationService: INotificationService, workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		openerService: IOpenerService, configurationService: IConfigurationService, workspaceTaskResult: Map<string, IWorkspaceFolderTaskResult>) {
 		const isWorkspaceTrusted = workspaceTrustManagementService.isWorkspaceTrusted;
-		if (!isWorkspaceTrusted) {
-			return;
-		}
-		if (configurationService.getValue(ALLOW_AUTOMATIC_TASKS) === 'off') {
+		if (!isWorkspaceTrusted || configurationService.getValue(ALLOW_AUTOMATIC_TASKS) === 'off') {
 			return;
 		}
 
-		const hasShownPromptForAutomaticTasks = storageService.getBoolean(HAS_PROMPTED_FOR_AUTOMATIC_TASKS, StorageScope.WORKSPACE, undefined);
+		const hasShownPromptForAutomaticTasks = storageService.getBoolean(HAS_PROMPTED_FOR_AUTOMATIC_TASKS, StorageScope.WORKSPACE, false);
 		const { tasks, taskNames, locations } = RunAutomaticTasks._findAutoTasks(taskService, workspaceTaskResult);
-		if (taskNames.length > 0) {
-			if (configurationService.getValue(ALLOW_AUTOMATIC_TASKS) === 'on') {
-				RunAutomaticTasks._runTasks(taskService, tasks);
-			} else if (!hasShownPromptForAutomaticTasks) {
-				// We have automatic tasks, prompt to allow.
-				this._showPrompt(notificationService, storageService, openerService, configurationService, taskNames, locations).then(allow => {
-					if (allow) {
-						RunAutomaticTasks._runTasks(taskService, tasks);
-					}
-				});
-			}
+
+		if (taskNames.length === 0) {
+			return;
+		}
+
+		if (configurationService.getValue(ALLOW_AUTOMATIC_TASKS) === 'on') {
+			RunAutomaticTasks._runTasks(taskService, tasks);
+		} else if (configurationService.getValue(ALLOW_AUTOMATIC_TASKS) === 'auto' && !hasShownPromptForAutomaticTasks) {
+			// by default, only prompt once per folder
+			// otherwise, this can be configured via the setting
+			this._showPrompt(notificationService, storageService, openerService, configurationService, taskNames, locations).then(allow => {
+				if (allow) {
+					storageService.store(HAS_PROMPTED_FOR_AUTOMATIC_TASKS, true, StorageScope.WORKSPACE, StorageTarget.USER);
+					RunAutomaticTasks._runTasks(taskService, tasks);
+				}
+			});
 		}
 	}
 

@@ -7,6 +7,7 @@ import { IInstantiationService, IConstructorSignature, ServicesAccessor, Branded
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { runWhenIdle, IdleDeadline } from 'vs/base/common/async';
+import { mark } from 'vs/base/common/performance';
 
 /**
  * A workbench contribution that will be loaded when the workbench starts and disposed when the workbench shuts down.
@@ -90,14 +91,23 @@ class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry 
 		if (toBeInstantiated) {
 			this.toBeInstantiated.delete(phase);
 			if (phase !== LifecyclePhase.Eventually) {
+
 				// instantiate everything synchronously and blocking
+				// measure the time it takes as perf marks for diagnosis
+
+				mark(`code/willCreateWorkbenchContributions/${phase}`);
+
 				for (const ctor of toBeInstantiated) {
 					this.safeCreateInstance(instantiationService, ctor); // catch error so that other contributions are still considered
 				}
+
+				mark(`code/didCreateWorkbenchContributions/${phase}`);
 			} else {
+
 				// for the Eventually-phase we instantiate contributions
 				// only when idle. this might take a few idle-busy-cycles
 				// but will finish within the timeouts
+
 				const forcedTimeout = 3000;
 				let i = 0;
 				const instantiateSome = (idle: IdleDeadline) => {

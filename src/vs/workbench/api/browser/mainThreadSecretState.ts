@@ -65,9 +65,17 @@ export class MainThreadSecretState extends Disposable implements MainThreadSecre
 				if (value.extensionId === extensionId) {
 					return value.content;
 				}
-			} catch (e) {
-				this.logService.error(e);
-				throw new Error('Cannot get password');
+			} catch (parseError) {
+				this.logService.error(parseError);
+
+				// If we can't parse the decrypted value, then it's not a valid secret so we should try to delete it
+				try {
+					await this.credentialsService.deletePassword(fullKey, key);
+				} catch (e) {
+					this.logService.error(e);
+				}
+
+				throw new Error('Unable to parse decrypted password');
 			}
 		}
 
