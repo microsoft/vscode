@@ -406,7 +406,7 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 
 		// Delete executing cell
 		const edit = new vscode.WorkspaceEdit();
-		edit.replaceNotebookCells(cell!.notebook.uri, new vscode.NotebookRange(cell!.index, cell!.index + 1), []);
+		edit.set(cell!.notebook.uri, [vscode.NotebookEdit.replaceCells(new vscode.NotebookRange(cell!.index, cell!.index + 1), [])]);
 		await vscode.workspace.applyEdit(edit);
 
 		assert.strictEqual(executionWasCancelled, true);

@@ -40,8 +40,6 @@
     "@types/underscore": "^1.8.9",
     "@types/webpack": "^4.41.25",
     "@types/xml2js": "0.0.33",
-    "@typescript-eslint/experimental-utils": "^5.10.0",
-    "@typescript-eslint/parser": "^5.10.0",
     "@vscode/iconv-lite-umd": "0.7.0",
     "byline": "^5.0.0",
     "colors": "^1.4.0",
