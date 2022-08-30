@@ -223,6 +223,15 @@ suite('EditorInput', () => {
 		assert.ok(diffEditorInput.matches(untypedResourceDiffEditorInput));
 		assert.ok(!diffEditorInput.matches(untypedResourceMergeEditorInput));
 
+		stripOverrides();
+
+		assert.ok(!diffEditorInput.matches(untypedResourceEditorInput));
+		assert.ok(!diffEditorInput.matches(untypedTextResourceEditorInput));
+		assert.ok(!diffEditorInput.matches(untypedResourceSideBySideEditorInput));
+		assert.ok(!diffEditorInput.matches(untypedUntitledResourceEditorinput));
+		assert.ok(diffEditorInput.matches(untypedResourceDiffEditorInput));
+		assert.ok(!diffEditorInput.matches(untypedResourceMergeEditorInput));
+
 		diffEditorInput.dispose();
 		fileEditorInput1.dispose();
 		fileEditorInput2.dispose();
