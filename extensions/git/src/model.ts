@@ -565,8 +565,9 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 	}
 
 	private getOpenRepositoryExact(repoPath: string): Repository | undefined {
-		const repository = this.openRepositories.find(r => pathEquals(r.repository.root, repoPath));
-		return repository?.repository;
+		const openRepository = this.openRepositories
+			.find(r => pathEquals(r.repository.root, repoPath));
+		return openRepository?.repository;
 	}
 
 	getRepositoryForSubmodule(submoduleUri: Uri): Repository | undefined {
