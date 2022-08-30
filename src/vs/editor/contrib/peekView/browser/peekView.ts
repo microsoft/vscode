@@ -53,7 +53,7 @@ registerSingleton(IPeekViewService, class implements IPeekViewService {
 		};
 		this._widgets.set(editor, { widget, listener: widget.onDidClose(remove) });
 	}
-});
+}, true);
 
 export namespace PeekContext {
 	export const inPeekEditor = new RawContextKey<boolean>('inReferenceSearchEditor', true, nls.localize('inReferenceSearchEditor', "Whether the current code editor is embedded inside peek"));

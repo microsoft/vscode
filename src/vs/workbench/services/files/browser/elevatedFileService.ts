@@ -25,4 +25,4 @@ export class BrowserElevatedFileService implements IElevatedFileService {
 	}
 }
 
-registerSingleton(IElevatedFileService, BrowserElevatedFileService);
+registerSingleton(IElevatedFileService, BrowserElevatedFileService, false);

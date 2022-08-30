@@ -93,4 +93,4 @@ export class UserDataProfileImportExportService implements IUserDataProfileImpor
 
 }
 
-registerSingleton(IUserDataProfileImportExportService, UserDataProfileImportExportService);
+registerSingleton(IUserDataProfileImportExportService, UserDataProfileImportExportService, false);
