@@ -45,7 +45,7 @@ export class StickyLineCandidateProvider extends Disposable {
 	private _outlineModel: StickyOutlineElement | undefined;
 	private readonly _sessionStore: DisposableStore = new DisposableStore();
 	private _modelVersionId: number = 0;
-	private _providerID: string = '';
+	private _providerID: string | undefined = undefined;
 
 	constructor(
 		editor: ICodeEditor,
@@ -70,13 +70,13 @@ export class StickyLineCandidateProvider extends Disposable {
 			return;
 		} else {
 			this._sessionStore.add(this._editor.onDidChangeModel(() => {
-				this._providerID = '';
+				this._providerID = undefined;
 				this.update();
 			}));
 			this._sessionStore.add(this._editor.onDidChangeHiddenAreas(() => this.update()));
 			this._sessionStore.add(this._editor.onDidChangeModelContent(() => this._updateSoon.schedule()));
 			this._sessionStore.add(this._languageFeaturesService.documentSymbolProvider.onDidChange(() => {
-				this._providerID = '';
+				this._providerID = undefined;
 				this.update();
 			}));
 			this.update();
@@ -214,15 +214,15 @@ class StickyOutlineElement {
 		return new StickyOutlineElement(range, children, undefined);
 	}
 
-	public static fromOutlineModel(outlineModel: OutlineModel, providerID: string): { stickyOutlineElement: StickyOutlineElement; providerID: string } {
+	public static fromOutlineModel(outlineModel: OutlineModel, providerID: string | undefined): { stickyOutlineElement: StickyOutlineElement; providerID: string | undefined } {
 
-		let ID: string = providerID;
+		let ID: string | undefined = providerID;
 		let outlineElements: Map<string, OutlineElement>;
 		// When several possible outline providers
-		if (outlineModel.children.size !== 0 && Iterable.first(outlineModel.children.values()) instanceof OutlineGroup) {
-			const filteredProviders = Array.from(outlineModel.children.values()).filter(outlineGroupOfModel => outlineGroupOfModel.id === providerID);
-			if (filteredProviders && filteredProviders.length !== 0) {
-				outlineElements = filteredProviders[0].children;
+		if (Iterable.first(outlineModel.children.values()) instanceof OutlineGroup) {
+			const provider = Iterable.find(outlineModel.children.values(), outlineGroupOfModel => outlineGroupOfModel.id === providerID);
+			if (provider) {
+				outlineElements = provider.children;
 			} else {
 				let tempID = '';
 				let maxTotalSumOfRanges = 0;
@@ -236,7 +236,7 @@ class StickyOutlineElement {
 					}
 				}
 				ID = tempID;
-				outlineElements = optimalOutlineGroup?.children as Map<string, OutlineElement>;
+				outlineElements = optimalOutlineGroup!.children;
 			}
 		} else {
 			outlineElements = outlineModel.children as Map<string, OutlineElement>;
