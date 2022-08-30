@@ -109,6 +109,7 @@ import { ExtensionsProfileScannerService, IExtensionsProfileScannerService } fro
 import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/extensionsScannerService';
 import { UserDataTransientProfilesHandler } from 'vs/platform/userDataProfile/electron-main/userDataTransientProfilesHandler';
+import { RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -555,9 +556,16 @@ export class CodeApplication extends Disposable {
 		if (this.environmentMainService.args.trace) {
 			appInstantiationService.invokeFunction(accessor => this.stopTracingEventually(accessor, windows));
 		}
+
+		// Set lifecycle phase to `Eventually` after a short delay and when idle (min 2.5sec, max 5sec)
+		const eventuallyPhaseScheduler = this._register(new RunOnceScheduler(() => {
+			this._register(runWhenIdle(() => this.lifecycleMainService.phase = LifecycleMainPhase.Eventually, 2500));
+		}, 2500));
+		eventuallyPhaseScheduler.schedule();
 	}
 
 	private setUpHandlers(instantiationService: IInstantiationService): void {
+
 		// Auth Handler
 		this._register(instantiationService.createInstance(ProxyAuthHandler));
 
