@@ -505,13 +505,6 @@ export class Git {
 
 				return path.normalize(pathUri.fsPath);
 			}
-
-			// On Windows, there are cases in which the normalized path for a mapped folder contains a trailing `\`
-			// character (ex: \\server\folder\) due to the implementation of `path.normalize()`. This behaviour is
-			// by design as documented in https://github.com/nodejs/node/issues/1765.
-			if (repoUri.authority.length !== 0) {
-				return repoPath.replace(/\\$/, '');
-			}
 		}
 
 		return repoPath;
