@@ -147,7 +147,7 @@ export class ExplorerService implements IExplorerService {
 		this.view = contextProvider;
 	}
 
-	getContext(respectMultiSelection: boolean): ExplorerItem[] {
+	getContext(respectMultiSelection: boolean, ignoreNestedChildren: boolean = false): ExplorerItem[] {
 		if (!this.view) {
 			return [];
 		}
@@ -155,7 +155,7 @@ export class ExplorerService implements IExplorerService {
 		const items = new Set<ExplorerItem>(this.view.getContext(respectMultiSelection));
 		items.forEach(item => {
 			try {
-				if (respectMultiSelection && this.view?.isItemCollapsed(item) && item.nestedChildren) {
+				if (respectMultiSelection && !ignoreNestedChildren && this.view?.isItemCollapsed(item) && item.nestedChildren) {
 					for (const child of item.nestedChildren) {
 						items.add(child);
 					}

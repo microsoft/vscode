@@ -15,7 +15,7 @@ export class SizeStatusBarEntry extends PreviewStatusBarEntry {
 		super('status.imagePreview.size', localize('sizeStatusBar.name', "Image Size"), vscode.StatusBarAlignment.Right, 101 /* to the left of editor status (100) */);
 	}
 
-	public show(owner: string, text: string) {
+	public show(owner: unknown, text: string) {
 		this.showItem(owner, text);
 	}
 }

@@ -41,7 +41,7 @@ export class ZoomStatusBarEntry extends OwnedStatusBarEntry {
 		this.entry.command = selectZoomLevelCommandId;
 	}
 
-	public show(owner: string, scale: Scale) {
+	public show(owner: unknown, scale: Scale) {
 		this.showItem(owner, this.zoomLabel(scale));
 	}
 
