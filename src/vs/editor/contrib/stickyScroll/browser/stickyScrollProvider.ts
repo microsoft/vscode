@@ -13,6 +13,8 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { Range } from 'vs/editor/common/core/range';
 import { Emitter } from 'vs/base/common/event';
 import { binarySearch } from 'vs/base/common/arrays';
+import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
+import { FoldingModel } from 'vs/editor/contrib/folding/browser/foldingModel';
 
 export class StickyRange {
 	constructor(
@@ -92,7 +94,24 @@ export class StickyLineCandidateProvider extends Disposable {
 			if (token.isCancellationRequested) {
 				return;
 			}
-			this._outlineModel = StickyOutlineElement.fromOutlineModel(outlineModel, -1);
+			if (outlineModel.children.size !== 0) {
+				this._outlineModel = StickyOutlineElement.fromOutlineModel(outlineModel, -1);
+			} else {
+				const foldingController = FoldingController.get(this._editor);
+				const foldingModel = await foldingController?.getFoldingModel();
+				if (token.isCancellationRequested) {
+					return;
+				}
+				if (foldingModel && foldingModel.regions.length !== 0) {
+					this._outlineModel = StickyOutlineElement.fromFoldingModel(foldingModel);
+				} else {
+					this._outlineModel = new StickyOutlineElement(
+						new StickyRange(-1, -1),
+						[],
+						undefined
+					);
+				}
+			}
 			this._modelVersionId = modelVersionId;
 		}
 	}
@@ -191,9 +210,44 @@ class StickyOutlineElement {
 		}
 		return new StickyOutlineElement(
 			range,
-			children
+			children,
+			undefined
 		);
 	}
+
+	public static fromFoldingModel(foldingModel: FoldingModel): StickyOutlineElement {
+		const regions = foldingModel.regions;
+		const length = regions.length;
+		let range: StickyRange | undefined;
+		const stackOfParents: StickyRange[] = [];
+
+		const stickyOutlineElement = new StickyOutlineElement(
+			undefined,
+			[],
+			undefined
+		);
+		let parentStickyOutlineElement = stickyOutlineElement;
+
+		for (let i = 0; i < length; i++) {
+			range = new StickyRange(regions.getStartLineNumber(i), regions.getEndLineNumber(i));
+			while (stackOfParents.length !== 0 && (range.startLineNumber < stackOfParents[stackOfParents.length - 1].startLineNumber || range.endLineNumber > stackOfParents[stackOfParents.length - 1].endLineNumber)) {
+				stackOfParents.pop();
+				if (parentStickyOutlineElement.parent !== undefined) {
+					parentStickyOutlineElement = parentStickyOutlineElement.parent;
+				}
+			}
+			const child = new StickyOutlineElement(
+				range,
+				[],
+				parentStickyOutlineElement
+			);
+			parentStickyOutlineElement.children.push(child);
+			parentStickyOutlineElement = child;
+			stackOfParents.push(range);
+		}
+		return stickyOutlineElement;
+	}
+
 	constructor(
 		/**
 		 * Range of line numbers spanned by the current scope
@@ -202,7 +256,11 @@ class StickyOutlineElement {
 		/**
 		 * Must be sorted by start line number
 		*/
-		public readonly children: readonly StickyOutlineElement[],
+		public readonly children: StickyOutlineElement[],
+		/**
+		 * Parent sticky outline element
+		 */
+		public readonly parent: StickyOutlineElement | undefined
 	) {
 	}
 }
