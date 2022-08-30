@@ -244,7 +244,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			return true;
 		}
 		return this === other || (other instanceof CustomEditorInput
-			&& this.viewType === other.viewType
+			&& (this.viewType === other.viewType || other.viewType === undefined)
 			&& isEqual(this.resource, other.resource));
 	}
 
