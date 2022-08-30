@@ -94,7 +94,7 @@ function cleanNotebookAttachments(e: vscode.NotebookDocumentChangeEvent) {
 							updateMetadata.custom.attachments[currFilename] = attachmentCache[notebookUri][cellFragment][currFilename];
 							delete attachmentCache[notebookUri][cellFragment][currFilename];
 						}
-						//TODO: ELSE: red squiggle, image not present
+						//TODO: ELSE: diagnostic squiggle, image not present
 
 					}
 				}
@@ -130,7 +130,7 @@ function cleanNotebookAttachments(e: vscode.NotebookDocumentChangeEvent) {
 						updateMetadata.custom.attachments[currFilename] = attachmentCache[notebookUri][cellFragment][currFilename];
 						delete attachmentCache[notebookUri][cellFragment][currFilename];
 					}
-					//TODO: ELSE: red squiggle, image not present
+					//TODO: ELSE: diagnostic squiggle, image not present
 
 				}
 			}
