@@ -636,6 +636,18 @@ export class NativeWindow extends Disposable {
 			}
 		});
 
+		// Windows 7 warning
+		if (isWindows) {
+			this.lifecycleService.when(LifecyclePhase.Restored).then(async () => {
+				const version = this.environmentService.os.release.split('.');
+
+				// Refs https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-osversioninfoa
+				if (parseInt(version[0]) === 6 && parseInt(version[1]) === 1) {
+					this.notificationService.warn(localize('windows 7 eol', "{0} on Windows 7 will not receive any updates, please check our [FAQ](https://aka.ms/vscode-faq-win7) for additional info.", this.productService.nameLong));
+				}
+			});
+		}
+
 		// Touchbar menu (if enabled)
 		this.updateTouchbarMenu();
 
