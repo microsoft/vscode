@@ -235,6 +235,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		});
 
 		this.registeredEditSessionProviders.set(handle, disposable);
+		this._toDispose.add(disposable);
 	}
 
 	$unregisterEditSessionIdentityProvider(handle: number) {
