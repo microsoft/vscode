@@ -1228,7 +1228,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 			if (runSource === TaskRunSource.User) {
 				const workspaceTasks = await this.getWorkspaceTasks();
-				RunAutomaticTasks.promptForPermission(this, this._storageService, this._notificationService, this._workspaceTrustManagementService, this._openerService, this._configurationService, workspaceTasks);
+				RunAutomaticTasks.runWithPermission(this, this._storageService, this._notificationService, this._workspaceTrustManagementService, this._openerService, this._configurationService, workspaceTasks);
 			}
 			return executeTaskResult;
 		} catch (error) {

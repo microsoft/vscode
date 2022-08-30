@@ -14,6 +14,8 @@ import { Range } from 'vs/editor/common/core/range';
 import { Emitter } from 'vs/base/common/event';
 import { binarySearch } from 'vs/base/common/arrays';
 import { Iterable } from 'vs/base/common/iterator';
+import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
+import { FoldingModel } from 'vs/editor/contrib/folding/browser/foldingModel';
 
 export class StickyRange {
 	constructor(
@@ -100,9 +102,26 @@ export class StickyLineCandidateProvider extends Disposable {
 			if (token.isCancellationRequested) {
 				return;
 			}
-			const outlineData = StickyOutlineElement.fromOutlineModel(outlineModel, this._providerID);
-			this._outlineModel = outlineData.stickyOutlineElement;
-			this._providerID = outlineData.providerID;
+			if (outlineModel.children.size !== 0) {
+				const { stickyOutlineElement, providerID } = StickyOutlineElement.fromOutlineModel(outlineModel, this._providerID);
+				this._outlineModel = stickyOutlineElement;
+				this._providerID = providerID;
+			} else {
+				const foldingController = FoldingController.get(this._editor);
+				const foldingModel = await foldingController?.getFoldingModel();
+				if (token.isCancellationRequested) {
+					return;
+				}
+				if (foldingModel && foldingModel.regions.length !== 0) {
+					this._outlineModel = StickyOutlineElement.fromFoldingModel(foldingModel);
+				} else {
+					this._outlineModel = new StickyOutlineElement(
+						new StickyRange(-1, -1),
+						[],
+						undefined
+					);
+				}
+			}
 			this._modelVersionId = modelVersionId;
 		}
 	}
@@ -192,7 +211,7 @@ class StickyOutlineElement {
 			}
 		});
 		const range = new StickyRange(outlineElement.symbol.selectionRange.startLineNumber, outlineElement.symbol.range.endLineNumber);
-		return new StickyOutlineElement(range, children);
+		return new StickyOutlineElement(range, children, undefined);
 	}
 
 	public static fromOutlineModel(outlineModel: OutlineModel, providerID: string): { stickyOutlineElement: StickyOutlineElement; providerID: string } {
@@ -226,7 +245,7 @@ class StickyOutlineElement {
 		for (const outlineElement of outlineElements.values()) {
 			stickyChildren.push(StickyOutlineElement.fromOutlineElement(outlineElement, outlineElement.symbol.selectionRange.startLineNumber));
 		}
-		const stickyOutlineElement = new StickyOutlineElement(undefined, stickyChildren);
+		const stickyOutlineElement = new StickyOutlineElement(undefined, stickyChildren, undefined);
 
 		return {
 			stickyOutlineElement: stickyOutlineElement,
@@ -246,6 +265,39 @@ class StickyOutlineElement {
 		}
 	}
 
+	public static fromFoldingModel(foldingModel: FoldingModel): StickyOutlineElement {
+		const regions = foldingModel.regions;
+		const length = regions.length;
+		let range: StickyRange | undefined;
+		const stackOfParents: StickyRange[] = [];
+
+		const stickyOutlineElement = new StickyOutlineElement(
+			undefined,
+			[],
+			undefined
+		);
+		let parentStickyOutlineElement = stickyOutlineElement;
+
+		for (let i = 0; i < length; i++) {
+			range = new StickyRange(regions.getStartLineNumber(i), regions.getEndLineNumber(i));
+			while (stackOfParents.length !== 0 && (range.startLineNumber < stackOfParents[stackOfParents.length - 1].startLineNumber || range.endLineNumber > stackOfParents[stackOfParents.length - 1].endLineNumber)) {
+				stackOfParents.pop();
+				if (parentStickyOutlineElement.parent !== undefined) {
+					parentStickyOutlineElement = parentStickyOutlineElement.parent;
+				}
+			}
+			const child = new StickyOutlineElement(
+				range,
+				[],
+				parentStickyOutlineElement
+			);
+			parentStickyOutlineElement.children.push(child);
+			parentStickyOutlineElement = child;
+			stackOfParents.push(range);
+		}
+		return stickyOutlineElement;
+	}
+
 	constructor(
 		/**
 		 * Range of line numbers spanned by the current scope
@@ -254,7 +306,11 @@ class StickyOutlineElement {
 		/**
 		 * Must be sorted by start line number
 		*/
-		public readonly children: readonly StickyOutlineElement[],
+		public readonly children: StickyOutlineElement[],
+		/**
+		 * Parent sticky outline element
+		 */
+		public readonly parent: StickyOutlineElement | undefined
 	) {
 	}
 }

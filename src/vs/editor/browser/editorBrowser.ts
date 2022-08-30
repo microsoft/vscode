@@ -1227,6 +1227,10 @@ export function getCodeEditor(thing: unknown): ICodeEditor | null {
 		return thing.getModifiedEditor();
 	}
 
+	if (isCompositeEditor(thing) && isCodeEditor(thing.activeCodeEditor)) {
+		return thing.activeCodeEditor;
+	}
+
 	return null;
 }
 

@@ -11,7 +11,7 @@ import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { canceled } from 'vs/base/common/errors';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { Lazy } from 'vs/base/common/lazy';
-import { Disposable, dispose, MutableDisposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/action';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -101,138 +101,127 @@ export interface ICodeMenuOptions {
 	optionsAsChildren?: boolean;
 }
 
-export interface ICodeActionMenuTemplateData {
-	root: HTMLElement;
-	text: HTMLElement;
-	detail: HTMLElement;
-	decoratorRight: HTMLElement;
-	disposables: IDisposable[];
-	icon: HTMLElement;
+interface ICodeActionMenuTemplateData {
+	readonly root: HTMLElement;
+	readonly text: HTMLElement;
+	readonly disposables: DisposableStore;
+	readonly icon: HTMLElement;
 }
 
-const TEMPLATE_ID = 'codeActionWidget';
+enum TemplateIds {
+	Header = 'header',
+	Separator = 'separator',
+	Base = 'base',
+}
+
 const codeActionLineHeight = 24;
 const headerLineHeight = 26;
 
 // TODO: Take a look at user storage for this so it is preserved across windows and on reload.
 let showDisabled = false;
 
-class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeActionMenuTemplateData> {
+class CodeActionItemRenderer implements IListRenderer<ICodeActionMenuItem, ICodeActionMenuTemplateData> {
 	constructor(
 		private readonly acceptKeybindings: [string, string],
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) { }
 
-	get templateId(): string { return TEMPLATE_ID; }
+	get templateId(): string { return TemplateIds.Base; }
 
 	renderTemplate(container: HTMLElement): ICodeActionMenuTemplateData {
-		const data: ICodeActionMenuTemplateData = Object.create(null);
-		data.disposables = [];
-		data.root = container;
-		data.text = document.createElement('span');
-
 		const iconContainer = document.createElement('div');
 		iconContainer.className = 'icon-container';
-
-		data.icon = document.createElement('div');
-
-		iconContainer.append(data.icon);
 		container.append(iconContainer);
-		container.append(data.text);
 
-		return data;
+		const icon = document.createElement('div');
+		iconContainer.append(icon);
+
+		const text = document.createElement('span');
+		container.append(text);
+
+		return {
+			root: container,
+			icon,
+			text,
+			disposables: new DisposableStore(),
+		};
 	}
+
 	renderElement(element: ICodeActionMenuItem, index: number, templateData: ICodeActionMenuTemplateData): void {
 		const data: ICodeActionMenuTemplateData = templateData;
 
-		const isSeparator = element.isSeparator;
-		const isHeader = element.isHeader;
+		const text = element.action.label;
+		element.isEnabled = element.action.enabled;
 
-		// Renders differently based on element type.
-		if (isSeparator) {
-			data.root.classList.add('separator');
-			data.root.style.height = '10px';
-		} else if (isHeader) {
-			const text = element.headerTitle;
-			data.text.textContent = text;
-			element.isEnabled = false;
-			data.root.classList.add('group-header');
-		} else {
-			const text = element.action.label;
-			element.isEnabled = element.action.enabled;
+		if (element.action instanceof CodeActionAction) {
+			const openedFromString = (element.params?.options.fromLightbulb) ? CodeActionTriggerSource.Lightbulb : element.params?.trigger.triggerAction;
 
-			if (element.action instanceof CodeActionAction) {
-				const openedFromString = (element.params?.options.fromLightbulb) ? CodeActionTriggerSource.Lightbulb : element.params?.trigger.triggerAction;
+			// Check documentation type
+			element.isDocumentation = element.action.action.kind === CodeActionMenu.documentationID;
 
+			if (element.isDocumentation) {
+				element.isEnabled = false;
+				data.root.classList.add('documentation');
 
-				// Check documentation type
-				element.isDocumentation = element.action.action.kind === CodeActionMenu.documentationID;
+				const container = data.root;
 
-				if (element.isDocumentation) {
-					element.isEnabled = false;
-					data.root.classList.add('documentation');
+				const actionbarContainer = dom.append(container, dom.$('.codeActionWidget-action-bar'));
 
-					const container = data.root;
+				const reRenderAction = showDisabled ?
+					<IAction>{
+						id: 'hideMoreCodeActions',
+						label: localize('hideMoreCodeActions', 'Hide Disabled'),
+						enabled: true,
+						run: () => CodeActionMenu.toggleDisabledOptions(element.params)
+					} :
+					<IAction>{
+						id: 'showMoreCodeActions',
+						label: localize('showMoreCodeActions', 'Show Disabled'),
+						enabled: true,
+						run: () => CodeActionMenu.toggleDisabledOptions(element.params)
+					};
 
-					const actionbarContainer = dom.append(container, dom.$('.codeActionWidget-action-bar'));
+				const actionbar = new ActionBar(actionbarContainer);
+				data.disposables.add(actionbar);
 
-					const reRenderAction = showDisabled ?
-						<IAction>{
-							id: 'hideMoreCodeActions',
-							label: localize('hideMoreCodeActions', 'Hide Disabled'),
-							enabled: true,
-							run: () => CodeActionMenu.toggleDisabledOptions(element.params)
-						} :
-						<IAction>{
-							id: 'showMoreCodeActions',
-							label: localize('showMoreCodeActions', 'Show Disabled'),
-							enabled: true,
-							run: () => CodeActionMenu.toggleDisabledOptions(element.params)
-						};
-
-					const actionbar = new ActionBar(actionbarContainer);
-					data.disposables.push(actionbar);
-
-					if (openedFromString === CodeActionTriggerSource.Refactor && (element.params.codeActions.validActions.length > 0 || element.params.codeActions.allActions.length === element.params.codeActions.validActions.length)) {
-						actionbar.push([element.action, reRenderAction], { icon: false, label: true });
-					} else {
-						actionbar.push([element.action], { icon: false, label: true });
-					}
+				if (openedFromString === CodeActionTriggerSource.Refactor && (element.params.codeActions.validActions.length > 0 || element.params.codeActions.allActions.length === element.params.codeActions.validActions.length)) {
+					actionbar.push([element.action, reRenderAction], { icon: false, label: true });
 				} else {
-					data.text.textContent = text;
+					actionbar.push([element.action], { icon: false, label: true });
+				}
+			} else {
+				data.text.textContent = text;
 
-					// Icons and Label modifaction based on group
-					const group = element.action.action.kind;
-					if (CodeActionKind.SurroundWith.contains(new CodeActionKind(String(group)))) {
-						data.icon.className = Codicon.symbolArray.classNames;
-					} else if (CodeActionKind.Extract.contains(new CodeActionKind(String(group)))) {
-						data.icon.className = Codicon.wrench.classNames;
-					} else if (CodeActionKind.Convert.contains(new CodeActionKind(String(group)))) {
-						data.icon.className = Codicon.zap.classNames;
-						data.icon.style.color = `var(--vscode-editorLightBulbAutoFix-foreground)`;
-					} else if (CodeActionKind.QuickFix.contains(new CodeActionKind(String(group)))) {
-						data.icon.className = Codicon.lightBulb.classNames;
-						data.icon.style.color = `var(--vscode-editorLightBulb-foreground)`;
-					} else {
-						data.icon.className = Codicon.lightBulb.classNames;
-						data.icon.style.color = `var(--vscode-editorLightBulb-foreground)`;
-					}
+				// Icons and Label modifaction based on group
+				const group = element.action.action.kind;
+				if (CodeActionKind.SurroundWith.contains(new CodeActionKind(String(group)))) {
+					data.icon.className = Codicon.symbolArray.classNames;
+				} else if (CodeActionKind.Extract.contains(new CodeActionKind(String(group)))) {
+					data.icon.className = Codicon.wrench.classNames;
+				} else if (CodeActionKind.Convert.contains(new CodeActionKind(String(group)))) {
+					data.icon.className = Codicon.zap.classNames;
+					data.icon.style.color = `var(--vscode-editorLightBulbAutoFix-foreground)`;
+				} else if (CodeActionKind.QuickFix.contains(new CodeActionKind(String(group)))) {
+					data.icon.className = Codicon.lightBulb.classNames;
+					data.icon.style.color = `var(--vscode-editorLightBulb-foreground)`;
+				} else {
+					data.icon.className = Codicon.lightBulb.classNames;
+					data.icon.style.color = `var(--vscode-editorLightBulb-foreground)`;
+				}
 
-					// Check if action has disabled reason
-					if (element.action.action.disabled) {
-						data.root.title = element.action.action.disabled;
-					} else {
-						const updateLabel = () => {
-							const [accept, preview] = this.acceptKeybindings;
+				// Check if action has disabled reason
+				if (element.action.action.disabled) {
+					data.root.title = element.action.action.disabled;
+				} else {
+					const updateLabel = () => {
+						const [accept, preview] = this.acceptKeybindings;
 
-							data.root.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", this.keybindingService.lookupKeybinding(accept)?.getLabel(), this.keybindingService.lookupKeybinding(preview)?.getLabel());
+						data.root.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", this.keybindingService.lookupKeybinding(accept)?.getLabel(), this.keybindingService.lookupKeybinding(preview)?.getLabel());
 
-						};
-						updateLabel();
-					}
+					};
+					updateLabel();
 				}
 			}
-
 		}
 
 		if (!element.isEnabled) {
@@ -243,8 +232,59 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 			data.root.classList.remove('option-disabled');
 		}
 	}
+
 	disposeTemplate(templateData: ICodeActionMenuTemplateData): void {
-		templateData.disposables = dispose(templateData.disposables);
+		templateData.disposables.dispose();
+	}
+}
+
+
+interface HeaderTemplateData {
+	readonly root: HTMLElement;
+	readonly text: HTMLElement;
+}
+
+class HeaderRenderer implements IListRenderer<ICodeActionMenuItem, HeaderTemplateData> {
+
+	get templateId(): string { return TemplateIds.Header; }
+
+	renderTemplate(container: HTMLElement): HeaderTemplateData {
+		container.classList.add('group-header', 'option-disabled');
+
+		const text = document.createElement('span');
+		container.append(text);
+
+		return {
+			root: container,
+			text,
+		};
+	}
+
+	renderElement(element: ICodeActionMenuItem, _index: number, templateData: HeaderTemplateData): void {
+		templateData.text.textContent = element.headerTitle;
+		element.isEnabled = false;
+	}
+
+	disposeTemplate(_templateData: HeaderTemplateData): void {
+		// noop
+	}
+}
+
+class SeparatorRenderer implements IListRenderer<ICodeActionMenuItem, void> {
+
+	get templateId(): string { return TemplateIds.Separator; }
+
+	renderTemplate(container: HTMLElement): void {
+		container.classList.add('separator');
+		container.style.height = '10px';
+	}
+
+	renderElement(_element: ICodeActionMenuItem, _index: number, _templateData: void): void {
+		// noop
+	}
+
+	disposeTemplate(_templateData: void): void {
+		// noop
 	}
 }
 
@@ -270,13 +310,12 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	}
 
 	private readonly _keybindingResolver: CodeActionKeybindingResolver;
-	private listRenderer: CodeMenuRenderer;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _delegate: CodeActionWidgetDelegate,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IThemeService _themeService: IThemeService,
@@ -291,7 +330,6 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		});
 
 		this._ctxMenuWidgetVisible = Context.Visible.bindTo(this._contextKeyService);
-		this.listRenderer = new CodeMenuRenderer([acceptSelectedCodeActionCommand, previewSelectedCodeActionCommand], keybindingService);
 	}
 
 	get isVisible(): boolean {
@@ -384,34 +422,43 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 					return 10;
 				} else if (element.isHeader) {
 					return headerLineHeight;
+				} else {
+					return codeActionLineHeight;
 				}
-				return codeActionLineHeight;
 			},
 			getTemplateId(element) {
-				return 'codeActionWidget';
-			}
-		}, [this.listRenderer],
-			{
-				keyboardSupport: false,
-				accessibilityProvider: {
-					getAriaLabel: element => {
-						if (element.action instanceof CodeActionAction) {
-							let label = element.action.label;
-							if (!element.action.enabled) {
-								if (element.action instanceof CodeActionAction) {
-									label = localize({ key: 'customCodeActionWidget.labels', comment: ['Code action labels for accessibility.'] }, "{0}, Disabled Reason: {1}", label, element.action.action.disabled);
-								}
-							}
-							return label;
-						}
-						return null;
-					},
-					getWidgetAriaLabel: () => localize({ key: 'customCodeActionWidget', comment: ['A Code Action Option'] }, "Code Action Widget"),
-					getRole: () => 'option',
-					getWidgetRole: () => 'code-action-widget'
+				if (element.isHeader) {
+					return TemplateIds.Header;
+				} else if (element.isSeparator) {
+					return TemplateIds.Separator;
+				} else {
+					return TemplateIds.Base;
 				}
 			}
-		);
+		}, [
+			new CodeActionItemRenderer([acceptSelectedCodeActionCommand, previewSelectedCodeActionCommand], this.keybindingService),
+			new HeaderRenderer(),
+			new SeparatorRenderer(),
+		], {
+			keyboardSupport: false,
+			accessibilityProvider: {
+				getAriaLabel: element => {
+					if (element.action instanceof CodeActionAction) {
+						let label = element.action.label;
+						if (!element.action.enabled) {
+							if (element.action instanceof CodeActionAction) {
+								label = localize({ key: 'customCodeActionWidget.labels', comment: ['Code action labels for accessibility.'] }, "{0}, Disabled Reason: {1}", label, element.action.action.disabled);
+							}
+						}
+						return label;
+					}
+					return null;
+				},
+				getWidgetAriaLabel: () => localize({ key: 'customCodeActionWidget', comment: ['A Code Action Option'] }, "Code Action Widget"),
+				getRole: () => 'option',
+				getWidgetRole: () => 'code-action-widget'
+			}
+		});
 
 		const pointerBlockDiv = document.createElement('div');
 		this.pointerBlock = element.appendChild(pointerBlockDiv);
@@ -559,8 +606,8 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 			if (!this.codeActionList.value) {
 				return;
 			}
-			const element = document.getElementById(this.codeActionList.value?.getElementID(index))?.getElementsByTagName('span')[0].offsetWidth;
-			arr.push(Number(element));
+			const element = document.getElementById(this.codeActionList.value?.getElementID(index))?.querySelector('span')?.offsetWidth;
+			arr.push(element ?? 0);
 		});
 
 		// resize observer - can be used in the future since list widget supports dynamic height but not width

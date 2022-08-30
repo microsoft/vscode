@@ -580,6 +580,9 @@ export interface IShellLaunchConfigDto {
 	env?: ITerminalEnvironment;
 	useShellEnvironment?: boolean;
 	hideFromUser?: boolean;
+	reconnectionProperties?: IReconnectionProperties;
+	type?: 'Task' | 'Local';
+	isFeatureTerminal?: boolean;
 }
 
 /**
