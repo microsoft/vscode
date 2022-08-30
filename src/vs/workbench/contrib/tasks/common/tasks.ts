@@ -1226,7 +1226,6 @@ export namespace TaskDefinition {
 			// We have no task definition so we can't sanitize the literal. Take it as is
 			const copy = Objects.deepClone(external);
 			delete copy._key;
-			return KeyedTaskIdentifier.create(copy);
 		}
 
 		const literal: { type: string;[name: string]: any } = Object.create(null);

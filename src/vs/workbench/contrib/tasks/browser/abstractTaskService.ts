@@ -55,7 +55,7 @@ import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/com
 import * as TaskConfig from '../common/taskConfiguration';
 import { TerminalTaskSystem } from './terminalTaskSystem';
 
-import { IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickSeparator, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPick, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { RunAutomaticTasks } from 'vs/workbench/contrib/tasks/browser/runAutomaticTasks';
@@ -73,7 +73,7 @@ import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 
 import { VirtualWorkspaceContext } from 'vs/workbench/common/contextkeys';
 import { EditorResourceAccessor, SaveReason } from 'vs/workbench/common/editor';
 import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
-import { configureTaskIcon, isWorkspaceFolder, ITaskQuickPickEntry, ITaskTwoLevelQuickPickEntry, QUICKOPEN_DETAIL_CONFIG, QUICKOPEN_SKIP_CONFIG, TaskQuickPick } from 'vs/workbench/contrib/tasks/browser/taskQuickPick';
+import { configureTaskIcon, isWorkspaceFolder, ITaskQuickPickEntry, QUICKOPEN_DETAIL_CONFIG, QUICKOPEN_SKIP_CONFIG, TaskQuickPick } from 'vs/workbench/contrib/tasks/browser/taskQuickPick';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ILifecycleService, ShutdownReason, StartupKind } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
@@ -2648,16 +2648,20 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		encounteredTasks = {};
 		return entries;
 	}
-
-	private async _showTwoLevelQuickPick(placeHolder: string, defaultEntry?: ITaskQuickPickEntry, filter?: string) {
-		return TaskQuickPick.show(this, this._configurationService, this._quickInputService, this._notificationService, this._dialogService, this._themeService, placeHolder, defaultEntry, filter);
+	private async _showTwoLevelQuickPick(placeHolder: string, defaultEntry?: ITaskQuickPickEntry, type?: string, name?: string) {
+		return TaskQuickPick.show(this, this._configurationService, this._quickInputService, this._notificationService, this._dialogService, this._themeService, placeHolder, defaultEntry, type, name);
 	}
 
-	private async _showQuickPick(tasks: Promise<Task[]> | Task[], placeHolder: string, defaultEntry?: ITaskQuickPickEntry, group: boolean = false, sort: boolean = false, selectedEntry?: ITaskQuickPickEntry, additionalEntries?: ITaskQuickPickEntry[], filter?: string): Promise<ITaskQuickPickEntry | undefined | null> {
+	private async _showQuickPick(tasks: Promise<Task[]> | Task[], placeHolder: string, defaultEntry?: ITaskQuickPickEntry, group: boolean = false, sort: boolean = false, selectedEntry?: ITaskQuickPickEntry, additionalEntries?: ITaskQuickPickEntry[], type?: string, name?: string): Promise<ITaskQuickPickEntry | undefined | null> {
 		const tokenSource = new CancellationTokenSource();
 		const cancellationToken: CancellationToken = tokenSource.token;
-		const taskArray = Array.isArray(tasks) ? tasks : await tasks;
-		const createEntries = this._createTaskQuickPickEntries(taskArray, group, sort, selectedEntry);
+		const createEntries = new Promise<QuickPickInput<ITaskQuickPickEntry>[]>((resolve) => {
+			if (Array.isArray(tasks)) {
+				resolve(this._createTaskQuickPickEntries(tasks, group, sort, selectedEntry));
+			} else {
+				resolve(tasks.then((tasks) => this._createTaskQuickPickEntries(tasks, group, sort, selectedEntry)));
+			}
+		});
 
 		const timeout: boolean = await Promise.race([new Promise<boolean>((resolve) => {
 			createEntries.then(() => resolve(false));
@@ -2671,19 +2675,25 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!timeout && ((await createEntries).length === 1) && this._configurationService.getValue<boolean>(QUICKOPEN_SKIP_CONFIG)) {
 			return (<ITaskQuickPickEntry>(await createEntries)[0]);
 		}
-		//TODO: weird that this type doesn't exist already/ should be shared
-		const pickEntries: (ITaskQuickPickEntry | IQuickPickSeparator)[] = await createEntries;
-		if ((pickEntries.length === 1) && this._configurationService.getValue<boolean>(QUICKOPEN_SKIP_CONFIG)) {
-			tokenSource.cancel();
-		} else if ((pickEntries.length === 0) && defaultEntry) {
-			pickEntries.push(defaultEntry);
-		} else if (pickEntries.length > 1 && additionalEntries && additionalEntries.length > 0) {
-			pickEntries.push({ type: 'separator', label: '' });
-			pickEntries.push(additionalEntries[0]);
-		}
+
+		const pickEntries = createEntries.then((entries) => {
+			if ((entries.length === 1) && this._configurationService.getValue<boolean>(QUICKOPEN_SKIP_CONFIG)) {
+				tokenSource.cancel();
+			} else if ((entries.length === 0) && defaultEntry) {
+				entries.push(defaultEntry);
+			} else if (entries.length > 1 && additionalEntries && additionalEntries.length > 0) {
+				entries.push({ type: 'separator', label: '' });
+				entries.push(additionalEntries[0]);
+			}
+			return entries;
+		});
+
 		const picker: IQuickPick<ITaskQuickPickEntry> = this._quickInputService.createQuickPick();
 		picker.placeholder = placeHolder;
 		picker.matchOnDescription = true;
+		if (name) {
+			picker.value = name;
+		}
 		picker.onDidTriggerItemButton(context => {
 			const task = context.item.task;
 			this._quickInputService.cancel();
@@ -2694,12 +2704,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		});
 		picker.busy = true;
-		picker.busy = false;
-		picker.items = pickEntries;
+		pickEntries.then(entries => {
+			picker.busy = false;
+			picker.items = entries.filter(e => e.type === type);
+		});
 		picker.show();
-		if (filter) {
-			picker.value = filter;
-		}
+
 		return new Promise<ITaskQuickPickEntry | undefined | null>(resolve => {
 			this._register(picker.onDidAccept(async () => {
 				let selection = picker.selectedItems ? picker.selectedItems[0] : undefined;
@@ -2720,7 +2730,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private _needsRecentTasksMigration(): boolean {
-		return (this.getRecentlyUsedTasksV1().size > 0) && (this._getTasksFromStorage('historical').size === 0);
+		return (this.getRecentlyUsedTasksV1().size > 0) && (this.getRecentlyUsedTasksV1().size === 0);
 	}
 
 	private async _migrateRecentTasks(tasks: Task[]) {
@@ -2767,53 +2777,60 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _trust(): Promise<boolean> {
-		await this._workspaceTrustManagementService.workspaceTrustInitialized;
-		if (!this._workspaceTrustManagementService.isWorkspaceTrusted()) {
-			return (await this._workspaceTrustRequestService.requestWorkspaceTrust(
-				{
-					message: nls.localize('TaskService.requestTrust', "Listing and running tasks requires that some of the files in this workspace be executed as code.")
-				})) === true;
-		}
-		return true;
+		return (await this._workspaceTrustRequestService.requestWorkspaceTrust(
+			{
+				message: nls.localize('TaskService.requestTrust', "Listing and running tasks requires that some of the files in this workspace be executed as code.")
+			})) === true;
 	}
 
-	private async _runTaskCommand(filter?: any | { type?: string; task?: string }): Promise<void> {
+	private _runTaskCommand(arg?: any): void {
 		if (!this._canRunCommand()) {
 			return;
 		}
-
-		let typeFilter: boolean = false;
-		if (filter && typeof filter !== 'string') {
-			// name takes precedence
-			typeFilter = !filter?.task && !!filter?.type;
-			filter = filter?.task || filter?.type;
-		}
-
-		const taskIdentifier: KeyedTaskIdentifier | undefined | string = this._getTaskIdentifier(filter);
-		if (taskIdentifier) {
-			this._getGroupedTasks().then(async (grouped) => {
-				const resolver = this._createResolver(grouped);
-				const folderURIs: (URI | string)[] = this._contextService.getWorkspace().folders.map(folder => folder.uri);
-				if (this._contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-					folderURIs.push(this._contextService.getWorkspace().configuration!);
+		const identifier = this._getTaskIdentifier(arg);
+		const type = arg && typeof arg !== 'string' && 'type' in arg ? arg.type : undefined;
+		const name = arg && typeof arg !== 'string' && 'task' in arg ? arg.task : arg === 'string' ? arg : undefined;
+		let ranTask = false;
+		this._getGroupedTasks().then(async (grouped) => {
+			grouped.forEach(g => {
+				const result = g.find(g => g._id === name || g._label === name);
+				if (result) {
+					this.run(result).then(undefined, reason => {
+						// eat the error, it has already been surfaced to the user and we don't care about it here
+					});
+					ranTask = true;
+					return;
 				}
-				folderURIs.push(USER_TASKS_GROUP_KEY);
-				for (const uri of folderURIs) {
-					const task = await resolver.resolve(uri, taskIdentifier);
-					if (task) {
-						this.run(task).then(undefined, reason => {
-							// eat the error, it has already been surfaced to the user and we don't care about it here
-						});
-						return;
-					}
-				}
-				this._doRunTaskCommand(grouped.all(), typeof taskIdentifier === 'string' ? taskIdentifier : undefined, typeFilter);
-			}, () => {
-				this._doRunTaskCommand();
 			});
-		} else {
-			this._doRunTaskCommand();
-		}
+			if (ranTask) {
+				return;
+			}
+			const resolver = this._createResolver(grouped);
+			const folderURIs: (URI | string)[] = this._contextService.getWorkspace().folders.map(folder => folder.uri);
+			if (this._contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+				folderURIs.push(this._contextService.getWorkspace().configuration!);
+			}
+			folderURIs.push(USER_TASKS_GROUP_KEY);
+
+			for (const uri of folderURIs) {
+				const task = await resolver.resolve(uri, identifier);
+				if (task) {
+					this.run(task).then(undefined, reason => {
+						// eat the error, it has already been surfaced to the user and we don't care about it here
+					});
+					return;
+				}
+			}
+			const tasks = await this.tasks();
+			if (!ranTask) {
+				this._doRunTaskCommand(tasks, type, name);
+			}
+		}, async () => {
+			if (!ranTask) {
+				const tasks = await this.tasks();
+				this._doRunTaskCommand(tasks, type, name);
+			}
+		});
 	}
 
 	private _tasksAndGroupedTasks(filter?: ITaskFilter): { tasks: Promise<Task[]>; grouped: Promise<TaskMap> } {
@@ -2847,7 +2864,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return { tasks, grouped };
 	}
 
-	private _doRunTaskCommand(tasks?: Task[], filter?: string, typeFilter?: boolean): void {
+	private _doRunTaskCommand(tasks?: Task[], type?: string, name?: string): void {
 		const pickThen = (task: Task | undefined | null) => {
 			if (task === undefined) {
 				return;
@@ -2863,62 +2880,28 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 		const placeholder = nls.localize('TaskService.pickRunTask', 'Select the task to run');
 
-		this._showIgnoredFoldersMessage().then(async () => {
+		this._showIgnoredFoldersMessage().then(() => {
 			if (this._configurationService.getValue(USE_SLOW_PICKER)) {
 				let taskResult: { tasks: Promise<Task[]>; grouped: Promise<TaskMap> } | undefined = undefined;
 				if (!tasks) {
 					taskResult = this._tasksAndGroupedTasks();
-				}
-				if (filter && typeFilter) {
-					const picker: IQuickPick<ITaskTwoLevelQuickPickEntry> = this._quickInputService.createQuickPick();
-					picker.placeholder = nls.localize('TaskService.pickRunTask', 'Select the task to run');
-					picker.matchOnDescription = true;
-					picker.ignoreFocusOut = false;
-					const taskQuickPick = new TaskQuickPick(this, this._configurationService, this._quickInputService, this._notificationService, this._themeService, this._dialogService);
-					const result = await taskQuickPick.doPickerSecondLevel(picker, filter);
-					if (result?.task) {
-						pickThen(result.task as Task);
-						taskQuickPick.dispose();
-					}
-					return;
 				}
 				this._showQuickPick(tasks ? tasks : taskResult!.tasks, placeholder,
 					{
 						label: '$(plus) ' + nls.localize('TaskService.noEntryToRun', 'Configure a Task'),
 						task: null
 					},
-					true, false, undefined, undefined, typeof filter === 'string' ? filter : undefined).
+					true, undefined, undefined, undefined, type, name).
 					then((entry) => {
 						return pickThen(entry ? entry.task : undefined);
 					});
 			} else {
-				if (filter && typeFilter) {
-					const picker: IQuickPick<ITaskTwoLevelQuickPickEntry> = this._quickInputService.createQuickPick();
-					picker.placeholder = nls.localize('TaskService.pickRunTask', 'Select the task to run');
-					picker.matchOnDescription = true;
-					picker.ignoreFocusOut = false;
-					const taskQuickPick = new TaskQuickPick(this, this._configurationService, this._quickInputService, this._notificationService, this._themeService, this._dialogService);
-					const result = await taskQuickPick.doPickerSecondLevel(picker, filter);
-					if (result?.task) {
-						pickThen(result.task as Task);
-						picker.dispose();
-						taskQuickPick.dispose();
-						return;
-					} else {
-						if (!!filter) {
-							// filter yielded no results, so show all
-							this._runTaskCommand();
-						}
-						return;
-					}
-				} else {
-					this._showTwoLevelQuickPick(placeholder,
-						{
-							label: '$(plus) ' + nls.localize('TaskService.noEntryToRun', 'Configure a Task'),
-							task: null
-						}, typeof filter === 'string' ? filter : undefined).
-						then(pickThen);
-				}
+				this._showTwoLevelQuickPick(placeholder,
+					{
+						label: '$(plus) ' + nls.localize('TaskService.noEntryToRun', 'Configure a Task'),
+						task: null
+					}, type, name).
+					then(pickThen);
 			}
 		});
 	}
@@ -3220,7 +3203,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
-	private _getTaskIdentifier(arg?: string | ITaskIdentifier): string | KeyedTaskIdentifier | undefined {
+	private _getTaskIdentifier(arg?: any): string | KeyedTaskIdentifier | undefined {
 		let result: string | KeyedTaskIdentifier | undefined = undefined;
 		if (Types.isString(arg)) {
 			result = arg;
