@@ -32,6 +32,7 @@ import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/termin
 import { ITerminalConfiguration, ITerminalProcessManager, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
 import type { ILink, ILinkProvider, IViewportRange, Terminal } from 'xterm';
+import { convertBufferRangeToViewport } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
 
 export type XtermLinkMatcherHandler = (event: MouseEvent | undefined, link: string) => Promise<void>;
 export type XtermLinkMatcherValidationCallback = (uri: string, callback: (isValid: boolean) => void) => void;
@@ -92,6 +93,36 @@ export class TerminalLinkManager extends DisposableStore {
 		this._openers.set(TerminalBuiltinLinkType.Url, this._instantiationService.createInstance(TerminalUrlLinkOpener, !!this._processManager.remoteAuthority));
 
 		this._registerStandardLinkProviders();
+
+		this._xterm.options.linkHandler = {
+			activate: (e, text) => {
+				this._openers.get(TerminalBuiltinLinkType.Url)?.open({
+					type: TerminalBuiltinLinkType.Url,
+					text,
+					bufferRange: null!,
+					uri: URI.parse(text)
+				});
+			},
+			hover: (e, text, range) => {
+				const core = (this._xterm as any)._core as IXtermCore;
+				const cellDimensions = {
+					width: core._renderService.dimensions.actualCellWidth,
+					height: core._renderService.dimensions.actualCellHeight
+				};
+				const terminalDimensions = {
+					width: this._xterm.cols,
+					height: this._xterm.rows
+				};
+				this._showHover({
+					viewportRange: convertBufferRangeToViewport(range, this._xterm.buffer.active.viewportY),
+					cellDimensions,
+					terminalDimensions
+				}, this._getLinkHoverString(text, text), undefined, (text) => this._xterm.options.linkHandler!.activate(e, text, range));
+			},
+			leave: (e, text) => {
+				console.log('leave');
+			}
+		};
 	}
 
 	private _setupLinkDetector(id: string, detector: ITerminalLinkDetector, isExternal: boolean = false): ILinkProvider {
