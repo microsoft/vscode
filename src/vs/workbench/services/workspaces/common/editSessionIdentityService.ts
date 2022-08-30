@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEditSessionIdentityProvider, IEditSessionIdentityService } from 'vs/platform/workspace/common/editSessions';
@@ -20,16 +21,15 @@ export class EditSessionIdentityService implements IEditSessionIdentityService {
 		@ILogService private readonly _logService: ILogService,
 	) { }
 
-	registerEditSessionIdentityProvider(provider: IEditSessionIdentityProvider): void {
+	registerEditSessionIdentityProvider(provider: IEditSessionIdentityProvider): IDisposable {
 		if (this._editSessionIdentifierProviders.get(provider.scheme)) {
 			throw new Error(`A provider has already been registered for scheme ${provider.scheme}`);
 		}
 
 		this._editSessionIdentifierProviders.set(provider.scheme, provider);
-	}
-
-	unregisterEditSessionIdentityProvider(scheme: string): void {
-		this._editSessionIdentifierProviders.delete(scheme);
+		return toDisposable(() => {
+			this._editSessionIdentifierProviders.delete(provider.scheme);
+		});
 	}
 
 	async getEditSessionIdentifier(workspaceFolder: IWorkspaceFolder, cancellationTokenSource: CancellationTokenSource): Promise<string | undefined> {
