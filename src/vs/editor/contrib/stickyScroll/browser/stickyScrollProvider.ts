@@ -188,6 +188,14 @@ export class StickyLineCandidateProvider extends Disposable {
 
 class StickyOutlineElement {
 
+	private static comparator(range1: StickyRange, range2: StickyRange): number {
+		if (range1.startLineNumber !== range2.startLineNumber) {
+			return range1.startLineNumber - range2.startLineNumber;
+		} else {
+			return range2.endLineNumber - range1.endLineNumber;
+		}
+	}
+
 	public static fromOutlineElement(outlineElement: OutlineElement, previousStartLine: number): StickyOutlineElement {
 		const children: StickyOutlineElement[] = [];
 		for (const child of outlineElement.children.values()) {
@@ -201,15 +209,7 @@ class StickyOutlineElement {
 				}
 			}
 		}
-		children.sort((child1, child2) => {
-			if (!child1.range || !child2.range) {
-				return 1;
-			} else if (child1.range.startLineNumber !== child2.range.startLineNumber) {
-				return child1.range.startLineNumber - child2.range.startLineNumber;
-			} else {
-				return child2.range.endLineNumber - child1.range.endLineNumber;
-			}
-		});
+		children.sort((child1, child2) => this.comparator(child1.range!, child2.range!));
 		const range = new StickyRange(outlineElement.symbol.selectionRange.startLineNumber, outlineElement.symbol.range.endLineNumber);
 		return new StickyOutlineElement(range, children, undefined);
 	}
@@ -242,7 +242,12 @@ class StickyOutlineElement {
 			outlineElements = outlineModel.children as Map<string, OutlineElement>;
 		}
 		const stickyChildren: StickyOutlineElement[] = [];
-		for (const outlineElement of outlineElements.values()) {
+		const outlineElementsArray = Array.from(outlineElements.values()).sort((element1, element2) => {
+			const range1: StickyRange = new StickyRange(element1.symbol.range.startLineNumber, element1.symbol.range.endLineNumber);
+			const range2: StickyRange = new StickyRange(element2.symbol.range.startLineNumber, element2.symbol.range.endLineNumber);
+			return this.comparator(range1, range2);
+		});
+		for (const outlineElement of outlineElementsArray) {
 			stickyChildren.push(StickyOutlineElement.fromOutlineElement(outlineElement, outlineElement.symbol.selectionRange.startLineNumber));
 		}
 		const stickyOutlineElement = new StickyOutlineElement(undefined, stickyChildren, undefined);
@@ -279,7 +284,7 @@ class StickyOutlineElement {
 		let parentStickyOutlineElement = stickyOutlineElement;
 
 		for (let i = 0; i < length; i++) {
-			range = new StickyRange(regions.getStartLineNumber(i), regions.getEndLineNumber(i));
+			range = new StickyRange(regions.getStartLineNumber(i), regions.getEndLineNumber(i) + 1);
 			while (stackOfParents.length !== 0 && (range.startLineNumber < stackOfParents[stackOfParents.length - 1].startLineNumber || range.endLineNumber > stackOfParents[stackOfParents.length - 1].endLineNumber)) {
 				stackOfParents.pop();
 				if (parentStickyOutlineElement.parent !== undefined) {
