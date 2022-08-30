@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vscode-nls';
 import { window, InputBoxOptions, Uri, Disposable, workspace, QuickPickOptions } from 'vscode';
 import { IDisposable, EmptyDisposable, toDisposable } from './util';
 import * as path from 'path';
 import { IIPCHandler, IIPCServer } from './ipc/ipcServer';
 import { CredentialsProvider, Credentials } from './api/git';
 import { ITerminalEnvironmentProvider } from './terminal';
+
+const localize = nls.loadMessageBundle();
 
 export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 
@@ -37,7 +40,8 @@ export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 
 	async handle(payload:
 		{ askpassType: 'https'; request: string; host: string } |
-		{ askpassType: 'ssh'; request: string; host?: string; file?: string; fingerprint?: string }): Promise<string> {
+		{ askpassType: 'ssh'; request: string; host?: string; file?: string; fingerprint?: string }
+	): Promise<string> {
 		const config = workspace.getConfiguration('git', null);
 		const enabled = config.get<boolean>('enabled');
 
@@ -94,7 +98,7 @@ export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 		if (/passphrase/i.test(request)) {
 			const options: InputBoxOptions = {
 				password: true,
-				placeHolder: 'Passphrase',
+				placeHolder: localize('ssh passphrase', "Passphrase"),
 				prompt: `SSH Key: ${file}`,
 				ignoreFocusOut: true
 			};
@@ -106,10 +110,14 @@ export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 		const options: QuickPickOptions = {
 			canPickMany: false,
 			ignoreFocusOut: true,
-			placeHolder: 'Are you sure you want to continue connecting?',
-			title: `"${host}" has fingerprint "${fingerprint}".`
+			placeHolder: localize('ssh authenticity prompt', "Are you sure you want to continue connecting?"),
+			title: localize('ssh authenticity title', "\"{0}\" has fingerprint \"{1}\"", host, fingerprint)
 		};
-		return await window.showQuickPick(['yes', 'no'], options) ?? '';
+		const items = [
+			localize('ssh authenticity prompt yes', "yes"),
+			localize('ssh authenticity prompt no', "no")
+		];
+		return await window.showQuickPick(items, options) ?? '';
 	}
 
 	getEnv(): { [key: string]: string } {
