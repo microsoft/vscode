@@ -311,7 +311,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 	@sequentialize
 	async openRepository(repoPath: string): Promise<void> {
 		this.outputChannelLogger.logTrace(`Opening repository: ${repoPath}`);
-		if (this.getOpenRepositoryExact(repoPath)) {
+		if (this.getRepositoryExact(repoPath)) {
 			this.outputChannelLogger.logTrace(`Repository for path ${repoPath} already exists`);
 			return;
 		}
@@ -347,7 +347,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			const repositoryRoot = Uri.file(rawRoot).fsPath;
 			this.outputChannelLogger.logTrace(`Repository root: ${repositoryRoot}`);
 
-			if (this.getOpenRepositoryExact(repositoryRoot)) {
+			if (this.getRepositoryExact(repositoryRoot)) {
 				this.outputChannelLogger.logTrace(`Repository for path ${repositoryRoot} already exists`);
 				return;
 			}
@@ -498,6 +498,12 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 		return liveRepository && liveRepository.repository;
 	}
 
+	private getRepositoryExact(repoPath: string): Repository | undefined {
+		const openRepository = this.openRepositories
+			.find(r => pathEquals(r.repository.root, repoPath));
+		return openRepository?.repository;
+	}
+
 	private getOpenRepository(repository: Repository): OpenRepository | undefined;
 	private getOpenRepository(sourceControl: SourceControl): OpenRepository | undefined;
 	private getOpenRepository(resourceGroup: SourceControlResourceGroup): OpenRepository | undefined;
@@ -562,12 +568,6 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 		}
 
 		return undefined;
-	}
-
-	private getOpenRepositoryExact(repoPath: string): Repository | undefined {
-		const openRepository = this.openRepositories
-			.find(r => pathEquals(r.repository.root, repoPath));
-		return openRepository?.repository;
 	}
 
 	getRepositoryForSubmodule(submoduleUri: Uri): Repository | undefined {
