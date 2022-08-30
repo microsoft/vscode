@@ -9,7 +9,7 @@ import { clearTimeout, setTimeout } from 'timers';
 /*	Format:
  *	attachmentCache : { notebookUri : { cellFragment : { filename : { mime : b64 } } } }
  */
-const attachmentCache: any = [];
+const attachmentCache: any = {};
 
 class DelayedTrigger implements vscode.Disposable {
 	private timerId: NodeJS.Timeout | undefined;
@@ -126,7 +126,7 @@ function cleanNotebookAttachments(e: vscode.NotebookDocumentChangeEvent) {
 					}
 
 					// if image is referenced in mkdn && image is not in metadata -> check if image IS inside cache
-					if (attachmentCache.notebookUri?.cellFragment && Object.keys(attachmentCache[notebookUri][cellFragment]).includes(currFilename)) {
+					if (attachmentCache[notebookUri][cellFragment] && Object.keys(attachmentCache[notebookUri][cellFragment]).includes(currFilename)) {
 						updateMetadata.custom.attachments[currFilename] = attachmentCache[notebookUri][cellFragment][currFilename];
 						delete attachmentCache[notebookUri][cellFragment][currFilename];
 					}
