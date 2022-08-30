@@ -205,11 +205,11 @@
 	"walkthroughs.jsWelcome.makeJsFile.title": "Create a JavaScript File",
 	"walkthroughs.jsWelcome.makeJsFile.description": "Let's write our first JavaScript file. We'll have to create a new file and save it with the ``.js`` extension at the end of the file name.\n[Create a JavaScript File](command:javascript-walkthrough.commands.createJsFile)",
 
-	"walkthroughs.jsWelcome.debugJsFile.title": "Debug your JavaScript in VS Code",
+	"walkthroughs.jsWelcome.debugJsFile.title": "Run and Debug your JavaScript",
 	"walkthroughs.jsWelcome.debugJsFile.description": "Once you've installed Node.js, you can run JavaScript programs at a terminal by entering ``node your-file-name.js``\nAnother easy way to run Node.js programs is by using VS Code's debugger which lets you run your code, pause at different points, and help you understand what's going on step-by-step.\n[Start Debugging](command:javascript-walkthrough.commands.debugJsFile)",
 	"walkthroughs.jsWelcome.debugJsFile.altText": "Debug and run your JavaScript code in Node.js with Visual Studio Code.",
 
 	"walkthroughs.jsWelcome.learnMoreAboutJs.title": "Explore More",
-	"walkthroughs.jsWelcome.learnMoreAboutJs.description": "VS Code has plenty of resources for [learning JavaScript](https://code.visualstudio.com/docs/nodejs/working-with-javascript) and [learning Node.js](https://code.visualstudio.com/docs/nodejs/nodejs-tutorial).\n\n[Learn More](https://code.visualstudio.com/docs/nodejs/nodejs-tutorial)",
+	"walkthroughs.jsWelcome.learnMoreAboutJs.description": "Want to get more comfortable with JavaScript, Node.js, and VS Code? Be sure to check out our docs!\nWe've got lots of resources for learning [JavaScript](https://code.visualstudio.com/docs/nodejs/working-with-javascript) and [Node.js](https://code.visualstudio.com/docs/nodejs/nodejs-tutorial).\n\n[Learn More](https://code.visualstudio.com/docs/nodejs/nodejs-tutorial)",
 	"walkthroughs.jsWelcome.learnMoreAboutJs.altText": "Learn more about JavaScript and Node.js in Visual Studio Code."
 }
