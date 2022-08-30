@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { Event, Emitter, setGlobalLeakWarningThreshold } from 'vs/base/common/event';
 import { RunOnceScheduler, runWhenIdle, timeout } from 'vs/base/common/async';
 import { isFirefox, isSafari, isChrome, PixelRatio } from 'vs/base/browser/browser';
-import { mark } from 'vs/base/common/performance';
+import { mark, measure } from 'vs/base/common/performance';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { isWindows, isLinux, isWeb, isNative, isMacintosh } from 'vs/base/common/platform';
@@ -434,7 +434,7 @@ export class Workbench extends Layout {
 
 				function markDidStartWorkbench() {
 					mark('code/didStartWorkbench');
-					performance.measure('perf: workbench create & restore', 'code/didLoadWorkbenchMain', 'code/didStartWorkbench');
+					measure('perf: workbench create & restore', 'code/didLoadWorkbenchMain', 'code/didStartWorkbench');
 				}
 
 				if (this.isRestored()) {

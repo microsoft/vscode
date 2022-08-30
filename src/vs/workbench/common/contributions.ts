@@ -7,7 +7,7 @@ import { IInstantiationService, IConstructorSignature, ServicesAccessor, Branded
 import { ILifecycleService, LifecyclePhase, LifecyclePhaseToString } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { runWhenIdle, IdleDeadline } from 'vs/base/common/async';
-import { mark } from 'vs/base/common/performance';
+import { mark, measure } from 'vs/base/common/performance';
 
 /**
  * A workbench contribution that will be loaded when the workbench starts and disposed when the workbench shuts down.
@@ -102,7 +102,7 @@ class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry 
 				}
 
 				mark(`code/didCreateWorkbenchContributions/${phase}`);
-				performance.measure(`perf: workbench contributions (phase ${LifecyclePhaseToString(phase)})`, `code/willCreateWorkbenchContributions/${phase}`, `code/didCreateWorkbenchContributions/${phase}`);
+				measure(`perf: workbench contributions (phase ${LifecyclePhaseToString(phase)})`, `code/willCreateWorkbenchContributions/${phase}`, `code/didCreateWorkbenchContributions/${phase}`);
 			} else {
 
 				// for the Eventually-phase we instantiate contributions

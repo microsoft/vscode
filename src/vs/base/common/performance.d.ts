@@ -10,6 +10,8 @@ export interface PerformanceMark {
 
 export function mark(name: string): void;
 
+export function measure(measureName: string, startMark?: string, endMark?: string): void;
+
 /**
  * Returns all marks, sorted by `startTime`.
  */

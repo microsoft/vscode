@@ -22,6 +22,9 @@
 		function mark(name) {
 			_data.push(name, Date.now());
 		}
+		function measure() {
+			// noop
+		}
 		function getMarks() {
 			const result = [];
 			for (let i = 0; i < _data.length; i += 2) {
@@ -32,7 +35,7 @@
 			}
 			return result;
 		}
-		return { mark, getMarks };
+		return { mark, measure, getMarks };
 	}
 
 	/**
@@ -55,6 +58,9 @@
 				return {
 					mark(name) {
 						performance.mark(name);
+					},
+					measure(measureName, startMark, endMark) {
+						performance.measure(measureName, startMark, endMark);
 					},
 					getMarks() {
 						let timeOrigin = performance.timeOrigin;
