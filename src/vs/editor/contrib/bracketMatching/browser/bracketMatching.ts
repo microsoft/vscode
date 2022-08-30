@@ -79,6 +79,25 @@ class SelectToBracketAction extends EditorAction {
 		BracketMatchingController.get(editor)?.selectToBracket(selectBrackets);
 	}
 }
+class RemoveBracketsAction extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.removeBrackets',
+			label: nls.localize('smartSelect.removeBrackets', "Remove Brackets"),
+			alias: 'Remove Brackets',
+			precondition: undefined,
+			kbOpts: {
+				kbExpr: EditorContextKeys.editorTextFocus,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Backspace,
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		BracketMatchingController.get(editor)?.removeBrackets();
+	}
+}
 
 type Brackets = [Range, Range];
 
@@ -252,6 +271,22 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 			this._editor.revealRange(newSelections[0]);
 		}
 	}
+	public removeBrackets(): void {
+		if (!this._editor.hasModel()) {
+			return;
+		}
+
+		const model = this._editor.getModel();
+		this._editor.getSelections().map((selection) => {
+			const position = selection.getPosition();
+
+			const brackets = model.bracketPairs.matchBracket(position);
+			if (brackets) {
+				this._editor.executeEdits(null,
+					[{ range: brackets[0], text: '', }, { range: brackets[1], text: '' }]);
+			}
+		});
+	}
 
 	private static readonly _DECORATION_OPTIONS_WITH_OVERVIEW_RULER = ModelDecorationOptions.register({
 		description: 'bracket-match-overview',
@@ -360,6 +395,7 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 registerEditorContribution(BracketMatchingController.ID, BracketMatchingController);
 registerEditorAction(SelectToBracketAction);
 registerEditorAction(JumpToBracketAction);
+registerEditorAction(RemoveBracketsAction);
 registerThemingParticipant((theme, collector) => {
 	const bracketMatchBackground = theme.getColor(editorBracketMatchBackground);
 	if (bracketMatchBackground) {
