@@ -242,7 +242,14 @@ class StickyOutlineElement {
 			outlineElements = outlineModel.children as Map<string, OutlineElement>;
 		}
 		const stickyChildren: StickyOutlineElement[] = [];
-		for (const outlineElement of outlineElements.values()) {
+		const outlineElementsArray = Array.from(outlineElements.values()).sort((element1, element2) => {
+			if (element1.symbol.selectionRange.startLineNumber !== element2.symbol.selectionRange.startLineNumber) {
+				return element1.symbol.selectionRange.startLineNumber - element2.symbol.selectionRange.startLineNumber;
+			} else {
+				return element2.symbol.range.startLineNumber - element1.symbol.range.startLineNumber;
+			}
+		});
+		for (const outlineElement of outlineElementsArray) {
 			stickyChildren.push(StickyOutlineElement.fromOutlineElement(outlineElement, outlineElement.symbol.selectionRange.startLineNumber));
 		}
 		const stickyOutlineElement = new StickyOutlineElement(undefined, stickyChildren, undefined);
@@ -279,7 +286,7 @@ class StickyOutlineElement {
 		let parentStickyOutlineElement = stickyOutlineElement;
 
 		for (let i = 0; i < length; i++) {
-			range = new StickyRange(regions.getStartLineNumber(i), regions.getEndLineNumber(i));
+			range = new StickyRange(regions.getStartLineNumber(i), regions.getEndLineNumber(i) + 1);
 			while (stackOfParents.length !== 0 && (range.startLineNumber < stackOfParents[stackOfParents.length - 1].startLineNumber || range.endLineNumber > stackOfParents[stackOfParents.length - 1].endLineNumber)) {
 				stackOfParents.pop();
 				if (parentStickyOutlineElement.parent !== undefined) {
