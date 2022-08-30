@@ -206,7 +206,7 @@
 	"walkthroughs.jsWelcome.makeJsFile.description": "Let's write our first JavaScript file. We'll have to create a new file and save it with the ``.js`` extension at the end of the file name.\n[Create a JavaScript File](command:javascript-walkthrough.commands.createJsFile)",
 
 	"walkthroughs.jsWelcome.debugJsFile.title": "Debug your JavaScript in VS Code",
-	"walkthroughs.jsWelcome.debugJsFile.description": "You can run JavaScript programs with Node.js by entering ``node your-file-name.js`` at a terminal.\n[Open a Terminal](command:workbench.action.terminal.toggleTerminal)\nAnother easy way to run programs in Node.js is by using VS Code's debugger which lets you run your code, pause at different points, and help you understand what's going on step-by-step.\n[Start Debugging](command:javascript-walkthrough.commands.debugJsFile)",
+	"walkthroughs.jsWelcome.debugJsFile.description": "Once you've installed Node.js, you can run JavaScript programs at a terminal by entering ``node your-file-name.js``\nAnother easy way to run Node.js programs is by using VS Code's debugger which lets you run your code, pause at different points, and help you understand what's going on step-by-step.\n[Start Debugging](command:javascript-walkthrough.commands.debugJsFile)",
 	"walkthroughs.jsWelcome.debugJsFile.altText": "Debug and run your JavaScript code in Node.js with Visual Studio Code.",
 
 	"walkthroughs.jsWelcome.learnMoreAboutJs.title": "Explore More",
