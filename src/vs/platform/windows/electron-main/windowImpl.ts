@@ -44,6 +44,9 @@ import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataPro
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import product from 'vs/platform/product/common/product';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
+import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
+import * as ffi from 'ffi-napi';
+
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -357,6 +360,35 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					return 0;
 				});
 			}
+
+			if (isWindows) {
+				const imm32 = ffi.Library('imm32', {
+					'ImmGetContext': ['uint32', ['uint64']], // HIMC, HWND
+					'ImmReleaseContext': ['uint32', ['uint64', 'uint32']], // BOOL, HWND, HIMC
+					'ImmSetOpenStatus': ['uint32', ['uint32', 'uint32']], //
+					'ImmGetOpenStatus': ['uint32', ['uint32']], // BOOL HIMC
+				});
+				let needRecoverImeState: boolean | undefined = undefined;
+				validatedIpcMain.on('vscode:setImState', (event, enable: number) => {
+					const hwnd = new Uint32Array(this._win.getNativeWindowHandle().buffer)[0];
+					if (enable === 0) {
+						const himc = imm32.ImmGetContext(hwnd);
+						needRecoverImeState = imm32.ImmGetOpenStatus(himc) !== 0;
+						if (needRecoverImeState) {
+							imm32.ImmSetOpenStatus(himc, 0);
+						}
+						imm32.ImmReleaseContext(hwnd, himc);
+					} else {
+						if (needRecoverImeState) {
+							const himc = imm32.ImmGetContext(hwnd);
+							imm32.ImmSetOpenStatus(himc, 1);
+							imm32.ImmReleaseContext(hwnd, himc);
+						}
+					}
+				});
+			}
+
+
 
 			// TODO@electron (Electron 4 regression): when running on multiple displays where the target display
 			// to open the window has a larger resolution than the primary display, the window will not size
