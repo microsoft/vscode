@@ -86,13 +86,26 @@ async function createNewJSFile(walkthroughState: JsWalkthroughState) {
 
 async function debugJsFile(walkthroughState: JsWalkthroughState) {
 	const hasNode = await nodeWasResolvable();
-	const reloadResponse = localize('reload-window-to-find-node', 'Reload VS Code');
 	if (!hasNode) {
-		const response = await vscode.window.showErrorMessage(localize('noNodeInstallFound', 'We couldn\'t find Node.js installed. If you just installed it, you might need to reload VS Code.'), reloadResponse, localize('dismiss-dialog-find-node', 'Dismiss'));
+		const reloadResponse = localize('reloadWindowForNode', 'Reload VS Code');
+		const debugAnywayResponse = localize('nodeNotFoundDebugAnyway', 'Try Debugging Anyway');
+		const dismissResponse = localize('nodeNotFoundDismissDialog', 'Dismiss');
+		const response = await vscode.window.showErrorMessage(
+			// The message
+			localize('noNodeInstallFound', 'We couldn\'t find Node.js on this computer. If you just installed it, you might need to reload VS Code.'),
+			// The options
+			reloadResponse,
+			debugAnywayResponse,
+			dismissResponse,
+		);
+
+		if (response === undefined || response === dismissResponse) {
+			return;
+		}
 		if (response === reloadResponse) {
 			vscode.commands.executeCommand('workbench.action.reloadWindow');
+			return;
 		}
-		return;
 	}
 	tryDebugRelevantDocument(walkthroughState.exampleJsDocument, 'javascript', ['.mjs', '.js'], () => createNewJSFile(walkthroughState));
 }
