@@ -22,6 +22,7 @@ tasks:
     openMode: split-right
 github:
   prebuilds:
+    branches: true
     pullRequestsFromForks: true
 vscode:
   extensions:
