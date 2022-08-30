@@ -32,6 +32,53 @@ export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 	readonly asyncRenderCallback?: () => void;
 }
 
+const defaultMarkedRenderers = Object.freeze({
+	image: (href: string | null, title: string | null, text: string): string => {
+		let dimensions: string[] = [];
+		let attributes: string[] = [];
+		if (href) {
+			({ href, dimensions } = parseHrefAndDimensions(href));
+			attributes.push(`src="${escapeDoubleQuotes(href)}"`);
+		}
+		if (text) {
+			attributes.push(`alt="${escapeDoubleQuotes(text)}"`);
+		}
+		if (title) {
+			attributes.push(`title="${escapeDoubleQuotes(title)}"`);
+		}
+		if (dimensions.length) {
+			attributes = attributes.concat(dimensions);
+		}
+		return '<img ' + attributes.join(' ') + '>';
+	},
+
+	paragraph: (text: string): string => {
+		return `<p>${text}</p>`;
+	},
+
+	link: (href: string | null, title: string | null, text: string): string => {
+		if (typeof href !== 'string') {
+			return '';
+		}
+
+		// Remove markdown escapes. Workaround for https://github.com/chjj/marked/issues/829
+		if (href === text) { // raw link case
+			text = removeMarkdownEscapes(text);
+		}
+
+		title = typeof title === 'string' ? escapeDoubleQuotes(removeMarkdownEscapes(title)) : '';
+		href = removeMarkdownEscapes(href);
+
+		// HTML Encode href
+		href = href.replace(/&/g, '&amp;')
+			.replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;')
+			.replace(/"/g, '&quot;')
+			.replace(/'/g, '&#39;');
+		return `<a href="${href}" title="${title || href}">${text}</a>`;
+	},
+});
+
 /**
  * Low-level way create a html element from a markdown string.
  *
@@ -93,49 +140,9 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	};
 
 	const renderer = new marked.Renderer();
-
-	renderer.image = (href: string, title: string, text: string) => {
-		let dimensions: string[] = [];
-		let attributes: string[] = [];
-		if (href) {
-			({ href, dimensions } = parseHrefAndDimensions(href));
-			attributes.push(`src="${escapeDoubleQuotes(href)}"`);
-		}
-		if (text) {
-			attributes.push(`alt="${escapeDoubleQuotes(text)}"`);
-		}
-		if (title) {
-			attributes.push(`title="${escapeDoubleQuotes(title)}"`);
-		}
-		if (dimensions.length) {
-			attributes = attributes.concat(dimensions);
-		}
-		return '<img ' + attributes.join(' ') + '>';
-	};
-	renderer.link = (href, title, text): string => {
-		if (typeof href !== 'string') {
-			return '';
-		}
-
-		// Remove markdown escapes. Workaround for https://github.com/chjj/marked/issues/829
-		if (href === text) { // raw link case
-			text = removeMarkdownEscapes(text);
-		}
-
-		title = typeof title === 'string' ? escapeDoubleQuotes(removeMarkdownEscapes(title)) : '';
-		href = removeMarkdownEscapes(href);
-
-		// HTML Encode href
-		href = href.replace(/&/g, '&amp;')
-			.replace(/</g, '&lt;')
-			.replace(/>/g, '&gt;')
-			.replace(/"/g, '&quot;')
-			.replace(/'/g, '&#39;');
-		return `<a href="${href}" title="${title || href}">${text}</a>`;
-	};
-	renderer.paragraph = (text): string => {
-		return `<p>${text}</p>`;
-	};
+	renderer.image = defaultMarkedRenderers.image;
+	renderer.link = defaultMarkedRenderers.link;
+	renderer.paragraph = defaultMarkedRenderers.paragraph;
 
 	// Will collect [id, renderedElement] tuples
 	const codeBlocks: Promise<[string, HTMLElement]>[] = [];
