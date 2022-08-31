@@ -4,12 +4,148 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { clearTimeout, setTimeout } from 'timers';
 
 /*	Format:
  *	attachmentCache : { notebookUri : { cellFragment : { filename : { mime : b64 } } } }
  */
-const attachmentCache: any = {};
+const attachmentCache: { [key: string]: any } = {};
+
+// class AttachmentCleaner {
+// 	// TODO: everything
+// 	attachmentCache: { [key: string]: any } = {};
+
+// 	deleteCacheUri(e: vscode.NotebookDocument) {
+// 		for (const entry of Object.keys(this.attachmentCache)) {
+// 			if (entry === e.uri.toString()) {
+// 				delete this.attachmentCache[entry];
+// 			}
+// 		}
+// 	}
+
+// 	renameCacheUri(e: vscode.FileRenameEvent) {
+// 		const re = /\.ipynb$/;
+// 		for (const file of e.files) {
+// 			if (!re.exec(file.oldUri.toString())) {
+// 				continue;
+// 			}
+// 			if (Object.keys(this.attachmentCache).includes(file.oldUri.toString())) {
+// 				this.attachmentCache[file.newUri.toString()] = this.attachmentCache[file.oldUri.toString()];
+// 				delete this.attachmentCache[file.oldUri.toString()];
+// 			}
+// 		}
+// 	}
+
+// 	cleanNotebookAttachments(e: vscode.NotebookDocumentChangeEvent) {
+
+// 		// return if there are no sources changes in event
+// 		if (!e.cellChanges.length) {
+// 			return;
+// 		}
+
+// 		// *should* only iterate once
+// 		for (const currentChange of e.cellChanges) {
+// 			// undefined is a specific case including workspace edit etc
+// 			if(currentChange.document === undefined){
+// 				continue;
+// 			}
+
+// 			const updateMetadata: { [key: string]: any } = { ...currentChange.cell.metadata };
+// 			const cellFragment = currentChange.cell.document.uri.fragment;
+// 			const notebookUri = e.notebook.uri.toString();
+// 			const mkdnSource = currentChange.document?.getText();
+
+// 			if (!mkdnSource) { // cell with 0 content
+// 				this.cacheAllImages(updateMetadata, notebookUri, cellFragment);
+// 			} else {
+// 				const markdownAttachments = this.getAttachmentNames(mkdnSource);
+// 				if (!markdownAttachments) {
+// 					this.cacheAllImages(updateMetadata, notebookUri, cellFragment);
+// 				}
+
+// 				if (!updateMetadata.custom?.attachments) { // no attachments to begin with
+// 					// iterate second through the markdown names, pull in any cached images that we might need based on a paste, undo, etc
+// 					if (this.attachmentCache[notebookUri] && this.attachmentCache[notebookUri][cellFragment]) {
+// 						for (const currFilename of Object.keys(markdownAttachments)) {
+// 							// check if image IS inside cache
+// 							if (Object.keys(this.attachmentCache[notebookUri][cellFragment]).includes(currFilename)) {
+// 								updateMetadata.custom.attachments[currFilename] = this.attachmentCache[notebookUri][cellFragment][currFilename];
+// 								delete this.attachmentCache[notebookUri][cellFragment][currFilename];
+// 							}
+// 							//TODO: ELSE: diagnostic squiggle, image not present
+
+// 						}
+// 					}
+// 				} else {
+// 					// iterate first through the attachments stored in cell metadata
+// 					for (const currFilename of Object.keys(updateMetadata.custom.attachments)) {
+// 						// means markdown reference is present in the metadata, rendering will work properly
+// 						// therefore, we don't need to check it in the next loop either
+// 						if (currFilename in markdownAttachments) {
+// 							markdownAttachments[currFilename] = true;
+// 							continue;
+// 						} else {
+// 							if (!this.attachmentCache[notebookUri]) {
+// 								this.attachmentCache[notebookUri] = { [cellFragment]: { [currFilename]: updateMetadata.custom.attachments[currFilename] } };
+// 							} else if (!this.attachmentCache[notebookUri][cellFragment]) {
+// 								this.attachmentCache[notebookUri][cellFragment] = { [currFilename]: updateMetadata.custom.attachments[currFilename] };
+// 							} else {
+// 								this.attachmentCache[notebookUri][cellFragment][currFilename] = updateMetadata.custom.attachments[currFilename];
+// 							}
+// 							delete updateMetadata.custom.attachments[currFilename];
+// 						}
+// 					}
+
+// 					// iterate second through the markdown names, pull in any cached images that we might need based on a paste, undo, etc
+// 					for (const currFilename of Object.keys(markdownAttachments)) {
+// 						// if image is addressed already --> continue, attachment will function as normal
+// 						if (markdownAttachments[currFilename]) {
+// 							continue;
+// 						}
+
+// 						// if image is referenced in mkdn && image is not in metadata -> check if image IS inside cache
+// 						if (this.attachmentCache[notebookUri][cellFragment] && Object.keys(this.attachmentCache[notebookUri][cellFragment]).includes(currFilename)) {
+// 							updateMetadata.custom.attachments[currFilename] = this.attachmentCache[notebookUri][cellFragment][currFilename];
+// 							delete this.attachmentCache[notebookUri][cellFragment][currFilename];
+// 						}
+// 						//TODO: ELSE: diagnostic squiggle, image not present
+
+// 					}
+// 				}
+// 			}
+// 			const metadataEdit = vscode.NotebookEdit.updateCellMetadata(currentChange.cell.index, updateMetadata);
+// 			const workspaceEdit = new vscode.WorkspaceEdit();
+// 			workspaceEdit.set(e.notebook.uri, [metadataEdit]);
+// 			vscode.workspace.applyEdit(workspaceEdit);
+// 		} // for loop of all changes
+// 	}
+
+// 	cacheAllImages(metadata: { [key: string]: any }, notebookUri: string, cellFragment: string) {
+// 		for (const currFilename of Object.keys(metadata.custom.attachments)) {
+// 			if (!this.attachmentCache[notebookUri]) {
+// 				this.attachmentCache[notebookUri] = { [cellFragment]: { [currFilename]: metadata.custom.attachments[currFilename] } };
+// 			} else if (!this.attachmentCache[notebookUri][cellFragment]) {
+// 				this.attachmentCache[notebookUri][cellFragment] = { [currFilename]: metadata.custom.attachments[currFilename] };
+// 			} else {
+// 				this.attachmentCache[notebookUri][cellFragment][currFilename] = metadata.custom.attachments[currFilename];
+// 			}
+// 			delete metadata.custom.attachments[currFilename];
+// 		}
+// 	}
+
+// 	getAttachmentNames(source: string) {
+// 		const filenames: any = {};
+// 		const re = /!\[.*?\]\(attachment:(?<filename>.*?)\)/gm;
+
+// 		let match;
+// 		while ((match = re.exec(source))) {
+// 			if (match.groups?.filename) {
+// 				filenames[match.groups?.filename] = false;
+// 			}
+// 		}
+// 		return filenames;
+// 	}
+
+// }
 
 class DelayedTrigger implements vscode.Disposable {
 	private timerId: NodeJS.Timeout | undefined;
@@ -65,14 +201,19 @@ function renameCacheUri(e: vscode.FileRenameEvent) {
 
 function cleanNotebookAttachments(e: vscode.NotebookDocumentChangeEvent) {
 
-	// return if there are no content changes to the cell source
-	if (!e.cellChanges.length || e.cellChanges[0].document === undefined) {
+	// return if there are no sources changes in event
+	if (!e.cellChanges.length) {
 		return;
 	}
 
 	// *should* only iterate once
 	for (const currentChange of e.cellChanges) {
-		const updateMetadata = { ...currentChange.cell.metadata };
+		// undefined is a specific case including workspace edit etc
+		if (currentChange.document === undefined) {
+			continue;
+		}
+
+		const updateMetadata: { [key: string]: any } = { ...currentChange.cell.metadata };
 		const cellFragment = currentChange.cell.document.uri.fragment;
 		const notebookUri = e.notebook.uri.toString();
 		const mkdnSource = currentChange.document?.getText();
@@ -170,9 +311,11 @@ function getAttachmentNames(source: string) {
 
 export function notebookAttachmentCleanerSetup(context: vscode.ExtensionContext) {
 
+	const cleaner = new AttachmentCleaner();
+
 	const delayTrigger = new DelayedTrigger(
 		(e) => {
-			cleanNotebookAttachments(e);
+			cleaner.cleanNotebookAttachments(e);
 		},
 		500
 	);
@@ -182,10 +325,10 @@ export function notebookAttachmentCleanerSetup(context: vscode.ExtensionContext)
 	}));
 
 	context.subscriptions.push(vscode.workspace.onDidCloseNotebookDocument(e => {
-		deleteCacheUri(e);
+		cleaner.deleteCacheUri(e);
 	}));
 
 	context.subscriptions.push(vscode.workspace.onDidRenameFiles(e => {
-		renameCacheUri(e);
+		cleaner.renameCacheUri(e);
 	}));
 }
