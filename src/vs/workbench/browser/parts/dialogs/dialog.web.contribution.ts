@@ -75,4 +75,4 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 }
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(DialogHandlerContribution, LifecyclePhase.Starting);
+workbenchRegistry.registerWorkbenchContribution(DialogHandlerContribution, 'DialogHandlerContribution', LifecyclePhase.Starting);

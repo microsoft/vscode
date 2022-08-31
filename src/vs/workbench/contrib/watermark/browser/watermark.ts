@@ -210,7 +210,7 @@ export class WatermarkContribution extends Disposable implements IWorkbenchContr
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WatermarkContribution, LifecyclePhase.Restored);
+	.registerWorkbenchContribution(WatermarkContribution, 'WatermarkContribution', LifecyclePhase.Restored);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({
