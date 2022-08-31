@@ -77,8 +77,8 @@ CommandsRegistry.registerCommand({ id: quickAccessNavigatePreviousInTerminalPick
 
 // Register workbench contributions
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(TerminalMainContribution, LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(RemoteTerminalBackendContribution, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(TerminalMainContribution, 'TerminalMainContribution', LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(RemoteTerminalBackendContribution, 'RemoteTerminalBackendContribution', LifecyclePhase.Restored);
 
 // Register configurations
 registerTerminalPlatformConfiguration();

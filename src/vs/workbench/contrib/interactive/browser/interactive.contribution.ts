@@ -273,8 +273,8 @@ class InteractiveInputContentProvider implements ITextModelContentProvider {
 
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveDocumentContribution, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveInputContentProvider, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveDocumentContribution, 'InteractiveDocumentContribution', LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveInputContentProvider, 'InteractiveInputContentProvider', LifecyclePhase.Starting);
 
 export class InteractiveEditorSerializer implements IEditorSerializer {
 	public static readonly ID = InteractiveEditorInput.ID;

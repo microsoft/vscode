@@ -1243,8 +1243,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 }
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(PreferencesActionsContribution, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(PreferencesContribution, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(PreferencesActionsContribution, 'PreferencesActionsContribution', LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(PreferencesContribution, 'PreferencesContribution', LifecyclePhase.Starting);
 
 registerEditorContribution(SettingsEditorContribution.ID, SettingsEditorContribution);
 

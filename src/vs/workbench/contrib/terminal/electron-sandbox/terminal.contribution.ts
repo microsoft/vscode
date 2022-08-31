@@ -21,5 +21,5 @@ registerSingleton(ITerminalProfileResolverService, ElectronTerminalProfileResolv
 
 // Register workbench contributions
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(LocalTerminalBackendContribution, LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(TerminalNativeContribution, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(LocalTerminalBackendContribution, 'LocalTerminalBackendContribution', LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(TerminalNativeContribution, 'TerminalNativeContribution', LifecyclePhase.Restored);

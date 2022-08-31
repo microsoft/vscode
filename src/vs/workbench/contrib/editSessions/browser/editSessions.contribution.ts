@@ -676,7 +676,7 @@ const continueEditSessionExtPoint = ExtensionsRegistry.registerExtensionPoint<IC
 //#endregion
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(EditSessionsContribution, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(EditSessionsContribution, 'EditSessionsContribution', LifecyclePhase.Restored);
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 	...workbenchConfigurationNodeBase,
