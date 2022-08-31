@@ -7,6 +7,7 @@ import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ITokenizationRegistry, ITokenizationSupport, ITokenizationSupportChangedEvent, ITokenizationSupportFactory } from 'vs/editor/common/languages';
+import { ColorId } from 'vs/editor/common/encodedTokenAttributes';
 
 export class TokenizationRegistry implements ITokenizationRegistry {
 
@@ -104,8 +105,8 @@ export class TokenizationRegistry implements ITokenizationRegistry {
 	}
 
 	public getDefaultBackground(): Color | null {
-		if (this._colorMap && this._colorMap.length > /* ColorId.DefaultBackground */2) {
-			return this._colorMap[/* ColorId.DefaultBackground */2];
+		if (this._colorMap && this._colorMap.length > ColorId.DefaultBackground) {
+			return this._colorMap[ColorId.DefaultBackground];
 		}
 		return null;
 	}

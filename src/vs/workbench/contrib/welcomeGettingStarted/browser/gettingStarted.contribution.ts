@@ -31,10 +31,8 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { StartupPageContribution, } from 'vs/workbench/contrib/welcomeGettingStarted/browser/startupPage';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 
-// TODO@jrieken SWC change
-// export * as icons from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedIcons';
-import * as icons from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedIcons';
-export import icons = icons;
+
+export * as icons from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedIcons';
 
 registerAction2(class extends Action2 {
 	constructor() {
