@@ -381,7 +381,7 @@ export class PtyService extends Disposable implements IPtyService {
 			const persistentProcess = this._throwIfNoPty(persistentProcessId);
 			const processDetails = persistentProcess && await this._buildProcessDetails(t.terminal, persistentProcess, revivedPtyId !== undefined);
 			return {
-				terminal: { ...processDetails, id: persistentProcessId } ?? null,
+				terminal: { ...processDetails, id: persistentProcessId },
 				relativeSize: t.relativeSize
 			};
 		} catch (e) {

@@ -133,10 +133,8 @@ export function getShellIntegrationInjection(
 			if (!newArgs) {
 				return undefined;
 			}
-			if (newArgs) {
-				newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
-				newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
-			}
+			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
+			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
 			return { newArgs, envMixin };
 		}
 		logService.warn(`Shell integration cannot be enabled for executable "${shellLaunchConfig.executable}" and args`, shellLaunchConfig.args);
