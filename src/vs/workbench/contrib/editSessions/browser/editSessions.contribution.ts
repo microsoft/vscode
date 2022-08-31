@@ -252,11 +252,11 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				};
 				that.telemetryService.publicLog2<ContinueEditSessionEvent, ContinueEditSessionClassification>('editSessions.continue.store');
 
-				// Run the store action to get back a ref
-				const ref = await that.storeEditSession(false);
-
 				let uri = workspaceUri ?? await that.pickContinueEditSessionDestination();
 				if (uri === undefined) { return; }
+
+				// Run the store action to get back a ref
+				const ref = await that.storeEditSession(false);
 
 				// Append the ref to the URI
 				if (ref !== undefined) {
