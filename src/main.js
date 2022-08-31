@@ -24,7 +24,7 @@ const { getUserDataPath } = require('./vs/platform/environment/node/userDataPath
 const { stripComments } = require('./vs/base/common/stripComments');
 /** @type {Partial<IProductConfiguration>} */
 const product = require('../product.json');
-const { app, protocol, crashReporter } = require('electron');
+const { app, protocol, crashReporter, Menu } = require('electron');
 
 // Enable portable support
 const portable = bootstrapNode.configurePortable(product);
@@ -42,6 +42,9 @@ const codeCachePath = getCodeCachePath();
 
 // Configure static command line arguments
 const argvConfig = configureCommandlineSwitchesSync(args);
+
+// Disable default menu (https://github.com/electron/electron/issues/35512)
+Menu.setApplicationMenu(null);
 
 // Configure crash reporter
 perf.mark('code/willStartCrashReporter');
