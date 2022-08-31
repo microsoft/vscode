@@ -2795,8 +2795,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const identifier = this._getTaskIdentifier(arg);
 		const type = arg && typeof arg !== 'string' && 'type' in arg ? arg.type : undefined;
 		const task = arg && typeof arg !== 'string' && 'task' in arg ? arg.task : arg === 'string' ? arg : undefined;
-		this._getGroupedTasks({ task, type }).then(async (grouped) => {
-			if (identifier) {
+		if (identifier) {
+			this._getGroupedTasks({ task, type }).then(async (grouped) => {
 				const resolver = this._createResolver(grouped);
 				const folderURIs: (URI | string)[] = this._contextService.getWorkspace().folders.map(folder => folder.uri);
 				if (this._contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
@@ -2807,22 +2807,23 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				for (const uri of folderURIs) {
 					const task = await resolver.resolve(uri, identifier);
 					if (task) {
-						await this.run(task).catch();
+						this.run(task).then(undefined, () => { });
 						return;
 					}
 				}
 				if (!!task) {
 					const taskToRun = grouped.all().find(g => g._label === task || g._id === task || g.getDefinition(true)?._key === task);
 					if (taskToRun) {
-						await this.run(taskToRun).catch();
+						this.run(task).then(undefined, () => { });
 						return;
 					}
+				} else {
+					this._doRunTaskCommand(grouped.all(), type, task);
 				}
-				this._doRunTaskCommand(grouped.all(), type, task);
-			}
-		}, async () => {
-			this._doRunTaskCommand(undefined, type, task);
-		});
+			}, () => {
+				this._doRunTaskCommand();
+			});
+		}
 	}
 
 	private _tasksAndGroupedTasks(filter?: ITaskFilter): { tasks: Promise<Task[]>; grouped: Promise<TaskMap> } {
@@ -3195,7 +3196,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
-	private _getTaskIdentifier(arg?: any): string | KeyedTaskIdentifier | undefined {
+	private _getTaskIdentifier(arg?: string | ITaskIdentifier): string | KeyedTaskIdentifier | undefined {
 		let result: string | KeyedTaskIdentifier | undefined = undefined;
 		if (Types.isString(arg)) {
 			result = arg;
