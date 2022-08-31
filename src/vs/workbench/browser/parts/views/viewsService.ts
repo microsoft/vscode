@@ -648,4 +648,4 @@ export function getPartByLocation(viewContainerLocation: ViewContainerLocation):
 	}
 }
 
-registerSingleton(IViewsService, ViewsService, false /* Eager because of its cyclic dependency: ViewsService -> PaneCompositeParts -> CompositePart -> CompositeProgressIndicator -> ViewsService */);
+registerSingleton(IViewsService, ViewsService, false /* Eager because of the cyclic dependency when creating registering PaneComposites in the constructor : ViewsService -> PaneCompositeParts -> CompositePart -> CompositeProgressIndicator -> ViewsService */);
