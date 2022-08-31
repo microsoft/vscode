@@ -14,6 +14,7 @@ import { Event } from 'vs/base/common/event';
 import { IMarkdownString, escapeDoubleQuotes, parseHrefAndDimensions, removeMarkdownEscapes } from 'vs/base/common/htmlContent';
 import { markdownEscapeEscapedIcons } from 'vs/base/common/iconLabels';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
+import { Lazy } from 'vs/base/common/lazy';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { marked } from 'vs/base/common/marked/marked';
 import { parse } from 'vs/base/common/marshalling';
@@ -399,6 +400,27 @@ export function renderStringAsPlaintext(string: IMarkdownString | string) {
  * Strips all markdown from `markdown`. For example `# Header` would be output as `Header`.
  */
 export function renderMarkdownAsPlaintext(markdown: IMarkdownString) {
+	// values that are too long will freeze the UI
+	let value = markdown.value ?? '';
+	if (value.length > 100_000) {
+		value = `${value.substr(0, 100_000)}…`;
+	}
+
+	const html = marked.parse(value, { renderer: plainTextRenderer.getValue() }).replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m);
+
+	return sanitizeRenderedMarkdown({ isTrusted: false }, html).toString();
+}
+
+const unescapeInfo = new Map<string, string>([
+	['&quot;', '"'],
+	['&nbsp;', ' '],
+	['&amp;', '&'],
+	['&#39;', '\''],
+	['&lt;', '<'],
+	['&gt;', '>'],
+]);
+
+const plainTextRenderer = new Lazy<marked.Renderer>(() => {
 	const renderer = new marked.Renderer();
 
 	renderer.code = (code: string): string => {
@@ -461,22 +483,5 @@ export function renderMarkdownAsPlaintext(markdown: IMarkdownString) {
 	renderer.link = (_href: string, _title: string, text: string): string => {
 		return text;
 	};
-	// values that are too long will freeze the UI
-	let value = markdown.value ?? '';
-	if (value.length > 100_000) {
-		value = `${value.substr(0, 100_000)}…`;
-	}
-
-	const unescapeInfo = new Map<string, string>([
-		['&quot;', '"'],
-		['&nbsp;', ' '],
-		['&amp;', '&'],
-		['&#39;', '\''],
-		['&lt;', '<'],
-		['&gt;', '>'],
-	]);
-
-	const html = marked.parse(value, { renderer }).replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m);
-
-	return sanitizeRenderedMarkdown({ isTrusted: false }, html).toString();
-}
+	return renderer;
+});
