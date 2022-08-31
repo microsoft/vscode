@@ -252,7 +252,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 					// relative paths with folders such as `src/foo.txt`.
 					const results = await this._searchService.fileSearch(
 						this._fileQueryBuilder.file(this._workspaceContextService.getWorkspace().folders, {
-							filePattern: sanitizedLink
+							filePattern: `**/${sanitizedLink}`
 						})
 					);
 					// Find an exact match if it exists
