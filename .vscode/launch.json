@@ -67,6 +67,7 @@
 			"name": "Attach to Main Process",
 			"timeout": 30000,
 			"port": 5875,
+			"continueOnAttach": true,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			],
@@ -237,7 +238,7 @@
 			"cleanUp": "wholeBrowser",
 			"urlFilter": "*workbench.html*",
 			"runtimeArgs": [
-				"--inspect=5875",
+				"--inspect-brk=5875",
 				"--no-cached-data",
 				"--crash-reporter-directory=${workspaceFolder}/.profile-oss/crashes",
 				// for general runtime freezes: https://github.com/microsoft/vscode/issues/127861#issuecomment-904144910
@@ -511,9 +512,10 @@
 			}
 		},
 		{
-			"name": "Search and Renderer processes",
+			"name": "Search, Renderer, and Main processes",
 			"configurations": [
 				"Launch VS Code Internal",
+				"Attach to Main Process",
 				"Attach to Search Process"
 			],
 			"presentation": {
@@ -522,9 +524,10 @@
 			}
 		},
 		{
-			"name": "Renderer and Extension Host processes",
+			"name": "Renderer, Extension Host, and Main processes",
 			"configurations": [
 				"Launch VS Code Internal",
+				"Attach to Main Process",
 				"Attach to Extension Host"
 			],
 			"presentation": {
@@ -555,10 +558,11 @@
 			}
 		},
 		{
-			"name": "Launch VS Code",
+			"name": "Renderer and Main processes",
 			"stopAll": true,
 			"configurations": [
 				"Launch VS Code Internal",
+				"Attach to Main Process"
 			],
 			"preLaunchTask": "Ensure Prelaunch Dependencies"
 		},

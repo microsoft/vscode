@@ -91,18 +91,18 @@ import { IDiagnosticsService, NullDiagnosticsService } from 'vs/platform/diagnos
 import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
 import { WebLanguagePacksService } from 'vs/platform/languagePacks/browser/languagePacks';
 
-registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService, false);
+registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService, true);
 registerSingleton(IAccessibilityService, AccessibilityService, true);
 registerSingleton(IContextMenuService, ContextMenuService, false);
-registerSingleton(ILoggerService, FileLoggerService, false);
-registerSingleton(IUserDataSyncStoreService, UserDataSyncStoreService, false);
-registerSingleton(IUserDataSyncMachinesService, UserDataSyncMachinesService, false);
-registerSingleton(IUserDataSyncBackupStoreService, UserDataSyncBackupStoreService, false);
-registerSingleton(IUserDataSyncAccountService, UserDataSyncAccountService, false);
-registerSingleton(IUserDataSyncService, UserDataSyncService, false);
+registerSingleton(ILoggerService, FileLoggerService, true);
+registerSingleton(IUserDataSyncStoreService, UserDataSyncStoreService, true);
+registerSingleton(IUserDataSyncMachinesService, UserDataSyncMachinesService, true);
+registerSingleton(IUserDataSyncBackupStoreService, UserDataSyncBackupStoreService, true);
+registerSingleton(IUserDataSyncAccountService, UserDataSyncAccountService, true);
+registerSingleton(IUserDataSyncService, UserDataSyncService, true);
 registerSingleton(IUserDataAutoSyncService, UserDataAutoSyncService, false);
 registerSingleton(ITitleService, TitlebarPart, false);
-registerSingleton(IExtensionTipsService, ExtensionTipsService, false);
+registerSingleton(IExtensionTipsService, ExtensionTipsService, true);
 registerSingleton(ITimerService, TimerService, false);
 registerSingleton(ICustomEndpointTelemetryService, NullEndpointTelemetryService, true);
 registerSingleton(IDiagnosticsService, NullDiagnosticsService, true);

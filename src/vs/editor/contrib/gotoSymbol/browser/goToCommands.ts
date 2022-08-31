@@ -13,7 +13,7 @@ import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/editorState';
 import { IActiveCodeEditor, ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, IActionOptions, registerInstantiatedEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction2, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { EditorOption, GoToLocationValues } from 'vs/editor/common/config/editorOptions';
@@ -29,7 +29,7 @@ import { ISymbolNavigationService } from 'vs/editor/contrib/gotoSymbol/browser/s
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { PeekContext } from 'vs/editor/contrib/peekView/browser/peekView';
 import * as nls from 'vs/nls';
-import { ISubmenuItem, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { IAction2Options, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { TextEditorSelectionRevealType, TextEditorSelectionSource } from 'vs/platform/editor/common/editor';
@@ -40,6 +40,7 @@ import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { getDeclarationsAtPosition, getDefinitionsAtPosition, getImplementationsAtPosition, getReferencesAtPosition, getTypeDefinitionsAtPosition } from './goToSymbol';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { Iterable } from 'vs/base/common/iterator';
 
 
 MenuRegistry.appendMenuItem(MenuId.EditorContext, <ISubmenuItem>{
@@ -56,14 +57,7 @@ export interface SymbolNavigationActionConfig {
 }
 
 
-const _goToActionIds = new Set<string>();
 
-function registerGoToAction<T extends EditorAction>(ctor: { new(): T }): T {
-	const result = new ctor();
-	registerInstantiatedEditorAction(result);
-	_goToActionIds.add(result.id);
-	return result;
-}
 
 export class SymbolNavigationAnchor {
 
@@ -83,18 +77,34 @@ export class SymbolNavigationAnchor {
 	constructor(readonly model: ITextModel, readonly position: corePosition.Position) { }
 }
 
-export abstract class SymbolNavigationAction extends EditorAction {
+export abstract class SymbolNavigationAction extends EditorAction2 {
 
+	private static _allSymbolNavigationCommands = new Set<string>();
 	private static _activeAlternativeCommands = new Set<string>();
 
 	readonly configuration: SymbolNavigationActionConfig;
 
-	constructor(configuration: SymbolNavigationActionConfig, opts: IActionOptions) {
-		super(opts);
-		this.configuration = configuration;
+	private static aaa(opts: IAction2Options): IAction2Options {
+		const result = { ...opts, f1: true };
+		// patch context menu when clause
+		if (result.menu) {
+			const iterable = Array.isArray(result.menu) ? result.menu : Iterable.single(result.menu);
+			for (const item of iterable) {
+				if (item.id === MenuId.EditorContext || item.id === MenuId.EditorContextPeek) {
+					item.when = ContextKeyExpr.and(opts.precondition, item.when);
+				}
+			}
+		}
+		return result;
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor, arg?: SymbolNavigationAnchor | unknown, range?: Range): Promise<void> {
+	constructor(configuration: SymbolNavigationActionConfig, opts: IAction2Options) {
+		super(SymbolNavigationAction.aaa(opts));
+		this.configuration = configuration;
+		SymbolNavigationAction._allSymbolNavigationCommands.add(opts.id);
+	}
+
+	override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, arg?: SymbolNavigationAnchor | unknown, range?: Range): Promise<void> {
 		if (!editor.hasModel()) {
 			return Promise.resolve(undefined);
 		}
@@ -121,7 +131,7 @@ export abstract class SymbolNavigationAction extends EditorAction {
 			let altAction: IEditorAction | null | undefined;
 			if (references.referenceAt(model.uri, position)) {
 				const altActionId = this._getAlternativeCommand(editor);
-				if (!SymbolNavigationAction._activeAlternativeCommands.has(altActionId) && _goToActionIds.has(altActionId)) {
+				if (!SymbolNavigationAction._activeAlternativeCommands.has(altActionId) && SymbolNavigationAction._allSymbolNavigationCommands.has(altActionId)) {
 					altAction = editor.getAction(altActionId);
 				}
 			}
@@ -136,9 +146,9 @@ export abstract class SymbolNavigationAction extends EditorAction {
 				}
 			} else if (referenceCount === 1 && altAction) {
 				// already at the only result, run alternative
-				SymbolNavigationAction._activeAlternativeCommands.add(this.id);
+				SymbolNavigationAction._activeAlternativeCommands.add(this.desc.id);
 				altAction.run().finally(() => {
-					SymbolNavigationAction._activeAlternativeCommands.delete(this.id);
+					SymbolNavigationAction._activeAlternativeCommands.delete(this.desc.id);
 				});
 
 			} else {
@@ -266,7 +276,7 @@ const goToDefinitionKb = isWeb && !isStandalone()
 	? KeyMod.CtrlCmd | KeyCode.F12
 	: KeyCode.F12;
 
-registerGoToAction(class GoToDefinitionAction extends DefinitionAction {
+registerAction2(class GoToDefinitionAction extends DefinitionAction {
 
 	static readonly id = 'editor.action.revealDefinition';
 
@@ -277,26 +287,34 @@ registerGoToAction(class GoToDefinitionAction extends DefinitionAction {
 			muteMessage: false
 		}, {
 			id: GoToDefinitionAction.id,
-			label: nls.localize('actions.goToDecl.label', "Go to Definition"),
-			alias: 'Go to Definition',
+			title: {
+				value: nls.localize('actions.goToDecl.label', "Go to Definition"),
+				original: 'Go to Definition',
+				mnemonicTitle: nls.localize({ key: 'miGotoDefinition', comment: ['&& denotes a mnemonic'] }, "Go to &&Definition")
+			},
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasDefinitionProvider,
 				EditorContextKeys.isInWalkThroughSnippet.toNegated()),
-			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
+			keybinding: {
+				when: EditorContextKeys.editorTextFocus,
 				primary: goToDefinitionKb,
 				weight: KeybindingWeight.EditorContrib
 			},
-			contextMenuOpts: {
+			menu: [{
+				id: MenuId.EditorContext,
 				group: 'navigation',
 				order: 1.1
-			}
+			}, {
+				id: MenuId.MenubarGoMenu,
+				group: '4_symbol_nav',
+				order: 2,
+			}]
 		});
 		CommandsRegistry.registerCommandAlias('editor.action.goToDeclaration', GoToDefinitionAction.id);
 	}
 });
 
-registerGoToAction(class OpenDefinitionToSideAction extends DefinitionAction {
+registerAction2(class OpenDefinitionToSideAction extends DefinitionAction {
 
 	static readonly id = 'editor.action.revealDefinitionAside';
 
@@ -307,13 +325,15 @@ registerGoToAction(class OpenDefinitionToSideAction extends DefinitionAction {
 			muteMessage: false
 		}, {
 			id: OpenDefinitionToSideAction.id,
-			label: nls.localize('actions.goToDeclToSide.label', "Open Definition to the Side"),
-			alias: 'Open Definition to the Side',
+			title: {
+				value: nls.localize('actions.goToDeclToSide.label', "Open Definition to the Side"),
+				original: 'Open Definition to the Side'
+			},
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasDefinitionProvider,
 				EditorContextKeys.isInWalkThroughSnippet.toNegated()),
-			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
+			keybinding: {
+				when: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, goToDefinitionKb),
 				weight: KeybindingWeight.EditorContrib
 			}
@@ -322,7 +342,7 @@ registerGoToAction(class OpenDefinitionToSideAction extends DefinitionAction {
 	}
 });
 
-registerGoToAction(class PeekDefinitionAction extends DefinitionAction {
+registerAction2(class PeekDefinitionAction extends DefinitionAction {
 
 	static readonly id = 'editor.action.peekDefinition';
 
@@ -333,21 +353,23 @@ registerGoToAction(class PeekDefinitionAction extends DefinitionAction {
 			muteMessage: false
 		}, {
 			id: PeekDefinitionAction.id,
-			label: nls.localize('actions.previewDecl.label', "Peek Definition"),
-			alias: 'Peek Definition',
+			title: {
+				value: nls.localize('actions.previewDecl.label', "Peek Definition"),
+				original: 'Peek Definition'
+			},
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasDefinitionProvider,
 				PeekContext.notInPeekEditor,
 				EditorContextKeys.isInWalkThroughSnippet.toNegated()
 			),
-			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
+			keybinding: {
+				when: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Alt | KeyCode.F12,
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F10 },
 				weight: KeybindingWeight.EditorContrib
 			},
-			contextMenuOpts: {
-				menuId: MenuId.EditorContextPeek,
+			menu: {
+				id: MenuId.EditorContextPeek,
 				group: 'peek',
 				order: 2
 			}
@@ -381,7 +403,7 @@ class DeclarationAction extends SymbolNavigationAction {
 	}
 }
 
-registerGoToAction(class GoToDeclarationAction extends DeclarationAction {
+registerAction2(class GoToDeclarationAction extends DeclarationAction {
 
 	static readonly id = 'editor.action.revealDeclaration';
 
@@ -392,16 +414,24 @@ registerGoToAction(class GoToDeclarationAction extends DeclarationAction {
 			muteMessage: false
 		}, {
 			id: GoToDeclarationAction.id,
-			label: nls.localize('actions.goToDeclaration.label', "Go to Declaration"),
-			alias: 'Go to Declaration',
+			title: {
+				value: nls.localize('actions.goToDeclaration.label', "Go to Declaration"),
+				original: 'Go to Declaration',
+				mnemonicTitle: nls.localize({ key: 'miGotoDeclaration', comment: ['&& denotes a mnemonic'] }, "Go to &&Declaration")
+			},
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasDeclarationProvider,
 				EditorContextKeys.isInWalkThroughSnippet.toNegated()
 			),
-			contextMenuOpts: {
+			menu: [{
+				id: MenuId.EditorContext,
 				group: 'navigation',
 				order: 1.3
-			},
+			}, {
+				id: MenuId.MenubarGoMenu,
+				group: '4_symbol_nav',
+				order: 3,
+			}],
 		});
 	}
 
@@ -412,7 +442,7 @@ registerGoToAction(class GoToDeclarationAction extends DeclarationAction {
 	}
 });
 
-registerGoToAction(class PeekDeclarationAction extends DeclarationAction {
+registerAction2(class PeekDeclarationAction extends DeclarationAction {
 	constructor() {
 		super({
 			openToSide: false,
@@ -420,15 +450,17 @@ registerGoToAction(class PeekDeclarationAction extends DeclarationAction {
 			muteMessage: false
 		}, {
 			id: 'editor.action.peekDeclaration',
-			label: nls.localize('actions.peekDecl.label', "Peek Declaration"),
-			alias: 'Peek Declaration',
+			title: {
+				value: nls.localize('actions.peekDecl.label', "Peek Declaration"),
+				original: 'Peek Declaration'
+			},
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasDeclarationProvider,
 				PeekContext.notInPeekEditor,
 				EditorContextKeys.isInWalkThroughSnippet.toNegated()
 			),
-			contextMenuOpts: {
-				menuId: MenuId.EditorContextPeek,
+			menu: {
+				id: MenuId.EditorContextPeek,
 				group: 'peek',
 				order: 3
 			}
@@ -461,7 +493,7 @@ class TypeDefinitionAction extends SymbolNavigationAction {
 	}
 }
 
-registerGoToAction(class GoToTypeDefinitionAction extends TypeDefinitionAction {
+registerAction2(class GoToTypeDefinitionAction extends TypeDefinitionAction {
 
 	public static readonly ID = 'editor.action.goToTypeDefinition';
 
@@ -472,25 +504,33 @@ registerGoToAction(class GoToTypeDefinitionAction extends TypeDefinitionAction {
 			muteMessage: false
 		}, {
 			id: GoToTypeDefinitionAction.ID,
-			label: nls.localize('actions.goToTypeDefinition.label', "Go to Type Definition"),
-			alias: 'Go to Type Definition',
+			title: {
+				value: nls.localize('actions.goToTypeDefinition.label', "Go to Type Definition"),
+				original: 'Go to Type Definition',
+				mnemonicTitle: nls.localize({ key: 'miGotoTypeDefinition', comment: ['&& denotes a mnemonic'] }, "Go to &&Type Definition")
+			},
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasTypeDefinitionProvider,
 				EditorContextKeys.isInWalkThroughSnippet.toNegated()),
-			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
+			keybinding: {
+				when: EditorContextKeys.editorTextFocus,
 				primary: 0,
 				weight: KeybindingWeight.EditorContrib
 			},
-			contextMenuOpts: {
+			menu: [{
+				id: MenuId.EditorContext,
 				group: 'navigation',
 				order: 1.4
-			}
+			}, {
+				id: MenuId.MenubarGoMenu,
+				group: '4_symbol_nav',
+				order: 3,
+			}]
 		});
 	}
 });
 
-registerGoToAction(class PeekTypeDefinitionAction extends TypeDefinitionAction {
+registerAction2(class PeekTypeDefinitionAction extends TypeDefinitionAction {
 
 	public static readonly ID = 'editor.action.peekTypeDefinition';
 
@@ -501,15 +541,17 @@ registerGoToAction(class PeekTypeDefinitionAction extends TypeDefinitionAction {
 			muteMessage: false
 		}, {
 			id: PeekTypeDefinitionAction.ID,
-			label: nls.localize('actions.peekTypeDefinition.label', "Peek Type Definition"),
-			alias: 'Peek Type Definition',
+			title: {
+				value: nls.localize('actions.peekTypeDefinition.label', "Peek Type Definition"),
+				original: 'Peek Type Definition'
+			},
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasTypeDefinitionProvider,
 				PeekContext.notInPeekEditor,
 				EditorContextKeys.isInWalkThroughSnippet.toNegated()
 			),
-			contextMenuOpts: {
-				menuId: MenuId.EditorContextPeek,
+			menu: {
+				id: MenuId.EditorContextPeek,
 				group: 'peek',
 				order: 4
 			}
@@ -542,7 +584,7 @@ class ImplementationAction extends SymbolNavigationAction {
 	}
 }
 
-registerGoToAction(class GoToImplementationAction extends ImplementationAction {
+registerAction2(class GoToImplementationAction extends ImplementationAction {
 
 	public static readonly ID = 'editor.action.goToImplementation';
 
@@ -553,25 +595,33 @@ registerGoToAction(class GoToImplementationAction extends ImplementationAction {
 			muteMessage: false
 		}, {
 			id: GoToImplementationAction.ID,
-			label: nls.localize('actions.goToImplementation.label', "Go to Implementations"),
-			alias: 'Go to Implementations',
+			title: {
+				value: nls.localize('actions.goToImplementation.label', "Go to Implementations"),
+				original: 'Go to Implementations',
+				mnemonicTitle: nls.localize({ key: 'miGotoImplementation', comment: ['&& denotes a mnemonic'] }, "Go to &&Implementations")
+			},
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasImplementationProvider,
 				EditorContextKeys.isInWalkThroughSnippet.toNegated()),
-			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
+			keybinding: {
+				when: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.F12,
 				weight: KeybindingWeight.EditorContrib
 			},
-			contextMenuOpts: {
+			menu: [{
+				id: MenuId.EditorContext,
 				group: 'navigation',
 				order: 1.45
-			}
+			}, {
+				id: MenuId.MenubarGoMenu,
+				group: '4_symbol_nav',
+				order: 4,
+			}]
 		});
 	}
 });
 
-registerGoToAction(class PeekImplementationAction extends ImplementationAction {
+registerAction2(class PeekImplementationAction extends ImplementationAction {
 
 	public static readonly ID = 'editor.action.peekImplementation';
 
@@ -582,20 +632,22 @@ registerGoToAction(class PeekImplementationAction extends ImplementationAction {
 			muteMessage: false
 		}, {
 			id: PeekImplementationAction.ID,
-			label: nls.localize('actions.peekImplementation.label', "Peek Implementations"),
-			alias: 'Peek Implementations',
+			title: {
+				value: nls.localize('actions.peekImplementation.label', "Peek Implementations"),
+				original: 'Peek Implementations'
+			},
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasImplementationProvider,
 				PeekContext.notInPeekEditor,
 				EditorContextKeys.isInWalkThroughSnippet.toNegated()
 			),
-			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
+			keybinding: {
+				when: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F12,
 				weight: KeybindingWeight.EditorContrib
 			},
-			contextMenuOpts: {
-				menuId: MenuId.EditorContextPeek,
+			menu: {
+				id: MenuId.EditorContextPeek,
 				group: 'peek',
 				order: 5
 			}
@@ -624,7 +676,7 @@ abstract class ReferencesAction extends SymbolNavigationAction {
 	}
 }
 
-registerGoToAction(class GoToReferencesAction extends ReferencesAction {
+registerAction2(class GoToReferencesAction extends ReferencesAction {
 
 	constructor() {
 		super({
@@ -633,22 +685,30 @@ registerGoToAction(class GoToReferencesAction extends ReferencesAction {
 			muteMessage: false
 		}, {
 			id: 'editor.action.goToReferences',
-			label: nls.localize('goToReferences.label', "Go to References"),
-			alias: 'Go to References',
+			title: {
+				value: nls.localize('goToReferences.label', "Go to References"),
+				original: 'Go to References',
+				mnemonicTitle: nls.localize({ key: 'miGotoReference', comment: ['&& denotes a mnemonic'] }, "Go to &&References")
+			},
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasReferenceProvider,
 				PeekContext.notInPeekEditor,
 				EditorContextKeys.isInWalkThroughSnippet.toNegated()
 			),
-			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
+			keybinding: {
+				when: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Shift | KeyCode.F12,
 				weight: KeybindingWeight.EditorContrib
 			},
-			contextMenuOpts: {
+			menu: [{
+				id: MenuId.EditorContext,
 				group: 'navigation',
 				order: 1.45
-			}
+			}, {
+				id: MenuId.MenubarGoMenu,
+				group: '4_symbol_nav',
+				order: 5,
+			}]
 		});
 	}
 
@@ -657,7 +717,7 @@ registerGoToAction(class GoToReferencesAction extends ReferencesAction {
 	}
 });
 
-registerGoToAction(class PeekReferencesAction extends ReferencesAction {
+registerAction2(class PeekReferencesAction extends ReferencesAction {
 
 	constructor() {
 		super({
@@ -666,15 +726,17 @@ registerGoToAction(class PeekReferencesAction extends ReferencesAction {
 			muteMessage: false
 		}, {
 			id: 'editor.action.referenceSearch.trigger',
-			label: nls.localize('references.action.label', "Peek References"),
-			alias: 'Peek References',
+			title: {
+				value: nls.localize('references.action.label', "Peek References"),
+				original: 'Peek References'
+			},
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasReferenceProvider,
 				PeekContext.notInPeekEditor,
 				EditorContextKeys.isInWalkThroughSnippet.toNegated()
 			),
-			contextMenuOpts: {
-				menuId: MenuId.EditorContextPeek,
+			menu: {
+				id: MenuId.EditorContextPeek,
 				group: 'peek',
 				order: 6
 			}
@@ -700,8 +762,10 @@ class GenericGoToLocationAction extends SymbolNavigationAction {
 	) {
 		super(config, {
 			id: 'editor.action.goToLocation',
-			label: nls.localize('label.generic', "Go to Any Symbol"),
-			alias: 'Go to Any Symbol',
+			title: {
+				value: nls.localize('label.generic', "Go to Any Symbol"),
+				original: 'Go to Any Symbol'
+			},
 			precondition: ContextKeyExpr.and(
 				PeekContext.notInPeekEditor,
 				EditorContextKeys.isInWalkThroughSnippet.toNegated()
@@ -817,64 +881,3 @@ CommandsRegistry.registerCommand({
 CommandsRegistry.registerCommandAlias('editor.action.showReferences', 'editor.action.peekLocations');
 
 //#endregion
-
-// -- unconditionally register goto-action
-
-MenuRegistry.appendMenuItems([
-	{
-		id: MenuId.MenubarGoMenu,
-		item: {
-			command: {
-				id: 'editor.action.revealDefinition',
-				title: nls.localize({ key: 'miGotoDefinition', comment: ['&& denotes a mnemonic'] }, "Go to &&Definition")
-			},
-			group: '4_symbol_nav',
-			order: 2,
-		},
-	},
-	{
-		id: MenuId.MenubarGoMenu,
-		item: {
-			command: {
-				id: 'editor.action.revealDeclaration',
-				title: nls.localize({ key: 'miGotoDeclaration', comment: ['&& denotes a mnemonic'] }, "Go to &&Declaration")
-			},
-			group: '4_symbol_nav',
-			order: 3,
-
-		},
-	},
-	{
-		id: MenuId.MenubarGoMenu,
-		item: {
-			command: {
-				id: 'editor.action.goToTypeDefinition',
-				title: nls.localize({ key: 'miGotoTypeDefinition', comment: ['&& denotes a mnemonic'] }, "Go to &&Type Definition")
-			},
-			group: '4_symbol_nav',
-			order: 3,
-		},
-	},
-	{
-		id: MenuId.MenubarGoMenu,
-		item: {
-			command: {
-				id: 'editor.action.goToImplementation',
-				title: nls.localize({ key: 'miGotoImplementation', comment: ['&& denotes a mnemonic'] }, "Go to &&Implementations")
-			},
-			group: '4_symbol_nav',
-			order: 4,
-		},
-	},
-	{
-		id: MenuId.MenubarGoMenu,
-		item: {
-			command: {
-				id: 'editor.action.goToReferences',
-				title: nls.localize({ key: 'miGotoReference', comment: ['&& denotes a mnemonic'] }, "Go to &&References")
-			},
-			group: '4_symbol_nav',
-			order: 5,
-		},
-	},
-]);

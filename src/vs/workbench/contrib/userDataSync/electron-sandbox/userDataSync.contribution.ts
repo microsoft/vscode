@@ -29,7 +29,7 @@ class UserDataSyncServicesContribution implements IWorkbenchContribution {
 }
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(UserDataSyncServicesContribution, LifecyclePhase.Starting);
+workbenchRegistry.registerWorkbenchContribution(UserDataSyncServicesContribution, 'UserDataSyncServicesContribution', LifecyclePhase.Starting);
 
 registerAction2(class OpenSyncBackupsFolder extends Action2 {
 	constructor() {

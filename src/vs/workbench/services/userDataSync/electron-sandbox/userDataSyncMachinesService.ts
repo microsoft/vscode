@@ -47,4 +47,4 @@ class UserDataSyncMachinesService extends Disposable implements IUserDataSyncMac
 
 }
 
-registerSingleton(IUserDataSyncMachinesService, UserDataSyncMachinesService, false);
+registerSingleton(IUserDataSyncMachinesService, UserDataSyncMachinesService, true);

@@ -27,11 +27,14 @@
 
 	// Elements
 	const container = document.createElement('div');
-	container.className = 'audio-container';
+	container.className = 'video-container';
 	document.body.appendChild(container);
 
-	const audio = new Audio(settings.src === null ? undefined : settings.src);
-	audio.controls = true;
+	const video = document.createElement('video');
+	if (settings.src !== null) {
+		video.src = settings.src;
+	}
+	video.controls = true;
 
 	function onLoaded() {
 		if (hasLoadedMedia) {
@@ -41,10 +44,10 @@
 
 		document.body.classList.remove('loading');
 		document.body.classList.add('ready');
-		container.append(audio);
+		container.append(video);
 	}
 
-	audio.addEventListener('error', e => {
+	video.addEventListener('error', e => {
 		if (hasLoadedMedia) {
 			return;
 		}
@@ -57,7 +60,7 @@
 	if (settings.src === null) {
 		onLoaded();
 	} else {
-		audio.addEventListener('canplaythrough', () => {
+		video.addEventListener('canplaythrough', () => {
 			onLoaded();
 		});
 	}

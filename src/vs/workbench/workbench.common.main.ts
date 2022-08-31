@@ -128,21 +128,21 @@ import { IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDat
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
 import { IExtensionsProfileScannerService, ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 
-registerSingleton(IUserDataSyncLogService, UserDataSyncLogService, false);
-registerSingleton(IIgnoredExtensionsManagementService, IgnoredExtensionsManagementService, false);
-registerSingleton(IGlobalExtensionEnablementService, GlobalExtensionEnablementService, false);
-registerSingleton(IExtensionStorageService, ExtensionStorageService, false);
+registerSingleton(IUserDataSyncLogService, UserDataSyncLogService, true);
+registerSingleton(IIgnoredExtensionsManagementService, IgnoredExtensionsManagementService, true);
+registerSingleton(IGlobalExtensionEnablementService, GlobalExtensionEnablementService, true);
+registerSingleton(IExtensionStorageService, ExtensionStorageService, true);
 registerSingleton(IExtensionGalleryService, ExtensionGalleryService, true);
 registerSingleton(IContextViewService, ContextViewService, true);
 registerSingleton(IListService, ListService, true);
 registerSingleton(IEditorWorkerService, EditorWorkerService, false);
-registerSingleton(IMarkerDecorationsService, MarkerDecorationsService, false);
+registerSingleton(IMarkerDecorationsService, MarkerDecorationsService, true);
 registerSingleton(IMarkerService, MarkerService, true);
 registerSingleton(IContextKeyService, ContextKeyService, false);
-registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationService, false);
+registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationService, true);
 registerSingleton(IDownloadService, DownloadService, true);
 registerSingleton(IOpenerService, OpenerService, true);
-registerSingleton(IExtensionsProfileScannerService, ExtensionsProfileScannerService, false);
+registerSingleton(IExtensionsProfileScannerService, ExtensionsProfileScannerService, true);
 
 //#endregion
 

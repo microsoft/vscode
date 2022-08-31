@@ -160,5 +160,5 @@ class CESContribution extends Disposable implements IWorkbenchContribution {
 
 if (language === 'en') {
 	const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-	workbenchRegistry.registerWorkbenchContribution(CESContribution, LifecyclePhase.Restored);
+	workbenchRegistry.registerWorkbenchContribution(CESContribution, 'CESContribution', LifecyclePhase.Restored);
 }

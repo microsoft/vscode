@@ -17,8 +17,8 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 
 registerSingleton(IAudioCueService, AudioCueService, false);
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(AudioCueLineFeatureContribution, LifecyclePhase.Restored);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(AudioCueLineDebuggerContribution, LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(AudioCueLineFeatureContribution, 'AudioCueLineFeatureContribution', LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(AudioCueLineDebuggerContribution, 'AudioCueLineDebuggerContribution', LifecyclePhase.Restored);
 
 const audioCueFeatureBase: IConfigurationPropertySchema = {
 	'type': 'string',

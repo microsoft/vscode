@@ -516,7 +516,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(KernelStatus, LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(KernelStatus, 'KernelStatus', LifecyclePhase.Restored);
 
 export class ActiveCellStatus extends Disposable implements IWorkbenchContribution {
 
@@ -592,4 +592,4 @@ export class ActiveCellStatus extends Disposable implements IWorkbenchContributi
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ActiveCellStatus, LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ActiveCellStatus, 'ActiveCellStatus', LifecyclePhase.Restored);
