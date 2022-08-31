@@ -57,4 +57,4 @@ export class OutputChannelModelService extends AbstractOutputChannelModelService
 	}
 }
 
-registerSingleton(IOutputChannelModelService, OutputChannelModelService, false);
+registerSingleton(IOutputChannelModelService, OutputChannelModelService, true);
