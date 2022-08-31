@@ -840,7 +840,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!this._versionAndEngineCompatible(filter)) {
 			return Promise.resolve<Task[]>([]);
 		}
-		return this._getGroupedTasks(filter ? filter.type : undefined).then((map) => {
+		return this._getGroupedTasks(filter).then((map) => {
 			if (!filter || !filter.type) {
 				return map.all();
 			}
@@ -1962,9 +1962,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return !definition || !definition.when || this._contextKeyService.contextMatchesRules(definition.when);
 	}
 
-	private async _getGroupedTasks(type?: string): Promise<TaskMap> {
+	private async _getGroupedTasks(filter?: ITaskFilter): Promise<TaskMap> {
+		const type = filter?.type;
+		const name = filter?.task;
 		const needsRecentTasksMigration = this._needsRecentTasksMigration();
-		await this._activateTaskProviders(type);
+		await this._activateTaskProviders(filter?.type);
 		const validTypes: IStringDictionary<boolean> = Object.create(null);
 		TaskDefinitionRegistry.all().forEach(definition => validTypes[definition.taskType] = true);
 		validTypes['shell'] = true;
@@ -2014,6 +2016,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 									this._outputChannel.append(nls.localize('unexpectedTaskType', "The task provider for \"{0}\" tasks unexpectedly provided a task of type \"{1}\".\n", this._providerTypes.get(handle), task.type));
 									if ((task.type !== 'shell') && (task.type !== 'process')) {
 										this._showOutput();
+									}
+									if (task.getDefinition(true)?._key === name || task._label === name) {
+										return done({ tasks: [task], extension: taskSet.extension });
 									}
 									break;
 								}
@@ -2787,57 +2792,46 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!this._canRunCommand()) {
 			return;
 		}
-		const identifier = this._getTaskIdentifier(arg);
-		const type = arg && typeof arg !== 'string' && 'type' in arg ? arg.type : undefined;
-		const name = arg && typeof arg !== 'string' && 'task' in arg ? arg.task : arg === 'string' ? arg : undefined;
-		let ranTask = false;
-		this._getGroupedTasks().then(async (grouped) => {
-			grouped.forEach(g => {
-				const result = g.find(g => g._id === name || g._label === name);
-				if (result) {
-					this.run(result).then(undefined, reason => {
-						// eat the error, it has already been surfaced to the user and we don't care about it here
-					});
-					ranTask = true;
-					return;
-				}
-			});
-			if (ranTask) {
-				return;
-			}
-			const resolver = this._createResolver(grouped);
-			const folderURIs: (URI | string)[] = this._contextService.getWorkspace().folders.map(folder => folder.uri);
-			if (this._contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-				folderURIs.push(this._contextService.getWorkspace().configuration!);
-			}
-			folderURIs.push(USER_TASKS_GROUP_KEY);
 
-			for (const uri of folderURIs) {
-				const task = await resolver.resolve(uri, identifier);
-				if (task) {
-					this.run(task).then(undefined, reason => {
-						// eat the error, it has already been surfaced to the user and we don't care about it here
-					});
-					return;
+		let typeFilter: boolean = false;
+		if (filter && typeof filter !== 'string') {
+			// name takes precedence
+			typeFilter = !filter?.task && !!filter?.type;
+			filter = filter?.task || filter?.type;
+		}
+
+		const taskIdentifier: KeyedTaskIdentifier | undefined | string = this._getTaskIdentifier(filter);
+		if (taskIdentifier) {
+			this._getGroupedTasks(filter).then(async (grouped) => {
+				const resolver = this._createResolver(grouped);
+				const folderURIs: (URI | string)[] = this._contextService.getWorkspace().folders.map(folder => folder.uri);
+				if (this._contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+					folderURIs.push(this._contextService.getWorkspace().configuration!);
 				}
-			}
-			const tasks = await this.tasks();
-			if (!ranTask) {
-				this._doRunTaskCommand(tasks, type, name);
-			}
-		}, async () => {
-			if (!ranTask) {
-				const tasks = await this.tasks();
-				this._doRunTaskCommand(tasks, type, name);
-			}
-		});
+				folderURIs.push(USER_TASKS_GROUP_KEY);
+				for (const uri of folderURIs) {
+					const task = await resolver.resolve(uri, taskIdentifier);
+					if (task) {
+						this.run(task).then(undefined, reason => {
+							// eat the error, it has already been surfaced to the user and we don't care about it here
+						});
+						return;
+					}
+				}
+				this._doRunTaskCommand(grouped.all(), typeof taskIdentifier === 'string' ? taskIdentifier : undefined, typeFilter);
+			}, () => {
+				this._doRunTaskCommand();
+			});
+		} else {
+			this._doRunTaskCommand();
+		}
 	}
 
 	private _tasksAndGroupedTasks(filter?: ITaskFilter): { tasks: Promise<Task[]>; grouped: Promise<TaskMap> } {
 		if (!this._versionAndEngineCompatible(filter)) {
 			return { tasks: Promise.resolve<Task[]>([]), grouped: Promise.resolve(new TaskMap()) };
 		}
-		const grouped = this._getGroupedTasks(filter ? filter.type : undefined);
+		const grouped = this._getGroupedTasks(filter);
 		const tasks = grouped.then((map) => {
 			if (!filter || !filter.type) {
 				return map.all();
