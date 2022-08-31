@@ -83,28 +83,28 @@ export function terminalProfileArgsMatch(args1: string | string[] | undefined, a
 	return false;
 }
 
-export function terminalIconsEqual(iconOne?: TerminalIcon, iconTwo?: TerminalIcon): boolean {
-	if (!iconOne && !iconTwo) {
+export function terminalIconsEqual(a?: TerminalIcon, b?: TerminalIcon): boolean {
+	if (!a && !b) {
 		return true;
-	} else if (!iconOne || !iconTwo) {
+	} else if (!a || !b) {
 		return false;
 	}
 
-	if (ThemeIcon.isThemeIcon(iconOne) && ThemeIcon.isThemeIcon(iconTwo)) {
-		return iconOne.id === iconTwo.id && iconOne.color === iconTwo.color;
+	if (ThemeIcon.isThemeIcon(a) && ThemeIcon.isThemeIcon(b)) {
+		return a.id === b.id && a.color === b.color;
 	}
-	if (typeof iconOne === 'object' && 'light' in iconOne && 'dark' in iconOne
-		&& typeof iconTwo === 'object' && 'light' in iconTwo && 'dark' in iconTwo) {
-		const castedIcon = (iconOne as { light: unknown; dark: unknown });
-		const castedIconTwo = (iconTwo as { light: unknown; dark: unknown });
+	if (typeof a === 'object' && 'light' in a && 'dark' in a
+		&& typeof b === 'object' && 'light' in b && 'dark' in b) {
+		const castedIcon = (a as { light: unknown; dark: unknown });
+		const castedIconTwo = (b as { light: unknown; dark: unknown });
 		if ((URI.isUri(castedIcon.light) || isUriComponents(castedIcon.light)) && (URI.isUri(castedIcon.dark) || isUriComponents(castedIcon.dark))
 			&& (URI.isUri(castedIconTwo.light) || isUriComponents(castedIconTwo.light)) && (URI.isUri(castedIconTwo.dark) || isUriComponents(castedIconTwo.dark))) {
 			return castedIcon.light.path === castedIconTwo.light.path && castedIcon.dark.path === castedIconTwo.dark.path;
 		}
 	}
-	if ((URI.isUri(iconOne) && URI.isUri(iconTwo)) || (isUriComponents(iconOne) || isUriComponents(iconTwo))) {
-		const castedIcon = (iconOne as { scheme: unknown; path: unknown });
-		const castedIconTwo = (iconTwo as { scheme: unknown; path: unknown });
+	if ((URI.isUri(a) && URI.isUri(b)) || (isUriComponents(a) || isUriComponents(b))) {
+		const castedIcon = (a as { scheme: unknown; path: unknown });
+		const castedIconTwo = (b as { scheme: unknown; path: unknown });
 		return castedIcon.path === castedIconTwo.path && castedIcon.scheme === castedIconTwo.scheme;
 	}
 
