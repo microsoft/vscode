@@ -23,7 +23,7 @@ import { EditSessionsWorkbenchService } from 'vs/workbench/contrib/editSessions/
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { UserDataSyncErrorCode, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -397,12 +397,18 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 			if (hasLocalUncommittedChanges) {
 				// TODO@joyceerhl Provide the option to diff files which would be overwritten by edit session contents
-				const result = await this.dialogService.confirm({
-					message: localize('resume edit session warning', 'Resuming your edit session may overwrite your existing uncommitted changes. Do you want to proceed?'),
-					type: 'warning',
-					title: EDIT_SESSION_SYNC_CATEGORY.value
-				});
-				if (!result.confirmed) {
+				const yes = localize('resume edit session yes', 'Yes');
+				const cancel = localize('resume edit session cancel', 'Cancel');
+
+				const result = await this.dialogService.show(
+					Severity.Warning,
+					localize('resume edit session warning', 'Resuming your edit session may overwrite your existing uncommitted changes. Do you want to proceed?'),
+					[cancel, yes],
+					{
+						custom: true,
+						cancelId: 0
+					});
+				if (result.choice === 0) {
 					return;
 				}
 			}
