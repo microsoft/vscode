@@ -115,11 +115,9 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 				treeView.description = description;
 			},
 			get badge() {
-				checkProposedApiEnabled(extension, 'badges');
 				return treeView.badge;
 			},
 			set badge(badge: vscode.ViewBadge | undefined) {
-				checkProposedApiEnabled(extension, 'badges');
 				treeView.badge = badge;
 			},
 			reveal: (element: T, options?: IRevealOptions): Promise<void> => {

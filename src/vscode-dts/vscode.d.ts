@@ -8637,6 +8637,12 @@ declare module 'vscode' {
 		description?: string;
 
 		/**
+		 * The badge to display for this webview view.
+		 * To remove the badge, set to undefined.
+		 */
+		badge?: ViewBadge | undefined;
+
+		/**
 		 * Event fired when the view is disposed.
 		 *
 		 * Views are disposed when they are explicitly hidden by a user (this happens when a user
@@ -10323,6 +10329,22 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * A badge presenting a value for a view
+	 */
+	export interface ViewBadge {
+
+		/**
+		 * A label to present in tooltip for the badge.
+		 */
+		readonly tooltip: string;
+
+		/**
+		 * The value to present in the badge.
+		 */
+		readonly value: number;
+	}
+
+	/**
 	 * Represents a Tree view
 	 */
 	export interface TreeView<T> extends Disposable {
@@ -10374,6 +10396,12 @@ declare module 'vscode' {
 		 * Setting the title description to null, undefined, or empty string will remove the description from the view.
 		 */
 		description?: string;
+
+		/**
+		 * The badge to display for this TreeView.
+		 * To remove the badge, set to undefined.
+		 */
+		badge?: ViewBadge | undefined;
 
 		/**
 		 * Reveals the given element in the tree view.
