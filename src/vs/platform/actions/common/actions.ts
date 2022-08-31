@@ -5,8 +5,7 @@
 
 import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { CSSIcon } from 'vs/base/common/codicons';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
+import { Event, MicrotaskEmitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { ICommandAction, ICommandActionTitle, Icon, ILocalizedString } from 'vs/platform/action/common/action';
@@ -234,12 +233,46 @@ export interface IMenuRegistryChangeEvent {
 	has(id: MenuId): boolean;
 }
 
+class MenuRegistryChangeEvent {
+
+	private static _all = new Map<MenuId, MenuRegistryChangeEvent>();
+
+	static for(id: MenuId): MenuRegistryChangeEvent {
+		let value = this._all.get(id);
+		if (!value) {
+			value = new MenuRegistryChangeEvent(id);
+			this._all.set(id, value);
+		}
+		return value;
+	}
+
+	static merge(events: IMenuRegistryChangeEvent[]): IMenuRegistryChangeEvent {
+		const ids = new Set<MenuId>();
+		for (const item of events) {
+			if (item instanceof MenuRegistryChangeEvent) {
+				ids.add(item.id);
+			}
+		}
+		return ids;
+	}
+
+	readonly has: (id: MenuId) => boolean;
+
+	private constructor(private readonly id: MenuId) {
+		this.has = candidate => candidate === id;
+	}
+}
+
 export interface IMenuRegistry {
 	readonly onDidChangeMenu: Event<IMenuRegistryChangeEvent>;
-	addCommands(newCommands: Iterable<ICommandAction>): IDisposable;
 	addCommand(userCommand: ICommandAction): IDisposable;
 	getCommand(id: string): ICommandAction | undefined;
 	getCommands(): ICommandsMap;
+
+	/**
+	 * @deprecated Use `appendMenuItem` or most likely use `registerAction2` instead. There should be no strong
+	 * reason to use this directly.
+	 */
 	appendMenuItems(items: Iterable<{ id: MenuId; item: IMenuItem | ISubmenuItem }>): IDisposable;
 	appendMenuItem(menu: MenuId, item: IMenuItem | ISubmenuItem): IDisposable;
 	getMenuItems(loc: MenuId): Array<IMenuItem | ISubmenuItem>;
@@ -249,30 +282,19 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 
 	private readonly _commands = new Map<string, ICommandAction>();
 	private readonly _menuItems = new Map<MenuId, LinkedList<IMenuItem | ISubmenuItem>>();
-	private readonly _onDidChangeMenu = new Emitter<IMenuRegistryChangeEvent>();
+	private readonly _onDidChangeMenu = new MicrotaskEmitter<IMenuRegistryChangeEvent>({
+		merge: MenuRegistryChangeEvent.merge
+	});
 
 	readonly onDidChangeMenu: Event<IMenuRegistryChangeEvent> = this._onDidChangeMenu.event;
 
 	addCommand(command: ICommandAction): IDisposable {
-		return this.addCommands(Iterable.single(command));
-	}
+		this._commands.set(command.id, command);
+		this._onDidChangeMenu.fire(MenuRegistryChangeEvent.for(MenuId.CommandPalette));
 
-	private readonly _commandPaletteChangeEvent: IMenuRegistryChangeEvent = {
-		has: id => id === MenuId.CommandPalette
-	};
-
-	addCommands(commands: Iterable<ICommandAction>): IDisposable {
-		for (const command of commands) {
-			this._commands.set(command.id, command);
-		}
-		this._onDidChangeMenu.fire(this._commandPaletteChangeEvent);
 		return toDisposable(() => {
-			let didChange = false;
-			for (const command of commands) {
-				didChange = this._commands.delete(command.id) || didChange;
-			}
-			if (didChange) {
-				this._onDidChangeMenu.fire(this._commandPaletteChangeEvent);
+			if (this._commands.delete(command.id)) {
+				this._onDidChangeMenu.fire(MenuRegistryChangeEvent.for(MenuId.CommandPalette));
 			}
 		});
 	}
@@ -288,35 +310,22 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 	}
 
 	appendMenuItem(id: MenuId, item: IMenuItem | ISubmenuItem): IDisposable {
-		return this.appendMenuItems(Iterable.single({ id, item }));
+		let list = this._menuItems.get(id);
+		if (!list) {
+			list = new LinkedList();
+			this._menuItems.set(id, list);
+		}
+		const rm = list.push(item);
+		this._onDidChangeMenu.fire(MenuRegistryChangeEvent.for(id));
+		return toDisposable(rm);
 	}
 
 	appendMenuItems(items: Iterable<{ id: MenuId; item: IMenuItem | ISubmenuItem }>): IDisposable {
-
-		const changedIds = new Set<MenuId>();
-		const toRemove = new LinkedList<Function>();
-
+		const result = new DisposableStore();
 		for (const { id, item } of items) {
-			let list = this._menuItems.get(id);
-			if (!list) {
-				list = new LinkedList();
-				this._menuItems.set(id, list);
-			}
-			toRemove.push(list.push(item));
-			changedIds.add(id);
+			result.add(this.appendMenuItem(id, item));
 		}
-
-		this._onDidChangeMenu.fire(changedIds);
-
-		return toDisposable(() => {
-			if (toRemove.size > 0) {
-				for (const fn of toRemove) {
-					fn();
-				}
-				this._onDidChangeMenu.fire(changedIds);
-				toRemove.clear();
-			}
-		});
+		return result;
 	}
 
 	getMenuItems(id: MenuId): Array<IMenuItem | ISubmenuItem> {
@@ -568,7 +577,9 @@ export function registerAction2(ctor: { new(): Action2 }): IDisposable {
 
 	// menu
 	if (Array.isArray(menu)) {
-		disposables.add(MenuRegistry.appendMenuItems(menu.map(item => ({ id: item.id, item: { command, ...item } }))));
+		for (const item of menu) {
+			disposables.add(MenuRegistry.appendMenuItem(item.id, { command, ...item }));
+		}
 
 	} else if (menu) {
 		disposables.add(MenuRegistry.appendMenuItem(menu.id, { command, ...menu }));
