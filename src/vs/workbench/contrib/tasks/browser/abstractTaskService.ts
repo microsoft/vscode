@@ -2816,9 +2816,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					await this.run(taskToRun).catch();
 					return;
 				}
-			} else {
-				this._doRunTaskCommand(grouped.all(), type, task);
 			}
+			this._doRunTaskCommand(grouped.all(), type, task);
 		}, async () => {
 			this._doRunTaskCommand(undefined, type, task);
 		});
