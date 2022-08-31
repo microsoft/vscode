@@ -466,6 +466,9 @@ export class MenuItemAction implements IAction {
 	}
 }
 
+/**
+ * @deprecated Use {@link registerAction2} instead.
+ */
 export class SyncActionDescriptor {
 
 	private readonly _descriptor: SyncDescriptor0<Action>;
