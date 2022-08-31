@@ -197,6 +197,36 @@ suite.only('Workbench - TerminalLinkOpeners', () => {
 			});
 		});
 
+		test('should open single exact match against any folder for paths not containing a separator when there are multiple search results, even when command detection isn\'t available', async () => {
+			localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener, OperatingSystem.Linux);
+			const localFolderOpener = instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener);
+			opener = instantiationService.createInstance(TestTerminalSearchLinkOpener, capabilities, Promise.resolve('/initial/cwd'), localFileOpener, localFolderOpener, OperatingSystem.Linux);
+			capabilities.remove(TerminalCapability.CommandDetection);
+			opener.setFileQueryBuilder({ file: () => null! });
+			fileService.setFiles([
+				URI.from({ scheme: Schemas.file, path: '/initial/cwd/foo/bar.txt' }),
+				URI.from({ scheme: Schemas.file, path: '/initial/cwd/foo/bar.test.txt' }),
+				URI.from({ scheme: Schemas.file, path: '/initial/cwd/foo2/bar.test.txt' })
+			]);
+			searchService.setSearchResult({
+				messages: [],
+				results: [
+					{ resource: URI.from({ scheme: Schemas.file, path: '/initial/cwd/foo/bar.txt' }) },
+					{ resource: URI.from({ scheme: Schemas.file, path: '/initial/cwd/foo/bar.test.txt' }) },
+					{ resource: URI.from({ scheme: Schemas.file, path: '/initial/cwd/foo2/bar.test.txt' }) }
+				]
+			});
+			await opener.open({
+				text: 'bar.txt',
+				bufferRange: { start: { x: 1, y: 1 }, end: { x: 8, y: 1 } },
+				type: TerminalBuiltinLinkType.Search
+			});
+			deepStrictEqual(activationResult, {
+				link: 'file:///initial/cwd/foo/bar.txt',
+				source: 'editor'
+			});
+		});
+
 		test('should not open single exact match for paths not containing a when command detection isn\'t available', async () => {
 			localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener, OperatingSystem.Linux);
 			const localFolderOpener = instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener);

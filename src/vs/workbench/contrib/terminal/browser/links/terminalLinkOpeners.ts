@@ -194,16 +194,6 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 	}
 
 	private async _getExactMatch(sanitizedLink: string): Promise<IResourceMatch | undefined> {
-		// For links made up of only a file name (no folder), exact link matching is allowed only if
-		// there is a single an exact file match. For example searching for `foo.txt` when there is
-		// no cwd information available (ie. only the initial cwd) should open the file directly
-		// only if there is a single file names `foo.txt` anywhere within the folder.
-		//
-		// Exactly matching works similar for links like `src/foo.txt`, if there's an exact match
-		// for `src/foo.txt` in any folder we want to take it, even if there are partial matches
-		// like `src2/foo.txt` available.
-		// const isFileNameOnly = !sanitizedLink.match(/[\\/]/);
-
 		// Make the link relative to the cwd if it isn't absolute
 		const pathModule = osPathModule(this._os);
 		const isAbsolute = pathModule.isAbsolute(sanitizedLink);
@@ -245,13 +235,32 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		if (!resourceMatch) {
 			const results = await this._searchService.fileSearch(
 				this._fileQueryBuilder.file(this._workspaceContextService.getWorkspace().folders, {
-					// Remove optional :row:col from the link as openEditor supports it
 					filePattern: sanitizedLink,
 					maxResults: 2
 				})
 			);
-			if (results.results.length === 1) {
-				resourceMatch = { uri: results.results[0].resource };
+			if (results.results.length > 0) {
+				if (results.results.length === 1) {
+					// If there's exactly 1 search result, return it regardless of whether it's
+					// exact or partial.
+					resourceMatch = { uri: results.results[0].resource };
+				} else if (!isAbsolute) {
+					// For non-absolute links, exact link matching is allowed only if there is a single an exact
+					// file match. For example searching for `foo.txt` when there is no cwd information
+					// available (ie. only the initial cwd) should open the file directly only if there is a
+					// single file names `foo.txt` anywhere within the folder. These same rules apply to
+					// relative paths with folders such as `src/foo.txt`.
+					const results = await this._searchService.fileSearch(
+						this._fileQueryBuilder.file(this._workspaceContextService.getWorkspace().folders, {
+							filePattern: `*${sanitizedLink}`
+						})
+					);
+					// Find an exact match if it exists
+					const exactMatches = results.results.filter(e => e.resource.toString().endsWith(sanitizedLink));
+					if (exactMatches.length === 1) {
+						resourceMatch = { uri: exactMatches[0].resource };
+					}
+				}
 			}
 		}
 		return resourceMatch;
