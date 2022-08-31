@@ -7,6 +7,7 @@ import { CancellationToken, Connection, InitializeParams, InitializeResult, Note
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import * as lsp from 'vscode-languageserver-types';
 import * as md from 'vscode-markdown-languageservice';
+import * as nls from 'vscode-nls';
 import { URI } from 'vscode-uri';
 import { getLsConfiguration, LsConfiguration } from './config';
 import { ConfigurationManager } from './configuration';
@@ -16,8 +17,11 @@ import * as protocol from './protocol';
 import { IDisposable } from './util/dispose';
 import { VsCodeClientWorkspace } from './workspace';
 
+const localize = nls.loadMessageBundle();
+
 interface MdServerInitializationOptions extends LsConfiguration { }
 
+const organizeLinkDefKind = 'source.organizeLinkDefinitions';
 export async function startServer(connection: Connection) {
 	const documents = new TextDocuments(TextDocument);
 	const notebooks = new NotebookDocuments(documents);
@@ -61,6 +65,7 @@ export async function startServer(connection: Connection) {
 					interFileDependencies: true,
 					workspaceDiagnostics: false,
 				},
+				codeActionProvider: { resolveProvider: true },
 				completionProvider: { triggerCharacters: ['.', '/', '#'] },
 				definitionProvider: true,
 				documentLinkProvider: { resolveProvider: true },
@@ -97,7 +102,7 @@ export async function startServer(connection: Connection) {
 		if (!document) {
 			return [];
 		}
-		return mdLs!.getDocumentSymbols(document, token);
+		return mdLs!.getDocumentSymbols(document, { includeLinkDefinitions: true }, token);
 	});
 
 	connection.onFoldingRanges(async (params, token): Promise<lsp.FoldingRange[]> => {
@@ -150,6 +155,48 @@ export async function startServer(connection: Connection) {
 			return undefined;
 		}
 		return mdLs!.getRenameEdit(document, params.position, params.newName, token);
+	});
+
+	interface OrganizeLinkActionData {
+		readonly uri: string;
+	}
+
+	connection.onCodeAction(async (params, token) => {
+		const document = documents.get(params.textDocument.uri);
+		if (!document) {
+			return undefined;
+		}
+
+		if (params.context.only?.some(kind => kind === 'source' || kind.startsWith('source.'))) {
+			const action: lsp.CodeAction = {
+				title: localize('organizeLinkDefAction.title', "Organize link definitions"),
+				kind: organizeLinkDefKind,
+				data: <OrganizeLinkActionData>{ uri: document.uri }
+			};
+			return [action];
+		}
+
+		return mdLs!.getCodeActions(document, params.range, params.context, token);
+	});
+
+	connection.onCodeActionResolve(async (codeAction, token) => {
+		if (codeAction.kind === organizeLinkDefKind) {
+			const data = codeAction.data as OrganizeLinkActionData;
+			const document = documents.get(data.uri);
+			if (!document) {
+				return codeAction;
+			}
+
+			const edits = (await mdLs?.organizeLinkDefinitions(document, { removeUnused: true }, token)) || [];
+			codeAction.edit = {
+				changes: {
+					[data.uri]: edits
+				}
+			};
+			return codeAction;
+		}
+
+		return codeAction;
 	});
 
 	connection.onRequest(protocol.getReferencesToFileInWorkspace, (async (params: { uri: string }, token: CancellationToken) => {

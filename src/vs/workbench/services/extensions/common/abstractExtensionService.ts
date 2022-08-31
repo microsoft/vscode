@@ -1194,7 +1194,9 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		perf.mark('code/willHandleExtensionPoints');
 		for (const extensionPoint of extensionPoints) {
 			if (affectedExtensionPoints[extensionPoint.name]) {
+				perf.mark(`code/willHandleExtensionPoint/${extensionPoint.name}`);
 				AbstractExtensionService._handleExtensionPoint(extensionPoint, availableExtensions, messageHandler);
+				perf.mark(`code/didHandleExtensionPoint/${extensionPoint.name}`);
 			}
 		}
 		perf.mark('code/didHandleExtensionPoints');

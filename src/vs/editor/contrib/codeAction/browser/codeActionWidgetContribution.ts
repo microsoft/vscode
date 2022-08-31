@@ -11,22 +11,10 @@ import { Registry } from 'vs/platform/registry/common/platform';
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 	...editorConfigurationBaseNode,
 	properties: {
-		'editor.useCustomCodeActionMenu': {
+		'editor.codeActionWidget.showHeaders': {
 			type: 'boolean',
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			description: nls.localize('codeActionWidget', "Enabling this adjusts how the code action menu is rendered."),
-			default: true,
-		},
-	}
-});
-
-Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-	...editorConfigurationBaseNode,
-	properties: {
-		'editor.customCodeActionMenu.showHeaders': {
-			type: 'boolean',
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			description: nls.localize('showCodeActionHeaders', "Enabling this will show the code action menu with group headers, if the custom code action menu is enabled."),
+			description: nls.localize('showCodeActionHeaders', "Enable/disable showing group headers in the code action menu."),
 			default: true,
 		},
 	}

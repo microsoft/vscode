@@ -93,8 +93,8 @@ export function terminalIconsEqual(iconOne?: TerminalIcon, iconTwo?: TerminalIco
 	if (ThemeIcon.isThemeIcon(iconOne) && ThemeIcon.isThemeIcon(iconTwo)) {
 		return iconOne.id === iconTwo.id && iconOne.color === iconTwo.color;
 	}
-	if (typeof iconOne === 'object' && iconOne && 'light' in iconOne && 'dark' in iconOne
-		&& typeof iconTwo === 'object' && iconTwo && 'light' in iconTwo && 'dark' in iconTwo) {
+	if (typeof iconOne === 'object' && 'light' in iconOne && 'dark' in iconOne
+		&& typeof iconTwo === 'object' && 'light' in iconTwo && 'dark' in iconTwo) {
 		const castedIcon = (iconOne as { light: unknown; dark: unknown });
 		const castedIconTwo = (iconTwo as { light: unknown; dark: unknown });
 		if ((URI.isUri(castedIcon.light) || isUriComponents(castedIcon.light)) && (URI.isUri(castedIcon.dark) || isUriComponents(castedIcon.dark))

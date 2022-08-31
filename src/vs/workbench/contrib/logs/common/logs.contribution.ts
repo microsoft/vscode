@@ -80,4 +80,4 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(LogOutputChannels, LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(LogOutputChannels, 'LogOutputChannels', LifecyclePhase.Restored);

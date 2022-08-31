@@ -102,7 +102,7 @@ class OutputContribution implements IWorkbenchContribution {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(OutputContribution, LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(OutputContribution, 'OutputContribution', LifecyclePhase.Restored);
 
 registerAction2(class extends Action2 {
 	constructor() {
