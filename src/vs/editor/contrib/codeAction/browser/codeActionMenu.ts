@@ -4,17 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { IListEvent, IListMouseEvent, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
+import { Codicon } from 'vs/base/common/codicons';
 import { canceled } from 'vs/base/common/errors';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { Lazy } from 'vs/base/common/lazy';
-import { Disposable, MutableDisposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/action';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { CodeAction, Command } from 'vs/editor/common/languages';
@@ -22,18 +24,15 @@ import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { codeActionCommandId, CodeActionItem, CodeActionSet, fixAllCommandId, organizeImportsCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionKind, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/browser/types';
+import 'vs/editor/contrib/symbolIcons/browser/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
-import 'vs/editor/contrib/symbolIcons/browser/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
-import { Codicon } from 'vs/base/common/codicons';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 
 export const Context = {
 	Visible: new RawContextKey<boolean>('codeActionMenuVisible', false, localize('codeActionMenuVisible', "Whether the code action list widget is visible"))
@@ -309,12 +308,9 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		return editor.getContribution<CodeActionMenu>(CodeActionMenu.ID);
 	}
 
-	private readonly _keybindingResolver: CodeActionKeybindingResolver;
-
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _delegate: CodeActionWidgetDelegate,
-		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -325,10 +321,6 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	) {
 		super();
 
-		this._keybindingResolver = new CodeActionKeybindingResolver({
-			getKeybindings: () => keybindingService.getKeybindings()
-		});
-
 		this._ctxMenuWidgetVisible = Context.Visible.bindTo(this._contextKeyService);
 	}
 
@@ -337,19 +329,10 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	}
 
 	/**
-	 * Checks if the settings have enabled the new code action widget.
-	 */
-	private isCodeActionWidgetEnabled(model: ITextModel): boolean {
-		return this._configurationService.getValue('editor.useCustomCodeActionMenu', {
-			resource: model.uri
-		});
-	}
-
-	/**
 	* Checks if the setting has disabled/enabled headers in the code action widget.
 	*/
 	private isCodeActionWidgetHeadersShown(model: ITextModel): boolean {
-		return this._configurationService.getValue('editor.customCodeActionMenu.showHeaders', {
+		return this._configurationService.getValue('editor.codeActionWidget.showHeaders', {
 			resource: model.uri
 		});
 	}
@@ -810,28 +793,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		const anchor = Position.isIPosition(at) ? this._toCoords(at) : at || { x: 0, y: 0 };
 
 		const params = <ICodeActionMenuParameters>{ options, trigger, codeActions, anchor, menuActions, showDisabled: true, visible: this._visible, menuObj: this };
-		const resolver = this._keybindingResolver.getResolver();
-
-		const useShadowDOM = this._editor.getOption(EditorOption.useShadowDOM);
-
-
-		if (this.isCodeActionWidgetEnabled(model)) {
-			this.showContextViewHelper(params, menuActions);
-		} else {
-			this._contextMenuService.showContextMenu({
-				domForShadowRoot: useShadowDOM ? this._editor.getDomNode()! : undefined,
-				getAnchor: () => anchor,
-				getActions: () => menuActions,
-				onHide: (didCancel) => {
-					const openedFromString = (options.fromLightbulb) ? CodeActionTriggerSource.Lightbulb : trigger.triggerAction;
-					this.codeActionTelemetry(openedFromString, didCancel, codeActions);
-					this._visible = false;
-					this._editor.focus();
-				},
-				autoSelectFirstItem: true,
-				getKeyBinding: action => action instanceof CodeActionAction ? resolver(action.action) : undefined,
-			});
-		}
+		this.showContextViewHelper(params, menuActions);
 	}
 
 	private getMenuActions(
