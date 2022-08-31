@@ -2735,7 +2735,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private _needsRecentTasksMigration(): boolean {
-		return (this.getRecentlyUsedTasksV1().size > 0) && (this.getRecentlyUsedTasksV1().size === 0);
+		return (this.getRecentlyUsedTasksV1().size > 0) && (this._getTasksFromStorage('historical').size === 0);
 	}
 
 	private async _migrateRecentTasks(tasks: Task[]) {
