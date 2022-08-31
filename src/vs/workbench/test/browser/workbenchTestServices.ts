@@ -1603,7 +1603,7 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 		if (other instanceof EditorInput) {
 			return !!(other?.resource && this.resource.toString() === other.resource.toString() && other instanceof TestFileEditorInput && other.typeId === this.typeId);
 		}
-		return isEqual(this.resource, other.resource) && this.editorId === other.options?.override;
+		return isEqual(this.resource, other.resource) && (this.editorId === other.options?.override || other.options?.override === undefined);
 	}
 	setPreferredResource(resource: URI): void { }
 	async setEncoding(encoding: string) { }
