@@ -2796,28 +2796,30 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const type = arg && typeof arg !== 'string' && 'type' in arg ? arg.type : undefined;
 		const task = arg && typeof arg !== 'string' && 'task' in arg ? arg.task : arg === 'string' ? arg : undefined;
 		this._getGroupedTasks({ task, type }).then(async (grouped) => {
-			const resolver = this._createResolver(grouped);
-			const folderURIs: (URI | string)[] = this._contextService.getWorkspace().folders.map(folder => folder.uri);
-			if (this._contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-				folderURIs.push(this._contextService.getWorkspace().configuration!);
-			}
-			folderURIs.push(USER_TASKS_GROUP_KEY);
+			if (identifier) {
+				const resolver = this._createResolver(grouped);
+				const folderURIs: (URI | string)[] = this._contextService.getWorkspace().folders.map(folder => folder.uri);
+				if (this._contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+					folderURIs.push(this._contextService.getWorkspace().configuration!);
+				}
+				folderURIs.push(USER_TASKS_GROUP_KEY);
 
-			for (const uri of folderURIs) {
-				const task = await resolver.resolve(uri, identifier);
-				if (task) {
-					await this.run(task).catch();
-					return;
+				for (const uri of folderURIs) {
+					const task = await resolver.resolve(uri, identifier);
+					if (task) {
+						await this.run(task).catch();
+						return;
+					}
 				}
-			}
-			if (!!task) {
-				const taskToRun = grouped.all().find(g => g._label === task || g._id === task || g.getDefinition(true)?._key === task);
-				if (taskToRun) {
-					await this.run(taskToRun).catch();
-					return;
+				if (!!task) {
+					const taskToRun = grouped.all().find(g => g._label === task || g._id === task || g.getDefinition(true)?._key === task);
+					if (taskToRun) {
+						await this.run(taskToRun).catch();
+						return;
+					}
 				}
+				this._doRunTaskCommand(grouped.all(), type, task);
 			}
-			this._doRunTaskCommand(grouped.all(), type, task);
 		}, async () => {
 			this._doRunTaskCommand(undefined, type, task);
 		});
