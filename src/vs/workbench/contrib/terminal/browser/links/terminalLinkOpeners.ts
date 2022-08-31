@@ -138,7 +138,7 @@ export class TerminalLocalFolderOutsideWorkspaceLinkOpener implements ITerminalL
 }
 
 export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
-	private readonly _fileQueryBuilder = this._instantiationService.createInstance(QueryBuilder);
+	protected _fileQueryBuilder = this._instantiationService.createInstance(QueryBuilder);
 
 	constructor(
 		private readonly _capabilities: ITerminalCapabilityStore,
@@ -194,6 +194,16 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 	}
 
 	private async _getExactMatch(sanitizedLink: string): Promise<IResourceMatch | undefined> {
+		// For links made up of only a file name (no folder), exact link matching is allowed only if
+		// there is a single an exact file match. For example searching for `foo.txt` when there is
+		// no cwd information available (ie. only the initial cwd) should open the file directly
+		// only if there is a single file names `foo.txt` anywhere within the folder.
+		//
+		// Exactly matching works similar for links like `src/foo.txt`, if there's an exact match
+		// for `src/foo.txt` in any folder we want to take it, even if there are partial matches
+		// like `src2/foo.txt` available.
+		// const isFileNameOnly = !sanitizedLink.match(/[\\/]/);
+
 		// Make the link relative to the cwd if it isn't absolute
 		const pathModule = osPathModule(this._os);
 		const isAbsolute = pathModule.isAbsolute(sanitizedLink);
@@ -249,16 +259,6 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 
 	private async _tryOpenExactLink(text: string, link: ITerminalSimpleLink): Promise<boolean> {
 		const sanitizedLink = text.replace(/:\d+(:\d+)?$/, '');
-		// For links made up of only a file name (no folder), disallow exact link matching. For
-		// example searching for `foo.txt` when there is no cwd information available (ie. only the
-		// initial cwd) should NOT search  as it's ambiguous if there are multiple matches.
-		//
-		// However, for a link like `src/foo.txt`, if there's an exact match for `src/foo.txt` in
-		// any folder we want to take it, even if there are partial matches like `src2/foo.txt`
-		// available.
-		if (!sanitizedLink.match(/[\\/]/)) {
-			return false;
-		}
 		try {
 			const result = await this._getExactMatch(sanitizedLink);
 			if (result) {
