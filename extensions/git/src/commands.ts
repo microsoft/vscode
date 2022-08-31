@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge } from 'vscode';
+import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
@@ -2239,7 +2239,58 @@ export class CommandCenter {
 			return;
 		}
 
-		await repository.fetchDefault();
+		if (repository.remotes.length === 1) {
+			await repository.fetchDefault();
+			return;
+		}
+
+		const allRemotesQuickPickItem: QuickPickItem = {
+			label: localize('all remotes', "all remotes")
+		};
+		const remotes: QuickPickItem[] = [
+			...repository.remotes.map(r => ({ label: r.name })),
+			{ label: '', kind: QuickPickItemKind.Separator },
+			allRemotesQuickPickItem
+		];
+
+		if (repository.HEAD?.upstream?.remote) {
+			// Move default remote to the top
+			const defaultRemoteIndex = remotes
+				.findIndex(r => r.label === repository.HEAD!.upstream!.remote);
+
+			if (defaultRemoteIndex !== -1) {
+				const defaultRemote = remotes.splice(defaultRemoteIndex, 1);
+				defaultRemote.push({ label: '', kind: QuickPickItemKind.Separator });
+				remotes.splice(0, 0, ...defaultRemote);
+			}
+		}
+
+		const quickpick = window.createQuickPick();
+		quickpick.placeholder = localize('select a remote to fetch', 'Select a remote to fetch');
+		quickpick.canSelectMany = false;
+		quickpick.items = remotes;
+
+		quickpick.show();
+		const remoteName = await new Promise<string | undefined>(resolve => {
+			let isAccepted = false;
+
+			quickpick.onDidAccept(() => {
+				isAccepted = true;
+				resolve(quickpick.activeItems[0].label);
+			});
+			quickpick.onDidHide(() => {
+				if (!isAccepted) {
+					resolve(undefined);
+				}
+			});
+		});
+		quickpick.hide();
+
+		if (!remoteName) {
+			return;
+		}
+
+		await repository.fetch(remoteName === allRemotesQuickPickItem.label ? { all: true } : { remote: remoteName });
 	}
 
 	@command('git.fetchPrune', { repository: true })
