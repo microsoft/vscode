@@ -41,6 +41,7 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'findOptionsWidget';
+		this._domNode.style.zIndex = '11';
 		this._domNode.style.display = 'none';
 		this._domNode.style.top = '10px';
 		this._domNode.setAttribute('role', 'presentation');
