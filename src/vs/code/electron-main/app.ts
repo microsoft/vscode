@@ -110,6 +110,7 @@ import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/e
 import { UserDataTransientProfilesHandler } from 'vs/platform/userDataProfile/electron-main/userDataTransientProfilesHandler';
 import { ProfileStorageChangesListenerChannel } from 'vs/platform/userDataSync/electron-main/userDataSyncProfilesStorageIpc';
 import { Promises, RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
+import * as ffi from 'ffi-napi';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -439,6 +440,38 @@ export class CodeApplication extends Disposable {
 		validatedIpcMain.on('vscode:openDevTools', event => event.sender.openDevTools());
 
 		validatedIpcMain.on('vscode:reloadWindow', event => event.sender.reload());
+
+
+		if (isWindows) {
+			const imm32 = ffi.Library('imm32', {
+				'ImmGetContext': ['uint32', ['uint64']], // HIMC, HWND
+				'ImmReleaseContext': ['uint32', ['uint64', 'uint32']], // BOOL, HWND, HIMC
+				'ImmSetOpenStatus': ['uint32', ['uint32', 'uint32']], //
+				'ImmGetOpenStatus': ['uint32', ['uint32']], // BOOL HIMC
+			});
+			const user32 = ffi.Library('user32', {
+				'GetFocus': ['uint64', []],
+			});
+			let needRecoverImeState: boolean | undefined = undefined;
+			validatedIpcMain.on('vscode:setImState', (event, enable: number) => {
+				const hwnd = user32.GetFocus();
+				if (enable === 0) {
+					const himc = imm32.ImmGetContext(hwnd);
+					needRecoverImeState = imm32.ImmGetOpenStatus(himc) !== 0;
+					if (needRecoverImeState) {
+						imm32.ImmSetOpenStatus(himc, 0);
+					}
+					imm32.ImmReleaseContext(hwnd, himc);
+				} else {
+					if (needRecoverImeState) {
+						const himc = imm32.ImmGetContext(hwnd);
+						imm32.ImmSetOpenStatus(himc, 1);
+						imm32.ImmReleaseContext(hwnd, himc);
+						needRecoverImeState = false;
+					}
+				}
+			});
+		}
 
 		//#endregion
 	}
