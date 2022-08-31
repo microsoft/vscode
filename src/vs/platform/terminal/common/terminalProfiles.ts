@@ -95,17 +95,17 @@ export function terminalIconsEqual(a?: TerminalIcon, b?: TerminalIcon): boolean 
 	}
 	if (typeof a === 'object' && 'light' in a && 'dark' in a
 		&& typeof b === 'object' && 'light' in b && 'dark' in b) {
-		const castedIcon = (a as { light: unknown; dark: unknown });
-		const castedIconTwo = (b as { light: unknown; dark: unknown });
-		if ((URI.isUri(castedIcon.light) || isUriComponents(castedIcon.light)) && (URI.isUri(castedIcon.dark) || isUriComponents(castedIcon.dark))
-			&& (URI.isUri(castedIconTwo.light) || isUriComponents(castedIconTwo.light)) && (URI.isUri(castedIconTwo.dark) || isUriComponents(castedIconTwo.dark))) {
-			return castedIcon.light.path === castedIconTwo.light.path && castedIcon.dark.path === castedIconTwo.dark.path;
+		const castedA = (a as { light: unknown; dark: unknown });
+		const castedB = (b as { light: unknown; dark: unknown });
+		if ((URI.isUri(castedA.light) || isUriComponents(castedA.light)) && (URI.isUri(castedA.dark) || isUriComponents(castedA.dark))
+			&& (URI.isUri(castedB.light) || isUriComponents(castedB.light)) && (URI.isUri(castedB.dark) || isUriComponents(castedB.dark))) {
+			return castedA.light.path === castedB.light.path && castedA.dark.path === castedB.dark.path;
 		}
 	}
 	if ((URI.isUri(a) && URI.isUri(b)) || (isUriComponents(a) || isUriComponents(b))) {
-		const castedIcon = (a as { scheme: unknown; path: unknown });
-		const castedIconTwo = (b as { scheme: unknown; path: unknown });
-		return castedIcon.path === castedIconTwo.path && castedIcon.scheme === castedIconTwo.scheme;
+		const castedA = (a as { scheme: unknown; path: unknown });
+		const castedB = (b as { scheme: unknown; path: unknown });
+		return castedA.path === castedB.path && castedA.scheme === castedB.scheme;
 	}
 
 	return false;
