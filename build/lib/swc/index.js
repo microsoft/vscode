@@ -10,6 +10,14 @@ const stream_1 = require("stream");
 const path_1 = require("path");
 const util = require("util");
 const gulp = require("gulp");
+/**
+ * SWC transpile stream. Can be used as stream but `exec` is the prefered way because under the
+ * hood this simply shells out to swc-cli. There is room for improvement but this already works.
+ * Ideas
+ *  * use API, not swc-cli
+ *  * invoke binaries directly, don't go through swc-cli
+ *  * understand how to configure both setups in one (https://github.com/swc-project/swc/issues/4989)
+ */
 function createSwcClientStream() {
     const execAsync = util.promisify(child_process_1.exec);
     const cwd = (0, path_1.join)(__dirname, '../../../');
