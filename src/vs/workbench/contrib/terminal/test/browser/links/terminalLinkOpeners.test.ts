@@ -67,7 +67,7 @@ class TestTerminalSearchLinkOpener extends TerminalSearchLinkOpener {
 	}
 }
 
-suite.only('Workbench - TerminalLinkOpeners', () => {
+suite('Workbench - TerminalLinkOpeners', () => {
 	let instantiationService: TestInstantiationService;
 	let fileService: TestFileService;
 	let searchService: TestSearchService;
