@@ -263,7 +263,7 @@ export abstract class EditorInput extends AbstractEditorInput {
 		const otherInputEditorId = otherInput.options?.override;
 
 		// If the overrides are both defined and don't match that means they're separate inputs
-		if (this.editorId !== otherInputEditorId && otherInputEditorId !== undefined) {
+		if (this.editorId !== otherInputEditorId && otherInputEditorId !== undefined && this.editorId !== undefined) {
 			return false;
 		}
 
