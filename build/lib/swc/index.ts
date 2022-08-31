@@ -9,6 +9,14 @@ import { join } from 'path';
 import * as util from 'util';
 import * as gulp from 'gulp';
 
+/**
+ * SWC transpile stream. Can be used as stream but `exec` is the prefered way because under the
+ * hood this simply shells out to swc-cli. There is room for improvement but this already works.
+ * Ideas
+ *  * use API, not swc-cli
+ *  * invoke binaries directly, don't go through swc-cli
+ *  * understand how to configure both setups in one (https://github.com/swc-project/swc/issues/4989)
+ */
 export function createSwcClientStream(): Readable & { exec(print?: boolean): Promise<boolean> } {
 
 	const execAsync = util.promisify(exec);
