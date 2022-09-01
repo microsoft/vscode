@@ -42,7 +42,7 @@ class CopyPasteEditProvider implements vscode.DocumentPasteEditProvider {
 			return undefined;
 		}
 
-		const currentCell = this.getCellFromCellDocument(document);
+		const currentCell = getCellFromCellDocument(document);
 		if (!currentCell) {
 			return undefined;
 		}
@@ -66,19 +66,68 @@ class CopyPasteEditProvider implements vscode.DocumentPasteEditProvider {
 
 		return { insertText: pasteSnippet, additionalEdit: workspaceEdit };
 	}
+}
 
-	private getCellFromCellDocument(cellDocument: vscode.TextDocument): vscode.NotebookCell | undefined {
-		for (const notebook of vscode.workspace.notebookDocuments) {
-			if (notebook.uri.path === cellDocument.uri.path) {
-				for (const cell of notebook.getCells()) {
-					if (cell.document === cellDocument) {
-						return cell;
-					}
-				}
-			}
+class ImageDropEditProvider implements vscode.DocumentDropEditProvider {
+	async provideDocumentDropEdits(
+		document: vscode.TextDocument,
+		_position: vscode.Position,
+		dataTransfer: vscode.DataTransfer,
+		_token: vscode.CancellationToken
+	): Promise<vscode.DocumentDropEdit | undefined> {
+		const enabled = vscode.workspace.getConfiguration('ipynb', document).get('experimental.pasteImages.enabled', false);
+		if (!enabled) {
+			return undefined;
 		}
-		return undefined;
+
+		// get b64 data from paste
+		// TODO: dataTransfer.get() limits to one image dropped
+		const dataItem = dataTransfer.get('image/png');
+		if (!dataItem) {
+			return undefined;
+		}
+		const fileDataAsUint8 = await dataItem.asFile()?.data();
+		if (!fileDataAsUint8) {
+			return undefined;
+		}
+
+		// get filename data from paste
+		const droppedFilename = dataItem.asFile()?.name;
+		if (!droppedFilename) {
+			return undefined;
+		}
+		const separatorIndex = droppedFilename?.lastIndexOf('.');
+		const filename = droppedFilename?.slice(0, separatorIndex);
+		const filetype = droppedFilename?.slice(separatorIndex);
+		if (!filename || !filetype) {
+			return undefined;
+		}
+
+		const currentCell = getCellFromCellDocument(document);
+		if (!currentCell) {
+			return undefined;
+		}
+		const notebookUri = currentCell.notebook.uri;
+
+		// create updated metadata for cell (prep for WorkspaceEdit)
+		const b64string = encodeBase64(fileDataAsUint8);
+		const startingAttachments = currentCell.metadata.custom?.attachments;
+		const newAttachment = buildAttachment(b64string, currentCell, filename, filetype, startingAttachments);
+
+		// build edits
+		const nbEdit = vscode.NotebookEdit.updateCellMetadata(currentCell.index, newAttachment.metadata);
+		const workspaceEdit = new vscode.WorkspaceEdit();
+		workspaceEdit.set(notebookUri, [nbEdit]);
+
+		// create a snippet for paste
+		const pasteSnippet = new vscode.SnippetString();
+		pasteSnippet.appendText('![');
+		pasteSnippet.appendPlaceholder(`${droppedFilename}`);
+		pasteSnippet.appendText(`](attachment:${newAttachment.filename})`);
+
+		return { insertText: pasteSnippet, additionalEdit: workspaceEdit };
 	}
+
 }
 
 /**
@@ -122,6 +171,33 @@ function encodeBase64(buffer: Uint8Array, padded = true, urlSafe = false) {
 	return output;
 }
 
+/**
+ * takes in the TextDocument of a cell, and returns the vscode.NotebookCell that contains it
+ * @param cellDocument TextDocument of a vscode.NotebookCell
+ * @returns vscode.NotebookCell of the passed in TextDocument
+ */
+function getCellFromCellDocument(cellDocument: vscode.TextDocument): vscode.NotebookCell | undefined {
+	for (const notebook of vscode.workspace.notebookDocuments) {
+		if (notebook.uri.path === cellDocument.uri.path) {
+			for (const cell of notebook.getCells()) {
+				if (cell.document === cellDocument) {
+					return cell;
+				}
+			}
+		}
+	}
+	return undefined;
+}
+
+/**
+ * function to create updated metadata for a cell and resolve naming conflicts.
+ * @param b64 base64 encoded image data
+ * @param cell vscode.NotebookCell that image is being added to
+ * @param filename filename (prefix) of the image
+ * @param filetype filetype (suffix)
+ * @param startingAttachments attachents already in the cell metadata
+ * @returns obj with a filename of the image, and the updated metadata for the cell
+ */
 function buildAttachment(b64: string, cell: vscode.NotebookCell, filename: string, filetype: string, startingAttachments: any): { metadata: { [key: string]: any }; filename: string } {
 	const outputMetadata = { ...cell.metadata };
 	let tempFilename = filename + filetype;
@@ -151,8 +227,14 @@ function buildAttachment(b64: string, cell: vscode.NotebookCell, filename: strin
 }
 
 export function imagePasteSetup() {
-	const selector: vscode.DocumentSelector = { notebookType: 'jupyter-notebook', language: 'markdown' }; // this is correct provider
+	const selector: vscode.DocumentSelector = { notebookType: 'jupyter-notebook', language: 'markdown' };
 	return vscode.languages.registerDocumentPasteEditProvider(selector, new CopyPasteEditProvider(), {
 		pasteMimeTypes: ['image/png'],
 	});
+}
+
+export function imageDropSetup() {
+	const selector: vscode.DocumentSelector = { notebookType: 'jupyter-notebook', language: 'markdown' };
+	// const selector: vscode.DocumentSelector = { language: 'markdown' };
+	return vscode.languages.registerDocumentDropEditProvider(selector, new ImageDropEditProvider());
 }

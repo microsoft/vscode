@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { ensureAllNewCellsHaveCellIds } from './cellIdService';
 import { NotebookSerializer } from './notebookSerializer';
-import * as NotebookImagePaste from './notebookImagePaste';
+import { imagePasteSetup, imageDropSetup } from './notebookImagePaste';
 
 // From {nbformat.INotebookMetadata} in @jupyterlab/coreutils
 type NotebookMetadata = {
@@ -78,7 +78,8 @@ export function activate(context: vscode.ExtensionContext) {
 		await vscode.window.showNotebookDocument(document);
 	}));
 
-	context.subscriptions.push(NotebookImagePaste.imagePasteSetup());
+	context.subscriptions.push(imagePasteSetup());
+	context.subscriptions.push(imageDropSetup());
 
 	// Update new file contribution
 	vscode.extensions.onDidChange(() => {
