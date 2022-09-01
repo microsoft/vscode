@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vscode-nls';
+const localize = nls.loadMessageBundle();
+
 import { promises as fs, exists, realpath } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -18,6 +21,7 @@ import { detectEncoding } from './encoding';
 import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, BranchQuery } from './api/git';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
+import { OutputChannelLogger } from './log';
 
 // https://github.com/microsoft/vscode/issues/65693
 const MAX_CLI_LENGTH = 30000;
@@ -142,7 +146,7 @@ function findGitWin32(onValidate: (path: string) => boolean): Promise<IGit> {
 		.then(undefined, () => findGitWin32InPath(onValidate));
 }
 
-export async function findGit(hints: string[], onValidate: (path: string) => boolean): Promise<IGit> {
+async function findGitImpl(hints: string[], onValidate: (path: string) => boolean): Promise<IGit> {
 	for (const hint of hints) {
 		try {
 			return await findSpecificGit(hint, onValidate);
@@ -162,6 +166,33 @@ export async function findGit(hints: string[], onValidate: (path: string) => boo
 	}
 
 	throw new Error('Git installation not found.');
+}
+
+export async function findGit(outputChannelLogger: OutputChannelLogger) {
+	const pathValue = workspace.getConfiguration('git').get<string | string[]>('path');
+	let pathHints = Array.isArray(pathValue) ? pathValue : pathValue ? [pathValue] : [];
+
+	const { isTrusted, workspaceFolders = [] } = workspace;
+	const excludes = isTrusted ? [] : workspaceFolders.map(f => path.normalize(f.uri.fsPath).replace(/[\r\n]+$/, ''));
+
+	if (!isTrusted && pathHints.length !== 0) {
+		// Filter out any non-absolute paths
+		pathHints = pathHints.filter(p => path.isAbsolute(p));
+	}
+
+	return findGitImpl(pathHints, gitPath => {
+		outputChannelLogger.logInfo(localize('validating', "Validating found git in: {0}", gitPath));
+		if (excludes.length === 0) {
+			return true;
+		}
+
+		const normalized = path.normalize(gitPath).replace(/[\r\n]+$/, '');
+		const skip = excludes.some(e => normalized.startsWith(e));
+		if (skip) {
+			outputChannelLogger.logInfo(localize('skipped', "Skipped found git in: {0}", gitPath));
+		}
+		return !skip;
+	});
 }
 
 export interface IExecutionResult<T extends string | Buffer> {
