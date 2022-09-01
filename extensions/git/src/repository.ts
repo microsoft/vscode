@@ -336,6 +336,7 @@ export const enum Operation {
 	RenameBranch = 'RenameBranch',
 	DeleteRef = 'DeleteRef',
 	Merge = 'Merge',
+	MergeAbort = 'MergeAbort',
 	Rebase = 'Rebase',
 	Ignore = 'Ignore',
 	Tag = 'Tag',
@@ -1365,6 +1366,10 @@ export class Repository implements Disposable {
 		await this.run(Operation.Merge, () => this.repository.merge(ref));
 	}
 
+	async mergeAbort(): Promise<void> {
+		await this.run(Operation.MergeAbort, async () => await this.repository.mergeAbort());
+	}
+
 	async rebase(branch: string): Promise<void> {
 		await this.run(Operation.Rebase, () => this.repository.rebase(branch));
 	}
@@ -2054,6 +2059,9 @@ export class Repository implements Disposable {
 
 		// set count badge
 		this.setCountBadge();
+
+		// set gitMergeInProgress context
+		commands.executeCommand('setContext', 'gitMergeInProgress', merge.length > 0);
 
 		// set mergeChanges context
 		commands.executeCommand('setContext', 'git.mergeChanges', merge.map(item => item.resourceUri.toString()));
