@@ -485,7 +485,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		return lineTokens.getLanguageId(lineTokens.findTokenIndexAtOffset(position.column - 1));
 	}
 
-	public setLanguageId(languageId: string): void {
+	public setLanguageId(languageId: string, reason: string = 'unknown'): void {
 		if (this._languageId === languageId) {
 			// There's nothing to do
 			return;
@@ -493,7 +493,8 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 
 		const e: IModelLanguageChangedEvent = {
 			oldLanguage: this._languageId,
-			newLanguage: languageId
+			newLanguage: languageId,
+			reason
 		};
 
 		this._languageId = languageId;

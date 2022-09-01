@@ -851,7 +851,7 @@ export interface ITextModel {
 	 * Set the current language mode associated with the model.
 	 * @internal
 	 */
-	setMode(languageId: string): void;
+	setMode(languageId: string, reason?: string): void;
 
 	/**
 	 * Returns the real (inner-most) language mode at a given position.

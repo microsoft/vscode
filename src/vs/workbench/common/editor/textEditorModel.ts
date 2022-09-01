@@ -12,8 +12,8 @@ import { ILanguageService, ILanguageSelection } from 'vs/editor/common/languages
 import { IModelService } from 'vs/editor/common/services/model';
 import { MutableDisposable } from 'vs/base/common/lifecycle';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { withUndefinedAsNull } from 'vs/base/common/types';
-import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
+import { assertIsDefined, withUndefinedAsNull } from 'vs/base/common/types';
+import { ILanguageDetectionService, LanguageDetectionLanguageEventReason } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { localize } from 'vs/nls';
@@ -86,7 +86,7 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 		this.setLanguageIdInternal(languageId);
 	}
 
-	private setLanguageIdInternal(languageId: string): void {
+	private setLanguageIdInternal(languageId: string, reason?: string): void {
 		if (!this.isResolved()) {
 			return;
 		}
@@ -95,7 +95,19 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 			return;
 		}
 
-		this.modelService.setMode(this.textEditorModel, this.languageService.createById(languageId));
+		this.modelService.setMode(this.textEditorModel, this.languageService.createById(languageId), reason);
+	}
+
+	override resolve(): Promise<void> {
+		const textEditorModel = assertIsDefined(this.textEditorModel);
+		const disposable = textEditorModel.onDidChangeLanguage((e) => {
+			if (e.reason === LanguageDetectionLanguageEventReason) {
+				return;
+			}
+			this._hasLanguageSetExplicitly = true;
+			disposable.dispose();
+		});
+		return super.resolve();
 	}
 
 	getLanguageId(): string | undefined {
@@ -117,7 +129,7 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 
 		const lang = await this.languageDetectionService.detectLanguage(this.textEditorModelHandle);
 		if (lang && !this.isDisposed()) {
-			this.setLanguageIdInternal(lang);
+			this.setLanguageIdInternal(lang, LanguageDetectionLanguageEventReason);
 
 			const languageName = this.languageService.getLanguageName(lang);
 			if (languageName) {

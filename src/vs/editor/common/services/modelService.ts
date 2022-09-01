@@ -91,11 +91,11 @@ class ModelData implements IDisposable {
 		this._disposeLanguageSelection();
 	}
 
-	public setLanguage(languageSelection: ILanguageSelection): void {
+	public setLanguage(languageSelection: ILanguageSelection, reason?: string): void {
 		this._disposeLanguageSelection();
 		this._languageSelection = languageSelection;
-		this._languageSelectionListener = this._languageSelection.onDidChange(() => this.model.setMode(languageSelection.languageId));
-		this.model.setMode(languageSelection.languageId);
+		this._languageSelectionListener = this._languageSelection.onDidChange(() => this.model.setMode(languageSelection.languageId, reason));
+		this.model.setMode(languageSelection.languageId, reason);
 	}
 }
 
@@ -516,7 +516,7 @@ export class ModelService extends Disposable implements IModelService {
 		return modelData.model;
 	}
 
-	public setMode(model: ITextModel, languageSelection: ILanguageSelection): void {
+	public setMode(model: ITextModel, languageSelection: ILanguageSelection, reason?: string): void {
 		if (!languageSelection) {
 			return;
 		}
@@ -524,7 +524,7 @@ export class ModelService extends Disposable implements IModelService {
 		if (!modelData) {
 			return;
 		}
-		modelData.setLanguage(languageSelection);
+		modelData.setLanguage(languageSelection, reason);
 	}
 
 	public destroyModel(resource: URI): void {
