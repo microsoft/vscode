@@ -99,6 +99,8 @@
   "devDependencies": {
     "7zip": "0.0.6",
     "@playwright/test": "1.24.2",
+    "@swc/cli": "0.1.57",
+    "@swc/core": "1.2.245",
     "@types/cookie": "^0.3.3",
     "@types/copy-webpack-plugin": "^6.0.3",
     "@types/cssnano": "^4.0.0",
