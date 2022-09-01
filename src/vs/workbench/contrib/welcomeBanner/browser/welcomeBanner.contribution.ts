@@ -50,4 +50,4 @@ class WelcomeBannerContribution {
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WelcomeBannerContribution, LifecyclePhase.Restored);
+	.registerWorkbenchContribution(WelcomeBannerContribution, 'WelcomeBannerContribution', LifecyclePhase.Restored);

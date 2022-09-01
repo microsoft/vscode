@@ -31,4 +31,4 @@ class WebLogOutputChannels extends Disposable implements IWorkbenchContribution 
 
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WebLogOutputChannels, LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WebLogOutputChannels, 'WebLogOutputChannels', LifecyclePhase.Restored);

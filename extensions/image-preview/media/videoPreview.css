@@ -1,0 +1,60 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+html, body {
+	width: 100%;
+	height: 100%;
+	text-align: center;
+}
+
+body {
+	padding: 5px 10px;
+	box-sizing: border-box;
+	-webkit-user-select: none;
+	user-select: none;
+}
+
+.video-container {
+	height: 100%;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+}
+
+.container.loading,
+.container.error {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+}
+
+.loading-indicator {
+	width: 30px;
+	height: 30px;
+	background-image: url('./loading.svg');
+	background-size: cover;
+}
+
+.loading-indicator,
+.loading-error {
+	display: none;
+}
+
+.loading .loading-indicator,
+.error .loading-error {
+	display: block;
+}
+
+.loading-error {
+	margin: 1em;
+}
+
+.vscode-dark .loading-indicator {
+	background-image: url('./loading-dark.svg');
+}
+
+.vscode-high-contrast .loading-indicator {
+	background-image: url('./loading-hc.svg');
+}

@@ -39,4 +39,4 @@ export class ExtensionResourceLoaderService extends AbstractExtensionResourceLoa
 
 }
 
-registerSingleton(IExtensionResourceLoaderService, ExtensionResourceLoaderService, false);
+registerSingleton(IExtensionResourceLoaderService, ExtensionResourceLoaderService, true);

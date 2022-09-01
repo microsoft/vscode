@@ -68,8 +68,8 @@ registerAction2(AcceptAllInput2);
 
 Registry
 	.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(MergeEditorOpenHandlerContribution, LifecyclePhase.Restored);
+	.registerWorkbenchContribution(MergeEditorOpenHandlerContribution, 'MergeEditorOpenHandlerContribution', LifecyclePhase.Restored);
 
 Registry
 	.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(MergeEditorResolverContribution, LifecyclePhase.Starting);
+	.registerWorkbenchContribution(MergeEditorResolverContribution, 'MergeEditorResolverContribution', LifecyclePhase.Starting);

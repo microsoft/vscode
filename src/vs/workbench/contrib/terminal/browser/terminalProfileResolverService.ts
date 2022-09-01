@@ -195,7 +195,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		if (URI.isUri(icon) || isUriComponents(icon)) {
 			return URI.revive(icon);
 		}
-		if (typeof icon === 'object' && icon && 'light' in icon && 'dark' in icon) {
+		if (typeof icon === 'object' && 'light' in icon && 'dark' in icon) {
 			const castedIcon = (icon as { light: unknown; dark: unknown });
 			if ((URI.isUri(castedIcon.light) || isUriComponents(castedIcon.light)) && (URI.isUri(castedIcon.dark) || isUriComponents(castedIcon.dark))) {
 				return { light: URI.revive(castedIcon.light), dark: URI.revive(castedIcon.dark) };
@@ -469,7 +469,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	}
 
 	private _isValidAutomationProfile(profile: unknown, os: OperatingSystem): profile is ITerminalProfile {
-		if (!profile === undefined || typeof profile !== 'object' || profile === null) {
+		if (profile === null || profile === undefined || typeof profile !== 'object') {
 			return false;
 		}
 		if ('path' in profile && typeof (profile as { path: unknown }).path === 'string') {
@@ -497,7 +497,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 								await this._configurationService.updateValue(TerminalSettingPrefix.DefaultProfile + this._primaryBackendOs, profile);
 								this._logService.trace(`migrated from shell/shellArgs, using existing profile ${profile}`);
 							} else {
-								const profiles = { ...this._configurationService.inspect<Readonly<{ [key: string]: ITerminalProfileObject }>>(TerminalSettingPrefix.Profiles + this._primaryBackendOs).userValue } || {};
+								const profiles = { ...this._configurationService.inspect<Readonly<{ [key: string]: ITerminalProfileObject }>>(TerminalSettingPrefix.Profiles + this._primaryBackendOs).userValue };
 								const profileConfig: ITerminalProfileObject = { path: profile.path };
 								if (profile.args) {
 									profileConfig.args = profile.args;

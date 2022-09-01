@@ -43,7 +43,7 @@ import { isString } from 'vs/base/common/types';
 const SHOW_TASKS_COMMANDS_CONTEXT = ContextKeyExpr.and(ShellExecutionSupportedContext, ProcessExecutionSupportedContext);
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(RunAutomaticTasks, LifecyclePhase.Eventually);
+workbenchRegistry.registerWorkbenchContribution(RunAutomaticTasks, 'RunAutomaticTasks', LifecyclePhase.Eventually);
 
 registerAction2(ManageAutomaticTaskRunning);
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
@@ -163,7 +163,7 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 	}
 }
 
-workbenchRegistry.registerWorkbenchContribution(TaskStatusBarContributions, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(TaskStatusBarContributions, 'TaskStatusBarContributions', LifecyclePhase.Restored);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
 	group: TerminalMenuBarGroup.Run,
