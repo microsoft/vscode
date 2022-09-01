@@ -29,15 +29,14 @@ declare module 'vscode' {
 	/**
 	* A data provider that provides tree data
 	*/
-	export interface TreeDataProvider<T> {
-
+	export interface TreeView<T> {
 		/**
 		* An optional event to signal that an element or root has either been checked or unchecked.
 		*/
-		onDidChangeTreeCheckbox?: Event<ChangeTreeCheckboxEvent<T>>;
+		onDidChangeTreeCheckbox?: Event<TreeCheckboxChangeEvent<T>>;
 	}
 
-	export interface ChangeTreeCheckboxEvent<T> {
+	export interface TreeCheckboxChangeEvent<T> {
 		/**
 		* The item that was checked or unchecked.
 		*/

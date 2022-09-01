@@ -2504,6 +2504,28 @@ export enum TreeItemCollapsibleState {
 	Expanded = 2
 }
 
+export class TreeItem2 extends TreeItem {
+	checkboxState?: TreeItemCheckboxState;
+
+	static override isTreeItem(thing: any): thing is TreeItem2 {
+		if (thing instanceof TreeItem2) {
+			return true;
+		}
+		const treeItemThing = thing as vscode.TreeItem2;
+		if (treeItemThing.checkboxState !== undefined && treeItemThing.checkboxState !== TreeItemCheckboxState.Checked && treeItemThing.checkboxState !== TreeItemCheckboxState.Unchecked) {
+			console.log('INVALID tree item, invalid checkboxState', treeItemThing.checkboxState);
+			return false;
+		}
+
+		return TreeItem.isTreeItem(thing);
+	}
+}
+
+export enum TreeItemCheckboxState {
+	Unchecked = 0,
+	Checked = 1
+}
+
 @es5ClassCompat
 export class DataTransferItem {
 

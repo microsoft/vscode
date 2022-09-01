@@ -673,6 +673,8 @@ export interface ITreeView extends IDisposable {
 
 	readonly onDidChangeWelcomeState: Event<void>;
 
+	readonly onDidChangeCheckboxState: Event<ITreeItem[]>;
+
 	readonly container: any | undefined;
 
 	refresh(treeItems?: ITreeItem[]): Promise<void>;
@@ -733,6 +735,11 @@ export interface ITreeItemLabel {
 
 export type TreeCommand = Command & { originalId?: string };
 
+export interface TreeCheckbox {
+	isChecked: boolean;
+	onDidChangeCheckboxState?: Event<boolean>;
+}
+
 export interface ITreeItem {
 
 	handle: string;
@@ -762,6 +769,8 @@ export interface ITreeItem {
 	children?: ITreeItem[];
 
 	accessibilityInformation?: IAccessibilityInformation;
+
+	checkbox?: TreeCheckbox;
 }
 
 export class ResolvableTreeItem implements ITreeItem {
