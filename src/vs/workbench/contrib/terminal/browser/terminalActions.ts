@@ -28,7 +28,7 @@ import { IListService } from 'vs/platform/list/browser/listService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { ITerminalProfile, TerminalExitReason, TerminalLocation, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { ITerminalProfile, TerminalExitReason, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
@@ -897,7 +897,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor, resource: unknown) {
-			doWithInstance(accessor, resource)?.changeIcon();
+			getActiveInstance(accessor, resource)?.changeIcon();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -939,7 +939,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor, resource: unknown) {
-			doWithInstance(accessor, resource)?.changeColor();
+			getActiveInstance(accessor, resource)?.changeColor();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -970,6 +970,7 @@ export function registerTerminalActions() {
 			return getSelectedInstances(accessor)?.[0].changeColor();
 		}
 	});
+
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -981,10 +982,9 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor, resource: unknown) {
-			doWithInstance(accessor, resource)?.rename('triggerQuickpick');
+			renameWithQuickPick(accessor, resource);
 		}
 	});
-
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -996,9 +996,21 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			return accessor.get(ITerminalGroupService).activeInstance?.rename('triggerQuickpick');
+			renameWithQuickPick(accessor);
 		}
 	});
+
+	async function renameWithQuickPick(accessor: ServicesAccessor, resource?: unknown) {
+		const instance = getActiveInstance(accessor, resource);
+		if (instance) {
+			const title = await accessor.get(IQuickInputService).input({
+				value: instance.title,
+				prompt: localize('workbench.action.terminal.rename.prompt', "Enter terminal name"),
+			});
+			instance.rename(title);
+		}
+	}
+
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -1412,7 +1424,7 @@ export function registerTerminalActions() {
 				notificationService.warn(localize('workbench.action.terminal.renameWithArg.noName', "No name argument provided"));
 				return;
 			}
-			accessor.get(ITerminalService).activeInstance?.refreshTabLabels(args.name, TitleEventSource.Api);
+			accessor.get(ITerminalService).activeInstance?.rename(args.name);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -2520,7 +2532,7 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 }
 
 /** doc */
-function doWithInstance(accessor: ServicesAccessor, resource: unknown): ITerminalInstance | undefined {
+function getActiveInstance(accessor: ServicesAccessor, resource: unknown): ITerminalInstance | undefined {
 	const terminalService = accessor.get(ITerminalService);
 	const castedResource = URI.isUri(resource) ? resource : undefined;
 	const instance = terminalService.getInstanceFromResource(castedResource) || terminalService.activeInstance;

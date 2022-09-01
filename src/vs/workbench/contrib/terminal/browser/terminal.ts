@@ -725,17 +725,18 @@ export interface ITerminalInstance {
 	notifyFindWidgetFocusChanged(isFocused: boolean): void;
 
 	/**
-	 * Focuses the terminal instance if it's able to (xterm.js instance exists).
+	 * Focuses the terminal instance if it's able to (the xterm.js instance much exist).
 	 *
-	 * @param focus Force focus even if there is a selection.
+	 * @param force Force focus even if there is a selection.
 	 */
 	focus(force?: boolean): void;
 
 	/**
-	 * Focuses the terminal instance when it's ready (the xterm.js instance is created). Use this
+	 * Focuses the terminal instance when it's ready (the xterm.js instance much exist). This is the
+	 * best focus call when the terminal is being shown for example.
 	 * when the terminal is being shown.
 	 *
-	 * @param focus Force focus even if there is a selection.
+	 * @param force Force focus even if there is a selection.
 	 */
 	focusWhenReady(force?: boolean): Promise<void>;
 
@@ -811,7 +812,7 @@ export interface ITerminalInstance {
 	detachFromElement(): void;
 
 	/**
-	 * Configure the dimensions of the terminal instance.
+	 * Layout the terminal instance.
 	 *
 	 * @param dimension The dimensions of the container.
 	 */
@@ -836,11 +837,6 @@ export interface ITerminalInstance {
 	 * environment variable changes will be recalculated when this happens.
 	 */
 	relaunch(): void;
-
-	/**
-	 * Sets the title and description of the terminal instance's label.
-	 */
-	refreshTabLabels(title: string, eventSource: TitleEventSource): void;
 
 	waitForTitle(): Promise<string>;
 
@@ -877,11 +873,11 @@ export interface ITerminalInstance {
 	registerLinkProvider(provider: ITerminalExternalLinkProvider): IDisposable;
 
 	/**
-	 * Sets the terminal name to the provided title or triggers a quick pick
-	 * to take user input. If no title is provided, will reset based to the value indicated
-	 * user's configration.
+	 * Sets the title of the terminal to the provided string. If no title is provided, it will reset
+	 * to the terminal's title if it was not explicitly set by the user or API.
+	 * @param title The new title.
 	 */
-	rename(title?: string | 'triggerQuickpick'): Promise<void>;
+	rename(title?: string): Promise<void>;
 
 	/**
 	 * Triggers a quick pick to change the icon of this terminal.
