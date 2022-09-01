@@ -282,9 +282,11 @@ export abstract class ElectronExtensionService extends AbstractExtensionService 
 			this._localCrashTracker.registerCrash();
 
 			if (this._localCrashTracker.shouldAutomaticallyRestart()) {
-				this._logService.info(`Automatically restarting the extension host.`);
-				this._notificationService.status(nls.localize('extensionService.autoRestart', "The extension host terminated unexpectedly. Restarting..."), { hideAfter: 5000 });
-				this.startExtensionHosts();
+				setTimeout(() => {
+					this._logService.info(`Automatically restarting the extension host.`);
+					this._notificationService.status(nls.localize('extensionService.autoRestart', "The extension host terminated unexpectedly. Restarting..."), { hideAfter: 5000 });
+					this.startExtensionHosts();
+				}, 5000);
 			} else {
 				this._notificationService.prompt(Severity.Error, nls.localize('extensionService.crash', "Extension host terminated unexpectedly 3 times within the last 5 minutes."),
 					[{
