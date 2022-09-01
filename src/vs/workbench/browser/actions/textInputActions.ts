@@ -99,4 +99,4 @@ export class TextInputActionsProvider extends Disposable implements IWorkbenchCo
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TextInputActionsProvider, LifecyclePhase.Ready);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TextInputActionsProvider, 'TextInputActionsProvider', LifecyclePhase.Ready);

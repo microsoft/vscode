@@ -53,4 +53,4 @@ class NativeExtensionTipsService extends ExtensionTipsService implements IExtens
 
 }
 
-registerSingleton(IExtensionTipsService, NativeExtensionTipsService, false);
+registerSingleton(IExtensionTipsService, NativeExtensionTipsService, true);

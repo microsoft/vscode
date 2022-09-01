@@ -323,7 +323,9 @@ registerAction2(class ToggleGrouping extends Action2 {
 });
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
-	BulkEditPreviewContribution, LifecyclePhase.Ready
+	BulkEditPreviewContribution,
+	'BulkEditPreviewContribution',
+	LifecyclePhase.Ready
 );
 
 const refactorPreviewViewIcon = registerIcon('refactor-preview-view-icon', Codicon.lightbulb, localize('refactorPreviewViewIcon', 'View icon of the refactor preview view.'));

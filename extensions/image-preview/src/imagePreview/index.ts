@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { BinarySizeStatusBarEntry } from '../binarySizeStatusBarEntry';
-import { Disposable } from '../util/dispose';
+import { MediaPreview, PreviewState, reopenAsText } from '../mediaPreview';
 import { escapeAttribute, getNonce } from '../util/dom';
 import { SizeStatusBarEntry } from './sizeStatusBarEntry';
 import { Scale, ZoomStatusBarEntry } from './zoomStatusBarEntry';
@@ -17,8 +17,8 @@ export class PreviewManager implements vscode.CustomReadonlyEditorProvider {
 
 	public static readonly viewType = 'imagePreview.previewEditor';
 
-	private readonly _previews = new Set<Preview>();
-	private _activePreview: Preview | undefined;
+	private readonly _previews = new Set<ImagePreview>();
+	private _activePreview: ImagePreview | undefined;
 
 	constructor(
 		private readonly extensionRoot: vscode.Uri,
@@ -35,7 +35,7 @@ export class PreviewManager implements vscode.CustomReadonlyEditorProvider {
 		document: vscode.CustomDocument,
 		webviewEditor: vscode.WebviewPanel,
 	): Promise<void> {
-		const preview = new Preview(this.extensionRoot, document.uri, webviewEditor, this.sizeStatusBarEntry, this.binarySizeStatusBarEntry, this.zoomStatusBarEntry);
+		const preview = new ImagePreview(this.extensionRoot, document.uri, webviewEditor, this.sizeStatusBarEntry, this.binarySizeStatusBarEntry, this.zoomStatusBarEntry);
 		this._previews.add(preview);
 		this.setActivePreview(preview);
 
@@ -52,154 +52,102 @@ export class PreviewManager implements vscode.CustomReadonlyEditorProvider {
 
 	public get activePreview() { return this._activePreview; }
 
-	private setActivePreview(value: Preview | undefined): void {
+	private setActivePreview(value: ImagePreview | undefined): void {
 		this._activePreview = value;
 	}
 }
 
-const enum PreviewState {
-	Disposed,
-	Visible,
-	Active,
-}
 
-class Preview extends Disposable {
+class ImagePreview extends MediaPreview {
 
-	private readonly id: string = `${Date.now()}-${Math.random().toString()}`;
-
-	private _previewState = PreviewState.Visible;
 	private _imageSize: string | undefined;
-	private _imageBinarySize: number | undefined;
 	private _imageZoom: Scale | undefined;
 
 	private readonly emptyPngDataUri = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAEElEQVR42gEFAPr/AP///wAI/AL+Sr4t6gAAAABJRU5ErkJggg==';
 
 	constructor(
 		private readonly extensionRoot: vscode.Uri,
-		private readonly resource: vscode.Uri,
-		private readonly webviewEditor: vscode.WebviewPanel,
+		resource: vscode.Uri,
+		webviewEditor: vscode.WebviewPanel,
 		private readonly sizeStatusBarEntry: SizeStatusBarEntry,
-		private readonly binarySizeStatusBarEntry: BinarySizeStatusBarEntry,
+		binarySizeStatusBarEntry: BinarySizeStatusBarEntry,
 		private readonly zoomStatusBarEntry: ZoomStatusBarEntry,
 	) {
-		super();
-		const resourceRoot = resource.with({
-			path: resource.path.replace(/\/[^\/]+?\.\w+$/, '/'),
-		});
-
-		webviewEditor.webview.options = {
-			enableScripts: true,
-			enableForms: false,
-			localResourceRoots: [
-				resourceRoot,
-				extensionRoot,
-			]
-		};
+		super(extensionRoot, resource, webviewEditor, binarySizeStatusBarEntry);
 
 		this._register(webviewEditor.webview.onDidReceiveMessage(message => {
 			switch (message.type) {
-				case 'size':
-					{
-						this._imageSize = message.value;
-						this.update();
-						break;
-					}
-				case 'zoom':
-					{
-						this._imageZoom = message.value;
-						this.update();
-						break;
-					}
-
-				case 'reopen-as-text':
-					{
-						vscode.commands.executeCommand('vscode.openWith', resource, 'default', webviewEditor.viewColumn);
-						break;
-					}
+				case 'size': {
+					this._imageSize = message.value;
+					this.updateState();
+					break;
+				}
+				case 'zoom': {
+					this._imageZoom = message.value;
+					this.updateState();
+					break;
+				}
+				case 'reopen-as-text': {
+					reopenAsText(resource, webviewEditor.viewColumn);
+					break;
+				}
 			}
 		}));
 
 		this._register(zoomStatusBarEntry.onDidChangeScale(e => {
-			if (this._previewState === PreviewState.Active) {
+			if (this.previewState === PreviewState.Active) {
 				this.webviewEditor.webview.postMessage({ type: 'setScale', scale: e.scale });
 			}
 		}));
 
 		this._register(webviewEditor.onDidChangeViewState(() => {
-			this.update();
 			this.webviewEditor.webview.postMessage({ type: 'setActive', value: this.webviewEditor.active });
 		}));
 
 		this._register(webviewEditor.onDidDispose(() => {
-			if (this._previewState === PreviewState.Active) {
-				this.sizeStatusBarEntry.hide(this.id);
-				this.binarySizeStatusBarEntry.hide(this.id);
-				this.zoomStatusBarEntry.hide(this.id);
+			if (this.previewState === PreviewState.Active) {
+				this.sizeStatusBarEntry.hide(this);
+				this.zoomStatusBarEntry.hide(this);
 			}
-			this._previewState = PreviewState.Disposed;
+			this.previewState = PreviewState.Disposed;
 		}));
 
-		const watcher = this._register(vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(resource, '*')));
-		this._register(watcher.onDidChange(e => {
-			if (e.toString() === this.resource.toString()) {
-				this.render();
-			}
-		}));
-		this._register(watcher.onDidDelete(e => {
-			if (e.toString() === this.resource.toString()) {
-				this.webviewEditor.dispose();
-			}
-		}));
-
-		vscode.workspace.fs.stat(resource).then(({ size }) => {
-			this._imageBinarySize = size;
-			this.update();
-		});
-
+		this.updateBinarySize();
 		this.render();
-		this.update();
+		this.updateState();
+
 		this.webviewEditor.webview.postMessage({ type: 'setActive', value: this.webviewEditor.active });
 	}
 
 	public zoomIn() {
-		if (this._previewState === PreviewState.Active) {
+		if (this.previewState === PreviewState.Active) {
 			this.webviewEditor.webview.postMessage({ type: 'zoomIn' });
 		}
 	}
 
 	public zoomOut() {
-		if (this._previewState === PreviewState.Active) {
+		if (this.previewState === PreviewState.Active) {
 			this.webviewEditor.webview.postMessage({ type: 'zoomOut' });
 		}
 	}
 
-	private async render() {
-		if (this._previewState !== PreviewState.Disposed) {
-			this.webviewEditor.webview.html = await this.getWebviewContents();
-		}
-	}
+	protected override updateState() {
+		super.updateState();
 
-	private update() {
-		if (this._previewState === PreviewState.Disposed) {
+		if (this.previewState === PreviewState.Disposed) {
 			return;
 		}
 
 		if (this.webviewEditor.active) {
-			this._previewState = PreviewState.Active;
-			this.sizeStatusBarEntry.show(this.id, this._imageSize || '');
-			this.binarySizeStatusBarEntry.show(this.id, this._imageBinarySize);
-			this.zoomStatusBarEntry.show(this.id, this._imageZoom || 'fit');
+			this.sizeStatusBarEntry.show(this, this._imageSize || '');
+			this.zoomStatusBarEntry.show(this, this._imageZoom || 'fit');
 		} else {
-			if (this._previewState === PreviewState.Active) {
-				this.sizeStatusBarEntry.hide(this.id);
-				this.binarySizeStatusBarEntry.hide(this.id);
-				this.zoomStatusBarEntry.hide(this.id);
-			}
-			this._previewState = PreviewState.Visible;
+			this.sizeStatusBarEntry.hide(this);
+			this.zoomStatusBarEntry.hide(this);
 		}
 	}
 
-	private async getWebviewContents(): Promise<string> {
+	protected override async getWebviewContents(): Promise<string> {
 		const version = Date.now().toString();
 		const settings = {
 			src: await this.getResourcePath(this.webviewEditor, this.resource, version),

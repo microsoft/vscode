@@ -35,4 +35,4 @@ export class ExtensionsScannerService extends NativeExtensionsScannerService imp
 
 }
 
-registerSingleton(IExtensionsScannerService, ExtensionsScannerService, false);
+registerSingleton(IExtensionsScannerService, ExtensionsScannerService, true);

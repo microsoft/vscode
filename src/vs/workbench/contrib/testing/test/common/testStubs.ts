@@ -81,6 +81,7 @@ export class TestTestCollection extends TestItemCollection<TestTestItem> {
 			getApiFor: t => t.api,
 			toITestItem: t => t.toTestItem(),
 			getChildren: t => t.children,
+			getDocumentVersion: () => undefined,
 			root: new TestTestItem(controllerId, controllerId, 'root'),
 		});
 	}

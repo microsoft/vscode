@@ -102,9 +102,9 @@ registerAction2(GoToNextMessageAction);
 registerAction2(CloseTestPeek);
 registerAction2(ToggleTestingPeekHistory);
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingContentProvider, LifecyclePhase.Restored);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingPeekOpener, LifecyclePhase.Eventually);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingProgressTrigger, LifecyclePhase.Eventually);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingContentProvider, 'TestingContentProvider', LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingPeekOpener, 'TestingPeekOpener', LifecyclePhase.Eventually);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingProgressTrigger, 'TestingProgressTrigger', LifecyclePhase.Eventually);
 
 registerEditorContribution(Testing.OutputPeekContributionId, TestingOutputPeekController);
 registerEditorContribution(Testing.DecorationsContributionId, TestingDecorations);

@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.71.0",
-  "distro": "09ef05a5cdb8e4fdee2f19133b54a1389b98cdf5",
+  "version": "1.72.0",
+  "distro": "7d2a2b09824ca3c1da9a3a6036179462abec24a2",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -86,12 +86,12 @@
     "vscode-proxy-agent": "^0.12.0",
     "vscode-regexpp": "^3.1.0",
     "vscode-textmate": "7.0.1",
-    "xterm": "5.0.0-beta.44",
+    "xterm": "5.0.0-beta.48",
     "xterm-addon-canvas": "0.2.0-beta.21",
     "xterm-addon-search": "0.10.0-beta.5",
     "xterm-addon-serialize": "0.8.0-beta.5",
     "xterm-addon-unicode11": "0.4.0-beta.5",
-    "xterm-addon-webgl": "0.13.0-beta.45",
+    "xterm-addon-webgl": "0.13.0-beta.46",
     "xterm-headless": "5.0.0-beta.5",
     "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
@@ -99,6 +99,8 @@
   "devDependencies": {
     "7zip": "0.0.6",
     "@playwright/test": "1.24.2",
+    "@swc/cli": "0.1.57",
+    "@swc/core": "1.2.245",
     "@types/cookie": "^0.3.3",
     "@types/copy-webpack-plugin": "^6.0.3",
     "@types/cssnano": "^4.0.0",
@@ -124,6 +126,7 @@
     "@types/yauzl": "^2.9.1",
     "@types/yazl": "^2.4.2",
     "@typescript-eslint/eslint-plugin": "^5.10.0",
+    "@typescript-eslint/experimental-utils": "^5.10.0",
     "@typescript-eslint/parser": "^5.10.0",
     "@vscode/telemetry-extractor": "^1.9.8",
     "@vscode/test-web": "^0.0.29",
@@ -141,6 +144,7 @@
     "eslint": "8.7.0",
     "eslint-plugin-header": "3.1.1",
     "eslint-plugin-jsdoc": "^39.3.2",
+    "eslint-plugin-local": "^1.0.0",
     "event-stream": "3.3.4",
     "fancy-log": "^1.3.3",
     "fast-plist": "0.1.2",
@@ -200,6 +204,7 @@
     "source-map-support": "^0.3.2",
     "style-loader": "^1.3.0",
     "ts-loader": "^9.2.7",
+    "ts-node": "^10.9.1",
     "tsec": "0.1.4",
     "typescript": "^4.9.0-dev.20220825",
     "typescript-formatter": "7.1.0",

@@ -194,7 +194,7 @@ export class TestTextResourceEditor extends TextResourceEditor {
 export class TestTextFileEditor extends TextFileEditor {
 
 	protected override createEditorControl(parent: HTMLElement, configuration: any): void {
-		this.editorControl = this.instantiationService.createInstance(TestCodeEditor, parent, configuration, {});
+		this.editorControl = this.instantiationService.createInstance(TestCodeEditor, parent, configuration, { contributions: [] });
 	}
 
 	setSelection(selection: Selection | undefined, reason: EditorPaneSelectionChangeReason): void {
@@ -1603,7 +1603,7 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 		if (other instanceof EditorInput) {
 			return !!(other?.resource && this.resource.toString() === other.resource.toString() && other instanceof TestFileEditorInput && other.typeId === this.typeId);
 		}
-		return isEqual(this.resource, other.resource) && this.editorId === other.options?.override;
+		return isEqual(this.resource, other.resource) && (this.editorId === other.options?.override || other.options?.override === undefined);
 	}
 	setPreferredResource(resource: URI): void { }
 	async setEncoding(encoding: string) { }
