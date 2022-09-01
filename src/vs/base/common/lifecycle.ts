@@ -108,14 +108,6 @@ export function markAsSingleton<T extends IDisposable>(singleton: T): T {
 	return singleton;
 }
 
-export class MultiDisposeError extends Error {
-	constructor(
-		public readonly errors: any[]
-	) {
-		super(`Encountered errors while disposing of store. Errors: [${errors.join(', ')}]`);
-	}
-}
-
 export interface IDisposable {
 	dispose(): void;
 }
@@ -146,7 +138,7 @@ export function dispose<T extends IDisposable>(arg: T | IterableIterator<T> | un
 		if (errors.length === 1) {
 			throw errors[0];
 		} else if (errors.length > 1) {
-			throw new MultiDisposeError(errors);
+			throw new AggregateError(errors, 'Encountered errors while disposing of store');
 		}
 
 		return Array.isArray(arg) ? [] : arg;

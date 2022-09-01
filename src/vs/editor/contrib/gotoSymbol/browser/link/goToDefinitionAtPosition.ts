@@ -297,7 +297,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 		this.editor.setPosition(position);
 		return this.editor.invokeWithinContext((accessor) => {
 			const canPeek = !openToSide && this.editor.getOption(EditorOption.definitionLinkOpensInPeek) && !this.isInPeekEditor(accessor);
-			const action = new DefinitionAction({ openToSide, openInPeek: canPeek, muteMessage: true }, { alias: '', label: '', id: '', precondition: undefined });
+			const action = new DefinitionAction({ openToSide, openInPeek: canPeek, muteMessage: true }, { title: '', id: '', precondition: undefined });
 			return action.run(accessor, this.editor);
 		});
 	}

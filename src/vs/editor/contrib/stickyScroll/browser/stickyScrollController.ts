@@ -33,6 +33,8 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._stickyLineCandidateProvider = new StickyLineCandidateProvider(this._editor, _languageFeaturesService);
 		this._widgetState = new StickyScrollWidgetState([], 0);
 
+		this._register(this._stickyScrollWidget);
+		this._register(this._stickyLineCandidateProvider);
 		this._register(this._editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.stickyScroll)) {
 				this.readConfiguration();

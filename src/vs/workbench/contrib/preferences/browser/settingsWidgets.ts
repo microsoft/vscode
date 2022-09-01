@@ -384,6 +384,12 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 			this.listDisposables.add(disposableTimeout(() => rowElement.focus()));
 		}
 
+		this.listDisposables.add(DOM.addDisposableListener(rowElement, 'click', (e) => {
+			// There is a parent list widget, which is the one that holds the list of settings.
+			// Prevent the parent widget from trying to interpret this click event.
+			e.stopPropagation();
+		}));
+
 		return rowElement;
 	}
 
