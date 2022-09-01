@@ -64,7 +64,7 @@ export interface ITerminalInstanceService {
 	 * method to avoid using the more verbose fetching from the registry.
 	 * @param remoteAuthority The remote authority of the backend.
 	 */
-	getBackend(remoteAuthority?: string): ITerminalBackend | undefined;
+	getBackend(remoteAuthority?: string): Promise<ITerminalBackend | undefined>;
 }
 
 export interface IBrowserTerminalConfigHelper extends ITerminalConfigHelper {

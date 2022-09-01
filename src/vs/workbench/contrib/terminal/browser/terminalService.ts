@@ -391,7 +391,7 @@ export class TerminalService implements ITerminalService {
 		if (!remoteAuthority) {
 			return;
 		}
-		const backend = this._terminalInstanceService.getBackend(remoteAuthority);
+		const backend = await this._terminalInstanceService.getBackend(remoteAuthority);
 		if (!backend) {
 			return;
 		}
@@ -404,7 +404,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private async _reconnectToLocalTerminals(): Promise<void> {
-		const localBackend = this._terminalInstanceService.getBackend();
+		const localBackend = await this._terminalInstanceService.getBackend();
 		if (!localBackend) {
 			return;
 		}
