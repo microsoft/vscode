@@ -1078,21 +1078,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	async copyLastCommandOutput(): Promise<void> {
-		const commands = this.capabilities.get(TerminalCapability.CommandDetection)?.commands;
-		if (!commands || commands.length === 0) {
-			return;
-		}
-		const command = commands[commands.length - 1];
-		if (!command?.hasOutput()) {
-			return;
-		}
-		const output = command.getOutput();
-		if (output) {
-			await this._clipboardService.writeText(output);
-		}
-	}
-
 	get selection(): string | undefined {
 		return this.xterm && this.hasSelection() ? this.xterm.raw.getSelection() : undefined;
 	}

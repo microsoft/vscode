@@ -53,6 +53,8 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { getIconId, getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { clearShellFileHistory, getCommandHistory } from 'vs/workbench/contrib/terminal/common/history';
 import { CATEGORIES } from 'vs/workbench/common/actions';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -338,7 +340,19 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor): Promise<void> {
-			await accessor.get(ITerminalService).activeInstance?.copyLastCommandOutput();
+			const instance = accessor.get(ITerminalService).activeInstance;
+			const commands = instance?.capabilities.get(TerminalCapability.CommandDetection)?.commands;
+			if (!commands || commands.length === 0) {
+				return;
+			}
+			const command = commands[commands.length - 1];
+			if (!command?.hasOutput()) {
+				return;
+			}
+			const output = command.getOutput();
+			if (output) {
+				await accessor.get(IClipboardService).writeText(output);
+			}
 		}
 	});
 	registerAction2(class extends Action2 {
