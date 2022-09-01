@@ -168,7 +168,7 @@ async function findGitImpl(hints: string[], onValidate: (path: string) => boolea
 	throw new Error('Git installation not found.');
 }
 
-export async function findGit(outputChannelLogger: OutputChannelLogger) {
+export async function findGit(outputChannelLogger: OutputChannelLogger | undefined) {
 	const pathValue = workspace.getConfiguration('git').get<string | string[]>('path');
 	let pathHints = Array.isArray(pathValue) ? pathValue : pathValue ? [pathValue] : [];
 
@@ -181,7 +181,7 @@ export async function findGit(outputChannelLogger: OutputChannelLogger) {
 	}
 
 	return findGitImpl(pathHints, gitPath => {
-		outputChannelLogger.logInfo(localize('validating', "Validating found git in: {0}", gitPath));
+		outputChannelLogger?.logInfo(localize('validating', "Validating found git in: {0}", gitPath));
 		if (excludes.length === 0) {
 			return true;
 		}
@@ -189,7 +189,7 @@ export async function findGit(outputChannelLogger: OutputChannelLogger) {
 		const normalized = path.normalize(gitPath).replace(/[\r\n]+$/, '');
 		const skip = excludes.some(e => normalized.startsWith(e));
 		if (skip) {
-			outputChannelLogger.logInfo(localize('skipped', "Skipped found git in: {0}", gitPath));
+			outputChannelLogger?.logInfo(localize('skipped', "Skipped found git in: {0}", gitPath));
 		}
 		return !skip;
 	});
