@@ -856,8 +856,6 @@ export interface ITerminalInstance {
 	 */
 	toggleSizeToContentWidth(): Promise<void>;
 
-	addDisposable(disposable: IDisposable): void;
-
 	toggleEscapeSequenceLogging(): Promise<boolean>;
 
 	setEscapeSequenceLogging(enable: boolean): void;

@@ -572,10 +572,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return undefined;
 	}
 
-	addDisposable(disposable: IDisposable): void {
-		this._register(disposable);
-	}
-
 	private _initDimensions(): void {
 		// The terminal panel needs to have been created to get the real view dimensions
 		if (!this._container) {
