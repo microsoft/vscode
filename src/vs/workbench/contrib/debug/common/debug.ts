@@ -510,6 +510,13 @@ export interface IBaseBreakpoint extends IEnablement {
 	readonly supported: boolean;
 	readonly message?: string;
 	readonly sessionsThatVerified: string[];
+	/**
+	 * A soft disabled breakpoint will be considered as disabled even though the state is not persisted.
+	 * A breakpoint which is depends on a trigger point will be softly disabled until the trigger breakpoint
+	 * is hit. The opposite applies for the trigger point. When the trigger point is hit, the trigger point becomes
+	 * softly disabled.
+	 */
+	readonly softDisabled?: boolean;
 	getIdFromAdapter(sessionId: string): number | undefined;
 }
 
@@ -521,6 +528,7 @@ export interface IBreakpoint extends IBaseBreakpoint {
 	readonly endColumn?: number;
 	readonly adapterData: any;
 	readonly sessionAgnosticData: { lineNumber: number; column: number | undefined };
+	readonly triggerpoint: boolean;
 }
 
 export interface IFunctionBreakpoint extends IBaseBreakpoint {
@@ -600,12 +608,14 @@ export interface IDebugModel extends ITreeElement {
 	getExceptionBreakpoints(): ReadonlyArray<IExceptionBreakpoint>;
 	getInstructionBreakpoints(): ReadonlyArray<IInstructionBreakpoint>;
 	getWatchExpressions(): ReadonlyArray<IExpression & IEvaluate>;
+	getTriggerppoints(): ReadonlyArray<IBaseBreakpoint>;
 
 	onDidChangeBreakpoints: Event<IBreakpointsChangeEvent | undefined>;
 	onDidChangeCallStack: Event<void>;
 	onDidChangeWatchExpressions: Event<IExpression | undefined>;
 
 	fetchCallstack(thread: IThread, levels?: number): Promise<void>;
+	setTriggerpoint(breakpoint: IBreakpoint, enable: boolean): Promise<void>;
 }
 
 /**
@@ -999,7 +1009,21 @@ export interface IDebugService {
 	 * Enables or disables all breakpoints. If breakpoint is passed only enables or disables the passed breakpoint.
 	 * Notifies debug adapter of breakpoint changes.
 	 */
-	enableOrDisableBreakpoints(enable: boolean, breakpoint?: IEnablement): Promise<void>;
+	enableOrDisableBreakpoints(enable: boolean, breakpoint?: IEnablement, softChange?: boolean): Promise<void>;
+
+	/**
+	 * Enables or disables trigger point behavior of the given breakpoint.
+	 * Notifies debug adapter of breakpoint changes.
+	 */
+	enableOrDisableTriggerpoint(enable: boolean, breakpoint: IBreakpoint): Promise<void>;
+
+	/**
+	 * Update the state of the trigger points if trigger points exists. If trigger points exist and enabled all other
+	 * breakpoints will be disabled. If the trigger points are disabled, then all other breakpoints will be enabled.
+	 *
+	 * @param expectedTriggerPointState expected state of the trigger points
+	 */
+	processTriggerpointState(expectedTriggerPointState: boolean): Promise<void>;
 
 	/**
 	 * Sets the global activated property for all breakpoints.

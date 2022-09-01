@@ -165,6 +165,10 @@ export class MockDebugService implements IDebugService {
 	runTo(uri: uri, lineNumber: number, column?: number): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
+
+	async enableOrDisableTriggerpoint(enable: boolean, breakpoint: IBreakpoint) {
+		throw new Error('Method not implemented.');
+	}
 }
 
 export class MockSession implements IDebugSession {

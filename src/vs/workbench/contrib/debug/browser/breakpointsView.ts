@@ -1063,7 +1063,7 @@ export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: 
 
 	const breakpointIcon = breakpoint instanceof DataBreakpoint ? icons.dataBreakpoint : breakpoint instanceof FunctionBreakpoint ? icons.functionBreakpoint : breakpoint.logMessage ? icons.logBreakpoint : icons.breakpoint;
 
-	if (!breakpoint.enabled || !breakpointsActivated) {
+	if (!breakpoint.enabled || !breakpointsActivated || breakpoint.softDisabled) {
 		return {
 			icon: breakpointIcon.disabled,
 			message: breakpoint.logMessage ? localize('disabledLogpoint', "Disabled Logpoint") : localize('disabledBreakpoint', "Disabled Breakpoint"),

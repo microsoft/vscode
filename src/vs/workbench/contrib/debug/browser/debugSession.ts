@@ -30,7 +30,7 @@ import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { RawDebugSession } from 'vs/workbench/contrib/debug/browser/rawDebugSession';
 import { AdapterEndEvent, IBreakpoint, IConfig, IDataBreakpoint, IDebugConfiguration, IDebugger, IDebugService, IDebugSession, IDebugSessionOptions, IExceptionBreakpoint, IExceptionInfo, IExpression, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IReplElement, IReplElementSource, IStackFrame, IThread, LoadedSourceEvent, State, VIEWLET_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
-import { DebugModel, ExpressionContainer, MemoryRegion, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
+import { Breakpoint, DebugModel, ExpressionContainer, MemoryRegion, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { filterExceptionsFromTelemetry } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { ReplModel } from 'vs/workbench/contrib/debug/common/replModel';
@@ -130,6 +130,34 @@ export class DebugSession implements IDebugSession {
 				}
 			}
 		}, 800);
+		toDispose.push(this.model.onDidChangeBreakpoints((e) => {
+			if (e?.added) {
+				if (this.state !== State.Stopped) {
+					const hasActiveTrigger = this.model.getTriggerppoints().filter((bp) => bp.enabled).length > 0;
+					this.debugService.processTriggerpointState(hasActiveTrigger);
+				}
+			}
+
+			if (e?.changed) {
+				if (e.changed instanceof Breakpoint) {
+					if (this.state !== State.Stopped) {
+						this.debugService.processTriggerpointState(e.changed.triggerpoint);
+					}
+				}
+			}
+
+			if (e?.removed) {
+				if (e.removed instanceof Breakpoint && e.removed.triggerpoint) {
+					if (this.state !== State.Stopped) {
+						const hasActiveTrigger = this.model.getTriggerppoints().filter((bp) => bp.enabled).length > 0;
+						if (!hasActiveTrigger) {
+							this.debugService.processTriggerpointState(false);
+						}
+					}
+				}
+			}
+
+		}));
 	}
 
 	getId(): string {
@@ -971,8 +999,11 @@ export class DebugSession implements IDebugSession {
 						}
 
 						if (thread.stoppedDetails) {
-							if (thread.stoppedDetails.reason === 'breakpoint' && this.configurationService.getValue<IDebugConfiguration>('debug').openDebug === 'openOnDebugBreak' && !this.isSimpleUI) {
-								await this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar);
+							if (thread.stoppedDetails.reason === 'breakpoint') {
+								if (this.configurationService.getValue<IDebugConfiguration>('debug').openDebug === 'openOnDebugBreak' && !this.isSimpleUI) {
+									await this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar);
+								}
+								this.checkTriggerpoint(thread);
 							}
 
 							if (this.configurationService.getValue<IDebugConfiguration>('debug').focusWindowOnBreak && !this.workbenchEnvironmentService.extensionTestsLocationURI) {
@@ -1025,6 +1056,7 @@ export class DebugSession implements IDebugSession {
 			} else if (this.raw) {
 				await this.raw.disconnect({ terminateDebuggee: false });
 			}
+			await this.debugService.processTriggerpointState(true);
 		}));
 
 		this.rawListeners.push(this.raw.onDidContinued(event => {
@@ -1210,6 +1242,27 @@ export class DebugSession implements IDebugSession {
 		}));
 
 		this.rawListeners.push(this.raw.onDidExitAdapter(event => this.onDidExitAdapter(event)));
+	}
+
+	private async checkTriggerpoint(thread: Thread) {
+		let frame = thread.getCallStack();
+		if (!frame) {
+			await thread.fetchCallStack();
+			frame = thread.getCallStack();
+		}
+
+		if (frame.length === 0) {
+			return;
+		}
+
+
+		const triggerpoints = this.model.getTriggerppoints().filter((bp) => {
+			return bp.uri.toString() === frame[0].source.uri.toString() && bp.lineNumber >= frame[0].range.startLineNumber &&
+				bp.lineNumber <= frame[0].range.endLineNumber;
+		});
+		if (triggerpoints.length > 0) {
+			this.debugService.processTriggerpointState(false);
+		}
 	}
 
 	private onDidExitAdapter(event?: AdapterEndEvent): void {

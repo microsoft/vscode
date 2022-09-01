@@ -198,6 +198,7 @@ export class DebugService implements IDebugService {
 				}
 			}
 		}));
+		this.processTriggerpointState(true);
 	}
 
 	getModel(): IDebugModel {
@@ -914,27 +915,66 @@ export class DebugService implements IDebugService {
 		return this.adapterManager.canSetBreakpointsIn(model);
 	}
 
-	async enableOrDisableBreakpoints(enable: boolean, breakpoint?: IEnablement): Promise<void> {
+	async enableOrDisableBreakpoints(enable: boolean, breakpoint?: IEnablement, softChange: boolean = false): Promise<void> {
 		if (breakpoint) {
-			this.model.setEnablement(breakpoint, enable);
-			this.debugStorage.storeBreakpoints(this.model);
-			if (breakpoint instanceof Breakpoint) {
-				await this.sendBreakpoints(breakpoint.uri);
-			} else if (breakpoint instanceof FunctionBreakpoint) {
-				await this.sendFunctionBreakpoints();
-			} else if (breakpoint instanceof DataBreakpoint) {
-				await this.sendDataBreakpoints();
-			} else if (breakpoint instanceof InstructionBreakpoint) {
-				await this.sendInstructionBreakpoints();
+			if (softChange) {
+				this.model.setSoftDisabled(breakpoint, !enable);
 			} else {
-				await this.sendExceptionBreakpoints();
+				this.model.setEnablement(breakpoint, enable);
+				this.debugStorage.storeBreakpoints(this.model);
 			}
+			await this.notify(breakpoint);
 		} else {
-			this.model.enableOrDisableAllBreakpoints(enable);
-			this.debugStorage.storeBreakpoints(this.model);
+			if (softChange) {
+				this.model.softEnableOrDisableAllBreakpoints(!enable);
+			} else {
+				this.model.enableOrDisableAllBreakpoints(enable);
+				this.debugStorage.storeBreakpoints(this.model);
+			}
 			await this.sendAllBreakpoints();
 		}
+		if (!softChange) {
+			this.debugStorage.storeBreakpoints(this.model);
+		}
+	}
+
+	private async notify(breakpoint: IEnablement) {
+		if (breakpoint instanceof Breakpoint) {
+			await this.sendBreakpoints(breakpoint.uri);
+		} else if (breakpoint instanceof FunctionBreakpoint) {
+			await this.sendFunctionBreakpoints();
+		} else if (breakpoint instanceof DataBreakpoint) {
+			await this.sendDataBreakpoints();
+		} else if (breakpoint instanceof InstructionBreakpoint) {
+			await this.sendInstructionBreakpoints();
+		} else {
+			await this.sendExceptionBreakpoints();
+		}
+	}
+
+	async enableOrDisableTriggerpoint(enable: boolean, breakpoint: IBreakpoint): Promise<void> {
+		this.model.softEnableOrDisableAllBreakpoints(enable);
+		this.model.setTriggerpoint(breakpoint, enable);
+		if (enable) {
+			this.model.setSoftDisabled(breakpoint, false);
+		}
+
+		await this.notify(breakpoint);
 		this.debugStorage.storeBreakpoints(this.model);
+	}
+
+	async processTriggerpointState(expectedTriggerPointState: boolean) {
+		const triggerpoints = this.model.getTriggerppoints();
+		if (triggerpoints.length > 0) {
+			triggerpoints.forEach((bp) => this.enableOrDisableBreakpoints(expectedTriggerPointState, bp, true));
+
+			const enableOtherBreakpoints = !expectedTriggerPointState;
+			this.model.getBreakpoints().filter((bp) => triggerpoints.indexOf(bp) === -1)
+				.forEach((bp) => this.enableOrDisableBreakpoints(enableOtherBreakpoints, bp, true));
+			this.model.getFunctionBreakpoints().forEach((bp) => this.enableOrDisableBreakpoints(enableOtherBreakpoints, bp, true));
+			this.model.getDataBreakpoints().forEach((bp) => this.enableOrDisableBreakpoints(enableOtherBreakpoints, bp, true));
+			this.model.getInstructionBreakpoints().forEach((bp) => this.enableOrDisableBreakpoints(enableOtherBreakpoints, bp, true));
+		}
 	}
 
 	async addBreakpoints(uri: uri, rawBreakpoints: IBreakpointData[], ariaAnnounce = true): Promise<IBreakpoint[]> {
@@ -1050,7 +1090,7 @@ export class DebugService implements IDebugService {
 	}
 
 	private async sendFunctionBreakpoints(session?: IDebugSession): Promise<void> {
-		const breakpointsToSend = this.model.getFunctionBreakpoints().filter(fbp => fbp.enabled && this.model.areBreakpointsActivated());
+		const breakpointsToSend = this.model.getFunctionBreakpoints().filter(fbp => fbp.enabled && !fbp.softDisabled && this.model.areBreakpointsActivated());
 
 		await sendToOneOrAllSessions(this.model, session, async s => {
 			if (s.capabilities.supportsFunctionBreakpoints && !s.configuration.noDebug) {
@@ -1060,7 +1100,7 @@ export class DebugService implements IDebugService {
 	}
 
 	private async sendDataBreakpoints(session?: IDebugSession): Promise<void> {
-		const breakpointsToSend = this.model.getDataBreakpoints().filter(fbp => fbp.enabled && this.model.areBreakpointsActivated());
+		const breakpointsToSend = this.model.getDataBreakpoints().filter(dbp => dbp.enabled && !dbp.softDisabled && this.model.areBreakpointsActivated());
 
 		await sendToOneOrAllSessions(this.model, session, async s => {
 			if (s.capabilities.supportsDataBreakpoints && !s.configuration.noDebug) {
@@ -1070,7 +1110,7 @@ export class DebugService implements IDebugService {
 	}
 
 	private async sendInstructionBreakpoints(session?: IDebugSession): Promise<void> {
-		const breakpointsToSend = this.model.getInstructionBreakpoints().filter(fbp => fbp.enabled && this.model.areBreakpointsActivated());
+		const breakpointsToSend = this.model.getInstructionBreakpoints().filter(ibp => ibp.enabled && !ibp.softDisabled && this.model.areBreakpointsActivated());
 
 		await sendToOneOrAllSessions(this.model, session, async s => {
 			if (s.capabilities.supportsInstructionBreakpoints && !s.configuration.noDebug) {
@@ -1080,7 +1120,7 @@ export class DebugService implements IDebugService {
 	}
 
 	private sendExceptionBreakpoints(session?: IDebugSession): Promise<void> {
-		const enabledExceptionBps = this.model.getExceptionBreakpoints().filter(exb => exb.enabled);
+		const enabledExceptionBps = this.model.getExceptionBreakpoints().filter(exb => exb.enabled && !exb.softDisabled);
 
 		return sendToOneOrAllSessions(this.model, session, async s => {
 			if (s.capabilities.supportsConfigurationDoneRequest && (!s.capabilities.exceptionBreakpointFilters || s.capabilities.exceptionBreakpointFilters.length === 0)) {

@@ -395,6 +395,15 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 				true,
 				() => this.debugService.enableOrDisableBreakpoints(!breakpoints[0].enabled, breakpoints[0])
 			));
+
+			actions.push(new Action(
+				`workbench.debug.viewlet.action.toggleTriggerpoint`,
+				breakpoints[0].triggerpoint ? nls.localize('disableTriggerpoint', "Disable Triggerpoint") : nls.localize('enableTriggerpoint', "Enable Triggerpoint"),
+				undefined,
+				true,
+				() => this.debugService.enableOrDisableTriggerpoint(!breakpoints[0].triggerpoint, breakpoints[0])
+			));
+
 		} else if (breakpoints.length > 1) {
 			const sorted = breakpoints.slice().sort((first, second) => (first.column && second.column) ? first.column - second.column : 1);
 			actions.push(new SubmenuAction('debug.removeBreakpoints', nls.localize('removeBreakpoints', "Remove Breakpoints"), sorted.map(bp => new Action(

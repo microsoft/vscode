@@ -377,4 +377,16 @@ suite('Debug - Breakpoints', () => {
 
 		textModel.dispose();
 	});
+
+	test('soft disabled breakpoints', () => {
+		const modelUri = uri.file('/myfolder/myfile.js');
+
+		addBreakpointsAndCheckEvents(model, modelUri, [{ lineNumber: 5, enabled: true }, { lineNumber: 10, enabled: false }]);
+		assert.strictEqual(model.getBreakpoints().length, 2);
+
+		model.setSoftDisabled(model.getBreakpoints()[0], true);
+
+		assert.strictEqual(model.getBreakpoints({ enabledOnly: true }).length, 0);
+	});
+
 });

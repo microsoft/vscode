@@ -7,8 +7,8 @@ import { distinct, lastIndex } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { decodeBase64, encodeBase64, VSBuffer } from 'vs/base/common/buffer';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { stringHash } from 'vs/base/common/hash';
 import { Emitter, Event } from 'vs/base/common/event';
+import { stringHash } from 'vs/base/common/hash';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { mixin } from 'vs/base/common/objects';
 import * as resources from 'vs/base/common/resources';
@@ -772,7 +772,8 @@ export abstract class BaseBreakpoint extends Enablement implements IBaseBreakpoi
 		public hitCondition: string | undefined,
 		public condition: string | undefined,
 		public logMessage: string | undefined,
-		id: string
+		id: string,
+		public softDisabled: boolean = false
 	) {
 		super(enabled, id);
 		if (enabled === undefined) {
@@ -873,7 +874,8 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		private _adapterData: any,
 		private readonly textFileService: ITextFileService,
 		private readonly uriIdentityService: IUriIdentityService,
-		id = generateUuid()
+		id = generateUuid(),
+		public triggerpoint = false
 	) {
 		super(enabled, hitCondition, condition, logMessage, id);
 	}
@@ -955,6 +957,7 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		result.lineNumber = this._lineNumber;
 		result.column = this._column;
 		result.adapterData = this.adapterData;
+		result.triggerpoint = this.triggerpoint;
 
 		return result;
 	}
@@ -1317,7 +1320,7 @@ export class DebugModel implements IDebugModel {
 				if (filter.column && bp.column !== filter.column) {
 					return false;
 				}
-				if (filter.enabledOnly && (!this.breakpointsActivated || !bp.enabled)) {
+				if (filter.enabledOnly && (!this.breakpointsActivated || !bp.enabled || bp.softDisabled)) {
 					return false;
 				}
 
@@ -1503,6 +1506,29 @@ export class DebugModel implements IDebugModel {
 		}
 	}
 
+	setSoftDisabled(element: IEnablement, disabled: boolean): void {
+		if (element instanceof Breakpoint || element instanceof FunctionBreakpoint || element instanceof ExceptionBreakpoint || element instanceof DataBreakpoint || element instanceof InstructionBreakpoint) {
+			const changed: Array<IBreakpoint | IFunctionBreakpoint | IDataBreakpoint | IInstructionBreakpoint> = [];
+			if ((element instanceof Breakpoint || element instanceof FunctionBreakpoint || element instanceof DataBreakpoint || element instanceof InstructionBreakpoint) && element.softDisabled !== disabled) {
+				changed.push(element);
+			}
+			element.softDisabled = disabled;
+			this._onDidChangeBreakpoints.fire({ changed: changed, sessionOnly: false });
+		}
+	}
+
+
+	async setTriggerpoint(breakpoint: IBreakpoint, enable: boolean) {
+		if (breakpoint instanceof Breakpoint) {
+			const changed: Array<IBreakpoint> = [];
+			if (breakpoint.triggerpoint !== enable) {
+				changed.push(breakpoint);
+			}
+			breakpoint.triggerpoint = enable;
+			this._onDidChangeBreakpoints.fire({ changed: changed, sessionOnly: false });
+		}
+	}
+
 	enableOrDisableAllBreakpoints(enable: boolean): void {
 		const changed: Array<IBreakpoint | IFunctionBreakpoint | IDataBreakpoint | IInstructionBreakpoint> = [];
 
@@ -1535,6 +1561,36 @@ export class DebugModel implements IDebugModel {
 			this.breakpointsActivated = true;
 		}
 
+		this._onDidChangeBreakpoints.fire({ changed: changed, sessionOnly: false });
+	}
+
+	softEnableOrDisableAllBreakpoints(disabled: boolean): void {
+		const changed: Array<IBreakpoint | IFunctionBreakpoint | IDataBreakpoint | IInstructionBreakpoint> = [];
+
+		this.breakpoints.forEach(bp => {
+			if (bp.softDisabled !== disabled) {
+				changed.push(bp);
+			}
+			bp.softDisabled = disabled;
+		});
+		this.functionBreakpoints.forEach(fbp => {
+			if (fbp.softDisabled !== disabled) {
+				changed.push(fbp);
+			}
+			fbp.softDisabled = disabled;
+		});
+		this.dataBreakpoints.forEach(dbp => {
+			if (dbp.softDisabled !== disabled) {
+				changed.push(dbp);
+			}
+			dbp.softDisabled = disabled;
+		});
+		this.instructionBreakpoints.forEach(ibp => {
+			if (ibp.softDisabled !== disabled) {
+				changed.push(ibp);
+			}
+			ibp.softDisabled = disabled;
+		});
 		this._onDidChangeBreakpoints.fire({ changed: changed, sessionOnly: false });
 	}
 
@@ -1652,5 +1708,9 @@ export class DebugModel implements IDebugModel {
 			}
 		});
 		this._onDidChangeCallStack.fire(undefined);
+	}
+
+	getTriggerppoints(): readonly IBreakpoint[] {
+		return this.breakpoints.filter((bp) => bp.triggerpoint);
 	}
 }
