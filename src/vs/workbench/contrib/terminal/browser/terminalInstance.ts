@@ -1747,7 +1747,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		// reset cwd if it has changed, so file based url paths can be resolved
 		try {
-			const cwd = await this.refreshProperty(ProcessPropertyType.Cwd);
+			const cwd = await this._refreshProperty(ProcessPropertyType.Cwd);
 			if (typeof cwd !== 'string') {
 				throw new Error(`cwd is not a string ${cwd}`);
 			}
@@ -1849,7 +1849,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 			if (cols !== this.xterm.raw.cols || rows !== this.xterm.raw.rows) {
 				if (this._fixedRows || this._fixedCols) {
-					await this.updateProperty(ProcessPropertyType.FixedDimensions, { cols: this._fixedCols, rows: this._fixedRows });
+					await this._updateProperty(ProcessPropertyType.FixedDimensions, { cols: this._fixedCols, rows: this._fixedRows });
 				}
 				this._onDimensionsChanged.fire();
 			}
@@ -2165,12 +2165,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return await this._processManager.getInitialCwd();
 	}
 
-	async refreshProperty<T extends ProcessPropertyType>(type: T): Promise<IProcessPropertyMap[T]> {
+	private async _refreshProperty<T extends ProcessPropertyType>(type: T): Promise<IProcessPropertyMap[T]> {
 		await this.processReady;
 		return this._processManager.refreshProperty(type);
 	}
 
-	async updateProperty<T extends ProcessPropertyType>(type: T, value: IProcessPropertyMap[T]): Promise<void> {
+	private async _updateProperty<T extends ProcessPropertyType>(type: T, value: IProcessPropertyMap[T]): Promise<void> {
 		return this._processManager.updateProperty(type, value);
 	}
 

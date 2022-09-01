@@ -872,8 +872,6 @@ export interface ITerminalInstance {
 	 */
 	getCwd(): Promise<string>;
 
-	refreshProperty<T extends ProcessPropertyType>(type: T): Promise<IProcessPropertyMap[T]>;
-
 	/**
 	 * @throws when called before xterm.js is ready.
 	 */
