@@ -242,18 +242,18 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	private regroupViews(containerId: string, views: IViewDescriptor[]): Map<string, IViewDescriptor[]> {
-		const groupedViews = new Map<string, IViewDescriptor[]>();
+		const viewsByContainer = new Map<string, IViewDescriptor[]>();
 
 		for (const viewDescriptor of views) {
 			const correctContainerId = this.viewDescriptorsCustomLocations.get(viewDescriptor.id) ?? containerId;
-			let views = groupedViews.get(correctContainerId);
-			if (!views) {
-				groupedViews.set(correctContainerId, views = []);
+			let containerViews = viewsByContainer.get(correctContainerId);
+			if (!containerViews) {
+				viewsByContainer.set(correctContainerId, containerViews = []);
 			}
-			views.push(viewDescriptor);
+			containerViews.push(viewDescriptor);
 		}
 
-		return groupedViews;
+		return viewsByContainer;
 	}
 
 	getViewDescriptorById(viewId: string): IViewDescriptor | null {
