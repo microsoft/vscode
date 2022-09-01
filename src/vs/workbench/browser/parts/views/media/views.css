@@ -130,10 +130,6 @@
 	background-color: var(--vscode-checkbox-background);
 }
 
-.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-checkbox:hover {
-	background-color: var(--vscode-checkbox-foreground);
-}
-
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-checkbox.codicon {
 	font-size: 13px;
 	line-height: 15px;
