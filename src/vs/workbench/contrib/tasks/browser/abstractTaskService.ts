@@ -294,7 +294,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}));
 		this._taskRunningState = TASK_RUNNING_STATE.bindTo(_contextKeyService);
 		this._onDidStateChange = this._register(new Emitter());
-		this._registerCommands().then(() => TaskCommandsRegistered.bindTo(this._contextKeyService).set(true));
+		if (!isWeb) {
+			this._registerCommands().then(() => TaskCommandsRegistered.bindTo(this._contextKeyService).set(true));
+		}
 		this._configurationResolverService.contributeVariable('defaultBuildTask', async (): Promise<string | undefined> => {
 			let tasks = await this._getTasksForGroup(TaskGroup.Build);
 			if (tasks.length > 0) {
@@ -372,6 +374,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._getTaskSystem();
 		this._waitForSupportedExecutions.then(() => {
 			this.getWorkspaceTasks().then(async () => {
+				if (isWeb && this._providers.values.length === 0) {
+					this._tasksReconnected = true;
+					return;
+				}
 				this._tasksReconnected = await this._reconnectTasks();
 			});
 		});
@@ -444,7 +450,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					}
 				}]
 			}
-		});
+		}
+		);
 
 		CommandsRegistry.registerCommand('workbench.action.tasks.reRunTask', async (accessor, arg) => {
 			if (await this._trust()) {
@@ -638,6 +645,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return {
 				dispose: () => { }
 			};
+		}
+		if (isWeb) {
+			this._registerCommands();
 		}
 		const handle = AbstractTaskService._nextHandle++;
 		this._providers.set(handle, provider);
