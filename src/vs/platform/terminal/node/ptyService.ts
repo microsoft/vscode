@@ -488,7 +488,7 @@ export class PersistentTerminalProcess extends Disposable {
 
 	setTitle(title: string, titleSource: TitleEventSource): void {
 		if (titleSource === TitleEventSource.Api) {
-			this._interactionState.value = InteractionState.Session;
+			this._interactionState.setValue(InteractionState.Session, 'setTitle');
 			this._serializer.freeRawReviveBuffer();
 		}
 		this._title = title;
@@ -500,7 +500,7 @@ export class PersistentTerminalProcess extends Disposable {
 			!this.color || color !== this._color) {
 
 			this._serializer.freeRawReviveBuffer();
-			this._interactionState.value = InteractionState.Session;
+			this._interactionState.setValue(InteractionState.Session, 'setIcon');
 		}
 		this._icon = icon;
 		this._color = color;
@@ -653,7 +653,7 @@ export class PersistentTerminalProcess extends Disposable {
 		return this._terminalProcess.shutdown(immediate);
 	}
 	input(data: string): void {
-		this._interactionState.value = InteractionState.Session;
+		this._interactionState.setValue(InteractionState.Session, 'input');
 		this._serializer.freeRawReviveBuffer();
 		if (this._inReplay) {
 			return;
@@ -703,7 +703,7 @@ export class PersistentTerminalProcess extends Disposable {
 
 	async triggerReplay(): Promise<void> {
 		if (this._interactionState.value === InteractionState.None) {
-			this._interactionState.value = InteractionState.ReplayOnly;
+			this._interactionState.setValue(InteractionState.ReplayOnly, 'triggerReplay');
 		}
 		const ev = await this._serializer.generateReplayEvent();
 		let dataLength = 0;
@@ -780,10 +780,10 @@ export class PersistentTerminalProcess extends Disposable {
 
 class MutationLogger<T> {
 	get value(): T { return this._value; }
-	set value(value: T) {
+	setValue(value: T, reason: string) {
 		if (this._value !== value) {
 			this._value = value;
-			this._log('changed');
+			this._log(reason);
 		}
 	}
 
@@ -795,8 +795,8 @@ class MutationLogger<T> {
 		this._log('initialized');
 	}
 
-	private _log(action: string): void {
-		this._logService.debug(`MutationLogger "${this._name}" ${action} to "${this._value}"`);
+	private _log(reason: string): void {
+		this._logService.debug(`MutationLogger "${this._name}" set to "${this._value}", reason: ${reason}`);
 	}
 }
 
