@@ -171,8 +171,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _initialCwd: string | undefined = undefined;
 	private _layoutSettingsChanged: boolean = true;
 	private _dimensionsOverride: ITerminalDimensionsOverride | undefined;
-	private _titleReadyPromise: Promise<string>;
-	private _titleReadyComplete: ((title: string) => any) | undefined;
 	private _areLinksReady: boolean = false;
 	private _initialDataEvents: string[] | undefined = [];
 	private _containerReadyBarrier: AutoOpenBarrier;
@@ -384,9 +382,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._isDisposed = false;
 		this._instanceId = TerminalInstance._instanceIdCounter++;
 		this._hasHadInput = false;
-		this._titleReadyPromise = new Promise<string>(c => {
-			this._titleReadyComplete = c;
-		});
 		this._fixedRows = _shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.rows;
 		this._fixedCols = _shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.cols;
 
@@ -1939,10 +1934,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return title;
 	}
 
-	waitForTitle(): Promise<string> {
-		return this._titleReadyPromise;
-	}
-
 	setOverrideDimensions(dimensions: ITerminalDimensionsOverride | undefined, immediate: boolean = false): void {
 		if (this._dimensionsOverride && this._dimensionsOverride.forceExactSize && !dimensions && this._rows === 0 && this._cols === 0) {
 			// this terminal never had a real size => keep the last dimensions override exact size
@@ -2193,11 +2184,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._title = title;
 		this._labelComputer?.refreshLabel(reset);
 		this._setAriaLabel(this.xterm?.raw, this._instanceId, this._title);
-
-		if (this._titleReadyComplete) {
-			this._titleReadyComplete(title);
-			this._titleReadyComplete = undefined;
-		}
 
 		if (titleChanged) {
 			this._onTitleChanged.fire(this);
