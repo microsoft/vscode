@@ -39,8 +39,30 @@ export async function deactivate(): Promise<any> {
 }
 
 async function createModel(context: ExtensionContext, outputChannelLogger: OutputChannelLogger, telemetryReporter: TelemetryReporter, disposables: Disposable[]): Promise<Model> {
+	const pathValue = workspace.getConfiguration('git').get<string | string[]>('path');
+	let pathHints = Array.isArray(pathValue) ? pathValue : pathValue ? [pathValue] : [];
 
-	const info = await findGit(outputChannelLogger);
+	const { isTrusted, workspaceFolders = [] } = workspace;
+	const excludes = isTrusted ? [] : workspaceFolders.map(f => path.normalize(f.uri.fsPath).replace(/[\r\n]+$/, ''));
+
+	if (!isTrusted && pathHints.length !== 0) {
+		// Filter out any non-absolute paths
+		pathHints = pathHints.filter(p => path.isAbsolute(p));
+	}
+
+	const info = await findGit(pathHints, gitPath => {
+		outputChannelLogger.logInfo(localize('validating', "Validating found git in: {0}", gitPath));
+		if (excludes.length === 0) {
+			return true;
+		}
+
+		const normalized = path.normalize(gitPath).replace(/[\r\n]+$/, '');
+		const skip = excludes.some(e => normalized.startsWith(e));
+		if (skip) {
+			outputChannelLogger.logInfo(localize('skipped', "Skipped found git in: {0}", gitPath));
+		}
+		return !skip;
+	});
 
 	let ipcServer: IPCServer | undefined = undefined;
 
