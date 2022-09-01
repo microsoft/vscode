@@ -160,7 +160,7 @@ export async function _activate(context: ExtensionContext): Promise<GitExtension
 	const outputChannelLogger = new OutputChannelLogger();
 	disposables.push(outputChannelLogger);
 
-	disposables.push(new GitProtocolHandler());
+	disposables.push(new GitProtocolHandler(outputChannelLogger));
 
 	const { name, version, aiKey } = require('../package.json') as { name: string; version: string; aiKey: string };
 	const telemetryReporter = new TelemetryReporter(name, version, aiKey);

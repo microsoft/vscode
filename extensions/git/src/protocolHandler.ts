@@ -9,6 +9,7 @@ const localize = nls.loadMessageBundle();
 import { UriHandler, Uri, window, Disposable, commands } from 'vscode';
 import { dispose } from './util';
 import * as querystring from 'querystring';
+import { OutputChannelLogger } from './log';
 
 const schemes = new Set(['file', 'git', 'http', 'https', 'ssh']);
 
@@ -16,11 +17,13 @@ export class GitProtocolHandler implements UriHandler {
 
 	private disposables: Disposable[] = [];
 
-	constructor() {
+	constructor(private readonly outputChannelLogger: OutputChannelLogger) {
 		this.disposables.push(window.registerUriHandler(this));
 	}
 
 	handleUri(uri: Uri): void {
+		this.outputChannelLogger.logInfo(`GitProtocolHandler.handleUri(${uri.toString()})`);
+
 		switch (uri.path) {
 			case '/clone': this.clone(uri);
 		}
@@ -31,17 +34,17 @@ export class GitProtocolHandler implements UriHandler {
 		const ref = data.ref;
 
 		if (!data.url) {
-			console.warn('Failed to open URI:', uri);
+			this.outputChannelLogger.logWarning('Failed to open URI:' + uri.toString());
 			return;
 		}
 
 		if (Array.isArray(data.url) && data.url.length === 0) {
-			console.warn('Failed to open URI:', uri);
+			this.outputChannelLogger.logWarning('Failed to open URI:' + uri.toString());
 			return;
 		}
 
 		if (ref !== undefined && typeof ref !== 'string') {
-			console.warn('Failed to open URI:', uri);
+			this.outputChannelLogger.logWarning('Failed to open URI:' + uri.toString());
 			return;
 		}
 
@@ -61,11 +64,13 @@ export class GitProtocolHandler implements UriHandler {
 			}
 		}
 		catch (ex) {
-			console.warn('Invalid URI:', uri);
+			this.outputChannelLogger.logWarning('Invalid URI:' + uri.toString());
 			return;
 		}
 
 		if (!(await commands.getCommands(true)).includes('git.clone')) {
+			this.outputChannelLogger.logError('Could not complete git clone operation as git installation was not found.');
+
 			const errorMessage = localize('no git', 'Could not clone your repository as Git is not installed.');
 			const downloadGit = localize('download git', 'Download Git');
 
@@ -75,7 +80,9 @@ export class GitProtocolHandler implements UriHandler {
 
 			return;
 		} else {
-			commands.executeCommand('git.clone', cloneUri.toString(true), undefined, { ref: ref });
+			const cloneTarget = cloneUri.toString(true);
+			this.outputChannelLogger.logInfo(`Executing git.clone for ${cloneTarget}`);
+			commands.executeCommand('git.clone', cloneTarget, undefined, { ref: ref });
 		}
 	}
 
