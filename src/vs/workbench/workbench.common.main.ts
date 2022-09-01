@@ -54,6 +54,7 @@ import 'vs/workbench/browser/parts/views/viewsService';
 
 import 'vs/platform/actions/common/actions.contribution';
 import 'vs/platform/undoRedo/common/undoRedoService';
+import 'vs/workbench/services/workspaces/common/editSessionIdentityService';
 import 'vs/workbench/services/extensions/browser/extensionUrlHandler';
 import 'vs/workbench/services/keybinding/common/keybindingEditing';
 import 'vs/workbench/services/decorations/browser/decorationsService';
@@ -127,21 +128,21 @@ import { IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDat
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
 import { IExtensionsProfileScannerService, ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 
-registerSingleton(IUserDataSyncLogService, UserDataSyncLogService);
-registerSingleton(IIgnoredExtensionsManagementService, IgnoredExtensionsManagementService);
-registerSingleton(IGlobalExtensionEnablementService, GlobalExtensionEnablementService);
-registerSingleton(IExtensionStorageService, ExtensionStorageService);
+registerSingleton(IUserDataSyncLogService, UserDataSyncLogService, true);
+registerSingleton(IIgnoredExtensionsManagementService, IgnoredExtensionsManagementService, true);
+registerSingleton(IGlobalExtensionEnablementService, GlobalExtensionEnablementService, true);
+registerSingleton(IExtensionStorageService, ExtensionStorageService, true);
 registerSingleton(IExtensionGalleryService, ExtensionGalleryService, true);
 registerSingleton(IContextViewService, ContextViewService, true);
 registerSingleton(IListService, ListService, true);
-registerSingleton(IEditorWorkerService, EditorWorkerService);
-registerSingleton(IMarkerDecorationsService, MarkerDecorationsService);
+registerSingleton(IEditorWorkerService, EditorWorkerService, false);
+registerSingleton(IMarkerDecorationsService, MarkerDecorationsService, true);
 registerSingleton(IMarkerService, MarkerService, true);
-registerSingleton(IContextKeyService, ContextKeyService);
-registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationService);
+registerSingleton(IContextKeyService, ContextKeyService, false);
+registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationService, true);
 registerSingleton(IDownloadService, DownloadService, true);
 registerSingleton(IOpenerService, OpenerService, true);
-registerSingleton(IExtensionsProfileScannerService, ExtensionsProfileScannerService);
+registerSingleton(IExtensionsProfileScannerService, ExtensionsProfileScannerService, true);
 
 //#endregion
 
@@ -346,5 +347,8 @@ import 'vs/workbench/contrib/audioCues/browser/audioCues.contribution';
 
 // Deprecated Extension Migrator
 import 'vs/workbench/contrib/deprecatedExtensionMigrator/browser/deprecatedExtensionMigrator.contribution';
+
+// Bracket Pair Colorizer 2 Telemetry
+import 'vs/workbench/contrib/bracketPairColorizer2Telemetry/browser/bracketPairColorizer2Telemetry.contribution';
 
 //#endregion

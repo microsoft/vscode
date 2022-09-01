@@ -124,7 +124,7 @@ import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 
 import { TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 import { IExtensionTerminalProfile, IShellLaunchConfig, ITerminalProfile, TerminalIcon, TerminalLocation, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { ICreateTerminalOptions, IDeserializedTerminalEditorInput, ITerminalEditorService, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { assertIsDefined, isArray } from 'vs/base/common/types';
+import { assertIsDefined } from 'vs/base/common/types';
 import { IRegisterContributedProfileArgs, IShellLaunchConfigResolveOptions, ITerminalBackend, ITerminalProfileProvider, ITerminalProfileResolverService, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorResolverService } from 'vs/workbench/services/editor/browser/editorResolverService';
 import { FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
@@ -194,7 +194,7 @@ export class TestTextResourceEditor extends TextResourceEditor {
 export class TestTextFileEditor extends TextFileEditor {
 
 	protected override createEditorControl(parent: HTMLElement, configuration: any): void {
-		this.editorControl = this.instantiationService.createInstance(TestCodeEditor, parent, configuration, {});
+		this.editorControl = this.instantiationService.createInstance(TestCodeEditor, parent, configuration, { contributions: [] });
 	}
 
 	setSelection(selection: Selection | undefined, reason: EditorPaneSelectionChangeReason): void {
@@ -1603,7 +1603,7 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 		if (other instanceof EditorInput) {
 			return !!(other?.resource && this.resource.toString() === other.resource.toString() && other instanceof TestFileEditorInput && other.typeId === this.typeId);
 		}
-		return isEqual(this.resource, other.resource) && this.editorId === other.options?.override;
+		return isEqual(this.resource, other.resource) && (this.editorId === other.options?.override || other.options?.override === undefined);
 	}
 	setPreferredResource(resource: URI): void { }
 	async setEncoding(encoding: string) { }
@@ -1771,7 +1771,7 @@ export class TestTerminalInstanceService implements ITerminalInstanceService {
 	convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): IShellLaunchConfig { throw new Error('Method not implemented.'); }
 	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string, shellType: TerminalShellType, remoteAuthority: string | undefined): Promise<string> { throw new Error('Method not implemented.'); }
 	createInstance(options: ICreateTerminalOptions, target?: TerminalLocation): ITerminalInstance { throw new Error('Method not implemented.'); }
-	getBackend(remoteAuthority?: string): ITerminalBackend | undefined { throw new Error('Method not implemented.'); }
+	async getBackend(remoteAuthority?: string): Promise<ITerminalBackend | undefined> { throw new Error('Method not implemented.'); }
 }
 
 export class TestTerminalEditorService implements ITerminalEditorService {
@@ -1876,7 +1876,6 @@ export class TestTerminalProfileResolverService implements ITerminalProfileResol
 }
 
 export class TestQuickInputService implements IQuickInputService {
-
 	declare readonly _serviceBrand: undefined;
 
 	readonly onShow = Event.None;
@@ -1888,7 +1887,7 @@ export class TestQuickInputService implements IQuickInputService {
 	pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: true }, token?: CancellationToken): Promise<T[]>;
 	pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): Promise<T>;
 	async pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>, token?: CancellationToken): Promise<T | undefined> {
-		if (isArray(picks)) {
+		if (Array.isArray(picks)) {
 			return <any>{ label: 'selectedPick', description: 'pick description', value: 'selectedPick' };
 		} else {
 			return undefined;

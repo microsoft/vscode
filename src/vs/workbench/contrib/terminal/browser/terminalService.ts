@@ -43,7 +43,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ILifecycleService, ShutdownReason, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ILifecycleService, ShutdownReason, StartupKind, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export class TerminalService implements ITerminalService {
@@ -153,7 +153,7 @@ export class TerminalService implements ITerminalService {
 
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
-		@ILifecycleService lifecycleService: ILifecycleService,
+		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@ILogService private readonly _logService: ILogService,
 		@IDialogService private _dialogService: IDialogService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
@@ -175,7 +175,6 @@ export class TerminalService implements ITerminalService {
 		// we update detected profiles when an instance is created so that,
 		// for example, we detect if you've installed a pwsh
 		this.onDidCreateInstance(() => this._terminalProfileService.refreshAvailableProfiles());
-
 		this._forwardInstanceHostEvents(this._terminalGroupService);
 		this._forwardInstanceHostEvents(this._terminalEditorService);
 		this._terminalGroupService.onDidChangeActiveGroup(this._onDidChangeActiveGroup.fire, this._onDidChangeActiveGroup);
@@ -213,8 +212,8 @@ export class TerminalService implements ITerminalService {
 			this._terminalEditorActive.set(!!instance?.target && instance.target === TerminalLocation.Editor);
 		});
 
-		lifecycleService.onBeforeShutdown(async e => e.veto(this._onBeforeShutdown(e.reason), 'veto.terminal'));
-		lifecycleService.onWillShutdown(e => this._onWillShutdown(e));
+		_lifecycleService.onBeforeShutdown(async e => e.veto(this._onBeforeShutdown(e.reason), 'veto.terminal'));
+		_lifecycleService.onWillShutdown(e => this._onWillShutdown(e));
 
 		// Create async as the class depends on `this`
 		timeout(0).then(() => this._instantiationService.createInstance(TerminalEditorStyle, document.head));
@@ -384,6 +383,7 @@ export class TerminalService implements ITerminalService {
 	private _setConnected() {
 		this._connectionState = TerminalConnectionState.Connected;
 		this._onDidChangeConnectionState.fire();
+		this._logService.trace('Reconnected to terminals');
 	}
 
 	private async _reconnectToRemoteTerminals(): Promise<void> {
@@ -391,7 +391,7 @@ export class TerminalService implements ITerminalService {
 		if (!remoteAuthority) {
 			return;
 		}
-		const backend = this._terminalInstanceService.getBackend(remoteAuthority);
+		const backend = await this._terminalInstanceService.getBackend(remoteAuthority);
 		if (!backend) {
 			return;
 		}
@@ -404,7 +404,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private async _reconnectToLocalTerminals(): Promise<void> {
-		const localBackend = this._terminalInstanceService.getBackend();
+		const localBackend = await this._terminalInstanceService.getBackend();
 		if (!localBackend) {
 			return;
 		}
@@ -428,6 +428,9 @@ export class TerminalService implements ITerminalService {
 					let terminalInstance: ITerminalInstance | undefined;
 					let group: ITerminalGroup | undefined;
 					for (const terminalLayout of terminalLayouts) {
+						if (this._lifecycleService.startupKind !== StartupKind.ReloadedWindow && terminalLayout.terminal?.type === 'Task') {
+							continue;
+						}
 						if (!terminalInstance) {
 							// create group and terminal
 							terminalInstance = await this.createTerminal({
@@ -625,7 +628,6 @@ export class TerminalService implements ITerminalService {
 			}
 			return;
 		}
-
 
 		// Force dispose of all terminal instances
 		const shouldPersistTerminalsForEvent = this._shouldReviveProcesses(e.reason);
@@ -1050,12 +1052,12 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private _addToReconnected(instance: ITerminalInstance): void {
-		if (instance.reconnectionOwner) {
-			const reconnectedTerminals = this._reconnectedTerminals.get(instance.reconnectionOwner);
+		if (instance.reconnectionProperties) {
+			const reconnectedTerminals = this._reconnectedTerminals.get(instance.reconnectionProperties.ownerId);
 			if (reconnectedTerminals) {
 				reconnectedTerminals.push(instance);
 			} else {
-				this._reconnectedTerminals.set(instance.reconnectionOwner, [instance]);
+				this._reconnectedTerminals.set(instance.reconnectionProperties.ownerId, [instance]);
 			}
 		}
 	}

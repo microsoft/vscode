@@ -53,7 +53,7 @@ export abstract class LanguagePackBaseService extends Disposable implements ILan
 		const allFromMarketplace: ILanguagePackItem[] = languagePackExtensions.map(lp => {
 			const languageName = lp.properties.localizedLanguages?.[0];
 			const locale = this.getLocale(lp)!;
-			const baseQuickPick = this.createQuickPickItem({ locale, label: languageName });
+			const baseQuickPick = this.createQuickPickItem(locale, languageName, lp);
 			return {
 				...baseQuickPick,
 				extensionId: lp.identifier.id,
@@ -62,7 +62,7 @@ export abstract class LanguagePackBaseService extends Disposable implements ILan
 		});
 
 		allFromMarketplace.push({
-			...this.createQuickPickItem({ locale: 'en', label: 'English' }),
+			...this.createQuickPickItem('en', 'English'),
 			extensionId: 'default',
 		});
 
@@ -73,17 +73,35 @@ export abstract class LanguagePackBaseService extends Disposable implements ILan
 		return extension.tags.find(t => t.startsWith('lp-'))?.split('lp-')[1];
 	}
 
-	protected createQuickPickItem(languageItem: { locale: string; label?: string | undefined }): IQuickPickItem {
-		const label = languageItem.label ?? languageItem.locale;
-		let description: string | undefined = languageItem.locale !== languageItem.label ? languageItem.locale : undefined;
-		if (languageItem.locale.toLowerCase() === language.toLowerCase()) {
-			if (!description) {
-				description = '';
-			}
+	protected createQuickPickItem(locale: string, languageName?: string, languagePack?: IGalleryExtension): IQuickPickItem {
+		const label = languageName ?? locale;
+		let description: string | undefined;
+		if (label !== locale) {
+			description = `(${locale})`;
+		}
+
+		if (locale.toLowerCase() === language.toLowerCase()) {
+			description ??= '';
 			description += localize('currentDisplayLanguage', " (Current)");
 		}
+
+		if (languagePack?.installCount) {
+			description ??= '';
+
+			const count = languagePack.installCount;
+			let countLabel: string;
+			if (count > 1000000) {
+				countLabel = `${Math.floor(count / 100000) / 10}M`;
+			} else if (count > 1000) {
+				countLabel = `${Math.floor(count / 1000)}K`;
+			} else {
+				countLabel = String(count);
+			}
+			description += ` $(cloud-download) ${countLabel}`;
+		}
+
 		return {
-			id: languageItem.locale,
+			id: locale,
 			label,
 			description
 		};

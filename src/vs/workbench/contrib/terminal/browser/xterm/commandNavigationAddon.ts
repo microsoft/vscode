@@ -73,9 +73,13 @@ export class CommandNavigationAddon extends Disposable implements ICommandTracke
 		// Clear the current marker so successive focus/selection actions are performed from the
 		// bottom of the buffer
 		this._currentMarker = Boundary.Bottom;
+		this._resetNavigationDecoration();
+		this._selectionStart = null;
+	}
+
+	private _resetNavigationDecoration() {
 		this._navigationDecoration?.dispose();
 		this._navigationDecoration = undefined;
-		this._selectionStart = null;
 	}
 
 	scrollToPreviousCommand(scrollPosition: ScrollPosition = ScrollPosition.Middle, retainSelection: boolean = false): void {
@@ -112,7 +116,7 @@ export class CommandNavigationAddon extends Disposable implements ICommandTracke
 		if (markerIndex < 0) {
 			this._currentMarker = Boundary.Top;
 			this._terminal.scrollToTop();
-			this.clearMarker();
+			this._resetNavigationDecoration();
 			return;
 		}
 
@@ -154,7 +158,7 @@ export class CommandNavigationAddon extends Disposable implements ICommandTracke
 		if (markerIndex >= this._getCommandMarkers().length) {
 			this._currentMarker = Boundary.Bottom;
 			this._terminal.scrollToBottom();
-			this.clearMarker();
+			this._resetNavigationDecoration();
 			return;
 		}
 

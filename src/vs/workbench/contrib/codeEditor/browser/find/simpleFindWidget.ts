@@ -32,7 +32,7 @@ const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next Mat
 const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
 
 interface IFindOptions {
-	showOptionButtons?: boolean;
+	showCommonFindToggles?: boolean;
 	checkImeCompletionState?: boolean;
 	showResultCount?: boolean;
 	appendCaseSensitiveLabel?: string;
@@ -80,11 +80,12 @@ export abstract class SimpleFindWidget extends Widget {
 					return { content: e.message };
 				}
 			},
+			showCommonFindToggles: options.showCommonFindToggles,
 			appendCaseSensitiveLabel: options.appendCaseSensitiveLabel && options.type === 'Terminal' ? this._getKeybinding(TerminalCommandId.ToggleFindCaseSensitive) : undefined,
 			appendRegexLabel: options.appendRegexLabel && options.type === 'Terminal' ? this._getKeybinding(TerminalCommandId.ToggleFindRegex) : undefined,
 			appendWholeWordsLabel: options.appendWholeWordsLabel && options.type === 'Terminal' ? this._getKeybinding(TerminalCommandId.ToggleFindWholeWord) : undefined,
 			showHistoryHint: () => showHistoryKeybindingHint(_keybindingService)
-		}, contextKeyService, options.showOptionButtons));
+		}, contextKeyService));
 		// Find History with update delayer
 		this._updateHistoryDelayer = new Delayer<void>(500);
 

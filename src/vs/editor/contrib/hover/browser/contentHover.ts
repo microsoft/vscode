@@ -428,9 +428,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		if (visibleData.stoleFocus) {
 			this._hover.containerDomNode.focus();
 		}
-		if (visibleData.colorPicker) {
-			visibleData.colorPicker.layout();
-		}
+		visibleData.colorPicker?.layout();
 	}
 
 	public hide(): void {

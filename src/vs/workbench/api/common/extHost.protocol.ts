@@ -19,7 +19,7 @@ import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { ILineChange } from 'vs/editor/common/diff/diffComputer';
+import { ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as languages from 'vs/editor/common/languages';
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
@@ -38,7 +38,7 @@ import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { IProgressOptions, IProgressStep } from 'vs/platform/progress/common/progress';
 import * as quickInput from 'vs/platform/quickinput/common/quickInput';
 import { IRemoteConnectionData, TunnelDescription } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
+import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { ICreateContributedTerminalProfileOptions, IProcessProperty, IShellLaunchConfigDto, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, TerminalExitReason, TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { ThemeColor, ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -598,7 +598,8 @@ export interface MainThreadStorageShape extends IDisposable {
 
 export interface MainThreadTelemetryShape extends IDisposable {
 	$publicLog(eventName: string, data?: any): void;
-	$publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void;
+	$publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void;
+	$logTelemetryToOutputChannel(eventName: string, data: Record<string, any>): void;
 }
 
 export interface MainThreadEditorInsetsShape extends IDisposable {
@@ -977,7 +978,6 @@ export interface MainThreadNotebookEditorsShape extends IDisposable {
 	$tryShowNotebookDocument(uriComponents: UriComponents, viewType: string, options: INotebookDocumentShowOptions): Promise<string>;
 	$tryRevealRange(id: string, range: ICellRange, revealType: NotebookEditorRevealType): Promise<void>;
 	$trySetSelections(id: string, range: ICellRange[]): void;
-	$tryApplyEdits(editorId: string, modelVersionId: number, cellEdits: ICellEditOperationDto[]): Promise<boolean>;
 }
 
 export interface MainThreadNotebookDocumentsShape extends IDisposable {
@@ -998,7 +998,7 @@ export interface INotebookKernelDto2 {
 	supportedLanguages?: string[];
 	supportsInterrupt?: boolean;
 	supportsExecutionOrder?: boolean;
-	preloads?: { uri: UriComponents; provides: string[] }[];
+	preloads?: { uri: UriComponents; provides: readonly string[] }[];
 }
 
 export interface INotebookProxyKernelDto {
@@ -1085,6 +1085,8 @@ export interface MainThreadWorkspaceShape extends IDisposable {
 	$updateWorkspaceFolders(extensionName: string, index: number, deleteCount: number, workspaceFoldersToAdd: { uri: UriComponents; name?: string }[]): Promise<void>;
 	$resolveProxy(url: string): Promise<string | undefined>;
 	$requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined>;
+	$registerEditSessionIdentityProvider(handle: number, scheme: string): void;
+	$unregisterEditSessionIdentityProvider(handle: number): void;
 }
 
 export interface IFileChangeDto {
@@ -1413,6 +1415,7 @@ export interface ExtHostWorkspaceShape {
 	$acceptWorkspaceData(workspace: IWorkspaceData | null): void;
 	$handleTextSearchResult(result: search.IRawFileMatch2, requestId: number): void;
 	$onDidGrantWorkspaceTrust(): void;
+	$getEditSessionIdentifier(folder: UriComponents, token: CancellationToken): Promise<string | undefined>;
 }
 
 export interface ExtHostFileSystemInfoShape {
@@ -1625,6 +1628,8 @@ export interface IWorkspaceEditDto {
 	edits: Array<IWorkspaceFileEditDto | IWorkspaceTextEditDto | IWorkspaceCellEditDto>;
 }
 
+export function reviveWorkspaceEditDto(data: IWorkspaceEditDto): languages.WorkspaceEdit;
+export function reviveWorkspaceEditDto(data: IWorkspaceEditDto | undefined): languages.WorkspaceEdit | undefined;
 export function reviveWorkspaceEditDto(data: IWorkspaceEditDto | undefined): languages.WorkspaceEdit | undefined {
 	if (data && data.edits) {
 		revive<languages.WorkspaceEdit>(data);
@@ -2173,7 +2178,7 @@ export const enum ExtHostTestingResource {
 }
 
 export interface ExtHostTestingShape {
-	$runControllerTests(req: RunTestForControllerRequest, token: CancellationToken): Promise<void>;
+	$runControllerTests(req: RunTestForControllerRequest[], token: CancellationToken): Promise<{ error?: string }[]>;
 	$cancelExtensionTestRun(runId: string | undefined): void;
 	/** Handles a diff of tests, as a result of a subscribeToDiffs() call */
 	$acceptDiff(diff: TestsDiffOp.Serialized[]): void;

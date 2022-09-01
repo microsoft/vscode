@@ -434,9 +434,9 @@ suite('Workbench editor utils', () => {
 
 		for (const resource of resources) {
 			if (custom) {
-				await accessor.editorService.openEditor(new TestFileEditorInput(resource, 'testTypeId'), { pinned: true, override: EditorResolution.DISABLED });
+				await accessor.editorService.openEditor(new TestFileEditorInput(resource, 'testTypeId'), { pinned: true });
 			} else if (sideBySide) {
-				await accessor.editorService.openEditor(instantiationService.createInstance(SideBySideEditorInput, 'testSideBySideEditor', undefined, new TestFileEditorInput(resource, 'testTypeId'), new TestFileEditorInput(resource, 'testTypeId')), { pinned: true, override: EditorResolution.DISABLED });
+				await accessor.editorService.openEditor(instantiationService.createInstance(SideBySideEditorInput, 'testSideBySideEditor', undefined, new TestFileEditorInput(resource, 'testTypeId'), new TestFileEditorInput(resource, 'testTypeId')), { pinned: true });
 			} else {
 				await accessor.editorService.openEditor({ resource, options: { pinned: true } });
 			}

@@ -65,6 +65,7 @@
         "emmet.showAbbreviationSuggestions": {
           "type": "boolean",
           "default": true,
+          "scope": "resource",
           "markdownDescription": "%emmetShowAbbreviationSuggestions%"
         },
         "emmet.includeLanguages": {
@@ -125,6 +126,7 @@
         "emmet.triggerExpansionOnTab": {
           "type": "boolean",
           "default": false,
+          "scope": "language-overridable",
           "markdownDescription": "%emmetTriggerExpansionOnTab%"
         },
         "emmet.useInlineCompletions": {

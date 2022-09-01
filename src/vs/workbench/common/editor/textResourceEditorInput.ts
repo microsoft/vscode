@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DEFAULT_EDITOR_ASSOCIATION, GroupIdentifier, IRevertOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, GroupIdentifier, IRevertOptions, isResourceEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { AbstractResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { URI } from 'vs/base/common/uri';
@@ -182,12 +182,16 @@ export class TextResourceEditorInput extends AbstractTextResourceEditorInput imp
 	}
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
-		if (super.matches(otherInput)) {
+		if (this === otherInput) {
 			return true;
 		}
 
 		if (otherInput instanceof TextResourceEditorInput) {
 			return isEqual(otherInput.resource, this.resource);
+		}
+
+		if (isResourceEditorInput(otherInput)) {
+			return super.matches(otherInput);
 		}
 
 		return false;

@@ -10,7 +10,7 @@ import { MarkdownString as BaseMarkdownString } from 'vs/base/common/htmlContent
 import { ResourceMap } from 'vs/base/common/map';
 import { Mimes, normalizeMimeType } from 'vs/base/common/mime';
 import { nextCharLength } from 'vs/base/common/strings';
-import { isArray, isString, isStringArray } from 'vs/base/common/types';
+import { isString, isStringArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
@@ -737,40 +737,20 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
 	// --- notebook
 
-	replaceNotebookMetadata(uri: URI, value: Record<string, any>, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+	private replaceNotebookMetadata(uri: URI, value: Record<string, any>, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.DocumentMetadata, metadata: value }, notebookMetadata: value });
 	}
 
-	replaceNotebookCells(uri: URI, range: vscode.NotebookRange, cells: vscode.NotebookCellData[], metadata?: vscode.WorkspaceEditEntryMetadata): void;
-	replaceNotebookCells(uri: URI, start: number, end: number, cells: vscode.NotebookCellData[], metadata?: vscode.WorkspaceEditEntryMetadata): void;
-	replaceNotebookCells(uri: URI, startOrRange: number | vscode.NotebookRange, endOrCells: number | vscode.NotebookCellData[], cellsOrMetadata?: vscode.NotebookCellData[] | vscode.WorkspaceEditEntryMetadata, metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		let start: number | undefined;
-		let end: number | undefined;
-		let cellData: vscode.NotebookCellData[] = [];
-		let workspaceEditMetadata: vscode.WorkspaceEditEntryMetadata | undefined;
-
-		if (NotebookRange.isNotebookRange(startOrRange) && NotebookCellData.isNotebookCellDataArray(endOrCells) && !NotebookCellData.isNotebookCellDataArray(cellsOrMetadata)) {
-			start = startOrRange.start;
-			end = startOrRange.end;
-			cellData = endOrCells;
-			workspaceEditMetadata = cellsOrMetadata;
-		} else if (typeof startOrRange === 'number' && typeof endOrCells === 'number' && NotebookCellData.isNotebookCellDataArray(cellsOrMetadata)) {
-			start = startOrRange;
-			end = endOrCells;
-			cellData = cellsOrMetadata;
-			workspaceEditMetadata = metadata;
-		}
-
-		if (start === undefined || end === undefined) {
-			throw new Error('Invalid arguments');
-		}
+	private replaceNotebookCells(uri: URI, startOrRange: vscode.NotebookRange, cellData: vscode.NotebookCellData[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
+		const start = startOrRange.start;
+		const end = startOrRange.end;
 
 		if (start !== end || cellData.length > 0) {
-			this._edits.push({ _type: FileEditType.CellReplace, uri, index: start, count: end - start, cells: cellData, metadata: workspaceEditMetadata });
+			this._edits.push({ _type: FileEditType.CellReplace, uri, index: start, count: end - start, cells: cellData, metadata });
 		}
 	}
 
-	replaceNotebookCellMetadata(uri: URI, index: number, cellMetadata: Record<string, any>, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+	private replaceNotebookCellMetadata(uri: URI, index: number, cellMetadata: Record<string, any>, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.PartialMetadata, index, metadata: cellMetadata } });
 	}
 
@@ -2439,7 +2419,7 @@ export class TreeItem {
 			return true;
 		}
 		const treeItemThing = thing as vscode.TreeItem;
-		if (treeItemThing.label !== undefined && !isString(treeItemThing.label) && !(treeItemThing.label.label)) {
+		if (treeItemThing.label !== undefined && !isString(treeItemThing.label) && !(treeItemThing.label?.label)) {
 			console.log('INVALID tree item, invalid label', treeItemThing.label);
 			return false;
 		}
@@ -2447,9 +2427,12 @@ export class TreeItem {
 			console.log('INVALID tree item, invalid id', treeItemThing.id);
 			return false;
 		}
-		if ((treeItemThing.iconPath !== undefined) && !isString(treeItemThing.iconPath) && !URI.isUri(treeItemThing.iconPath) && !isString((treeItemThing.iconPath as vscode.ThemeIcon).id)) {
-			console.log('INVALID tree item, invalid iconPath', treeItemThing.iconPath);
-			return false;
+		if ((treeItemThing.iconPath !== undefined) && !isString(treeItemThing.iconPath) && !URI.isUri(treeItemThing.iconPath) && (!treeItemThing.iconPath || !isString((treeItemThing.iconPath as vscode.ThemeIcon).id))) {
+			const asLightAndDarkThing = treeItemThing.iconPath as { light: string | URI; dark: string | URI } | null;
+			if (!asLightAndDarkThing || (!isString(asLightAndDarkThing.light) && !URI.isUri(asLightAndDarkThing.light) && !isString(asLightAndDarkThing.dark) && !URI.isUri(asLightAndDarkThing.dark))) {
+				console.log('INVALID tree item, invalid iconPath', treeItemThing.iconPath);
+				return false;
+			}
 		}
 		if ((treeItemThing.description !== undefined) && !isString(treeItemThing.description) && (typeof treeItemThing.description !== 'boolean')) {
 			console.log('INVALID tree item, invalid description', treeItemThing.description);
@@ -2475,7 +2458,7 @@ export class TreeItem {
 			console.log('INVALID tree item, invalid contextValue', treeItemThing.contextValue);
 			return false;
 		}
-		if ((treeItemThing.accessibilityInformation !== undefined) && !treeItemThing.accessibilityInformation.label) {
+		if ((treeItemThing.accessibilityInformation !== undefined) && !treeItemThing.accessibilityInformation?.label) {
 			console.log('INVALID tree item, invalid accessibilityInformation', treeItemThing.accessibilityInformation);
 			return false;
 		}
@@ -3449,7 +3432,7 @@ export class NotebookCellOutput {
 		if (!candidate || typeof candidate !== 'object') {
 			return false;
 		}
-		return typeof (<NotebookCellOutput>candidate).id === 'string' && isArray((<NotebookCellOutput>candidate).items);
+		return typeof (<NotebookCellOutput>candidate).id === 'string' && Array.isArray((<NotebookCellOutput>candidate).items);
 	}
 
 	static ensureUniqueMimeTypes(items: NotebookCellOutputItem[], warn: boolean = false): NotebookCellOutputItem[] {
@@ -3531,11 +3514,11 @@ export enum NotebookControllerAffinity {
 
 export class NotebookRendererScript {
 
-	public provides: string[];
+	public provides: readonly string[];
 
 	constructor(
 		public uri: vscode.Uri,
-		provides: string | string[] = []
+		provides: string | readonly string[] = []
 	) {
 		this.provides = asArray(provides);
 	}

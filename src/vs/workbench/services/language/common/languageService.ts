@@ -254,4 +254,4 @@ function isValidLanguageExtensionPoint(value: IRawLanguageExtensionPoint, extens
 	return true;
 }
 
-registerSingleton(ILanguageService, WorkbenchLanguageService);
+registerSingleton(ILanguageService, WorkbenchLanguageService, false);

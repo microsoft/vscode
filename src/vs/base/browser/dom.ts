@@ -123,24 +123,6 @@ export function addDisposableGenericMouseUpListener(node: EventTarget, handler: 
 	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_UP : EventType.MOUSE_UP, handler, useCapture);
 }
 
-export function createEventEmitter<K extends keyof HTMLElementEventMap>(target: HTMLElement, type: K, options?: boolean | AddEventListenerOptions): event.Emitter<HTMLElementEventMap[K]> {
-	let domListener: DomListener | null = null;
-	const handler = (e: HTMLElementEventMap[K]) => result.fire(e);
-	const onFirstListenerAdd = () => {
-		if (!domListener) {
-			domListener = new DomListener(target, type, handler, options);
-		}
-	};
-	const onLastListenerRemove = () => {
-		if (domListener) {
-			domListener.dispose();
-			domListener = null;
-		}
-	};
-	const result = new event.Emitter<HTMLElementEventMap[K]>({ onFirstListenerAdd, onLastListenerRemove });
-	return result;
-}
-
 interface IRequestAnimationFrame {
 	(callback: (time: number) => void): number;
 }
@@ -363,16 +345,8 @@ class SizeUtils {
 	}
 
 	private static getDimension(element: HTMLElement, cssPropertyName: string, jsPropertyName: string): number {
-		const computedStyle: CSSStyleDeclaration = getComputedStyle(element);
-		let value = '0';
-		if (computedStyle) {
-			if (computedStyle.getPropertyValue) {
-				value = computedStyle.getPropertyValue(cssPropertyName);
-			} else {
-				// IE8
-				value = (<any>computedStyle).getAttribute(jsPropertyName);
-			}
-		}
+		const computedStyle = getComputedStyle(element);
+		const value = computedStyle ? computedStyle.getPropertyValue(cssPropertyName) : '0';
 		return SizeUtils.convertToPixels(element, value);
 	}
 
@@ -541,8 +515,8 @@ export function position(element: HTMLElement, top: number, right?: number, bott
 export function getDomNodePagePosition(domNode: HTMLElement): IDomNodePagePosition {
 	const bb = domNode.getBoundingClientRect();
 	return {
-		left: bb.left + StandardWindow.scrollX,
-		top: bb.top + StandardWindow.scrollY,
+		left: bb.left + window.scrollX,
+		top: bb.top + window.scrollY,
 		width: bb.width,
 		height: bb.height
 	};
@@ -566,30 +540,6 @@ export function getDomNodeZoomLevel(domNode: HTMLElement): number {
 	return zoom;
 }
 
-export interface IStandardWindow {
-	readonly scrollX: number;
-	readonly scrollY: number;
-}
-
-export const StandardWindow: IStandardWindow = new class implements IStandardWindow {
-	get scrollX(): number {
-		if (typeof window.scrollX === 'number') {
-			// modern browsers
-			return window.scrollX;
-		} else {
-			return document.body.scrollLeft + document.documentElement!.scrollLeft;
-		}
-	}
-
-	get scrollY(): number {
-		if (typeof window.scrollY === 'number') {
-			// modern browsers
-			return window.scrollY;
-		} else {
-			return document.body.scrollTop + document.documentElement!.scrollTop;
-		}
-	}
-};
 
 // Adapted from WinJS
 // Gets the width of the element, including margins.
@@ -892,22 +842,12 @@ export interface EventLike {
 }
 
 export const EventHelper = {
-	stop: function (e: EventLike, cancelBubble?: boolean) {
-		if (e.preventDefault) {
-			e.preventDefault();
-		} else {
-			// IE8
-			(<any>e).returnValue = false;
-		}
-
+	stop: <T extends EventLike>(e: T, cancelBubble?: boolean): T => {
+		e.preventDefault();
 		if (cancelBubble) {
-			if (e.stopPropagation) {
-				e.stopPropagation();
-			} else {
-				// IE8
-				(<any>e).cancelBubble = true;
-			}
+			e.stopPropagation();
 		}
+		return e;
 	}
 };
 
@@ -1149,16 +1089,10 @@ export function removeTabIndexAndUpdateFocus(node: HTMLElement): void {
 	// in the hierarchy of the parent DOM nodes.
 	if (document.activeElement === node) {
 		const parentFocusable = findParentWithAttribute(node.parentElement, 'tabIndex');
-		if (parentFocusable) {
-			parentFocusable.focus();
-		}
+		parentFocusable?.focus();
 	}
 
 	node.removeAttribute('tabindex');
-}
-
-export function getElementsByTagName(tag: string): HTMLElement[] {
-	return Array.prototype.slice.call(document.getElementsByTagName(tag), 0);
 }
 
 export function finalHandler<T extends Event>(fn: (event: T) => any): (event: T) => any {
@@ -1869,9 +1803,11 @@ export function h(tag: string, ...args: [] | [attributes: { $: string } & Partia
 					typeof cssValue === 'number' ? cssValue + 'px' : '' + cssValue
 				);
 			}
-			continue;
+		} else if (key === 'tabIndex') {
+			el.tabIndex = value;
+		} else {
+			el.setAttribute(camelCaseToHyphenCase(key), value.toString());
 		}
-		el.setAttribute(camelCaseToHyphenCase(key), value.toString());
 	}
 
 	result['root'] = el;

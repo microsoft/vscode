@@ -249,7 +249,7 @@ export class ConfigureTestProfilesAction extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.ConfigureTestProfilesAction,
-			title: localize('testing.configureProfile', 'Configure Test Profiles'),
+			title: { value: localize('testing.configureProfile', 'Configure Test Profiles'), original: 'Configure Test Profiles' },
 			icon: icons.testingUpdateProfiles,
 			f1: true,
 			category,

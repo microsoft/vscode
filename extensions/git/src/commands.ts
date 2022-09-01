@@ -408,7 +408,7 @@ export class CommandCenter {
 		}
 	}
 
-	@command('_git.openMergeEditor')
+	@command('git.openMergeEditor')
 	async openMergeEditor(uri: unknown) {
 		if (!(uri instanceof Uri)) {
 			return;
@@ -422,8 +422,8 @@ export class CommandCenter {
 
 		type InputData = { uri: Uri; title?: string; detail?: string; description?: string };
 		const mergeUris = toMergeUris(uri);
-		const ours: InputData = { uri: mergeUris.ours, title: localize('Yours', 'Yours') };
-		const theirs: InputData = { uri: mergeUris.theirs, title: localize('Theirs', 'Theirs') };
+		const current: InputData = { uri: mergeUris.ours, title: localize('Current', 'Current') };
+		const incoming: InputData = { uri: mergeUris.theirs, title: localize('Incoming', 'Incoming') };
 
 		try {
 			const [head, rebaseOrMergeHead] = await Promise.all([
@@ -431,12 +431,12 @@ export class CommandCenter {
 				isRebasing ? repo.getCommit('REBASE_HEAD') : repo.getCommit('MERGE_HEAD')
 			]);
 			// ours (current branch and commit)
-			ours.detail = head.refNames.map(s => s.replace(/^HEAD ->/, '')).join(', ');
-			ours.description = '$(git-commit) ' + head.hash.substring(0, 7);
+			current.detail = head.refNames.map(s => s.replace(/^HEAD ->/, '')).join(', ');
+			current.description = '$(git-commit) ' + head.hash.substring(0, 7);
 
 			// theirs
-			theirs.detail = rebaseOrMergeHead.refNames.join(', ');
-			theirs.description = '$(git-commit) ' + rebaseOrMergeHead.hash.substring(0, 7);
+			incoming.detail = rebaseOrMergeHead.refNames.join(', ');
+			incoming.description = '$(git-commit) ' + rebaseOrMergeHead.hash.substring(0, 7);
 
 		} catch (error) {
 			// not so bad, can continue with just uris
@@ -446,8 +446,8 @@ export class CommandCenter {
 
 		const options = {
 			base: mergeUris.base,
-			input1: isRebasing ? ours : theirs,
-			input2: isRebasing ? theirs : ours,
+			input1: isRebasing ? current : incoming,
+			input2: isRebasing ? incoming : current,
 			output: uri
 		};
 
@@ -457,7 +457,7 @@ export class CommandCenter {
 		);
 	}
 
-	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean } = {}): Promise<void> {
+	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean; ref?: string } = {}): Promise<void> {
 		if (!url || typeof url !== 'string') {
 			url = await pickRemoteSource({
 				providerLabel: provider => localize('clonefrom', "Clone from {0}", provider.name),
@@ -488,6 +488,7 @@ export class CommandCenter {
 				canSelectFolders: true,
 				canSelectMany: false,
 				defaultUri: Uri.file(defaultCloneDirectory),
+				title: localize('selectFolderTitle', "Choose a folder to clone {0} into", url),
 				openLabel: localize('selectFolder', "Select Repository Location")
 			});
 
@@ -517,6 +518,11 @@ export class CommandCenter {
 				opts,
 				(progress, token) => this.git.clone(url!, { parentPath: parentPath!, progress, recursive: options.recursive }, token)
 			);
+
+			if (options.ref !== undefined) {
+				const repository = this.model.getRepository(Uri.file(repositoryPath));
+				await repository?.checkout(options.ref);
+			}
 
 			const config = workspace.getConfiguration('git');
 			const openAfterClone = config.get<'always' | 'alwaysNewWindow' | 'whenNoFolderOpen' | 'prompt'>('openAfterClone');
@@ -595,8 +601,8 @@ export class CommandCenter {
 	}
 
 	@command('git.clone')
-	async clone(url?: string, parentPath?: string): Promise<void> {
-		await this.cloneRepository(url, parentPath);
+	async clone(url?: string, parentPath?: string, options?: { ref?: string }): Promise<void> {
+		await this.cloneRepository(url, parentPath, options);
 	}
 
 	@command('git.cloneRecursive')
@@ -1558,6 +1564,8 @@ export class CommandCenter {
 			// amend allows changing only the commit message
 			&& !opts.amend
 			&& !opts.empty
+			// rebase not in progress
+			&& repository.rebaseCommit === undefined
 		) {
 			const commitAnyway = localize('commit anyway', "Create Empty Commit");
 			const answer = await window.showInformationMessage(localize('no changes', "There are no changes to commit."), commitAnyway);
@@ -1631,13 +1639,6 @@ export class CommandCenter {
 		}
 
 		await repository.commit(message, opts);
-
-		// Execute post commit command
-		if (opts.postCommitCommand?.length) {
-			await commands.executeCommand(
-				opts.postCommitCommand,
-				new ApiRepository(repository));
-		}
 
 		return true;
 	}
@@ -1770,7 +1771,7 @@ export class CommandCenter {
 		const shouldPrompt = config.get<boolean>('confirmEmptyCommits') === true;
 
 		if (shouldPrompt) {
-			const message = localize('confirm emtpy commit', "Are you sure you want to create an empty commit?");
+			const message = localize('confirm empty commit', "Are you sure you want to create an empty commit?");
 			const yes = localize('yes', "Yes");
 			const neverAgain = localize('yes never again', "Yes, Don't Show Again");
 			const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);

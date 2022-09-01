@@ -153,6 +153,7 @@
 
 .search-view .message {
 	padding: 0 22px 8px;
+	overflow-wrap: break-word;
 }
 
 .search-view .message p:first-child {

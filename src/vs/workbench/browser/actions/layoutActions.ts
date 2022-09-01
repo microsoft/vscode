@@ -16,7 +16,7 @@ import { IsMacNativeContext } from 'vs/platform/contextkey/common/contextkeys';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation, IViewDescriptor, ViewContainerLocationToString } from 'vs/workbench/common/views';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { QuickPickItem, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ToggleAuxiliaryBarAction } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions';
@@ -81,7 +81,7 @@ export class ToggleActivityBarVisibilityAction extends Action2 {
 			id: ToggleActivityBarVisibilityAction.ID,
 			title: {
 				value: localize('toggleActivityBar', "Toggle Activity Bar Visibility"),
-				mnemonicTitle: localize({ key: 'miShowActivityBar', comment: ['&& denotes a mnemonic'] }, "Show &&Activity Bar"),
+				mnemonicTitle: localize({ key: 'miActivityBar', comment: ['&& denotes a mnemonic'] }, "&&Activity Bar"),
 				original: 'Toggle Activity Bar Visibility'
 			},
 			category: CATEGORIES.View,
@@ -406,7 +406,7 @@ MenuRegistry.appendMenuItems([
 			group: '2_workbench_layout',
 			command: {
 				id: ToggleSidebarVisibilityAction.ID,
-				title: localize({ key: 'miShowSidebar', comment: ['&& denotes a mnemonic'] }, "Show &&Primary Side Bar"),
+				title: localize({ key: 'miShowSidebar', comment: ['&& denotes a mnemonic'] }, "&&Primary Side Bar"),
 				toggled: SideBarVisibleContext
 			},
 			order: 1
@@ -417,7 +417,7 @@ MenuRegistry.appendMenuItems([
 			group: '0_workbench_layout',
 			command: {
 				id: ToggleSidebarVisibilityAction.ID,
-				title: localize('miShowSidebarNoMnnemonic', "Show Primary Side Bar"),
+				title: localize('miSidebarNoMnnemonic', "Primary Side Bar"),
 				toggled: SideBarVisibleContext
 			},
 			order: 0
@@ -464,7 +464,7 @@ export class ToggleStatusbarVisibilityAction extends Action2 {
 			id: ToggleStatusbarVisibilityAction.ID,
 			title: {
 				value: localize('toggleStatusbar', "Toggle Status Bar Visibility"),
-				mnemonicTitle: localize({ key: 'miShowStatusbar', comment: ['&& denotes a mnemonic'] }, "Show S&&tatus Bar"),
+				mnemonicTitle: localize({ key: 'miStatusbar', comment: ['&& denotes a mnemonic'] }, "S&&tatus Bar"),
 				original: 'Toggle Status Bar Visibility'
 			},
 			category: CATEGORIES.View,
@@ -573,7 +573,7 @@ if (isWindows || isLinux || isWeb) {
 				id: 'workbench.action.toggleMenuBar',
 				title: {
 					value: localize('toggleMenuBar', "Toggle Menu Bar"),
-					mnemonicTitle: localize({ key: 'miShowMenuBar', comment: ['&& denotes a mnemonic'] }, "Show Menu &&Bar"),
+					mnemonicTitle: localize({ key: 'miMenuBar', comment: ['&& denotes a mnemonic'] }, "Menu &&Bar"),
 					original: 'Toggle Menu Bar'
 				},
 				category: CATEGORIES.View,
@@ -596,7 +596,7 @@ if (isWindows || isLinux || isWeb) {
 	MenuRegistry.appendMenuItem(MenuId.TitleBarContext, {
 		command: {
 			id: 'workbench.action.toggleMenuBar',
-			title: localize('miShowMenuBarNoMnemonic', "Show Menu Bar"),
+			title: localize('miMenuBarNoMnemonic', "Menu Bar"),
 			toggled: ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'compact'))
 		},
 		order: 0
@@ -665,8 +665,8 @@ registerAction2(class extends Action2 {
 		} catch { }
 	}
 
-	private getViewItems(viewDescriptorService: IViewDescriptorService, paneCompositePartService: IPaneCompositePartService): Array<IQuickPickItem | IQuickPickSeparator> {
-		const results: Array<IQuickPickItem | IQuickPickSeparator> = [];
+	private getViewItems(viewDescriptorService: IViewDescriptorService, paneCompositePartService: IPaneCompositePartService): Array<QuickPickItem> {
+		const results: Array<QuickPickItem> = [];
 
 		const viewlets = paneCompositePartService.getVisiblePaneCompositeIds(ViewContainerLocation.Sidebar);
 		viewlets.forEach(viewletId => {
@@ -1209,7 +1209,7 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 		});
 	}
 
-	getItems(contextKeyService: IContextKeyService): (IQuickPickItem | IQuickPickSeparator)[] {
+	getItems(contextKeyService: IContextKeyService): QuickPickItem[] {
 		const toQuickPickItem = (item: CustomizeLayoutItem): IQuickPickItem => {
 			const toggled = item.active.evaluate(contextKeyService.getContext(null));
 			let label = item.useButtons ?

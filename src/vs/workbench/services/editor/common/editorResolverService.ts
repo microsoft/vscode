@@ -141,6 +141,11 @@ export interface IEditorResolverService {
 	readonly onDidChangeEditorRegistrations: Event<void>;
 
 	/**
+	 * Given a callback, run the callback pausing the registration emitter
+	 */
+	bufferChangeEvents(callback: Function): void;
+
+	/**
 	 * Registers a specific editor. Editors with the same glob pattern and ID will be grouped together by the resolver.
 	 * This allows for registration of the factories in different locations
 	 * @param globPattern The glob pattern for this registration
@@ -156,12 +161,12 @@ export interface IEditorResolverService {
 	): IDisposable;
 
 	/**
-	 * Given an editor resolves it to the suitable EditorInputWithOptionsAndGroup based on user extensions, settings, and built-in editors
+	 * Given an editor resolves it to the suitable ResolvedEitor based on user extensions, settings, and built-in editors
 	 * @param editor The editor to resolve
 	 * @param preferredGroup The group you want to open the editor in
 	 * @returns An EditorInputWithOptionsAndGroup if there is an available editor or a status of how to proceed
 	 */
-	resolveEditor(editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<ResolvedEditor>;
+	resolveEditor(editor: IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<ResolvedEditor>;
 
 	/**
 	 * Given a resource returns all the editor ids that match that resource. If there is exclusive editor we return an empty array

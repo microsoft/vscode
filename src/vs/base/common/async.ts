@@ -1389,7 +1389,7 @@ export class DeferredPromise<T> {
 		return this.rejected || this.resolved;
 	}
 
-	public p: Promise<T>;
+	public readonly p: Promise<T>;
 
 	constructor() {
 		this.p = new Promise<T>((c, e) => {

@@ -201,4 +201,4 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 	}
 }
 
-registerSingleton(ILifecycleService, BrowserLifecycleService);
+registerSingleton(ILifecycleService, BrowserLifecycleService, false);

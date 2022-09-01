@@ -8,8 +8,7 @@ import { Application, ApplicationOptions, Logger, Quality } from '../../../../au
 import { createApp, timeout, installDiagnosticsHandler, installAppAfterHandler, getRandomUserDataDir, suiteLogsPath, suiteCrashPath } from '../../utils';
 
 export function setup(ensureStableCode: () => string | undefined, logger: Logger) {
-	describe('Data Loss (insiders -> insiders)', () => {
-
+	describe('Data Loss (insiders -> insiders)', function () {
 		let app: Application | undefined = undefined;
 
 		// Shared before/after handling
@@ -130,8 +129,7 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 		}
 	});
 
-	describe('Data Loss (stable -> insiders)', () => {
-
+	describe('Data Loss (stable -> insiders)', function () {
 		let insidersApp: Application | undefined = undefined;
 		let stableApp: Application | undefined = undefined;
 

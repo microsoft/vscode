@@ -4,13 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CompareResult } from 'vs/base/common/arrays';
+import { BugIndicatingError } from 'vs/base/common/errors';
+import { toDisposable } from 'vs/base/common/lifecycle';
 import { autorun, derived } from 'vs/base/common/observable';
 import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { MergeMarkersController } from 'vs/workbench/contrib/mergeEditor/browser/mergeMarkers/mergeMarkersController';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 import { applyObservableDecorations, join } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from 'vs/workbench/contrib/mergeEditor/browser/view/colors';
+import { EditorGutter } from 'vs/workbench/contrib/mergeEditor/browser/view/editorGutter';
+import { ctxIsMergeResultEditor } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
 import { CodeEditorView } from './codeEditorView';
 
 export class ResultCodeEditorView extends CodeEditorView {
@@ -49,6 +55,9 @@ export class ResultCodeEditorView extends CodeEditorView {
 					if (modifiedBaseRange === activeModifiedBaseRange) {
 						blockClassNames.push('focused');
 					}
+					if (modifiedBaseRange.isConflicting) {
+						blockClassNames.push('conflicting');
+					}
 					blockClassNames.push('result');
 
 					result.push({
@@ -61,37 +70,40 @@ export class ResultCodeEditorView extends CodeEditorView {
 								position: MinimapPosition.Gutter,
 								color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
 							},
-							overviewRuler: {
+							overviewRuler: modifiedBaseRange.isConflicting ? {
 								position: OverviewRulerLane.Center,
 								color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
-							}
+							} : undefined
 						}
 					});
 				}
 			}
 
-			for (const diff of m.rights) {
-				const range = diff.outputRange.toInclusiveRange();
-				if (range) {
-					result.push({
-						range,
-						options: {
-							className: `merge-editor-diff result`,
-							description: 'Merge Editor',
-							isWholeLine: true,
-						}
-					});
-				}
 
-				if (diff.rangeMappings) {
-					for (const d of diff.rangeMappings) {
+			if (!modifiedBaseRange || modifiedBaseRange.isConflicting) {
+				for (const diff of m.rights) {
+					const range = diff.outputRange.toInclusiveRange();
+					if (range) {
 						result.push({
-							range: d.outputRange,
+							range,
 							options: {
-								className: `merge-editor-diff-word result`,
-								description: 'Merge Editor'
+								className: `merge-editor-diff result`,
+								description: 'Merge Editor',
+								isWholeLine: true,
 							}
 						});
+					}
+
+					if (diff.rangeMappings) {
+						for (const d of diff.rangeMappings) {
+							result.push({
+								range: d.outputRange,
+								options: {
+									className: `merge-editor-diff-word result`,
+									description: 'Merge Editor'
+								}
+							});
+						}
 					}
 				}
 			}
@@ -104,10 +116,31 @@ export class ResultCodeEditorView extends CodeEditorView {
 	) {
 		super(instantiationService);
 
+		this.editor.invokeWithinContext(accessor => {
+			const contextKeyService = accessor.get(IContextKeyService);
+			const isMergeResultEditor = ctxIsMergeResultEditor.bindTo(contextKeyService);
+			isMergeResultEditor.set(true);
+			this._register(toDisposable(() => isMergeResultEditor.reset()));
+		});
+
 		this._register(applyObservableDecorations(this.editor, this.decorations));
 
+		this._register(new MergeMarkersController(this.editor, this.viewModel));
+
+		this.htmlElements.gutterDiv.style.width = '5px';
+
+		this._register(
+			new EditorGutter(this.editor, this.htmlElements.gutterDiv, {
+				getIntersectingGutterItems: (range, reader) => [],
+				createView: (item, target) => { throw new BugIndicatingError(); },
+			})
+		);
 
 		this._register(autorun('update remainingConflicts label', reader => {
+			// this is a bit of a hack, but it's the easiest way to get the label to update
+			// when the view model updates, as the the base class resets the label in the setModel call.
+			this.viewModel.read(reader);
+
 			const model = this.model.read(reader);
 			if (!model) {
 				return;

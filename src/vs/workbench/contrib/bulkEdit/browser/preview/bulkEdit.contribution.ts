@@ -189,9 +189,7 @@ registerAction2(class ApplyAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<any> {
 		const viewsService = accessor.get(IViewsService);
 		const view = await getBulkEditPane(viewsService);
-		if (view) {
-			view.accept();
-		}
+		view?.accept();
 	}
 });
 
@@ -215,9 +213,7 @@ registerAction2(class DiscardAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const viewsService = accessor.get(IViewsService);
 		const view = await getBulkEditPane(viewsService);
-		if (view) {
-			view.discard();
-		}
+		view?.discard();
 	}
 });
 
@@ -246,9 +242,7 @@ registerAction2(class ToggleAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const viewsService = accessor.get(IViewsService);
 		const view = await getBulkEditPane(viewsService);
-		if (view) {
-			view.toggleChecked();
-		}
+		view?.toggleChecked();
 	}
 });
 
@@ -275,9 +269,7 @@ registerAction2(class GroupByFile extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const viewsService = accessor.get(IViewsService);
 		const view = await getBulkEditPane(viewsService);
-		if (view) {
-			view.groupByFile();
-		}
+		view?.groupByFile();
 	}
 });
 
@@ -302,9 +294,7 @@ registerAction2(class GroupByType extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const viewsService = accessor.get(IViewsService);
 		const view = await getBulkEditPane(viewsService);
-		if (view) {
-			view.groupByType();
-		}
+		view?.groupByType();
 	}
 });
 
@@ -328,14 +318,14 @@ registerAction2(class ToggleGrouping extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const viewsService = accessor.get(IViewsService);
 		const view = await getBulkEditPane(viewsService);
-		if (view) {
-			view.toggleGrouping();
-		}
+		view?.toggleGrouping();
 	}
 });
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
-	BulkEditPreviewContribution, LifecyclePhase.Ready
+	BulkEditPreviewContribution,
+	'BulkEditPreviewContribution',
+	LifecyclePhase.Ready
 );
 
 const refactorPreviewViewIcon = registerIcon('refactor-preview-view-icon', Codicon.lightbulb, localize('refactorPreviewViewIcon', 'View icon of the refactor preview view.'));
@@ -346,7 +336,7 @@ const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.V
 	hideIfEmpty: true,
 	ctorDescriptor: new SyncDescriptor(
 		ViewPaneContainer,
-		[BulkEditPane.ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]
+		[BulkEditPane.ID, { mergeViewWithContainerWhenSingleView: true }]
 	),
 	icon: refactorPreviewViewIcon,
 	storageId: BulkEditPane.ID

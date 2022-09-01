@@ -42,7 +42,7 @@ export class BinarySizeStatusBarEntry extends PreviewStatusBarEntry {
 		super('status.imagePreview.binarySize', localize('sizeStatusBar.name', "Image Binary Size"), vscode.StatusBarAlignment.Right, 100);
 	}
 
-	public show(owner: string, size: number | undefined) {
+	public show(owner: unknown, size: number | undefined) {
 		if (typeof size === 'number') {
 			super.showItem(owner, BinarySize.formatSize(size));
 		} else {

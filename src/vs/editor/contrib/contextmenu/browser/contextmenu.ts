@@ -274,8 +274,7 @@ export class ContextMenuController implements IEditorContribution {
 				class: undefined,
 				enabled: (typeof opts.enabled === 'undefined' ? true : opts.enabled),
 				checked: opts.checked,
-				run: opts.run,
-				dispose: () => null
+				run: opts.run
 			};
 		};
 		const createSubmenuAction = (label: string, actions: IAction[]): SubmenuAction => {
@@ -311,7 +310,7 @@ export class ContextMenuController implements IEditorContribution {
 
 		const actions: IAction[] = [];
 		actions.push(createAction({
-			label: nls.localize('context.minimap.showMinimap', "Show Minimap"),
+			label: nls.localize('context.minimap.minimap', "Minimap"),
 			checked: minimapOptions.enabled,
 			run: () => {
 				this._configurationService.updateValue(`editor.minimap.enabled`, !minimapOptions.enabled);

@@ -12,7 +12,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
-import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
 import { Constants } from 'vs/base/common/uint';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -76,8 +75,8 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 	private generation = 0;
 	private readonly changeEmitter = new Emitter<void>();
 	private readonly decorationCache = new ResourceMap<{
-		/** Whether tests in the resource have been updated, requiring rerendering */
-		testRangesUpdated: boolean;
+		/** The document version at which ranges have been updated, requiring rerendering */
+		rangeUpdateVersionId?: number;
 		/** Counter for the results rendered in the document */
 		generation: number;
 		value: TestDecorations<ITestDecoration>;
@@ -116,16 +115,14 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 		// is up to date. This prevents issues, as in #138632, #138835, #138922.
 		this._register(this.testService.onWillProcessDiff(diff => {
 			for (const entry of diff) {
-				let uri: URI | undefined | null;
-				if (entry.op === TestDiffOpType.Add || entry.op === TestDiffOpType.Update) {
-					uri = entry.item.item?.uri;
-				} else if (entry.op === TestDiffOpType.Remove) {
-					uri = this.testService.collection.getNodeById(entry.itemId)?.item.uri;
+				if (entry.op !== TestDiffOpType.Update || entry.item.docv === undefined || entry.item.item?.range === undefined) {
+					continue;
 				}
 
+				const uri = this.testService.collection.getNodeById(entry.item.extId)?.item.uri;
 				const rec = uri && this.decorationCache.get(uri);
 				if (rec) {
-					rec.testRangesUpdated = true;
+					rec.rangeUpdateVersionId = entry.item.docv;
 				}
 			}
 
@@ -161,7 +158,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 		}
 
 		const cached = this.decorationCache.get(resource);
-		if (cached && cached.generation === this.generation && !cached.testRangesUpdated) {
+		if (cached && cached.generation === this.generation && (cached.rangeUpdateVersionId === undefined || cached.rangeUpdateVersionId !== model.getVersionId())) {
 			return cached.value;
 		}
 
@@ -195,7 +192,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 		const gutterEnabled = getTestingConfiguration(this.configurationService, TestingConfigKeys.GutterEnabled);
 		const uriStr = model.uri.toString();
 		const cached = this.decorationCache.get(model.uri);
-		const testRangesUpdated = cached?.testRangesUpdated;
+		const testRangesUpdated = cached?.rangeUpdateVersionId === model.getVersionId();
 		const lastDecorations = cached?.value ?? new TestDecorations();
 		const newDecorations = new TestDecorations<ITestDecoration>();
 
@@ -299,7 +296,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 
 			this.decorationCache.set(model.uri, {
 				generation: this.generation,
-				testRangesUpdated: false,
+				rangeUpdateVersionId: cached?.rangeUpdateVersionId,
 				value: newDecorations,
 			});
 		});
@@ -440,6 +437,7 @@ const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[]
 	let computedState = TestResultState.Unset;
 	const hoverMessageParts: string[] = [];
 	let testIdWithMessages: string | undefined;
+	let retired = false;
 	for (let i = 0; i < tests.length; i++) {
 		const test = tests[i];
 		const resultItem = states[i];
@@ -448,6 +446,7 @@ const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[]
 			hoverMessageParts.push(labelForTestInState(test.item.label, state));
 		}
 		computedState = maxPriority(computedState, state);
+		retired = retired || !!resultItem?.retired;
 		if (!testIdWithMessages && resultItem?.tasks.some(t => t.messages.length)) {
 			testIdWithMessages = test.item.extId;
 		}
@@ -460,7 +459,10 @@ const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[]
 
 	let hoverMessage: IMarkdownString | undefined;
 
-	const glyphMarginClassName = ThemeIcon.asClassName(icon) + ' testing-run-glyph';
+	let glyphMarginClassName = ThemeIcon.asClassName(icon) + ' testing-run-glyph';
+	if (retired) {
+		glyphMarginClassName += ' retired';
+	}
 
 	return {
 		range: firstLineRange(range),
@@ -778,18 +780,18 @@ abstract class RunTestDecoration {
 			() => this.commandService.executeCommand('_revealTestInExplorer', test.item.extId)));
 
 		const contributed = this.getContributedTestActions(test, capabilities);
-		return { object: Separator.join(testActions, contributed.object), dispose: contributed.dispose };
+		return { object: Separator.join(testActions, contributed), dispose() { } };
 	}
 
-	private getContributedTestActions(test: InternalTestItem, capabilities: number): IReference<IAction[]> {
+	private getContributedTestActions(test: InternalTestItem, capabilities: number): IAction[] {
 		const contextOverlay = this.contextKeyService.createOverlay(getTestItemContextOverlay(test, capabilities));
 		const menu = this.menuService.createMenu(MenuId.TestItemGutter, contextOverlay);
 
 		try {
 			const target: IAction[] = [];
 			const arg = getContextForTestItem(this.testService.collection, test.item.extId);
-			const actionsDisposable = createAndFillInContextMenuActions(menu, { shouldForwardArgs: true, arg }, target);
-			return { object: target, dispose: () => actionsDisposable.dispose };
+			createAndFillInContextMenuActions(menu, { shouldForwardArgs: true, arg }, target);
+			return target;
 		} finally {
 			menu.dispose();
 		}
@@ -815,11 +817,39 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 			allActions.push(new Action('testing.gutter.debugAll', localize('debug all test', 'Debug All Tests'), undefined, undefined, () => this.defaultDebug()));
 		}
 
+		const testItems = this.tests.map(testItem => ({
+			currentLabel: testItem.test.item.label,
+			testItem,
+			parent: testItem.test.parent,
+		}));
+
+		const getLabelConflicts = (tests: typeof testItems) => {
+			const labelCount = new Map<string, number>();
+			for (const test of tests) {
+				labelCount.set(test.currentLabel, (labelCount.get(test.currentLabel) || 0) + 1);
+			}
+
+			return tests.filter(e => labelCount.get(e.currentLabel)! > 1);
+		};
+
+		let conflicts, hasParent = true;
+		while ((conflicts = getLabelConflicts(testItems)).length && hasParent) {
+			for (const conflict of conflicts) {
+				if (conflict.parent) {
+					const parent = this.testService.collection.getNodeById(conflict.parent);
+					conflict.currentLabel = parent?.item.label + ' > ' + conflict.currentLabel;
+					conflict.parent = parent?.parent ? parent.parent : null;
+				} else {
+					hasParent = false;
+				}
+			}
+		}
+
 		const disposable = new DisposableStore();
-		const testSubmenus = this.tests.map(({ test, resultItem }) => {
-			const actions = this.getTestContextMenuActions(test, resultItem);
+		const testSubmenus = testItems.map(({ currentLabel, testItem }) => {
+			const actions = this.getTestContextMenuActions(testItem.test, testItem.resultItem);
 			disposable.add(actions);
-			return new SubmenuAction(test.item.extId, stripIcons(test.item.label), actions.object);
+			return new SubmenuAction(testItem.test.item.extId, stripIcons(currentLabel), actions.object);
 		});
 
 		return { object: Separator.join(allActions, testSubmenus), dispose: () => disposable.dispose() };
@@ -873,7 +903,7 @@ class TestMessageDecoration implements ITestDecoration {
 		this.location = testMessage.location!;
 		this.line = this.location.range.startLineNumber;
 		const severity = testMessage.type;
-		const message = typeof testMessage.message === 'string' ? removeAnsiEscapeCodes(testMessage.message) : testMessage.message;
+		const message = testMessage.message;
 
 		const options = editorService.resolveDecorationOptions(TestMessageDecoration.decorationId, true);
 		options.hoverMessage = typeof message === 'string' ? new MarkdownString().appendText(message) : message;

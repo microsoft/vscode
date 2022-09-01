@@ -762,7 +762,7 @@ export class SuggestWidget implements IDisposable {
 		let width = size.width;
 
 		// status bar
-		this._status.element.style.lineHeight = `${info.itemHeight}px`;
+		this._status.element.style.height = `${info.itemHeight}px`;
 
 		if (this._state === State.Empty || this._state === State.Loading) {
 			// showing a message only

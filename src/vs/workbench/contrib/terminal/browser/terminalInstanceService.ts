@@ -16,6 +16,7 @@ import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 export class TerminalInstanceService extends Disposable implements ITerminalInstanceService {
 	declare _serviceBrand: undefined;
@@ -32,7 +33,8 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@ILifecycleService private readonly _lifecycleService: ILifecycleService
 	) {
 		super();
 		this._terminalFocusContextKey = TerminalContextKeys.focus.bindTo(this._contextKeyService);
@@ -94,7 +96,8 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		return {};
 	}
 
-	getBackend(remoteAuthority?: string): ITerminalBackend | undefined {
+	async getBackend(remoteAuthority?: string): Promise<ITerminalBackend | undefined> {
+		await this._lifecycleService.when(LifecyclePhase.Restored);
 		return Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).getTerminalBackend(remoteAuthority);
 	}
 }

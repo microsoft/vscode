@@ -258,6 +258,12 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}));
 
 		this._register(this._lifecycleService.onDidShutdown(() => {
+			// We need to disconnect the management connection before killing the local extension host.
+			// Otherwise, the local extension host might terminate the underlying tunnel before the
+			// management connection has a chance to send its disconnection message.
+			const connection = this._remoteAgentService.getConnection();
+			connection?.dispose();
+
 			this.stopExtensionHosts();
 		}));
 	}
@@ -538,9 +544,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			}
 		} finally {
 			this._inHandleDeltaExtensions = false;
-			if (lock) {
-				lock.dispose();
-			}
+			lock?.dispose();
 		}
 	}
 
@@ -1190,7 +1194,9 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		perf.mark('code/willHandleExtensionPoints');
 		for (const extensionPoint of extensionPoints) {
 			if (affectedExtensionPoints[extensionPoint.name]) {
+				perf.mark(`code/willHandleExtensionPoint/${extensionPoint.name}`);
 				AbstractExtensionService._handleExtensionPoint(extensionPoint, availableExtensions, messageHandler);
+				perf.mark(`code/didHandleExtensionPoint/${extensionPoint.name}`);
 			}
 		}
 		perf.mark('code/didHandleExtensionPoints');

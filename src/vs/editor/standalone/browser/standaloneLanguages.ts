@@ -526,12 +526,13 @@ export function registerCodeActionProvider(languageSelector: LanguageSelector, p
 	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
 	return languageFeaturesService.codeActionProvider.register(languageSelector, {
 		providedCodeActionKinds: metadata?.providedCodeActionKinds,
+		documentation: metadata?.documentation,
 		provideCodeActions: (model: model.ITextModel, range: Range, context: languages.CodeActionContext, token: CancellationToken): languages.ProviderResult<languages.CodeActionList> => {
 			const markerService = StandaloneServices.get(IMarkerService);
 			const markers = markerService.read({ resource: model.uri }).filter(m => {
 				return Range.areIntersectingOrTouching(m, range);
 			});
-			return provider.provideCodeActions(model, range, { markers, only: context.only }, token);
+			return provider.provideCodeActions(model, range, { markers, only: context.only, trigger: context.trigger }, token);
 		},
 		resolveCodeAction: provider.resolveCodeAction
 	});
@@ -664,6 +665,11 @@ export interface CodeActionContext {
 	 * Requested kind of actions to return.
 	 */
 	readonly only?: string;
+
+	/**
+	 * The reason why code actions were requested.
+	 */
+	readonly trigger: languages.CodeActionTriggerType;
 }
 
 /**
@@ -697,6 +703,8 @@ export interface CodeActionProviderMetadata {
 	 * such as `["quickfix.removeLine", "source.fixAll" ...]`.
 	 */
 	readonly providedCodeActionKinds?: readonly string[];
+
+	readonly documentation?: ReadonlyArray<{ readonly kind: string; readonly command: languages.Command }>;
 }
 
 /**
@@ -753,6 +761,7 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		SignatureHelpTriggerKind: standaloneEnums.SignatureHelpTriggerKind,
 		InlayHintKind: standaloneEnums.InlayHintKind,
 		InlineCompletionTriggerKind: standaloneEnums.InlineCompletionTriggerKind,
+		CodeActionTriggerType: standaloneEnums.CodeActionTriggerType,
 
 		// classes
 		FoldingRangeKind: languages.FoldingRangeKind,

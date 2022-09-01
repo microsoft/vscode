@@ -35,7 +35,7 @@ Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(EditorWalkThroughInputSerializer.ID, EditorWalkThroughInputSerializer);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WalkThroughSnippetContentProvider, LifecyclePhase.Starting);
+	.registerWorkbenchContribution(WalkThroughSnippetContentProvider, 'WalkThroughSnippetContentProvider', LifecyclePhase.Starting);
 
 KeybindingsRegistry.registerCommandAndKeybindingRule(WalkThroughArrowUp);
 

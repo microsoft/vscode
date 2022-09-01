@@ -31,7 +31,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
-		super(findState, { showOptionButtons: true, showResultCount: true, type: 'Terminal' }, _contextViewService, _contextKeyService, keybindingService);
+		super(findState, { showCommonFindToggles: true, showResultCount: true, type: 'Terminal' }, _contextViewService, _contextKeyService, keybindingService);
 
 		this._register(findState.onFindReplaceStateChange(() => {
 			this.show();
@@ -87,9 +87,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		super.hide();
 		this._findWidgetVisible.reset();
 		const instance = this._terminalService.activeInstance;
-		if (instance) {
-			instance.focus();
-		}
+		instance?.focus();
 		// Terminals in a group currently share a find widget, so hide
 		// all decorations for terminals in this group
 		const activeGroup = this._terminalGroupService.activeGroup;
