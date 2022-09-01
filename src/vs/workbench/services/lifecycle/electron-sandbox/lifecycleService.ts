@@ -192,4 +192,4 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 	}
 }
 
-registerSingleton(ILifecycleService, NativeLifecycleService);
+registerSingleton(ILifecycleService, NativeLifecycleService, false);

@@ -6,7 +6,7 @@
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { Action, IAction } from 'vs/base/common/actions';
 import { distinct } from 'vs/base/common/arrays';
-import { Queue, raceTimeout, RunOnceScheduler } from 'vs/base/common/async';
+import { raceTimeout, RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isErrorWithActions } from 'vs/base/common/errorMessage';
 import * as errors from 'vs/base/common/errors';
@@ -84,8 +84,6 @@ export class DebugService implements IDebugService {
 	private sessionCancellationTokens = new Map<string, CancellationTokenSource>();
 	private activity: IDisposable | undefined;
 	private chosenEnvironments: { [key: string]: string };
-
-	private configResolverQueue = new Queue<IConfig | null | undefined>();
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -447,7 +445,7 @@ export class DebugService implements IDebugService {
 		const sessionId = generateUuid();
 		this.sessionCancellationTokens.set(sessionId, initCancellationToken);
 
-		const configByProviders = await this.configResolverQueue.queue(() => this.configurationManager.resolveConfigurationByProviders(launch && launch.workspace ? launch.workspace.uri : undefined, type, config!, initCancellationToken.token));
+		const configByProviders = await this.configurationManager.resolveConfigurationByProviders(launch && launch.workspace ? launch.workspace.uri : undefined, type, config!, initCancellationToken.token);
 		// a falsy config indicates an aborted launch
 		if (configByProviders && configByProviders.type) {
 			try {
@@ -468,7 +466,7 @@ export class DebugService implements IDebugService {
 					return false;
 				}
 
-				const cfg = await this.configResolverQueue.queue(() => this.configurationManager.resolveDebugConfigurationWithSubstitutedVariables(launch && launch.workspace ? launch.workspace.uri : undefined, type, resolvedConfig!, initCancellationToken.token));
+				const cfg = await this.configurationManager.resolveDebugConfigurationWithSubstitutedVariables(launch && launch.workspace ? launch.workspace.uri : undefined, type, resolvedConfig, initCancellationToken.token);
 				if (!cfg) {
 					if (launch && type && cfg === null && !initCancellationToken.token.isCancellationRequested) {	// show launch.json only for "config" being "null".
 						await launch.openConfigFile({ preserveFocus: true, type }, initCancellationToken.token);
@@ -753,11 +751,11 @@ export class DebugService implements IDebugService {
 		if (launch && needsToSubstitute && unresolved) {
 			const initCancellationToken = new CancellationTokenSource();
 			this.sessionCancellationTokens.set(session.getId(), initCancellationToken);
-			const resolvedByProviders = await this.configResolverQueue.queue(() => this.configurationManager.resolveConfigurationByProviders(launch.workspace ? launch.workspace.uri : undefined, unresolved!.type, unresolved!, initCancellationToken.token));
+			const resolvedByProviders = await this.configurationManager.resolveConfigurationByProviders(launch.workspace ? launch.workspace.uri : undefined, unresolved.type, unresolved, initCancellationToken.token);
 			if (resolvedByProviders) {
 				resolved = await this.substituteVariables(launch, resolvedByProviders);
 				if (resolved && !initCancellationToken.token.isCancellationRequested) {
-					resolved = await this.configResolverQueue.queue(() => this.configurationManager.resolveDebugConfigurationWithSubstitutedVariables(launch && launch.workspace ? launch.workspace.uri : undefined, unresolved!.type, resolved!, initCancellationToken.token));
+					resolved = await this.configurationManager.resolveDebugConfigurationWithSubstitutedVariables(launch && launch.workspace ? launch.workspace.uri : undefined, unresolved.type, resolved, initCancellationToken.token);
 				}
 			} else {
 				resolved = resolvedByProviders;
@@ -824,7 +822,7 @@ export class DebugService implements IDebugService {
 		return Promise.all(sessions.map(s => disconnect ? s.disconnect(undefined, suspend) : s.terminate()));
 	}
 
-	private async substituteVariables(launch: ILaunch | undefined, config: IConfig): Promise<IConfig | null | undefined> {
+	private async substituteVariables(launch: ILaunch | undefined, config: IConfig): Promise<IConfig | undefined> {
 		const dbg = this.adapterManager.getDebugger(config.type);
 		if (dbg) {
 			let folder: IWorkspaceFolder | undefined = undefined;
@@ -837,7 +835,7 @@ export class DebugService implements IDebugService {
 				}
 			}
 			try {
-				return this.configResolverQueue.queue(() => dbg.substituteVariables(folder, config));
+				return await dbg.substituteVariables(folder, config);
 			} catch (err) {
 				this.showError(err.message, undefined, !!launch?.getConfiguration(config.name));
 				return undefined;	// bail out

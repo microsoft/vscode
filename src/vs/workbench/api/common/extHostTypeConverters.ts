@@ -1763,7 +1763,7 @@ export namespace TestItem {
 			extId: TestId.fromExtHostTestItem(item, ctrlId).toString(),
 			label: item.label,
 			uri: URI.revive(item.uri),
-			busy: false,
+			busy: item.busy,
 			tags: item.tags.map(t => TestTag.namespace(ctrlId, t.id)),
 			range: editorRange.Range.lift(Range.from(item.range)),
 			description: item.description || null,
@@ -1794,7 +1794,7 @@ export namespace TestItem {
 			},
 			range: Range.to(item.range || undefined),
 			canResolveChildren: false,
-			busy: false,
+			busy: item.busy,
 			description: item.description || undefined,
 			sortText: item.sortText || undefined,
 		};

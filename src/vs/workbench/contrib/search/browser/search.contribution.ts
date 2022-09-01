@@ -682,7 +682,7 @@ class RegisterSearchViewContribution implements IWorkbenchContribution {
 			.registerConfigurationMigrations([{ key: 'search.location', migrateFn: (value: any) => ({ value: undefined }) }]);
 	}
 }
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(RegisterSearchViewContribution, LifecyclePhase.Starting);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(RegisterSearchViewContribution, 'RegisterSearchViewContribution', LifecyclePhase.Starting);
 
 // Actions
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);

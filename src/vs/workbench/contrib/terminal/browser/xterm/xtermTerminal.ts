@@ -394,7 +394,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		let endSpaces = 0;
 		// line.length may exceed cols as it doesn't necessarily trim the backing array on resize
 		for (let i = Math.min(line.length, this.raw.cols) - 1; i >= 0; i--) {
-			if (line && !line?.getCell(i)?.getChars()) {
+			if (!line?.getCell(i)?.getChars()) {
 				endSpaces++;
 			} else {
 				break;

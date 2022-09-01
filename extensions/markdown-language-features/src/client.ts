@@ -35,7 +35,6 @@ export async function startClient(factory: LanguageClientConstructor, workspace:
 		},
 		diagnosticPullOptions: {
 			onChange: true,
-			onSave: true,
 			onTabs: true,
 			match(_documentSelector, resource) {
 				return looksLikeMarkdownPath(resource);

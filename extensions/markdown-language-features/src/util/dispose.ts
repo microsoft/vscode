@@ -5,14 +5,6 @@
 
 import * as vscode from 'vscode';
 
-export class MultiDisposeError extends Error {
-	constructor(
-		public readonly errors: any[]
-	) {
-		super(`Encountered errors while disposing of store. Errors: [${errors.join(', ')}]`);
-	}
-}
-
 export function disposeAll(disposables: Iterable<vscode.Disposable>) {
 	const errors: any[] = [];
 
@@ -27,7 +19,7 @@ export function disposeAll(disposables: Iterable<vscode.Disposable>) {
 	if (errors.length === 1) {
 		throw errors[0];
 	} else if (errors.length > 1) {
-		throw new MultiDisposeError(errors);
+		throw new AggregateError(errors, 'Encountered errors while disposing of store');
 	}
 }
 

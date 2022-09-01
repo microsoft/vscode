@@ -96,4 +96,4 @@ export class BrowserUpdateService extends Disposable implements IUpdateService {
 	}
 }
 
-registerSingleton(IUpdateService, BrowserUpdateService);
+registerSingleton(IUpdateService, BrowserUpdateService, false);
