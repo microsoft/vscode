@@ -2792,6 +2792,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!this._canRunCommand()) {
 			return;
 		}
+
 		const identifier = this._getTaskIdentifier(arg);
 		const type = arg && typeof arg !== 'string' && 'type' in arg ? arg.type : undefined;
 		const task = arg && typeof arg !== 'string' && 'task' in arg ? arg.task : arg === 'string' ? arg : undefined;
@@ -2803,7 +2804,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					folderURIs.push(this._contextService.getWorkspace().configuration!);
 				}
 				folderURIs.push(USER_TASKS_GROUP_KEY);
-
+				// match by identifier
 				for (const uri of folderURIs) {
 					const task = await resolver.resolve(uri, identifier);
 					if (task) {
@@ -2811,15 +2812,16 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						return;
 					}
 				}
+				// match by label
 				if (!!task) {
-					const taskToRun = grouped.all().find(g => g._label === task || g._id === task || g.getDefinition(true)?._key === task);
+					const taskToRun = grouped.all().find(g => g._label === task);
 					if (taskToRun) {
-						this.run(task).then(undefined, () => { });
+						this.run(taskToRun).then(undefined, () => { });
 						return;
 					}
-				} else {
-					this._doRunTaskCommand(grouped.all(), type, task);
 				}
+				// if task is defined, will be used as a filter
+				this._doRunTaskCommand(grouped.all(), type, task);
 			}, () => {
 				this._doRunTaskCommand();
 			});
