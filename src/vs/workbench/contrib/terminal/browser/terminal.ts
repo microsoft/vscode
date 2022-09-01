@@ -860,7 +860,16 @@ export interface ITerminalInstance {
 
 	setEscapeSequenceLogging(enable: boolean): void;
 
+	/**
+	 * Gets the initial current working directory, fetching it from the backend if required.
+	 */
 	getInitialCwd(): Promise<string>;
+
+	/**
+	 * Gets the current working directory from cwd detection capabilities if available, otherwise
+	 * from the backend. This will return the initial cwd if cwd detection is not available (ie.
+	 * on Windows when shell integration is disabled).
+	 */
 	getCwd(): Promise<string>;
 
 	refreshProperty<T extends ProcessPropertyType>(type: T): Promise<IProcessPropertyMap[T]>;
