@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, ok, strictEqual } from 'assert';
+import { userInfo } from 'os';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
 import { getShellIntegrationInjection, IShellIntegrationConfigInjection } from 'vs/platform/terminal/node/terminalEnvironment';
@@ -94,8 +95,14 @@ suite('platform - terminalEnvironment', () => {
 		if (process.platform !== 'win32') {
 			suite('zsh', () => {
 				suite('should override args', () => {
-					const expectedDir = /.+\/vscode-zsh/;
-					const expectedDests = [/.+\/vscode-zsh\/.zshrc/, /.+\/vscode-zsh\/.zprofile/, /.+\/vscode-zsh\/.zshenv/, /.+\/vscode-zsh\/.zlogin/];
+					const username = userInfo().username;
+					const expectedDir = new RegExp(`.+\/${username}-vscode-zsh`);
+					const expectedDests = [
+						new RegExp(`.+\/${username}-vscode-zsh\/\.zshrc`),
+						new RegExp(`.+\/${username}-vscode-zsh\/\.zprofile`),
+						new RegExp(`.+\/${username}-vscode-zsh\/\.zshenv`),
+						new RegExp(`.+\/${username}-vscode-zsh\/\.zlogin`)
+					];
 					const expectedSources = [
 						/.+\/out\/vs\/workbench\/contrib\/terminal\/browser\/media\/shellIntegration-rc.zsh/,
 						/.+\/out\/vs\/workbench\/contrib\/terminal\/browser\/media\/shellIntegration-profile.zsh/,

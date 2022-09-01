@@ -75,7 +75,7 @@ export class NotebookGettingStarted extends Disposable implements IWorkbenchCont
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(NotebookGettingStarted, LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(NotebookGettingStarted, 'NotebookGettingStarted', LifecyclePhase.Restored);
 
 registerAction2(class NotebookClearNotebookLayoutAction extends Action2 {
 	constructor() {

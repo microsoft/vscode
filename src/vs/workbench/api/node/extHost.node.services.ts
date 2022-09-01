@@ -30,7 +30,7 @@ import { IExtHostVariableResolverProvider } from 'vs/workbench/api/common/extHos
 // #########################################################################
 
 registerSingleton(IExtHostExtensionService, ExtHostExtensionService, false);
-registerSingleton(ILoggerService, ExtHostLoggerService, false);
+registerSingleton(ILoggerService, ExtHostLoggerService, true);
 registerSingleton(IExtensionStoragePaths, ExtensionStoragePaths, false);
 
 registerSingleton(IExtHostDebugService, ExtHostDebugService, false);

@@ -67,9 +67,9 @@ class ExtensionsContributions implements IWorkbenchContribution {
 }
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(ExtensionsContributions, LifecyclePhase.Starting);
-workbenchRegistry.registerWorkbenchContribution(ExtensionsAutoProfiler, LifecyclePhase.Eventually);
-workbenchRegistry.registerWorkbenchContribution(RemoteExtensionsInitializerContribution, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(ExtensionsContributions, 'ExtensionsContributions', LifecyclePhase.Starting);
+workbenchRegistry.registerWorkbenchContribution(ExtensionsAutoProfiler, 'ExtensionsAutoProfiler', LifecyclePhase.Eventually);
+workbenchRegistry.registerWorkbenchContribution(RemoteExtensionsInitializerContribution, 'RemoteExtensionsInitializerContribution', LifecyclePhase.Restored);
 // Register Commands
 
 CommandsRegistry.registerCommand(DebugExtensionHostAction.ID, (accessor: ServicesAccessor) => {

@@ -13,7 +13,7 @@ const localize = nls.loadMessageBundle();
 
 class AudioPreviewProvider implements vscode.CustomReadonlyEditorProvider {
 
-	public static readonly viewType = 'vscode.mediaPreview.audioView';
+	public static readonly viewType = 'vscode.audioPreview';
 
 	constructor(
 		private readonly extensionRoot: vscode.Uri,
@@ -31,8 +31,6 @@ class AudioPreviewProvider implements vscode.CustomReadonlyEditorProvider {
 
 
 class AudioPreview extends MediaPreview {
-
-	private readonly emptyAudioDataUri = 'data:audio/wav;base64,';
 
 	constructor(
 		private readonly extensionRoot: vscode.Uri,
@@ -92,11 +90,12 @@ class AudioPreview extends MediaPreview {
 </html>`;
 	}
 
-	private async getResourcePath(webviewEditor: vscode.WebviewPanel, resource: vscode.Uri, version: string): Promise<string> {
+	private async getResourcePath(webviewEditor: vscode.WebviewPanel, resource: vscode.Uri, version: string): Promise<string | null> {
 		if (resource.scheme === 'git') {
 			const stat = await vscode.workspace.fs.stat(resource);
 			if (stat.size === 0) {
-				return this.emptyAudioDataUri;
+				// The file is stored on git lfs
+				return null;
 			}
 		}
 

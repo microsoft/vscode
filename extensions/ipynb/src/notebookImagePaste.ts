@@ -135,7 +135,9 @@ function buildAttachment(b64: string, cell: vscode.NotebookCell, filename: strin
 			const objEntries = Object.entries(startingAttachments[tempFilename]);
 			if (objEntries.length) { // check that mime:b64 are present
 				const [, attachmentb64] = objEntries[0];
-				if (attachmentb64 !== b64) {	// append a "-#" here. same name, diff data. this matches jupyter behavior
+				if (attachmentb64 === b64) { // checking if filename can be reused, based on camparison of image data
+					break;
+				} else {
 					tempFilename = filename.concat(`-${appendValue}`) + filetype;
 				}
 			}

@@ -108,4 +108,4 @@ export class ExtensionIgnoredRecommendationsService extends Disposable implement
 
 }
 
-registerSingleton(IExtensionIgnoredRecommendationsService, ExtensionIgnoredRecommendationsService, false);
+registerSingleton(IExtensionIgnoredRecommendationsService, ExtensionIgnoredRecommendationsService, true);
