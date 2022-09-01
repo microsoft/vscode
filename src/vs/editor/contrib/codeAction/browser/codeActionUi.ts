@@ -65,15 +65,11 @@ export class CodeActionUi extends Disposable {
 	}
 
 	public hideCodeActionWidget() {
-		if (this._codeActionWidget.hasValue()) {
-			this._codeActionWidget.getValue().hideCodeActionWidget();
-		}
+		this._codeActionWidget.rawValue?.hideCodeActionWidget();
 	}
 
 	public onEnter() {
-		if (this._codeActionWidget.hasValue()) {
-			this._codeActionWidget.getValue().onEnterSet();
-		}
+		this._codeActionWidget.rawValue?.onEnterSet();
 	}
 
 	public onPreviewEnter() {
@@ -82,12 +78,10 @@ export class CodeActionUi extends Disposable {
 	}
 
 	public navigateList(navUp: Boolean) {
-		if (this._codeActionWidget.hasValue()) {
-			if (navUp) {
-				this._codeActionWidget.getValue().navigateListWithKeysUp();
-			} else {
-				this._codeActionWidget.getValue().navigateListWithKeysDown();
-			}
+		if (navUp) {
+			this._codeActionWidget.rawValue?.focusPrevious();
+		} else {
+			this._codeActionWidget.rawValue?.focusNext();
 		}
 	}
 
