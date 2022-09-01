@@ -9,7 +9,6 @@ const localize = nls.loadMessageBundle();
 import { UriHandler, Uri, window, Disposable, commands } from 'vscode';
 import { dispose } from './util';
 import * as querystring from 'querystring';
-import { findGit } from './git';
 
 const schemes = new Set(['file', 'git', 'http', 'https', 'ssh']);
 
@@ -66,30 +65,17 @@ export class GitProtocolHandler implements UriHandler {
 			return;
 		}
 
-		try {
-			commands.executeCommand('git.clone', cloneUri.toString(true), undefined, { ref: ref });
-		} catch (ex) {
-			if (!(await this.hasGit())) {
-				const errorMessage = localize('no git', 'We could not clone your repository as Git is not installed.');
-				const downloadGit = localize('download git', 'Download Git');
+		if (!(await commands.getCommands(true)).includes('git.clone')) {
+			const errorMessage = localize('no git', 'Could not clone your repository as Git is not installed.');
+			const downloadGit = localize('download git', 'Download Git');
 
-				if (await window.showErrorMessage(errorMessage, downloadGit) === downloadGit) {
-					commands.executeCommand('vscode.open', Uri.parse('https://aka.ms/vscode-download-git'));
-				}
-
-				return;
+			if (await window.showErrorMessage(errorMessage, downloadGit) === downloadGit) {
+				commands.executeCommand('vscode.open', Uri.parse('https://aka.ms/vscode-download-git'));
 			}
 
-			throw ex;
-		}
-	}
-
-	private async hasGit() {
-		try {
-			await findGit(undefined);
-			return true;
-		} catch {
-			return false;
+			return;
+		} else {
+			commands.executeCommand('git.clone', cloneUri.toString(true), undefined, { ref: ref });
 		}
 	}
 
