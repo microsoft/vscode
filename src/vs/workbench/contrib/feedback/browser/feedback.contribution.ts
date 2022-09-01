@@ -8,4 +8,4 @@ import { FeedbackStatusbarConribution } from 'vs/workbench/contrib/feedback/brow
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(FeedbackStatusbarConribution, LifecyclePhase.Starting);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(FeedbackStatusbarConribution, 'FeedbackStatusbarConribution', LifecyclePhase.Starting);

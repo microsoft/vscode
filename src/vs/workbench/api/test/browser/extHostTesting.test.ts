@@ -17,6 +17,7 @@ import { Location, Position, Range, TestMessage, TestResultState, TestRunProfile
 import { TestDiffOpType, TestItemExpandState, TestMessageType, TestsDiff } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import type { TestItem, TestRunRequest } from 'vscode';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 
 const simplify = (item: TestItem) => ({
 	id: item.id,
@@ -69,7 +70,9 @@ suite('ExtHost Testing', () => {
 
 	let single: TestExtHostTestItemCollection;
 	setup(() => {
-		single = new TestExtHostTestItemCollection('ctrlId', 'root');
+		single = new TestExtHostTestItemCollection('ctrlId', 'root', {
+			getDocument: () => undefined,
+		} as Partial<ExtHostDocumentsAndEditors> as ExtHostDocumentsAndEditors);
 		single.resolveHandler = item => {
 			if (item === undefined) {
 				const a = new TestItemImpl('ctrlId', 'id-a', 'a', URI.file('/'));
@@ -150,7 +153,7 @@ suite('ExtHost Testing', () => {
 			assert.deepStrictEqual(single.collectDiff(), [
 				{
 					op: TestDiffOpType.Update,
-					item: { extId: new TestId(['ctrlId', 'id-a']).toString(), item: { description: 'Hello world' } },
+					item: { extId: new TestId(['ctrlId', 'id-a']).toString(), docv: undefined, item: { description: 'Hello world' } },
 				}
 			]);
 		});
@@ -251,7 +254,7 @@ suite('ExtHost Testing', () => {
 			assert.deepStrictEqual(single.collectDiff(), [
 				{
 					op: TestDiffOpType.Update,
-					item: { extId: new TestId(['ctrlId', 'id-a']).toString(), expand: TestItemExpandState.Expanded, item: { label: 'Hello world' } },
+					item: { extId: new TestId(['ctrlId', 'id-a']).toString(), expand: TestItemExpandState.Expanded, docv: undefined, item: { label: 'Hello world' } },
 				},
 			]);
 
@@ -259,7 +262,7 @@ suite('ExtHost Testing', () => {
 			assert.deepStrictEqual(single.collectDiff(), [
 				{
 					op: TestDiffOpType.Update,
-					item: { extId: new TestId(['ctrlId', 'id-a']).toString(), item: { label: 'still connected' } }
+					item: { extId: new TestId(['ctrlId', 'id-a']).toString(), docv: undefined, item: { label: 'still connected' } }
 				},
 			]);
 
@@ -286,7 +289,7 @@ suite('ExtHost Testing', () => {
 				},
 				{
 					op: TestDiffOpType.Update,
-					item: { extId: TestId.fromExtHostTestItem(oldAB, 'ctrlId').toString(), item: { label: 'Hello world' } },
+					item: { extId: TestId.fromExtHostTestItem(oldAB, 'ctrlId').toString(), docv: undefined, item: { label: 'Hello world' } },
 				},
 			]);
 
@@ -296,11 +299,11 @@ suite('ExtHost Testing', () => {
 			assert.deepStrictEqual(single.collectDiff(), [
 				{
 					op: TestDiffOpType.Update,
-					item: { extId: new TestId(['ctrlId', 'id-a', 'id-aa']).toString(), item: { label: 'still connected1' } }
+					item: { extId: new TestId(['ctrlId', 'id-a', 'id-aa']).toString(), docv: undefined, item: { label: 'still connected1' } }
 				},
 				{
 					op: TestDiffOpType.Update,
-					item: { extId: new TestId(['ctrlId', 'id-a', 'id-ab']).toString(), item: { label: 'still connected2' } }
+					item: { extId: new TestId(['ctrlId', 'id-a', 'id-ab']).toString(), docv: undefined, item: { label: 'still connected2' } }
 				},
 			]);
 
@@ -330,7 +333,7 @@ suite('ExtHost Testing', () => {
 			assert.deepStrictEqual(single.collectDiff(), [
 				{
 					op: TestDiffOpType.Update,
-					item: { extId: new TestId(['ctrlId', 'id-a', 'id-b']).toString(), item: { label: 'still connected' } }
+					item: { extId: new TestId(['ctrlId', 'id-a', 'id-b']).toString(), docv: undefined, item: { label: 'still connected' } }
 				},
 			]);
 

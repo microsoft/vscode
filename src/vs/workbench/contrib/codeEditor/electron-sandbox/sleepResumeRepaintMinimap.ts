@@ -24,4 +24,4 @@ class SleepResumeRepaintMinimap extends Disposable implements IWorkbenchContribu
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SleepResumeRepaintMinimap, LifecyclePhase.Eventually);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SleepResumeRepaintMinimap, 'SleepResumeRepaintMinimap', LifecyclePhase.Eventually);

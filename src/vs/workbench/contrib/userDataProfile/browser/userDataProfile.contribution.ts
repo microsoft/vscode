@@ -10,4 +10,4 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import './userDataProfileActions';
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(UserDataProfilesWorkbenchContribution, LifecyclePhase.Ready);
+workbenchRegistry.registerWorkbenchContribution(UserDataProfilesWorkbenchContribution, 'UserDataProfilesWorkbenchContribution', LifecyclePhase.Ready);

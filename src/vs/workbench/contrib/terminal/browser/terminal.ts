@@ -6,6 +6,7 @@
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -456,6 +457,7 @@ export interface ITerminalInstance {
 	readonly workspaceFolder?: IWorkspaceFolder;
 	readonly cwd?: string;
 	readonly initialCwd?: string;
+	readonly os?: OperatingSystem;
 	readonly capabilities: ITerminalCapabilityStore;
 
 	readonly statusList: ITerminalStatusList;
@@ -761,8 +763,12 @@ export interface ITerminalInstance {
 	 * @param addNewLine Whether to add a new line to the text being sent, this is normally required
 	 * to run a command in the terminal. The character(s) added are \n or \r\n depending on the
 	 * platform. This defaults to `true`.
+	 * @param bracketedPasteMode Whether to wrap the text in the bracketed paste mode sequence when
+	 * it's enabled. When true, the shell will treat the text as if it were pasted into the shell,
+	 * this may for example select the text and it will also ensure that the text will not be
+	 * interpreted as a shell keybinding.
 	 */
-	sendText(text: string, addNewLine: boolean): Promise<void>;
+	sendText(text: string, addNewLine: boolean, bracketedPasteMode?: boolean): Promise<void>;
 
 	/**
 	 * Sends a path to the terminal instance, preparing it as needed based on the detected shell
@@ -775,6 +781,14 @@ export interface ITerminalInstance {
 	 * platform. This defaults to `true`.
 	 */
 	sendPath(originalPath: string, addNewLine: boolean): Promise<void>;
+
+	/**
+	 * Takes a path and returns the properly escaped path to send to a given shell. On Windows, this
+	 * includes trying to prepare the path for WSL if needed.
+	 *
+	 * @param originalPath The path to be escaped and formatted.
+	 */
+	preparePathForShell(originalPath: string): Promise<string>;
 
 	/** Scroll the terminal buffer down 1 line. */   scrollDownLine(): void;
 	/** Scroll the terminal buffer down 1 page. */   scrollDownPage(): void;
