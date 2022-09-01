@@ -600,7 +600,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		}
 	}
 
-	hideCodeActionWidget() {
+	public hideCodeActionWidget() {
 		this._ctxMenuWidgetVisible.reset();
 		this.viewItems = [];
 		this.focusedEnabledItem = 0;
@@ -608,7 +608,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		this._contextViewService.hideContextView();
 	}
 
-	codeActionTelemetry(openedFromString: CodeActionTriggerSource, didCancel: boolean, CodeActions: CodeActionSet) {
+	private codeActionTelemetry(openedFromString: CodeActionTriggerSource, didCancel: boolean, CodeActions: CodeActionSet) {
 		type ApplyCodeActionEvent = {
 			codeActionFrom: CodeActionTriggerSource;
 			validCodeActions: number;

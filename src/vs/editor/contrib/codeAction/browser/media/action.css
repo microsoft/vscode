@@ -19,14 +19,11 @@
 }
 
 .codeActionWidget {
-	overflow: auto;
 	font-size: 13px;
 	border-radius: 0;
 	min-width: 160px;
 	z-index: 40;
 	display: block;
-	/* flex-direction: column;
-	flex: 0 1 auto; */
 	width: 100%;
 	border: 1px solid var(--vscode-menu-separatorBackground) !important;
 	border-color: none;
@@ -35,11 +32,9 @@
 	box-shadow: rgb(0,0,0, 16%) 0 2px 8px;
 }
 
-
 .codeActionWidget .monaco-list {
 	user-select: none;
 	-webkit-user-select: none;
-	-ms-user-select: none;
 	border: none !important;
 	border-width: 0 !important;
 }
