@@ -1220,12 +1220,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this.xterm) {
 			return;
 		}
-		const selection = window.getSelection();
-		if (!selection) {
-			return;
-		}
-		const text = selection.toString();
-		if (!text || force) {
+		if (force || window.getSelection()?.toString()) {
 			this.xterm.raw.focus();
 		}
 	}
