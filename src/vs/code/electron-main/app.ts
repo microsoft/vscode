@@ -1213,9 +1213,9 @@ export class CodeApplication extends Disposable {
 			const argvContent = await this.fileService.readFile(this.environmentMainService.argvResource);
 			const argvString = argvContent.value.toString();
 			const argvJSON = JSON.parse(stripComments(argvString));
+			const telemetryLevel = getTelemetryLevel(this.configurationService);
+			const enableCrashReporter = telemetryLevel >= TelemetryLevel.CRASH;
 			if (argvJSON['enable-crash-reporter'] === undefined) {
-				const telemetryLevel = getTelemetryLevel(this.configurationService);
-				const enableCrashReporter = telemetryLevel >= TelemetryLevel.CRASH;
 				const additionalArgvContent = [
 					'',
 					'	// Allows to disable crash reporting.',
@@ -1229,6 +1229,10 @@ export class CodeApplication extends Disposable {
 				];
 				const newArgvString = argvString.substring(0, argvString.length - 2).concat(',\n', additionalArgvContent.join('\n'));
 
+				await this.fileService.writeFile(this.environmentMainService.argvResource, VSBuffer.fromString(newArgvString));
+			} else {
+				// Update enable crash reporter value at each startup
+				const newArgvString = argvString.replace(/"enable-crash-reporter": .*,/, `"enable-crash-reporter": ${enableCrashReporter},`);
 				await this.fileService.writeFile(this.environmentMainService.argvResource, VSBuffer.fromString(newArgvString));
 			}
 		} catch (error) {
