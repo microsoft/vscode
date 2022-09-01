@@ -269,7 +269,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get shellType(): TerminalShellType { return this._shellType; }
 	get os(): OperatingSystem | undefined { return this._processManager.os; }
 	get navigationMode(): INavigationMode | undefined { return this._navigationModeAddon; }
-	get isDisconnected(): boolean { return this._processManager.isDisconnected; }
 	get isRemote(): boolean { return this._processManager.remoteAuthority !== undefined; }
 	get remoteAuthority(): string | undefined { return this._processManager.remoteAuthority; }
 	get hasFocus(): boolean { return this._wrapperElement?.contains(document.activeElement) ?? false; }

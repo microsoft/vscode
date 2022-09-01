@@ -494,11 +494,6 @@ export interface ITerminalInstance {
 	 */
 	readonly shouldPersist: boolean;
 
-	/**
-	 * Whether the process communication channel has been disconnected.
-	 */
-	readonly isDisconnected: boolean;
-
 	/*
 	 * Whether this terminal has been disposed of
 	 */
