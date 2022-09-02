@@ -54,7 +54,7 @@ export class TerminalViewPane extends ViewPane {
 	get terminalTabbedView(): TerminalTabbedView | undefined { return this._terminalTabbedView; }
 	private _terminalsInitialized = false;
 	private _isWelcomeShowing: boolean = false;
-	private _tabButtons: DropdownWithPrimaryActionViewItem | undefined;
+	private _newDropdown: DropdownWithPrimaryActionViewItem | undefined;
 	private readonly _dropdownMenu: IMenu;
 	private readonly _singleTabMenu: IMenu;
 	private _viewShowing: IContextKey<boolean>;
@@ -75,7 +75,6 @@ export class TerminalViewPane extends ViewPane {
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IOpenerService openerService: IOpenerService,
 		@IMenuService private readonly _menuService: IMenuService,
-		@ICommandService private readonly _commandService: ICommandService,
 		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@IThemeService private readonly _themeService: IThemeService
@@ -244,13 +243,14 @@ export class TerminalViewPane extends ViewPane {
 					return this._instantiationService.createInstance(SingleTerminalTabActionViewItem, action, { draggable: true }, actions);
 				}
 			}
-			case TerminalCommandId.CreateWithProfileButton: {
-				this._tabButtons?.dispose();
-
-				const actions = getTerminalActionBarArgs(TerminalLocation.Panel, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._instantiationService, this._terminalService, this._contextKeyService, this._commandService, this._dropdownMenu);
-				this._tabButtons = new DropdownWithPrimaryActionViewItem(actions.primaryAction, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, {}, this._keybindingService, this._notificationService, this._contextKeyService, this._themeService);
-				this._updateTabActionBar(this._terminalProfileService.availableProfiles);
-				return this._tabButtons;
+			case TerminalCommandId.New: {
+				if (action instanceof MenuItemAction) {
+					const actions = getTerminalActionBarArgs(TerminalLocation.Panel, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu);
+					this._newDropdown?.dispose();
+					this._newDropdown = new DropdownWithPrimaryActionViewItem(action, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, {}, this._keybindingService, this._notificationService, this._contextKeyService, this._themeService);
+					this._updateTabActionBar(this._terminalProfileService.availableProfiles);
+					return this._newDropdown;
+				}
 			}
 		}
 		return super.getActionViewItem(action);
@@ -271,8 +271,8 @@ export class TerminalViewPane extends ViewPane {
 	}
 
 	private _updateTabActionBar(profiles: ITerminalProfile[]): void {
-		const actions = getTerminalActionBarArgs(TerminalLocation.Panel, profiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._instantiationService, this._terminalService, this._contextKeyService, this._commandService, this._dropdownMenu);
-		this._tabButtons?.update(actions.dropdownAction, actions.dropdownMenuActions);
+		const actions = getTerminalActionBarArgs(TerminalLocation.Panel, profiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu);
+		this._newDropdown?.update(actions.dropdownAction, actions.dropdownMenuActions);
 	}
 
 	override focus() {
