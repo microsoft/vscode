@@ -1538,7 +1538,7 @@
             "title": "%walkthroughs.jsWelcome.downloadNode.forMacOrWindows.title%",
             "description": "%walkthroughs.jsWelcome.downloadNode.forMacOrWindows.description%",
             "media": {
-              "markdown": "resources/walkthroughs/TODO.md"
+              "svg": "resources/walkthroughs/install-node-js.svg"
             },
             "when": "isWindows || isMac"
           },
@@ -1547,7 +1547,7 @@
             "title": "%walkthroughs.jsWelcome.downloadNode.forLinux.title%",
             "description": "%walkthroughs.jsWelcome.downloadNode.forLinux.description%",
             "media": {
-              "markdown": "resources/walkthroughs/TODO.md"
+              "svg": "resources/walkthroughs/install-node-js.svg"
             },
             "when": "isLinux"
           },
@@ -1556,7 +1556,7 @@
             "title": "%walkthroughs.jsWelcome.makeJsFile.title%",
             "description": "%walkthroughs.jsWelcome.makeJsFile.description%",
             "media": {
-              "markdown": "resources/walkthroughs/TODO.md"
+              "svg": "resources/walkthroughs/create-a-js-file.svg"
             }
           },
           {
@@ -1564,8 +1564,7 @@
             "title": "%walkthroughs.jsWelcome.debugJsFile.title%",
             "description": "%walkthroughs.jsWelcome.debugJsFile.description%",
             "media": {
-              "image": "resources/walkthroughs/debug-and-run.svg",
-              "altText": "%walkthroughs.jsWelcome.debugJsFile.altText%"
+              "svg": "resources/walkthroughs/debug-and-run.svg"
             }
           },
           {
@@ -1573,8 +1572,7 @@
             "title": "%walkthroughs.jsWelcome.learnMoreAboutJs.title%",
             "description": "%walkthroughs.jsWelcome.learnMoreAboutJs.description%",
             "media": {
-              "image": "resources/walkthroughs/learn-more.svg",
-              "altText": "%walkthroughs.jsWelcome.learnMoreAboutJs.altText%"
+              "svg": "resources/walkthroughs/learn-more.svg"
             }
           }
         ]
