@@ -54,7 +54,7 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { isMacintosh } from 'vs/base/common/platform';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { FloatingClickMenu, OpenWorkspaceButtonContribution } from 'vs/workbench/browser/codeeditor';
+import { FloatingClickMenu } from 'vs/workbench/browser/codeeditor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { EditorAutoSave } from 'vs/workbench/browser/parts/editor/editorAutoSave';
@@ -128,7 +128,6 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DynamicEditorConfigurations, 'DynamicEditorConfigurations', LifecyclePhase.Ready);
 
 registerEditorContribution(FloatingClickMenu.ID, FloatingClickMenu);
-registerEditorContribution(OpenWorkspaceButtonContribution.ID, OpenWorkspaceButtonContribution);
 
 //#endregion
 
