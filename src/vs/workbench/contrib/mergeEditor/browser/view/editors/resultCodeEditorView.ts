@@ -166,7 +166,7 @@ export class ResultCodeEditorView extends CodeEditorView {
 			instantiationService.createInstance(
 				TitleMenu,
 				MenuId.MergeInputResultToolbar,
-				this.htmlElements.title
+				this.htmlElements.toolbar
 			)
 		);
 	}
