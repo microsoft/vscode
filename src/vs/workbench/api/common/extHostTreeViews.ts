@@ -11,7 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { CheckboxUpdate, DataTransferDTO, ExtHostTreeViewsShape, MainThreadTreeViewsShape } from './extHost.protocol';
-import { ITreeItem, TreeViewItemHandleArg, ITreeItemLabel, IRevealOptions, TreeCommand, TreeCheckbox } from 'vs/workbench/common/views';
+import { ITreeItem, TreeViewItemHandleArg, ITreeItemLabel, IRevealOptions, TreeCommand } from 'vs/workbench/common/views';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { asPromise } from 'vs/base/common/async';
 import { TreeItemCollapsibleState, TreeItemCheckboxState, ThemeIcon, MarkdownString as MarkdownStringType, TreeItem } from 'vs/workbench/api/common/extHostTypes';
@@ -731,13 +731,9 @@ class ExtHostTreeView<T> extends Disposable {
 		return command ? { ...this.commands.toInternal(command, disposable), originalId: command.command } : undefined;
 	}
 
-	private getCheckbox(extensionTreeItem: vscode.TreeItem2): TreeCheckbox | undefined {
-		if (extensionTreeItem.checkboxState === undefined) {
-			return undefined;
-		}
-		return {
-			isChecked: extensionTreeItem.checkboxState === TreeItemCheckboxState.Checked
-		};
+	private getCheckbox(extensionTreeItem: vscode.TreeItem2): boolean | undefined {
+		return (extensionTreeItem.checkboxState !== undefined) ?
+			extensionTreeItem.checkboxState === TreeItemCheckboxState.Checked : undefined;
 	}
 
 	private validateTreeItem(extensionTreeItem: vscode.TreeItem) {
@@ -766,7 +762,7 @@ class ExtHostTreeView<T> extends Disposable {
 			themeIcon: this.getThemeIcon(extensionTreeItem),
 			collapsibleState: isUndefinedOrNull(extensionTreeItem.collapsibleState) ? TreeItemCollapsibleState.None : extensionTreeItem.collapsibleState,
 			accessibilityInformation: extensionTreeItem.accessibilityInformation,
-			checkbox: this.getCheckbox(extensionTreeItem)
+			checkboxChecked: this.getCheckbox(extensionTreeItem)
 		};
 
 		return {

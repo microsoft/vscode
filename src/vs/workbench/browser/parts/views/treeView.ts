@@ -596,7 +596,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 					return item.label ? item.label.label : (item.resourceUri ? basename(URI.revive(item.resourceUri)) : undefined);
 				}
 			},
-			expandOnlyOnTwistieClick: (e: ITreeItem) => !!e.command || !!e.checkbox,
+			expandOnlyOnTwistieClick: (e: ITreeItem) => !!e.command || e.checkboxChecked !== undefined,
 			collapseByDefault: (e: ITreeItem): boolean => {
 				return e.collapsibleState !== TreeItemCollapsibleState.Expanded;
 			},
@@ -1133,7 +1133,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	}
 
 	private renderCheckbox(node: ITreeItem, templateData: ITreeExplorerTemplateData, label: string | undefined) {
-		if (node.checkbox !== undefined) {
+		if (node.checkboxChecked !== undefined) {
 			if (!templateData.checkbox) {
 				templateData.checkbox = new TreeItemCheckbox(templateData.checkboxContainer, this.checkboxStateHandler, this.themeService);
 			}
@@ -1226,7 +1226,7 @@ class Aligner extends Disposable {
 		}
 
 		if (this._tree) {
-			if (!this.hasCheckboxes && treeItem.checkbox) {
+			if (!this.hasCheckboxes && treeItem.checkboxChecked !== undefined) {
 				this.hasCheckboxes = true;
 				this._tree.rerender();
 				return false;

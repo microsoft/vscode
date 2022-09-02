@@ -31,7 +31,7 @@ declare module 'vscode' {
 	*/
 	export interface TreeView<T> {
 		/**
-		* An optional event to signal that an element or root has either been checked or unchecked.
+		* An event to signal that an element or root has either been checked or unchecked.
 		*/
 		onDidChangeTreeCheckbox: Event<TreeCheckboxChangeEvent<T>>;
 	}
