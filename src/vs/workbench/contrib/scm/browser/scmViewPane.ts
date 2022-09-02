@@ -88,6 +88,7 @@ import { RepositoryContextKeys } from 'vs/workbench/contrib/scm/browser/scmViewS
 import { DragAndDropController } from 'vs/editor/contrib/dnd/browser/dnd';
 import { DropIntoEditorController } from 'vs/editor/contrib/dropIntoEditor/browser/dropIntoEditorContribution';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
+import { QuickFixController } from 'vs/editor/contrib/codeAction/browser/codeActionCommands';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -1965,7 +1966,8 @@ class SCMInputWidget {
 			overflowWidgetsDomNode,
 			renderWhitespace: 'none',
 			dropIntoEditor: { enabled: true },
-			accessibilitySupport
+			accessibilitySupport,
+			lightbulb: { enabled: false },
 		};
 
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
@@ -1979,6 +1981,7 @@ class SCMInputWidget {
 				MenuPreventer.ID,
 				MessageController.ID,
 				ModesHoverController.ID,
+				QuickFixController.ID,
 				SelectionClipboardContributionID,
 				SnippetController2.ID,
 				SuggestController.ID,
