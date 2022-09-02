@@ -58,7 +58,7 @@ class AttachmentCleaner {
 					}
 
 					// if image is referenced in mkdn && image is not in metadata -> check if image IS inside cache
-					if (this.attachmentCache[notebookUri][cellFragment] && Object.keys(this.attachmentCache[notebookUri][cellFragment]).includes(currFilename)) {
+					if (this.checkCacheValidity(notebookUri, cellFragment) && Object.keys(this.attachmentCache[notebookUri][cellFragment]).includes(currFilename)) {
 						this.addImageToCellMetadata(notebookUri, cellFragment, currFilename, updateMetadata);
 					}
 					//TODO: ELSE: diagnostic squiggle, image not present
@@ -150,6 +150,21 @@ class AttachmentCleaner {
 	 */
 	private checkMetadataAttachments(metadata: { [key: string]: any }): boolean {
 		return !!(metadata.custom?.attachments);
+	}
+
+	/**
+	 * check if there is an entry in the cache for the cell being edited/cleaned
+	 * @param notebookUri uri of the notebook currently being edited
+	 * @param cellFragment fragment of the cell currently being edited
+	 * @returns boolean representing validity of cache entry
+	 */
+	private checkCacheValidity(notebookUri: string, cellFragment: string): boolean {
+		if (!this.attachmentCache[notebookUri]) {
+			return false;
+		} else if (!this.attachmentCache[notebookUri][cellFragment]) {
+			return false;
+		}
+		return true;
 	}
 
 	/**
