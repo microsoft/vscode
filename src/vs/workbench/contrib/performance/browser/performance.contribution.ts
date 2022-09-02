@@ -13,6 +13,7 @@ import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common
 import { EditorExtensions, IEditorSerializer, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
 import { PerfviewContrib, PerfviewInput } from 'vs/workbench/contrib/performance/browser/perfviewEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 
 // -- startup performance view
 
@@ -53,5 +54,30 @@ registerAction2(class extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const instaService = accessor.get(IInstantiationService);
 		return editorService.openEditor(instaService.createInstance(PerfviewInput), { pinned: true });
+	}
+});
+
+
+registerAction2(class extends Action2 {
+
+	constructor() {
+		super({
+			id: 'instantiation.printAsyncCycles',
+			title: { value: localize('cycles', "Print Service Cycles"), original: 'Print Service Cycles' },
+			category: CATEGORIES.Developer,
+			f1: true
+		});
+	}
+
+	run(accessor: ServicesAccessor) {
+		const instaService = accessor.get(IInstantiationService);
+		if (instaService instanceof InstantiationService) {
+			const cycle = instaService._globalGraph.findCycleSlow();
+			if (cycle) {
+				console.warn(`CYCLE`, cycle);
+			} else {
+				console.warn(`YEAH, no more cycles`);
+			}
+		}
 	}
 });

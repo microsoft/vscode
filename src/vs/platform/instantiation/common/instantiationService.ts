@@ -28,12 +28,16 @@ export class InstantiationService implements IInstantiationService {
 	private readonly _strict: boolean;
 	private readonly _parent?: InstantiationService;
 
+	readonly _globalGraph: Graph<string>;
+	private _globalGraphImplicitDependency?: string;
+
 	constructor(services: ServiceCollection = new ServiceCollection(), strict: boolean = false, parent?: InstantiationService) {
 		this._services = services;
 		this._strict = strict;
 		this._parent = parent;
 
 		this._services.set(IInstantiationService, this);
+		this._globalGraph = parent?._globalGraph ?? new Graph(e => e);
 	}
 
 	createChild(services: ServiceCollection): IInstantiationService {
@@ -130,6 +134,9 @@ export class InstantiationService implements IInstantiationService {
 	}
 
 	protected _getOrCreateServiceInstance<T>(id: ServiceIdentifier<T>, _trace: Trace): T {
+		if (this._globalGraphImplicitDependency) {
+			this._globalGraph.insertEdge(this._globalGraphImplicitDependency, String(id));
+		}
 		const thing = this._getServiceInstanceOrDescriptor(id);
 		if (thing instanceof SyncDescriptor) {
 			return this._safeCreateAndCacheServiceInstance(id, thing, _trace.branch(id, true));
@@ -178,6 +185,9 @@ export class InstantiationService implements IInstantiationService {
 					this._throwIfStrict(`[createInstance] ${id} depends on ${dependency.id} which is NOT registered.`, true);
 				}
 
+				// take note of all service dependencies
+				this._globalGraph.insertEdge(String(item.id), String(dependency.id));
+
 				if (instanceOrDesc instanceof SyncDescriptor) {
 					const d = { id: dependency.id, desc: instanceOrDesc, _trace: item._trace.branch(dependency.id, true) };
 					graph.insertEdge(item, d);
@@ -216,7 +226,7 @@ export class InstantiationService implements IInstantiationService {
 
 	private _createServiceInstanceWithOwner<T>(id: ServiceIdentifier<T>, ctor: any, args: any[] = [], supportsDelayedInstantiation: boolean, _trace: Trace): T {
 		if (this._services.get(id) instanceof SyncDescriptor) {
-			return this._createServiceInstance(ctor, args, supportsDelayedInstantiation, _trace);
+			return this._createServiceInstance(id, ctor, args, supportsDelayedInstantiation, _trace);
 		} else if (this._parent) {
 			return this._parent._createServiceInstanceWithOwner(id, ctor, args, supportsDelayedInstantiation, _trace);
 		} else {
@@ -224,16 +234,23 @@ export class InstantiationService implements IInstantiationService {
 		}
 	}
 
-	private _createServiceInstance<T>(ctor: any, args: any[] = [], _supportsDelayedInstantiation: boolean, _trace: Trace): T {
-		if (!_supportsDelayedInstantiation) {
+	private _createServiceInstance<T>(id: ServiceIdentifier<T>, ctor: any, args: any[] = [], supportsDelayedInstantiation: boolean, _trace: Trace): T {
+		if (!supportsDelayedInstantiation) {
 			// eager instantiation
 			return this._createInstance(ctor, args, _trace);
 
 		} else {
+			const child = new InstantiationService(undefined, this._strict, this);
+			child._globalGraphImplicitDependency = String(id);
+
 			// Return a proxy object that's backed by an idle value. That
 			// strategy is to instantiate services in our idle time or when actually
 			// needed but not when injected into a consumer
-			const idle = new IdleValue<any>(() => this._createInstance<T>(ctor, args, _trace));
+			const idle = new IdleValue<any>(() => {
+				const result = child._createInstance<T>(ctor, args, _trace);
+				// child._globalGraphImplicitDependency = undefined;
+				return result;
+			});
 			return <T>new Proxy(Object.create(null), {
 				get(target: any, key: PropertyKey): any {
 					if (key in target) {
