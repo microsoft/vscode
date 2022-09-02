@@ -25,6 +25,7 @@ export class GitProtocolHandler implements UriHandler {
 
 	private clone(uri: Uri): void {
 		const data = querystring.parse(uri.query);
+		const ref = data.ref;
 
 		if (!data.url) {
 			console.warn('Failed to open URI:', uri);
@@ -32,6 +33,11 @@ export class GitProtocolHandler implements UriHandler {
 		}
 
 		if (Array.isArray(data.url) && data.url.length === 0) {
+			console.warn('Failed to open URI:', uri);
+			return;
+		}
+
+		if (ref !== undefined && typeof ref !== 'string') {
 			console.warn('Failed to open URI:', uri);
 			return;
 		}
@@ -56,7 +62,7 @@ export class GitProtocolHandler implements UriHandler {
 			return;
 		}
 
-		commands.executeCommand('git.clone', cloneUri.toString(true));
+		commands.executeCommand('git.clone', cloneUri.toString(true), undefined, { ref: ref });
 	}
 
 	dispose(): void {

@@ -173,7 +173,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 	public reveal(commentUniqueId?: number, focus: boolean = false) {
 		if (!this._isExpanded) {
-			this.show({ lineNumber: this._commentThread.range.startLineNumber, column: 1 }, 2);
+			this.show({ lineNumber: this._commentThread.range.endLineNumber, column: 1 }, 2);
 		}
 
 		if (commentUniqueId !== undefined) {
@@ -253,6 +253,14 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}
 
 		this.hide();
+		return Promise.resolve();
+	}
+
+	public expand(): Promise<void> {
+		this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Expanded;
+		const lineNumber = this._commentThread.range.endLineNumber;
+
+		this.show({ lineNumber, column: 1 }, 2);
 		return Promise.resolve();
 	}
 

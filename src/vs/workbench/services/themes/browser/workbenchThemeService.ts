@@ -863,4 +863,4 @@ registerColorThemeSchemas();
 registerFileIconThemeSchemas();
 registerProductIconThemeSchemas();
 
-registerSingleton(IWorkbenchThemeService, WorkbenchThemeService);
+registerSingleton(IWorkbenchThemeService, WorkbenchThemeService, false);

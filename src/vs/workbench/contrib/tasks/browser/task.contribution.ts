@@ -43,7 +43,7 @@ import { isString } from 'vs/base/common/types';
 const SHOW_TASKS_COMMANDS_CONTEXT = ContextKeyExpr.and(ShellExecutionSupportedContext, ProcessExecutionSupportedContext);
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(RunAutomaticTasks, LifecyclePhase.Eventually);
+workbenchRegistry.registerWorkbenchContribution(RunAutomaticTasks, 'RunAutomaticTasks', LifecyclePhase.Eventually);
 
 registerAction2(ManageAutomaticTaskRunning);
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
@@ -163,7 +163,7 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 	}
 }
 
-workbenchRegistry.registerWorkbenchContribution(TaskStatusBarContributions, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(TaskStatusBarContributions, 'TaskStatusBarContributions', LifecyclePhase.Restored);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
 	group: TerminalMenuBarGroup.Run,
@@ -500,11 +500,11 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['on', 'auto', 'off'],
 			enumDescriptions: [
-				nls.localize('ttask.allowAutomaticTasks.on', "Always"),
+				nls.localize('task.allowAutomaticTasks.on', "Always"),
 				nls.localize('task.allowAutomaticTasks.auto', "Prompt for permission for each folder"),
 				nls.localize('task.allowAutomaticTasks.off', "Never"),
 			],
-			description: nls.localize('task.allowAutomaticTasks', "Enable automatic tasks in the folder."),
+			description: nls.localize('task.allowAutomaticTasks', "Enable automatic tasks in the folder - note that tasks won't run in an untrusted workspace."),
 			default: 'auto',
 			restricted: true
 		},

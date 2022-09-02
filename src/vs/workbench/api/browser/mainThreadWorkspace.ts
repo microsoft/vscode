@@ -5,7 +5,7 @@
 
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isCancellationError } from 'vs/base/common/errors';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { isNative } from 'vs/base/common/platform';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -224,16 +224,23 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	}
 
 	// --- edit sessions ---
-	$registerEditSessionIdentityProvider(scheme: string) {
-		this._editSessionIdentityService.registerEditSessionIdentityProvider({
+	private registeredEditSessionProviders = new Map<number, IDisposable>();
+
+	$registerEditSessionIdentityProvider(handle: number, scheme: string) {
+		const disposable = this._editSessionIdentityService.registerEditSessionIdentityProvider({
 			scheme: scheme,
 			getEditSessionIdentifier: async (workspaceFolder: WorkspaceFolder, token: CancellationToken) => {
 				return this._proxy.$getEditSessionIdentifier(workspaceFolder.uri, token);
 			}
 		});
+
+		this.registeredEditSessionProviders.set(handle, disposable);
+		this._toDispose.add(disposable);
 	}
 
-	$unregisterEditSessionIdentityProvider(scheme: string) {
-		this._editSessionIdentityService.unregisterEditSessionIdentityProvider(scheme);
+	$unregisterEditSessionIdentityProvider(handle: number) {
+		const disposable = this.registeredEditSessionProviders.get(handle);
+		disposable?.dispose();
+		this.registeredEditSessionProviders.delete(handle);
 	}
 }

@@ -216,4 +216,4 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	}
 }
 
-registerSingleton(IFilesConfigurationService, FilesConfigurationService);
+registerSingleton(IFilesConfigurationService, FilesConfigurationService, false);
