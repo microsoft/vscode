@@ -16,9 +16,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { INativeWorkbenchEnvironmentService, NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IDialogService, IFileDialogService, INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { URI } from 'vs/base/common/uri';
 import { IReadTextFileOptions, ITextFileStreamContent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -106,9 +104,7 @@ export class TestTextFileService extends NativeTextFileService {
 		@IDialogService dialogService: IDialogService,
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
-		@IProductService productService: IProductService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
-		@ITextModelService textModelService: ITextModelService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IPathService pathService: IPathService,
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
@@ -129,7 +125,6 @@ export class TestTextFileService extends NativeTextFileService {
 			fileDialogService,
 			textResourceConfigurationService,
 			filesConfigurationService,
-			textModelService,
 			codeEditorService,
 			pathService,
 			workingCopyFileService,
