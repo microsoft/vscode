@@ -2635,7 +2635,7 @@ declare namespace monaco.editor {
 		 */
 		readonly newLanguage: string;
 		/**
-		 * The reason that caused the change. Defaults to unknown.
+		 * The reason that caused the change
 		 */
 		readonly reason: string;
 	}

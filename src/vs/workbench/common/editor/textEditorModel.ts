@@ -12,7 +12,7 @@ import { ILanguageService, ILanguageSelection } from 'vs/editor/common/languages
 import { IModelService } from 'vs/editor/common/services/model';
 import { MutableDisposable } from 'vs/base/common/lifecycle';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { assertIsDefined, withUndefinedAsNull } from 'vs/base/common/types';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 import { ILanguageDetectionService, LanguageDetectionLanguageEventReason } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -98,16 +98,15 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 		this.modelService.setMode(this.textEditorModel, this.languageService.createById(languageId), reason);
 	}
 
-	override resolve(): Promise<void> {
-		const textEditorModel = assertIsDefined(this.textEditorModel);
-		const disposable = textEditorModel.onDidChangeLanguage((e) => {
+	protected installModelListeners(model: ITextModel): void {
+		// Setup listener for lower level language changes
+		const disposable = model.onDidChangeLanguage((e) => {
 			if (e.reason === LanguageDetectionLanguageEventReason) {
 				return;
 			}
 			this._hasLanguageSetExplicitly = true;
 			disposable.dispose();
 		});
-		return super.resolve();
 	}
 
 	getLanguageId(): string | undefined {
