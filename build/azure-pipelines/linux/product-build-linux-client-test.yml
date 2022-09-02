@@ -171,6 +171,13 @@ steps:
 
       - script: |
           set -e
+          yarn gulp \
+            compile-extension:markdown-language-features \
+            compile-extension-media
+        displayName: Build extensions for smoke tests
+
+      - script: |
+          set -e
           yarn smoketest-no-compile --tracing
         timeoutInMinutes: 20
         displayName: Run smoke tests (Electron)
