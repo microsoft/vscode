@@ -315,11 +315,18 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 	private canWaitForTask(taskToWait: IInstallExtensionTask, taskToWaitFor: IInstallExtensionTask): boolean {
 		for (const [, { task, waitingTasks }] of this.installingExtensions.entries()) {
-			// Cannot be waited, If taskToWaitFor is waiting for taskToWait
-			if (task === taskToWait && waitingTasks.includes(taskToWaitFor)) {
-				return false;
+			if (task === taskToWait) {
+				// Cannot be waited, If taskToWaitFor is waiting for taskToWait
+				if (waitingTasks.includes(taskToWaitFor)) {
+					return false;
+				}
+				// Cannot be waited, If taskToWaitFor is waiting for tasks waiting for taskToWait
+				if (waitingTasks.some(waitingTask => this.canWaitForTask(waitingTask, taskToWaitFor))) {
+					return false;
+				}
 			}
 			// Cannot be waited, if the taskToWait cannot be waited for the task created the taskToWaitFor
+			// Because, the task waits for the tasks it created
 			if (task === taskToWaitFor && waitingTasks[0] && !this.canWaitForTask(taskToWait, waitingTasks[0])) {
 				return false;
 			}
