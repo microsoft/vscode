@@ -379,6 +379,11 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.Focus,
 						title: terminalStrings.focus
 					},
+					alt: {
+						id: TerminalCommandId.Split,
+						title: terminalStrings.split.value,
+						icon: Codicon.splitHorizontal
+					},
 					group: 'navigation',
 					order: 0,
 					when: ContextKeyExpr.and(

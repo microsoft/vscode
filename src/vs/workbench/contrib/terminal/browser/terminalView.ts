@@ -30,17 +30,15 @@ import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TerminalTabbedView } from 'vs/workbench/contrib/terminal/browser/terminalTabbedView';
-import { Codicon } from 'vs/base/common/codicons';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
-import { createAndFillInContextMenuActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createAndFillInContextMenuActions, IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
-import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { getTerminalActionBarArgs } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
@@ -240,9 +238,11 @@ export class TerminalViewPane extends ViewPane {
 				return this._instantiationService.createInstance(SwitchTerminalActionViewItem, action);
 			}
 			case TerminalCommandId.Focus: {
-				const actions: IAction[] = [];
-				createAndFillInContextMenuActions(this._singleTabMenu, undefined, actions);
-				return this._instantiationService.createInstance(SingleTerminalTabActionViewItem, action, actions);
+				if (action instanceof MenuItemAction) {
+					const actions: IAction[] = [];
+					createAndFillInContextMenuActions(this._singleTabMenu, undefined, actions);
+					return this._instantiationService.createInstance(SingleTerminalTabActionViewItem, action, { draggable: true }, actions);
+				}
 			}
 			case TerminalCommandId.CreateWithProfileButton: {
 				this._tabButtons?.dispose();
@@ -381,7 +381,8 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 	private readonly _elementDisposables: IDisposable[] = [];
 
 	constructor(
-		action: IAction,
+		action: MenuItemAction,
+		options: IMenuEntryActionViewItemOptions | undefined,
 		private readonly _actions: IAction[],
 		@IKeybindingService keybindingService: IKeybindingService,
 		@INotificationService notificationService: INotificationService,
@@ -391,27 +392,9 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@ICommandService private readonly _commandService: ICommandService,
-		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
-		super(new MenuItemAction(
-			{
-				id: action.id,
-				title: _instantiationService.invokeFunction(getSingleTabLabel, _terminalGroupService.activeInstance, _terminalService.configHelper.config.tabs.separator),
-				tooltip: getSingleTabTooltip(_terminalGroupService.activeInstance, _terminalService.configHelper.config.tabs.separator)
-			},
-			{
-				id: TerminalCommandId.Split,
-				title: terminalStrings.split.value,
-				icon: Codicon.splitHorizontal
-			},
-			undefined,
-			undefined,
-			contextKeyService,
-			_commandService
-		), {
-			draggable: true
-		}, keybindingService, notificationService, contextKeyService, themeService, contextMenuService);
+		super(action, options, keybindingService, notificationService, contextKeyService, themeService, contextMenuService);
 
 		// Register listeners to update the tab
 		this._register(this._terminalService.onDidChangeInstancePrimaryStatus(e => this.updateLabel(e)));
