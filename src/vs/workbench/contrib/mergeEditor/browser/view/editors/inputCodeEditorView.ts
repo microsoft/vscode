@@ -28,7 +28,7 @@ import { InputState, ModifiedBaseRangeState } from 'vs/workbench/contrib/mergeEd
 import { applyObservableDecorations, setFields } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from 'vs/workbench/contrib/mergeEditor/browser/view/colors';
 import { EditorGutter, IGutterItemInfo, IGutterItemView } from '../editorGutter';
-import { CodeEditorView } from './codeEditorView';
+import { CodeEditorView, TitleMenu } from './codeEditorView';
 
 export class InputCodeEditorView extends CodeEditorView {
 	private readonly decorations = derived(`input${this.inputNumber}.decorations`, reader => {
@@ -256,7 +256,6 @@ export class InputCodeEditorView extends CodeEditorView {
 
 	constructor(
 		public readonly inputNumber: 1 | 2,
-		titleMenuId: MenuId,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IThemeService themeService: IThemeService,
@@ -276,18 +275,13 @@ export class InputCodeEditorView extends CodeEditorView {
 			})
 		);
 
-		// title menu
-		const titleMenu = menuService.createMenu(titleMenuId, contextKeyService);
-		const toolBar = new ToolBar(this.htmlElements.toolbar, contextMenuService);
-		const toolBarUpdate = () => {
-			const secondary: IAction[] = [];
-			createAndFillInActionBarActions(titleMenu, { renderShortTitle: true }, secondary);
-			toolBar.setActions([], secondary);
-		};
-		this._store.add(toolBar);
-		this._store.add(titleMenu);
-		this._store.add(titleMenu.onDidChange(toolBarUpdate));
-		toolBarUpdate();
+		this._register(
+			instantiationService.createInstance(
+				TitleMenu,
+				inputNumber === 1 ? MenuId.MergeInput1Toolbar : MenuId.MergeInput2Toolbar,
+				this.htmlElements.title
+			)
+		);
 	}
 
 	protected override getEditorContributions(): IEditorContributionDescription[] | undefined {

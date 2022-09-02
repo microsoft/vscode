@@ -85,8 +85,8 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 	private readonly _sessionDisposables = new DisposableStore();
 
 	private _grid!: Grid<IView>;
-	private readonly input1View = this._register(this.instantiationService.createInstance(InputCodeEditorView, 1, MenuId.MergeInput1Toolbar));
-	private readonly input2View = this._register(this.instantiationService.createInstance(InputCodeEditorView, 2, MenuId.MergeInput2Toolbar));
+	private readonly input1View = this._register(this.instantiationService.createInstance(InputCodeEditorView, 1));
+	private readonly input2View = this._register(this.instantiationService.createInstance(InputCodeEditorView, 2));
 	private readonly inputResultView = this._register(this.instantiationService.createInstance(ResultCodeEditorView));
 
 	private readonly _layoutMode: MergeEditorLayout;
