@@ -7,16 +7,21 @@ import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { hasWorkspaceFileExtension, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { hasWorkspaceFileExtension, IWorkspaceContextService, WorkbenchState, WORKSPACE_SUFFIX } from 'vs/platform/workspace/common/workspace';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IFileService } from 'vs/platform/files/common/files';
 import { INeverShowAgainOptions, INotificationService, NeverShowAgainScope, Severity } from 'vs/platform/notification/common/notification';
 import { URI } from 'vs/base/common/uri';
-import { joinPath } from 'vs/base/common/resources';
+import { isEqual, joinPath } from 'vs/base/common/resources';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { isVirtualWorkspace } from 'vs/platform/workspace/common/virtualWorkspace';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { ActiveEditorContext, ResourceContextKey, TemporaryWorkspaceContext } from 'vs/workbench/common/contextkeys';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { TEXT_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 
 /**
  * A workbench contribution that will look for `.code-workspace` files in the root of the
@@ -90,3 +95,40 @@ export class WorkspacesFinderContribution extends Disposable implements IWorkben
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspacesFinderContribution, 'WorkspacesFinderContribution', LifecyclePhase.Eventually);
+
+// Render "Open Workspace" button in *.code-workspace files
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.openWorkspaceFromEditor',
+			title: { original: 'Open Workspace', value: localize('openWorkspace', "Open Workspace") },
+			f1: false,
+			menu: {
+				id: MenuId.EditorContent,
+				when: ContextKeyExpr.and(
+					ResourceContextKey.Extension.isEqualTo(WORKSPACE_SUFFIX),
+					ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID),
+					TemporaryWorkspaceContext.toNegated()
+				)
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, uri: URI): Promise<void> {
+		const hostService = accessor.get(IHostService);
+		const contextService = accessor.get(IWorkspaceContextService);
+		const notificationService = accessor.get(INotificationService);
+
+		if (contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+			const workspaceConfiguration = contextService.getWorkspace().configuration;
+			if (workspaceConfiguration && isEqual(workspaceConfiguration, uri)) {
+				notificationService.info(localize('alreadyOpen', "This workspace is already open."));
+
+				return; // workspace already opened
+			}
+		}
+
+		return hostService.openWindow([{ workspaceUri: uri }]);
+	}
+});
