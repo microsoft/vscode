@@ -8,7 +8,6 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
 import { ITerminalCapabilityStore, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
@@ -453,7 +452,6 @@ export interface ITerminalInstance {
 
 	readonly statusList: ITerminalStatusList;
 
-	readonly findState: FindReplaceState;
 	readonly findWidget: TerminalFindWidget;
 
 	/**

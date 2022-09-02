@@ -1419,7 +1419,7 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			const state = terminalService.activeInstance?.findState;
+			const state = terminalService.activeInstance?.findWidget.findState;
 			state?.change({ isRegex: !state.isRegex }, false);
 		}
 	});
@@ -1441,7 +1441,7 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			const state = terminalService.activeInstance?.findState;
+			const state = terminalService.activeInstance?.findWidget.findState;
 			state?.change({ wholeWord: !state.wholeWord }, false);
 		}
 	});
@@ -1463,7 +1463,7 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			const state = terminalService.activeInstance?.findState;
+			const state = terminalService.activeInstance?.findWidget.findState;
 			state?.change({ matchCase: !state.matchCase }, false);
 		}
 	});

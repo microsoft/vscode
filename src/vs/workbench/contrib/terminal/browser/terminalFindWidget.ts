@@ -21,7 +21,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 	private _findWidgetVisible: IContextKey<boolean>;
 
 	constructor(
-		findState: FindReplaceState,
+		readonly findState: FindReplaceState,
 		private _instance: ITerminalInstance,
 		@IContextViewService _contextViewService: IContextViewService,
 		@IKeybindingService keybindingService: IKeybindingService,
