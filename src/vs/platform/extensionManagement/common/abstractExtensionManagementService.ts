@@ -7,7 +7,7 @@ import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Barrier, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CancellationError, getErrorMessage } from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -46,7 +46,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 	private extensionsControlManifest: Promise<IExtensionsControlManifest> | undefined;
 	private lastReportTimestamp = 0;
-	private readonly installingExtensions = new Map<string, IInstallExtensionTask>();
+	private readonly installingExtensions = new Map<string, { task: IInstallExtensionTask; waitingTasks: IInstallExtensionTask[] }>();
 	private readonly uninstallingExtensions = new Map<string, IUninstallExtensionTask>();
 
 	private readonly _onInstallExtension = this._register(new Emitter<ServerInstallExtensionEvent>());
@@ -72,7 +72,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 	) {
 		super();
 		this._register(toDisposable(() => {
-			this.installingExtensions.forEach(task => task.cancel());
+			this.installingExtensions.forEach(({ task }) => task.cancel());
 			this.uninstallingExtensions.forEach(promise => promise.cancel());
 			this.installingExtensions.clear();
 			this.uninstallingExtensions.clear();
@@ -141,20 +141,21 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 		// only cache gallery extensions tasks
 		if (!URI.isUri(extension)) {
-			const installExtensionTask = this.installingExtensions.get(getInstallExtensionTaskKey(extension));
-			if (installExtensionTask) {
+			const installingExtension = this.installingExtensions.get(getInstallExtensionTaskKey(extension));
+			if (installingExtension) {
 				this.logService.info('Extensions is already requested to install', extension.identifier.id);
-				const { local } = await installExtensionTask.waitUntilTaskIsFinished();
+				const { local } = await installingExtension.task.waitUntilTaskIsFinished();
 				return local;
 			}
 			options = { ...options, installOnlyNewlyAddedFromExtensionPack: true /* always true for gallery extensions */ };
 		}
 
 		const allInstallExtensionTasks: { task: IInstallExtensionTask; manifest: IExtensionManifest }[] = [];
+		const alreadyRequestedInstallations: Promise<void>[] = [];
 		const installResults: (ServerInstallExtensionResult & { local: ILocalExtension })[] = [];
 		const installExtensionTask = this.createInstallExtensionTask(manifest, extension, options);
 		if (!URI.isUri(extension)) {
-			this.installingExtensions.set(getInstallExtensionTaskKey(extension), installExtensionTask);
+			this.installingExtensions.set(getInstallExtensionTaskKey(extension), { task: installExtensionTask, waitingTasks: [] });
 		}
 		this._onInstallExtension.fire({ identifier: installExtensionTask.identifier, source: extension, profileLocation: options.profileLocation });
 		this.logService.info('Installing extension:', installExtensionTask.identifier.id);
@@ -166,17 +167,34 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 				this.logService.info('Installing the extension without checking dependencies and pack', installExtensionTask.identifier.id);
 			} else {
 				try {
-					const allDepsAndPackExtensionsToInstall = await this.getAllDepsAndPackExtensionsToInstall(installExtensionTask.identifier, manifest, !!options.installOnlyNewlyAddedFromExtensionPack, !!options.installPreReleaseVersion, options.profileLocation);
+					const allDepsAndPackExtensionsToInstall = await this.getAllDepsAndPackExtensions(installExtensionTask.identifier, manifest, !!options.installOnlyNewlyAddedFromExtensionPack, !!options.installPreReleaseVersion, options.profileLocation);
+					const installed = await this.getInstalled(undefined, options.profileLocation);
 					for (const { gallery, manifest } of allDepsAndPackExtensionsToInstall) {
 						installExtensionHasDependents = installExtensionHasDependents || !!manifest.extensionDependencies?.some(id => areSameExtensions({ id }, installExtensionTask.identifier));
 						const key = getInstallExtensionTaskKey(gallery);
-						if (this.installingExtensions.has(key)) {
-							this.logService.info('Extension is already requested to install', gallery.identifier.id);
-						} else {
+						const existingInstallingExtension = this.installingExtensions.get(key);
+						if (existingInstallingExtension) {
+							if (this.canWaitForTask(installExtensionTask, existingInstallingExtension.task)) {
+								this.logService.info('Waiting for already requested installing extension', gallery.identifier.id, installExtensionTask.identifier.id);
+								existingInstallingExtension.waitingTasks.push(installExtensionTask);
+								const identifier = existingInstallingExtension.task.identifier;
+								// add promise that waits until the extension is completely installed, ie., onDidInstallExtensions event is triggered for this extension
+								alreadyRequestedInstallations.push(
+									Event.toPromise(
+										Event.filter(this.onDidInstallExtensions, results => results.some(result => areSameExtensions(result.identifier, identifier)))
+									).then(results => {
+										const result = results.find(result => areSameExtensions(result.identifier, identifier));
+										if (!result?.local) {
+											// Extension failed to install
+											throw new Error(`Extension ${identifier.id} is not installed`);
+										}
+									}));
+							}
+						} else if (!installed.some(({ identifier }) => areSameExtensions(identifier, gallery.identifier))) {
 							const task = this.createInstallExtensionTask(manifest, gallery, { ...options, donotIncludePackAndDependencies: true });
-							this.installingExtensions.set(key, task);
+							this.installingExtensions.set(key, { task, waitingTasks: [installExtensionTask] });
 							this._onInstallExtension.fire({ identifier: task.identifier, source: gallery, profileLocation: options.profileLocation });
-							this.logService.info('Installing extension:', task.identifier.id);
+							this.logService.info('Installing extension:', task.identifier.id, installExtensionTask.identifier.id);
 							allInstallExtensionTasks.push({ task, manifest });
 						}
 					}
@@ -246,6 +264,10 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 				}));
 			}
 
+			if (alreadyRequestedInstallations.length) {
+				await this.joinAllSettled(alreadyRequestedInstallations);
+			}
+
 			installResults.forEach(({ identifier }) => this.logService.info(`Extension installed successfully:`, identifier.id));
 			this._onDidInstallExtensions.fire(installResults);
 			return installResults.filter(({ identifier }) => areSameExtensions(identifier, installExtensionTask.identifier))[0].local;
@@ -277,16 +299,32 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			this._onDidInstallExtensions.fire(allInstallExtensionTasks.map(({ task }) => ({ identifier: task.identifier, operation: InstallOperation.Install, source: task.source, context: options.context, profileLocation: options.profileLocation })));
 			throw error;
 		} finally {
-			/* Remove the gallery tasks from the cache */
-			for (const { task } of allInstallExtensionTasks) {
-				if (!URI.isUri(task.source)) {
-					const key = getInstallExtensionTaskKey(task.source);
-					if (!this.installingExtensions.delete(key)) {
-						this.logService.warn('Installation task is not found in the cache', key);
-					}
+			for (const [key, { task, waitingTasks }] of this.installingExtensions.entries()) {
+				const index = waitingTasks.indexOf(installExtensionTask);
+				if (index !== -1) {
+					/* Current task was waiting for this task */
+					waitingTasks.splice(index, 1);
+				}
+				if (waitingTasks.length === 0 // No tasks are waiting for this task
+					&& (task === installExtensionTask || index !== -1)) {
+					this.installingExtensions.delete(key);
 				}
 			}
 		}
+	}
+
+	private canWaitForTask(taskToWait: IInstallExtensionTask, taskToWaitFor: IInstallExtensionTask): boolean {
+		for (const [, { task, waitingTasks }] of this.installingExtensions.entries()) {
+			// Cannot be waited, If taskToWaitFor is waiting for taskToWait
+			if (task === taskToWait && waitingTasks.includes(taskToWaitFor)) {
+				return false;
+			}
+			// Cannot be waited, if the taskToWait cannot be waited for the task created the taskToWaitFor
+			if (task === taskToWaitFor && waitingTasks[0] && !this.canWaitForTask(taskToWait, waitingTasks[0])) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	private async joinAllSettled<T>(promises: Promise<T>[]): Promise<T[]> {
@@ -305,13 +343,13 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		return results;
 	}
 
-	private async getAllDepsAndPackExtensionsToInstall(extensionIdentifier: IExtensionIdentifier, manifest: IExtensionManifest, getOnlyNewlyAddedFromExtensionPack: boolean, installPreRelease: boolean, profile: URI | undefined): Promise<{ gallery: IGalleryExtension; manifest: IExtensionManifest }[]> {
+	private async getAllDepsAndPackExtensions(extensionIdentifier: IExtensionIdentifier, manifest: IExtensionManifest, getOnlyNewlyAddedFromExtensionPack: boolean, installPreRelease: boolean, profile: URI | undefined): Promise<{ gallery: IGalleryExtension; manifest: IExtensionManifest }[]> {
 		if (!this.galleryService.isEnabled()) {
 			return [];
 		}
 
-		let installed = await this.getInstalled(undefined, profile);
-		const knownIdentifiers = [extensionIdentifier, ...(installed).map(i => i.identifier)];
+		const installed = await this.getInstalled(undefined, profile);
+		const knownIdentifiers = [extensionIdentifier];
 
 		const allDependenciesAndPacks: { gallery: IGalleryExtension; manifest: IExtensionManifest }[] = [];
 		const collectDependenciesAndPackExtensionsToInstall = async (extensionIdentifier: IExtensionIdentifier, manifest: IExtensionManifest): Promise<void> => {
@@ -330,7 +368,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			}
 
 			if (dependenciesAndPackExtensions.length) {
-				// filter out installed and known extensions
+				// filter out known extensions
 				const identifiers = [...knownIdentifiers, ...allDependenciesAndPacks.map(r => r.gallery.identifier)];
 				const ids = dependenciesAndPackExtensions.filter(id => identifiers.every(galleryIdentifier => !areSameExtensions(galleryIdentifier, { id })));
 				if (ids.length) {
@@ -359,8 +397,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		};
 
 		await collectDependenciesAndPackExtensionsToInstall(extensionIdentifier, manifest);
-		installed = await this.getInstalled(undefined, profile);
-		return allDependenciesAndPacks.filter(e => !installed.some(i => areSameExtensions(i.identifier, e.gallery.identifier)));
+		return allDependenciesAndPacks;
 	}
 
 	private async checkAndGetCompatibleVersion(extension: IGalleryExtension, sameVersion: boolean, installPreRelease: boolean): Promise<{ extension: IGalleryExtension; manifest: IExtensionManifest }> {
