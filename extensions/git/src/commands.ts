@@ -1150,7 +1150,10 @@ export class CommandCenter {
 			return;
 		}
 
-		const input = activeTab.input as { base: Uri; input1: Uri; input2: Uri; result: Uri };
+		const input = activeTab.input;
+		if (!(input instanceof TabInputTextMerge)) {
+			return;
+		}
 
 		const result = await this.git.mergeFile({
 			basePath: input.base.fsPath,

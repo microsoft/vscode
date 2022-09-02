@@ -292,9 +292,10 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'contribWebviewContext'
 	},
 	{
-		key: 'mergeEditor/result/context',
+		key: 'mergeEditor/result/title',
 		id: MenuId.MergeInputResultToolbar,
 		description: localize('menus.mergeEditorResult', "The result toolbar of the merge editor"),
+		proposed: 'mergeEditorMenus'
 	},
 ];
 

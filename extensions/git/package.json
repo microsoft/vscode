@@ -18,7 +18,8 @@
     "scmSelectedProvider",
     "scmValidation",
     "tabInputTextMerge",
-    "timeline"
+    "timeline",
+    "mergeEditorMenus"
   ],
   "categories": [
     "Other"
@@ -1580,7 +1581,7 @@
           "when": "config.git.enabled && !git.missing && !isInDiffEditor && !isMergeEditor && resource in git.mergeChanges"
         }
       ],
-      "mergeEditor/result/context": [
+      "mergeEditor/result/title": [
         {
           "command": "git.runGitMerge",
           "when": "isMergeEditor"
