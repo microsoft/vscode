@@ -19,52 +19,12 @@ class CopyPasteEditProvider implements vscode.DocumentPasteEditProvider {
 			return undefined;
 		}
 
-		// get b64 data from paste
-		// TODO: dataTransfer.get() limits to one image pasted
-		const dataItem = dataTransfer.get('image/png');
-		if (!dataItem) {
+		const attachmentEdit = await buildImageMarkdown(dataTransfer, document);
+		if (attachmentEdit) {
+			return { insertText: attachmentEdit.snippet, additionalEdit: attachmentEdit.edit };
+		} else {
 			return undefined;
 		}
-		const fileDataAsUint8 = await dataItem.asFile()?.data();
-		if (!fileDataAsUint8) {
-			return undefined;
-		}
-
-		// get filename data from paste
-		const clipboardFilename = dataItem.asFile()?.name;
-		if (!clipboardFilename) {
-			return undefined;
-		}
-		const separatorIndex = clipboardFilename?.lastIndexOf('.');
-		const filename = clipboardFilename?.slice(0, separatorIndex);
-		const filetype = clipboardFilename?.slice(separatorIndex);
-		if (!filename || !filetype) {
-			return undefined;
-		}
-
-		const currentCell = getCellFromCellDocument(document);
-		if (!currentCell) {
-			return undefined;
-		}
-		const notebookUri = currentCell.notebook.uri;
-
-		// create updated metadata for cell (prep for WorkspaceEdit)
-		const b64string = encodeBase64(fileDataAsUint8);
-		const startingAttachments = currentCell.metadata.custom?.attachments;
-		const newAttachment = buildAttachment(b64string, currentCell, filename, filetype, startingAttachments);
-
-		// build edits
-		const nbEdit = vscode.NotebookEdit.updateCellMetadata(currentCell.index, newAttachment.metadata);
-		const workspaceEdit = new vscode.WorkspaceEdit();
-		workspaceEdit.set(notebookUri, [nbEdit]);
-
-		// create a snippet for paste
-		const pasteSnippet = new vscode.SnippetString();
-		pasteSnippet.appendText('![');
-		pasteSnippet.appendPlaceholder(`${clipboardFilename}`);
-		pasteSnippet.appendText(`](attachment:${newAttachment.filename})`);
-
-		return { insertText: pasteSnippet, additionalEdit: workspaceEdit };
 	}
 }
 
@@ -75,57 +35,18 @@ class ImageDropEditProvider implements vscode.DocumentDropEditProvider {
 		dataTransfer: vscode.DataTransfer,
 		_token: vscode.CancellationToken
 	): Promise<vscode.DocumentDropEdit | undefined> {
-		const enabled = vscode.workspace.getConfiguration('ipynb', document).get('experimental.pasteImages.enabled', false);
+
+		const enabled = vscode.workspace.getConfiguration('ipynb', document).get('experimental.dropImages.enabled', false);
 		if (!enabled) {
 			return undefined;
 		}
 
-		// get b64 data from paste
-		// TODO: dataTransfer.get() limits to one image dropped
-		const dataItem = dataTransfer.get('image/png');
-		if (!dataItem) {
+		const attachmentEdit = await buildImageMarkdown(dataTransfer, document);
+		if (attachmentEdit) {
+			return { insertText: attachmentEdit.snippet, additionalEdit: attachmentEdit.edit };
+		} else {
 			return undefined;
 		}
-		const fileDataAsUint8 = await dataItem.asFile()?.data();
-		if (!fileDataAsUint8) {
-			return undefined;
-		}
-
-		// get filename data from paste
-		const droppedFilename = dataItem.asFile()?.name;
-		if (!droppedFilename) {
-			return undefined;
-		}
-		const separatorIndex = droppedFilename?.lastIndexOf('.');
-		const filename = droppedFilename?.slice(0, separatorIndex);
-		const filetype = droppedFilename?.slice(separatorIndex);
-		if (!filename || !filetype) {
-			return undefined;
-		}
-
-		const currentCell = getCellFromCellDocument(document);
-		if (!currentCell) {
-			return undefined;
-		}
-		const notebookUri = currentCell.notebook.uri;
-
-		// create updated metadata for cell (prep for WorkspaceEdit)
-		const b64string = encodeBase64(fileDataAsUint8);
-		const startingAttachments = currentCell.metadata.custom?.attachments;
-		const newAttachment = buildAttachment(b64string, currentCell, filename, filetype, startingAttachments);
-
-		// build edits
-		const nbEdit = vscode.NotebookEdit.updateCellMetadata(currentCell.index, newAttachment.metadata);
-		const workspaceEdit = new vscode.WorkspaceEdit();
-		workspaceEdit.set(notebookUri, [nbEdit]);
-
-		// create a snippet for paste
-		const pasteSnippet = new vscode.SnippetString();
-		pasteSnippet.appendText('![');
-		pasteSnippet.appendPlaceholder(`${droppedFilename}`);
-		pasteSnippet.appendText(`](attachment:${newAttachment.filename})`);
-
-		return { insertText: pasteSnippet, additionalEdit: workspaceEdit };
 	}
 
 }
@@ -226,6 +147,64 @@ function buildAttachment(b64: string, cell: vscode.NotebookCell, filename: strin
 	};
 }
 
+/**
+ * create a markdown image reference and workspace edit for an image being inputted to a markdown notebook cell
+ * @param dataTransfer dataTransfer item containing the image
+ * @param document TextDocument that image is being dropped into
+ * @returns a promise for an object containing the pastesnippet as well as the workspace edit
+ */
+async function buildImageMarkdown(dataTransfer: vscode.DataTransfer, document: vscode.TextDocument): Promise<{ snippet: vscode.SnippetString; edit: vscode.WorkspaceEdit } | undefined> {
+	// get b64 data from paste
+	// TODO: dataTransfer.get() limits to one image dropped
+	const dataItem = dataTransfer.get('image/png');
+	if (!dataItem) {
+		return undefined;
+	}
+	const fileDataAsUint8 = await dataItem.asFile()?.data();
+	if (!fileDataAsUint8) {
+		return undefined;
+	}
+
+	// get filename data from paste
+	const givenFilename = dataItem.asFile()?.name;
+	if (!givenFilename) {
+		return undefined;
+	}
+	const separatorIndex = givenFilename?.lastIndexOf('.');
+	const filename = givenFilename?.slice(0, separatorIndex);
+	const filetype = givenFilename?.slice(separatorIndex);
+	if (!filename || !filetype) {
+		return undefined;
+	}
+
+	const currentCell = getCellFromCellDocument(document);
+	if (!currentCell) {
+		return undefined;
+	}
+	const notebookUri = currentCell.notebook.uri;
+
+	// create updated metadata for cell (prep for WorkspaceEdit)
+	const b64string = encodeBase64(fileDataAsUint8);
+	const startingAttachments = currentCell.metadata.custom?.attachments;
+	const newAttachment = buildAttachment(b64string, currentCell, filename, filetype, startingAttachments);
+
+	// build edits
+	const nbEdit = vscode.NotebookEdit.updateCellMetadata(currentCell.index, newAttachment.metadata);
+	const workspaceEdit = new vscode.WorkspaceEdit();
+	workspaceEdit.set(notebookUri, [nbEdit]);
+
+	// create a snippet for paste
+	const pasteSnippet = new vscode.SnippetString();
+	pasteSnippet.appendText('![');
+	pasteSnippet.appendPlaceholder(`${givenFilename}`);
+	pasteSnippet.appendText(`](attachment:${newAttachment.filename})`);
+
+	return {
+		snippet: pasteSnippet,
+		edit: workspaceEdit
+	};
+}
+
 export function imagePasteSetup() {
 	const selector: vscode.DocumentSelector = { notebookType: 'jupyter-notebook', language: 'markdown' };
 	return vscode.languages.registerDocumentPasteEditProvider(selector, new CopyPasteEditProvider(), {
@@ -235,6 +214,5 @@ export function imagePasteSetup() {
 
 export function imageDropSetup() {
 	const selector: vscode.DocumentSelector = { notebookType: 'jupyter-notebook', language: 'markdown' };
-	// const selector: vscode.DocumentSelector = { language: 'markdown' };
 	return vscode.languages.registerDocumentDropEditProvider(selector, new ImageDropEditProvider());
 }

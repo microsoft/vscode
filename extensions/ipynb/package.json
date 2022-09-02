@@ -38,6 +38,15 @@
             "tags": [
               "experimental"
             ]
+          },
+          "ipynb.experimental.dropImages.enabled":{
+            "type": "boolean",
+            "scope": "resource",
+            "markdownDescription": "%ipynb.experimental.dropImages.enabled%",
+            "default": false,
+            "tags": [
+              "experimental"
+            ]
           }
         }
       }
