@@ -134,10 +134,19 @@ steps:
   - script: |
       set -e
       unzip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip -d $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)
-      APP_ROOT=$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)
-      APP_NAME="`ls $APP_ROOT | head -n 1`"
-      "$APP_ROOT/$APP_NAME/Contents/Resources/app/bin/code" --export-default-configuration=.build
-    displayName: Verify start after signing (export configuration)
+    displayName: Extract signed app
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
+
+  - script: |
+      set -e
+      codesign -dv --deep --verbose=4 "$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)/*.app"
+    displayName: Verify signature
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
+
+  - script: |
+      set -e
+      "$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)/*.app/Contents/Resources/app/bin/code" --export-default-configuration=.build
+    displayName: Verify signed application starts OK
     condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - script: |
@@ -154,5 +163,5 @@ steps:
     displayName: Rename x64 build to its legacy name
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
-  - publish: $(Agent.BuildDirectory)/VSCode-$(ASSET_ID).zip
+  - publish: $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-$(ASSET_ID).zip
     artifact: vscode_client_darwin_$(VSCODE_ARCH)_archive
