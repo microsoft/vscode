@@ -10,6 +10,7 @@ import { getOctokit } from './auth';
 import { TextEncoder } from 'util';
 import { basename } from 'path';
 import { Octokit } from '@octokit/rest';
+import { isInCodespaces } from './pushErrorHandler';
 
 const localize = nls.loadMessageBundle();
 
@@ -175,12 +176,21 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 			increment: 25
 		});
 
-		const res = await octokit.repos.createForAuthenticatedUser({
-			name: repo!,
-			private: isPrivate
-		});
+		// type CreateRepositoryResponseData = Awaited<ReturnType<typeof octokit.repos.createForAuthenticatedUser>>['data'];
 
-		const createdGithubRepository = res.data;
+		let createdGithubRepository;
+		console.log('isInCodespaces(): ', isInCodespaces());
+		if (isInCodespaces()) {
+			const res = await vscode.commands.executeCommand<any>('github.codespaces.publish', repo!, isPrivate);
+			console.log(res);
+			createdGithubRepository = res.data.repository;
+		} else {
+			const res = await octokit.repos.createForAuthenticatedUser({
+				name: repo!,
+				private: isPrivate
+			});
+			createdGithubRepository = res.data;
+		}
 
 		progress.report({ message: localize('publishing_firstcommit', "Creating first commit"), increment: 25 });
 
