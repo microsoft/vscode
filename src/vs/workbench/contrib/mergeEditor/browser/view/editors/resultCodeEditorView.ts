@@ -18,7 +18,7 @@ import { applyObservableDecorations, join } from 'vs/workbench/contrib/mergeEdit
 import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from 'vs/workbench/contrib/mergeEditor/browser/view/colors';
 import { EditorGutter } from 'vs/workbench/contrib/mergeEditor/browser/view/editorGutter';
 import { ctxIsMergeResultEditor } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
-import { CodeEditorView, TitleMenu } from './codeEditorView';
+import { CodeEditorView, createSelectionsAutorun, TitleMenu } from './codeEditorView';
 
 export class ResultCodeEditorView extends CodeEditorView {
 	private readonly decorations = derived('result.decorations', reader => {
@@ -31,7 +31,7 @@ export class ResultCodeEditorView extends CodeEditorView {
 
 		const baseRangeWithStoreAndTouchingDiffs = join(
 			model.modifiedBaseRanges.read(reader),
-			model.resultDiffs.read(reader),
+			model.baseResultDiffs.read(reader),
 			(baseRange, diff) => baseRange.baseRange.touches(diff.inputRange)
 				? CompareResult.neitherLessOrGreaterThan
 				: LineRange.compareByStart(
@@ -46,7 +46,7 @@ export class ResultCodeEditorView extends CodeEditorView {
 			const modifiedBaseRange = m.left;
 
 			if (modifiedBaseRange) {
-				const range = model.getRangeInResult(modifiedBaseRange.baseRange, reader).toInclusiveRange();
+				const range = model.getLineRangeInResult(modifiedBaseRange.baseRange, reader).toInclusiveRange();
 				if (range) {
 					const blockClassNames = ['merge-editor-block'];
 					const isHandled = model.isHandled(modifiedBaseRange).read(reader);
@@ -161,6 +161,12 @@ export class ResultCodeEditorView extends CodeEditorView {
 				);
 
 		}));
+
+		this._register(
+			createSelectionsAutorun(this, (baseRange, viewModel) =>
+				viewModel.model.translateBaseRangeToResult(baseRange)
+			)
+		);
 
 		this._register(
 			instantiationService.createInstance(

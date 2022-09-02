@@ -9,8 +9,8 @@ import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IAction } from 'vs/base/common/actions';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservable, observableFromEvent, observableValue, transaction } from 'vs/base/common/observable';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { autorun, derived, IObservable, observableFromEvent, observableValue, transaction } from 'vs/base/common/observable';
 import { IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -18,6 +18,8 @@ import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/men
 import { MenuId, IMenuService } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DEFAULT_EDITOR_MAX_DIMENSIONS, DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { InputData } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
@@ -87,6 +89,11 @@ export abstract class CodeEditorView extends Disposable {
 		() => /** @description editor.getPosition */ this.editor.getPosition()
 	);
 
+	public readonly selection = observableFromEvent(
+		this.editor.onDidChangeCursorSelection,
+		() => /** @description editor.getSelections */ this.editor.getSelections()
+	);
+
 	public readonly cursorLineNumber = this.cursorPosition.map(p => /** @description cursorPosition.lineNumber */ p?.lineNumber);
 
 	constructor(
@@ -115,6 +122,31 @@ export abstract class CodeEditorView extends Disposable {
 			this._viewModel.set(viewModel, tx);
 		});
 	}
+}
+
+export function createSelectionsAutorun(
+	codeEditorView: CodeEditorView,
+	translateRange: (baseRange: Range, viewModel: MergeEditorViewModel) => Range
+): IDisposable {
+	const selections = derived('selections', reader => {
+		const viewModel = codeEditorView.viewModel.read(reader);
+		if (!viewModel) {
+			return [];
+		}
+		const baseRange = viewModel.selectionInBase.read(reader);
+		if (!baseRange || baseRange.sourceEditor === codeEditorView) {
+			return [];
+		}
+		return baseRange.rangesInBase.map(r => translateRange(r, viewModel));
+	});
+
+	return autorun('set selections', (reader) => {
+		const ranges = selections.read(reader);
+		if (ranges.length === 0) {
+			return;
+		}
+		codeEditorView.editor.setSelections(ranges.map(r => new Selection(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn)));
+	});
 }
 
 export class TitleMenu extends Disposable {
