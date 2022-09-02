@@ -369,6 +369,10 @@ export interface ITerminalInstanceHost {
 
 	setActiveInstance(instance: ITerminalInstance): void;
 	/**
+	 * Reveal and focus the active instance, regardless of its location.
+	 */
+	focusActiveInstance(): Promise<void>;
+	/**
 	 * Gets an instance from a resource if it exists. This MUST be used instead of getInstanceFromId
 	 * when you only know about a terminal's URI. (a URI's instance ID may not be this window's instance ID)
 	 */

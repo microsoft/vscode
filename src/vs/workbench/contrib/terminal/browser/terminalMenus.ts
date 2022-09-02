@@ -753,36 +753,17 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 		const isDefault = p.profileName === defaultProfileName;
 		const options: ICreateTerminalOptions = { config: p, location };
 		const splitOptions: ICreateTerminalOptions = { config: p, location: splitLocation };
-		// TODO: inline if
-		// TODO: This doesn't reveal and focus the terminal
-		// TODO: How to handle terminal group service?
-		if (isDefault) {
-			dropdownActions.unshift(new Action(TerminalCommandId.NewWithProfile, localize('defaultTerminalProfile', "{0} (Default)", p.profileName), undefined, true, async () => {
-				(await terminalService.createTerminal(options)).focusWhenReady(true);
-			}));
-			submenuActions.unshift(new Action(TerminalCommandId.Split, localize('defaultTerminalProfile', "{0} (Default)", p.profileName), undefined, true, async () => {
-				(await terminalService.createTerminal(splitOptions)).focusWhenReady(true);
-			}));
-		} else {
-			dropdownActions.push(new Action(TerminalCommandId.NewWithProfile, p.profileName.replace(/[\n\r\t]/g, ''), undefined, true, async () => {
-				const instance = await terminalService.createTerminal(options);
-				terminalService.setActiveInstance(instance);
-				if (instance.target === TerminalLocation.Editor) {
-					await instance.focusWhenReady(true);
-					// } else {
-					// 	await terminalGroupService.showPanel(true);
-				}
-			}));
-			submenuActions.push(new Action(TerminalCommandId.Split, p.profileName.replace(/[\n\r\t]/g, ''), undefined, true, async () => {
-				const instance = await terminalService.createTerminal(splitOptions);
-				terminalService.setActiveInstance(instance);
-				if (instance.target === TerminalLocation.Editor) {
-					await instance.focusWhenReady(true);
-					// } else {
-					// 	await terminalGroupService.showPanel(true);
-				}
-			}));
-		}
+		const sanitizedProfileName = p.profileName.replace(/[\n\r\t]/g, '');
+		dropdownActions.push(new Action(TerminalCommandId.NewWithProfile, isDefault ? localize('defaultTerminalProfile', "{0} (Default)", sanitizedProfileName) : sanitizedProfileName, undefined, true, async () => {
+			const instance = await terminalService.createTerminal(options);
+			terminalService.setActiveInstance(instance);
+			await terminalService.focusActiveInstance();
+		}));
+		submenuActions.push(new Action(TerminalCommandId.Split, isDefault ? localize('defaultTerminalProfile', "{0} (Default)", sanitizedProfileName) : sanitizedProfileName, undefined, true, async () => {
+			const instance = await terminalService.createTerminal(splitOptions);
+			terminalService.setActiveInstance(instance);
+			await terminalService.focusActiveInstance();
+		}));
 	}
 
 	for (const contributed of contributedProfiles) {

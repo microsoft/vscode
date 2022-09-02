@@ -350,6 +350,16 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
+	async focusActiveInstance(): Promise<void> {
+		if (!this._activeInstance) {
+			return;
+		}
+		if (this._activeInstance.target === TerminalLocation.Editor) {
+			return this._terminalEditorService.focusActiveInstance();
+		}
+		return this._terminalGroupService.focusActiveInstance();
+	}
+
 	async createContributedTerminalProfile(extensionIdentifier: string, id: string, options: ICreateContributedTerminalProfileOptions): Promise<void> {
 		await this._extensionService.activateByEvent(`onTerminalProfile:${id}`);
 
