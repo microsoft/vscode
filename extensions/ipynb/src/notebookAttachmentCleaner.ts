@@ -7,22 +7,22 @@ import * as vscode from 'vscode';
 
 class AttachmentCleaner {
 
-	// Format:       { notebookUri : { cellFragment : { filename : { mime : b64 } } } }
-	attachmentCache: { [key: string]: any } = {};
+	// FIXME: potentially just turn this into a map
+	attachmentCache:
+		{ [key: string/*uri*/]: { [key: string/*cellFragment*/]: { [key: string/*filename*/]: { [key: string/*mime*/]: string/*b64*/ } } } } = {};
 
 	/**
 	 * take in a NotebookDocumentChangeEvent, and clean the attachment data for the cell(s) that have had their markdown source code changed
 	 * @param e NotebookDocumentChangeEvent from the onDidChangeNotebookDocument listener
 	 */
 	cleanNotebookAttachments(e: vscode.NotebookDocumentChangeEvent) {
-		// return if there are no sources changes in event
-		if (!e.cellChanges.length) {
+		if (e.notebook.isClosed) {
 			return;
 		}
 
 		for (const currentChange of e.cellChanges) {
 			// undefined is a specific case including workspace edit etc
-			if (currentChange.document === undefined) {
+			if (currentChange.document === undefined || currentChange.document.languageId !== 'markdown') { //document lang ID
 				continue;
 			}
 
@@ -63,12 +63,14 @@ class AttachmentCleaner {
 					}
 					//TODO: ELSE: diagnostic squiggle, image not present
 				}
-
 			}
-			const metadataEdit = vscode.NotebookEdit.updateCellMetadata(currentChange.cell.index, updateMetadata);
-			const workspaceEdit = new vscode.WorkspaceEdit();
-			workspaceEdit.set(e.notebook.uri, [metadataEdit]);
-			vscode.workspace.applyEdit(workspaceEdit);
+
+			if (!this.equals(updateMetadata, currentChange.cell.metadata)) {
+				const metadataEdit = vscode.NotebookEdit.updateCellMetadata(currentChange.cell.index, updateMetadata);
+				const workspaceEdit = new vscode.WorkspaceEdit();
+				workspaceEdit.set(e.notebook.uri, [metadataEdit]);
+				vscode.workspace.applyEdit(workspaceEdit);
+			}
 		} // for loop of all changes
 	}
 
@@ -173,7 +175,6 @@ class AttachmentCleaner {
 	 * pass in all of the markdown source code, and get a dictionary of all images referenced in the markdown. keys are image filenames, values are render state
 	 * @param source the markdown source code for the cell, formatted as a string
 	 * @returns a dictionary with all markdown names and a boolean representing their rendering state (true = will render properly // false = won't render or not checked yet)
-	 * FIXME: maybe initialize booleans to undefined or null?
 	 */
 	private getAttachmentNames(source: string) {
 		const filenames: any = {};
@@ -186,6 +187,60 @@ class AttachmentCleaner {
 			}
 		}
 		return filenames;
+	}
+
+	// from https://github.com/microsoft/vscode/blob/43ae27a30e7b5e8711bf6b218ee39872ed2b8ef6/src/vs/base/common/objects.ts#L117
+	private equals(one: any, other: any): boolean {
+		if (one === other) {
+			return true;
+		}
+		if (one === null || one === undefined || other === null || other === undefined) {
+			return false;
+		}
+		if (typeof one !== typeof other) {
+			return false;
+		}
+		if (typeof one !== 'object') {
+			return false;
+		}
+		if ((Array.isArray(one)) !== (Array.isArray(other))) {
+			return false;
+		}
+
+		let i: number;
+		let key: string;
+
+		if (Array.isArray(one)) {
+			if (one.length !== other.length) {
+				return false;
+			}
+			for (i = 0; i < one.length; i++) {
+				if (!this.equals(one[i], other[i])) {
+					return false;
+				}
+			}
+		} else {
+			const oneKeys: string[] = [];
+
+			for (key in one) {
+				oneKeys.push(key);
+			}
+			oneKeys.sort();
+			const otherKeys: string[] = [];
+			for (key in other) {
+				otherKeys.push(key);
+			}
+			otherKeys.sort();
+			if (!this.equals(oneKeys, otherKeys)) {
+				return false;
+			}
+			for (i = 0; i < oneKeys.length; i++) {
+				if (!this.equals(one[oneKeys[i]], other[oneKeys[i]])) {
+					return false;
+				}
+			}
+		}
+		return true;
 	}
 }
 
@@ -228,19 +283,27 @@ export function notebookAttachmentCleanerSetup(context: vscode.ExtensionContext)
 	}
 
 	const cleaner = new AttachmentCleaner();
+	// const changeList: (vscode.NotebookDocumentChangeEvent|vscode.NotebookDocument)[] = [];
 
 	const delayTrigger = new DelayedTrigger(
 		(e) => {
 			cleaner.cleanNotebookAttachments(e);
+			// for(const change in changeList){
+			// 	if ( typeof change === ){
+
+			// 	}
+			// }
 		},
 		500
 	);
 
 	context.subscriptions.push(vscode.workspace.onDidChangeNotebookDocument(e => {
+		// changeList.push(e);
 		delayTrigger.trigger(e);
 	}));
 
 	context.subscriptions.push(vscode.workspace.onDidCloseNotebookDocument(e => {
+		// changeList.push(e);
 		cleaner.deleteCacheUri(e);
 	}));
 
