@@ -354,4 +354,4 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 	}
 }
 
-registerSingleton(ILanguageDetectionService, LanguageDetectionService);
+registerSingleton(ILanguageDetectionService, LanguageDetectionService, false);

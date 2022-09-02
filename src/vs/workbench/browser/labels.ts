@@ -587,8 +587,13 @@ class ResourceLabelWidget extends IconLabel {
 
 			const decoration = this.decoration.value;
 			if (decoration) {
-				if (decoration.tooltip && (typeof iconLabelOptions.title === 'string')) {
-					iconLabelOptions.title = `${iconLabelOptions.title} • ${decoration.tooltip}`;
+				if (decoration.tooltip) {
+					if (typeof iconLabelOptions.title === 'string') {
+						iconLabelOptions.title = `${iconLabelOptions.title} • ${decoration.tooltip}`;
+					} else if (typeof iconLabelOptions.title?.markdown === 'string') {
+						const title = `${iconLabelOptions.title.markdown} • ${decoration.tooltip}`;
+						iconLabelOptions.title = { markdown: title, markdownNotSupportedFallback: title };
+					}
 				}
 
 				if (decoration.strikethrough) {

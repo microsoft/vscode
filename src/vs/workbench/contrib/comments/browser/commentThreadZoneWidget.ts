@@ -173,7 +173,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 	public reveal(commentUniqueId?: number, focus: boolean = false) {
 		if (!this._isExpanded) {
-			this.show({ lineNumber: this._commentThread.range.startLineNumber, column: 1 }, 2);
+			this.show({ lineNumber: this._commentThread.range.endLineNumber, column: 1 }, 2);
 		}
 
 		if (commentUniqueId !== undefined) {
@@ -256,6 +256,14 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		return Promise.resolve();
 	}
 
+	public expand(): Promise<void> {
+		this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Expanded;
+		const lineNumber = this._commentThread.range.endLineNumber;
+
+		this.show({ lineNumber, column: 1 }, 2);
+		return Promise.resolve();
+	}
+
 	public getGlyphPosition(): number {
 		if (this._commentGlyph) {
 			return this._commentGlyph.getPosition().position!.lineNumber;
@@ -317,9 +325,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 	display(lineNumber: number) {
 		this._commentGlyph = new CommentGlyphWidget(this.editor, lineNumber);
-
-		this._disposables.add(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
-		this._disposables.add(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
 
 		this._commentThreadWidget.display(this.editor.getOption(EditorOption.lineHeight));
 		this._disposables.add(this._commentThreadWidget.onDidResize(dimension => {
@@ -415,29 +420,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			}
 
 			this._relayout(computedLinesNumber);
-		}
-	}
-
-	private mouseDownInfo: { lineNumber: number } | null = null;
-
-	private onEditorMouseDown(e: IEditorMouseEvent): void {
-		this.mouseDownInfo = parseMouseDownInfoFromEvent(e);
-	}
-
-	private onEditorMouseUp(e: IEditorMouseEvent): void {
-		const matchedLineNumber = isMouseUpEventMatchMouseDown(this.mouseDownInfo, e);
-		this.mouseDownInfo = null;
-
-		if (matchedLineNumber === null || !e.target.element) {
-			return;
-		}
-
-		if (this._commentGlyph && this._commentGlyph.getPosition().position!.lineNumber !== matchedLineNumber) {
-			return;
-		}
-
-		if (e.target.element.className.indexOf('comment-thread') >= 0) {
-			this.toggleExpand(matchedLineNumber);
 		}
 	}
 

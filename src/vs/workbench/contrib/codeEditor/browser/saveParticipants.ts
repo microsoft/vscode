@@ -402,4 +402,4 @@ export class SaveParticipantsContribution extends Disposable implements IWorkben
 }
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchContributionsExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(SaveParticipantsContribution, LifecyclePhase.Restored);
+workbenchContributionsRegistry.registerWorkbenchContribution(SaveParticipantsContribution, 'SaveParticipantsContribution', LifecyclePhase.Restored);

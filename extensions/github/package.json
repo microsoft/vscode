@@ -45,7 +45,8 @@
       },
       {
         "command": "github.openOnVscodeDev",
-        "title": "Open on vscode.dev"
+        "title": "Open on vscode.dev",
+        "icon": "$(globe)"
       }
     ],
     "continueEditSession": [

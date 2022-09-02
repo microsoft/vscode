@@ -18,6 +18,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
 	PerfviewContrib,
+	'PerfviewContrib',
 	LifecyclePhase.Ready
 );
 

@@ -710,11 +710,6 @@ export interface ITreeViewDescriptor extends IViewDescriptor {
 	treeView: ITreeView;
 }
 
-export type TreeViewPaneHandleArg = {
-	$treeViewId: string;
-	$selectedTreeItems: boolean;
-};
-
 export type TreeViewItemHandleArg = {
 	$treeViewId: string;
 	$treeItemHandle: string;

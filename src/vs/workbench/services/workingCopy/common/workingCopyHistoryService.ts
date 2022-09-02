@@ -786,4 +786,4 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 }
 
 // Register History Tracker
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkingCopyHistoryTracker, LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkingCopyHistoryTracker, 'WorkingCopyHistoryTracker', LifecyclePhase.Restored);

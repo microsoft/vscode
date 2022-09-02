@@ -92,6 +92,11 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 
 		const allowedCommands = ['_remoteCLI.openExternal', '_remoteCLI.windowOpen', '_remoteCLI.getSystemStatus', '_remoteCLI.manageExtensions'];
 		this._remoteTerminalChannel.onExecuteCommand(async e => {
+			// Ensure this request for for this window
+			const pty = this._ptys.get(e.persistentProcessId);
+			if (!pty) {
+				return;
+			}
 			const reqId = e.reqId;
 			const commandId = e.commandId;
 			if (!allowedCommands.includes(commandId)) {
@@ -204,7 +209,10 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 			args: shellLaunchConfig.args,
 			cwd: shellLaunchConfig.cwd,
 			env: shellLaunchConfig.env,
-			useShellEnvironment: shellLaunchConfig.useShellEnvironment
+			useShellEnvironment: shellLaunchConfig.useShellEnvironment,
+			reconnectionProperties: shellLaunchConfig.reconnectionProperties,
+			type: shellLaunchConfig.type,
+			isFeatureTerminal: shellLaunchConfig.isFeatureTerminal
 		};
 		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
 

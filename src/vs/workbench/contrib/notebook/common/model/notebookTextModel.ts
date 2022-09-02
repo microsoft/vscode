@@ -359,6 +359,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._cellListeners.clear();
 
 		dispose(this._cells);
+		this._cells = [];
 		super.dispose();
 	}
 

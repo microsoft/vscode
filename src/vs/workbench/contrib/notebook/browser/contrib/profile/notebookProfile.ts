@@ -125,5 +125,5 @@ export class NotebookProfileContribution extends Disposable {
 }
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(NotebookProfileContribution, LifecyclePhase.Ready);
+workbenchContributionsRegistry.registerWorkbenchContribution(NotebookProfileContribution, 'NotebookProfileContribution', LifecyclePhase.Ready);
 

@@ -108,6 +108,8 @@ import { IRequestService } from 'vs/platform/request/common/request';
 import { ExtensionsProfileScannerService, IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/extensionsScannerService';
+import { UserDataTransientProfilesHandler } from 'vs/platform/userDataProfile/electron-main/userDataTransientProfilesHandler';
+import { RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -128,7 +130,8 @@ export class CodeApplication extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStateMainService private readonly stateMainService: IStateMainService,
 		@IFileService private readonly fileService: IFileService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IUserDataProfilesMainService private readonly userDataProfilesMainService: IUserDataProfilesMainService,
 	) {
 		super();
 
@@ -534,6 +537,12 @@ export class CodeApplication extends Disposable {
 		// Setup Handlers
 		this.setUpHandlers(appInstantiationService);
 
+		// Ensure profile exists when passed in from CLI
+		const profilePromise = this.userDataProfilesMainService.checkAndCreateProfileFromCli(this.environmentMainService.args);
+		if (profilePromise) {
+			await profilePromise;
+		}
+
 		// Init Channels
 		appInstantiationService.invokeFunction(accessor => this.initChannels(accessor, mainProcessElectronServer, sharedProcessClient));
 
@@ -547,14 +556,24 @@ export class CodeApplication extends Disposable {
 		if (this.environmentMainService.args.trace) {
 			appInstantiationService.invokeFunction(accessor => this.stopTracingEventually(accessor, windows));
 		}
+
+		// Set lifecycle phase to `Eventually` after a short delay and when idle (min 2.5sec, max 5sec)
+		const eventuallyPhaseScheduler = this._register(new RunOnceScheduler(() => {
+			this._register(runWhenIdle(() => this.lifecycleMainService.phase = LifecycleMainPhase.Eventually, 2500));
+		}, 2500));
+		eventuallyPhaseScheduler.schedule();
 	}
 
 	private setUpHandlers(instantiationService: IInstantiationService): void {
+
 		// Auth Handler
 		this._register(instantiationService.createInstance(ProxyAuthHandler));
 
 		// Default Extensions Profile Init Handler
 		this._register(instantiationService.createInstance(DefaultExtensionsProfileInitHandler));
+
+		// Transient profiles handler
+		this._register(instantiationService.createInstance(UserDataTransientProfilesHandler));
 	}
 
 	private async resolveMachineId(): Promise<string> {
@@ -808,7 +827,7 @@ export class CodeApplication extends Disposable {
 		sharedProcessClient.then(client => client.registerChannel('logger', loggerChannel));
 
 		// Extension Host Debug Broadcasting
-		const electronExtensionHostDebugBroadcastChannel = new ElectronExtensionHostDebugBroadcastChannel(accessor.get(IWindowsMainService));
+		const electronExtensionHostDebugBroadcastChannel = new ElectronExtensionHostDebugBroadcastChannel(accessor.get(IWindowsMainService), accessor.get(IUserDataProfilesMainService));
 		mainProcessElectronServer.registerChannel('extensionhostdebugservice', electronExtensionHostDebugBroadcastChannel);
 
 		// Extension Host Starter
@@ -899,13 +918,6 @@ export class CodeApplication extends Disposable {
 
 				// or if no window is open (macOS only)
 				shouldOpenInNewWindow ||= isMacintosh && windowsMainService.getWindowCount() === 0;
-
-				// Pass along edit session id
-				if (params.get('editSessionId') !== null) {
-					environmentService.editSessionId = params.get('editSessionId') ?? undefined;
-					params.delete('editSessionId');
-					uri = uri.with({ query: params.toString() });
-				}
 
 				// Check for URIs to open in window
 				const windowOpenableFromProtocolLink = app.getWindowOpenableFromProtocolLink(uri);
@@ -1201,9 +1213,9 @@ export class CodeApplication extends Disposable {
 			const argvContent = await this.fileService.readFile(this.environmentMainService.argvResource);
 			const argvString = argvContent.value.toString();
 			const argvJSON = JSON.parse(stripComments(argvString));
+			const telemetryLevel = getTelemetryLevel(this.configurationService);
+			const enableCrashReporter = telemetryLevel >= TelemetryLevel.CRASH;
 			if (argvJSON['enable-crash-reporter'] === undefined) {
-				const telemetryLevel = getTelemetryLevel(this.configurationService);
-				const enableCrashReporter = telemetryLevel >= TelemetryLevel.CRASH;
 				const additionalArgvContent = [
 					'',
 					'	// Allows to disable crash reporting.',
@@ -1217,6 +1229,10 @@ export class CodeApplication extends Disposable {
 				];
 				const newArgvString = argvString.substring(0, argvString.length - 2).concat(',\n', additionalArgvContent.join('\n'));
 
+				await this.fileService.writeFile(this.environmentMainService.argvResource, VSBuffer.fromString(newArgvString));
+			} else {
+				// Update enable crash reporter value at each startup
+				const newArgvString = argvString.replace(/"enable-crash-reporter": .*,/, `"enable-crash-reporter": ${enableCrashReporter},`);
 				await this.fileService.writeFile(this.environmentMainService.argvResource, VSBuffer.fromString(newArgvString));
 			}
 		} catch (error) {

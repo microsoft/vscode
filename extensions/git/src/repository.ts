@@ -22,7 +22,7 @@ import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { ActionButtonCommand } from './actionButton';
-import { IPostCommitCommandsProviderRegistry } from './postCommitCommands';
+import { IPostCommitCommandsProviderRegistry, CommitCommandsCenter } from './postCommitCommands';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -87,6 +87,7 @@ export class Resource implements SourceControlResourceState {
 		return this.resources[1];
 	}
 
+	@memoize
 	get command(): Command {
 		return this._commandResolver.resolveDefaultCommand(this);
 	}
@@ -619,7 +620,7 @@ class ResourceCommandResolver {
 			const bothModified = resource.type === Status.BOTH_MODIFIED;
 			if (resource.rightUri && workspace.getConfiguration('git').get<boolean>('mergeEditor', false) && (bothModified || resource.type === Status.BOTH_ADDED)) {
 				return {
-					command: '_git.openMergeEditor',
+					command: 'git.openMergeEditor',
 					title: localize('open.merge', "Open Merge"),
 					arguments: [resource.rightUri]
 				};
@@ -870,6 +871,7 @@ export class Repository implements Disposable {
 	private didWarnAboutLimit = false;
 
 	private isBranchProtectedMatcher: picomatch.Matcher | undefined;
+	private commitCommandCenter: CommitCommandsCenter;
 	private resourceCommandResolver = new ResourceCommandResolver(this);
 	private disposables: Disposable[] = [];
 
@@ -998,7 +1000,10 @@ export class Repository implements Disposable {
 		statusBar.onDidChange(() => this._sourceControl.statusBarCommands = statusBar.commands, null, this.disposables);
 		this._sourceControl.statusBarCommands = statusBar.commands;
 
-		const actionButton = new ActionButtonCommand(this, postCommitCommandsProviderRegistry);
+		this.commitCommandCenter = new CommitCommandsCenter(globalState, this, postCommitCommandsProviderRegistry);
+		this.disposables.push(this.commitCommandCenter);
+
+		const actionButton = new ActionButtonCommand(this, this.commitCommandCenter);
 		this.disposables.push(actionButton);
 		actionButton.onDidChange(() => this._sourceControl.actionButton = actionButton.button);
 		this._sourceControl.actionButton = actionButton.button;
@@ -1250,6 +1255,9 @@ export class Repository implements Disposable {
 				await this.repository.commit(message, opts);
 				this.closeDiffEditors(indexResources, workingGroupResources);
 			});
+
+			// Execute post-commit command
+			await this.commitCommandCenter.executePostCommitCommand(opts.postCommitCommand);
 		}
 	}
 
@@ -1888,7 +1896,9 @@ export class Repository implements Disposable {
 
 		const limit = scopedConfig.get<number>('statusLimit', 10000);
 
+		const start = new Date().getTime();
 		const { status, statusLength, didHitLimit } = await this.repository.getStatus({ limit, ignoreSubmodules, untrackedChanges });
+		const totalTime = new Date().getTime() - start;
 
 		if (didHitLimit) {
 			/* __GDPR__
@@ -1896,10 +1906,11 @@ export class Repository implements Disposable {
 					"owner": "lszomoru",
 					"ignoreSubmodules": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Setting indicating whether submodules are ignored" },
 					"limit": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Setting indicating the limit of status entries" },
-					"statusLength": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of status entries" }
+					"statusLength": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of status entries" },
+					"totalTime": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of ms the operation took" }
 				}
 			*/
-			this.telemetryReporter.sendTelemetryEvent('statusLimit', { ignoreSubmodules: String(ignoreSubmodules) }, { limit, statusLength });
+			this.telemetryReporter.sendTelemetryEvent('statusLimit', { ignoreSubmodules: String(ignoreSubmodules) }, { limit, statusLength, totalTime });
 		}
 
 		const config = workspace.getConfiguration('git');
@@ -1941,6 +1952,22 @@ export class Repository implements Disposable {
 
 				this.didWarnAboutLimit = true;
 			}
+		}
+
+		if (totalTime > 5000) {
+			/* __GDPR__
+				"statusSlow" : {
+					"owner": "digitarald",
+					"comment": "Reports when git status is slower than 5s",
+					"expiration": "1.73",
+					"ignoreSubmodules": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Setting indicating whether submodules are ignored" },
+					"didHitLimit": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Total number of status entries" },
+					"didWarnAboutLimit": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "True when the user was warned about slow git status" },
+					"statusLength": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of status entries" },
+					"totalTime": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of ms the operation took" }
+				}
+			*/
+			this.telemetryReporter.sendTelemetryEvent('statusSlow', { ignoreSubmodules: String(ignoreSubmodules), didHitLimit: String(didHitLimit), didWarnAboutLimit: String(this.didWarnAboutLimit) }, { statusLength, totalTime });
 		}
 
 		let HEAD: Branch | undefined;

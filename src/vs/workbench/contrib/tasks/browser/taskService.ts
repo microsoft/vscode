@@ -23,13 +23,16 @@ export class TaskService extends AbstractTaskService {
 		} else {
 			throw new Error(TaskService.ProcessTaskSystemSupportMessage);
 		}
-		this._taskSystemListener = this._taskSystem!.onDidStateChange((event) => {
-			if (this._taskSystem) {
-				this._taskRunningState.set(this._taskSystem.isActiveSync());
-			}
-			this._onDidStateChange.fire(event);
-		});
-		return this._taskSystem!;
+		const taskSystem = this._createTerminalTaskSystem();
+		this._taskSystem = taskSystem;
+		this._taskSystemListeners =
+			[
+				taskSystem.onDidStateChange((event) => {
+					this._taskRunningState.set(taskSystem.isActiveSync());
+					this._onDidStateChange.fire(event);
+				}),
+			];
+		return this._taskSystem;
 	}
 
 	protected _computeLegacyConfiguration(workspaceFolder: IWorkspaceFolder): Promise<IWorkspaceFolderConfigurationResult> {

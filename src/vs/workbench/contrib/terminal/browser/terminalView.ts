@@ -119,7 +119,7 @@ export class TerminalViewPane extends ViewPane {
 		}));
 		this._register(this._terminalService.onDidCreateInstance((i) => {
 			i.capabilities.onDidAddCapability(c => {
-				if (c === TerminalCapability.CommandDetection && !this._gutterDecorationsEnabled()) {
+				if (c === TerminalCapability.CommandDetection && this._gutterDecorationsEnabled()) {
 					this._parentDomElement?.classList.add('shell-integration');
 				}
 			});
@@ -212,18 +212,20 @@ export class TerminalViewPane extends ViewPane {
 		switch (action.id) {
 			case TerminalCommandId.Split: {
 				// Split needs to be special cased to force splitting within the panel, not the editor
-				const panelOnlySplitAction: IAction = {
-					id: action.id,
-					checked: action.checked,
-					class: action.class,
-					enabled: action.enabled,
-					label: action.label,
-					dispose: action.dispose.bind(action),
-					tooltip: action.tooltip,
-					run: async () => {
-						const instance = this._terminalGroupService.activeInstance;
+				const that = this;
+				const panelOnlySplitAction = new class extends Action {
+					constructor() {
+						super(action.id, action.label, action.class, action.enabled);
+						this.checked = action.checked;
+						this.tooltip = action.tooltip;
+					}
+					override dispose(): void {
+						action.dispose();
+					}
+					override async run() {
+						const instance = that._terminalGroupService.activeInstance;
 						if (instance) {
-							const newInstance = await this._terminalService.createTerminal({ location: { parentTerminal: instance } });
+							const newInstance = await that._terminalService.createTerminal({ location: { parentTerminal: instance } });
 							return newInstance?.focusWhenReady();
 						}
 						return;

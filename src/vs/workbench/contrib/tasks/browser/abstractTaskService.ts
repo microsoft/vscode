@@ -8,7 +8,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
 import * as json from 'vs/base/common/json';
-import { Disposable, IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { LRUCache, Touch } from 'vs/base/common/map';
 import * as Objects from 'vs/base/common/objects';
 import { ValidationState, ValidationStatus } from 'vs/base/common/parsers';
@@ -47,7 +47,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 
-import { ConfiguringTask, ContributedTask, CustomTask, ExecutionEngine, InMemoryTask, ITaskEvent, ITaskIdentifier, ITaskSet, JsonSchemaVersion, KeyedTaskIdentifier, RuntimeType, Task, TaskDefinition, TaskGroup, TaskRunSource, TaskSettingId, TaskSorter, TaskSourceKind, TasksSchemaProperties, TASK_RUNNING_STATE, USER_TASKS_GROUP_KEY } from 'vs/workbench/contrib/tasks/common/tasks';
+import { ConfiguringTask, ContributedTask, CustomTask, ExecutionEngine, InMemoryTask, ITaskEvent, ITaskIdentifier, ITaskSet, JsonSchemaVersion, KeyedTaskIdentifier, RuntimeType, Task, TaskDefinition, TaskEventKind, TaskGroup, TaskRunSource, TaskSettingId, TaskSorter, TaskSourceKind, TasksSchemaProperties, TASK_RUNNING_STATE, USER_TASKS_GROUP_KEY } from 'vs/workbench/contrib/tasks/common/tasks';
 import { CustomExecutionSupportedContext, ICustomizationProperties, IProblemMatcherRunOptions, ITaskFilter, ITaskProvider, ITaskService, IWorkspaceFolderTaskResult, ProcessExecutionSupportedContext, ShellExecutionSupportedContext, TaskCommandsRegistered } from 'vs/workbench/contrib/tasks/common/taskService';
 import { ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSystemInfo, ITaskTerminateResponse, TaskError, TaskErrors, TaskExecuteKind } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/common/taskTemplates';
@@ -68,7 +68,6 @@ import { Schemas } from 'vs/base/common/network';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { ILogService } from 'vs/platform/log/common/log';
-import { TerminalExitReason } from 'vs/platform/terminal/common/terminal';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { VirtualWorkspaceContext } from 'vs/workbench/common/contextkeys';
@@ -80,6 +79,7 @@ import { ILifecycleService, ShutdownReason, StartupKind } from 'vs/workbench/ser
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { TerminalExitReason } from 'vs/platform/terminal/common/terminal';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
@@ -209,7 +209,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	protected _workspaceTasksPromise?: Promise<Map<string, IWorkspaceFolderTaskResult>>;
 
 	protected _taskSystem?: ITaskSystem;
-	protected _taskSystemListener?: IDisposable;
+	protected _taskSystemListeners?: IDisposable[] = [];
 	private _recentlyUsedTasksV1: LRUCache<string, string> | undefined;
 	private _recentlyUsedTasks: LRUCache<string, string> | undefined;
 
@@ -219,6 +219,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	protected _outputChannel: IOutputChannel;
 	protected readonly _onDidStateChange: Emitter<ITaskEvent>;
+	protected readonly _onDidReconnectToTerminals: Emitter<void> = new Emitter();
 	private _waitForSupportedExecutions: Promise<void>;
 	private _onDidRegisterSupportedExecutions: Emitter<void> = new Emitter();
 	private _onDidChangeTaskSystemInfo: Emitter<void> = new Emitter();
@@ -265,7 +266,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 		this._workspaceTasksPromise = undefined;
 		this._taskSystem = undefined;
-		this._taskSystemListener = undefined;
+		this._taskSystemListeners = undefined;
 		this._outputChannel = this._outputService.getChannel(AbstractTaskService.OutputChannelId)!;
 		this._providers = new Map<number, ITaskProvider>();
 		this._providerTypes = new Map<number, string>();
@@ -283,6 +284,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			if (!this._taskSystem && !this._workspaceTasksPromise) {
 				return;
 			}
+
 			if (!this._taskSystem || this._taskSystem instanceof TerminalTaskSystem) {
 				this._outputChannel.clear();
 			}
@@ -319,15 +321,25 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._willRestart = e.reason !== ShutdownReason.RELOAD;
 		});
 		this._register(this.onDidStateChange(e => {
-			if (this._willRestart || e.exitReason === TerminalExitReason.User) {
-				if (e.taskId) {
-					this.removePersistentTask(e.taskId);
-				}
+			if ((this._willRestart || e.exitReason === TerminalExitReason.User) && e.taskId) {
+				this.removePersistentTask(e.taskId);
+			} else if (e.kind === TaskEventKind.Start && e.__task) {
+				this._setPersistentTask(e.__task);
 			}
 		}));
 		this._waitForSupportedExecutions = new Promise(resolve => {
 			once(this._onDidRegisterSupportedExecutions.event)(() => resolve());
 		});
+		if (this._terminalService.getReconnectedTerminals('Task')?.length) {
+			this._attemptTaskReconnection();
+		} else {
+			this._register(this._terminalService.onDidChangeConnectionState(() => {
+				if (this._terminalService.getReconnectedTerminals('Task')?.length) {
+					this._attemptTaskReconnection();
+				}
+			}));
+		}
+
 		this._upgrade();
 	}
 
@@ -346,26 +358,30 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			processContext.set(process && !isVirtual);
 		}
 		this._onDidRegisterSupportedExecutions.fire();
-		if (this._configurationService.getValue(TaskSettingId.Reconnection) === true && this._jsonTasksSupported && !this._tasksReconnected) {
-			this._reconnectTasks();
-		}
 	}
 
-	private async _reconnectTasks(): Promise<void> {
+	private _attemptTaskReconnection(): void {
 		if (this._lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
 			this._tasksReconnected = true;
 			this._storageService.remove(AbstractTaskService.PersistentTasks_Key, StorageScope.WORKSPACE);
-			return;
 		}
-		const tasks = await this.getSavedTasks('persistent');
-		if (!this._taskSystem) {
-			await this._getTaskSystem();
-		}
-		if (!tasks.length) {
+		if (!this._configurationService.getValue(TaskSettingId.Reconnection) || this._tasksReconnected) {
 			this._tasksReconnected = true;
 			return;
 		}
+		this._getTaskSystem();
+		this._waitForSupportedExecutions.then(() => {
+			this.getWorkspaceTasks().then(async () => {
+				this._tasksReconnected = await this._reconnectTasks();
+			});
+		});
+	}
 
+	private async _reconnectTasks(): Promise<boolean> {
+		const tasks = await this.getSavedTasks('persistent');
+		if (!tasks.length) {
+			return true;
+		}
 		for (const task of tasks) {
 			if (ConfiguringTask.is(task)) {
 				const resolved = await this.tryResolveTask(task);
@@ -376,11 +392,15 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				this.run(task, undefined, TaskRunSource.Reconnect);
 			}
 		}
-		this._tasksReconnected = true;
+		return true;
 	}
 
 	public get onDidStateChange(): Event<ITaskEvent> {
 		return this._onDidStateChange.event;
+	}
+
+	public get onDidReconnectToTerminals(): Event<void> {
+		return this._onDidReconnectToTerminals.event;
 	}
 
 	public get supportsMultipleTaskExecutions(): boolean {
@@ -607,7 +627,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	protected _disposeTaskSystemListeners(): void {
-		this._taskSystemListener?.dispose();
+		if (this._taskSystemListeners) {
+			dispose(this._taskSystemListeners);
+			this._taskSystemListeners = undefined;
+		}
 	}
 
 	public registerTaskProvider(provider: ITaskProvider, type: string): IDisposable {
@@ -1083,6 +1106,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _setPersistentTask(task: Task): Promise<void> {
+		if (!this._configurationService.getValue(TaskSettingId.Reconnection)) {
+			return;
+		}
 		let key = task.getRecentlyUsedKey();
 		if (!InMemoryTask.is(task) && key) {
 			const customizations = this._createCustomizableTask(task);
@@ -1097,11 +1123,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					key = customized[configuration].getRecentlyUsedKey()!;
 				}
 			}
-			// isBackground is still false at this pt bc problem matchers
-			// for contributed tasks get attached later
-			// they're set to [] for this case,
-			// so checking if they're defined is sufficient
-			if (!task.configurationProperties.problemMatchers) {
+			if (!task.configurationProperties.isBackground) {
 				return;
 			}
 			this._getTasksFromStorage('persistent').set(key, JSON.stringify(customizations));
@@ -1206,7 +1228,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 			if (runSource === TaskRunSource.User) {
 				const workspaceTasks = await this.getWorkspaceTasks();
-				RunAutomaticTasks.promptForPermission(this, this._storageService, this._notificationService, this._workspaceTrustManagementService, this._openerService, this._configurationService, workspaceTasks);
+				RunAutomaticTasks.runWithPermission(this, this._storageService, this._notificationService, this._workspaceTrustManagementService, this._openerService, this._configurationService, workspaceTasks);
 			}
 			return executeTaskResult;
 		} catch (error) {
@@ -1871,9 +1893,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		}
 		this._setRecentlyUsedTask(executeResult.task);
-		if (this._configurationService.getValue(TaskSettingId.Reconnection) === true && runSource !== TaskRunSource.Reconnect && executeResult.task.type !== '$customized') {
-			await this._setPersistentTask(executeResult.task);
-		}
 		return executeResult.promise;
 	}
 
@@ -2748,10 +2767,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _trust(): Promise<boolean> {
-		return (await this._workspaceTrustRequestService.requestWorkspaceTrust(
-			{
-				message: nls.localize('TaskService.requestTrust', "Listing and running tasks requires that some of the files in this workspace be executed as code.")
-			})) === true;
+		await this._workspaceTrustManagementService.workspaceTrustInitialized;
+		if (!this._workspaceTrustManagementService.isWorkspaceTrusted()) {
+			return (await this._workspaceTrustRequestService.requestWorkspaceTrust(
+				{
+					message: nls.localize('TaskService.requestTrust', "Listing and running tasks requires that some of the files in this workspace be executed as code.")
+				})) === true;
+		}
+		return true;
 	}
 
 	private async _runTaskCommand(filter?: any | { type?: string; task?: string }): Promise<void> {

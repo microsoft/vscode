@@ -118,7 +118,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		}
 
 		// Profiles
-		if (typeof config.workbench?.experimental?.settingsProfiles?.enabled === 'boolean' && config.workbench.experimental.settingsProfiles.enabled !== this.settingsProfilesEnabled) {
+		if (this.productService.quality === 'stable' && typeof config.workbench?.experimental?.settingsProfiles?.enabled === 'boolean' && config.workbench.experimental.settingsProfiles.enabled !== this.settingsProfilesEnabled) {
 			this.settingsProfilesEnabled = config.workbench.experimental.settingsProfiles.enabled;
 			changed = true;
 		}
@@ -225,5 +225,5 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 }
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(SettingsChangeRelauncher, LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(WorkspaceChangeExtHostRelauncher, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(SettingsChangeRelauncher, 'SettingsChangeRelauncher', LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(WorkspaceChangeExtHostRelauncher, 'WorkspaceChangeExtHostRelauncher', LifecyclePhase.Restored);
