@@ -33,7 +33,7 @@ import { TerminalTabbedView } from 'vs/workbench/contrib/terminal/browser/termin
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
-import { createAndFillInContextMenuActions, IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createAndFillInContextMenuActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -240,7 +240,7 @@ export class TerminalViewPane extends ViewPane {
 				if (action instanceof MenuItemAction) {
 					const actions: IAction[] = [];
 					createAndFillInContextMenuActions(this._singleTabMenu, undefined, actions);
-					return this._instantiationService.createInstance(SingleTerminalTabActionViewItem, action, { draggable: true }, actions);
+					return this._instantiationService.createInstance(SingleTerminalTabActionViewItem, action, actions);
 				}
 			}
 			case TerminalCommandId.New: {
@@ -382,7 +382,6 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 
 	constructor(
 		action: MenuItemAction,
-		options: IMenuEntryActionViewItemOptions | undefined,
 		private readonly _actions: IAction[],
 		@IKeybindingService keybindingService: IKeybindingService,
 		@INotificationService notificationService: INotificationService,
@@ -394,7 +393,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 		@ICommandService private readonly _commandService: ICommandService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
-		super(action, options, keybindingService, notificationService, contextKeyService, themeService, contextMenuService);
+		super(action, { draggable: true }, keybindingService, notificationService, contextKeyService, themeService, contextMenuService);
 
 		// Register listeners to update the tab
 		this._register(this._terminalService.onDidChangeInstancePrimaryStatus(e => this.updateLabel(e)));
