@@ -131,6 +131,8 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'editSessionId': { type: 'string' },
 	'locate-shell-integration-path': { type: 'string', args: ['bash', 'pwsh', 'zsh', 'fish'] },
 
+	'enable-coi': { type: 'boolean' },
+
 	// chromium flags
 	'no-proxy-server': { type: 'boolean' },
 	// Minimist incorrectly parses keys that start with `--no`
