@@ -18,7 +18,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 (function registerConfiguration(): void {
 
 	// Migration support
-	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ConfigurationMigrationWorkbenchContribution, LifecyclePhase.Eventually);
+	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ConfigurationMigrationWorkbenchContribution, 'ConfigurationMigrationWorkbenchContribution', LifecyclePhase.Eventually);
 
 	// Workbench
 	registry.registerConfiguration({
@@ -466,11 +466,6 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': 'both',
 				'description': localize('layoutControlType', "Controls whether the layout control in the custom title bar is displayed as a single menu button or with multiple UI toggles."),
 			},
-			'workbench.editor.dropIntoEditor.enabled': {
-				'type': 'boolean',
-				'default': true,
-				'markdownDescription': localize('dropIntoEditor', "Controls whether you can drag and drop a file into a text editor by holding down `shift` (instead of opening the file in an editor)."),
-			},
 			'workbench.experimental.layoutControl.enabled': {
 				'type': 'boolean',
 				'tags': ['experimental'],
@@ -544,6 +539,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'window.commandCenter': {
 				type: 'boolean',
 				default: false,
+				tags: ['experimental'],
 				markdownDescription: localize('window.commandCenter', "Show command launcher together with the window title. This setting only has an effect when {0} is set to {1}.", '`#window.titleBarStyle#`', '`custom`')
 			},
 			'window.menuBarVisibility': {

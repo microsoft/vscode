@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/davidrios/pug-tmbundle/commit/e67e895f6fb64932aa122e471000fa55d826bff6",
+	"version": "https://github.com/davidrios/pug-tmbundle/commit/8d7e93262a949afca023ee67ca8bb01a3b43e607",
 	"name": "Pug",
 	"scopeName": "text.pug",
 	"patterns": [
@@ -656,7 +656,7 @@
 				},
 				{
 					"begin": "=\\s*",
-					"end": "$|(?=,|(?:\\s+[^!%&*-+~|<>:?/])|\\))",
+					"end": "$|(?=,|(?:\\s+[^!%&*\\-+~|<>:?/])|\\))",
 					"name": "attribute_value",
 					"patterns": [
 						{
@@ -677,8 +677,8 @@
 					]
 				},
 				{
-					"begin": "(?<=[%&*-+~|<>:?/])\\s+",
-					"end": "$|(?=,|(?:\\s+[^!%&*-+~|<>:?/])|\\))",
+					"begin": "(?<=[%&*\\-+~|<>:?/])\\s+",
+					"end": "$|(?=,|(?:\\s+[^!%&*\\-+~|<>:?/])|\\))",
 					"name": "attribute_value2",
 					"patterns": [
 						{

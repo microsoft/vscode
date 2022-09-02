@@ -53,10 +53,10 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
-export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
+export const NEW_FILE_LABEL = nls.localize('newFile', "New File...");
 export const NEW_FOLDER_COMMAND_ID = 'explorer.newFolder';
-export const NEW_FOLDER_LABEL = nls.localize('newFolder', "New Folder");
-export const TRIGGER_RENAME_LABEL = nls.localize('rename', "Rename");
+export const NEW_FOLDER_LABEL = nls.localize('newFolder', "New Folder...");
+export const TRIGGER_RENAME_LABEL = nls.localize('rename', "Rename...");
 export const MOVE_FILE_TO_TRASH_LABEL = nls.localize('delete', "Delete");
 export const COPY_FILE_LABEL = nls.localize('copyFile', "Copy");
 export const PASTE_FILE_LABEL = nls.localize('pasteFile', "Paste");
@@ -658,8 +658,10 @@ export function validateFileName(pathService: IPathService, item: ExplorerItem, 
 
 	// Check for invalid file name.
 	if (names.some(folderName => !pathService.hasValidBasename(item.resource, os, folderName))) {
+		// Escape * characters
+		const escapedName = name.replace(/\*/g, '\\*');
 		return {
-			content: nls.localize('invalidFileNameError', "The name **{0}** is not valid as a file or folder name. Please choose a different name.", trimLongName(name)),
+			content: nls.localize('invalidFileNameError', "The name **{0}** is not valid as a file or folder name. Please choose a different name.", trimLongName(escapedName)),
 			severity: Severity.Error
 		};
 	}

@@ -25,7 +25,7 @@ import { ltrim } from 'vs/base/common/strings';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IQuickInputOptions } from 'vs/base/parts/quickinput/browser/quickInput';
 import { getIconClass } from 'vs/base/parts/quickinput/browser/quickInputUtils';
-import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator } from 'vs/base/parts/quickinput/common/quickInput';
+import { QuickPickItem, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator } from 'vs/base/parts/quickinput/common/quickInput';
 import 'vs/css!./media/quickInput';
 import { localize } from 'vs/nls';
 
@@ -253,7 +253,7 @@ export class QuickInputList {
 	readonly id: string;
 	private container: HTMLElement;
 	private list: List<ListElement>;
-	private inputElements: Array<IQuickPickItem | IQuickPickSeparator> = [];
+	private inputElements: Array<QuickPickItem> = [];
 	private elements: ListElement[] = [];
 	private elementsToIndexes = new Map<IQuickPickItem, number>();
 	matchOnDescription = false;
@@ -436,7 +436,7 @@ export class QuickInputList {
 		}
 	}
 
-	setElements(inputElements: Array<IQuickPickItem | IQuickPickSeparator>): void {
+	setElements(inputElements: Array<QuickPickItem>): void {
 		this.elementDisposables = dispose(this.elementDisposables);
 		const fireButtonTriggered = (event: IQuickPickItemButtonEvent<IQuickPickItem>) => this.fireButtonTriggered(event);
 		this.inputElements = inputElements;

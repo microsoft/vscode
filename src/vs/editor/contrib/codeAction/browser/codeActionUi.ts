@@ -23,6 +23,7 @@ export class CodeActionUi extends Disposable {
 	private readonly _codeActionWidget: Lazy<CodeActionMenu>;
 	private readonly _lightBulbWidget: Lazy<LightBulbWidget>;
 	private readonly _activeCodeActions = this._register(new MutableDisposable<CodeActionSet>());
+	private previewOn: boolean = false;
 
 	#disposed = false;
 
@@ -40,7 +41,12 @@ export class CodeActionUi extends Disposable {
 		this._codeActionWidget = new Lazy(() => {
 			return this._register(instantiationService.createInstance(CodeActionMenu, this._editor, {
 				onSelectCodeAction: async (action, trigger) => {
-					this.delegate.applyCodeAction(action, /* retrigger */ true, Boolean(trigger.preview));
+					if (this.previewOn) {
+						this.delegate.applyCodeAction(action, /* retrigger */ true, Boolean(this.previewOn));
+					} else {
+						this.delegate.applyCodeAction(action, /* retrigger */ true, Boolean(trigger.preview));
+					}
+					this.previewOn = false;
 				}
 			}));
 		});
@@ -55,6 +61,28 @@ export class CodeActionUi extends Disposable {
 	override dispose() {
 		this.#disposed = true;
 		super.dispose();
+
+	}
+
+	public hideCodeActionWidget() {
+		this._codeActionWidget.rawValue?.hideCodeActionWidget();
+	}
+
+	public onEnter() {
+		this._codeActionWidget.rawValue?.onEnterSet();
+	}
+
+	public onPreviewEnter() {
+		this.previewOn = true;
+		this.onEnter();
+	}
+
+	public navigateList(navUp: Boolean) {
+		if (navUp) {
+			this._codeActionWidget.rawValue?.focusPrevious();
+		} else {
+			this._codeActionWidget.rawValue?.focusNext();
+		}
 	}
 
 	public async update(newState: CodeActionsState.State): Promise<void> {

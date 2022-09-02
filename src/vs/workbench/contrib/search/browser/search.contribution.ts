@@ -88,9 +88,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 	handler: (accessor, args: any) => {
 		const searchView = getSearchView(accessor.get(IViewsService));
-		if (searchView) {
-			searchView.focusPreviousInputBox();
-		}
+		searchView?.focusPreviousInputBox();
 	}
 });
 
@@ -576,9 +574,7 @@ CommandsRegistry.registerCommand({
 
 		if (mode === 'view') {
 			const searchView = await openSearchView(accessor.get(IViewsService), true);
-			if (searchView) {
-				searchView.searchInFolders();
-			}
+			searchView?.searchInFolders();
 		}
 		else {
 			return accessor.get(ICommandService).executeCommand(SearchEditorConstants.OpenEditorCommandId, {
@@ -642,12 +638,12 @@ const SEARCH_MODE_CONFIG = 'search.mode';
 
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 	id: VIEWLET_ID,
-	title: nls.localize('name', "Search"),
-	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
+	title: { value: nls.localize('name', "Search"), original: 'Search' },
+	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true }]),
 	hideIfEmpty: true,
 	icon: searchViewIcon,
 	order: 1,
-}, ViewContainerLocation.Sidebar, { donotRegisterOpenCommand: true });
+}, ViewContainerLocation.Sidebar, { doNotRegisterOpenCommand: true });
 
 const viewDescriptor: IViewDescriptor = {
 	id: VIEW_ID,
@@ -686,7 +682,7 @@ class RegisterSearchViewContribution implements IWorkbenchContribution {
 			.registerConfigurationMigrations([{ key: 'search.location', migrateFn: (value: any) => ({ value: undefined }) }]);
 	}
 }
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(RegisterSearchViewContribution, LifecyclePhase.Starting);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(RegisterSearchViewContribution, 'RegisterSearchViewContribution', LifecyclePhase.Starting);
 
 // Actions
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);

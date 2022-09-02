@@ -243,7 +243,7 @@ export class ErrorNoTelemetry extends Error {
 
 	constructor(msg?: string) {
 		super(msg);
-		this.name = 'ErrorNoTelemetry';
+		this.name = 'CodeExpectedError';
 	}
 
 	public static fromError(err: Error): ErrorNoTelemetry {
@@ -258,7 +258,7 @@ export class ErrorNoTelemetry extends Error {
 	}
 
 	public static isErrorNoTelemetry(err: Error): err is ErrorNoTelemetry {
-		return err.name === 'ErrorNoTelemetry';
+		return err.name === 'CodeExpectedError';
 	}
 }
 

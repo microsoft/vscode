@@ -79,3 +79,38 @@ export interface CommandInputInfo {
 }
 
 export type ConfiguredInput = PromptStringInputInfo | PickStringInputInfo | CommandInputInfo;
+
+export enum VariableKind {
+	Unknown = 'unknown',
+
+	Env = 'env',
+	Config = 'config',
+	Command = 'command',
+	Input = 'input',
+	ExtensionInstallFolder = 'extensionInstallFolder',
+
+	WorkspaceFolder = 'workspaceFolder',
+	Cwd = 'cwd',
+	WorkspaceFolderBasename = 'workspaceFolderBasename',
+	UserHome = 'userHome',
+	LineNumber = 'lineNumber',
+	SelectedText = 'selectedText',
+	File = 'file',
+	FileWorkspaceFolder = 'fileWorkspaceFolder',
+	RelativeFile = 'relativeFile',
+	RelativeFileDirname = 'relativeFileDirname',
+	FileDirname = 'fileDirname',
+	FileExtname = 'fileExtname',
+	FileBasename = 'fileBasename',
+	FileBasenameNoExtension = 'fileBasenameNoExtension',
+	FileDirnameBasename = 'fileDirnameBasename',
+	ExecPath = 'execPath',
+	ExecInstallFolder = 'execInstallFolder',
+	PathSeparator = 'pathSeparator'
+}
+
+export class VariableError extends Error {
+	constructor(public readonly variable: VariableKind, message?: string) {
+		super(message);
+	}
+}

@@ -11,7 +11,7 @@ import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/com
 import { EditorPaneSelectionChangeReason, EditorPaneSelectionCompareResult, IEditorOpenContext, IEditorPaneSelection, IEditorPaneSelectionChangeEvent, IEditorPaneWithSelection } from 'vs/workbench/common/editor';
 import { cellEditorBackground, focusedEditorBorderColor, getDefaultNotebookCreationOptions, notebookCellBorder, NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { NotebookDiffEditorInput } from '../notebookDiffEditorInput';
+import { NotebookDiffEditorInput } from '../../common/notebookDiffEditorInput';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { DiffElementViewModelBase, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -232,7 +232,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 				keyboardSupport: false,
 				mouseSupport: true,
 				multipleSelectionSupport: false,
-				enableKeyboardNavigation: true,
+				typeNavigationEnabled: true,
 				additionalScrollHeight: 0,
 				// transformOptimization: (isMacintosh && isNative) || getTitleBarStyle(this.configurationService, this.environmentService) === 'native',
 				styleController: (_suffix: string) => { return this._list!; },
@@ -430,9 +430,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	}
 
 	private async _createModifiedWebview(id: string, resource: URI): Promise<void> {
-		if (this._modifiedWebview) {
-			this._modifiedWebview.dispose();
-		}
+		this._modifiedWebview?.dispose();
 
 		this._modifiedWebview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource, {
 			...this._notebookOptions.computeDiffWebviewOptions(),
@@ -449,9 +447,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	}
 
 	private async _createOriginalWebview(id: string, resource: URI): Promise<void> {
-		if (this._originalWebview) {
-			this._originalWebview.dispose();
-		}
+		this._originalWebview?.dispose();
 
 		this._originalWebview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource, {
 			...this._notebookOptions.computeDiffWebviewOptions(),
@@ -868,14 +864,15 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		this._modifiedResourceDisposableStore.clear();
 		this._list?.splice(0, this._list?.length || 0);
 		this._model = null;
+		this._diffElementViewModels.forEach(vm => vm.dispose());
 		this._diffElementViewModels = [];
 	}
 
 	deltaCellOutputContainerClassNames(diffSide: DiffSide, cellId: string, added: string[], removed: string[]) {
 		if (diffSide === DiffSide.Original) {
-			this._originalWebview?.deltaCellOutputContainerClassNames(cellId, added, removed);
+			this._originalWebview?.deltaCellContainerClassNames(cellId, added, removed);
 		} else {
-			this._modifiedWebview?.deltaCellOutputContainerClassNames(cellId, added, removed);
+			this._modifiedWebview?.deltaCellContainerClassNames(cellId, added, removed);
 		}
 	}
 
@@ -972,6 +969,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	override dispose() {
 		this._isDisposed = true;
 		this._layoutCancellationTokenSource?.dispose();
+		this._detachModel();
 		super.dispose();
 	}
 }

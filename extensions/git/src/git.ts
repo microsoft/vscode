@@ -427,7 +427,7 @@ export class Git {
 			let previousProgress = 0;
 
 			lineStream.on('data', (line: string) => {
-				let match: RegExpMatchArray | null = null;
+				let match: RegExpExecArray | null = null;
 
 				if (match = /Counting objects:\s*(\d+)%/i.exec(line)) {
 					totalProgress = Math.floor(parseInt(match[1]) * 0.1);
@@ -481,7 +481,7 @@ export class Git {
 			const repoUri = Uri.file(repoPath);
 			const pathUri = Uri.file(repositoryPath);
 			if (repoUri.authority.length !== 0 && pathUri.authority.length === 0) {
-				// eslint-disable-next-line code-no-look-behind-regex
+				// eslint-disable-next-line local/code-no-look-behind-regex
 				const match = /(?<=^\/?)([a-zA-Z])(?=:\/)/.exec(pathUri.path);
 				if (match !== null) {
 					const [, letter] = match;
@@ -504,13 +504,6 @@ export class Git {
 				}
 
 				return path.normalize(pathUri.fsPath);
-			}
-
-			// On Windows, there are cases in which the normalized path for a mapped folder contains a trailing `\`
-			// character (ex: \\server\folder\) due to the implementation of `path.normalize()`. This behaviour is
-			// by design as documented in https://github.com/nodejs/node/issues/1765.
-			if (repoUri.authority.length !== 0) {
-				return repoPath.replace(/\\$/, '');
 			}
 		}
 
@@ -1095,7 +1088,7 @@ export class Repository {
 		}
 
 		if (!isText) {
-			const result = filetype(buffer);
+			const result = await filetype.fromBuffer(buffer);
 
 			if (!result) {
 				return { mimetype: 'application/octet-stream' };
@@ -1475,7 +1468,7 @@ export class Repository {
 		const args = ['rebase', '--continue'];
 
 		try {
-			await this.exec(args);
+			await this.exec(args, { env: { GIT_EDITOR: 'true' } });
 		} catch (commitErr) {
 			await this.handleCommitError(commitErr);
 		}

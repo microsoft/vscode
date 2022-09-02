@@ -105,6 +105,7 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 			// children and should trust whatever the result service gives us.
 			const explicitComputed = item.children.size ? undefined : result.computedState;
 
+			item.retired = !!result.retired;
 			item.ownState = result.ownComputedState;
 			item.ownDuration = result.ownDuration;
 
@@ -270,6 +271,7 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 
 		const prevState = this.results.getStateById(treeElement.test.item.extId)?.[1];
 		if (prevState) {
+			treeElement.retired = !!prevState.retired;
 			treeElement.ownState = prevState.computedState;
 			treeElement.ownDuration = prevState.ownDuration;
 

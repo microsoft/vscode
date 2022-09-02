@@ -4,7 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.watchApiProposalNamesTask = exports.compileApiProposalNamesTask = exports.watchTask = exports.compileTask = exports.transpileTask = void 0;
+exports.watchApiProposalNamesTask = exports.compileApiProposalNamesTask = exports.watchTask = exports.compileTask = exports.transpileTask = exports.transpileClientSWC = void 0;
 const es = require("event-stream");
 const fs = require("fs");
 const gulp = require("gulp");
@@ -18,7 +18,29 @@ const ansiColors = require("ansi-colors");
 const os = require("os");
 const File = require("vinyl");
 const task = require("./task");
+const swc_1 = require("./swc");
 const watch = require('./watch');
+// --- SWC: transpile -------------------------------------
+function transpileClientSWC(src, out) {
+    return function () {
+        // run SWC sync and put files straight onto the disk
+        const swcPromise = (0, swc_1.createSwcClientStream)().exec();
+        // copy none TS resources, like CSS, images, onto the disk
+        const bom = require('gulp-bom');
+        const utf8Filter = util.filter(data => /(\/|\\)test(\/|\\).*utf8/.test(data.path));
+        const tsFilter = util.filter(data => !/\.ts$/.test(data.path));
+        const srcStream = gulp.src(`${src}/**`, { base: `${src}` });
+        const copyStream = srcStream
+            .pipe(utf8Filter)
+            .pipe(bom()) // this is required to preserve BOM in test files that loose it otherwise
+            .pipe(utf8Filter.restore)
+            .pipe(tsFilter);
+        const copyPromise = util.streamToPromise(copyStream.pipe(gulp.dest(out)));
+        return Promise.all([swcPromise, copyPromise]);
+    };
+}
+exports.transpileClientSWC = transpileClientSWC;
+// --- gulp-tsb: compile and transpile --------------------------------
 const reporter = (0, reporter_1.createReporter)();
 function getTypeScriptCompilerOptions(src) {
     const rootDir = path.join(__dirname, `../../${src}`);
@@ -188,6 +210,15 @@ class MonacoGenerator {
     }
 }
 function generateApiProposalNames() {
+    let eol;
+    try {
+        const src = fs.readFileSync('src/vs/workbench/services/extensions/common/extensionsApiProposals.ts', 'utf-8');
+        const match = /\r?\n/m.exec(src);
+        eol = match ? match[0] : os.EOL;
+    }
+    catch {
+        eol = os.EOL;
+    }
     const pattern = /vscode\.proposed\.([a-zA-Z]+)\.d\.ts$/;
     const proposalNames = new Set();
     const input = es.through();
@@ -210,11 +241,11 @@ function generateApiProposalNames() {
             '// THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.',
             '',
             'export const allApiProposals = Object.freeze({',
-            `${names.map(name => `\t${name}: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.${name}.d.ts'`).join(`,${os.EOL}`)}`,
+            `${names.map(name => `\t${name}: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.${name}.d.ts'`).join(`,${eol}`)}`,
             '});',
             'export type ApiProposalName = keyof typeof allApiProposals;',
             '',
-        ].join(os.EOL);
+        ].join(eol);
         this.emit('data', new File({
             path: 'vs/workbench/services/extensions/common/extensionsApiProposals.ts',
             contents: Buffer.from(contents)

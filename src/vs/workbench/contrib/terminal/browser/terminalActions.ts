@@ -545,6 +545,7 @@ export function registerTerminalActions() {
 			const terminalService = accessor.get(ITerminalService);
 			const terminalGroupService = accessor.get(ITerminalGroupService);
 			const codeEditorService = accessor.get(ICodeEditorService);
+			const terminalEditorService = accessor.get(ITerminalEditorService);
 
 			const instance = await terminalService.getActiveOrCreateInstance();
 			const editor = codeEditorService.getActiveCodeEditor();
@@ -560,7 +561,11 @@ export function registerTerminalActions() {
 				text = editor.getModel().getValueInRange(selection, endOfLinePreference);
 			}
 			instance.sendText(text, true);
-			return terminalGroupService.showPanel();
+			if (instance.target === TerminalLocation.Editor) {
+				terminalEditorService.revealActiveEditor();
+			} else {
+				terminalGroupService.showPanel();
+			}
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1040,7 +1045,7 @@ export function registerTerminalActions() {
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).getFindHost().focusFindWidget();
+			accessor.get(ITerminalService).activeInstance?.findWidget.reveal();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1060,7 +1065,7 @@ export function registerTerminalActions() {
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).getFindHost().hideFindWidget();
+			accessor.get(ITerminalService).activeInstance?.findWidget.hide();
 		}
 	});
 
@@ -1098,7 +1103,7 @@ export function registerTerminalActions() {
 			const terminalGroupService = accessor.get(ITerminalGroupService);
 
 			const remoteAuthority = remoteAgentService.getConnection()?.remoteAuthority ?? undefined;
-			const backend = accessor.get(ITerminalInstanceService).getBackend(remoteAuthority);
+			const backend = await accessor.get(ITerminalInstanceService).getBackend(remoteAuthority);
 
 			if (!backend) {
 				throw new Error(`No backend registered for remote authority '${remoteAuthority}'`);
@@ -1414,9 +1419,8 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			const instanceHost = terminalService.getFindHost();
-			const state = instanceHost.getFindState();
-			state.change({ isRegex: !state.isRegex }, false);
+			const state = terminalService.activeInstance?.findWidget.findState;
+			state?.change({ isRegex: !state.isRegex }, false);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1437,9 +1441,8 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			const instanceHost = terminalService.getFindHost();
-			const state = instanceHost.getFindState();
-			state.change({ wholeWord: !state.wholeWord }, false);
+			const state = terminalService.activeInstance?.findWidget.findState;
+			state?.change({ wholeWord: !state.wholeWord }, false);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1460,9 +1463,8 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			const instanceHost = terminalService.getFindHost();
-			const state = instanceHost.getFindState();
-			state.change({ matchCase: !state.matchCase }, false);
+			const state = terminalService.activeInstance?.findWidget.findState;
+			state?.change({ matchCase: !state.matchCase }, false);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1489,7 +1491,9 @@ export function registerTerminalActions() {
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).getFindHost().findNext();
+			const terminalService = accessor.get(ITerminalService);
+			terminalService.activeInstance?.findWidget.show();
+			terminalService.activeInstance?.findWidget.find(false);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1516,7 +1520,9 @@ export function registerTerminalActions() {
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).getFindHost().findPrevious();
+			const terminalService = accessor.get(ITerminalService);
+			terminalService.activeInstance?.findWidget.show();
+			terminalService.activeInstance?.findWidget.find(true);
 		}
 	});
 	registerAction2(class extends Action2 {

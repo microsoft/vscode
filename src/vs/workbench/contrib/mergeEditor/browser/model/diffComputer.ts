@@ -3,91 +3,71 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IReader, observableFromEvent } from 'vs/base/common/observable';
 import { isDefined } from 'vs/base/common/types';
 import { Range } from 'vs/editor/common/core/range';
-import { ICharChange, IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/diffComputer';
+import { IDocumentDiffProvider } from 'vs/editor/common/diff/documentDiffProvider';
+import { LineRange as DiffLineRange, RangeMapping as DiffRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { ITextModel } from 'vs/editor/common/model';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 import { DetailedLineRangeMapping, RangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
 
-export interface IDiffComputer {
-	computeDiff(textModel1: ITextModel, textModel2: ITextModel): Promise<IDiffComputerResult>;
+export interface IMergeDiffComputer {
+	computeDiff(textModel1: ITextModel, textModel2: ITextModel, reader: IReader): Promise<IMergeDiffComputerResult>;
 }
 
-export interface IDiffComputerResult {
+export interface IMergeDiffComputerResult {
 	diffs: DetailedLineRangeMapping[] | null;
 }
 
-export class EditorWorkerServiceDiffComputer implements IDiffComputer {
-	constructor(@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService) { }
+export class MergeDiffComputer implements IMergeDiffComputer {
 
-	async computeDiff(textModel1: ITextModel, textModel2: ITextModel): Promise<IDiffComputerResult> {
-		const diffs = await this.editorWorkerService.computeDiff(textModel1.uri, textModel2.uri, false, 1000);
-		if (!diffs) {
-			return { diffs: null };
-		}
-		return { diffs: EditorWorkerServiceDiffComputer.fromDiffComputationResult(diffs, textModel1, textModel2) };
-	}
-
-	public static fromDiffComputationResult(result: IDiffComputationResult, textModel1: ITextModel, textModel2: ITextModel): DetailedLineRangeMapping[] {
-		return result.changes.map((c) => fromLineChange(c, textModel1, textModel2));
-	}
-}
-
-function fromLineChange(lineChange: ILineChange, originalTextModel: ITextModel, modifiedTextModel: ITextModel): DetailedLineRangeMapping {
-	let originalRange: LineRange;
-	if (lineChange.originalEndLineNumber === 0) {
-		// Insertion
-		originalRange = new LineRange(lineChange.originalStartLineNumber + 1, 0);
-	} else {
-		originalRange = new LineRange(lineChange.originalStartLineNumber, lineChange.originalEndLineNumber - lineChange.originalStartLineNumber + 1);
-	}
-
-	let modifiedRange: LineRange;
-	if (lineChange.modifiedEndLineNumber === 0) {
-		// Deletion
-		modifiedRange = new LineRange(lineChange.modifiedStartLineNumber + 1, 0);
-	} else {
-		modifiedRange = new LineRange(lineChange.modifiedStartLineNumber, lineChange.modifiedEndLineNumber - lineChange.modifiedStartLineNumber + 1);
-	}
-
-	let innerDiffs = lineChange.charChanges?.map(c => rangeMappingFromCharChange(c, originalTextModel, modifiedTextModel)).filter(isDefined);
-	if (!innerDiffs || innerDiffs.length === 0) {
-		innerDiffs = [rangeMappingFromLineRanges(originalRange, modifiedRange)];
-	}
-
-	return new DetailedLineRangeMapping(
-		originalRange,
-		originalTextModel,
-		modifiedRange,
-		modifiedTextModel,
-		innerDiffs
+	private readonly mergeAlgorithm = observableFromEvent(
+		this.configurationService.onDidChangeConfiguration,
+		() => /** @description config: mergeAlgorithm.diffAlgorithm */ this.configurationService.getValue<'smart' | 'experimental'>('mergeEditor.diffAlgorithm')
 	);
+
+	constructor(
+		private readonly documentDiffProvider: IDocumentDiffProvider,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+	) {
+	}
+
+	async computeDiff(textModel1: ITextModel, textModel2: ITextModel, reader: IReader): Promise<IMergeDiffComputerResult> {
+		const diffAlgorithm = this.mergeAlgorithm.read(reader);
+		const result = await this.documentDiffProvider.computeDiff(
+			textModel1,
+			textModel2,
+			{
+				ignoreTrimWhitespace: false,
+				maxComputationTime: 0,
+				diffAlgorithm,
+			}
+		);
+
+		const changes = result.changes.map(c =>
+			new DetailedLineRangeMapping(
+				toLineRange(c.originalRange),
+				textModel1,
+				toLineRange(c.modifiedRange),
+				textModel2,
+				c.innerChanges?.map(ic => normalizeRangeMapping(toRangeMapping(ic), textModel1, textModel2)).filter(isDefined)
+			)
+		);
+
+		return {
+			diffs: changes
+		};
+	}
 }
 
-function rangeMappingFromLineRanges(originalRange: LineRange, modifiedRange: LineRange): RangeMapping {
-	return new RangeMapping(
-		new Range(
-			originalRange.startLineNumber,
-			1,
-			originalRange.endLineNumberExclusive,
-			1,
-		),
-		new Range(
-			modifiedRange.startLineNumber,
-			1,
-			modifiedRange.endLineNumberExclusive,
-			1,
-		)
-	);
+function toLineRange(range: DiffLineRange): LineRange {
+	return new LineRange(range.startLineNumber, range.length);
 }
 
-function rangeMappingFromCharChange(charChange: ICharChange, inputTextModel: ITextModel, modifiedTextModel: ITextModel): RangeMapping | undefined {
-	return normalizeRangeMapping(new RangeMapping(
-		new Range(charChange.originalStartLineNumber, charChange.originalStartColumn, charChange.originalEndLineNumber, charChange.originalEndColumn),
-		new Range(charChange.modifiedStartLineNumber, charChange.modifiedStartColumn, charChange.modifiedEndLineNumber, charChange.modifiedEndColumn)
-	), inputTextModel, modifiedTextModel);
+function toRangeMapping(mapping: DiffRangeMapping): RangeMapping {
+	return new RangeMapping(mapping.originalRange, mapping.modifiedRange);
 }
 
 function normalizeRangeMapping(rangeMapping: RangeMapping, inputTextModel: ITextModel, outputTextModel: ITextModel): RangeMapping | undefined {
@@ -96,6 +76,11 @@ function normalizeRangeMapping(rangeMapping: RangeMapping, inputTextModel: IText
 
 	if (inputRangeEmpty && outputRangeEmpty) {
 		return undefined;
+	}
+
+	if (rangeMapping.inputRange.startLineNumber > inputTextModel.getLineCount()
+		|| rangeMapping.outputRange.startLineNumber > outputTextModel.getLineCount()) {
+		return rangeMapping;
 	}
 
 	const originalStartsAtEndOfLine = isAtEndOfLine(rangeMapping.inputRange.startLineNumber, rangeMapping.inputRange.startColumn, inputTextModel);

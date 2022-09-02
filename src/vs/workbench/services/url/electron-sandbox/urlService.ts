@@ -73,4 +73,4 @@ export class RelayURLService extends NativeURLService implements IURLHandler, IO
 	}
 }
 
-registerSingleton(IURLService, RelayURLService);
+registerSingleton(IURLService, RelayURLService, false);

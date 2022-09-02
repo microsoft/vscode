@@ -117,8 +117,8 @@ class RemoteEmptyWorkbenchPresentation extends Disposable implements IWorkbenchC
 			return shouldShowExplorer();
 		}
 
-		const { remoteAuthority, filesToDiff, filesToOpenOrCreate, filesToWait } = environmentService;
-		if (remoteAuthority && contextService.getWorkbenchState() === WorkbenchState.EMPTY && !filesToDiff?.length && !filesToOpenOrCreate?.length && !filesToWait) {
+		const { remoteAuthority, filesToDiff, filesToMerge, filesToOpenOrCreate, filesToWait } = environmentService;
+		if (remoteAuthority && contextService.getWorkbenchState() === WorkbenchState.EMPTY && !filesToDiff?.length && !filesToMerge?.length && !filesToOpenOrCreate?.length && !filesToWait) {
 			remoteAuthorityResolverService.resolveAuthority(remoteAuthority).then(() => {
 				if (shouldShowExplorer()) {
 					commandService.executeCommand('workbench.view.explorer');
@@ -132,10 +132,10 @@ class RemoteEmptyWorkbenchPresentation extends Disposable implements IWorkbenchC
 }
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchContributionsExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentDiagnosticListener, LifecyclePhase.Eventually);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteExtensionHostEnvironmentUpdater, LifecyclePhase.Eventually);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteTelemetryEnablementUpdater, LifecyclePhase.Ready);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteEmptyWorkbenchPresentation, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentDiagnosticListener, 'RemoteAgentDiagnosticListener', LifecyclePhase.Eventually);
+workbenchContributionsRegistry.registerWorkbenchContribution(RemoteExtensionHostEnvironmentUpdater, 'RemoteExtensionHostEnvironmentUpdater', LifecyclePhase.Eventually);
+workbenchContributionsRegistry.registerWorkbenchContribution(RemoteTelemetryEnablementUpdater, 'RemoteTelemetryEnablementUpdater', LifecyclePhase.Ready);
+workbenchContributionsRegistry.registerWorkbenchContribution(RemoteEmptyWorkbenchPresentation, 'RemoteEmptyWorkbenchPresentation', LifecyclePhase.Ready);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({

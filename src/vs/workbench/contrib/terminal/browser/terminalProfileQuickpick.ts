@@ -124,7 +124,7 @@ export class TerminalProfileQuickpick {
 				if (!name) {
 					return;
 				}
-				const newConfigValue: { [key: string]: ITerminalProfileObject } = { ...configProfiles } ?? {};
+				const newConfigValue: { [key: string]: ITerminalProfileObject } = { ...configProfiles };
 				newConfigValue[name] = {
 					path: context.item.profile.path,
 					args: context.item.profile.args
@@ -223,7 +223,7 @@ export class TerminalProfileQuickpick {
 			}
 			const argsString = profile.args.map(e => {
 				if (e.includes(' ')) {
-					return `"${e.replace('/"/g', '\\"')}"`;
+					return `"${e.replace(/"/g, '\\"')}"`;
 				}
 				return e;
 			}).join(' ');

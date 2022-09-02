@@ -64,7 +64,7 @@ class MultiCursorModifierContextKeyController implements IWorkbenchContribution 
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(MultiCursorModifierContextKeyController, LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(MultiCursorModifierContextKeyController, 'MultiCursorModifierContextKeyController', LifecyclePhase.Restored);
 
 registerAction2(ToggleMultiCursorModifierAction);
 

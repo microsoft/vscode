@@ -23,6 +23,7 @@ import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/enviro
 import { Promises } from 'vs/base/common/async';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
+import { IFileService } from 'vs/platform/files/common/files';
 
 export class NativeRemoteExtensionManagementService extends ExtensionManagementChannelClient implements IProfileAwareExtensionManagementService {
 
@@ -36,6 +37,7 @@ export class NativeRemoteExtensionManagementService extends ExtensionManagementC
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IProductService private readonly productService: IProductService,
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
+		@IFileService private readonly fileService: IFileService,
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) {
 		super(channel);
@@ -94,13 +96,21 @@ export class NativeRemoteExtensionManagementService extends ExtensionManagementC
 
 	private async downloadCompatibleAndInstall(extension: IGalleryExtension, installed: ILocalExtension[], installOptions: InstallOptions): Promise<ILocalExtension> {
 		const compatible = await this.checkAndGetCompatible(extension, !!installOptions.installPreReleaseVersion);
-		const location = joinPath(this.environmentService.tmpDir, generateUuid());
+		const location = joinPath(URI.file(this.environmentService.extensionsDownloadPath), generateUuid());
 		this.logService.trace('Downloading extension:', compatible.identifier.id);
 		await this.galleryService.download(compatible, location, installed.filter(i => areSameExtensions(i.identifier, compatible.identifier))[0] ? InstallOperation.Update : InstallOperation.Install);
 		this.logService.info('Downloaded extension:', compatible.identifier.id, location.path);
-		const local = await super.install(location, installOptions);
-		this.logService.info(`Successfully installed '${compatible.identifier.id}' extension`);
-		return local;
+		try {
+			const local = await super.install(location, installOptions);
+			this.logService.info(`Successfully installed '${compatible.identifier.id}' extension`);
+			return local;
+		} finally {
+			try {
+				await this.fileService.del(location);
+			} catch (error) {
+				this.logService.error(error);
+			}
+		}
 	}
 
 	private async checkAndGetCompatible(extension: IGalleryExtension, includePreRelease: boolean): Promise<IGalleryExtension> {

@@ -40,6 +40,9 @@ import { IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditor
 import { DefaultSettingsEditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { isEqual } from 'vs/base/common/resources';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export interface IPreferencesRenderer extends IDisposable {
 	render(): void;
@@ -481,6 +484,8 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 	) {
 		super();
 		this._register(this.editor.getModel()!.onDidChangeContent(() => this.delayedRender()));
@@ -577,6 +582,22 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 	}
 
 	private handleLocalUserConfiguration(setting: ISetting, configuration: IConfigurationPropertySchema, markerData: IMarkerData[]): void {
+		if (!this.userDataProfileService.currentProfile.isDefault) {
+			if (isEqual(this.userDataProfilesService.defaultProfile.settingsResource, this.settingsEditorModel.uri) && configuration.scope !== ConfigurationScope.APPLICATION) {
+				// If we're in the default profile setting file, and the setting is not
+				// application-scoped, fade it out.
+				markerData.push({
+					severity: MarkerSeverity.Hint,
+					tags: [MarkerTag.Unnecessary],
+					...setting.range,
+					message: nls.localize('defaultProfileSettingWhileNonDefaultActive', "This setting cannot be applied while a non-default profile is active. It will be applied when the default profile is active.")
+				});
+			} else if (isEqual(this.userDataProfileService.currentProfile.settingsResource, this.settingsEditorModel.uri) && configuration.scope === ConfigurationScope.APPLICATION) {
+				// If we're in a profile setting file, and the setting is
+				// application-scoped, fade it out.
+				markerData.push(this.generateUnsupportedApplicationSettingMarker(setting));
+			}
+		}
 		if (this.environmentService.remoteAuthority && (configuration.scope === ConfigurationScope.MACHINE || configuration.scope === ConfigurationScope.MACHINE_OVERRIDABLE)) {
 			markerData.push({
 				severity: MarkerSeverity.Hint,
@@ -641,7 +662,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 			severity: MarkerSeverity.Hint,
 			tags: [MarkerTag.Unnecessary],
 			...setting.range,
-			message: nls.localize('unsupportedApplicationSetting', "This setting can be applied only in application user settings")
+			message: nls.localize('unsupportedApplicationSetting', "This setting has an application scope and can be set only in the user settings file.")
 		};
 	}
 

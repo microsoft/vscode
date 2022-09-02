@@ -220,7 +220,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 }
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(LocalizationWorkbenchContribution, LifecyclePhase.Eventually);
+workbenchRegistry.registerWorkbenchContribution(LocalizationWorkbenchContribution, 'LocalizationWorkbenchContribution', LifecyclePhase.Eventually);
 
 ExtensionsRegistry.registerExtensionPoint({
 	extensionPoint: 'localizations',
