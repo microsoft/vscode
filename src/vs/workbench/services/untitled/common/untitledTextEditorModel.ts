@@ -357,9 +357,10 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		return super.resolve();
 	}
 
-	override installModelListeners(model: ITextModel): void {
+	protected override installModelListeners(model: ITextModel): void {
 		this._register(model.onDidChangeContent(e => this.onModelContentChanged(model, e)));
 		this._register(model.onDidChangeLanguage(() => this.onConfigurationChange(true))); // language change can have impact on config
+
 		super.installModelListeners(model);
 	}
 
