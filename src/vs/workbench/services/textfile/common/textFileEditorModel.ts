@@ -197,8 +197,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.modelService.setMode(this.textEditorModel, languageSelection);
 	}
 
-	override setLanguageId(languageId: string): void {
-		super.setLanguageId(languageId);
+	override setLanguageId(languageId: string, source?: string): void {
+		super.setLanguageId(languageId, source);
 
 		this.preferredLanguageId = languageId;
 	}

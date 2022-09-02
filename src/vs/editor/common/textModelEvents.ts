@@ -21,9 +21,9 @@ export interface IModelLanguageChangedEvent {
 	readonly newLanguage: string;
 
 	/**
-	 * The reason that caused the change
+	 * Source of the call that caused the event.
 	 */
-	readonly reason: string;
+	readonly source: string;
 }
 
 /**

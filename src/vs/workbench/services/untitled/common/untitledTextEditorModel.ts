@@ -190,14 +190,14 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 	//#region Language
 
-	override setLanguageId(languageId: string): void {
+	override setLanguageId(languageId: string, source?: string): void {
 		const actualLanguage: string | undefined = languageId === UntitledTextEditorModel.ACTIVE_EDITOR_LANGUAGE_ID
 			? this.editorService.activeTextEditorLanguageId
 			: languageId;
 		this.preferredLanguageId = actualLanguage;
 
 		if (actualLanguage) {
-			super.setLanguageId(actualLanguage);
+			super.setLanguageId(actualLanguage, source);
 		}
 	}
 

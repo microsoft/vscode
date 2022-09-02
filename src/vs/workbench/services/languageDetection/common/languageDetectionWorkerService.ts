@@ -8,7 +8,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 
 export const ILanguageDetectionService = createDecorator<ILanguageDetectionService>('ILanguageDetectionService');
 
-export const LanguageDetectionLanguageEventReason = 'languageDetection';
+export const LanguageDetectionLanguageEventSource = 'languageDetection';
 
 export interface ILanguageDetectionService {
 	readonly _serviceBrand: undefined;
