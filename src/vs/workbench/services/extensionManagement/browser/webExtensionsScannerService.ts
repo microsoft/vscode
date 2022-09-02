@@ -108,7 +108,6 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		if (isWeb) {
 			this.systemExtensionsCacheResource = joinPath(environmentService.userRoamingDataHome, 'systemExtensionsCache.json');
 			this.customBuiltinExtensionsCacheResource = joinPath(environmentService.userRoamingDataHome, 'customBuiltinExtensionsCache.json');
-			this.registerActions();
 
 			// Eventually update caches
 			lifecycleService.when(LifecyclePhase.Eventually).then(() => this.updateCaches());
@@ -867,25 +866,25 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return resourceQueue;
 	}
 
-	private registerActions(): void {
-		this._register(registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: 'workbench.extensions.action.openInstalledWebExtensionsResource',
-					title: { value: localize('openInstalledWebExtensionsResource', "Open Installed Web Extensions Resource"), original: 'Open Installed Web Extensions Resource' },
-					category: CATEGORIES.Developer,
-					f1: true,
-					precondition: IsWebContext
-				});
-			}
-			run(serviceAccessor: ServicesAccessor): void {
-				const editorService = serviceAccessor.get(IEditorService);
-				const userDataProfileService = serviceAccessor.get(IUserDataProfileService);
-				editorService.openEditor({ resource: userDataProfileService.currentProfile.extensionsResource });
-			}
-		}));
-	}
-
 }
 
-registerSingleton(IWebExtensionsScannerService, WebExtensionsScannerService, false);
+if (isWeb) {
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.extensions.action.openInstalledWebExtensionsResource',
+				title: { value: localize('openInstalledWebExtensionsResource', "Open Installed Web Extensions Resource"), original: 'Open Installed Web Extensions Resource' },
+				category: CATEGORIES.Developer,
+				f1: true,
+				precondition: IsWebContext
+			});
+		}
+		run(serviceAccessor: ServicesAccessor): void {
+			const editorService = serviceAccessor.get(IEditorService);
+			const userDataProfileService = serviceAccessor.get(IUserDataProfileService);
+			editorService.openEditor({ resource: userDataProfileService.currentProfile.extensionsResource });
+		}
+	});
+}
+
+registerSingleton(IWebExtensionsScannerService, WebExtensionsScannerService, true);

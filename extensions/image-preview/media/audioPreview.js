@@ -30,8 +30,19 @@
 	container.className = 'audio-container';
 	document.body.appendChild(container);
 
-	const audio = new Audio(settings.src);
+	const audio = new Audio(settings.src === null ? undefined : settings.src);
 	audio.controls = true;
+
+	function onLoaded() {
+		if (hasLoadedMedia) {
+			return;
+		}
+		hasLoadedMedia = true;
+
+		document.body.classList.remove('loading');
+		document.body.classList.add('ready');
+		container.append(audio);
+	}
 
 	audio.addEventListener('error', e => {
 		if (hasLoadedMedia) {
@@ -43,16 +54,13 @@
 		document.body.classList.remove('loading');
 	});
 
-	audio.addEventListener('canplaythrough', () => {
-		if (hasLoadedMedia) {
-			return;
-		}
-		hasLoadedMedia = true;
-
-		document.body.classList.remove('loading');
-		document.body.classList.add('ready');
-		container.append(audio);
-	});
+	if (settings.src === null) {
+		onLoaded();
+	} else {
+		audio.addEventListener('canplaythrough', () => {
+			onLoaded();
+		});
+	}
 
 	document.querySelector('.open-file-link').addEventListener('click', () => {
 		vscode.postMessage({

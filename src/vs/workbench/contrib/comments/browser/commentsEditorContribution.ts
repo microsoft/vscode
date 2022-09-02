@@ -517,6 +517,18 @@ export class CommentController implements IEditorContribution {
 		}
 	}
 
+	public collapseAll(): void {
+		for (const widget of this._commentWidgets) {
+			widget.collapse();
+		}
+	}
+
+	public expandAll(): void {
+		for (const widget of this._commentWidgets) {
+			widget.expand();
+		}
+	}
+
 	public nextCommentThread(): void {
 		this._findNearestCommentThread();
 	}
@@ -1063,6 +1075,40 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	when: ActiveCursorHasCommentingRange
 });
 
+const COLLAPSE_ALL_COMMENT_COMMAND = 'workbench.action.collapseAllComments';
+CommandsRegistry.registerCommand({
+	id: COLLAPSE_ALL_COMMENT_COMMAND,
+	handler: (accessor) => {
+		return getActiveController(accessor)?.collapseAll();
+	}
+});
+
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: COLLAPSE_ALL_COMMENT_COMMAND,
+		title: nls.localize('comments.collapseAll', "Collapse All Comments"),
+		category: 'Comments'
+	},
+	when: WorkspaceHasCommenting
+});
+
+const EXPAND_ALL_COMMENT_COMMAND = 'workbench.action.expandAllComments';
+CommandsRegistry.registerCommand({
+	id: EXPAND_ALL_COMMENT_COMMAND,
+	handler: (accessor) => {
+		return getActiveController(accessor)?.expandAll();
+	}
+});
+
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: EXPAND_ALL_COMMENT_COMMAND,
+		title: nls.localize('comments.expandAll', "Expand All Comments"),
+		category: 'Comments'
+	},
+	when: WorkspaceHasCommenting
+});
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.action.submitComment',
 	weight: KeybindingWeight.EditorContrib,
@@ -1106,6 +1152,19 @@ export function getActiveEditor(accessor: ServicesAccessor): IActiveCodeEditor |
 	}
 
 	return activeTextEditorControl;
+}
+
+function getActiveController(accessor: ServicesAccessor): CommentController | undefined {
+	const activeEditor = getActiveEditor(accessor);
+	if (!activeEditor) {
+		return undefined;
+	}
+
+	const controller = CommentController.get(activeEditor);
+	if (!controller) {
+		return undefined;
+	}
+	return controller;
 }
 
 registerThemingParticipant((theme, collector) => {

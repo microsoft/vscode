@@ -252,6 +252,7 @@ suite('Sticky Scroll Tests', () => {
 		await withAsyncTestCodeEditor(model, { serviceCollection }, async (editor, _viewModel, instantiationService) => {
 
 			const stickyScrollController: StickyScrollController = editor.registerAndInstantiateContribution(StickyScrollController.ID, StickyScrollController);
+			await stickyScrollController.stickyScrollCandidateProvider.update();
 			const lineHeight = editor.getOption(EditorOption.lineHeight);
 
 			const languageService = instantiationService.get(ILanguageFeaturesService);

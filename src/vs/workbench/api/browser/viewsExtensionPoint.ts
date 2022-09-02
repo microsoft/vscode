@@ -643,4 +643,4 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 }
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(ViewsExtensionHandler, LifecyclePhase.Starting);
+workbenchRegistry.registerWorkbenchContribution(ViewsExtensionHandler, 'ViewsExtensionHandler', LifecyclePhase.Starting);

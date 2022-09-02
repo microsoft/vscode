@@ -12,7 +12,6 @@ import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { AutoOpenBarrier, Promises } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
-import { fromNow } from 'vs/base/common/date';
 import { debounce } from 'vs/base/common/decorators';
 import { ErrorNoTelemetry } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -26,12 +25,10 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { TabFocus } from 'vs/editor/browser/config/tabFocus';
-import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -40,19 +37,24 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { QuickPickItem, IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalCapabilityStoreMultiplexer } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { IProcessDataEvent, IProcessPropertyMap, IReconnectionProperties, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, PosixShellType, ProcessPropertyType, ShellIntegrationStatus, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalSettingId, TerminalShellType, TitleEventSource, WindowsShellType } from 'vs/platform/terminal/common/terminal';
-import { escapeNonWindowsPath, collapseTildePath } from 'vs/platform/terminal/common/terminalEnvironment';
-import { activeContrastBorder, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
+import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProcess';
+import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
+import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
+import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
+import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
 import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkQuickpick';
 import { IRequestAddInstanceToGroupEvent, ITerminalExternalLinkProvider, ITerminalInstance, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -61,6 +63,7 @@ import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/term
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { getColorClass, getColorStyleElement, getStandardColors } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
+import { showRunRecentQuickPick } from 'vs/workbench/contrib/terminal/browser/terminalRunRecentQuickPick';
 import { ITerminalStatusList, TerminalStatus, TerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/terminalTypeAheadAddon';
 import { getTerminalResourcesFromDragEvent, getTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
@@ -71,11 +74,9 @@ import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/xterm
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { IEnvironmentVariableCollection, IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { deserializeEnvironmentVariableCollections } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
-import { getCommandHistory, getDirectoryHistory, getShellFileHistory } from 'vs/workbench/contrib/terminal/common/history';
+import { getCommandHistory, getDirectoryHistory } from 'vs/workbench/contrib/terminal/common/history';
 import { DEFAULT_COMMANDS_TO_SKIP_SHELL, INavigationMode, ITerminalBackend, ITerminalProcessManager, ITerminalProfileResolverService, ProcessState, TerminalCommandId, TERMINAL_CREATION_COMMANDS, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
-import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -83,14 +84,6 @@ import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import type { IMarker, ITerminalAddon, Terminal as XTermTerminal } from 'xterm';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProcess';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
-import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
-import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
-import { showWithPinnedItems } from 'vs/platform/quickinput/browser/quickPickPin';
-import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 
 const enum Constants {
 	/**
@@ -134,24 +127,6 @@ interface IGridDimensions {
 const shellIntegrationSupportedShellTypes = [PosixShellType.Bash, PosixShellType.Zsh, PosixShellType.PowerShell, WindowsShellType.PowerShell];
 
 const scrollbarHeight = 5;
-
-class TerminalOutputProvider implements ITextModelContentProvider {
-	static scheme = 'TERMINAL_OUTPUT';
-	constructor(
-		@ITextModelService textModelResolverService: ITextModelService,
-		@IModelService private readonly _modelService: IModelService
-	) {
-		textModelResolverService.registerTextModelContentProvider(TerminalOutputProvider.scheme, this);
-	}
-	async provideTextContent(resource: URI): Promise<ITextModel | null> {
-		const existing = this._modelService.getModel(resource);
-		if (existing && !existing.isDisposed()) {
-			return existing;
-		}
-
-		return this._modelService.createModel(resource.fragment, null, resource, false);
-	}
-}
 
 export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private static _lastKnownCanvasDimensions: ICanvasDimensions | undefined;
@@ -294,6 +269,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get isTitleSetByProcess(): boolean { return !!this._messageTitleDisposable; }
 	get shellLaunchConfig(): IShellLaunchConfig { return this._shellLaunchConfig; }
 	get shellType(): TerminalShellType { return this._shellType; }
+	get os(): OperatingSystem | undefined { return this._processManager.os; }
 	get navigationMode(): INavigationMode | undefined { return this._navigationModeAddon; }
 	get isDisconnected(): boolean { return this._processManager.isDisconnected; }
 	get isRemote(): boolean { return this._processManager.remoteAuthority !== undefined; }
@@ -849,245 +825,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async runRecent(type: 'command' | 'cwd', filterMode?: 'fuzzy' | 'contiguous', value?: string): Promise<void> {
-		if (!this.xterm) {
-			return;
-		}
-		const runRecentStorageKey = `${TerminalStorageKeys.PinnedRecentCommandsPrefix}.${this._shellType}`;
-		let placeholder: string;
-		type Item = IQuickPickItem & { command?: ITerminalCommand; rawLabel: string };
-		let items: (Item | IQuickPickItem & { rawLabel: string } | IQuickPickSeparator)[] = [];
-		const commandMap: Set<string> = new Set();
-
-		const removeFromCommandHistoryButton: IQuickInputButton = {
-			iconClass: ThemeIcon.asClassName(Codicon.close),
-			tooltip: nls.localize('removeCommand', "Remove from Command History")
-		};
-
-		const commandOutputButton: IQuickInputButton = {
-			iconClass: ThemeIcon.asClassName(Codicon.output),
-			tooltip: nls.localize('viewCommandOutput', "View Command Output"),
-			alwaysVisible: false
-		};
-
-		if (type === 'command') {
-			placeholder = isMacintosh ? nls.localize('selectRecentCommandMac', 'Select a command to run (hold Option-key to edit the command)') : nls.localize('selectRecentCommand', 'Select a command to run (hold Alt-key to edit the command)');
-			const cmdDetection = this.capabilities.get(TerminalCapability.CommandDetection);
-			const commands = cmdDetection?.commands;
-			// Current session history
-			const executingCommand = cmdDetection?.executingCommand;
-			if (executingCommand) {
-				commandMap.add(executingCommand);
-			}
-			function formatLabel(label: string) {
-				return label
-					// Replace new lines with "enter" symbol
-					.replace(/\r?\n/g, '\u23CE')
-					// Replace 3 or more spaces with midline horizontal ellipsis which looks similar
-					// to whitespace in the editor
-					.replace(/\s\s\s+/g, '\u22EF');
-			}
-			if (commands && commands.length > 0) {
-				for (const entry of commands) {
-					// Trim off any whitespace and/or line endings, replace new lines with the
-					// Downwards Arrow with Corner Leftwards symbol
-					const label = entry.command.trim();
-					if (label.length === 0 || commandMap.has(label)) {
-						continue;
-					}
-					let description = collapseTildePath(entry.cwd, this._userHome, this._processManager?.os === OperatingSystem.Windows ? '\\' : '/');
-					if (entry.exitCode) {
-						// Since you cannot get the last command's exit code on pwsh, just whether it failed
-						// or not, -1 is treated specially as simply failed
-						if (entry.exitCode === -1) {
-							description += ' failed';
-						} else {
-							description += ` exitCode: ${entry.exitCode}`;
-						}
-					}
-					description = description.trim();
-					const buttons: IQuickInputButton[] = [commandOutputButton];
-					// Merge consecutive commands
-					const lastItem = items.length > 0 ? items[items.length - 1] : undefined;
-					if (lastItem?.type !== 'separator' && lastItem?.label === label) {
-						lastItem.id = entry.timestamp.toString();
-						lastItem.description = description;
-						continue;
-					}
-					items.push({
-						label: formatLabel(label),
-						rawLabel: label,
-						description,
-						id: entry.timestamp.toString(),
-						command: entry,
-						buttons: entry.hasOutput() ? buttons : undefined
-					});
-					commandMap.add(label);
-				}
-				items = items.reverse();
-			}
-			if (executingCommand) {
-				items.unshift({
-					label: formatLabel(executingCommand),
-					rawLabel: executingCommand,
-					description: cmdDetection.cwd
-				});
-			}
-			if (items.length > 0) {
-				items.unshift({ type: 'separator', label: terminalStrings.currentSessionCategory });
-			}
-
-			// Gather previous session history
-			const history = this._instantiationService.invokeFunction(getCommandHistory);
-			const previousSessionItems: (IQuickPickItem & { rawLabel: string })[] = [];
-			for (const [label, info] of history.entries) {
-				// Only add previous session item if it's not in this session
-				if (!commandMap.has(label) && info.shellType === this.shellType) {
-					previousSessionItems.unshift({
-						label: formatLabel(label),
-						rawLabel: label,
-						buttons: [removeFromCommandHistoryButton]
-					});
-					commandMap.add(label);
-				}
-			}
-
-			if (previousSessionItems.length > 0) {
-				items.push(
-					{ type: 'separator', label: terminalStrings.previousSessionCategory },
-					...previousSessionItems
-				);
-			}
-
-			// Gather shell file history
-			const shellFileHistory = await this._instantiationService.invokeFunction(getShellFileHistory, this._shellType);
-			const dedupedShellFileItems: (IQuickPickItem & { rawLabel: string })[] = [];
-			for (const label of shellFileHistory) {
-				if (!commandMap.has(label)) {
-					dedupedShellFileItems.unshift({
-						label: formatLabel(label),
-						rawLabel: label
-					});
-				}
-			}
-			if (dedupedShellFileItems.length > 0) {
-				items.push(
-					{ type: 'separator', label: nls.localize('shellFileHistoryCategory', '{0} history', this._shellType) },
-					...dedupedShellFileItems
-				);
-			}
-		} else {
-			placeholder = isMacintosh
-				? nls.localize('selectRecentDirectoryMac', 'Select a directory to go to (hold Option-key to edit the command)')
-				: nls.localize('selectRecentDirectory', 'Select a directory to go to (hold Alt-key to edit the command)');
-			const cwds = this.capabilities.get(TerminalCapability.CwdDetection)?.cwds || [];
-			if (cwds && cwds.length > 0) {
-				for (const label of cwds) {
-					items.push({ label, rawLabel: label });
-				}
-				items = items.reverse();
-				items.unshift({ type: 'separator', label: terminalStrings.currentSessionCategory });
-			}
-
-			// Gather previous session history
-			const history = this._instantiationService.invokeFunction(getDirectoryHistory);
-			const previousSessionItems: (IQuickPickItem & { rawLabel: string })[] = [];
-			// Only add previous session item if it's not in this session and it matches the remote authority
-			for (const [label, info] of history.entries) {
-				if ((info === null || info.remoteAuthority === this.remoteAuthority) && !cwds.includes(label)) {
-					previousSessionItems.unshift({
-						label,
-						rawLabel: label,
-						buttons: [removeFromCommandHistoryButton]
-					});
-				}
-			}
-			if (previousSessionItems.length > 0) {
-				items.push(
-					{ type: 'separator', label: terminalStrings.previousSessionCategory },
-					...previousSessionItems
-				);
-			}
-		}
-		if (items.length === 0) {
-			return;
-		}
-		const fuzzySearchToggle = new Toggle({
-			title: 'Fuzzy search',
-			icon: Codicon.searchFuzzy,
-			isChecked: filterMode === 'fuzzy',
-			inputActiveOptionBorder: this._themeService.getColorTheme().getColor(inputActiveOptionBorder),
-			inputActiveOptionForeground: this._themeService.getColorTheme().getColor(inputActiveOptionForeground),
-			inputActiveOptionBackground: this._themeService.getColorTheme().getColor(inputActiveOptionBackground)
-		});
-		fuzzySearchToggle.onChange(() => {
-			this.runRecent(type, fuzzySearchToggle.checked ? 'fuzzy' : 'contiguous', quickPick.value);
-		});
-		const outputProvider = this._instantiationService.createInstance(TerminalOutputProvider);
-		const quickPick = this._quickInputService.createQuickPick<IQuickPickItem & { rawLabel: string }>();
-		const originalItems = items;
-		quickPick.items = [...originalItems];
-		quickPick.sortByLabel = false;
-		quickPick.placeholder = placeholder;
-		quickPick.matchOnLabelMode = filterMode || 'contiguous';
-		quickPick.toggles = [fuzzySearchToggle];
-		quickPick.onDidTriggerItemButton(async e => {
-			if (e.button === removeFromCommandHistoryButton) {
-				if (type === 'command') {
-					this._instantiationService.invokeFunction(getCommandHistory)?.remove(e.item.label);
-				} else {
-					this._instantiationService.invokeFunction(getDirectoryHistory)?.remove(e.item.label);
-				}
-			} else if (e.button === commandOutputButton) {
-				const selectedCommand = (e.item as Item).command;
-				const output = selectedCommand?.getOutput();
-				if (output && selectedCommand?.command) {
-					const textContent = await outputProvider.provideTextContent(URI.from(
-						{
-							scheme: TerminalOutputProvider.scheme,
-							path: `${selectedCommand.command}... ${fromNow(selectedCommand.timestamp, true)}`,
-							fragment: output,
-							query: `terminal-output-${selectedCommand.timestamp}-${this.instanceId}`
-						}));
-					if (textContent) {
-						await this._editorService.openEditor({
-							resource: textContent.uri
-						});
-					}
-				}
-			}
-			await this.runRecent(type, filterMode, value);
-		}
+		return this._instantiationService.invokeFunction(
+			showRunRecentQuickPick, this, this._terminalInRunCommandPicker, type, filterMode, value
 		);
-		quickPick.onDidChangeValue(async value => {
-			if (!value) {
-				await this.runRecent(type, filterMode, value);
-			}
-		});
-		quickPick.onDidAccept(async () => {
-			const result = quickPick.activeItems[0];
-			let text: string;
-			if (type === 'cwd') {
-				text = `cd ${await preparePathForShell(result.rawLabel, this._shellLaunchConfig.executable, this.title, this._shellType, this._processManager.backend, this._processManager.os)}`;
-			} else { // command
-				text = result.rawLabel;
-			}
-			this.sendText(text, !quickPick.keyMods.alt, true);
-			quickPick.hide();
-			if (quickPick.keyMods.alt) {
-				this.focus();
-			}
-		});
-		if (value) {
-			quickPick.value = value;
-		}
-		return new Promise<void>(r => {
-			this._terminalInRunCommandPicker.set(true);
-			showWithPinnedItems(this._storageService, runRecentStorageKey, quickPick, true);
-			quickPick.onDidHide(() => {
-				this._terminalInRunCommandPicker.set(false);
-				r();
-			});
-		});
 	}
 
 	detachFromElement(): void {
@@ -1559,8 +1299,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async sendPath(originalPath: string, addNewLine: boolean): Promise<void> {
-		const preparedPath = await preparePathForShell(originalPath, this.shellLaunchConfig.executable, this.title, this.shellType, this._processManager.backend, this._processManager.os);
-		return this.sendText(preparedPath, addNewLine);
+		return this.sendText(await this.preparePathForShell(originalPath), addNewLine);
+	}
+
+	preparePathForShell(originalPath: string): Promise<string> {
+		return preparePathForShell(originalPath, this.shellLaunchConfig.executable, this.title, this.shellType, this._processManager.backend, this._processManager.os);
 	}
 
 	setVisible(visible: boolean): void {

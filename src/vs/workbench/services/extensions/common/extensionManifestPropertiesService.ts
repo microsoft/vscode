@@ -371,4 +371,4 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 	}
 }
 
-registerSingleton(IExtensionManifestPropertiesService, ExtensionManifestPropertiesService, false);
+registerSingleton(IExtensionManifestPropertiesService, ExtensionManifestPropertiesService, true);
