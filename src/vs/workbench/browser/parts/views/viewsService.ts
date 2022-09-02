@@ -648,5 +648,4 @@ export function getPartByLocation(viewContainerLocation: ViewContainerLocation):
 	}
 }
 
-registerSingleton(IViewsService, ViewsService, false /* Eager because of the cyclic dependency when registering PaneComposites (Panel that is active) in its constructor:
-ViewsService is registering a panel that is active -> PaneCompositeParts -> PanelPart (CompositePart) is opening the registered panel that is active -> CompositeProgressIndicator -> ViewsService */);
+registerSingleton(IViewsService, ViewsService, false /* Eager because it registers viewlets and panels in the constructor which are required during workbench layout */);
