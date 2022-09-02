@@ -3893,3 +3893,19 @@ export class InteractiveWindowInput {
 	constructor(readonly uri: URI, readonly inputBoxUri: URI) { }
 }
 //#endregion
+
+//#region resource label formatter
+export enum ResourceLabelSeparator {
+	Slash = '/',
+	Backslash = '\\',
+	NoSeparator = ''
+}
+
+export class ResourceLabelFormatting implements vscode.ResourceLabelFormatting {
+	constructor(public readonly label: string, public readonly separator: vscode.ResourceLabelSeparator, public readonly tildify?: boolean, public readonly normalizeDriveLetter?: boolean, public readonly workspaceSuffix?: string, public readonly workspaceTooltip?: string, public readonly authorityPrefix?: string, public readonly stripPathStartingSeparator?: boolean) { }
+}
+
+export class ResourceLabelFormatter implements vscode.ResourceLabelFormatter {
+	constructor(public readonly formatting: ResourceLabelFormatting, public readonly scheme: string, public readonly authority?: string) { }
+}
+//#endregion

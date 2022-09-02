@@ -187,28 +187,8 @@ declare module 'vscode' {
 		export const onDidChangeTunnels: Event<void>;
 	}
 
-	export interface ResourceLabelFormatter {
-		scheme: string;
-		authority?: string;
-		formatting: ResourceLabelFormatting;
-	}
-
-	export interface ResourceLabelFormatting {
-		label: string; // myLabel:/${path}
-		// For historic reasons we use an or string here. Once we finalize this API we should start using enums instead and adopt it in extensions.
-		// eslint-disable-next-line local/vscode-dts-literal-or-types
-		separator: '/' | '\\' | '';
-		tildify?: boolean;
-		normalizeDriveLetter?: boolean;
-		workspaceSuffix?: string;
-		workspaceTooltip?: string;
-		authorityPrefix?: string;
-		stripPathStartingSeparator?: boolean;
-	}
-
 	export namespace workspace {
 		export function registerRemoteAuthorityResolver(authorityPrefix: string, resolver: RemoteAuthorityResolver): Disposable;
-		export function registerResourceLabelFormatter(formatter: ResourceLabelFormatter): Disposable;
 	}
 
 	export namespace env {

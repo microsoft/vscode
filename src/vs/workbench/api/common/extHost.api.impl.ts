@@ -988,7 +988,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extensionService.registerRemoteAuthorityResolver(authorityPrefix, resolver);
 			},
 			registerResourceLabelFormatter: (formatter: vscode.ResourceLabelFormatter) => {
-				checkProposedApiEnabled(extension, 'resolvers');
 				return extHostLabelService.$registerResourceLabelFormatter(formatter);
 			},
 			onDidCreateFiles: (listener, thisArg, disposables) => {
@@ -1287,6 +1286,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			QuickInputButtons: extHostTypes.QuickInputButtons,
 			Range: extHostTypes.Range,
 			RelativePattern: extHostTypes.RelativePattern,
+			ResourceLabelFormatter: extHostTypes.ResourceLabelFormatter,
+			ResourceLabelFormatting: extHostTypes.ResourceLabelFormatting,
+			ResourceLabelSeparator: extHostTypes.ResourceLabelSeparator,
 			Selection: extHostTypes.Selection,
 			SelectionRange: extHostTypes.SelectionRange,
 			SemanticTokens: extHostTypes.SemanticTokens,

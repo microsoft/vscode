@@ -9462,6 +9462,71 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * A resource label formatter which contains both the formatting rules
+	 * and for what kind of resource they should be applied to
+	 */
+	export interface ResourceLabelFormatter {
+		/**
+		 * URI scheme on which to match the formatter on. For example "file". Simple glob patterns are supported.
+		 */
+		scheme: string;
+		/**
+		 * URI authority on which to match the formatter on. Simple glob patterns are supported.
+		 */
+		authority?: string;
+		/**
+		 * Formatting rules to apply when a this formatter is match against a URI
+		 */
+		formatting: ResourceLabelFormatting;
+	}
+
+	export enum ResourceLabelSeparator {
+		Slash = '/',
+		Backslash = '\\',
+		NoSeparator = ''
+	}
+
+	/**
+	 * Define a set of transformation to convert a resource URI to a
+	 * label displayed in the UI
+	 */
+	export interface ResourceLabelFormatting {
+		/**
+		 * Label rules to display. For example: myLabel:/${path}. ${path}, ${scheme}, ${authority} and ${authoritySuffix} are supported as variables.
+		 */
+		label: string;
+		/**
+		 * Separator to be used in the uri label display. '/' or '\' as an example.
+		 */
+		separator: ResourceLabelSeparator;
+		/**
+		 * Controls if the start of the uri label should be tildified when possible.
+		 */
+		tildify?: boolean;
+		/**
+		 * If the URI contains a Windows drive letter, convert a URI like \c:\something to C:\something
+		 */
+		normalizeDriveLetter?: boolean;
+		/**
+		 * Suffix appended to the workspace label.
+		 */
+		workspaceSuffix?: string;
+		/**
+		 * The tooltip content to display when the formatter is used to display an URI
+		 * This property is currently only supported when the proposed workspace tooltip API is enabled
+		 */
+		workspaceTooltip?: string;
+		/**
+		 * Add a common prefix to the label
+		 */
+		authorityPrefix?: string;
+		/**
+		 * Controls whether `${path}` substitutions should have starting separator characters stripped.
+		 */
+		stripPathStartingSeparator?: boolean;
+	}
+
+	/**
 	 * Namespace for dealing with the current window of the editor. That is visible
 	 * and active editors, as well as, UI elements to show messages, selections, and
 	 * asking for user input.
@@ -12470,6 +12535,11 @@ declare module 'vscode' {
 		 * Event that fires when the current workspace has been trusted.
 		 */
 		export const onDidGrantWorkspaceTrust: Event<void>;
+
+		/**
+		 * Register a dynamic resource label formatter.
+		 */
+		export function registerResourceLabelFormatter(formatter: ResourceLabelFormatter): Disposable;
 	}
 
 	/**
