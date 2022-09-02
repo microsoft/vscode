@@ -342,7 +342,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				const absoluteFile = 'c:\\Users\\home\\folder\\file.txt';
 
 				fileService.setFiles([
-					URI.file(absoluteFile)
+					URI.file('/c:/Users/home/folder/file.txt')
 				]);
 
 				// Set a fake detected command starting as line 0 to establish the cwd
@@ -372,8 +372,8 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				searchService.setSearchResult({
 					messages: [],
 					results: [
-						{ resource: URI.from({ scheme: Schemas.file, path: 'file:///Users/home/folder/file.txt' }) },
-						{ resource: URI.from({ scheme: Schemas.file, path: 'file:///Users/home/folder/other/file.txt' }) }
+						{ resource: URI.file(absoluteFile) },
+						{ resource: URI.file('/c:/Users/home/folder/other/file.txt') }
 					]
 				});
 				await opener.open({
