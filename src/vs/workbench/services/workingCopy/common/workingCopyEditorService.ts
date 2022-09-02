@@ -97,4 +97,4 @@ export class WorkingCopyEditorService extends Disposable implements IWorkingCopy
 }
 
 // Register Service
-registerSingleton(IWorkingCopyEditorService, WorkingCopyEditorService, false);
+registerSingleton(IWorkingCopyEditorService, WorkingCopyEditorService, true);
