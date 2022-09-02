@@ -15,11 +15,12 @@ class AttachmentCleaner {
 	 * take in a NotebookDocumentChangeEvent, and clean the attachment data for the cell(s) that have had their markdown source code changed
 	 * @param e NotebookDocumentChangeEvent from the onDidChangeNotebookDocument listener
 	 */
-	cleanNotebookAttachments(e: vscode.NotebookDocumentChangeEvent) {
+	cleanNotebookAttachments(e: vscode.NotebookDocumentChangeEvent, attachmentDiagnostics: vscode.DiagnosticCollection) {
 		if (e.notebook.isClosed) {
 			return;
 		}
 
+		const diagnostics: vscode.Diagnostic[] = [];
 		for (const currentChange of e.cellChanges) {
 			// undefined is a specific case including workspace edit etc
 			if (currentChange.document === undefined || currentChange.document.languageId !== 'markdown') { //document lang ID
@@ -58,8 +59,13 @@ class AttachmentCleaner {
 					}
 
 					// if image is referenced in mkdn && image is not in metadata -> check if image IS inside cache
-					if (this.attachmentCache[notebookUri][cellFragment] && Object.keys(this.attachmentCache[notebookUri][cellFragment]).includes(currFilename)) {
+					// if (this.attachmentCache[notebookUri][cellFragment] && Object.keys(this.attachmentCache[notebookUri][cellFragment]).includes(currFilename)) {
+					if (false) {
 						this.addImageToCellMetadata(notebookUri, cellFragment, currFilename, updateMetadata);
+					} else {
+						for (const diagnostic of this.createDiagnostics(currentChange.cell.document, currFilename)) {
+							diagnostics.push(diagnostic);
+						}
 					}
 					//TODO: ELSE: diagnostic squiggle, image not present
 				}
@@ -71,6 +77,7 @@ class AttachmentCleaner {
 				workspaceEdit.set(e.notebook.uri, [metadataEdit]);
 				vscode.workspace.applyEdit(workspaceEdit);
 			}
+			attachmentDiagnostics.set(currentChange.cell.document.uri, diagnostics);
 		} // for loop of all changes
 	}
 
@@ -242,6 +249,32 @@ class AttachmentCleaner {
 		}
 		return true;
 	}
+
+	/**
+	 * create one or more diagnostic messages based on the inputted filename
+	 * @param doc TextDocument containing the borken image reference
+	 * @param filename filename of broken image
+	 * @returns list of diagnostics for the given filename
+	 */
+	private createDiagnostics(doc: vscode.TextDocument, filename: string): vscode.Diagnostic[] {
+		const searchString = `!\\\[.*\]\\\(attachment:${filename}\\\)`;
+		const re = new RegExp(searchString, 'gm');
+		const docString = doc.getText();
+
+		let match;
+		const diagnostics: vscode.Diagnostic[] = [];
+		while (match = re.exec(docString)) {
+			const offset = match.index;
+			const startPos = doc.positionAt(offset);
+			const endPos = startPos.translate(0, match[0].length);
+			diagnostics.push(new vscode.Diagnostic(
+				new vscode.Range(startPos, endPos),
+				`The image named: '${filename}' is not present in notebook, attachment data was lost.`,
+				vscode.DiagnosticSeverity.Warning
+			));
+		}
+		return diagnostics;
+	}
 }
 
 class DelayedTrigger implements vscode.Disposable {
@@ -275,7 +308,7 @@ class DelayedTrigger implements vscode.Disposable {
 	}
 }
 
-export function notebookAttachmentCleanerSetup(context: vscode.ExtensionContext) {
+export function notebookAttachmentCleanerSetup(context: vscode.ExtensionContext, attachmentDiagnostics: vscode.DiagnosticCollection) {
 
 	const enabled = vscode.workspace.getConfiguration('ipynb').get('experimental.pasteImages.enabled', false);
 	if (!enabled) {
@@ -287,7 +320,7 @@ export function notebookAttachmentCleanerSetup(context: vscode.ExtensionContext)
 
 	const delayTrigger = new DelayedTrigger(
 		(e) => {
-			cleaner.cleanNotebookAttachments(e);
+			cleaner.cleanNotebookAttachments(e, attachmentDiagnostics);
 			// for(const change in changeList){
 			// 	if ( typeof change === ){
 

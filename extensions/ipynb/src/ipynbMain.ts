@@ -79,8 +79,12 @@ export function activate(context: vscode.ExtensionContext) {
 		await vscode.window.showNotebookDocument(document);
 	}));
 
+	const attachmentDiagnostics = vscode.languages.createDiagnosticCollection('attachments');
+	context.subscriptions.push(attachmentDiagnostics);
 	context.subscriptions.push(notebookImagePasteSetup());
-	notebookAttachmentCleanerSetup(context);
+	notebookAttachmentCleanerSetup(context, attachmentDiagnostics);
+
+
 
 	// Update new file contribution
 	vscode.extensions.onDidChange(() => {
