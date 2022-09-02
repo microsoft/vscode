@@ -93,19 +93,6 @@
 	z-index: 33 !important;
 }
 
-.result-count .simple-find-part {
-	width: 330px;
-	max-width: 330px;
-	min-width: 330px;
-}
-
-.result-count .matchesCount {
-	width: 68px;
-	max-width: 68px;
-	min-width: 68px;
-	padding-left: 5px;
-}
-
 .xterm .xterm-accessibility {
 	z-index: 32 !important;
 	pointer-events: none;

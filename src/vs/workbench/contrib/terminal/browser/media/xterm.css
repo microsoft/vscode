@@ -55,7 +55,10 @@
 .xterm .xterm-helpers {
 	position: absolute;
 	top: 0;
-	/* The z-index of the helpers must be higher than the canvases in order for IMEs to appear on top. */
+	/**
+	 * The z-index of the helpers must be higher than the canvases in order for
+	 * IMEs to appear on top.
+	 */
 	z-index: 5;
 }
 

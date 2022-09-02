@@ -636,6 +636,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'editor.action.toggleTabFocusMode',
 	'notifications.hideList',
 	'notifications.hideToasts',
+	'workbench.action.closeQuickOpen',
 	'workbench.action.quickOpen',
 	'workbench.action.quickOpenPreviousEditor',
 	'workbench.action.showCommands',

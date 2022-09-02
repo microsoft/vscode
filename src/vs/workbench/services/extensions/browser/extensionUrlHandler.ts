@@ -382,7 +382,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 	}
 }
 
-registerSingleton(IExtensionUrlHandler, ExtensionUrlHandler);
+registerSingleton(IExtensionUrlHandler, ExtensionUrlHandler, false);
 
 /**
  * This class handles URLs before `ExtensionUrlHandler` is instantiated.
@@ -416,7 +416,7 @@ class ExtensionUrlBootstrapHandler implements IWorkbenchContribution, IURLHandle
 }
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(ExtensionUrlBootstrapHandler, LifecyclePhase.Ready);
+workbenchRegistry.registerWorkbenchContribution(ExtensionUrlBootstrapHandler, 'ExtensionUrlBootstrapHandler', LifecyclePhase.Ready);
 
 class ManageAuthorizedExtensionURIsAction extends Action2 {
 

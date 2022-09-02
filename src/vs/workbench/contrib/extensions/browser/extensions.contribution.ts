@@ -80,9 +80,9 @@ import product from 'vs/platform/product/common/product';
 import { IStringDictionary } from 'vs/base/common/collections';
 
 // Singletons
-registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
-registerSingleton(IExtensionRecommendationNotificationService, ExtensionRecommendationNotificationService);
-registerSingleton(IExtensionRecommendationsService, ExtensionRecommendationsService);
+registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService, false);
+registerSingleton(IExtensionRecommendationNotificationService, ExtensionRecommendationNotificationService, true);
+registerSingleton(IExtensionRecommendationsService, ExtensionRecommendationsService, false);
 
 Registry.as<IOutputChannelRegistry>(OutputExtensions.OutputChannels)
 	.registerChannel({ id: ExtensionsChannelId, label: ExtensionsLabel, log: false });
@@ -1598,18 +1598,18 @@ class ExtensionStorageCleaner implements IWorkbenchContribution {
 }
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(ExtensionsContributions, LifecyclePhase.Starting);
-workbenchRegistry.registerWorkbenchContribution(StatusUpdater, LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(MaliciousExtensionChecker, LifecyclePhase.Eventually);
-workbenchRegistry.registerWorkbenchContribution(KeymapExtensions, LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(ExtensionsViewletViewsContribution, LifecyclePhase.Starting);
-workbenchRegistry.registerWorkbenchContribution(ExtensionActivationProgress, LifecyclePhase.Eventually);
-workbenchRegistry.registerWorkbenchContribution(ExtensionDependencyChecker, LifecyclePhase.Eventually);
-workbenchRegistry.registerWorkbenchContribution(ExtensionEnablementWorkspaceTrustTransitionParticipant, LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(ExtensionsCompletionItemsProvider, LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(UnsupportedExtensionsMigrationContrib, LifecyclePhase.Eventually);
+workbenchRegistry.registerWorkbenchContribution(ExtensionsContributions, 'ExtensionsContributions', LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(StatusUpdater, 'StatusUpdater', LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(MaliciousExtensionChecker, 'MaliciousExtensionChecker', LifecyclePhase.Eventually);
+workbenchRegistry.registerWorkbenchContribution(KeymapExtensions, 'KeymapExtensions', LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(ExtensionsViewletViewsContribution, 'ExtensionsViewletViewsContribution', LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(ExtensionActivationProgress, 'ExtensionActivationProgress', LifecyclePhase.Eventually);
+workbenchRegistry.registerWorkbenchContribution(ExtensionDependencyChecker, 'ExtensionDependencyChecker', LifecyclePhase.Eventually);
+workbenchRegistry.registerWorkbenchContribution(ExtensionEnablementWorkspaceTrustTransitionParticipant, 'ExtensionEnablementWorkspaceTrustTransitionParticipant', LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(ExtensionsCompletionItemsProvider, 'ExtensionsCompletionItemsProvider', LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(UnsupportedExtensionsMigrationContrib, 'UnsupportedExtensionsMigrationContrib', LifecyclePhase.Eventually);
 if (isWeb) {
-	workbenchRegistry.registerWorkbenchContribution(ExtensionStorageCleaner, LifecyclePhase.Eventually);
+	workbenchRegistry.registerWorkbenchContribution(ExtensionStorageCleaner, 'ExtensionStorageCleaner', LifecyclePhase.Eventually);
 }
 
 

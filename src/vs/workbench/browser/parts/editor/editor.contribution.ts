@@ -54,7 +54,7 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { isMacintosh } from 'vs/base/common/platform';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { FloatingClickMenu, OpenWorkspaceButtonContribution } from 'vs/workbench/browser/codeeditor';
+import { FloatingClickMenu } from 'vs/workbench/browser/codeeditor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { EditorAutoSave } from 'vs/workbench/browser/parts/editor/editorAutoSave';
@@ -65,7 +65,7 @@ import { FileAccess } from 'vs/base/common/network';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { UntitledTextEditorInputSerializer, UntitledTextEditorWorkingCopyEditorHandler } from 'vs/workbench/services/untitled/common/untitledTextEditorHandler';
-import { DynamicEditorResolverConfigurations } from 'vs/workbench/browser/parts/editor/editorConfiguration';
+import { DynamicEditorConfigurations } from 'vs/workbench/browser/parts/editor/editorConfiguration';
 
 //#region Editor Registrations
 
@@ -122,13 +122,12 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 
 //#region Workbench Contributions
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(EditorAutoSave, LifecyclePhase.Ready);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(EditorStatus, LifecyclePhase.Ready);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(UntitledTextEditorWorkingCopyEditorHandler, LifecyclePhase.Ready);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DynamicEditorResolverConfigurations, LifecyclePhase.Ready);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(EditorAutoSave, 'EditorAutoSave', LifecyclePhase.Ready);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(EditorStatus, 'EditorStatus', LifecyclePhase.Ready);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(UntitledTextEditorWorkingCopyEditorHandler, 'UntitledTextEditorWorkingCopyEditorHandler', LifecyclePhase.Ready);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DynamicEditorConfigurations, 'DynamicEditorConfigurations', LifecyclePhase.Ready);
 
 registerEditorContribution(FloatingClickMenu.ID, FloatingClickMenu);
-registerEditorContribution(OpenWorkspaceButtonContribution.ID, OpenWorkspaceButtonContribution);
 
 //#endregion
 

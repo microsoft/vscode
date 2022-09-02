@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import { PreviewStatusBarEntry as OwnedStatusBarEntry } from './ownedStatusBarEntry';
+import { PreviewStatusBarEntry as OwnedStatusBarEntry } from '../ownedStatusBarEntry';
 
 const localize = nls.loadMessageBundle();
 
@@ -41,7 +41,7 @@ export class ZoomStatusBarEntry extends OwnedStatusBarEntry {
 		this.entry.command = selectZoomLevelCommandId;
 	}
 
-	public show(owner: string, scale: Scale) {
+	public show(owner: unknown, scale: Scale) {
 		this.showItem(owner, this.zoomLabel(scale));
 	}
 
