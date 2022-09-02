@@ -86,6 +86,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private checkAndInstall(): void {
+		// The locale can contain extraneous country codes, such as fr-CA
 		const language = platform.language;
 		const locale = platform.locale;
 		const languagePackSuggestionIgnoreList = <string[]>JSON.parse(this.storageService.get(LANGUAGEPACK_SUGGESTION_IGNORE_STORAGE_KEY, StorageScope.APPLICATION, '[]'));
@@ -96,7 +97,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 		if (!language || !locale || locale === 'en' || locale.indexOf('en-') === 0) {
 			return;
 		}
-		if (language === locale || languagePackSuggestionIgnoreList.indexOf(locale) > -1) {
+		if (locale.startsWith(language) || languagePackSuggestionIgnoreList.includes(locale)) {
 			return;
 		}
 
@@ -111,7 +112,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 						return;
 					}
 
-					const extensionToInstall = tagResult.total === 1 ? tagResult.firstPage[0] : tagResult.firstPage.filter(e => e.publisher === 'MS-CEINTL' && e.name.indexOf('vscode-language-pack') === 0)[0];
+					const extensionToInstall = tagResult.total === 1 ? tagResult.firstPage[0] : tagResult.firstPage.find(e => e.publisher === 'MS-CEINTL' && e.name.startsWith('vscode-language-pack'))!;
 					const extensionToFetchTranslationsFrom = extensionToInstall || tagResult.firstPage[0];
 
 					if (!extensionToFetchTranslationsFrom.assets.manifest) {
@@ -120,7 +121,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 
 					Promise.all([this.galleryService.getManifest(extensionToFetchTranslationsFrom, CancellationToken.None), this.galleryService.getCoreTranslation(extensionToFetchTranslationsFrom, locale)])
 						.then(([manifest, translation]) => {
-							const loc = manifest && manifest.contributes && manifest.contributes.localizations && manifest.contributes.localizations.filter(x => x.languageId.toLowerCase() === locale)[0];
+							const loc = manifest && manifest.contributes && manifest.contributes.localizations && manifest.contributes.localizations.find(x => locale.startsWith(x.languageId.toLowerCase()));
 							const languageName = loc ? (loc.languageName || locale) : locale;
 							const languageDisplayName = loc ? (loc.localizedLanguageName || loc.languageName || locale) : locale;
 							const translationsFromPack: { [key: string]: string } = translation?.contents?.['vs/workbench/contrib/localization/electron-sandbox/minimalTranslations'] ?? {};
