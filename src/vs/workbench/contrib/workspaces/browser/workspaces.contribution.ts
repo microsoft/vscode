@@ -123,7 +123,7 @@ registerAction2(class extends Action2 {
 		if (contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			const workspaceConfiguration = contextService.getWorkspace().configuration;
 			if (workspaceConfiguration && isEqual(workspaceConfiguration, uri)) {
-				notificationService.info(localize('alreadyOpened', "This workspace is already opened."));
+				notificationService.info(localize('alreadyOpen', "This workspace is already open."));
 
 				return; // workspace already opened
 			}
