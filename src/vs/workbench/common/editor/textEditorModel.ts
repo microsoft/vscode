@@ -99,11 +99,13 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 	}
 
 	protected installModelListeners(model: ITextModel): void {
+
 		// Setup listener for lower level language changes
 		const disposable = model.onDidChangeLanguage((e) => {
 			if (e.reason === LanguageDetectionLanguageEventReason) {
 				return;
 			}
+
 			this._hasLanguageSetExplicitly = true;
 			disposable.dispose();
 		});
