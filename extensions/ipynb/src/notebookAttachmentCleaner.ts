@@ -59,8 +59,7 @@ class AttachmentCleaner {
 					}
 
 					// if image is referenced in mkdn && image is not in metadata -> check if image IS inside cache
-					// if (this.attachmentCache[notebookUri][cellFragment] && Object.keys(this.attachmentCache[notebookUri][cellFragment]).includes(currFilename)) {
-					if (false) {
+					if (this.attachmentCache[notebookUri][cellFragment] && Object.keys(this.attachmentCache[notebookUri][cellFragment]).includes(currFilename)) {
 						this.addImageToCellMetadata(notebookUri, cellFragment, currFilename, updateMetadata);
 					} else {
 						for (const diagnostic of this.createDiagnostics(currentChange.cell.document, currFilename)) {
