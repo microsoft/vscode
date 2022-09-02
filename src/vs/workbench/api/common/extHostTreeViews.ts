@@ -100,7 +100,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 			get onDidChangeSelection() { return treeView.onDidChangeSelection; },
 			get visible() { return treeView.visible; },
 			get onDidChangeVisibility() { return treeView.onDidChangeVisibility; },
-			get onDidChangeTreeCheckbox() { /*checkProposedApiEnabled(extension, 'treeItemCheckbox');*/ return treeView.onDidChangeTreeCheckbox; },
+			get onDidChangeTreeCheckbox() { checkProposedApiEnabled(extension, 'treeItemCheckbox'); return treeView.onDidChangeTreeCheckbox; },
 			get message() { return treeView.message; },
 			set message(message: string) {
 				treeView.message = message;
@@ -741,7 +741,7 @@ class ExtHostTreeView<T> extends Disposable {
 	}
 
 	private validateTreeItem(extensionTreeItem: vscode.TreeItem) {
-		if (!TreeItem.isTreeItem(extensionTreeItem)) {
+		if (!TreeItem.isTreeItem(extensionTreeItem, this.extension)) {
 			// TODO: #154757 we should consider throwing, but let's wait and see if there are tons of reports of this first.
 			console.log(`Extension ${this.extension.identifier.value} has provided an invalid tree item.`);
 		}

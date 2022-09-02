@@ -31,6 +31,8 @@ export class TreeItemCheckbox implements IDisposable {
 	private checkboxContainer: HTMLDivElement;
 	private disposables: IDisposable[];
 
+	public static readonly checkboxClass = 'custom-view-tree-node-item-checkbox';
+
 	private readonly _onDidChangeState = new Emitter<boolean>();
 	readonly onDidChangeState: Event<boolean> = this._onDidChangeState.event;
 
@@ -67,7 +69,7 @@ export class TreeItemCheckbox implements IDisposable {
 				icon: node.checkbox?.isChecked ? Codicon.check : undefined
 			});
 
-			this.toggle.domNode.classList.add('custom-view-tree-node-item-checkbox');
+			this.toggle.domNode.classList.add(TreeItemCheckbox.checkboxClass);
 			DOM.append(this.checkboxContainer, this.toggle.domNode);
 			this.registerListener(node);
 		}

@@ -634,6 +634,9 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			if (!e.browserEvent) {
 				return;
 			}
+			if ((e.browserEvent.target as HTMLElement).classList.contains(TreeItemCheckbox.checkboxClass)) {
+				return;
+			}
 			const selection = this.tree!.getSelection();
 			const command = await this.resolveCommand(selection.length === 1 ? selection[0] : undefined);
 

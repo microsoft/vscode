@@ -13,10 +13,12 @@ import { nextCharLength } from 'vs/base/common/strings';
 import { isString, isStringArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRelativePatternDto } from 'vs/workbench/api/common/extHost.protocol';
 import { CellEditType, ICellPartialMetadataEdit, IDocumentMetadataEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
 
 /**
@@ -2433,12 +2435,13 @@ export class TreeItem {
 	command?: vscode.Command;
 	contextValue?: string;
 	tooltip?: string | vscode.MarkdownString;
+	checkboxState?: vscode.TreeItemCheckboxState;
 
-	static isTreeItem(thing: any): thing is TreeItem {
+	static isTreeItem(thing: any, extension: IExtensionDescription): thing is TreeItem {
 		if (thing instanceof TreeItem) {
 			return true;
 		}
-		const treeItemThing = thing as vscode.TreeItem;
+		const treeItemThing = thing as vscode.TreeItem2;
 		if (treeItemThing.label !== undefined && !isString(treeItemThing.label) && !(treeItemThing.label.label)) {
 			console.log('INVALID tree item, invalid label', treeItemThing.label);
 			return false;
@@ -2482,6 +2485,13 @@ export class TreeItem {
 			console.log('INVALID tree item, invalid accessibilityInformation', treeItemThing.accessibilityInformation);
 			return false;
 		}
+		if (treeItemThing.checkboxState !== undefined) {
+			checkProposedApiEnabled(extension, 'treeItemCheckbox');
+			if (treeItemThing.checkboxState !== TreeItemCheckboxState.Checked && treeItemThing.checkboxState !== TreeItemCheckboxState.Unchecked) {
+				console.log('INVALID tree item, invalid checkboxState', treeItemThing.checkboxState);
+				return false;
+			}
+		}
 
 		return true;
 	}
@@ -2502,23 +2512,6 @@ export enum TreeItemCollapsibleState {
 	None = 0,
 	Collapsed = 1,
 	Expanded = 2
-}
-
-export class TreeItem2 extends TreeItem {
-	checkboxState?: TreeItemCheckboxState;
-
-	static override isTreeItem(thing: any): thing is TreeItem2 {
-		if (thing instanceof TreeItem2) {
-			return true;
-		}
-		const treeItemThing = thing as vscode.TreeItem2;
-		if (treeItemThing.checkboxState !== undefined && treeItemThing.checkboxState !== TreeItemCheckboxState.Checked && treeItemThing.checkboxState !== TreeItemCheckboxState.Unchecked) {
-			console.log('INVALID tree item, invalid checkboxState', treeItemThing.checkboxState);
-			return false;
-		}
-
-		return TreeItem.isTreeItem(thing);
-	}
 }
 
 export enum TreeItemCheckboxState {
