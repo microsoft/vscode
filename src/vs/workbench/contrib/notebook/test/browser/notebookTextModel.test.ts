@@ -772,8 +772,7 @@ suite('NotebookTextModel', () => {
 			]);
 
 			assert.deepStrictEqual(edits, [
-				{ editType: CellEditType.Metadata, index: 0, metadata: {} },
-				{ editType: CellEditType.Output, index: 0, outputs: [], append: false }
+				{ editType: CellEditType.Metadata, index: 0, metadata: {} }
 			]);
 		});
 	});
@@ -808,7 +807,6 @@ suite('NotebookTextModel', () => {
 
 			assert.deepStrictEqual(edits, [
 				{ editType: CellEditType.Metadata, index: 0, metadata: {} },
-				{ editType: CellEditType.Output, index: 0, outputs: [], append: false },
 				{ editType: CellEditType.Replace, index: 1, count: 1, cells: cells.slice(1) },
 			]);
 		});
@@ -828,7 +826,6 @@ suite('NotebookTextModel', () => {
 			assert.deepStrictEqual(edits, [
 				{ editType: CellEditType.Replace, index: 0, count: 1, cells: cells.slice(0, 1) },
 				{ editType: CellEditType.Metadata, index: 1, metadata: {} },
-				{ editType: CellEditType.Output, index: 1, outputs: [], append: false },
 			]);
 		});
 	});
@@ -849,10 +846,8 @@ suite('NotebookTextModel', () => {
 
 			assert.deepStrictEqual(edits, [
 				{ editType: CellEditType.Metadata, index: 0, metadata: {} },
-				{ editType: CellEditType.Output, index: 0, outputs: [], append: false },
 				{ editType: CellEditType.Replace, index: 1, count: 1, cells: cells.slice(1, 2) },
 				{ editType: CellEditType.Metadata, index: 2, metadata: {} },
-				{ editType: CellEditType.Output, index: 2, outputs: [], append: false },
 			]);
 		});
 	});
@@ -871,9 +866,7 @@ suite('NotebookTextModel', () => {
 
 			assert.deepStrictEqual(edits, [
 				{ editType: CellEditType.Metadata, index: 0, metadata: { name: 'foo' } },
-				{ editType: CellEditType.Output, index: 0, outputs: [], append: false },
 				{ editType: CellEditType.Metadata, index: 1, metadata: {} },
-				{ editType: CellEditType.Output, index: 1, outputs: [], append: false },
 			]);
 		});
 	});
@@ -893,7 +886,6 @@ suite('NotebookTextModel', () => {
 			assert.deepStrictEqual(edits, [
 				{ editType: CellEditType.Replace, index: 0, count: 1, cells: cells.slice(0, 1) },
 				{ editType: CellEditType.Metadata, index: 1, metadata: {} },
-				{ editType: CellEditType.Output, index: 1, outputs: [], append: false },
 			]);
 		});
 	});
@@ -912,7 +904,6 @@ suite('NotebookTextModel', () => {
 
 			assert.deepStrictEqual(edits, [
 				{ editType: CellEditType.Metadata, index: 0, metadata: {} },
-				{ editType: CellEditType.Output, index: 0, outputs: [], append: false },
 				{ editType: CellEditType.Replace, index: 1, count: 1, cells: cells.slice(1) },
 			]);
 		});
@@ -932,7 +923,6 @@ suite('NotebookTextModel', () => {
 
 			assert.deepStrictEqual(edits, [
 				{ editType: CellEditType.Metadata, index: 0, metadata: { name: 'foo' } },
-				{ editType: CellEditType.Output, index: 0, outputs: [], append: false },
 				{ editType: CellEditType.Replace, index: 1, count: 1, cells: cells.slice(1) }
 			]);
 		});
@@ -953,7 +943,6 @@ suite('NotebookTextModel', () => {
 			assert.deepStrictEqual(edits, [
 				{ editType: CellEditType.Replace, index: 0, count: 1, cells: cells.slice(0, 1) },
 				{ editType: CellEditType.Metadata, index: 1, metadata: {} },
-				{ editType: CellEditType.Output, index: 1, outputs: [], append: false },
 			]);
 		});
 	});
@@ -973,10 +962,8 @@ suite('NotebookTextModel', () => {
 
 			assert.deepStrictEqual(edits, [
 				{ editType: CellEditType.Metadata, index: 0, metadata: {} },
-				{ editType: CellEditType.Output, index: 0, outputs: [], append: false },
 				{ editType: CellEditType.Replace, index: 1, count: 0, cells: cells.slice(1, 2) },
 				{ editType: CellEditType.Metadata, index: 1, metadata: { foo: 'bar' } },
-				{ editType: CellEditType.Output, index: 1, outputs: [], append: false },
 			]);
 
 			model.applyEdits(edits, true, undefined, () => undefined, undefined, true);
@@ -984,6 +971,76 @@ suite('NotebookTextModel', () => {
 			assert.equal(model.cells[1].getValue(), 'var c = 1;');
 			assert.equal(model.cells[2].getValue(), 'var b = 1;');
 			assert.deepStrictEqual(model.cells[2].metadata, { foo: 'bar' });
+		});
+	});
+
+	test('computeEdits output changed', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			['var b = 1;', 'javascript', CellKind.Code, [], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const cells = [
+				{
+					source: 'var a = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [{
+						outputId: 'someId',
+						outputs: [{ mime: Mimes.markdown, data: valueBytesFromString('_World_') }]
+					}], metadata: undefined,
+				},
+				{ source: 'var b = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: { foo: 'bar' } }
+			];
+			const edits = NotebookTextModel.computeEdits(model, cells);
+
+			assert.deepStrictEqual(edits, [
+				{ editType: CellEditType.Metadata, index: 0, metadata: {} },
+				{
+					editType: CellEditType.Output, index: 0, outputs: [{
+						outputId: 'someId',
+						outputs: [{ mime: Mimes.markdown, data: valueBytesFromString('_World_') }]
+					}], append: false
+				},
+				{ editType: CellEditType.Metadata, index: 1, metadata: { foo: 'bar' } },
+			]);
+
+			model.applyEdits(edits, true, undefined, () => undefined, undefined, true);
+			assert.equal(model.cells.length, 2);
+			assert.strictEqual(model.cells[0].outputs.length, 1);
+			assert.equal(model.cells[0].outputs[0].outputId, 'someId');
+			assert.equal(model.cells[0].outputs[0].outputs[0].data.toString(), '_World_');
+		});
+	});
+
+	test('computeEdits output items changed', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [{
+				outputId: 'someId',
+				outputs: [{ mime: Mimes.markdown, data: valueBytesFromString('_Hello_') }]
+			}], {}],
+			['var b = 1;', 'javascript', CellKind.Code, [], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const cells = [
+				{
+					source: 'var a = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [{
+						outputId: 'someId',
+						outputs: [{ mime: Mimes.markdown, data: valueBytesFromString('_World_') }]
+					}], metadata: undefined,
+				},
+				{ source: 'var b = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: { foo: 'bar' } }
+			];
+			const edits = NotebookTextModel.computeEdits(model, cells);
+
+			assert.deepStrictEqual(edits, [
+				{ editType: CellEditType.Metadata, index: 0, metadata: {} },
+				{ editType: CellEditType.OutputItems, outputId: 'someId', items: [{ mime: Mimes.markdown, data: valueBytesFromString('_World_') }], append: false },
+				{ editType: CellEditType.Metadata, index: 1, metadata: { foo: 'bar' } },
+			]);
+
+			model.applyEdits(edits, true, undefined, () => undefined, undefined, true);
+			assert.equal(model.cells.length, 2);
+			assert.strictEqual(model.cells[0].outputs.length, 1);
+			assert.equal(model.cells[0].outputs[0].outputId, 'someId');
+			assert.equal(model.cells[0].outputs[0].outputs[0].data.toString(), '_World_');
 		});
 	});
 });

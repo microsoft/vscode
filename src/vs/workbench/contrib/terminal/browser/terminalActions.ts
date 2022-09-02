@@ -545,6 +545,7 @@ export function registerTerminalActions() {
 			const terminalService = accessor.get(ITerminalService);
 			const terminalGroupService = accessor.get(ITerminalGroupService);
 			const codeEditorService = accessor.get(ICodeEditorService);
+			const terminalEditorService = accessor.get(ITerminalEditorService);
 
 			const instance = await terminalService.getActiveOrCreateInstance();
 			const editor = codeEditorService.getActiveCodeEditor();
@@ -560,7 +561,11 @@ export function registerTerminalActions() {
 				text = editor.getModel().getValueInRange(selection, endOfLinePreference);
 			}
 			instance.sendText(text, true);
-			return terminalGroupService.showPanel();
+			if (instance.target === TerminalLocation.Editor) {
+				terminalEditorService.revealActiveEditor();
+			} else {
+				terminalGroupService.showPanel();
+			}
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1098,7 +1103,7 @@ export function registerTerminalActions() {
 			const terminalGroupService = accessor.get(ITerminalGroupService);
 
 			const remoteAuthority = remoteAgentService.getConnection()?.remoteAuthority ?? undefined;
-			const backend = accessor.get(ITerminalInstanceService).getBackend(remoteAuthority);
+			const backend = await accessor.get(ITerminalInstanceService).getBackend(remoteAuthority);
 
 			if (!backend) {
 				throw new Error(`No backend registered for remote authority '${remoteAuthority}'`);

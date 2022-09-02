@@ -4,17 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { IListEvent, IListMouseEvent, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import { Action, IAction, Separator } from 'vs/base/common/actions';
+import { Action, IAction } from 'vs/base/common/actions';
+import { Codicon } from 'vs/base/common/codicons';
 import { canceled } from 'vs/base/common/errors';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { Lazy } from 'vs/base/common/lazy';
-import { Disposable, dispose, MutableDisposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/action';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { CodeAction, Command } from 'vs/editor/common/languages';
@@ -22,18 +24,23 @@ import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { codeActionCommandId, CodeActionItem, CodeActionSet, fixAllCommandId, organizeImportsCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionKind, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/browser/types';
+import 'vs/editor/contrib/symbolIcons/browser/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
 import { localize } from 'vs/nls';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export const Context = {
-	Visible: new RawContextKey<boolean>('CodeActionMenuVisible', false, localize('CodeActionMenuVisible', "Whether the code action list widget is visible"))
+	Visible: new RawContextKey<boolean>('codeActionMenuVisible', false, localize('codeActionMenuVisible', "Whether the code action list widget is visible"))
 };
+
+export const acceptSelectedCodeActionCommand = 'acceptSelectedCodeAction';
+export const previewSelectedCodeActionCommand = 'previewSelectedCodeAction';
 
 interface CodeActionWidgetDelegate {
 	onSelectCodeAction: (action: CodeActionItem, trigger: CodeActionTrigger) => Promise<any>;
@@ -62,114 +69,155 @@ export interface CodeActionShowOptions {
 	readonly includeDisabledActions: boolean;
 	readonly fromLightbulb?: boolean;
 }
-export interface ICodeActionMenuItem {
-	action: IAction;
-	isSeparator: boolean;
-	isEnabled: boolean;
-	isDocumentation: boolean;
-	index: number;
-	disposables?: IDisposable[];
+
+enum CodeActionListItemKind {
+	CodeAction = 'action',
+	Header = 'header'
 }
 
-export interface ICodeMenuOptions {
-	useCustomDrawn?: boolean;
-	ariaLabel?: string;
-	ariaDescription?: string;
-	minBottomMargin?: number;
-	optionsAsChildren?: boolean;
+interface CodeActionListItemCodeAction {
+	readonly kind: CodeActionListItemKind.CodeAction;
+	readonly action: CodeActionAction;
+	readonly index: number;
+	readonly params: ICodeActionMenuParameters;
 }
 
-export interface ICodeActionMenuTemplateData {
-	root: HTMLElement;
-	text: HTMLElement;
-	detail: HTMLElement;
-	decoratorRight: HTMLElement;
-	disposables: IDisposable[];
+interface CodeActionListItemHeader {
+	readonly kind: CodeActionListItemKind.Header;
+	readonly headerTitle: string;
+	readonly index: number;
 }
 
-const TEMPLATE_ID = 'codeActionWidget';
-const codeActionLineHeight = 26;
+type ICodeActionMenuItem = CodeActionListItemCodeAction | CodeActionListItemHeader;
 
-class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeActionMenuTemplateData> {
+export interface ICodeActionMenuParameters {
+	readonly options: CodeActionShowOptions;
+	readonly trigger: CodeActionTrigger;
+	readonly anchor: { x: number; y: number };
+	readonly menuActions: IAction[];
+	readonly documentationActions: readonly Command[];
+	readonly codeActions: CodeActionSet;
+	readonly visible: boolean;
+	readonly showDisabled: boolean;
+}
 
+interface ICodeActionMenuTemplateData {
+	readonly container: HTMLElement;
+	readonly text: HTMLElement;
+	readonly icon: HTMLElement;
+}
+
+const codeActionLineHeight = 24;
+const headerLineHeight = 26;
+
+// TODO: Take a look at user storage for this so it is preserved across windows and on reload.
+let showDisabled = false;
+
+class CodeActionItemRenderer implements IListRenderer<CodeActionListItemCodeAction, ICodeActionMenuTemplateData> {
 	constructor(
 		private readonly acceptKeybindings: [string, string],
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) { }
 
-	get templateId(): string { return TEMPLATE_ID; }
+	get templateId(): string { return CodeActionListItemKind.CodeAction; }
 
 	renderTemplate(container: HTMLElement): ICodeActionMenuTemplateData {
-		const data: ICodeActionMenuTemplateData = Object.create(null);
-		data.disposables = [];
-		data.root = container;
-		data.text = document.createElement('span');
-		// data.detail = document.createElement('');
-		container.append(data.text);
-		// container.append(data.detail);
+		const iconContainer = document.createElement('div');
+		iconContainer.className = 'icon-container';
+		container.append(iconContainer);
 
-		return data;
+		const icon = document.createElement('div');
+		iconContainer.append(icon);
+
+		const text = document.createElement('span');
+		container.append(text);
+
+		return { container, icon, text };
 	}
-	renderElement(element: ICodeActionMenuItem, index: number, templateData: ICodeActionMenuTemplateData): void {
-		const data: ICodeActionMenuTemplateData = templateData;
-		const text = element.action.label;
-		const isSeparator = element.isSeparator;
 
-		element.isEnabled = element.action.enabled;
+	renderElement(element: CodeActionListItemCodeAction, _index: number, data: ICodeActionMenuTemplateData): void {
+		data.text.textContent = element.action.label;
 
-		if (element.action instanceof CodeActionAction) {
-
-			// Check documentation type
-			element.isDocumentation = element.action.action.kind === CodeActionMenu.documentationID;
-			if (!element.isDocumentation) {
-
-				// Check if action has disabled reason
-				if (element.action.action.disabled) {
-					data.root.title = element.action.action.disabled;
-				} else {
-					const updateLabel = () => {
-						const [accept, preview] = this.acceptKeybindings;
-						data.root.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Refactor, Shift+F2 to Preview"'] }, "{0} to Refactor, {1} to Preview", this.keybindingService.lookupKeybinding(accept)?.getLabel(), this.keybindingService.lookupKeybinding(preview)?.getLabel());
-					};
-					updateLabel();
-				}
-			}
-		}
-
-		data.text.textContent = text;
-
-		if (!element.isEnabled) {
-			data.root.classList.add('option-disabled');
-			data.root.style.backgroundColor = 'transparent !important';
+		// Icons and Label modification based on group
+		const kind = element.action.action.kind ? new CodeActionKind(element.action.action.kind) : CodeActionKind.None;
+		if (CodeActionKind.SurroundWith.contains(kind)) {
+			data.icon.className = Codicon.symbolArray.classNames;
+		} else if (CodeActionKind.Extract.contains(kind)) {
+			data.icon.className = Codicon.wrench.classNames;
+		} else if (CodeActionKind.Convert.contains(kind)) {
+			data.icon.className = Codicon.zap.classNames;
+			data.icon.style.color = `var(--vscode-editorLightBulbAutoFix-foreground)`;
+		} else if (CodeActionKind.QuickFix.contains(kind)) {
+			data.icon.className = Codicon.lightBulb.classNames;
+			data.icon.style.color = `var(--vscode-editorLightBulb-foreground)`;
 		} else {
-			data.root.classList.remove('option-disabled');
+			data.icon.className = Codicon.lightBulb.classNames;
+			data.icon.style.color = `var(--vscode-editorLightBulb-foreground)`;
 		}
 
-		if (isSeparator) {
-			data.root.classList.add('separator');
-			data.root.style.height = '10px';
+		// Check if action has disabled reason
+		if (element.action.action.disabled) {
+			data.container.title = element.action.action.disabled;
+		} else {
+			const updateLabel = () => {
+				const [accept, preview] = this.acceptKeybindings;
+				data.container.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", this.keybindingService.lookupKeybinding(accept)?.getLabel(), this.keybindingService.lookupKeybinding(preview)?.getLabel());
+			};
+			updateLabel();
 		}
 
+		if (!element.action.enabled) {
+			data.container.classList.add('option-disabled');
+			data.container.style.backgroundColor = 'transparent !important';
+			data.icon.style.opacity = '0.4';
+		} else {
+			data.container.classList.remove('option-disabled');
+		}
 	}
-	disposeTemplate(templateData: ICodeActionMenuTemplateData): void {
-		templateData.disposables = dispose(templateData.disposables);
+
+	disposeTemplate(_templateData: ICodeActionMenuTemplateData): void {
+		// noop
 	}
 }
 
+interface HeaderTemplateData {
+	readonly container: HTMLElement;
+	readonly text: HTMLElement;
+}
+
+class HeaderRenderer implements IListRenderer<CodeActionListItemHeader, HeaderTemplateData> {
+
+	get templateId(): string { return CodeActionListItemKind.Header; }
+
+	renderTemplate(container: HTMLElement): HeaderTemplateData {
+		container.classList.add('group-header', 'option-disabled');
+
+		const text = document.createElement('span');
+		container.append(text);
+
+		return { container, text };
+	}
+
+	renderElement(element: CodeActionListItemHeader, _index: number, templateData: HeaderTemplateData): void {
+		templateData.text.textContent = element.headerTitle;
+	}
+
+	disposeTemplate(_templateData: HeaderTemplateData): void {
+		// noop
+	}
+}
+
+
 export class CodeActionMenu extends Disposable implements IEditorContribution {
+
 	private readonly _showingActions = this._register(new MutableDisposable<CodeActionSet>());
 	private codeActionList = this._register(new MutableDisposable<List<ICodeActionMenuItem>>());
-	private options: ICodeActionMenuItem[] = [];
+
 	private _visible: boolean = false;
 	private _ctxMenuWidgetVisible: IContextKey<boolean>;
-	private viewItems: ICodeActionMenuItem[] = [];
+	private viewItems: readonly CodeActionListItemCodeAction[] = [];
 	private focusedEnabledItem: number | undefined;
 	private currSelectedItem: number | undefined;
-	private hasSeparator: boolean = false;
-	private block?: HTMLElement;
-	private pointerBlock?: HTMLElement;
-
-	public static readonly documentationID: string = '_documentation';
 
 	public static readonly ID: string = 'editor.contrib.codeActionMenu';
 
@@ -177,14 +225,11 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		return editor.getContribution<CodeActionMenu>(CodeActionMenu.ID);
 	}
 
-	private readonly _keybindingResolver: CodeActionKeybindingResolver;
-	private listRenderer: CodeMenuRenderer;
-
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _delegate: CodeActionWidgetDelegate,
-		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IThemeService _themeService: IThemeService,
@@ -194,32 +239,33 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	) {
 		super();
 
-		this._keybindingResolver = new CodeActionKeybindingResolver({
-			getKeybindings: () => keybindingService.getKeybindings()
-		});
-
 		this._ctxMenuWidgetVisible = Context.Visible.bindTo(this._contextKeyService);
-		this.listRenderer = new CodeMenuRenderer([`onEnterSelectCodeAction`, `onEnterSelectCodeActionWithPreview`], keybindingService);
 	}
 
 	get isVisible(): boolean {
 		return this._visible;
 	}
 
-	private isCodeActionWidgetEnabled(model: ITextModel): boolean {
-		return this._configurationService.getValue('editor.experimental.useCustomCodeActionMenu', {
+	/**
+	* Checks if the setting has disabled/enabled headers in the code action widget.
+	*/
+	private isCodeActionWidgetHeadersShown(model: ITextModel): boolean {
+		return this._configurationService.getValue('editor.codeActionWidget.showHeaders', {
 			resource: model.uri
 		});
 	}
 
 	private _onListSelection(e: IListEvent<ICodeActionMenuItem>): void {
-		if (e.elements.length) {
-			e.elements.forEach(element => {
-				if (element.isEnabled) {
-					element.action.run();
-					this.hideCodeActionWidget();
-				}
-			});
+		let didSelect = false;
+		for (const element of e.elements) {
+			if (element.kind === CodeActionListItemKind.CodeAction) {
+				didSelect = true;
+				element.action.run();
+			}
+		}
+
+		if (didSelect) {
+			this.hideCodeActionWidget();
 		}
 	}
 
@@ -228,7 +274,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 			this.currSelectedItem = undefined;
 			this.codeActionList.value?.setFocus([]);
 		} else {
-			if (e.element?.isEnabled) {
+			if (e.element.kind === CodeActionListItemKind.CodeAction && e.element.action.enabled) {
 				this.codeActionList.value?.setFocus([e.element.index]);
 				this.focusedEnabledItem = this.viewItems.indexOf(e.element);
 				this.currSelectedItem = e.element.index;
@@ -240,113 +286,158 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	}
 
 	private _onListClick(e: IListMouseEvent<ICodeActionMenuItem>): void {
-		if (e.element) {
-			if (!e.element.isEnabled) {
-				this.currSelectedItem = undefined;
-				this.codeActionList.value?.setFocus([]);
-			}
+		if (e.element && e.element.kind === CodeActionListItemKind.CodeAction && !e.element.action.enabled) {
+			this.currSelectedItem = undefined;
+			this.codeActionList.value?.setFocus([]);
 		}
 	}
 
-	private renderCodeActionMenuList(element: HTMLElement, inputArray: IAction[]): IDisposable {
+	/**
+	 * Renders the code action widget given the provided actions.
+	 */
+	private renderCodeActionMenuList(element: HTMLElement, inputCodeActions: readonly CodeActionAction[], inputDocumentation: readonly Command[], params: ICodeActionMenuParameters): IDisposable {
 		const renderDisposables = new DisposableStore();
-		const renderMenu = document.createElement('div');
+
+		const model = this._editor.getModel();
+		if (!model) {
+			return renderDisposables;
+		}
+
+		const widget = document.createElement('div');
+		widget.classList.add('codeActionWidget');
+		element.appendChild(widget);
 
 		// Render invisible div to block mouse interaction in the rest of the UI
 		const menuBlock = document.createElement('div');
-		this.block = element.appendChild(menuBlock);
-		this.block.classList.add('context-view-block');
-		this.block.style.position = 'fixed';
-		this.block.style.cursor = 'initial';
-		this.block.style.left = '0';
-		this.block.style.top = '0';
-		this.block.style.width = '100%';
-		this.block.style.height = '100%';
-		this.block.style.zIndex = '-1';
+		const block = element.appendChild(menuBlock);
+		block.classList.add('context-view-block');
+		block.style.position = 'fixed';
+		block.style.cursor = 'initial';
+		block.style.left = '0';
+		block.style.top = '0';
+		block.style.width = '100%';
+		block.style.height = '100%';
+		block.style.zIndex = '-1';
+		renderDisposables.add(dom.addDisposableListener(block, dom.EventType.MOUSE_DOWN, e => e.stopPropagation()));
 
-		renderDisposables.add(dom.addDisposableListener(this.block, dom.EventType.MOUSE_DOWN, e => e.stopPropagation()));
+		const codeActionList = document.createElement('div');
+		codeActionList.classList.add('codeActionList');
+		widget.appendChild(codeActionList);
 
-		renderMenu.id = 'codeActionMenuWidget';
-		renderMenu.classList.add('codeActionMenuWidget');
-
-		element.appendChild(renderMenu);
-
-		this.codeActionList.value = new List('codeActionWidget', renderMenu, {
+		this.codeActionList.value = new List('codeActionWidget', codeActionList, {
 			getHeight(element) {
-				if (element.isSeparator) {
-					return 10;
-				}
-				return codeActionLineHeight;
+				return element.kind === CodeActionListItemKind.Header ? headerLineHeight : codeActionLineHeight;
 			},
-			getTemplateId(element) {
-				return 'codeActionWidget';
+			getTemplateId: element => element.kind,
+		}, [
+			new CodeActionItemRenderer([acceptSelectedCodeActionCommand, previewSelectedCodeActionCommand], this.keybindingService),
+			new HeaderRenderer(),
+		], {
+			keyboardSupport: false,
+			accessibilityProvider: {
+				getAriaLabel: element => {
+					if (element.kind === CodeActionListItemKind.CodeAction) {
+						let label = element.action.label;
+						if (!element.action.enabled) {
+							label = localize({ key: 'customCodeActionWidget.labels', comment: ['Code action labels for accessibility.'] }, "{0}, Disabled Reason: {1}", label, element.action.action.disabled);
+						}
+						return label;
+					}
+					return null;
+				},
+				getWidgetAriaLabel: () => localize({ key: 'customCodeActionWidget', comment: ['A Code Action Option'] }, "Code Action Widget"),
+				getRole: () => 'option',
+				getWidgetRole: () => 'code-action-widget'
 			}
-		}, [this.listRenderer], { keyboardSupport: false }
-		);
+		});
 
 		const pointerBlockDiv = document.createElement('div');
-		this.pointerBlock = element.appendChild(pointerBlockDiv);
-		this.pointerBlock.classList.add('context-view-pointerBlock');
-		this.pointerBlock.style.position = 'fixed';
-		this.pointerBlock.style.cursor = 'initial';
-		this.pointerBlock.style.left = '0';
-		this.pointerBlock.style.top = '0';
-		this.pointerBlock.style.width = '100%';
-		this.pointerBlock.style.height = '100%';
-		this.pointerBlock.style.zIndex = '2';
+		const pointerBlock = element.appendChild(pointerBlockDiv);
+		pointerBlock.classList.add('context-view-pointerBlock');
+		pointerBlock.style.position = 'fixed';
+		pointerBlock.style.cursor = 'initial';
+		pointerBlock.style.left = '0';
+		pointerBlock.style.top = '0';
+		pointerBlock.style.width = '100%';
+		pointerBlock.style.height = '100%';
+		pointerBlock.style.zIndex = '2';
 
 		// Removes block on click INSIDE widget or ANY mouse movement
-		renderDisposables.add(dom.addDisposableListener(this.pointerBlock, dom.EventType.POINTER_MOVE, () => this.pointerBlock?.remove()));
-		renderDisposables.add(dom.addDisposableListener(this.pointerBlock, dom.EventType.MOUSE_DOWN, () => this.pointerBlock?.remove()));
+		renderDisposables.add(dom.addDisposableListener(pointerBlock, dom.EventType.POINTER_MOVE, () => pointerBlock.remove()));
+		renderDisposables.add(dom.addDisposableListener(pointerBlock, dom.EventType.MOUSE_DOWN, () => pointerBlock.remove()));
 
 		renderDisposables.add(this.codeActionList.value.onMouseClick(e => this._onListClick(e)));
 		renderDisposables.add(this.codeActionList.value.onMouseOver(e => this._onListHover(e)));
-		renderDisposables.add(this.codeActionList.value.onDidChangeFocus(e => this.codeActionList.value?.domFocus()));
+		renderDisposables.add(this.codeActionList.value.onDidChangeFocus(() => this.codeActionList.value?.domFocus()));
 		renderDisposables.add(this.codeActionList.value.onDidChangeSelection(e => this._onListSelection(e)));
-		renderDisposables.add(this._editor.onDidLayoutChange(e => this.hideCodeActionWidget()));
+		renderDisposables.add(this._editor.onDidLayoutChange(() => this.hideCodeActionWidget()));
 
-		// Populating the list widget and tracking enabled options.
-		inputArray.forEach((item, index) => {
+		let numHeaders = 0;
+		const allMenuItems: ICodeActionMenuItem[] = [];
 
-			const currIsSeparator = item.class === 'separator';
+		// Checks if headers are disabled.
+		if (!this.isCodeActionWidgetHeadersShown(model)) {
+			const items = inputCodeActions.map((item, index): ICodeActionMenuItem => ({ kind: CodeActionListItemKind.CodeAction, action: item, index, params }));
+			allMenuItems.push(...items);
+		} else {
+			// Filters and groups code actions by their group
 
-			if (currIsSeparator) {
-				// set to true forever because there is a separator
-				this.hasSeparator = true;
+			// Code Action Groups
+			const quickfixGroup: CodeActionAction[] = [];
+			const extractGroup: CodeActionAction[] = [];
+			const convertGroup: CodeActionAction[] = [];
+			const surroundGroup: CodeActionAction[] = [];
+			const sourceGroup: CodeActionAction[] = [];
+			const otherGroup: CodeActionAction[] = [];
+
+			for (const action of inputCodeActions) {
+				const kind = action.action.kind ? new CodeActionKind(action.action.kind) : CodeActionKind.None;
+				if (CodeActionKind.SurroundWith.contains(kind)) {
+					surroundGroup.push(action);
+				} else if (CodeActionKind.QuickFix.contains(kind)) {
+					quickfixGroup.push(action);
+				} else if (CodeActionKind.Extract.contains(kind)) {
+					extractGroup.push(action);
+				} else if (CodeActionKind.Convert.contains(kind)) {
+					convertGroup.push(action);
+				} else if (CodeActionKind.Source.contains(kind)) {
+					sourceGroup.push(action);
+				} else {
+					// Pushes all the other actions to the "Other" group
+					otherGroup.push(action);
+				}
 			}
 
-			const menuItem = <ICodeActionMenuItem>{ action: inputArray[index], isEnabled: item.enabled, isSeparator: currIsSeparator, index };
-			if (item.enabled) {
-				this.viewItems.push(menuItem);
+			const menuEntries: ReadonlyArray<{ title: string; actions: CodeActionAction[] }> = [
+				{ title: localize('codeAction.widget.id.quickfix', 'Quick Fix...'), actions: quickfixGroup },
+				{ title: localize('codeAction.widget.id.extract', 'Extract...'), actions: extractGroup },
+				{ title: localize('codeAction.widget.id.convert', 'Convert...'), actions: convertGroup },
+				{ title: localize('codeAction.widget.id.surround', 'Surround With...'), actions: surroundGroup },
+				{ title: localize('codeAction.widget.id.source', 'Source Action...'), actions: sourceGroup },
+				{ title: localize('codeAction.widget.id.more', 'More Actions...'), actions: otherGroup },
+			];
+
+			for (const menuEntry of menuEntries) {
+				if (menuEntry.actions.length) {
+					allMenuItems.push({ kind: CodeActionListItemKind.Header, headerTitle: menuEntry.title, index: allMenuItems.length });
+					for (const action of menuEntry.actions) {
+						allMenuItems.push({ kind: CodeActionListItemKind.CodeAction, action, params, index: allMenuItems.length });
+					}
+					numHeaders++;
+				}
 			}
-			this.options.push(menuItem);
-		});
+		}
 
-		this.codeActionList.value.splice(0, this.codeActionList.value.length, this.options);
+		this.viewItems = allMenuItems.filter(item => item.kind === CodeActionListItemKind.CodeAction && item.action.enabled) as CodeActionListItemCodeAction[];
+		this.codeActionList.value.splice(0, this.codeActionList.value.length, allMenuItems);
 
-		const height = this.hasSeparator ? (inputArray.length - 1) * codeActionLineHeight + 10 : inputArray.length * codeActionLineHeight;
-		renderMenu.style.height = String(height) + 'px';
-		this.codeActionList.value.layout(height);
-
-		// For finding width dynamically (not using resize observer)
-		const arr: number[] = [];
-		this.options.forEach((item, index) => {
-			if (!this.codeActionList.value) {
-				return;
-			}
-			const element = document.getElementById(this.codeActionList.value?.getElementID(index))?.getElementsByTagName('span')[0].offsetWidth;
-			arr.push(Number(element));
-		});
-
-		// resize observer - can be used in the future since list widget supports dynamic height but not width
-		const maxWidth = Math.max(...arr);
-
-		// 40 is the additional padding for the list widget (20 left, 20 right)
-		renderMenu.style.width = maxWidth + 52 + 'px';
-		this.codeActionList.value?.layout(height, maxWidth);
+		// Updating list height, depending on how many separators and headers there are.
+		const height = allMenuItems.length * codeActionLineHeight;
+		const heightWithHeaders = height + numHeaders * headerLineHeight - numHeaders * codeActionLineHeight;
+		this.codeActionList.value.layout(heightWithHeaders);
 
 		// List selection
-		if (this.viewItems.length < 1 || this.viewItems.every(item => item.isDocumentation)) {
+		if (this.viewItems.length < 1) {
 			this.currSelectedItem = undefined;
 		} else {
 			this.focusedEnabledItem = 0;
@@ -359,20 +450,82 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		const focusTracker = dom.trackFocus(element);
 		const blurListener = focusTracker.onDidBlur(() => {
 			this.hideCodeActionWidget();
-			// this._contextViewService.hideContextView({ source: this });
 		});
 		renderDisposables.add(blurListener);
 		renderDisposables.add(focusTracker);
+
+		// Action bar
+		let actionBarWidth = 0;
+		if (!params?.options.fromLightbulb) {
+			const actions = inputDocumentation.map((doc): IAction => ({
+				id: doc.id,
+				label: doc.title,
+				tooltip: doc.tooltip ?? '',
+				class: undefined,
+				enabled: true,
+				run: () => this.commandService.executeCommand(doc.id, ...(doc.arguments ?? [])),
+			}));
+
+			if (params.options.includeDisabledActions && params.codeActions.validActions.length > 0 && params.codeActions.allActions.length !== params.codeActions.validActions.length) {
+				actions.push(showDisabled ? {
+					id: 'hideMoreCodeActions',
+					label: localize('hideMoreCodeActions', 'Hide Disabled'),
+					enabled: true,
+					tooltip: '',
+					class: undefined,
+					run: () => this.toggleDisabledOptions(params, false)
+				} : {
+					id: 'showMoreCodeActions',
+					label: localize('showMoreCodeActions', 'Show Disabled'),
+					enabled: true,
+					tooltip: '',
+					class: undefined,
+					run: () => this.toggleDisabledOptions(params, true)
+				});
+			}
+
+			if (actions.length) {
+				const actionbarContainer = dom.append(widget, dom.$('.codeActionWidget-action-bar'));
+				const actionbar = renderDisposables.add(new ActionBar(actionbarContainer));
+				actionbar.push(actions, { icon: false, label: true });
+				actionBarWidth = actionbarContainer.offsetWidth;
+			}
+		}
+
+		// For finding width dynamically (not using resize observer)
+		const itemWidths: number[] = allMenuItems.map((_, index): number => {
+			if (!this.codeActionList.value) {
+				return 0;
+			}
+			const element = document.getElementById(this.codeActionList.value?.getElementID(index));
+			if (element) {
+				const textPadding = 10;
+				const iconPadding = 10;
+				return [...element.children].reduce((p, c) => p + c.clientWidth, 0) + (textPadding * 2) + iconPadding;
+			}
+			return 0;
+		});
+
+		// resize observer - can be used in the future since list widget supports dynamic height but not width
+		const width = Math.max(...itemWidths, actionBarWidth);
+		widget.style.width = width + 'px';
+		this.codeActionList.value?.layout(heightWithHeaders, width);
+
+		codeActionList.style.height = `${heightWithHeaders}px`;
+
 		this._ctxMenuWidgetVisible.set(true);
 
 		return renderDisposables;
 	}
 
-	protected focusPrevious() {
+	/**
+	 * Focuses on the previous item in the list using the list widget.
+	 */
+	public focusPrevious() {
 		if (typeof this.focusedEnabledItem === 'undefined') {
 			this.focusedEnabledItem = this.viewItems[0].index;
 		} else if (this.viewItems.length < 1) {
-			return false;
+			return;
 		}
 
 		const startIndex = this.focusedEnabledItem;
@@ -386,16 +539,17 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 			item = this.viewItems[this.focusedEnabledItem];
 			this.codeActionList.value?.setFocus([item.index]);
 			this.currSelectedItem = item.index;
-		} while (this.focusedEnabledItem !== startIndex && ((!item.isEnabled) || item.action.id === Separator.ID));
-
-		return true;
+		} while (this.focusedEnabledItem !== startIndex && !item.action.enabled);
 	}
 
-	protected focusNext() {
+	/**
+	 * Focuses on the next item in the list using the list widget.
+	 */
+	public focusNext() {
 		if (typeof this.focusedEnabledItem === 'undefined') {
 			this.focusedEnabledItem = this.viewItems.length - 1;
 		} else if (this.viewItems.length < 1) {
-			return false;
+			return;
 		}
 
 		const startIndex = this.focusedEnabledItem;
@@ -406,17 +560,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 			item = this.viewItems[this.focusedEnabledItem];
 			this.codeActionList.value?.setFocus([item.index]);
 			this.currSelectedItem = item.index;
-		} while (this.focusedEnabledItem !== startIndex && ((!item.isEnabled) || item.action.id === Separator.ID));
-
-		return true;
-	}
-
-	public navigateListWithKeysUp() {
-		this.focusPrevious();
-	}
-
-	public navigateListWithKeysDown() {
-		this.focusNext();
+		} while (this.focusedEnabledItem !== startIndex && !item.action.enabled);
 	}
 
 	public onEnterSet() {
@@ -425,21 +569,15 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		}
 	}
 
-	override dispose() {
-		super.dispose();
-	}
-
-	hideCodeActionWidget() {
+	public hideCodeActionWidget() {
 		this._ctxMenuWidgetVisible.reset();
-		this.options = [];
 		this.viewItems = [];
 		this.focusedEnabledItem = 0;
 		this.currSelectedItem = undefined;
-		this.hasSeparator = false;
-		this._contextViewService.hideContextView({ source: this });
+		this._contextViewService.hideContextView();
 	}
 
-	codeActionTelemetry(openedFromString: CodeActionTriggerSource, didCancel: boolean, CodeActions: CodeActionSet) {
+	private codeActionTelemetry(openedFromString: CodeActionTriggerSource, didCancel: boolean, CodeActions: CodeActionSet) {
 		type ApplyCodeActionEvent = {
 			codeActionFrom: CodeActionTriggerSource;
 			validCodeActions: number;
@@ -458,8 +596,41 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 			codeActionFrom: openedFromString,
 			validCodeActions: CodeActions.validActions.length,
 			cancelled: didCancel,
-
 		});
+	}
+
+	/**
+	 * Helper function to create a context view item using code action `params`.
+	 */
+	private showContextViewHelper(params: ICodeActionMenuParameters, menuActions: readonly CodeActionAction[], documentation: readonly Command[]) {
+		this._contextViewService.showContextView({
+			getAnchor: () => params.anchor,
+			render: (container: HTMLElement) => this.renderCodeActionMenuList(container, menuActions, documentation, params),
+			onHide: (didCancel: boolean) => {
+				const openedFromString = (params.options.fromLightbulb) ? CodeActionTriggerSource.Lightbulb : params.trigger.triggerAction;
+				this.codeActionTelemetry(openedFromString, didCancel, params.codeActions);
+				this._visible = false;
+				this._editor.focus();
+			},
+		},
+			this._editor.getDomNode()!, false,
+		);
+	}
+
+	/**
+	 * Toggles whether the disabled actions in the code action widget are visible or not.
+	 */
+	public toggleDisabledOptions(params: ICodeActionMenuParameters, newShowDisabled: boolean): void {
+		this.hideCodeActionWidget();
+
+		showDisabled = newShowDisabled;
+
+		const actionsToShow = showDisabled ? params.codeActions.allActions : params.codeActions.validActions;
+
+		const menuActions = this.getMenuActions(params.trigger, actionsToShow);
+		const documentationActions = this.getDocumentation(params.trigger, actionsToShow, params.codeActions.documentation);
+
+		this.showContextViewHelper(params, menuActions, documentationActions);
 	}
 
 	public async show(trigger: CodeActionTrigger, codeActions: CodeActionSet, at: IAnchor | IPosition, options: CodeActionShowOptions): Promise<void> {
@@ -467,6 +638,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		if (!model) {
 			return;
 		}
+
 		const actionsToShow = options.includeDisabledActions ? codeActions.allActions : codeActions.validActions;
 		if (!actionsToShow.length) {
 			this._visible = false;
@@ -482,57 +654,30 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		this._visible = true;
 		this._showingActions.value = codeActions;
 
-		const menuActions = this.getMenuActions(trigger, actionsToShow, codeActions.documentation);
+		const menuActions = this.getMenuActions(trigger, actionsToShow);
+		const documentationActions = this.getDocumentation(trigger, actionsToShow, codeActions.documentation);
+		const anchor = Position.isIPosition(at) ? this._toCoords(at) : at;
 
-		const anchor = Position.isIPosition(at) ? this._toCoords(at) : at || { x: 0, y: 0 };
-		const resolver = this._keybindingResolver.getResolver();
-
-		const useShadowDOM = this._editor.getOption(EditorOption.useShadowDOM);
-
-
-		if (this.isCodeActionWidgetEnabled(model)) {
-			this._contextViewService.showContextView({
-				getAnchor: () => anchor,
-				render: (container: HTMLElement) => this.renderCodeActionMenuList(container, menuActions),
-				onHide: (didCancel) => {
-					const openedFromString = (options.fromLightbulb) ? CodeActionTriggerSource.Lightbulb : trigger.triggerAction;
-					this.codeActionTelemetry(openedFromString, didCancel, codeActions);
-					this._visible = false;
-					this._editor.focus();
-				},
-			},
-				this._editor.getDomNode()!, false,
-			);
-		} else {
-			this._contextMenuService.showContextMenu({
-				domForShadowRoot: useShadowDOM ? this._editor.getDomNode()! : undefined,
-				getAnchor: () => anchor,
-				getActions: () => menuActions,
-				onHide: (didCancel) => {
-					const openedFromString = (options.fromLightbulb) ? CodeActionTriggerSource.Lightbulb : trigger.triggerAction;
-					this.codeActionTelemetry(openedFromString, didCancel, codeActions);
-					this._visible = false;
-					this._editor.focus();
-				},
-				autoSelectFirstItem: true,
-				getKeyBinding: action => action instanceof CodeActionAction ? resolver(action.action) : undefined,
-			});
-		}
+		const params: ICodeActionMenuParameters = { options, trigger, codeActions, anchor, menuActions, documentationActions, showDisabled, visible: this._visible };
+		this.showContextViewHelper(params, menuActions, documentationActions);
 	}
 
 	private getMenuActions(
 		trigger: CodeActionTrigger,
-		actionsToShow: readonly CodeActionItem[],
-		documentation: readonly Command[]
-	): IAction[] {
-		const toCodeActionAction = (item: CodeActionItem): CodeActionAction => new CodeActionAction(item.action, () => this._delegate.onSelectCodeAction(item, trigger));
-		const result: IAction[] = actionsToShow
-			.map(toCodeActionAction);
+		actionsToShow: readonly CodeActionItem[]
+	): CodeActionAction[] {
+		return actionsToShow.map(item => new CodeActionAction(item.action, () => this._delegate.onSelectCodeAction(item, trigger)));
+	}
 
+	private getDocumentation(
+		trigger: CodeActionTrigger,
+		actionsToShow: readonly CodeActionItem[],
+		documentation: readonly Command[],
+	): Command[] {
 		const allDocumentation: Command[] = [...documentation];
 
 		const model = this._editor.getModel();
-		if (model && result.length) {
+		if (model && actionsToShow.length) {
 			for (const provider of this._languageFeaturesService.codeActionProvider.all(model)) {
 				if (provider._getAdditionalMenuItems) {
 					allDocumentation.push(...provider._getAdditionalMenuItems({ trigger: trigger.type, only: trigger.filter?.include?.value }, actionsToShow.map(item => item.action)));
@@ -540,15 +685,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 			}
 		}
 
-		if (allDocumentation.length) {
-			result.push(new Separator(), ...allDocumentation.map(command => toCodeActionAction(new CodeActionItem({
-				title: command.title,
-				command: command,
-				kind: CodeActionMenu.documentationID
-			}, undefined))));
-		}
-
-		return result;
+		return allDocumentation;
 	}
 
 	private _toCoords(position: IPosition): { x: number; y: number } {

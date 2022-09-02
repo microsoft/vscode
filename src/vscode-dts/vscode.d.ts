@@ -752,10 +752,10 @@ declare module 'vscode' {
 	export interface TextDocumentShowOptions {
 		/**
 		 * An optional view column in which the {@link TextEditor editor} should be shown.
-		 * The default is the {@link ViewColumn.Active active}, other values are adjusted to
-		 * be `Min(column, columnCount + 1)`, the {@link ViewColumn.Active active}-column is
-		 * not adjusted. Use {@linkcode ViewColumn.Beside} to open the
-		 * editor to the side of the currently active one.
+		 * The default is the {@link ViewColumn.Active active}. Columns that do not exist
+		 * will be created as needed up to the maximum of {@linkcode ViewColumn.Nine}.
+		 * Use {@linkcode ViewColumn.Beside} to open the editor to the side of the currently
+		 * active one.
 		 */
 		viewColumn?: ViewColumn;
 
@@ -814,10 +814,10 @@ declare module 'vscode' {
 	export interface NotebookDocumentShowOptions {
 		/**
 		 * An optional view column in which the {@link NotebookEditor notebook editor} should be shown.
-		 * The default is the {@link ViewColumn.Active active}, other values are adjusted to
-		 * be `Min(column, columnCount + 1)`, the {@link ViewColumn.Active active}-column is
-		 * not adjusted. Use {@linkcode ViewColumn.Beside} to open the
-		 * editor to the side of the currently active one.
+		 * The default is the {@link ViewColumn.Active active}. Columns that do not exist
+		 * will be created as needed up to the maximum of {@linkcode ViewColumn.Nine}.
+		 * Use {@linkcode ViewColumn.Beside} to open the editor to the side of the currently
+		 * active one.
 		 */
 		readonly viewColumn?: ViewColumn;
 
@@ -3427,6 +3427,72 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * A notebook edit represents edits that should be applied to the contents of a notebook.
+	 */
+	export class NotebookEdit {
+
+		/**
+		 * Utility to create a edit that replaces cells in a notebook.
+		 *
+		 * @param range The range of cells to replace
+		 * @param newCells The new notebook cells.
+		 */
+		static replaceCells(range: NotebookRange, newCells: NotebookCellData[]): NotebookEdit;
+
+		/**
+		 * Utility to create an edit that replaces cells in a notebook.
+		 *
+		 * @param index The index to insert cells at.
+		 * @param newCells The new notebook cells.
+		 */
+		static insertCells(index: number, newCells: NotebookCellData[]): NotebookEdit;
+
+		/**
+		 * Utility to create an edit that deletes cells in a notebook.
+		 *
+		 * @param range The range of cells to delete.
+		 */
+		static deleteCells(range: NotebookRange): NotebookEdit;
+
+		/**
+		 * Utility to create an edit that update a cell's metadata.
+		 *
+		 * @param index The index of the cell to update.
+		 * @param newCellMetadata The new metadata for the cell.
+		 */
+		static updateCellMetadata(index: number, newCellMetadata: { [key: string]: any }): NotebookEdit;
+
+		/**
+		 * Utility to create an edit that updates the notebook's metadata.
+		 *
+		 * @param newNotebookMetadata The new metadata for the notebook.
+		 */
+		static updateNotebookMetadata(newNotebookMetadata: { [key: string]: any }): NotebookEdit;
+
+		/**
+		 * Range of the cells being edited. May be empty.
+		 */
+		range: NotebookRange;
+
+		/**
+		 * New cells being inserted. May be empty.
+		 */
+		newCells: NotebookCellData[];
+
+		/**
+		 * Optional new metadata for the cells.
+		 */
+		newCellMetadata?: { [key: string]: any };
+
+		/**
+		 * Optional new metadata for the notebook.
+		 */
+		newNotebookMetadata?: { [key: string]: any };
+
+		constructor(range: NotebookRange, newCells: NotebookCellData[]);
+	}
+
+	/**
 	 * Additional data for entries of a workspace edit. Supports to label entries and marks entries
 	 * as needing confirmation by the user. The editor groups edits with equal labels into tree nodes,
 	 * for instance all edits labelled with "Changes in Strings" would be a tree node.
@@ -3508,9 +3574,9 @@ declare module 'vscode' {
 		 * Set (and replace) text edits for a resource.
 		 *
 		 * @param uri A resource identifier.
-		 * @param edits An array of text edits.
+		 * @param edits An array of edits.
 		 */
-		set(uri: Uri, edits: TextEdit[]): void;
+		set(uri: Uri, edits: TextEdit[] | NotebookEdit[]): void;
 
 		/**
 		 * Get the text edits for a resource.
@@ -6178,8 +6244,6 @@ declare module 'vscode' {
 	 * Denotes a location of an editor in the window. Editors can be arranged in a grid
 	 * and each column represents one editor location in that grid by counting the editors
 	 * in order of their appearance.
-	 *
-	 * Columns that do not exists will be created as needed up to the maximum of `ViewColumn.Nine`.
 	 */
 	export enum ViewColumn {
 		/**
@@ -6537,10 +6601,10 @@ declare module 'vscode' {
 	export interface TerminalEditorLocationOptions {
 		/**
 		 * A view column in which the {@link Terminal terminal} should be shown in the editor area.
-		 * Use {@link ViewColumn.Active active} to open in the active editor group, other values are
-		 * adjusted to be `Min(column, columnCount + 1)`, the
-		 * {@link ViewColumn.Active active}-column is not adjusted. Use
-		 * {@linkcode ViewColumn.Beside} to open the editor to the side of the currently active one.
+		 * The default is the {@link ViewColumn.Active active}. Columns that do not exist
+		 * will be created as needed up to the maximum of {@linkcode ViewColumn.Nine}.
+		 * Use {@linkcode ViewColumn.Beside} to open the editor to the side of the currently
+		 * active one.
 		 */
 		viewColumn: ViewColumn;
 		/**
@@ -8573,6 +8637,12 @@ declare module 'vscode' {
 		description?: string;
 
 		/**
+		 * The badge to display for this webview view.
+		 * To remove the badge, set to undefined.
+		 */
+		badge?: ViewBadge | undefined;
+
+		/**
 		 * Event fired when the view is disposed.
 		 *
 		 * Views are disposed when they are explicitly hidden by a user (this happens when a user
@@ -9451,8 +9521,8 @@ declare module 'vscode' {
 		 * to control where the editor is being shown. Might change the {@link window.activeTextEditor active editor}.
 		 *
 		 * @param document A text document to be shown.
-		 * @param column A view column in which the {@link TextEditor editor} should be shown. The default is the {@link ViewColumn.Active active}, other values
-		 * are adjusted to be `Min(column, columnCount + 1)`, the {@link ViewColumn.Active active}-column is not adjusted. Use {@linkcode ViewColumn.Beside}
+		 * @param column A view column in which the {@link TextEditor editor} should be shown. The default is the {@link ViewColumn.Active active}.
+		 * Columns that do not exist will be created as needed up to the maximum of {@linkcode ViewColumn.Nine}. Use {@linkcode ViewColumn.Beside}
 		 * to open the editor to the side of the currently active one.
 		 * @param preserveFocus When `true` the editor will not take focus.
 		 * @return A promise that resolves to an {@link TextEditor editor}.
@@ -10259,6 +10329,22 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * A badge presenting a value for a view
+	 */
+	export interface ViewBadge {
+
+		/**
+		 * A label to present in tooltip for the badge.
+		 */
+		readonly tooltip: string;
+
+		/**
+		 * The value to present in the badge.
+		 */
+		readonly value: number;
+	}
+
+	/**
 	 * Represents a Tree view
 	 */
 	export interface TreeView<T> extends Disposable {
@@ -10310,6 +10396,12 @@ declare module 'vscode' {
 		 * Setting the title description to null, undefined, or empty string will remove the description from the view.
 		 */
 		description?: string;
+
+		/**
+		 * The badge to display for this TreeView.
+		 * To remove the badge, set to undefined.
+		 */
+		badge?: ViewBadge | undefined;
 
 		/**
 		 * Reveals the given element in the tree view.
@@ -13027,7 +13119,7 @@ declare module 'vscode' {
 		/**
 		 * The metadata of this cell. Can be anything but must be JSON-stringifyable.
 		 */
-		readonly metadata: { [key: string]: any };
+		readonly metadata: { readonly [key: string]: any };
 
 		/**
 		 * The outputs of this cell.

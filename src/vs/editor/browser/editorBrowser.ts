@@ -915,9 +915,10 @@ export interface ICodeEditor extends editorCommon.IEditor {
 
 	/**
 	 * Set the model ranges that will be hidden in the view.
+	 * Hidden areas are stored per source.
 	 * @internal
 	 */
-	setHiddenAreas(ranges: IRange[]): void;
+	setHiddenAreas(ranges: IRange[], source?: unknown): void;
 
 	/**
 	 * Sets the editor aria options, primarily the active descendent.
@@ -1224,6 +1225,10 @@ export function getCodeEditor(thing: unknown): ICodeEditor | null {
 
 	if (isDiffEditor(thing)) {
 		return thing.getModifiedEditor();
+	}
+
+	if (isCompositeEditor(thing) && isCodeEditor(thing.activeCodeEditor)) {
+		return thing.activeCodeEditor;
 	}
 
 	return null;

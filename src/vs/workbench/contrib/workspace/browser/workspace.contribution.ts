@@ -72,7 +72,7 @@ export class WorkspaceTrustContextKeys extends Disposable implements IWorkbenchC
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceTrustContextKeys, LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceTrustContextKeys, 'WorkspaceTrustContextKeys', LifecyclePhase.Restored);
 
 
 /*
@@ -578,8 +578,8 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 	//#endregion
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceTrustRequestHandler, LifecyclePhase.Ready);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceTrustUXHandler, LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceTrustRequestHandler, 'WorkspaceTrustRequestHandler', LifecyclePhase.Ready);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceTrustUXHandler, 'WorkspaceTrustUXHandler', LifecyclePhase.Restored);
 
 
 /**
@@ -857,4 +857,4 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WorkspaceTrustTelemetryContribution, LifecyclePhase.Restored);
+	.registerWorkbenchContribution(WorkspaceTrustTelemetryContribution, 'WorkspaceTrustTelemetryContribution', LifecyclePhase.Restored);

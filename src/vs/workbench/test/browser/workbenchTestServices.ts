@@ -194,7 +194,7 @@ export class TestTextResourceEditor extends TextResourceEditor {
 export class TestTextFileEditor extends TextFileEditor {
 
 	protected override createEditorControl(parent: HTMLElement, configuration: any): void {
-		this.editorControl = this.instantiationService.createInstance(TestCodeEditor, parent, configuration, {});
+		this.editorControl = this.instantiationService.createInstance(TestCodeEditor, parent, configuration, { contributions: [] });
 	}
 
 	setSelection(selection: Selection | undefined, reason: EditorPaneSelectionChangeReason): void {
@@ -377,9 +377,7 @@ export class TestTextFileService extends BrowserTextFileService {
 		@IDialogService dialogService: IDialogService,
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
-		@IProductService productService: IProductService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
-		@ITextModelService textModelService: ITextModelService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IPathService pathService: IPathService,
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
@@ -400,7 +398,6 @@ export class TestTextFileService extends BrowserTextFileService {
 			fileDialogService,
 			textResourceConfigurationService,
 			filesConfigurationService,
-			textModelService,
 			codeEditorService,
 			pathService,
 			workingCopyFileService,
@@ -1603,7 +1600,7 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 		if (other instanceof EditorInput) {
 			return !!(other?.resource && this.resource.toString() === other.resource.toString() && other instanceof TestFileEditorInput && other.typeId === this.typeId);
 		}
-		return isEqual(this.resource, other.resource) && this.editorId === other.options?.override;
+		return isEqual(this.resource, other.resource) && (this.editorId === other.options?.override || other.options?.override === undefined);
 	}
 	setPreferredResource(resource: URI): void { }
 	async setEncoding(encoding: string) { }
@@ -1771,7 +1768,7 @@ export class TestTerminalInstanceService implements ITerminalInstanceService {
 	convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): IShellLaunchConfig { throw new Error('Method not implemented.'); }
 	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string, shellType: TerminalShellType, remoteAuthority: string | undefined): Promise<string> { throw new Error('Method not implemented.'); }
 	createInstance(options: ICreateTerminalOptions, target?: TerminalLocation): ITerminalInstance { throw new Error('Method not implemented.'); }
-	getBackend(remoteAuthority?: string): ITerminalBackend | undefined { throw new Error('Method not implemented.'); }
+	async getBackend(remoteAuthority?: string): Promise<ITerminalBackend | undefined> { throw new Error('Method not implemented.'); }
 }
 
 export class TestTerminalEditorService implements ITerminalEditorService {
@@ -1876,7 +1873,6 @@ export class TestTerminalProfileResolverService implements ITerminalProfileResol
 }
 
 export class TestQuickInputService implements IQuickInputService {
-
 	declare readonly _serviceBrand: undefined;
 
 	readonly onShow = Event.None;

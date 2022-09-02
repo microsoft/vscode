@@ -1233,6 +1233,9 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		this.inConflictMode = false;
 		this.inErrorMode = false;
 
+		// Free up model for GC
+		this._model = undefined;
+
 		super.dispose();
 	}
 

@@ -195,8 +195,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		});
 	}
 
-	async detachFromProcess(): Promise<void> {
-		await this._process?.detach?.();
+	async detachFromProcess(forcePersist?: boolean): Promise<void> {
+		await this._process?.detach?.(forcePersist);
 		this._process = null;
 	}
 
@@ -218,7 +218,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			this._processType = ProcessType.PsuedoTerminal;
 			newProcess = shellLaunchConfig.customPtyImplementation(this._instanceId, cols, rows);
 		} else {
-			const backend = this._terminalInstanceService.getBackend(this.remoteAuthority);
+			const backend = await this._terminalInstanceService.getBackend(this.remoteAuthority);
 			if (!backend) {
 				throw new Error(`No terminal backend registered for remote authority '${this.remoteAuthority}'`);
 			}

@@ -359,6 +359,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._cellListeners.clear();
 
 		dispose(this._cells);
+		this._cells = [];
 		super.dispose();
 	}
 
@@ -418,12 +419,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 						index: i,
 						metadata: cells[i].metadata ?? {}
 					},
-					{
-						editType: CellEditType.Output,
-						index: i,
-						outputs: cells[i].outputs,
-						append: false
-					}
+					...this._computeOutputEdit(i, model.cells[i].outputs, cells[i].outputs)
 				);
 			}
 		}
@@ -451,17 +447,40 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 						index: model.cells.length - i,
 						metadata: cells[cells.length - i].metadata ?? {}
 					},
-					{
-						editType: CellEditType.Output,
-						index: model.cells.length - i,
-						outputs: cells[cells.length - i].outputs,
-						append: false
-					}
+					...this._computeOutputEdit(model.cells.length - i, model.cells[model.cells.length - i].outputs, cells[cells.length - i].outputs)
 				);
 			}
 		}
 
 		return edits;
+	}
+
+	private static _computeOutputEdit(index: number, a: ICellOutput[], b: IOutputDto[]): ICellEditOperation[] {
+		if (a.length !== b.length) {
+			return [
+				{
+					editType: CellEditType.Output,
+					index: index,
+					outputs: b,
+					append: false
+				}
+			];
+		}
+
+		if (a.length === 0) {
+			// no output
+			return [];
+		}
+
+		// same length
+		return b.map((output, i) => {
+			return {
+				editType: CellEditType.OutputItems,
+				outputId: a[i].outputId,
+				items: output.outputs,
+				append: false
+			};
+		});
 	}
 
 	private static _commonPrefix(a: readonly NotebookCellTextModel[], aLen: number, aDelta: number, b: ICellDto2[], bLen: number, bDelta: number): number {

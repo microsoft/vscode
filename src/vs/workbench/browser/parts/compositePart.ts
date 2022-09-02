@@ -47,9 +47,9 @@ export interface ICompositeTitleLabel {
 }
 
 interface CompositeItem {
-	composite: Composite;
-	disposable: IDisposable;
-	progress: IProgressIndicator;
+	readonly composite: Composite;
+	readonly disposable: IDisposable;
+	readonly progress: IProgressIndicator;
 }
 
 export abstract class CompositePart<T extends Composite> extends Part {
@@ -280,6 +280,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	}
 
 	protected onTitleAreaUpdate(compositeId: string): void {
+
 		// Title
 		const composite = this.instantiatedCompositeItems.get(compositeId);
 		if (composite) {

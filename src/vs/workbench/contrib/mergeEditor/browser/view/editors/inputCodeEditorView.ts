@@ -9,6 +9,7 @@ import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { clamp } from 'vs/base/common/numbers';
 import { autorun, derived, IObservable, ISettableObservable, ITransaction, transaction, observableValue } from 'vs/base/common/observable';
 import { noBreakWhitespace } from 'vs/base/common/strings';
 import { isDefined } from 'vs/base/common/types';
@@ -51,6 +52,9 @@ export class InputCodeEditorView extends CodeEditorView {
 				}
 				if (modifiedBaseRange === activeModifiedBaseRange) {
 					blockClassNames.push('focused');
+				}
+				if (modifiedBaseRange.isConflicting) {
+					blockClassNames.push('conflicting');
 				}
 				const inputClassName = this.inputNumber === 1 ? 'input1' : 'input2';
 				blockClassNames.push(inputClassName);
@@ -127,6 +131,21 @@ export class InputCodeEditorView extends CodeEditorView {
 						: input;
 				}
 				),
+				className: derived('checkbox classnames', (reader) => {
+					const classNames = [];
+					const active = viewModel.activeModifiedBaseRange.read(reader);
+					if (!model.has(baseRange)) {
+						return ''; // Invalid state, should only be observed temporarily
+					}
+					const isHandled = model.isHandled(baseRange).read(reader);
+					if (isHandled) {
+						classNames.push('handled');
+					}
+					if (baseRange === active) {
+						classNames.push('focused');
+					}
+					return classNames.join(' ');
+				}),
 				setState: (value, tx) => viewModel.setState(
 					baseRange,
 					model
@@ -175,7 +194,7 @@ export class InputCodeEditorView extends CodeEditorView {
 						baseRange.input1Diffs.length > 0
 							? action(
 								'mergeEditor.acceptInput1',
-								localize('mergeEditor.accept', 'Accept {0}', model.input1Title),
+								localize('mergeEditor.accept', 'Accept {0}', model.input1.title),
 								state.toggle(1),
 								state.input1
 							)
@@ -183,7 +202,7 @@ export class InputCodeEditorView extends CodeEditorView {
 						baseRange.input2Diffs.length > 0
 							? action(
 								'mergeEditor.acceptInput2',
-								localize('mergeEditor.accept', 'Accept {0}', model.input2Title),
+								localize('mergeEditor.accept', 'Accept {0}', model.input2.title),
 								state.toggle(2),
 								state.input2
 							)
@@ -282,14 +301,18 @@ export interface ModifiedBaseRangeGutterItemInfo extends IGutterItemInfo {
 	setState(value: boolean, tx: ITransaction): void;
 	toggleBothSides(): void;
 	getContextMenuActions(): readonly IAction[];
+	className: IObservable<string>;
 }
 
 export class MergeConflictGutterItemView extends Disposable implements IGutterItemView<ModifiedBaseRangeGutterItemInfo> {
 	private readonly item: ISettableObservable<ModifiedBaseRangeGutterItemInfo>;
 
+	private readonly checkboxDiv: HTMLDivElement;
+	private readonly isMultiLine = observableValue('isMultiLine', false);
+
 	constructor(
 		item: ModifiedBaseRangeGutterItemInfo,
-		private readonly target: HTMLElement,
+		target: HTMLElement,
 		contextMenuService: IContextMenuService,
 		themeService: IThemeService
 	) {
@@ -297,9 +320,11 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 
 		this.item = observableValue('item', item);
 
-		target.classList.add('merge-accept-gutter-marker');
-
-		const checkBox = new Toggle({ isChecked: false, title: localize('accept', "Accept"), icon: Codicon.check });
+		const checkBox = new Toggle({
+			isChecked: false,
+			title: '',
+			icon: Codicon.check
+		});
 
 		this._register(attachToggleStyler(checkBox, themeService));
 
@@ -311,18 +336,19 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 				}
 
 				if (e.button === /* Right */ 2) {
+					e.stopPropagation();
+					e.preventDefault();
+
 					contextMenuService.showContextMenu({
 						getAnchor: () => checkBox.domNode,
 						getActions: item.getContextMenuActions,
 					});
 
-					e.stopPropagation();
-					e.preventDefault();
 				} else if (e.button === /* Middle */ 1) {
-					item.toggleBothSides();
-
 					e.stopPropagation();
 					e.preventDefault();
+
+					item.toggleBothSides();
 				}
 			})
 		);
@@ -333,14 +359,16 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 			autorun('Update Checkbox', (reader) => {
 				const item = this.item.read(reader)!;
 				const value = item.toggleState.read(reader);
-				const iconMap: Record<InputState, { icon: Codicon | undefined; checked: boolean }> = {
-					[InputState.excluded]: { icon: undefined, checked: false },
-					[InputState.conflicting]: { icon: Codicon.circleFilled, checked: false },
-					[InputState.first]: { icon: Codicon.check, checked: true },
-					[InputState.second]: { icon: Codicon.checkAll, checked: true },
+				const iconMap: Record<InputState, { icon: Codicon | undefined; checked: boolean; title: string }> = {
+					[InputState.excluded]: { icon: undefined, checked: false, title: localize('accept.excluded', "Accept") },
+					[InputState.conflicting]: { icon: Codicon.circleFilled, checked: false, title: localize('accept.conflicting', "Accept (result is dirty)") },
+					[InputState.first]: { icon: Codicon.check, checked: true, title: localize('accept.first', "Undo accept") },
+					[InputState.second]: { icon: Codicon.checkAll, checked: true, title: localize('accept.second', "Undo accept (currently second)") },
 				};
-				checkBox.setIcon(iconMap[value].icon);
-				checkBox.checked = iconMap[value].checked;
+				const state = iconMap[value];
+				checkBox.setIcon(state.icon);
+				checkBox.checked = state.checked;
+				checkBox.setTitle(state.title);
 
 				if (!item.enabled.read(reader)) {
 					checkBox.disable();
@@ -349,6 +377,17 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 				}
 			})
 		);
+
+		this._register(autorun('Update Checkbox CSS ClassNames', (reader) => {
+			let className = this.item.read(reader).className.read(reader);
+			className += ' merge-accept-gutter-marker';
+			if (this.isMultiLine.read(reader)) {
+				className += ' multi-line';
+			} else {
+				className += ' single-line';
+			}
+			target.className = className;
+		}));
 
 		this._register(checkBox.onChange(() => {
 			transaction(tx => {
@@ -359,14 +398,39 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 
 		target.appendChild(dom.h('div.background', [noBreakWhitespace]).root);
 		target.appendChild(
-			dom.h('div.checkbox', [dom.h('div.checkbox-background', [checkBox.domNode])]).root
+			this.checkboxDiv = dom.h('div.checkbox', [dom.h('div.checkbox-background', [checkBox.domNode])]).root
 		);
 	}
 
 	layout(top: number, height: number, viewTop: number, viewHeight: number): void {
-		this.target.classList.remove('multi-line');
-		this.target.classList.remove('single-line');
-		this.target.classList.add(height > 30 ? 'multi-line' : 'single-line');
+		const checkboxHeight = this.checkboxDiv.clientHeight;
+		const middleHeight = height / 2 - checkboxHeight / 2;
+
+		const margin = checkboxHeight;
+
+		let effectiveCheckboxTop = top + middleHeight;
+
+		const preferredViewPortRange = [
+			margin,
+			viewTop + viewHeight - margin - checkboxHeight
+		];
+
+		const preferredParentRange = [
+			top + margin,
+			top + height - checkboxHeight - margin
+		];
+
+		if (preferredParentRange[0] < preferredParentRange[1]) {
+			effectiveCheckboxTop = clamp(effectiveCheckboxTop, preferredViewPortRange[0], preferredViewPortRange[1]);
+			effectiveCheckboxTop = clamp(effectiveCheckboxTop, preferredParentRange[0], preferredParentRange[1]);
+		}
+
+		this.checkboxDiv.style.top = `${effectiveCheckboxTop - top}px`;
+
+		transaction((tx) => {
+			/** @description MergeConflictGutterItemView: Update Is Multi Line */
+			this.isMultiLine.set(height > 30, tx);
+		});
 	}
 
 	update(baseRange: ModifiedBaseRangeGutterItemInfo): void {

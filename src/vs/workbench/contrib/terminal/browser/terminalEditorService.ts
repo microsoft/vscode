@@ -198,18 +198,19 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		if (URI.isUri(instanceOrUri)) {
 			const terminalIdentifier = parseTerminalUri(instanceOrUri);
 			if (terminalIdentifier.instanceId) {
-				const primaryBackend = this._terminalInstanceService.getBackend(this._environmentService.remoteAuthority);
-				primaryBackend?.requestDetachInstance(terminalIdentifier.workspaceId, terminalIdentifier.instanceId).then(attachPersistentProcess => {
-					const instance = this._terminalInstanceService.createInstance({ attachPersistentProcess }, TerminalLocation.Editor, resource);
-					input = this._instantiationService.createInstance(TerminalEditorInput, resource, instance);
-					this._editorService.openEditor(input, {
-						pinned: true,
-						forceReload: true
-					},
-						input.group
-					);
-					this._registerInstance(inputKey, input, instance);
-					return instanceOrUri;
+				this._terminalInstanceService.getBackend(this._environmentService.remoteAuthority).then(primaryBackend => {
+					primaryBackend?.requestDetachInstance(terminalIdentifier.workspaceId, terminalIdentifier.instanceId!).then(attachPersistentProcess => {
+						const instance = this._terminalInstanceService.createInstance({ attachPersistentProcess }, TerminalLocation.Editor, resource);
+						input = this._instantiationService.createInstance(TerminalEditorInput, resource, instance);
+						this._editorService.openEditor(input, {
+							pinned: true,
+							forceReload: true
+						},
+							input.group
+						);
+						this._registerInstance(inputKey, input, instance);
+						return instanceOrUri;
+					});
 				});
 			}
 		}

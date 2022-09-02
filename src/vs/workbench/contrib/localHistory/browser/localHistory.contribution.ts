@@ -10,4 +10,4 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { LocalHistoryTimeline } from 'vs/workbench/contrib/localHistory/browser/localHistoryTimeline';
 
 // Register Local History Timeline
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(LocalHistoryTimeline, LifecyclePhase.Ready);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(LocalHistoryTimeline, 'LocalHistoryTimeline', LifecyclePhase.Ready);

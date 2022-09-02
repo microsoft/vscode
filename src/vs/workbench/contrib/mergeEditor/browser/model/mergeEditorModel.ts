@@ -5,7 +5,7 @@
 
 import { CompareResult, equals } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
-import { ISettableObservable, derived, waitForState, observableValue, keepAlive, autorunHandleChanges, transaction, IReader, ITransaction, IObservable } from 'vs/base/common/observable';
+import { autorunHandleChanges, derived, IObservable, IReader, ISettableObservable, ITransaction, keepAlive, observableValue, transaction, waitForState } from 'vs/base/common/observable';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModel, ITextSnapshot } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -17,16 +17,10 @@ import { TextModelDiffChangeReason, TextModelDiffs, TextModelDiffState } from 'v
 import { leftJoin } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { ModifiedBaseRange, ModifiedBaseRangeState } from './modifiedBaseRange';
 
-export const enum MergeEditorModelState {
-	initializing = 1,
-	upToDate = 2,
-	updating = 3,
-}
-
 export class MergeEditorModel extends EditorModel {
-	private readonly input1TextModelDiffs = this._register(new TextModelDiffs(this.base, this.input1, this.diffComputer));
-	private readonly input2TextModelDiffs = this._register(new TextModelDiffs(this.base, this.input2, this.diffComputer));
-	private readonly resultTextModelDiffs = this._register(new TextModelDiffs(this.base, this.result, this.diffComputer));
+	private readonly input1TextModelDiffs = this._register(new TextModelDiffs(this.base, this.input1.textModel, this.diffComputer));
+	private readonly input2TextModelDiffs = this._register(new TextModelDiffs(this.base, this.input2.textModel, this.diffComputer));
+	private readonly resultTextModelDiffs = this._register(new TextModelDiffs(this.base, this.resultTextModel, this.diffComputerConflictProjection));
 
 	public readonly state = derived('state', reader => {
 		const states = [
@@ -52,7 +46,7 @@ export class MergeEditorModel extends EditorModel {
 		const input1Diffs = this.input1TextModelDiffs.diffs.read(reader);
 		const input2Diffs = this.input2TextModelDiffs.diffs.read(reader);
 
-		return ModifiedBaseRange.fromDiffs(input1Diffs, input2Diffs, this.base, this.input1, this.input2);
+		return ModifiedBaseRange.fromDiffs(input1Diffs, input2Diffs, this.base, this.input1.textModel, this.input2.textModel);
 	});
 
 	public readonly input1LinesDiffs = this.input1TextModelDiffs.diffs;
@@ -88,7 +82,7 @@ export class MergeEditorModel extends EditorModel {
 
 	public readonly input1ResultMapping = derived('input1ResultMapping', reader => {
 		const resultDiffs = this.resultDiffs.read(reader);
-		const modifiedBaseRanges = DocumentMapping.betweenOutputs(this.input1LinesDiffs.read(reader), resultDiffs, this.input1.getLineCount());
+		const modifiedBaseRanges = DocumentMapping.betweenOutputs(this.input1LinesDiffs.read(reader), resultDiffs, this.input1.textModel.getLineCount());
 
 		return new DocumentMapping(
 			modifiedBaseRanges.lineRangeMappings.map((m) =>
@@ -105,7 +99,7 @@ export class MergeEditorModel extends EditorModel {
 
 	public readonly input2ResultMapping = derived('input2ResultMapping', reader => {
 		const resultDiffs = this.resultDiffs.read(reader);
-		const modifiedBaseRanges = DocumentMapping.betweenOutputs(this.input2LinesDiffs.read(reader), resultDiffs, this.input2.getLineCount());
+		const modifiedBaseRanges = DocumentMapping.betweenOutputs(this.input2LinesDiffs.read(reader), resultDiffs, this.input2.textModel.getLineCount());
 
 		return new DocumentMapping(
 			modifiedBaseRanges.lineRangeMappings.map((m) =>
@@ -134,29 +128,20 @@ export class MergeEditorModel extends EditorModel {
 		return chunks.join();
 	}
 
-	public discardMergeChanges(): void {
-		this.result.setValue(this.getInitialResultValue());
-	}
-
 	constructor(
 		readonly base: ITextModel,
-		readonly input1: ITextModel,
-		readonly input1Title: string | undefined,
-		readonly input1Detail: string | undefined,
-		readonly input1Description: string | undefined,
-		readonly input2: ITextModel,
-		readonly input2Title: string | undefined,
-		readonly input2Detail: string | undefined,
-		readonly input2Description: string | undefined,
-		readonly result: ITextModel,
+		readonly input1: InputData,
+		readonly input2: InputData,
+		readonly resultTextModel: ITextModel,
 		private readonly diffComputer: IMergeDiffComputer,
+		private readonly diffComputerConflictProjection: IMergeDiffComputer,
 		options: { resetUnknownOnInitialization: boolean },
 		@IModelService private readonly modelService: IModelService,
-		@ILanguageService private readonly languageService: ILanguageService,
+		@ILanguageService private readonly languageService: ILanguageService
 	) {
 		super();
 
-		this.resultSnapshot = result.createSnapshot();
+		this.resultSnapshot = resultTextModel.createSnapshot();
 		this._register(keepAlive(this.modifiedBaseRangeStateStores));
 		this._register(keepAlive(this.modifiedBaseRangeHandlingStateStores));
 		this._register(keepAlive(this.input1ResultMapping));
@@ -338,7 +323,7 @@ export class MergeEditorModel extends EditorModel {
 			const { edit } = baseRange.getEditForBase(s);
 			if (edit) {
 				const resultRange = this.resultTextModelDiffs.getResultRange(baseRange.baseRange);
-				const existingLines = resultRange.getLines(this.result);
+				const existingLines = resultRange.getLines(this.resultTextModel);
 
 				if (equals(edit.newLines, existingLines, (a, b) => a === b)) {
 					return s;
@@ -347,6 +332,10 @@ export class MergeEditorModel extends EditorModel {
 		}
 
 		return ModifiedBaseRangeState.conflicting;
+	}
+
+	public has(baseRange: ModifiedBaseRange): boolean {
+		return this.modifiedBaseRangeHandlingStateStores.get().has(baseRange);
 	}
 
 	public isHandled(baseRange: ModifiedBaseRange): IObservable<boolean> {
@@ -360,8 +349,21 @@ export class MergeEditorModel extends EditorModel {
 	public setLanguageId(languageId: string): void {
 		const language = this.languageService.createById(languageId);
 		this.modelService.setMode(this.base, language);
-		this.modelService.setMode(this.input1, language);
-		this.modelService.setMode(this.input2, language);
-		this.modelService.setMode(this.result, language);
+		this.modelService.setMode(this.input1.textModel, language);
+		this.modelService.setMode(this.input2.textModel, language);
+		this.modelService.setMode(this.resultTextModel, language);
 	}
+}
+
+export interface InputData {
+	readonly textModel: ITextModel;
+	readonly title: string | undefined;
+	readonly detail: string | undefined;
+	readonly description: string | undefined;
+}
+
+export const enum MergeEditorModelState {
+	initializing = 1,
+	upToDate = 2,
+	updating = 3,
 }

@@ -82,9 +82,8 @@ export class BlockDecorations extends ViewPart {
 				block = this.blocks[count] = createFastDomNode(document.createElement('div'));
 				this.domNode.appendChild(block);
 			}
-			const top = ctx.getVerticalOffsetForLineNumber(decoration.range.startLineNumber);
-			// See https://github.com/microsoft/vscode/pull/152740#discussion_r902661546
-			const bottom = ctx.getVerticalOffsetForLineNumber(decoration.range.endLineNumber + 1);
+			const top = ctx.getVerticalOffsetForLineNumber(decoration.range.startLineNumber, true);
+			const bottom = ctx.getVerticalOffsetAfterLineNumber(decoration.range.endLineNumber, true);
 
 			block.setClassName('blockDecorations-block ' + decoration.options.blockClassName);
 			block.setLeft(ctx.scrollLeft);
