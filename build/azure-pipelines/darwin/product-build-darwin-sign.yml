@@ -139,13 +139,21 @@ steps:
 
   - script: |
       set -e
-      codesign -dv --deep --verbose=4 "$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)/*.app"
+      APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+      APP_NAME="`ls $APP_ROOT | head -n 1`"
+      echo "##vso[task.setvariable variable=APP_PATH]$APP_ROOT/$APP_NAME"
+    displayName: Find application path
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
+
+  - script: |
+      set -e
+      codesign -dv --deep --verbose=4 "$(APP_PATH)"
     displayName: Verify signature
     condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - script: |
       set -e
-      "$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)/*.app/Contents/Resources/app/bin/code" --export-default-configuration=.build
+      "$(APP_PATH)/Contents/Resources/app/bin/code" --export-default-configuration=.build
     displayName: Verify signed application starts OK
     condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
 
