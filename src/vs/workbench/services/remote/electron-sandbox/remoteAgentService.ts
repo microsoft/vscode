@@ -90,4 +90,4 @@ class RemoteConnectionFailureNotificationContribution implements IWorkbenchContr
 }
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(RemoteConnectionFailureNotificationContribution, LifecyclePhase.Ready);
+workbenchRegistry.registerWorkbenchContribution(RemoteConnectionFailureNotificationContribution, 'RemoteConnectionFailureNotificationContribution', LifecyclePhase.Ready);

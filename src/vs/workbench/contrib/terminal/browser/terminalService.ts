@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { timeout } from 'vs/base/common/async';
+import { Barrier, timeout } from 'vs/base/common/async';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -12,7 +12,6 @@ import { Schemas } from 'vs/base/common/network';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IKeyMods } from 'vs/base/parts/quickinput/common/quickInput';
-import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -29,7 +28,7 @@ import { IThemeService, Themable, ThemeIcon } from 'vs/platform/theme/common/the
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { VirtualWorkspaceContext } from 'vs/workbench/common/contextkeys';
 import { IEditableData, IViewsService } from 'vs/workbench/common/views';
-import { ICreateTerminalOptions, IRequestAddInstanceToGroupEvent, ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalFindHost, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalLocationOptions, ITerminalService, ITerminalServiceNativeDelegate, TerminalConnectionState, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ICreateTerminalOptions, IRequestAddInstanceToGroupEvent, ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalLocationOptions, ITerminalService, ITerminalServiceNativeDelegate, TerminalConnectionState, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { getCwdForSplit } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
@@ -59,7 +58,6 @@ export class TerminalService implements ITerminalService {
 	private _isShuttingDown: boolean = false;
 	private _backgroundedTerminalInstances: ITerminalInstance[] = [];
 	private _backgroundedTerminalDisposables: Map<number, IDisposable[]> = new Map();
-	private _findState: FindReplaceState = new FindReplaceState();
 	private _linkProviders: Set<ITerminalExternalLinkProvider> = new Set();
 	private _linkProviderDisposables: Map<ITerminalExternalLinkProvider, IDisposable[]> = new Map();
 	private _processSupportContextKey: IContextKey<boolean>;
@@ -84,6 +82,10 @@ export class TerminalService implements ITerminalService {
 		return this._terminalGroupService.instances.concat(this._terminalEditorService.instances);
 	}
 
+	private _primaryBackendRegistered: Barrier = new Barrier();
+	get primaryBackendRegistered(): Promise<void> {
+		return this._primaryBackendRegistered.wait().then(() => { });
+	}
 
 	private _reconnectedTerminals: Map<string, ITerminalInstance[]> = new Map();
 	getReconnectedTerminals(reconnectionOwner: string): ITerminalInstance[] | undefined {
@@ -148,8 +150,6 @@ export class TerminalService implements ITerminalService {
 	get onDidRegisterProcessSupport(): Event<void> { return this._onDidRegisterProcessSupport.event; }
 	private readonly _onDidChangeConnectionState = new Emitter<void>();
 	get onDidChangeConnectionState(): Event<void> { return this._onDidChangeConnectionState.event; }
-	private readonly _onDidRequestHideFindWidget = new Emitter<void>();
-	get onDidRequestHideFindWidget(): Event<void> { return this._onDidRequestHideFindWidget.event; }
 
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
@@ -277,6 +277,10 @@ export class TerminalService implements ITerminalService {
 				this._connectionState = TerminalConnectionState.Connected;
 			}
 
+			// Open the primary backend registered barrier to allow ITerminalService consumers to
+			// start using the backend
+			this._primaryBackendRegistered.open();
+
 			backend.onDidRequestDetach(async (e) => {
 				const instanceToDetach = this.getInstanceFromResource(getTerminalUri(e.workspaceId, e.instanceId));
 				if (instanceToDetach) {
@@ -391,7 +395,7 @@ export class TerminalService implements ITerminalService {
 		if (!remoteAuthority) {
 			return;
 		}
-		const backend = this._terminalInstanceService.getBackend(remoteAuthority);
+		const backend = await this._terminalInstanceService.getBackend(remoteAuthority);
 		if (!backend) {
 			return;
 		}
@@ -404,7 +408,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private async _reconnectToLocalTerminals(): Promise<void> {
-		const localBackend = this._terminalInstanceService.getBackend();
+		const localBackend = await this._terminalInstanceService.getBackend();
 		if (!localBackend) {
 			return;
 		}
@@ -644,10 +648,6 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
-	getFindState(): FindReplaceState {
-		return this._findState;
-	}
-
 	@debounce(500)
 	private _saveState(): void {
 		// Avoid saving state when shutting down as that would override process state to be revived
@@ -745,7 +745,6 @@ export class TerminalService implements ITerminalService {
 		}
 		sourceGroup.removeInstance(source);
 		this._terminalEditorService.openEditor(source);
-		this._onDidRequestHideFindWidget.fire();
 	}
 
 	async moveToTerminalView(source?: ITerminalInstance, target?: ITerminalInstance, side?: 'before' | 'after'): Promise<void> {
@@ -789,7 +788,6 @@ export class TerminalService implements ITerminalService {
 		// Fire events
 		this._onDidChangeInstances.fire();
 		this._onDidChangeActiveGroup.fire(this._terminalGroupService.activeGroup);
-		this._onDidRequestHideFindWidget.fire();
 	}
 
 	protected _initInstanceListeners(instance: ITerminalInstance): void {
@@ -932,10 +930,6 @@ export class TerminalService implements ITerminalService {
 			}
 		}
 		return this;
-	}
-
-	getFindHost(instance: ITerminalInstance | undefined = this.activeInstance): ITerminalFindHost {
-		return instance?.target === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
 	}
 
 	async createTerminal(options?: ICreateTerminalOptions): Promise<ITerminalInstance> {

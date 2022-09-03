@@ -36,7 +36,7 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { Severity } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 
@@ -66,9 +66,8 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@INotificationService notificationService: INotificationService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, notificationService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this.userDataSyncPreview = userDataSyncWorkbenchService.userDataSyncPreview;
 
 		this._register(this.userDataSyncPreview.onDidChangeResources(() => this.updateSyncButtonEnablement()));

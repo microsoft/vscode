@@ -188,7 +188,7 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 		assert.strictEqual(firstNotebookEditor?.notebook, secondNotebookEditor?.notebook, 'split notebook editors share the same document');
 	});
 
-	test.skip('#106657. Opening a notebook from markers view is broken ', async function () {
+	test('#106657. Opening a notebook from markers view is broken ', async function () {
 
 		const document = await openRandomNotebookDocument();
 		const [cell] = document.getCells();
@@ -294,7 +294,7 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 		await provideCalled;
 
 		const edit = new vscode.WorkspaceEdit();
-		edit.replaceNotebookCellMetadata(notebook.uri, 0, { inputCollapsed: true });
+		edit.set(notebook.uri, [vscode.NotebookEdit.updateCellMetadata(0, { inputCollapsed: true })]);
 		await vscode.workspace.applyEdit(edit);
 		await provideCalled;
 	});
