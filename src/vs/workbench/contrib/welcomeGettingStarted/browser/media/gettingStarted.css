@@ -337,7 +337,7 @@
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .codicon.hide-category-button {
-	position: absolute;
+	margin-left: auto;
 	top: 4px;
 	right: 8px;
 }

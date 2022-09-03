@@ -320,7 +320,7 @@ export class CommentsFilterActionViewItem extends BaseActionViewItem {
 	private updateBadge(): void {
 		if (this.filterBadge) {
 			const { total, filtered } = this.commentsView.getFilterStats();
-			this.filterBadge.classList.toggle('hidden', total === filtered || total === 0);
+			this.filterBadge.classList.toggle('hidden', (total === filtered && !this.filterInputBox?.value) || total === 0);
 			this.filterBadge.textContent = localize('showing filtered comments', "Showing {0} of {1}", filtered, total);
 			this.adjustInputBox();
 		}

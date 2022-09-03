@@ -61,12 +61,16 @@ export class NotebookProviderInfoStore extends Disposable {
 		@INotebookEditorModelResolverService private readonly _notebookEditorModelResolverService: INotebookEditorModelResolverService
 	) {
 		super();
+
 		this._memento = new Memento(NotebookProviderInfoStore.CUSTOM_EDITORS_STORAGE_ID, storageService);
 
 		const mementoObject = this._memento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
-		for (const info of (mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] || []) as NotebookEditorDescriptor[]) {
-			this.add(new NotebookProviderInfo(info));
-		}
+		// Process the notebook contributions but buffer changes from the resolver
+		this._editorResolverService.bufferChangeEvents(() => {
+			for (const info of (mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] || []) as NotebookEditorDescriptor[]) {
+				this.add(new NotebookProviderInfo(info));
+			}
+		});
 
 		this._register(extensionService.onDidRegisterExtensions(() => {
 			if (!this._handled) {

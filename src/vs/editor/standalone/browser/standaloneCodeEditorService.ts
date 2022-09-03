@@ -103,4 +103,4 @@ export class StandaloneCodeEditorService extends AbstractCodeEditorService {
 	}
 }
 
-registerSingleton(ICodeEditorService, StandaloneCodeEditorService);
+registerSingleton(ICodeEditorService, StandaloneCodeEditorService, false);

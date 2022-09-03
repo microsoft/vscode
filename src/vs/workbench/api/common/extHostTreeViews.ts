@@ -11,7 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { DataTransferDTO, ExtHostTreeViewsShape, MainThreadTreeViewsShape } from './extHost.protocol';
-import { ITreeItem, TreeViewItemHandleArg, ITreeItemLabel, IRevealOptions, TreeCommand, TreeViewPaneHandleArg } from 'vs/workbench/common/views';
+import { ITreeItem, TreeViewItemHandleArg, ITreeItemLabel, IRevealOptions, TreeCommand } from 'vs/workbench/common/views';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { asPromise } from 'vs/base/common/async';
 import { TreeItemCollapsibleState, ThemeIcon, MarkdownString as MarkdownStringType, TreeItem } from 'vs/workbench/api/common/extHostTypes';
@@ -23,7 +23,6 @@ import { MarkdownString, ViewBadge, DataTransfer } from 'vs/workbench/api/common
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ITreeViewsService, TreeviewsService } from 'vs/workbench/services/views/common/treeViewsService';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 type TreeItemHandle = string;
 
@@ -58,16 +57,16 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		private logService: ILogService
 	) {
 
-		function isTreeViewConvertableItem(arg: any): boolean {
-			return arg && arg.$treeViewId && (arg.$treeItemHandle || arg.$selectedTreeItems);
+		function isTreeViewItemHandleArg(arg: any): boolean {
+			return arg && arg.$treeViewId && arg.$treeItemHandle;
 		}
 		commands.registerArgumentProcessor({
 			processArgument: arg => {
-				if (isTreeViewConvertableItem(arg)) {
+				if (isTreeViewItemHandleArg(arg)) {
 					return this.convertArgument(arg);
 				} else if (Array.isArray(arg) && (arg.length > 0)) {
 					return arg.map(item => {
-						if (isTreeViewConvertableItem(item)) {
+						if (isTreeViewItemHandleArg(item)) {
 							return this.convertArgument(item);
 						}
 						return item;
@@ -115,11 +114,9 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 				treeView.description = description;
 			},
 			get badge() {
-				checkProposedApiEnabled(extension, 'badges');
 				return treeView.badge;
 			},
 			set badge(badge: vscode.ViewBadge | undefined) {
-				checkProposedApiEnabled(extension, 'badges');
 				treeView.badge = badge;
 			},
 			reveal: (element: T, options?: IRevealOptions): Promise<void> => {
@@ -235,15 +232,9 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		return treeView;
 	}
 
-	private convertArgument(arg: TreeViewItemHandleArg | TreeViewPaneHandleArg): any {
+	private convertArgument(arg: TreeViewItemHandleArg): any {
 		const treeView = this.treeViews.get(arg.$treeViewId);
-		if (treeView && '$treeItemHandle' in arg) {
-			return treeView.getExtensionElement(arg.$treeItemHandle);
-		}
-		if (treeView && '$selectedTreeItems' in arg && arg.$selectedTreeItems) {
-			return { selectedTreeItems: treeView.selectedElements };
-		}
-		return null;
+		return treeView ? treeView.getExtensionElement(arg.$treeItemHandle) : null;
 	}
 }
 
@@ -707,8 +698,7 @@ class ExtHostTreeView<T> extends Disposable {
 
 	private validateTreeItem(extensionTreeItem: vscode.TreeItem) {
 		if (!TreeItem.isTreeItem(extensionTreeItem)) {
-			// TODO: #154757 we should consider throwing, but let's wait and see if there are tons of reports of this first.
-			console.log(`Extension ${this.extension.identifier.value} has provided an invalid tree item.`);
+			throw new Error(`Extension ${this.extension.identifier.value} has provided an invalid tree item.`);
 		}
 	}
 

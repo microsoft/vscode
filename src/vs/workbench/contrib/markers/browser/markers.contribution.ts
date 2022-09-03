@@ -513,7 +513,7 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 	}
 }
 
-workbenchRegistry.registerWorkbenchContribution(MarkersStatusBarContributions, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(MarkersStatusBarContributions, 'MarkersStatusBarContributions', LifecyclePhase.Restored);
 
 class ActivityUpdater extends Disposable implements IWorkbenchContribution {
 
@@ -536,4 +536,4 @@ class ActivityUpdater extends Disposable implements IWorkbenchContribution {
 	}
 }
 
-workbenchRegistry.registerWorkbenchContribution(ActivityUpdater, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(ActivityUpdater, 'ActivityUpdater', LifecyclePhase.Restored);

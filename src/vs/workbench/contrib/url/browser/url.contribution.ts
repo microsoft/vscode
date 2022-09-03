@@ -64,14 +64,17 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
 	OpenerValidatorContributions,
+	'OpenerValidatorContributions',
 	LifecyclePhase.Restored
 );
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
 	TrustedDomainsFileSystemProvider,
+	'TrustedDomainsFileSystemProvider',
 	LifecyclePhase.Ready
 );
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
 	ExternalUriResolverContribution,
+	'ExternalUriResolverContribution',
 	LifecyclePhase.Ready
 );
 

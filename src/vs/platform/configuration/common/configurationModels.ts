@@ -943,14 +943,6 @@ export class ConfigurationChangeEvent implements IConfigurationChangeEvent {
 	}
 }
 
-export class AllKeysConfigurationChangeEvent extends ConfigurationChangeEvent {
-	constructor(configuration: Configuration, workspace: Workspace, source: ConfigurationTarget, sourceConfig: any) {
-		super({ keys: configuration.allKeys(), overrides: [] }, undefined, configuration, workspace);
-		this.source = source;
-		this.sourceConfig = sourceConfig;
-	}
-}
-
 function compare(from: ConfigurationModel | undefined, to: ConfigurationModel | undefined): IConfigurationCompareResult {
 	const { added, removed, updated } = compareConfigurationContents(to, from);
 	const overrides: [string, string[]][] = [];

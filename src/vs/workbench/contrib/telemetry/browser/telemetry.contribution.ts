@@ -234,4 +234,4 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TelemetryContribution, LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TelemetryContribution, 'TelemetryContribution', LifecyclePhase.Restored);
