@@ -26,6 +26,7 @@ export const enum OutlineTarget {
 export interface IOutlineService {
 	_serviceBrand: undefined;
 	onDidChange: Event<void>;
+	onRefresh: Event<void>;
 	canCreateOutline(editor: IEditorPane): boolean;
 	createOutline(editor: IEditorPane, target: OutlineTarget, token: CancellationToken): Promise<IOutline<any> | undefined>;
 	registerOutlineCreator(creator: IOutlineCreator<any, any>): IDisposable;

@@ -10,6 +10,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IEditorPane } from 'vs/workbench/common/editor';
 import { IOutline, IOutlineCreator, IOutlineService, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 import { Event, Emitter } from 'vs/base/common/event';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 class OutlineService implements IOutlineService {
 
@@ -19,6 +20,13 @@ class OutlineService implements IOutlineService {
 
 	private readonly _onDidChange = new Emitter<void>();
 	readonly onDidChange: Event<void> = this._onDidChange.event;
+
+	private readonly _onRefresh = new Emitter<void>();
+	readonly onRefresh: Event<void> = this._onRefresh.event;
+
+	constructor() {
+		CommandsRegistry.registerCommand('outline.refresh', async (_args) => this._onRefresh.fire());
+	}
 
 	canCreateOutline(pane: IEditorPane): boolean {
 		for (const factory of this._factories) {

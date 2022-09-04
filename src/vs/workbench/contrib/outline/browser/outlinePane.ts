@@ -116,6 +116,7 @@ export class OutlinePane extends ViewPane {
 		};
 		updateContext();
 		this._disposables.add(this._outlineViewState.onDidChange(updateContext));
+		this._disposables.add(_outlineService.onRefresh((e) => this.refresh()));
 	}
 
 	override dispose(): void {
@@ -362,6 +363,12 @@ export class OutlinePane extends ViewPane {
 			tree.dispose();
 			this._tree = undefined;
 		}));
+	}
+
+	refresh(): void {
+		if (this.isVisible()) {
+			this._handleEditorChanged(this._editorService.activeEditorPane);
+		}
 	}
 }
 
