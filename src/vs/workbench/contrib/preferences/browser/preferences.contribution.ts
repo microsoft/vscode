@@ -1243,7 +1243,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 }
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(PreferencesActionsContribution, 'PreferencesActionsContribution', LifecyclePhase.Starting);
+// PreferencesActionsContribution is heavy because it runs through various details to determine which actions to render.
+// We don't need it to start so early.
+workbenchContributionsRegistry.registerWorkbenchContribution(PreferencesActionsContribution, 'PreferencesActionsContribution', LifecyclePhase.Restored);
 workbenchContributionsRegistry.registerWorkbenchContribution(PreferencesContribution, 'PreferencesContribution', LifecyclePhase.Starting);
 
 registerEditorContribution(SettingsEditorContribution.ID, SettingsEditorContribution);

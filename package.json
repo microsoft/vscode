@@ -1,6 +1,6 @@
 {
   "name": "code-oss-dev",
-  "version": "1.71.0",
+  "version": "1.72.0",
   "distro": "7d2a2b09824ca3c1da9a3a6036179462abec24a2",
   "author": {
     "name": "Microsoft Corporation"
@@ -86,12 +86,12 @@
     "vscode-proxy-agent": "^0.12.0",
     "vscode-regexpp": "^3.1.0",
     "vscode-textmate": "7.0.1",
-    "xterm": "5.0.0-beta.48",
-    "xterm-addon-canvas": "0.2.0-beta.21",
-    "xterm-addon-search": "0.10.0-beta.5",
-    "xterm-addon-serialize": "0.8.0-beta.5",
+    "xterm": "5.0.0-beta.54",
+    "xterm-addon-canvas": "0.2.0-beta.23",
+    "xterm-addon-search": "0.10.0-beta.6",
+    "xterm-addon-serialize": "0.8.0-beta.6",
     "xterm-addon-unicode11": "0.4.0-beta.5",
-    "xterm-addon-webgl": "0.13.0-beta.46",
+    "xterm-addon-webgl": "0.13.0-beta.49",
     "xterm-headless": "5.0.0-beta.5",
     "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
@@ -99,6 +99,8 @@
   "devDependencies": {
     "7zip": "0.0.6",
     "@playwright/test": "1.24.2",
+    "@swc/cli": "0.1.57",
+    "@swc/core": "1.2.245",
     "@types/cookie": "^0.3.3",
     "@types/copy-webpack-plugin": "^6.0.3",
     "@types/cssnano": "^4.0.0",

@@ -17,8 +17,39 @@ import * as os from 'os';
 import ts = require('typescript');
 import * as File from 'vinyl';
 import * as task from './task';
-
+import { createSwcClientStream } from './swc';
 const watch = require('./watch');
+
+
+// --- SWC: transpile -------------------------------------
+
+export function transpileClientSWC(src: string, out: string) {
+
+	return function () {
+
+		// run SWC sync and put files straight onto the disk
+		const swcPromise = createSwcClientStream().exec();
+
+		// copy none TS resources, like CSS, images, onto the disk
+		const bom = require('gulp-bom') as typeof import('gulp-bom');
+		const utf8Filter = util.filter(data => /(\/|\\)test(\/|\\).*utf8/.test(data.path));
+		const tsFilter = util.filter(data => !/\.ts$/.test(data.path));
+		const srcStream = gulp.src(`${src}/**`, { base: `${src}` });
+
+		const copyStream = srcStream
+			.pipe(utf8Filter)
+			.pipe(bom()) // this is required to preserve BOM in test files that loose it otherwise
+			.pipe(utf8Filter.restore)
+			.pipe(tsFilter);
+
+		const copyPromise = util.streamToPromise(copyStream.pipe(gulp.dest(out)));
+
+		return Promise.all([swcPromise, copyPromise]);
+	};
+
+}
+
+// --- gulp-tsb: compile and transpile --------------------------------
 
 const reporter = createReporter();
 

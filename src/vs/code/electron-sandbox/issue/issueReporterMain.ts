@@ -73,7 +73,7 @@ export class IssueReporter extends Disposable {
 		const mainProcessService = new ElectronIPCMainProcessService(configuration.windowId);
 		this.nativeHostService = new NativeHostService(configuration.windowId, mainProcessService) as INativeHostService;
 
-		const targetExtension = configuration.data.extensionId ? configuration.data.enabledExtensions.find(extension => extension.id === configuration.data.extensionId) : undefined;
+		const targetExtension = configuration.data.extensionId ? configuration.data.enabledExtensions.find(extension => extension.id.toLocaleLowerCase() === configuration.data.extensionId?.toLocaleLowerCase()) : undefined;
 		this.issueReporterModel = new IssueReporterModel({
 			...configuration.data,
 			issueType: configuration.data.issueType || IssueType.Bug,
