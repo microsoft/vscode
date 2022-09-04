@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
+import { URI } from 'vscode-uri';
 import type * as Proto from '../protocol';
 import { ClientCapability, ITypeScriptServiceClient, ServerType } from '../typescriptService';
 import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
@@ -33,26 +34,34 @@ class TypeScriptHoverProvider implements vscode.HoverProvider {
 			return undefined;
 		}
 
-		const response = await this.client.interruptGetErr(async () => {
+		const { quickinfo, definition } = await this.client.interruptGetErr(async () => {
 			await this.fileConfigurationManager.ensureConfigurationForDocument(document, token);
 
 			const args = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
-			return this.client.execute('quickinfo', args, token);
+			const quickinfo = await this.client.execute('quickinfo', args, token);
+			const definition = await this.client.execute('definition', args, token);
+			return { quickinfo, definition };
 		});
 
-		if (response.type !== 'response' || !response.body) {
+		if (quickinfo.type !== 'response' || !quickinfo.body) {
 			return undefined;
 		}
 
+		let resource = document.uri;
+		if (definition.type === 'response' && definition.body) {
+			const firstDefinitionFile = definition.body?.[0].file;
+			resource = URI.revive(vscode.Uri.file(firstDefinitionFile));
+		}
+
 		return new vscode.Hover(
-			this.getContents(document.uri, response.body, response._serverType),
-			typeConverters.Range.fromTextSpan(response.body));
+			this.getContents(resource, quickinfo.body, quickinfo._serverType),
+			typeConverters.Range.fromTextSpan(quickinfo.body));
 	}
 
 	private getContents(
 		resource: vscode.Uri,
 		data: Proto.QuickInfoResponseBody,
-		source: ServerType | undefined,
+		source: ServerType | undefined
 	) {
 		const parts: vscode.MarkdownString[] = [];
 

@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
+import { URI } from 'vscode-uri';
 import { Command, CommandManager } from '../commands/commandManager';
 import type * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
@@ -192,19 +193,33 @@ class MyCompletionItem extends vscode.CompletionItem {
 					} : this.tsEntry.name
 				]
 			};
-			const response = await client.interruptGetErr(() => client.execute('completionEntryDetails', args, requestToken.token));
-			if (response.type !== 'response' || !response.body || !response.body.length) {
+			const { completionEntryDetails, definition } = await client.interruptGetErr(async () => {
+				const completionEntryDetails = client.execute('completionEntryDetails', args, requestToken.token);
+				const definition = client.execute('definition', args, requestToken.token);
+				return {
+					completionEntryDetails: await completionEntryDetails,
+					definition: await definition
+				};
+			});
+
+			if (completionEntryDetails.type !== 'response' || !completionEntryDetails.body || !completionEntryDetails.body.length) {
 				return undefined;
 			}
 
-			const detail = response.body[0];
+			const detail = completionEntryDetails.body[0];
 
 			const newItemDetails = this.getDetails(client, detail);
 			if (newItemDetails) {
 				this.detail = newItemDetails;
 			}
 
-			this.documentation = this.getDocumentation(client, detail, this.document.uri);
+			let baseUri = this.document.uri;
+			if (definition.type === 'response' && definition.body && definition.body.length) {
+				const firstDefinitionFile = definition.body?.[0].file;
+				baseUri = URI.revive(vscode.Uri.file(firstDefinitionFile));
+			}
+
+			this.documentation = this.getDocumentation(client, detail, baseUri);
 
 			const codeAction = this.getCodeActions(detail, filepath);
 			const commands: vscode.Command[] = [{
