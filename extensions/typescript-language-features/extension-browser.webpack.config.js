@@ -37,7 +37,7 @@ module.exports = withBrowserDefaults({
 		extension: './src/extension.browser.ts',
 	},
 	plugins: [
-		...browserPlugins, // add plugins, don't replace inherited
+		...browserPlugins(__dirname), // add plugins, don't replace inherited
 
 		// @ts-ignore
 		new CopyPlugin({

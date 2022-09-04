@@ -6,6 +6,7 @@ builtin autoload -Uz add-zsh-hook
 
 # Prevent the script recursing when setting up
 if [ -n "$VSCODE_SHELL_INTEGRATION" ]; then
+	ZDOTDIR=$USER_ZDOTDIR
 	builtin return
 fi
 
@@ -51,7 +52,7 @@ __vsc_update_cwd() {
 __vsc_command_output_start() {
 	builtin printf "\033]633;C\007"
 	# Send command line, escaping printf format chars %
-	builtin printf "\033]633;E;$(echo $__vsc_current_command | sed s/%/%%/g)\007"
+	builtin printf "\033]633;E;%s\007" "$__vsc_current_command"
 }
 
 __vsc_continuation_start() {

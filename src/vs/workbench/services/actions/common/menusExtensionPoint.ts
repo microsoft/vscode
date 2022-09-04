@@ -17,7 +17,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { index } from 'vs/base/common/arrays';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ApiProposalName } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
-import { ILocalizedString, ICommandAction } from 'vs/platform/action/common/action';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 
 interface IAPIMenu {
 	readonly key: string;
@@ -161,6 +161,12 @@ const apiMenus: IAPIMenu[] = [
 		supportsSubmenus: false
 	},
 	{
+		key: 'comments/commentThread/title/context',
+		id: MenuId.CommentThreadTitleContext,
+		description: localize('commentThread.titleContext', "The contributed comment thread title's peek context menu, rendered as a right click menu on the comment thread's peek title."),
+		proposed: 'contribCommentPeekContext'
+	},
+	{
 		key: 'comments/comment/title',
 		id: MenuId.CommentTitle,
 		description: localize('comment.title', "The contributed comment title menu")
@@ -170,6 +176,12 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.CommentActions,
 		description: localize('comment.actions', "The contributed comment context menu, rendered as buttons below the comment editor"),
 		supportsSubmenus: false
+	},
+	{
+		key: 'comments/commentThread/comment/context',
+		id: MenuId.CommentThreadCommentContext,
+		description: localize('comment.commentContext', "The contributed comment context menu, rendered as a right click menu on the an individual comment in the comment thread's peek view."),
+		proposed: 'contribCommentPeekContext'
 	},
 	{
 		key: 'notebook/toolbar',
@@ -268,10 +280,10 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'inlineCompletionsAdditions'
 	},
 	{
-		key: 'merge/toolbar',
-		id: MenuId.MergeToolbar,
-		description: localize('merge.toolbar', "The prominent botton in the merge editor"),
-		proposed: 'contribMergeEditorToolbar'
+		key: 'editor/content',
+		id: MenuId.EditorContent,
+		description: localize('merge.toolbar', "The prominent button in an editor, overlays its content"),
+		proposed: 'contribEditorContentMenu'
 	},
 	{
 		key: 'webview/context',
@@ -619,7 +631,7 @@ export const commandsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<
 
 commandsExtensionPoint.setHandler(extensions => {
 
-	function handleCommand(userFriendlyCommand: schema.IUserFriendlyCommand, extension: IExtensionPointUser<any>, bucket: ICommandAction[]) {
+	function handleCommand(userFriendlyCommand: schema.IUserFriendlyCommand, extension: IExtensionPointUser<any>) {
 
 		if (!schema.isValidCommand(userFriendlyCommand, extension.collector)) {
 			return;
@@ -643,7 +655,7 @@ commandsExtensionPoint.setHandler(extensions => {
 		if (MenuRegistry.getCommand(command)) {
 			extension.collector.info(localize('dup', "Command `{0}` appears multiple times in the `commands` section.", userFriendlyCommand.command));
 		}
-		bucket.push({
+		_commandRegistrations.add(MenuRegistry.addCommand({
 			id: command,
 			title,
 			source: extension.description.displayName ?? extension.description.name,
@@ -652,24 +664,22 @@ commandsExtensionPoint.setHandler(extensions => {
 			category,
 			precondition: ContextKeyExpr.deserialize(enablement),
 			icon: absoluteIcon
-		});
+		}));
 	}
 
 	// remove all previous command registrations
 	_commandRegistrations.clear();
 
-	const newCommands: ICommandAction[] = [];
 	for (const extension of extensions) {
 		const { value } = extension;
 		if (Array.isArray(value)) {
 			for (const command of value) {
-				handleCommand(command, extension, newCommands);
+				handleCommand(command, extension);
 			}
 		} else {
-			handleCommand(value, extension, newCommands);
+			handleCommand(value, extension);
 		}
 	}
-	_commandRegistrations.add(MenuRegistry.addCommands(newCommands));
 });
 
 interface IRegisteredSubmenu {
@@ -695,20 +705,20 @@ submenusExtensionPoint.setHandler(extensions => {
 		for (const [, submenuInfo] of Object.entries(value)) {
 
 			if (!schema.isValidSubmenu(submenuInfo, collector)) {
-				return;
+				continue;
 			}
 
 			if (!submenuInfo.id) {
 				collector.warn(localize('submenuId.invalid.id', "`{0}` is not a valid submenu identifier", submenuInfo.id));
-				return;
+				continue;
 			}
 			if (_submenus.has(submenuInfo.id)) {
 				collector.info(localize('submenuId.duplicate.id', "The `{0}` submenu was already previously registered.", submenuInfo.id));
-				return;
+				continue;
 			}
 			if (!submenuInfo.label) {
 				collector.warn(localize('submenuId.invalid.label', "`{0}` is not a valid submenu label", submenuInfo.label));
-				return;
+				continue;
 			}
 
 			let absoluteIcon: { dark: URI; light?: URI } | ThemeIcon | undefined;
@@ -749,8 +759,6 @@ menusExtensionPoint.setHandler(extensions => {
 	// remove all previous menu registrations
 	_menuRegistrations.clear();
 	_submenuMenuItems.clear();
-
-	const items: { id: MenuId; item: IMenuItem | ISubmenuItem }[] = [];
 
 	for (const extension of extensions) {
 		const { value, collector } = extension;
@@ -843,10 +851,8 @@ menusExtensionPoint.setHandler(extensions => {
 				}
 
 				item.when = ContextKeyExpr.deserialize(menuItem.when);
-				items.push({ id: menu.id, item });
+				_menuRegistrations.add(MenuRegistry.appendMenuItem(menu.id, item));
 			}
 		}
 	}
-
-	_menuRegistrations.add(MenuRegistry.appendMenuItems(items));
 });

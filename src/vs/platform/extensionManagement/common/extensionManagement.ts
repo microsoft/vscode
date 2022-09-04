@@ -528,10 +528,3 @@ export interface IExtensionManagementCLIService {
 	uninstallExtensions(extensions: (string | URI)[], force: boolean, output?: CLIOutput): Promise<void>;
 	locateExtension(extensions: string[], output?: CLIOutput): Promise<void>;
 }
-
-export const IDefaultExtensionsProfileInitService = createDecorator<IDefaultExtensionsProfileInitService>('IDefaultExtensionsProfileInitService');
-export interface IDefaultExtensionsProfileInitService {
-	readonly _serviceBrand: undefined;
-	initialize(): Promise<void>;
-	uninitialize(): Promise<void>;
-}

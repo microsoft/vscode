@@ -266,7 +266,7 @@ export class BannerPart extends Part implements IBannerService {
 	}
 }
 
-registerSingleton(IBannerService, BannerPart);
+registerSingleton(IBannerService, BannerPart, false);
 
 
 // Keybindings

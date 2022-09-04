@@ -179,7 +179,7 @@ declare module 'vscode' {
 		 * Gets an array of the currently available tunnels. This does not include environment tunnels, only tunnels that have been created by the user.
 		 * Note that these are of type TunnelDescription and cannot be disposed.
 		 */
-		export let tunnels: Thenable<TunnelDescription[]>;
+		// export let tunnels: Thenable<TunnelDescription[]>;
 
 		/**
 		 * Fired when the list of tunnels has changed.
@@ -196,7 +196,7 @@ declare module 'vscode' {
 	export interface ResourceLabelFormatting {
 		label: string; // myLabel:/${path}
 		// For historic reasons we use an or string here. Once we finalize this API we should start using enums instead and adopt it in extensions.
-		// eslint-disable-next-line vscode-dts-literal-or-types
+		// eslint-disable-next-line local/vscode-dts-literal-or-types
 		separator: '/' | '\\' | '';
 		tildify?: boolean;
 		normalizeDriveLetter?: boolean;

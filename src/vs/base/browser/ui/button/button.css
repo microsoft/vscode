@@ -8,6 +8,7 @@
 	display: flex;
 	width: 100%;
 	padding: 4px;
+	border-radius: 2px;
 	text-align: center;
 	cursor: pointer;
 	justify-content: center;

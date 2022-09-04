@@ -406,7 +406,7 @@ export function toWorkspaceFolder(resource: URI): WorkspaceFolder {
 }
 
 export const WORKSPACE_EXTENSION = 'code-workspace';
-const WORKSPACE_SUFFIX = `.${WORKSPACE_EXTENSION}`;
+export const WORKSPACE_SUFFIX = `.${WORKSPACE_EXTENSION}`;
 export const WORKSPACE_FILTER = [{ name: localize('codeWorkspace', "Code Workspace"), extensions: [WORKSPACE_EXTENSION] }];
 export const UNTITLED_WORKSPACE_NAME = 'workspace.json';
 
