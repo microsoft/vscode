@@ -167,6 +167,7 @@ export class MenuId {
 	static readonly NewFile = new MenuId('NewFile');
 	static readonly MergeInput1Toolbar = new MenuId('MergeToolbar1Toolbar');
 	static readonly MergeInput2Toolbar = new MenuId('MergeToolbar2Toolbar');
+	static readonly MergeInputResultToolbar = new MenuId('MergeToolbarResultToolbar');
 
 	/**
 	 * Create or reuse a `MenuId` with the given identifier

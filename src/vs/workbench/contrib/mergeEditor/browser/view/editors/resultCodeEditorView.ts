@@ -9,6 +9,7 @@ import { toDisposable } from 'vs/base/common/lifecycle';
 import { autorun, derived } from 'vs/base/common/observable';
 import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MergeMarkersController } from 'vs/workbench/contrib/mergeEditor/browser/mergeMarkers/mergeMarkersController';
@@ -17,7 +18,7 @@ import { applyObservableDecorations, join } from 'vs/workbench/contrib/mergeEdit
 import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from 'vs/workbench/contrib/mergeEditor/browser/view/colors';
 import { EditorGutter } from 'vs/workbench/contrib/mergeEditor/browser/view/editorGutter';
 import { ctxIsMergeResultEditor } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
-import { CodeEditorView } from './codeEditorView';
+import { CodeEditorView, TitleMenu } from './codeEditorView';
 
 export class ResultCodeEditorView extends CodeEditorView {
 	private readonly decorations = derived('result.decorations', reader => {
@@ -112,7 +113,7 @@ export class ResultCodeEditorView extends CodeEditorView {
 	});
 
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(instantiationService);
 
@@ -160,5 +161,13 @@ export class ResultCodeEditorView extends CodeEditorView {
 				);
 
 		}));
+
+		this._register(
+			instantiationService.createInstance(
+				TitleMenu,
+				MenuId.MergeInputResultToolbar,
+				this.htmlElements.toolbar
+			)
+		);
 	}
 }

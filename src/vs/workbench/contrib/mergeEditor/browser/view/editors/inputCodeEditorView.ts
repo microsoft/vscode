@@ -5,19 +5,17 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
-import { autorun, derived, IObservable, ISettableObservable, ITransaction, transaction, observableValue } from 'vs/base/common/observable';
+import { autorun, derived, IObservable, ISettableObservable, ITransaction, observableValue, transaction } from 'vs/base/common/observable';
 import { noBreakWhitespace } from 'vs/base/common/strings';
 import { isDefined } from 'vs/base/common/types';
 import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
 import { CodeLensContribution } from 'vs/editor/contrib/codelens/browser/codelensController';
 import { localize } from 'vs/nls';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -28,7 +26,7 @@ import { InputState, ModifiedBaseRangeState } from 'vs/workbench/contrib/mergeEd
 import { applyObservableDecorations, setFields } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from 'vs/workbench/contrib/mergeEditor/browser/view/colors';
 import { EditorGutter, IGutterItemInfo, IGutterItemView } from '../editorGutter';
-import { CodeEditorView } from './codeEditorView';
+import { CodeEditorView, TitleMenu } from './codeEditorView';
 
 export class InputCodeEditorView extends CodeEditorView {
 	private readonly decorations = derived(`input${this.inputNumber}.decorations`, reader => {
@@ -256,7 +254,6 @@ export class InputCodeEditorView extends CodeEditorView {
 
 	constructor(
 		public readonly inputNumber: 1 | 2,
-		titleMenuId: MenuId,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IThemeService themeService: IThemeService,
@@ -276,18 +273,13 @@ export class InputCodeEditorView extends CodeEditorView {
 			})
 		);
 
-		// title menu
-		const titleMenu = menuService.createMenu(titleMenuId, contextKeyService);
-		const toolBar = new ToolBar(this.htmlElements.toolbar, contextMenuService);
-		const toolBarUpdate = () => {
-			const secondary: IAction[] = [];
-			createAndFillInActionBarActions(titleMenu, { renderShortTitle: true }, secondary);
-			toolBar.setActions([], secondary);
-		};
-		this._store.add(toolBar);
-		this._store.add(titleMenu);
-		this._store.add(titleMenu.onDidChange(toolBarUpdate));
-		toolBarUpdate();
+		this._register(
+			instantiationService.createInstance(
+				TitleMenu,
+				inputNumber === 1 ? MenuId.MergeInput1Toolbar : MenuId.MergeInput2Toolbar,
+				this.htmlElements.toolbar
+			)
+		);
 	}
 
 	protected override getEditorContributions(): IEditorContributionDescription[] | undefined {
