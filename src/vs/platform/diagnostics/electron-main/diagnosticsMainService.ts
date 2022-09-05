@@ -3,16 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event as IpcEvent } from 'electron';
+import { app, BrowserWindow, Event as IpcEvent } from 'electron';
 import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
-import { IDiagnosticInfo, IDiagnosticInfoOptions, IRemoteDiagnosticError, IRemoteDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
+import { IDiagnosticInfo, IDiagnosticInfoOptions, IMainProcessDiagnostics, IRemoteDiagnosticError, IRemoteDiagnosticInfo, IWindowDiagnostics } from 'vs/platform/diagnostics/common/diagnostics';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ICodeWindow } from 'vs/platform/window/electron-main/window';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
+import { assertIsDefined } from 'vs/base/common/types';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export const ID = 'diagnosticsMainService';
 export const IDiagnosticsMainService = createDecorator<IDiagnosticsMainService>(ID);
@@ -25,6 +27,7 @@ export interface IRemoteDiagnosticOptions {
 export interface IDiagnosticsMainService {
 	readonly _serviceBrand: undefined;
 	getRemoteDiagnostics(options: IRemoteDiagnosticOptions): Promise<(IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]>;
+	getMainDiagnostics(): Promise<IMainProcessDiagnostics>;
 }
 
 export class DiagnosticsMainService implements IDiagnosticsMainService {
@@ -33,7 +36,8 @@ export class DiagnosticsMainService implements IDiagnosticsMainService {
 
 	constructor(
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService
+		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
+		@ILogService private readonly logService: ILogService
 	) { }
 
 	async getRemoteDiagnostics(options: IRemoteDiagnosticOptions): Promise<(IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]> {
@@ -71,6 +75,44 @@ export class DiagnosticsMainService implements IDiagnosticsMainService {
 		return diagnostics.filter((x): x is IRemoteDiagnosticInfo | IRemoteDiagnosticError => !!x);
 	}
 
+	async getMainDiagnostics(): Promise<IMainProcessDiagnostics> {
+		this.logService.trace('Received request for main process info from other instance.');
+
+		const windows: IWindowDiagnostics[] = [];
+		for (const window of BrowserWindow.getAllWindows()) {
+			const codeWindow = this.windowsMainService.getWindowById(window.id);
+			if (codeWindow) {
+				windows.push(this.codeWindowToInfo(codeWindow));
+			} else {
+				windows.push(this.browserWindowToInfo(window));
+			}
+		}
+
+		return {
+			mainPID: process.pid,
+			mainArguments: process.argv.slice(1),
+			windows,
+			screenReader: !!app.accessibilitySupportEnabled,
+			gpuFeatureStatus: app.getGPUFeatureStatus()
+		};
+	}
+
+	private codeWindowToInfo(window: ICodeWindow): IWindowDiagnostics {
+		const folderURIs = this.getFolderURIs(window);
+		const win = assertIsDefined(window.win);
+
+		return this.browserWindowToInfo(win, folderURIs, window.remoteAuthority);
+	}
+
+	private browserWindowToInfo(window: BrowserWindow, folderURIs: URI[] = [], remoteAuthority?: string): IWindowDiagnostics {
+		return {
+			pid: window.webContents.getOSProcessId(),
+			title: window.getTitle(),
+			folderURIs,
+			remoteAuthority
+		};
+	}
+
 	private getFolderURIs(window: ICodeWindow): URI[] {
 		const folderURIs: URI[] = [];
 
@@ -84,8 +126,6 @@ export class DiagnosticsMainService implements IDiagnosticsMainService {
 				rootFolders.forEach(root => {
 					folderURIs.push(root.uri);
 				});
-			} else {
-				//TODO@RMacfarlane: can we add the workspace file here?
 			}
 		}
 
