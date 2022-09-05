@@ -734,7 +734,7 @@ export class FileService extends Disposable implements IFileService {
 		// validation
 		const { exists, isSameResourceWithDifferentPathCase } = await this.doValidateMoveCopy(sourceProvider, source, targetProvider, target, mode, overwrite);
 
-		// delete as needed (unless target is same resurce with different path case)
+		// delete as needed (unless target is same resource with different path case)
 		if (exists && !isSameResourceWithDifferentPathCase && overwrite) {
 			await this.del(target, { recursive: true });
 		}

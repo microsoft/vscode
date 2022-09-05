@@ -1995,7 +1995,7 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	}
 	async updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> { return local; }
 	async updateExtensionScope(local: ILocalExtension, isMachineScoped: boolean): Promise<ILocalExtension> { return local; }
-	registerParticipant(pariticipant: IExtensionManagementParticipant): void { }
+	registerParticipant(participant: IExtensionManagementParticipant): void { }
 	async getTargetPlatform(): Promise<TargetPlatform> { return TargetPlatform.UNDEFINED; }
 }
 

@@ -435,7 +435,7 @@ export interface IExtensionManagementService {
 	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension>;
 	updateExtensionScope(local: ILocalExtension, isMachineScoped: boolean): Promise<ILocalExtension>;
 
-	registerParticipant(pariticipant: IExtensionManagementParticipant): void;
+	registerParticipant(participant: IExtensionManagementParticipant): void;
 	getTargetPlatform(): Promise<TargetPlatform>;
 }
 

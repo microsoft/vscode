@@ -487,7 +487,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 			// bytesLength = null signals an error in the read/write operation
 			// and as such we drop the handle from the Map because the position
-			// is unspecificed at this point.
+			// is unspecified at this point.
 			else {
 				this.mapHandleToPos.delete(fd);
 			}

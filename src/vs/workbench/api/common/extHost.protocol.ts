@@ -701,7 +701,7 @@ export interface MainThreadEditorTabsShape extends IDisposable {
 	// manage tabs: move, close, rearrange etc
 	$moveTab(tabId: string, index: number, viewColumn: EditorGroupColumn, preserveFocus?: boolean): void;
 	$closeTab(tabIds: string[], preserveFocus?: boolean): Promise<boolean>;
-	$closeGroup(groupIds: number[], preservceFocus?: boolean): Promise<boolean>;
+	$closeGroup(groupIds: number[], preserveFocus?: boolean): Promise<boolean>;
 }
 
 export interface IEditorTabGroupDto {
@@ -1249,7 +1249,7 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$stopDebugging(sessionId: DebugSessionUUID | undefined): Promise<void>;
 	$setDebugSessionName(id: DebugSessionUUID, name: string): void;
 	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): Promise<any>;
-	$getDebugProtocolBreakpoint(id: DebugSessionUUID, breakpoinId: string): Promise<DebugProtocol.Breakpoint | undefined>;
+	$getDebugProtocolBreakpoint(id: DebugSessionUUID, breakpointId: string): Promise<DebugProtocol.Breakpoint | undefined>;
 	$appendDebugConsole(value: string): void;
 	$startBreakpointEvents(): void;
 	$registerBreakpoints(breakpoints: Array<ISourceMultiBreakpointDto | IFunctionBreakpointDto | IDataBreakpointDto>): Promise<void>;

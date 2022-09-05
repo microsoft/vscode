@@ -129,7 +129,7 @@ suite('EditorInput', () => {
 
 	});
 
-	test('Untpyed inputs properly match TextResourceEditorInput', () => {
+	test('Untyped inputs properly match TextResourceEditorInput', () => {
 		const textResourceEditorInput = instantiationService.createInstance(TextResourceEditorInput, testResource, undefined, undefined, undefined, undefined);
 
 		assert.ok(textResourceEditorInput.matches(untypedResourceEditorInput));

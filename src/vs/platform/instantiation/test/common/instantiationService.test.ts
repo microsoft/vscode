@@ -142,7 +142,7 @@ suite('Instantiation Service', () => {
 		assert.ok(collection.has(IService2));
 	});
 
-	test('@Param - simple clase', function () {
+	test('@Param - simple class', function () {
 		const collection = new ServiceCollection();
 		const service = new InstantiationService(collection);
 		collection.set(IService1, new Service1());
@@ -377,7 +377,7 @@ suite('Instantiation Service', () => {
 		}
 
 		// This service depends on Service1 and Service2 BUT creating Service1 creates Service2 (via recursive invocation)
-		// and then Servce2 should not be created a second time
+		// and then Service2 should not be created a second time
 		const Service21 = createDecorator<any>('service21');
 		class Service21Impl {
 			constructor(@Service2 readonly service2: Service2Impl, @Service1 readonly service1: Service1Impl) { }

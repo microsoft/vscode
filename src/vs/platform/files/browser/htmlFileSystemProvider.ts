@@ -293,7 +293,7 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 
 	//#endregion
 
-	//#region File/Directoy Handle Registry
+	//#region File/Directory Handle Registry
 
 	private readonly _files = new Map<string, FileSystemFileHandle>();
 	private readonly _directories = new Map<string, FileSystemDirectoryHandle>();

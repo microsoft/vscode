@@ -348,7 +348,7 @@ class UtilityExtensionHostProcess extends Disposable {
 			if (details.type !== 'Utility') {
 				return;
 			}
-			// Despite the fact that we pass the argument `seviceName`,
+			// Despite the fact that we pass the argument `serviceName`,
 			// the details have a field called `name` where this value appears
 			if (details.name === serviceName) {
 				this._logService.info(`UtilityProcess<${this.id}>: terminated unexpectedly with code ${details.exitCode}.`);

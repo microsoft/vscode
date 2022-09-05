@@ -99,7 +99,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 
 		this._logService.trace(`NotebookController[${handle}], CREATED by ${extension.identifier.value}, ${id}`);
 
-		const _defaultExecutHandler = () => console.warn(`NO execute handler from notebook controller '${data.id}' of extension: '${extension.identifier}'`);
+		const _defaultExecuteHandler = () => console.warn(`NO execute handler from notebook controller '${data.id}' of extension: '${extension.identifier}'`);
 
 		let isDisposed = false;
 		const commandDisposables = new DisposableStore();
@@ -117,7 +117,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		};
 
 		//
-		let _executeHandler = handler ?? _defaultExecutHandler;
+		let _executeHandler = handler ?? _defaultExecuteHandler;
 		let _interruptHandler: ((this: vscode.NotebookController, notebook: vscode.NotebookDocument) => void | Thenable<void>) | undefined;
 
 		this._proxy.$addKernel(handle, data).catch(err => {
@@ -200,7 +200,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				return _executeHandler;
 			},
 			set executeHandler(value) {
-				_executeHandler = value ?? _defaultExecutHandler;
+				_executeHandler = value ?? _defaultExecuteHandler;
 			},
 			get interruptHandler() {
 				return _interruptHandler;

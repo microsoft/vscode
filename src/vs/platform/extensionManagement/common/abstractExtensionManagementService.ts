@@ -360,8 +360,8 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 		const allDependenciesAndPacks: { gallery: IGalleryExtension; manifest: IExtensionManifest }[] = [];
 		const collectDependenciesAndPackExtensionsToInstall = async (extensionIdentifier: IExtensionIdentifier, manifest: IExtensionManifest): Promise<void> => {
-			const dependecies: string[] = manifest.extensionDependencies || [];
-			const dependenciesAndPackExtensions = [...dependecies];
+			const dependencies: string[] = manifest.extensionDependencies || [];
+			const dependenciesAndPackExtensions = [...dependencies];
 			if (manifest.extensionPack) {
 				const existing = getOnlyNewlyAddedFromExtensionPack ? installed.find(e => areSameExtensions(e.identifier, extensionIdentifier)) : undefined;
 				for (const extension of manifest.extensionPack) {
@@ -384,7 +384,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 						if (identifiers.find(identifier => areSameExtensions(identifier, galleryExtension.identifier))) {
 							continue;
 						}
-						const isDependency = dependecies.some(id => areSameExtensions({ id }, galleryExtension.identifier));
+						const isDependency = dependencies.some(id => areSameExtensions({ id }, galleryExtension.identifier));
 						let compatible;
 						try {
 							compatible = await this.checkAndGetCompatibleVersion(galleryExtension, false, installPreRelease);

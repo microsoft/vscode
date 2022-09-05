@@ -40,7 +40,7 @@ export async function migrateUnsupportedExtensions(extensionManagementService: I
 
 			const gallery = (await galleryService.getExtensions([{ id: preReleaseExtensionId, preRelease }], { targetPlatform: await extensionManagementService.getTargetPlatform(), compatible: true }, CancellationToken.None))[0];
 			if (!gallery) {
-				logService.info(`Skipping migrating '${unsupportedExtension.identifier.id}' extension because, the comaptible target '${preReleaseExtensionId}' extension is not found`);
+				logService.info(`Skipping migrating '${unsupportedExtension.identifier.id}' extension because, the compatible target '${preReleaseExtensionId}' extension is not found`);
 				continue;
 			}
 

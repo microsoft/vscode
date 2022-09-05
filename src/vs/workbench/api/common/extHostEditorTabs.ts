@@ -376,7 +376,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 		return this._proxy.$closeTab(extHostTabIds, preserveFocus);
 	}
 
-	private async _closeGroups(groups: vscode.TabGroup[], preserverFoucs?: boolean): Promise<boolean> {
+	private async _closeGroups(groups: vscode.TabGroup[], preserverFocus?: boolean): Promise<boolean> {
 		const extHostGroupIds: number[] = [];
 		for (const group of groups) {
 			const extHostGroup = this._findExtHostTabGroupFromApi(group);
@@ -385,7 +385,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 			}
 			extHostGroupIds.push(extHostGroup.groupId);
 		}
-		return this._proxy.$closeGroup(extHostGroupIds, preserverFoucs);
+		return this._proxy.$closeGroup(extHostGroupIds, preserverFocus);
 	}
 }
 
