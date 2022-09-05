@@ -109,7 +109,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		private readonly userDataProfileService: IUserDataProfileService,
 		private readonly userDataProfilesService: IUserDataProfilesService,
 		private readonly fileService: IFileService,
-		remoteAgentService: IRemoteAgentService,
+		private readonly remoteAgentService: IRemoteAgentService,
 		private readonly uriIdentityService: IUriIdentityService,
 		private readonly logService: ILogService,
 		policyService: IPolicyService
@@ -997,7 +997,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		}
 
 		// Use same instance of ConfigurationEditing to make sure all writes go through the same queue
-		this.configurationEditing = this.configurationEditing ?? this.instantiationService.createInstance(ConfigurationEditing);
+		this.configurationEditing = this.configurationEditing ?? this.instantiationService.createInstance(ConfigurationEditing, (await this.remoteAgentService.getEnvironment())?.settingsPath ?? null);
 		await this.configurationEditing.writeConfiguration(editableConfigurationTarget, { key, value }, { scopes: overrides, donotNotifyError });
 		switch (editableConfigurationTarget) {
 			case EditableConfigurationTarget.USER_LOCAL:

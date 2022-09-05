@@ -130,7 +130,7 @@ suite('ConfigurationEditing', () => {
 		instantiationService.stub(ITextFileService, disposables.add(instantiationService.createInstance(TestTextFileService)));
 		instantiationService.stub(ITextModelService, <ITextModelService>disposables.add(instantiationService.createInstance(TextModelResolverService)));
 		instantiationService.stub(ICommandService, CommandService);
-		testObject = instantiationService.createInstance(ConfigurationEditing);
+		testObject = instantiationService.createInstance(ConfigurationEditing, null);
 	});
 
 	teardown(() => disposables.clear());
