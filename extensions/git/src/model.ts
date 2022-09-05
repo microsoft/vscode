@@ -139,6 +139,18 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			this.onDidChangeVisibleTextEditors(window.visibleTextEditors),
 			this.scanWorkspaceFolders()
 		]);
+
+		const config = workspace.getConfiguration('git');
+		const autoRepositoryDetection = config.get<boolean | 'subFolders' | 'openEditors'>('autoRepositoryDetection');
+
+		/* __GDPR__
+			"git.repositoryInitialScan" : {
+				"owner": "lszomoru",
+				"autoRepositoryDetection": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Setting that controls the initial repository scan" },
+				"repositoryCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of repositories opened during initial repository scan" },
+			}
+		*/
+		this.telemetryReporter.sendTelemetryEvent('git.repositoryInitialScan', { autoRepositoryDetection: String(autoRepositoryDetection) }, { repositoryCount: this.openRepositories.length });
 	}
 
 	/**
