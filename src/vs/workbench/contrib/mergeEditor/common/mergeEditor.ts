@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
-export type MergeEditorLayoutTypes = 'mixed' | 'columns';
+export type MergeEditorLayoutTypes = 'mixed' | 'columns' | 'mixedWithBase';
 
 export const ctxIsMergeEditor = new RawContextKey<boolean>('isMergeEditor', false, { type: 'boolean', description: localize('is', 'The editor is a merge editor') });
 export const ctxIsMergeResultEditor = new RawContextKey<boolean>('isMergeResultEditor', false, { type: 'boolean', description: localize('isr', 'The editor is a the result editor of a merge editor.') });

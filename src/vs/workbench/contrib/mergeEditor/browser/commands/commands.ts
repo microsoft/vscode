@@ -181,6 +181,35 @@ export class SetColumnLayout extends Action2 {
 	}
 }
 
+export class SetMixedLayoutWithBase extends Action2 {
+	constructor() {
+		super({
+			id: 'merge.mixedLayoutWithBase',
+			title: {
+				value: localize('layout.mixedWithBase', 'Mixed Layout With Base'),
+				original: 'Mixed Layout With Based',
+			},
+			toggled: ctxMergeEditorLayout.isEqualTo('mixedWithBase'),
+			menu: [
+				{
+					id: MenuId.EditorTitle,
+					when: ctxIsMergeEditor,
+					group: '1_merge',
+					order: 9,
+				},
+			],
+			precondition: ctxIsMergeEditor,
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const { activeEditorPane } = accessor.get(IEditorService);
+		if (activeEditorPane instanceof MergeEditor) {
+			activeEditorPane.setLayout('mixedWithBase');
+		}
+	}
+}
+
 const mergeEditorCategory: ILocalizedString = {
 	value: localize('mergeEditor', 'Merge Editor'),
 	original: 'Merge Editor',
