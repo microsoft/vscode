@@ -299,7 +299,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 	private async setFolders(folders: IStoredWorkspaceFolder[]): Promise<void> {
 		if (!this.instantiationService) {
-			throw new Error('Cannot update workspace folders because workspace service is not yet read to accept writes.');
+			throw new Error('Cannot update workspace folders because workspace service is not yet ready to accept writes.');
 		}
 
 		await this.instantiationService.invokeFunction(accessor => this.workspaceConfiguration.setFolders(folders, accessor.get(IJSONEditingService)));
