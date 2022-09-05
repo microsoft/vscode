@@ -7,7 +7,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { attachToggleStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -24,11 +24,10 @@ export class CheckboxStateHandler {
 	}
 }
 
-export class TreeItemCheckbox implements IDisposable {
+export class TreeItemCheckbox extends Disposable {
 	public toggle: Toggle | undefined;
-	//public checkbox: HTMLInputElement | undefined;
 	private checkboxContainer: HTMLDivElement;
-	private disposables: IDisposable[];
+	public isDisposed = false;
 
 	public static readonly checkboxClass = 'custom-view-tree-node-item-checkbox';
 
@@ -36,7 +35,7 @@ export class TreeItemCheckbox implements IDisposable {
 	readonly onDidChangeState: Event<boolean> = this._onDidChangeState.event;
 
 	constructor(container: HTMLElement, private checkboxStateHandler: CheckboxStateHandler, private themeService: IThemeService) {
-		this.disposables = [];
+		super();
 		this.checkboxContainer = <HTMLDivElement>container;
 	}
 
@@ -44,23 +43,16 @@ export class TreeItemCheckbox implements IDisposable {
 		if (node.checkboxChecked !== undefined) {
 			if (!this.toggle) {
 				this.createCheckbox(node);
+				this.registerListener(node);
 			}
 			else {
 				this.toggle.checked = node.checkboxChecked;
 				this.toggle.setIcon(this.toggle.checked ? Codicon.check : undefined);
 			}
-			// The listener might be disposed when out of view,
-			// so it will have to be recreated when it's back in view
-			if (!this.disposables.length) {
-				this.registerListener(node);
-			}
 		}
 	}
 
 	private createCheckbox(node: ITreeItem) {
-		/* this.checkbox = <HTMLInputElement>DOM.append(this.checkboxContainer, DOM.$('input.custom-view-tree-node-item-checkbox'));
-		this.checkbox.type = 'checkbox';
-		this.checkbox.checked = node.checkbox?.isChecked ? node.checkbox.isChecked : false; */
 		if (node.checkboxChecked !== undefined) {
 			this.toggle = new Toggle({
 				isChecked: node.checkboxChecked,
@@ -76,19 +68,12 @@ export class TreeItemCheckbox implements IDisposable {
 
 	private registerListener(node: ITreeItem) {
 		if (this.toggle) {
-			this.disposables.push(DOM.addDisposableListener(this.toggle.domNode, DOM.EventType.MOUSE_DOWN, (e) => {
-				if (e.button === /* Right */ 2) {
-					return;
-				}
-				e.stopPropagation();
-				e.preventDefault();
-			}));
-			this.disposables.push(this.toggle.onChange(() => {
+			this._register(this.toggle);
+			this._register(this.toggle.onChange(() => {
 				this.setCheckbox(node);
 			}));
-			this.disposables.push(attachToggleStyler(this.toggle, this.themeService)); // DO I REALLY NEED THIS?
+			this._register(attachToggleStyler(this.toggle, this.themeService));
 		}
-
 	}
 
 	private setCheckbox(node: ITreeItem) {
@@ -100,8 +85,7 @@ export class TreeItemCheckbox implements IDisposable {
 		}
 	}
 
-	public removeCheckbox() {
-		this.dispose();
+	private removeCheckbox() {
 		const children = this.checkboxContainer.children;
 		for (const child of children) {
 			this.checkboxContainer.removeChild(child);
@@ -109,8 +93,9 @@ export class TreeItemCheckbox implements IDisposable {
 		this.toggle = undefined;
 	}
 
-	public dispose() {
-		this.disposables.forEach(d => d.dispose());
-		this.disposables = [];
+	public override dispose() {
+		super.dispose();
+		this.removeCheckbox();
+		this.isDisposed = true;
 	}
 }

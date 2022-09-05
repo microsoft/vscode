@@ -1016,7 +1016,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		private menus: TreeMenus,
 		private labels: ResourceLabels,
 		private actionViewItemProvider: IActionViewItemProvider,
-		public aligner: Aligner,
+		private aligner: Aligner,
 		private checkboxStateHandler: CheckboxStateHandler,
 		@IThemeService private readonly themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -1120,7 +1120,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		const disposableStore = new DisposableStore();
 		templateData.elementDisposable = disposableStore;
 
-		this.renderCheckbox(node, templateData, label);
+		this.renderCheckbox(node, templateData);
 		if (templateData.checkbox) {
 			disposableStore.add(templateData.checkbox);
 		}
@@ -1187,15 +1187,15 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		disposableStore.add(toDisposable(() => this.treeViewsService.removeRenderedTreeItemElement(node)));
 	}
 
-	private renderCheckbox(node: ITreeItem, templateData: ITreeExplorerTemplateData, label: string | undefined) {
+	private renderCheckbox(node: ITreeItem, templateData: ITreeExplorerTemplateData) {
 		if (node.checkboxChecked !== undefined) {
-			if (!templateData.checkbox) {
+			if (!templateData.checkbox || templateData.checkbox.isDisposed) {
 				templateData.checkbox = new TreeItemCheckbox(templateData.checkboxContainer, this.checkboxStateHandler, this.themeService);
 			}
 			templateData.checkbox.render(node);
 		}
 		else if (templateData.checkbox) {
-			templateData.checkbox.removeCheckbox();
+			templateData.checkbox.dispose();
 			templateData.checkbox = undefined;
 		}
 	}
@@ -1283,6 +1283,7 @@ class Aligner extends Disposable {
 		if (this._tree) {
 			if (!this.hasCheckboxes && treeItem.checkboxChecked !== undefined) {
 				this.hasCheckboxes = true;
+				// TODO: rerender already rendered elements
 				this._tree.rerender();
 				return false;
 			}
