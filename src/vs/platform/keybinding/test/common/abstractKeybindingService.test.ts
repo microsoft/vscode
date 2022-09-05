@@ -114,7 +114,6 @@ suite('AbstractKeybindingService', () => {
 				_serviceBrand: undefined,
 				dispose: undefined!,
 				onDidChangeContext: undefined!,
-				bufferChangeEvents() { },
 				createKey: undefined!,
 				contextMatchesRules: undefined!,
 				getContextKeyValue: undefined!,

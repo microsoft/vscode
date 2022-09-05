@@ -271,11 +271,9 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		// Remember when adding to this method that it isn't called until the the view is visible, meaning that
 		// properties could be set and events could be fired before we're initialized and that this needs to be handled.
 
-		this.contextKeyService.bufferChangeEvents(() => {
-			this.initializeShowCollapseAllAction();
-			this.initializeCollapseAllToggle();
-			this.initializeShowRefreshAction();
-		});
+		this.initializeShowCollapseAllAction();
+		this.initializeCollapseAllToggle();
+		this.initializeShowRefreshAction();
 
 		this.treeViewDnd = this.instantiationService.createInstance(CustomTreeViewDragAndDrop, this.id);
 		if (this._dragAndDropController) {
