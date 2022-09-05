@@ -88,6 +88,8 @@ export interface IView<TLayoutContext = undefined> {
 	 */
 	readonly onDidChange: Event<number | undefined>;
 
+	readonly onDidFocus?: Event<void>;
+
 	/**
 	 * This will be called by the {@link SplitView} during layout. A view meant to
 	 * pass along the layout information down to its descendants.
@@ -1003,8 +1005,20 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 		}
 
 		const onChangeDisposable = view.onDidChange(size => this.onViewChange(item, size));
+		const onDidFocusDisposable = !view.onDidFocus ? toDisposable(() => { }) : view.onDidFocus(() => {
+			/**
+			 * NOTE
+			 * When the view has focus, probably the view container has already scrolled into the desired position,
+			 * so we should just update the our scrollable's state with that position.
+			 * (See #157737)
+			 */
+			this.scrollable.setScrollPositionNow(this.orientation === Orientation.VERTICAL
+				? { scrollTop: this.viewContainer.scrollTop }
+				: { scrollLeft: this.viewContainer.scrollLeft }
+			);
+		});
 		const containerDisposable = toDisposable(() => this.viewContainer.removeChild(container));
-		const disposable = combinedDisposable(onChangeDisposable, containerDisposable);
+		const disposable = combinedDisposable(onChangeDisposable, onDidFocusDisposable, containerDisposable);
 
 		let viewSize: ViewItemSize;
 

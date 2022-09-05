@@ -112,6 +112,8 @@ export interface IView {
 	 */
 	readonly onDidChange: Event<IViewSize | undefined>;
 
+	readonly onDidFocus?: Event<void>;
+
 	/**
 	 * This will be called by the {@link GridView} during layout. A view meant to
 	 * pass along the layout information down to its descendants.
@@ -778,6 +780,7 @@ class LeafNode implements ISplitView<ILayoutContext>, IDisposable {
 	private readonly _onDidSetLinkedNode = new Emitter<number | undefined>();
 	private _onDidViewChange: Event<number | undefined>;
 	readonly onDidChange: Event<number | undefined>;
+	readonly onDidFocus?: Event<void>;
 
 	private disposables = new DisposableStore();
 
@@ -794,6 +797,9 @@ class LeafNode implements ISplitView<ILayoutContext>, IDisposable {
 		const onDidChange = createLatchedOnDidChangeViewEvent(view);
 		this._onDidViewChange = Event.map(onDidChange, e => e && (this.orientation === Orientation.VERTICAL ? e.width : e.height), this.disposables);
 		this.onDidChange = Event.any(this._onDidViewChange, this._onDidSetLinkedNode.event, this._onDidLinkedWidthNodeChange.event, this._onDidLinkedHeightNodeChange.event);
+		if (view.onDidFocus) {
+			this.onDidFocus = Event.any(view.onDidFocus);
+		}
 	}
 
 	get width(): number {
