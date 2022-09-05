@@ -72,7 +72,7 @@ registerAction2(class extends Action2 {
 	run(accessor: ServicesAccessor) {
 		const instaService = accessor.get(IInstantiationService);
 		if (instaService instanceof InstantiationService) {
-			const cycle = instaService._globalGraph.findCycleSlow();
+			const cycle = instaService._globalGraph?.findCycleSlow();
 			if (cycle) {
 				console.warn(`CYCLE`, cycle);
 			} else {

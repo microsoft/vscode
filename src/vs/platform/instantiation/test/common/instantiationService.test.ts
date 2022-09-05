@@ -433,7 +433,7 @@ suite('Instantiation Service', () => {
 			const insta1 = new InstantiationService(new ServiceCollection(
 				[A, new SyncDescriptor(AService)],
 				[B, new SyncDescriptor(BService)],
-			));
+			), true, undefined, true);
 
 			try {
 				insta1.invokeFunction(accessor => accessor.get(A));
@@ -450,12 +450,12 @@ suite('Instantiation Service', () => {
 			const insta2 = new InstantiationService(new ServiceCollection(
 				[A, new SyncDescriptor(AService, undefined, true)],
 				[B, new SyncDescriptor(BService, undefined)],
-			));
+			), true, undefined, true);
 
 			const a = insta2.invokeFunction(accessor => accessor.get(A));
 			a.doIt();
 
-			const cycle = insta2._globalGraph.findCycleSlow();
+			const cycle = insta2._globalGraph?.findCycleSlow();
 			assert.strictEqual(cycle, 'A -> B -> A');
 		}
 	});
