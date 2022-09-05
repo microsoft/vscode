@@ -199,7 +199,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 					config.update(
 						updateImportsOnFileMoveName,
 						UpdateImportsOnFileMoveSetting.Always,
-						vscode.ConfigurationTarget.Global);
+						this.getConfigTargetScope(config, updateImportsOnFileMoveName));
 					return true;
 				}
 			case Choice.Never:
@@ -208,7 +208,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 					config.update(
 						updateImportsOnFileMoveName,
 						UpdateImportsOnFileMoveSetting.Never,
-						vscode.ConfigurationTarget.Global);
+						this.getConfigTargetScope(config, updateImportsOnFileMoveName));
 					return false;
 				}
 		}
@@ -283,6 +283,19 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 
 		paths.push('');
 		return paths.join('\n');
+	}
+
+	private getConfigTargetScope(config: vscode.WorkspaceConfiguration, settingsName: string): vscode.ConfigurationTarget {
+		const inspected = config.inspect(settingsName);
+		if (inspected?.workspaceFolderValue) {
+			return vscode.ConfigurationTarget.WorkspaceFolder;
+		}
+
+		if (inspected?.workspaceValue) {
+			return vscode.ConfigurationTarget.Workspace;
+		}
+
+		return vscode.ConfigurationTarget.Global;
 	}
 }
 

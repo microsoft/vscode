@@ -135,7 +135,7 @@ const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegist
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentDiagnosticListener, 'RemoteAgentDiagnosticListener', LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteExtensionHostEnvironmentUpdater, 'RemoteExtensionHostEnvironmentUpdater', LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteTelemetryEnablementUpdater, 'RemoteTelemetryEnablementUpdater', LifecyclePhase.Ready);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteEmptyWorkbenchPresentation, 'RemoteEmptyWorkbenchPresentation', LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(RemoteEmptyWorkbenchPresentation, 'RemoteEmptyWorkbenchPresentation', LifecyclePhase.Ready);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({

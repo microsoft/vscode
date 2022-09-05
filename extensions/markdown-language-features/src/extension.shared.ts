@@ -11,7 +11,7 @@ import { registerPasteSupport } from './languageFeatures/copyPaste';
 import { registerDiagnosticSupport } from './languageFeatures/diagnostics';
 import { registerDropIntoEditorSupport } from './languageFeatures/dropIntoEditor';
 import { registerFindFileReferenceSupport } from './languageFeatures/fileReferences';
-import { registerUpdateLinksOnRename } from './languageFeatures/updatePathsOnRename';
+import { registerUpdateLinksOnRename } from './languageFeatures/linkUpdater';
 import { ILogger } from './logging';
 import { MarkdownItEngine, MdParsingProvider } from './markdownEngine';
 import { MarkdownContributionProvider } from './markdownExtensions';

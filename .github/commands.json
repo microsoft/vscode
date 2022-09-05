@@ -12,6 +12,18 @@
 		"addLabel": "*question"
 	},
 	{
+		"type": "comment",
+		"name": "dev-question",
+		"allowUsers": [
+			"cleidigh",
+			"usernamehw",
+			"gjsjohnmurray",
+			"IllusionMH"
+		],
+		"action": "updateLabels",
+		"addLabel": "*dev-question"
+	},
+	{
 		"type": "label",
 		"name": "*question",
 		"action": "close",

@@ -33,14 +33,14 @@ export class ModifiedBaseRange {
 		const alignments = MappingAlignment.compute(diffs1, diffs2);
 		return alignments.map(
 			(a) => new ModifiedBaseRange(
-				a.baseRange,
+				a.inputRange,
 				baseTextModel,
-				a.input1Range,
+				a.output1Range,
 				input1TextModel,
-				a.input1LineMappings,
-				a.input2Range,
+				a.output1LineMappings,
+				a.output2Range,
 				input2TextModel,
-				a.input2LineMappings
+				a.output2LineMappings
 			)
 		);
 	}
@@ -53,9 +53,17 @@ export class ModifiedBaseRange {
 		public readonly baseTextModel: ITextModel,
 		public readonly input1Range: LineRange,
 		public readonly input1TextModel: ITextModel,
+
+		/**
+		 * From base to input1
+		*/
 		public readonly input1Diffs: readonly DetailedLineRangeMapping[],
 		public readonly input2Range: LineRange,
 		public readonly input2TextModel: ITextModel,
+
+		/**
+		 * From base to input2
+		*/
 		public readonly input2Diffs: readonly DetailedLineRangeMapping[]
 	) {
 		if (this.input1Diffs.length === 0 && this.input2Diffs.length === 0) {
