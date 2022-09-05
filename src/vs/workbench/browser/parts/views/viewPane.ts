@@ -11,7 +11,7 @@ import { attachButtonStyler, attachProgressBarStyler } from 'vs/platform/theme/c
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { after, append, $, trackFocus, EventType, addDisposableListener, createCSSRule, asCSSUrl } from 'vs/base/browser/dom';
 import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
@@ -298,7 +298,8 @@ export abstract class ViewPane extends Pane implements IView {
 			actionViewItemProvider: action => this.getActionViewItem(action),
 			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.title),
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
-			renderDropdownAsChildElement: true
+			renderDropdownAsChildElement: true,
+			actionRunner: this.getActionRunner()
 		});
 
 		this._register(this.toolbar);
@@ -522,6 +523,10 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	getActionsContext(): unknown {
+		return undefined;
+	}
+
+	getActionRunner(): IActionRunner | undefined {
 		return undefined;
 	}
 
