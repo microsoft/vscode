@@ -144,7 +144,7 @@ interface ConfigurationEditingOptions extends IConfigurationEditingOptions {
 	handleDirtyFile?: 'save' | 'revert';
 }
 
-export class ConfigurationEditingService {
+export class ConfigurationEditing {
 
 	public _serviceBrand: undefined;
 
