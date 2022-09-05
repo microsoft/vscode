@@ -13,6 +13,18 @@ import { ContiguousMultilineTokens } from 'vs/editor/common/tokens/contiguousMul
 import { ContiguousMultilineTokensBuilder } from 'vs/editor/common/tokens/contiguousMultilineTokensBuilder';
 import Parser = require('web-tree-sitter');
 
+const mapWordToColor = new Map(Object.entries({
+	'comments': 0,
+	'other': 33588289,
+	'keywords1': 33719361,
+	'keywords2': 34112577,
+	'function': 34047041,
+	'string': 33916481,
+	'type': 34079809,
+	'variable': 33850433,
+	'number': 33752129,
+}));
+
 export class TreeSitterParseTree {
 
 	private readonly _parser: Parser;
@@ -20,6 +32,7 @@ export class TreeSitterParseTree {
 	private _tree: Parser.Tree | undefined;
 	private readonly _disposableStore: DisposableStore = new DisposableStore();
 	private _captures: Parser.QueryCapture[];
+	private _matches: Parser.QueryMatch[];
 	private _captureNames: string[];
 	private _captureNameToNodeMap: Map<string, Parser.SyntaxNode[]>;
 	public readonly id: string;
@@ -34,6 +47,7 @@ export class TreeSitterParseTree {
 		this._parser = new Parser();
 		this._parser.setLanguage(this._language);
 		this._captures = [];
+		this._matches = [];
 		this._captureNames = [];
 		this._captureNameToNodeMap = new Map<string, Parser.SyntaxNode[]>();
 		this._tree = this._parser.parse((startIndex: number, startPoint: Parser.Point | undefined, endIndex: number | undefined) => this._retrieveTextAtPosition(startIndex, startPoint, endIndex));
@@ -59,9 +73,20 @@ export class TreeSitterParseTree {
 			}
 			console.log('this tree text : ', this._tree?.rootNode.text);
 			this.getCaptures();
+			this.getMatches();
 			// TODO: just to investigate the contents of the tokens
 			this.renderTokenColors();
 		}));
+	}
+
+	public getMatches() {
+		if (!this._tree) {
+			return;
+		}
+		const contents = readFileSync(__dirname + '\\..\\..\\..\\..\\..\\src\\vs\\editor\\browser\\services\\tokens.scm', { encoding: 'utf8' });
+		const query = this._language.query(contents);
+		this._matches = query.matches(this._tree.rootNode);
+		console.log('matches : ', this._matches);
 	}
 
 	public getCaptures() {
@@ -94,6 +119,7 @@ export class TreeSitterParseTree {
 		const contents = readFileSync(__dirname + '\\..\\..\\..\\..\\..\\src\\vs\\editor\\browser\\services\\tokens.scm', { encoding: 'utf8' });
 		const query = this._language.query(contents);
 		this._captures = query.captures(this._tree.rootNode);
+		console.log('captures : ', this._captures);
 		this._captureNames = query.captureNames;
 	}
 
@@ -107,25 +133,35 @@ export class TreeSitterParseTree {
 			this._captureNameToNodeMap.set(captureName, syntaxNodes);
 		}
 		const contiguousMultilineToken: ContiguousMultilineTokens[] = [];
-		for (let i = 1; i < this._model.getLineCount(); i++) {
-			const line = this._model.getLineContent(i);
-			const array: Uint32Array[] = [];
-			/*
-			const lineTokens = new LineTokens(
-				true,
-				line,
-				this._tokenTypeMatchers,
-				this.balancedBracketSelectors
-			);
-			*/
-			array.push(new Uint32Array([0, 33587265]));
-			array.push(new Uint32Array([6, 33587265]));
-			array.push(new Uint32Array([10, 33587265]));
-			contiguousMultilineToken.push(new ContiguousMultilineTokens(i, array));
+		let j = 0;
+		let numberCaptures = this._captures.length;
 
+		console.log('this._captures : ', this._captures);
+
+		for (let i = 0; i < this._model.getLineCount(); i++) {
+			const array: Uint32Array[] = [];
+			const arrayOfTokens: number[] = [];
+
+			while (j < numberCaptures && this._captures[j].node.endPosition.row <= i) {
+				// array.push(new Uint32Array([4, 33719361, 5, 33588289, 11, 34079809, 16, 33588289]));
+				if (this._captures[j].node.endPosition.row === i) {
+					let color;
+					if (mapWordToColor.has(this._captures[j].name)) {
+						color = mapWordToColor.get(this._captures[j].name);
+					} else {
+						color = mapWordToColor.get('other');
+					}
+					arrayOfTokens.push(this._captures[j].node.endPosition.column, color as number);
+				}
+				j++;
+			}
+
+			array.push(new Uint32Array(arrayOfTokens));
+			console.log('value of j : ', j);
+			console.log('inside of renderTokenColors for line ', i, ' array : ', array);
+			contiguousMultilineToken.push(new ContiguousMultilineTokens(i + 1, array));
 		}
 
-		// const result = lineTokens.getBinaryResult(r.ruleStack, r.lineLength);
 		console.log('contiguousMultilineToken : ', contiguousMultilineToken);
 		this._model.tokenization.setTokens(contiguousMultilineToken);
 
