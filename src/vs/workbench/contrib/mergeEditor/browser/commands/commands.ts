@@ -186,8 +186,8 @@ export class SetMixedLayoutWithBase extends Action2 {
 		super({
 			id: 'merge.mixedLayoutWithBase',
 			title: {
-				value: localize('layout.mixedWithBase', 'Mixed Layout With Base'),
-				original: 'Mixed Layout With Based',
+				value: localize('layout.mixedWithBase', 'Mixed Layout With Base At Top'),
+				original: 'Mixed Layout With Based At Top',
 			},
 			toggled: ctxMergeEditorLayout.isEqualTo('mixedWithBase'),
 			menu: [
@@ -206,6 +206,35 @@ export class SetMixedLayoutWithBase extends Action2 {
 		const { activeEditorPane } = accessor.get(IEditorService);
 		if (activeEditorPane instanceof MergeEditor) {
 			activeEditorPane.setLayout('mixedWithBase');
+		}
+	}
+}
+
+export class SetMixedLayoutWithBaseColumns extends Action2 {
+	constructor() {
+		super({
+			id: 'merge.mixedLayoutWithBaseColumns',
+			title: {
+				value: localize('layout.mixedWithBaseColumns', 'Mixed Layout With Base'),
+				original: 'Mixed Layout With Based',
+			},
+			toggled: ctxMergeEditorLayout.isEqualTo('mixedWithBaseColumns'),
+			menu: [
+				{
+					id: MenuId.EditorTitle,
+					when: ctxIsMergeEditor,
+					group: '1_merge',
+					order: 9,
+				},
+			],
+			precondition: ctxIsMergeEditor,
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const { activeEditorPane } = accessor.get(IEditorService);
+		if (activeEditorPane instanceof MergeEditor) {
+			activeEditorPane.setLayout('mixedWithBaseColumns');
 		}
 	}
 }
