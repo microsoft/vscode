@@ -81,7 +81,7 @@ export class KeyboardLayoutPickerContribution extends Disposable implements IWor
 }
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(KeyboardLayoutPickerContribution, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(KeyboardLayoutPickerContribution, 'KeyboardLayoutPickerContribution', LifecyclePhase.Starting);
 
 interface LayoutQuickPickItem extends IQuickPickItem {
 	layout: IKeyboardLayoutInfo;

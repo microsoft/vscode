@@ -105,4 +105,4 @@ export class TunnelService extends AbstractTunnelService {
 	}
 }
 
-registerSingleton(ITunnelService, TunnelService);
+registerSingleton(ITunnelService, TunnelService, false);

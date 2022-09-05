@@ -13,6 +13,7 @@ import { StartupTimings } from './startupTimings';
 
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
 	StartupProfiler,
+	'StartupProfiler',
 	LifecyclePhase.Restored
 );
 
@@ -20,5 +21,6 @@ Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkb
 
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
 	StartupTimings,
+	'StartupTimings',
 	LifecyclePhase.Eventually
 );

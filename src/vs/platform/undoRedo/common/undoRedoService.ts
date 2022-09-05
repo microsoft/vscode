@@ -1393,4 +1393,4 @@ class WorkspaceVerificationError {
 	constructor(public readonly returnValue: Promise<void> | void) { }
 }
 
-registerSingleton(IUndoRedoService, UndoRedoService);
+registerSingleton(IUndoRedoService, UndoRedoService, false);

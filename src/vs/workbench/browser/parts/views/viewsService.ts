@@ -648,4 +648,4 @@ export function getPartByLocation(viewContainerLocation: ViewContainerLocation):
 	}
 }
 
-registerSingleton(IViewsService, ViewsService);
+registerSingleton(IViewsService, ViewsService, false /* Eager because it registers viewlets and panels in the constructor which are required during workbench layout */);

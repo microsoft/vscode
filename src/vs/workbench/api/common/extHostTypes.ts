@@ -737,40 +737,20 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
 	// --- notebook
 
-	replaceNotebookMetadata(uri: URI, value: Record<string, any>, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+	private replaceNotebookMetadata(uri: URI, value: Record<string, any>, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.DocumentMetadata, metadata: value }, notebookMetadata: value });
 	}
 
-	replaceNotebookCells(uri: URI, range: vscode.NotebookRange, cells: vscode.NotebookCellData[], metadata?: vscode.WorkspaceEditEntryMetadata): void;
-	replaceNotebookCells(uri: URI, start: number, end: number, cells: vscode.NotebookCellData[], metadata?: vscode.WorkspaceEditEntryMetadata): void;
-	replaceNotebookCells(uri: URI, startOrRange: number | vscode.NotebookRange, endOrCells: number | vscode.NotebookCellData[], cellsOrMetadata?: vscode.NotebookCellData[] | vscode.WorkspaceEditEntryMetadata, metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		let start: number | undefined;
-		let end: number | undefined;
-		let cellData: vscode.NotebookCellData[] = [];
-		let workspaceEditMetadata: vscode.WorkspaceEditEntryMetadata | undefined;
-
-		if (NotebookRange.isNotebookRange(startOrRange) && NotebookCellData.isNotebookCellDataArray(endOrCells) && !NotebookCellData.isNotebookCellDataArray(cellsOrMetadata)) {
-			start = startOrRange.start;
-			end = startOrRange.end;
-			cellData = endOrCells;
-			workspaceEditMetadata = cellsOrMetadata;
-		} else if (typeof startOrRange === 'number' && typeof endOrCells === 'number' && NotebookCellData.isNotebookCellDataArray(cellsOrMetadata)) {
-			start = startOrRange;
-			end = endOrCells;
-			cellData = cellsOrMetadata;
-			workspaceEditMetadata = metadata;
-		}
-
-		if (start === undefined || end === undefined) {
-			throw new Error('Invalid arguments');
-		}
+	private replaceNotebookCells(uri: URI, startOrRange: vscode.NotebookRange, cellData: vscode.NotebookCellData[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
+		const start = startOrRange.start;
+		const end = startOrRange.end;
 
 		if (start !== end || cellData.length > 0) {
-			this._edits.push({ _type: FileEditType.CellReplace, uri, index: start, count: end - start, cells: cellData, metadata: workspaceEditMetadata });
+			this._edits.push({ _type: FileEditType.CellReplace, uri, index: start, count: end - start, cells: cellData, metadata });
 		}
 	}
 
-	replaceNotebookCellMetadata(uri: URI, index: number, cellMetadata: Record<string, any>, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+	private replaceNotebookCellMetadata(uri: URI, index: number, cellMetadata: Record<string, any>, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.PartialMetadata, index, metadata: cellMetadata } });
 	}
 

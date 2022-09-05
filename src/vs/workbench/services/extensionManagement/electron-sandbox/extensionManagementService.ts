@@ -53,4 +53,4 @@ export class ExtensionManagementService extends BaseExtensionManagementService {
 	}
 }
 
-registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService);
+registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService, false);

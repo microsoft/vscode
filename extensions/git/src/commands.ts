@@ -457,7 +457,7 @@ export class CommandCenter {
 		);
 	}
 
-	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean } = {}): Promise<void> {
+	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean; ref?: string } = {}): Promise<void> {
 		if (!url || typeof url !== 'string') {
 			url = await pickRemoteSource({
 				providerLabel: provider => localize('clonefrom', "Clone from {0}", provider.name),
@@ -518,6 +518,11 @@ export class CommandCenter {
 				opts,
 				(progress, token) => this.git.clone(url!, { parentPath: parentPath!, progress, recursive: options.recursive }, token)
 			);
+
+			if (options.ref !== undefined) {
+				const repository = this.model.getRepository(Uri.file(repositoryPath));
+				await repository?.checkout(options.ref);
+			}
 
 			const config = workspace.getConfiguration('git');
 			const openAfterClone = config.get<'always' | 'alwaysNewWindow' | 'whenNoFolderOpen' | 'prompt'>('openAfterClone');
@@ -596,8 +601,8 @@ export class CommandCenter {
 	}
 
 	@command('git.clone')
-	async clone(url?: string, parentPath?: string): Promise<void> {
-		await this.cloneRepository(url, parentPath);
+	async clone(url?: string, parentPath?: string, options?: { ref?: string }): Promise<void> {
+		await this.cloneRepository(url, parentPath, options);
 	}
 
 	@command('git.cloneRecursive')

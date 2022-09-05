@@ -23,7 +23,6 @@ import { MarkdownString, ViewBadge, DataTransfer } from 'vs/workbench/api/common
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ITreeViewsService, TreeviewsService } from 'vs/workbench/services/views/common/treeViewsService';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 type TreeItemHandle = string;
 
@@ -115,11 +114,9 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 				treeView.description = description;
 			},
 			get badge() {
-				checkProposedApiEnabled(extension, 'badges');
 				return treeView.badge;
 			},
 			set badge(badge: vscode.ViewBadge | undefined) {
-				checkProposedApiEnabled(extension, 'badges');
 				treeView.badge = badge;
 			},
 			reveal: (element: T, options?: IRevealOptions): Promise<void> => {
@@ -701,8 +698,7 @@ class ExtHostTreeView<T> extends Disposable {
 
 	private validateTreeItem(extensionTreeItem: vscode.TreeItem) {
 		if (!TreeItem.isTreeItem(extensionTreeItem)) {
-			// TODO: #154757 we should consider throwing, but let's wait and see if there are tons of reports of this first.
-			console.log(`Extension ${this.extension.identifier.value} has provided an invalid tree item.`);
+			throw new Error(`Extension ${this.extension.identifier.value} has provided an invalid tree item.`);
 		}
 	}
 
