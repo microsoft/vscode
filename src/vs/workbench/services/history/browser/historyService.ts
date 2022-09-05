@@ -263,22 +263,20 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private readonly canReopenClosedEditorContextKey = (new RawContextKey<boolean>('canReopenClosedEditor', false, localize('canReopenClosedEditor', "Whether it is possible to reopen the last closed editor"))).bindTo(this.contextKeyService);
 
 	updateContextKeys(): void {
-		this.contextKeyService.bufferChangeEvents(() => {
-			const activeStack = this.getStack();
+		const activeStack = this.getStack();
 
-			this.canNavigateBackContextKey.set(activeStack.canGoBack(GoFilter.NONE));
-			this.canNavigateForwardContextKey.set(activeStack.canGoForward(GoFilter.NONE));
+		this.canNavigateBackContextKey.set(activeStack.canGoBack(GoFilter.NONE));
+		this.canNavigateForwardContextKey.set(activeStack.canGoForward(GoFilter.NONE));
 
-			this.canNavigateBackInNavigationsContextKey.set(activeStack.canGoBack(GoFilter.NAVIGATION));
-			this.canNavigateForwardInNavigationsContextKey.set(activeStack.canGoForward(GoFilter.NAVIGATION));
-			this.canNavigateToLastNavigationLocationContextKey.set(activeStack.canGoLast(GoFilter.NAVIGATION));
+		this.canNavigateBackInNavigationsContextKey.set(activeStack.canGoBack(GoFilter.NAVIGATION));
+		this.canNavigateForwardInNavigationsContextKey.set(activeStack.canGoForward(GoFilter.NAVIGATION));
+		this.canNavigateToLastNavigationLocationContextKey.set(activeStack.canGoLast(GoFilter.NAVIGATION));
 
-			this.canNavigateBackInEditsContextKey.set(activeStack.canGoBack(GoFilter.EDITS));
-			this.canNavigateForwardInEditsContextKey.set(activeStack.canGoForward(GoFilter.EDITS));
-			this.canNavigateToLastEditLocationContextKey.set(activeStack.canGoLast(GoFilter.EDITS));
+		this.canNavigateBackInEditsContextKey.set(activeStack.canGoBack(GoFilter.EDITS));
+		this.canNavigateForwardInEditsContextKey.set(activeStack.canGoForward(GoFilter.EDITS));
+		this.canNavigateToLastEditLocationContextKey.set(activeStack.canGoLast(GoFilter.EDITS));
 
-			this.canReopenClosedEditorContextKey.set(this.recentlyClosedEditors.length > 0);
-		});
+		this.canReopenClosedEditorContextKey.set(this.recentlyClosedEditors.length > 0);
 	}
 
 	//#endregion

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event, MicrotaskEmitter, PauseableEmitter } from 'vs/base/common/event';
+import { Emitter, Event, MicrotaskEmitter } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
@@ -292,16 +292,6 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 		return new ContextKey(this, key, defaultValue);
 	}
 
-
-	bufferChangeEvents(callback: Function): void {
-		// this._onDidChangeContext.pause();
-		try {
-			callback();
-		} finally {
-			// this._onDidChangeContext.resume();
-		}
-	}
-
 	public createScoped(domNode: IContextKeyServiceTarget): IContextKeyService {
 		if (this._isDisposed) {
 			throw new Error(`AbstractContextKeyService has been disposed`);
@@ -543,10 +533,6 @@ class OverlayContextKeyService implements IContextKeyService {
 
 	constructor(private parent: AbstractContextKeyService | OverlayContextKeyService, overlay: Iterable<[string, any]>) {
 		this.overlay = new Map(overlay);
-	}
-
-	bufferChangeEvents(callback: Function): void {
-		this.parent.bufferChangeEvents(callback);
 	}
 
 	createKey<T extends ContextKeyValue>(): IContextKey<T> {
