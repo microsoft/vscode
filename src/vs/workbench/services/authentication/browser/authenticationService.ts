@@ -735,4 +735,4 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	}
 }
 
-registerSingleton(IAuthenticationService, AuthenticationService);
+registerSingleton(IAuthenticationService, AuthenticationService, false);

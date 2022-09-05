@@ -62,8 +62,9 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 
 	private registerListeners(): void {
 
-		// Install window jump list after opening window
-		this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen).then(() => this.handleWindowsJumpList());
+		// Install window jump list delayed after opening window
+		// because perf measurements have shown this to be slow
+		this.lifecycleMainService.when(LifecycleMainPhase.Eventually).then(() => this.handleWindowsJumpList());
 
 		// Add to history when entering workspace
 		this._register(this.workspacesManagementMainService.onDidEnterWorkspace(event => this.addRecentlyOpened([{ workspace: event.workspace, remoteAuthority: event.window.remoteAuthority }])));

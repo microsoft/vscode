@@ -68,12 +68,12 @@
 
 		/**
 		 * @param {string} userDataPath
-		 * @returns {object}
+		 * @returns {Promise<object | undefined>}
 		 */
-		function getLanguagePackConfigurations(userDataPath) {
+		async function getLanguagePackConfigurations(userDataPath) {
 			const configFile = path.join(userDataPath, 'languagepacks.json');
 			try {
-				return nodeRequire(configFile);
+				return JSON.parse(await readFile(configFile));
 			} catch (err) {
 				// Do nothing. If we can't read the file we have no
 				// language pack config.
@@ -83,7 +83,7 @@
 
 		/**
 		 * @param {object} config
-		 * @param {string} locale
+		 * @param {string | undefined} locale
 		 */
 		function resolveLanguagePackLocale(config, locale) {
 			try {
@@ -109,7 +109,7 @@
 		 * @param {string} commit
 		 * @param {string} userDataPath
 		 * @param {string} metaDataFile
-		 * @param {string} locale
+		 * @param {string | undefined} locale
 		 */
 		function getNLSConfiguration(commit, userDataPath, metaDataFile, locale) {
 			if (locale === 'pseudo') {
@@ -141,94 +141,95 @@
 				if (!commit) {
 					return defaultResult(initialLocale);
 				}
-				const configs = getLanguagePackConfigurations(userDataPath);
-				if (!configs) {
-					return defaultResult(initialLocale);
-				}
-				locale = resolveLanguagePackLocale(configs, locale);
-				if (!locale) {
-					return defaultResult(initialLocale);
-				}
-				const packConfig = configs[locale];
-				let mainPack;
-				if (!packConfig || typeof packConfig.hash !== 'string' || !packConfig.translations || typeof (mainPack = packConfig.translations['vscode']) !== 'string') {
-					return defaultResult(initialLocale);
-				}
-				return exists(mainPack).then(fileExists => {
-					if (!fileExists) {
+				return getLanguagePackConfigurations(userDataPath).then(configs => {
+					if (!configs) {
 						return defaultResult(initialLocale);
 					}
-					const packId = packConfig.hash + '.' + locale;
-					const cacheRoot = path.join(userDataPath, 'clp', packId);
-					const coreLocation = path.join(cacheRoot, commit);
-					const translationsConfigFile = path.join(cacheRoot, 'tcf.json');
-					const corruptedFile = path.join(cacheRoot, 'corrupted.info');
-					const result = {
-						locale: initialLocale,
-						availableLanguages: { '*': locale },
-						_languagePackId: packId,
-						_translationsConfigFile: translationsConfigFile,
-						_cacheRoot: cacheRoot,
-						_resolvedLanguagePackCoreLocation: coreLocation,
-						_corruptedFile: corruptedFile
-					};
-					return exists(corruptedFile).then(corrupted => {
-						// The nls cache directory is corrupted.
-						let toDelete;
-						if (corrupted) {
-							toDelete = rimraf(cacheRoot);
-						} else {
-							toDelete = Promise.resolve(undefined);
+					locale = resolveLanguagePackLocale(configs, locale);
+					if (!locale) {
+						return defaultResult(initialLocale);
+					}
+					const packConfig = configs[locale];
+					let mainPack;
+					if (!packConfig || typeof packConfig.hash !== 'string' || !packConfig.translations || typeof (mainPack = packConfig.translations['vscode']) !== 'string') {
+						return defaultResult(initialLocale);
+					}
+					return exists(mainPack).then(fileExists => {
+						if (!fileExists) {
+							return defaultResult(initialLocale);
 						}
-						return toDelete.then(() => {
-							return exists(coreLocation).then(fileExists => {
-								if (fileExists) {
-									// We don't wait for this. No big harm if we can't touch
-									touch(coreLocation).catch(() => { });
-									perf.mark('code/didGenerateNls');
-									return result;
-								}
-								return mkdirp(coreLocation).then(() => {
-									return Promise.all([readFile(metaDataFile), readFile(mainPack)]);
-								}).then(values => {
-									const metadata = JSON.parse(values[0]);
-									const packData = JSON.parse(values[1]).contents;
-									const bundles = Object.keys(metadata.bundles);
-									const writes = [];
-									for (const bundle of bundles) {
-										const modules = metadata.bundles[bundle];
-										const target = Object.create(null);
-										for (const module of modules) {
-											const keys = metadata.keys[module];
-											const defaultMessages = metadata.messages[module];
-											const translations = packData[module];
-											let targetStrings;
-											if (translations) {
-												targetStrings = [];
-												for (let i = 0; i < keys.length; i++) {
-													const elem = keys[i];
-													const key = typeof elem === 'string' ? elem : elem.key;
-													let translatedMessage = translations[key];
-													if (translatedMessage === undefined) {
-														translatedMessage = defaultMessages[i];
-													}
-													targetStrings.push(translatedMessage);
-												}
-											} else {
-												targetStrings = defaultMessages;
-											}
-											target[module] = targetStrings;
-										}
-										writes.push(writeFile(path.join(coreLocation, bundle.replace(/\//g, '!') + '.nls.json'), JSON.stringify(target)));
+						const packId = packConfig.hash + '.' + locale;
+						const cacheRoot = path.join(userDataPath, 'clp', packId);
+						const coreLocation = path.join(cacheRoot, commit);
+						const translationsConfigFile = path.join(cacheRoot, 'tcf.json');
+						const corruptedFile = path.join(cacheRoot, 'corrupted.info');
+						const result = {
+							locale: initialLocale,
+							availableLanguages: { '*': locale },
+							_languagePackId: packId,
+							_translationsConfigFile: translationsConfigFile,
+							_cacheRoot: cacheRoot,
+							_resolvedLanguagePackCoreLocation: coreLocation,
+							_corruptedFile: corruptedFile
+						};
+						return exists(corruptedFile).then(corrupted => {
+							// The nls cache directory is corrupted.
+							let toDelete;
+							if (corrupted) {
+								toDelete = rimraf(cacheRoot);
+							} else {
+								toDelete = Promise.resolve(undefined);
+							}
+							return toDelete.then(() => {
+								return exists(coreLocation).then(fileExists => {
+									if (fileExists) {
+										// We don't wait for this. No big harm if we can't touch
+										touch(coreLocation).catch(() => { });
+										perf.mark('code/didGenerateNls');
+										return result;
 									}
-									writes.push(writeFile(translationsConfigFile, JSON.stringify(packConfig.translations)));
-									return Promise.all(writes);
-								}).then(() => {
-									perf.mark('code/didGenerateNls');
-									return result;
-								}).catch(err => {
-									console.error('Generating translation files failed.', err);
-									return defaultResult(locale);
+									return mkdirp(coreLocation).then(() => {
+										return Promise.all([readFile(metaDataFile), readFile(mainPack)]);
+									}).then(values => {
+										const metadata = JSON.parse(values[0]);
+										const packData = JSON.parse(values[1]).contents;
+										const bundles = Object.keys(metadata.bundles);
+										const writes = [];
+										for (const bundle of bundles) {
+											const modules = metadata.bundles[bundle];
+											const target = Object.create(null);
+											for (const module of modules) {
+												const keys = metadata.keys[module];
+												const defaultMessages = metadata.messages[module];
+												const translations = packData[module];
+												let targetStrings;
+												if (translations) {
+													targetStrings = [];
+													for (let i = 0; i < keys.length; i++) {
+														const elem = keys[i];
+														const key = typeof elem === 'string' ? elem : elem.key;
+														let translatedMessage = translations[key];
+														if (translatedMessage === undefined) {
+															translatedMessage = defaultMessages[i];
+														}
+														targetStrings.push(translatedMessage);
+													}
+												} else {
+													targetStrings = defaultMessages;
+												}
+												target[module] = targetStrings;
+											}
+											writes.push(writeFile(path.join(coreLocation, bundle.replace(/\//g, '!') + '.nls.json'), JSON.stringify(target)));
+										}
+										writes.push(writeFile(translationsConfigFile, JSON.stringify(packConfig.translations)));
+										return Promise.all(writes);
+									}).then(() => {
+										perf.mark('code/didGenerateNls');
+										return result;
+									}).catch(err => {
+										console.error('Generating translation files failed.', err);
+										return defaultResult(locale);
+									});
 								});
 							});
 						});
