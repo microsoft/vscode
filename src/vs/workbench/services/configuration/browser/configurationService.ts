@@ -101,6 +101,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	private readonly configurationRegistry: IConfigurationRegistry;
 
 	private instantiationService: IInstantiationService | undefined;
+	private configurationEditing: ConfigurationEditing | undefined;
 
 	constructor(
 		{ remoteAuthority, configurationCache }: { remoteAuthority?: string; configurationCache: IConfigurationCache },
@@ -995,7 +996,9 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			throw new Error('Invalid configuration target');
 		}
 
-		await this.instantiationService.createInstance(ConfigurationEditing).writeConfiguration(editableConfigurationTarget, { key, value }, { scopes: overrides, donotNotifyError });
+		// Use same instance of ConfigurationEditing to make sure all writes go through the same queue
+		this.configurationEditing = this.configurationEditing ?? this.instantiationService.createInstance(ConfigurationEditing);
+		await this.configurationEditing.writeConfiguration(editableConfigurationTarget, { key, value }, { scopes: overrides, donotNotifyError });
 		switch (editableConfigurationTarget) {
 			case EditableConfigurationTarget.USER_LOCAL:
 				if (this.applicationConfiguration && this.configurationRegistry.getConfigurationProperties()[key].scope === ConfigurationScope.APPLICATION) {
