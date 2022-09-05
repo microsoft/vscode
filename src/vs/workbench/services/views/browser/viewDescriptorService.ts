@@ -588,23 +588,24 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 		for (const [containerId, location] of this.viewContainersCustomLocations) {
 			const container = this.getViewContainerById(containerId);
-			// Save only if the view container exists and
-			// the view container is generated or not at default location
-			if (container && (this.isGeneratedContainerId(containerId) || location !== this.getDefaultViewContainerLocation(container))) {
-				viewCustomizations.viewContainerLocations[containerId] = location;
+			// Skip if the view container is not a generated container and in default location
+			if (container && !this.isGeneratedContainerId(containerId) && location === this.getDefaultViewContainerLocation(container)) {
+				continue;
 			}
+			viewCustomizations.viewContainerLocations[containerId] = location;
 		}
 
-		for (const viewContainer of this.viewContainers) {
-			const viewContainerModel = this.getViewContainerModel(viewContainer);
-			for (const viewDescriptor of viewContainerModel.allViewDescriptors) {
-				const defaultContainer = this.getDefaultContainerById(viewDescriptor.id);
-				// Save only if the view is not in the default container
+		for (const [viewId, viewContainerId] of this.viewDescriptorsCustomLocations) {
+			const viewContainer = this.getViewContainerById(viewContainerId);
+			if (viewContainer) {
+				const defaultContainer = this.getDefaultContainerById(viewId);
+				// Skip if the view is at default location
 				// https://github.com/microsoft/vscode/issues/90414
-				if (defaultContainer?.id !== viewContainer.id) {
-					viewCustomizations.viewLocations[viewDescriptor.id] = viewContainer.id;
+				if (defaultContainer?.id === viewContainer.id) {
+					continue;
 				}
 			}
+			viewCustomizations.viewLocations[viewId] = viewContainerId;
 		}
 
 		this.viewCustomizations = viewCustomizations;

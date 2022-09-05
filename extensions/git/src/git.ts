@@ -649,6 +649,27 @@ export class Git {
 	private log(output: string): void {
 		this._onOutput.emit('log', output);
 	}
+
+	async mergeFile(options: { input1Path: string; input2Path: string; basePath: string; diff3?: boolean }): Promise<string> {
+		const args = ['merge-file', '-p', options.input1Path, options.basePath, options.input2Path];
+		if (options.diff3) {
+			args.push('--diff3');
+		} else {
+			args.push('--no-diff3');
+		}
+
+		try {
+			const result = await this.exec('', args);
+			return result.stdout;
+		} catch (err) {
+			if (typeof err.stdout === 'string') {
+				// The merge had conflicts, stdout still contains the merged result (with conflict markers)
+				return err.stdout;
+			} else {
+				throw err;
+			}
+		}
+	}
 }
 
 export interface Commit {
