@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getClientArea } from 'vs/base/browser/dom';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -12,22 +12,27 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { PanelAlignment, Position, positionFromString, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
 
 interface IWorkbenchLayoutStateKey {
-	name: string;
-	runtime: boolean;
-	defaultValue: any;
-	scope: StorageScope;
-	target: StorageTarget;
-	zenModeIgnore?: boolean;
+	readonly name: string;
+	readonly runtime: boolean;
+	readonly defaultValue: unknown;
+	readonly scope: StorageScope;
+	readonly target: StorageTarget;
+	readonly zenModeIgnore?: boolean;
 }
 
 type StorageKeyType = string | boolean | number | object;
+
 abstract class WorkbenchLayoutStateKey<T extends StorageKeyType> implements IWorkbenchLayoutStateKey {
+
 	abstract readonly runtime: boolean;
+
 	constructor(readonly name: string, readonly scope: StorageScope, readonly target: StorageTarget, public defaultValue: T) { }
 }
 
 class RuntimeStateKey<T extends StorageKeyType> extends WorkbenchLayoutStateKey<T> {
+
 	readonly runtime = true;
+
 	constructor(name: string, scope: StorageScope, target: StorageTarget, defaultValue: T, readonly zenModeIgnore?: boolean) {
 		super(name, scope, target, defaultValue);
 	}
@@ -38,6 +43,7 @@ class InitializationStateKey<T extends StorageKeyType> extends WorkbenchLayoutSt
 }
 
 export const LayoutStateKeys = {
+
 	// Editor
 	EDITOR_CENTERED: new RuntimeStateKey<boolean>('editor.centered', StorageScope.WORKSPACE, StorageTarget.USER, false),
 
@@ -75,27 +81,46 @@ export const LayoutStateKeys = {
 	EDITOR_HIDDEN: new RuntimeStateKey<boolean>('editor.hidden', StorageScope.WORKSPACE, StorageTarget.USER, false),
 	PANEL_HIDDEN: new RuntimeStateKey<boolean>('panel.hidden', StorageScope.WORKSPACE, StorageTarget.USER, true),
 	AUXILIARYBAR_HIDDEN: new RuntimeStateKey<boolean>('auxiliaryBar.hidden', StorageScope.WORKSPACE, StorageTarget.USER, true),
-	STATUSBAR_HIDDEN: new RuntimeStateKey<boolean>('statusBar.hidden', StorageScope.WORKSPACE, StorageTarget.USER, false, true),
+	STATUSBAR_HIDDEN: new RuntimeStateKey<boolean>('statusBar.hidden', StorageScope.WORKSPACE, StorageTarget.USER, false, true)
+
 } as const;
 
-
 interface ILayoutStateChangeEvent<T extends StorageKeyType> {
-	key: RuntimeStateKey<T>;
-	value: T;
+	readonly key: RuntimeStateKey<T>;
+	readonly value: T;
 }
-export class LayoutStateModel extends Disposable {
-	static readonly STORAGE_PREFIX = 'workbench.';
-	private stateCache = new Map<string, any>();
 
-	private readonly _onDidChangeState: Emitter<ILayoutStateChangeEvent<StorageKeyType>> = this._register(new Emitter<ILayoutStateChangeEvent<StorageKeyType>>());
-	readonly onDidChangeState: Event<ILayoutStateChangeEvent<StorageKeyType>> = this._onDidChangeState.event;
+export enum WorkbenchLayoutSettings {
+	PANEL_POSITION = 'workbench.panel.defaultLocation',
+	PANEL_OPENS_MAXIMIZED = 'workbench.panel.opensMaximized',
+	ZEN_MODE_CONFIG = 'zenMode',
+	ZEN_MODE_SILENT_NOTIFICATIONS = 'zenMode.silentNotifications',
+	EDITOR_CENTERED_LAYOUT_AUTO_RESIZE = 'workbench.editor.centeredLayoutAutoResize',
+}
+
+enum LegacyWorkbenchLayoutSettings {
+	ACTIVITYBAR_VISIBLE = 'workbench.activityBar.visible', // Deprecated to UI State
+	STATUSBAR_VISIBLE = 'workbench.statusBar.visible', // Deprecated to UI State
+	SIDEBAR_POSITION = 'workbench.sideBar.location', // Deprecated to UI State
+}
+
+export class LayoutStateModel extends Disposable {
+
+	static readonly STORAGE_PREFIX = 'workbench.';
+
+	private readonly _onDidChangeState = this._register(new Emitter<ILayoutStateChangeEvent<StorageKeyType>>());
+	readonly onDidChangeState = this._onDidChangeState.event;
+
+	private readonly stateCache = new Map<string, unknown>();
 
 	constructor(
 		private readonly storageService: IStorageService,
 		private readonly configurationService: IConfigurationService,
 		private readonly contextService: IWorkspaceContextService,
-		private readonly container: HTMLElement) {
+		private readonly container: HTMLElement
+	) {
 		super();
+
 		this._register(this.configurationService.onDidChangeConfiguration(configurationChange => this.updateStateFromLegacySettings(configurationChange)));
 	}
 
@@ -157,7 +182,6 @@ export class LayoutStateModel extends Disposable {
 		LayoutStateKeys.PANEL_SIZE.defaultValue = (this.stateCache.get(LayoutStateKeys.PANEL_POSITION.name) ?? LayoutStateKeys.PANEL_POSITION.defaultValue) === 'bottom' ? workbenchDimensions.height / 3 : workbenchDimensions.width / 4;
 		LayoutStateKeys.SIDEBAR_HIDDEN.defaultValue = this.contextService.getWorkbenchState() === WorkbenchState.EMPTY;
 
-
 		// Apply all defaults
 		for (key in LayoutStateKeys) {
 			const stateKey = LayoutStateKeys[key];
@@ -193,9 +217,8 @@ export class LayoutStateModel extends Disposable {
 			const stateKey = LayoutStateKeys[key] as WorkbenchLayoutStateKey<StorageKeyType>;
 			if ((workspace && stateKey.scope === StorageScope.WORKSPACE) ||
 				(global && stateKey.scope === StorageScope.PROFILE)) {
-				// Don't write out specific keys while in zen mode
 				if (isZenMode && stateKey instanceof RuntimeStateKey && stateKey.zenModeIgnore) {
-					continue;
+					continue; // Don't write out specific keys while in zen mode
 				}
 
 				this.saveKeyToStorage(stateKey);
@@ -269,18 +292,4 @@ export class LayoutStateModel extends Disposable {
 
 		return value as T | undefined;
 	}
-}
-
-export enum WorkbenchLayoutSettings {
-	PANEL_POSITION = 'workbench.panel.defaultLocation',
-	PANEL_OPENS_MAXIMIZED = 'workbench.panel.opensMaximized',
-	ZEN_MODE_CONFIG = 'zenMode',
-	ZEN_MODE_SILENT_NOTIFICATIONS = 'zenMode.silentNotifications',
-	EDITOR_CENTERED_LAYOUT_AUTO_RESIZE = 'workbench.editor.centeredLayoutAutoResize',
-}
-
-enum LegacyWorkbenchLayoutSettings {
-	ACTIVITYBAR_VISIBLE = 'workbench.activityBar.visible', // Deprecated to UI State
-	STATUSBAR_VISIBLE = 'workbench.statusBar.visible', // Deprecated to UI State
-	SIDEBAR_POSITION = 'workbench.sideBar.location', // Deprecated to UI State
 }
