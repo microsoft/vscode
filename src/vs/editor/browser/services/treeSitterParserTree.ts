@@ -14,7 +14,7 @@ import { ContiguousMultilineTokensBuilder } from 'vs/editor/common/tokens/contig
 import Parser = require('web-tree-sitter');
 
 const mapWordToColor = new Map(Object.entries({
-	'comments': 0,
+	'comment': 33686849,
 	'other': 33588289,
 	'keywords1': 33719361,
 	'keywords2': 34112577,
@@ -24,6 +24,11 @@ const mapWordToColor = new Map(Object.entries({
 	'variable': 33850433,
 	'number': 33752129,
 }));
+
+const exceptions = {
+	FUNCTION_DECLARATION: 'function_declaration',
+	METHOD_DEFINITION: 'method_definition'
+}
 
 export class TreeSitterParseTree {
 
@@ -71,9 +76,8 @@ export class TreeSitterParseTree {
 			} else {
 				this._tree = this._parser.parse((startIndex: number, startPoint: Parser.Point | undefined, endIndex: number | undefined) => this._retrieveTextAtPosition(startIndex, startPoint, endIndex));
 			}
-			console.log('this tree text : ', this._tree?.rootNode.text);
 			this.getCaptures();
-			this.getMatches();
+			// this.getMatches();
 			// TODO: just to investigate the contents of the tokens
 			this.renderTokenColors();
 		}));
@@ -86,7 +90,6 @@ export class TreeSitterParseTree {
 		const contents = readFileSync(__dirname + '\\..\\..\\..\\..\\..\\src\\vs\\editor\\browser\\services\\tokens.scm', { encoding: 'utf8' });
 		const query = this._language.query(contents);
 		this._matches = query.matches(this._tree.rootNode);
-		console.log('matches : ', this._matches);
 	}
 
 	public getCaptures() {
@@ -94,9 +97,7 @@ export class TreeSitterParseTree {
 			return;
 		}
 		/*
-		TODO: to add still but bad syntax thrown?
-		(required_parameter pattern: (identifier) @variable)
-		(optional_parameter pattern : (identifier) @variable)
+		TODO: to add still but bad syntax thrown
 		(literal_type (undefined) @type)
 		*/
 
@@ -119,15 +120,11 @@ export class TreeSitterParseTree {
 		const contents = readFileSync(__dirname + '\\..\\..\\..\\..\\..\\src\\vs\\editor\\browser\\services\\tokens.scm', { encoding: 'utf8' });
 		const query = this._language.query(contents);
 		this._captures = query.captures(this._tree.rootNode);
-		console.log('captures : ', this._captures);
+		console.log('this._captures : ', this._captures);
 		this._captureNames = query.captureNames;
 	}
 
 	public renderTokenColors() {
-		console.log('render token colors');
-		// const builder = new ContiguousMultilineTokensBuilder();
-		// const array: Uint8Array = builder.serialize();
-		// const tokens = this._model.tokenization.getLineTokens(64).getTokens();
 		for (const captureName of this._captureNames) {
 			const syntaxNodes: Parser.SyntaxNode[] = this._captures.filter(node => node.name === captureName).map(capture => capture.node);
 			this._captureNameToNodeMap.set(captureName, syntaxNodes);
@@ -136,39 +133,76 @@ export class TreeSitterParseTree {
 		let j = 0;
 		let numberCaptures = this._captures.length;
 
-		console.log('this._captures : ', this._captures);
+		let beginningIndex = 0;
+		let newBeginningIndexFound = true;
 
 		for (let i = 0; i < this._model.getLineCount(); i++) {
 			const array: Uint32Array[] = [];
 			const arrayOfTokens: number[] = [];
 
-			while (j < numberCaptures && this._captures[j].node.endPosition.row <= i) {
+			let j = beginningIndex;
+			while (j < numberCaptures && this._captures[j].node.startPosition.row <= i) {
 				// array.push(new Uint32Array([4, 33719361, 5, 33588289, 11, 34079809, 16, 33588289]));
-				if (this._captures[j].node.endPosition.row === i) {
+				if (this._captures[j].node.startPosition.row <= i && i <= this._captures[j].node.endPosition.row) {
+					if (!newBeginningIndexFound) {
+						newBeginningIndexFound = true;
+						beginningIndex = this._captures[j].node.startPosition.row;
+					}
 					let color;
 					if (mapWordToColor.has(this._captures[j].name)) {
 						color = mapWordToColor.get(this._captures[j].name);
 					} else {
 						color = mapWordToColor.get('other');
 					}
-					arrayOfTokens.push(this._captures[j].node.endPosition.column, color as number);
+					arrayOfTokens.push(this._captures[j].node.startPosition.column, mapWordToColor.get('other') as number);
+
+					let endColumn;
+					const line = this._model.getLineContent(this._captures[j].node.startPosition.row + 1);
+					console.log('this._captures[j].name : ', this._captures[j].name);
+					switch (this._captures[j].name) {
+						/*
+						case exceptions.FUNCTION_DECLARATION:
+							console.log('inside function declaration');
+							endColumn = line.indexOf('function') + ('function').length + 1;
+							arrayOfTokens.push(endColumn, mapWordToColor.get('keywords1') as number);
+							break;
+						*/
+						/*
+						case exceptions.METHOD_DEFINITION:
+							console.log('inside method definition');
+							endColumn = line.indexOf('async');
+							console.log('endColumn : ', endColumn, ' for line number : ', i + 1);
+							if (endColumn > 0) {
+								console.log('inside of if loop');
+								endColumn += ('async').length + 1;
+								arrayOfTokens.push(endColumn, mapWordToColor.get('keywords1') as number);
+							}
+							break;
+						*/
+						default:
+							endColumn = this._captures[j].node.endPosition.column;
+							arrayOfTokens.push(endColumn, color as number);
+							break;
+					}
 				}
+
+				/*
+				(function_declaration) @function_declaration
+				(method_definition) @method_definition
+				*/
+
+				// need to add one last token for the end
+				// Find later why the the following does not work, after transformation of contiguousMultilineTokens later when set as tokens
+				// arrayOfTokens.push(this._model.getLineLength(i + 1), mapWordToColor.get('other') as number);
 				j++;
 			}
 
+			newBeginningIndexFound = false;
 			array.push(new Uint32Array(arrayOfTokens));
-			console.log('value of j : ', j);
-			console.log('inside of renderTokenColors for line ', i, ' array : ', array);
 			contiguousMultilineToken.push(new ContiguousMultilineTokens(i + 1, array));
 		}
 
-		console.log('contiguousMultilineToken : ', contiguousMultilineToken);
 		this._model.tokenization.setTokens(contiguousMultilineToken);
-
-		for (let i = 1; i <= this._model.getLineCount(); i++) {
-			const lineTokens = this._model.tokenization.getLineTokens(i);
-			console.log('lineTokens : ', lineTokens);
-		}
 	}
 
 	private _retrieveTextAtPosition(startIndex: number, startPoint: Parser.Point | undefined, endIndex: number | undefined) {

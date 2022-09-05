@@ -349,7 +349,6 @@ export class RenderLineOutput {
 }
 
 export function renderViewLine(input: RenderLineInput, sb: StringBuilder): RenderLineOutput {
-	console.log('input in renderViewLine : ', input);
 	if (input.lineContent.length === 0) {
 
 		if (input.lineDecorations.length > 0) {
@@ -451,7 +450,6 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		isOverflowing = false;
 		len = lineContent.length;
 	}
-	console.log('resolveRenderLineInput input : ', input);
 	let tokens = transformAndRemoveOverflowing(lineContent, input.containsRTL, input.lineTokens, input.fauxIndentLength, len);
 	if (input.renderControlCharacters && !input.isBasicASCII) {
 		// Calling `extractControlCharacters` before adding (possibly empty) line parts
@@ -510,7 +508,6 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
  * Ensure that all tokens end before `len` and the last one ends precisely at `len`.
  */
 function transformAndRemoveOverflowing(lineContent: string, lineContainsRTL: boolean, tokens: IViewLineTokens, fauxIndentLength: number, len: number): LinePart[] {
-	console.log('transformAndRemoveOverflowing tokens : ', tokens);
 	const result: LinePart[] = [];
 	let resultLen = 0;
 
@@ -519,7 +516,6 @@ function transformAndRemoveOverflowing(lineContent: string, lineContainsRTL: boo
 		result[resultLen++] = new LinePart(fauxIndentLength, '', 0, false);
 	}
 	let startOffset = fauxIndentLength;
-	console.log('tokens.getCount() : ', tokens.getCount());
 	for (let tokenIndex = 0, tokensLen = tokens.getCount(); tokenIndex < tokensLen; tokenIndex++) {
 		const endIndex = tokens.getEndOffset(tokenIndex);
 		if (endIndex <= fauxIndentLength) {
@@ -527,7 +523,6 @@ function transformAndRemoveOverflowing(lineContent: string, lineContainsRTL: boo
 			continue;
 		}
 		const type = tokens.getClassName(tokenIndex);
-		console.log('type : ', type);
 		if (endIndex >= len) {
 			const tokenContainsRTL = (lineContainsRTL ? strings.containsRTL(lineContent.substring(startOffset, len)) : false);
 			result[resultLen++] = new LinePart(len, type, 0, tokenContainsRTL);
@@ -917,7 +912,6 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 	const len = input.len;
 	const isOverflowing = input.isOverflowing;
 	const parts = input.parts;
-	console.log('parts inside of _renderLine : ', parts);
 	const fauxIndentLength = input.fauxIndentLength;
 	const tabSize = input.tabSize;
 	const startVisibleColumn = input.startVisibleColumn;
@@ -1131,7 +1125,6 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 
 	sb.appendASCIIString('</span>');
 
-	console.log('sb to string : ', sb.build());
 	return new RenderLineOutput(characterMapping, containsRTL, containsForeignElements);
 }
 

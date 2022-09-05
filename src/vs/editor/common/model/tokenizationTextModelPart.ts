@@ -168,10 +168,6 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 					lineNumber <= element.endLineNumber;
 					lineNumber++
 				) {
-					console.log('language id : ', this._languageId);
-					console.log('line number : ', lineNumber - 1);
-					console.log('line length : ', this._textModel.getLineLength(lineNumber));
-					console.log('get line tokens : ', element.getLineTokens(lineNumber));
 					if (hasChange) {
 						this._tokens.setTokens(
 							this._languageId,
