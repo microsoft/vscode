@@ -131,16 +131,16 @@ suite('vscode API - workspace', () => {
 			assert.strictEqual(doc.uri.scheme, 'untitled');
 			assert.ok(doc.isDirty);
 
-			let closed: vscode.TextDocument;
-			const d0 = vscode.workspace.onDidCloseTextDocument(e => closed = e);
+			const closedDocuments: vscode.TextDocument[] = [];
+			const d0 = vscode.workspace.onDidCloseTextDocument(e => closedDocuments.push(e));
 
 			return vscode.window.showTextDocument(doc).then(() => {
 				return doc.save().then((didSave: boolean) => {
 
 					assert.strictEqual(didSave, true, `FAILED to save${doc.uri.toString()}`);
 
+					const closed = closedDocuments.filter(close => close.uri.toString() === doc.uri.toString())[0];
 					assert.ok(closed);
-					assert.ok(closed.uri.toString() === doc.uri.toString(), `closed.uri = ${closed.uri.toString()} but doc.uri = ${doc.uri.toString()}`);
 					assert.ok(closed === doc);
 					assert.ok(!doc.isDirty);
 					assert.ok(fs.existsSync(path));

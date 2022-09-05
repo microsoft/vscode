@@ -56,7 +56,7 @@ export class CommandNavigationAddon extends Disposable implements ICommandTracke
 		}
 	}
 
-	private _getCommandMarkers(): readonly IMarker[] {
+	private _getCommandMarkers(skipEmptyCommands: boolean = false): readonly IMarker[] {
 		if (!this._commandDetection) {
 			return [];
 		}
@@ -64,7 +64,7 @@ export class CommandNavigationAddon extends Disposable implements ICommandTracke
 		if (this._commandDetection.type === TerminalCapability.PartialCommandDetection) {
 			commands = this._commandDetection.commands;
 		} else {
-			commands = coalesce(this._commandDetection.commands.map(e => e.marker));
+			commands = coalesce(this._commandDetection.commands.filter(e => skipEmptyCommands ? e.command : true).map(e => e.marker));
 		}
 		return commands;
 	}
@@ -82,7 +82,20 @@ export class CommandNavigationAddon extends Disposable implements ICommandTracke
 		this._navigationDecoration = undefined;
 	}
 
-	scrollToPreviousCommand(scrollPosition: ScrollPosition = ScrollPosition.Middle, retainSelection: boolean = false): void {
+	private _isEmptyCommand(marker: IMarker | Boundary) {
+
+		if (marker === Boundary.Bottom) {
+			return true;
+		}
+
+		if (marker === Boundary.Top) {
+			return this._getCommandMarkers(true).map(e => e.line).indexOf(0) === -1;
+		}
+
+		return this._getCommandMarkers(true).indexOf(marker) === -1;
+	}
+
+	scrollToPreviousCommand(scrollPosition: ScrollPosition = ScrollPosition.Middle, retainSelection: boolean = false, skipEmptyCommands: boolean = true): void {
 		if (!this._terminal) {
 			return;
 		}
@@ -98,19 +111,23 @@ export class CommandNavigationAddon extends Disposable implements ICommandTracke
 		if (typeof this._currentMarker === 'object' ? !this._isMarkerInViewport(this._terminal, this._currentMarker) : currentLineY !== viewportY) {
 			// The user has scrolled, find the line based on the current scroll position. This only
 			// works when not retaining selection
-			const markersBelowViewport = this._getCommandMarkers().filter(e => e.line >= viewportY).length;
+			const markersBelowViewport = this._getCommandMarkers(skipEmptyCommands).filter(e => e.line >= viewportY).length;
 			// -1 will scroll to the top
-			markerIndex = this._getCommandMarkers().length - markersBelowViewport - 1;
+			markerIndex = this._getCommandMarkers(skipEmptyCommands).length - markersBelowViewport - 1;
 		} else if (this._currentMarker === Boundary.Bottom) {
-			markerIndex = this._getCommandMarkers().length - 1;
+			markerIndex = this._getCommandMarkers(skipEmptyCommands).length - 1;
 		} else if (this._currentMarker === Boundary.Top) {
 			markerIndex = -1;
 		} else if (this._isDisposable) {
-			markerIndex = this._findPreviousCommand(this._terminal);
+			markerIndex = this._findPreviousCommand(this._terminal, skipEmptyCommands);
 			this._currentMarker.dispose();
 			this._isDisposable = false;
 		} else {
-			markerIndex = this._getCommandMarkers().indexOf(this._currentMarker) - 1;
+			if (skipEmptyCommands && this._isEmptyCommand(this._currentMarker)) {
+				markerIndex = this._findPreviousCommand(this._terminal, true);
+			} else {
+				markerIndex = this._getCommandMarkers(skipEmptyCommands).indexOf(this._currentMarker) - 1;
+			}
 		}
 
 		if (markerIndex < 0) {
@@ -120,11 +137,11 @@ export class CommandNavigationAddon extends Disposable implements ICommandTracke
 			return;
 		}
 
-		this._currentMarker = this._getCommandMarkers()[markerIndex];
+		this._currentMarker = this._getCommandMarkers(skipEmptyCommands)[markerIndex];
 		this._scrollToMarker(this._currentMarker, scrollPosition);
 	}
 
-	scrollToNextCommand(scrollPosition: ScrollPosition = ScrollPosition.Middle, retainSelection: boolean = false): void {
+	scrollToNextCommand(scrollPosition: ScrollPosition = ScrollPosition.Middle, retainSelection: boolean = false, skipEmptyCommands: boolean = true): void {
 		if (!this._terminal) {
 			return;
 		}
@@ -140,29 +157,33 @@ export class CommandNavigationAddon extends Disposable implements ICommandTracke
 		if (typeof this._currentMarker === 'object' ? !this._isMarkerInViewport(this._terminal, this._currentMarker) : currentLineY !== viewportY) {
 			// The user has scrolled, find the line based on the current scroll position. This only
 			// works when not retaining selection
-			const markersAboveViewport = this._getCommandMarkers().filter(e => e.line <= viewportY).length;
+			const markersAboveViewport = this._getCommandMarkers(skipEmptyCommands).filter(e => e.line <= viewportY).length;
 			// markers.length will scroll to the bottom
 			markerIndex = markersAboveViewport;
 		} else if (this._currentMarker === Boundary.Bottom) {
-			markerIndex = this._getCommandMarkers().length;
+			markerIndex = this._getCommandMarkers(skipEmptyCommands).length;
 		} else if (this._currentMarker === Boundary.Top) {
 			markerIndex = 0;
 		} else if (this._isDisposable) {
-			markerIndex = this._findNextCommand(this._terminal);
+			markerIndex = this._findNextCommand(this._terminal, skipEmptyCommands);
 			this._currentMarker.dispose();
 			this._isDisposable = false;
 		} else {
-			markerIndex = this._getCommandMarkers().indexOf(this._currentMarker) + 1;
+			if (skipEmptyCommands && this._isEmptyCommand(this._currentMarker)) {
+				markerIndex = this._findNextCommand(this._terminal, true);
+			} else {
+				markerIndex = this._getCommandMarkers(skipEmptyCommands).indexOf(this._currentMarker) + 1;
+			}
 		}
 
-		if (markerIndex >= this._getCommandMarkers().length) {
+		if (markerIndex >= this._getCommandMarkers(skipEmptyCommands).length) {
 			this._currentMarker = Boundary.Bottom;
 			this._terminal.scrollToBottom();
 			this._resetNavigationDecoration();
 			return;
 		}
 
-		this._currentMarker = this._getCommandMarkers()[markerIndex];
+		this._currentMarker = this._getCommandMarkers(skipEmptyCommands)[markerIndex];
 		this._scrollToMarker(this._currentMarker, scrollPosition);
 	}
 
@@ -232,7 +253,11 @@ export class CommandNavigationAddon extends Disposable implements ICommandTracke
 		if (this._selectionStart === null) {
 			this._selectionStart = this._currentMarker;
 		}
-		this.scrollToPreviousCommand(ScrollPosition.Middle, true);
+		if (this._commandDetection?.type !== TerminalCapability.PartialCommandDetection) {
+			this.scrollToPreviousCommand(ScrollPosition.Middle, true, true);
+		} else {
+			this.scrollToPreviousCommand(ScrollPosition.Middle, true, false);
+		}
 		this._selectLines(this._terminal, this._currentMarker, this._selectionStart);
 	}
 
@@ -243,7 +268,11 @@ export class CommandNavigationAddon extends Disposable implements ICommandTracke
 		if (this._selectionStart === null) {
 			this._selectionStart = this._currentMarker;
 		}
-		this.scrollToNextCommand(ScrollPosition.Middle, true);
+		if (this._commandDetection?.type !== TerminalCapability.PartialCommandDetection) {
+			this.scrollToNextCommand(ScrollPosition.Middle, true, true);
+		} else {
+			this.scrollToNextCommand(ScrollPosition.Middle, true, false);
+		}
 		this._selectLines(this._terminal, this._currentMarker, this._selectionStart);
 	}
 
@@ -369,16 +398,16 @@ export class CommandNavigationAddon extends Disposable implements ICommandTracke
 		}
 	}
 
-	private _findPreviousCommand(xterm: Terminal): number {
+	private _findPreviousCommand(xterm: Terminal, skipEmptyCommands: boolean = false): number {
 		if (this._currentMarker === Boundary.Top) {
 			return 0;
 		} else if (this._currentMarker === Boundary.Bottom) {
-			return this._getCommandMarkers().length - 1;
+			return this._getCommandMarkers(skipEmptyCommands).length - 1;
 		}
 
 		let i;
-		for (i = this._getCommandMarkers().length - 1; i >= 0; i--) {
-			if (this._getCommandMarkers()[i].line < this._currentMarker.line) {
+		for (i = this._getCommandMarkers(skipEmptyCommands).length - 1; i >= 0; i--) {
+			if (this._getCommandMarkers(skipEmptyCommands)[i].line < this._currentMarker.line) {
 				return i;
 			}
 		}
@@ -386,21 +415,21 @@ export class CommandNavigationAddon extends Disposable implements ICommandTracke
 		return -1;
 	}
 
-	private _findNextCommand(xterm: Terminal): number {
+	private _findNextCommand(xterm: Terminal, skipEmptyCommands: boolean = false): number {
 		if (this._currentMarker === Boundary.Top) {
 			return 0;
 		} else if (this._currentMarker === Boundary.Bottom) {
-			return this._getCommandMarkers().length - 1;
+			return this._getCommandMarkers(skipEmptyCommands).length - 1;
 		}
 
 		let i;
-		for (i = 0; i < this._getCommandMarkers().length; i++) {
-			if (this._getCommandMarkers()[i].line > this._currentMarker.line) {
+		for (i = 0; i < this._getCommandMarkers(skipEmptyCommands).length; i++) {
+			if (this._getCommandMarkers(skipEmptyCommands)[i].line > this._currentMarker.line) {
 				return i;
 			}
 		}
 
-		return this._getCommandMarkers().length;
+		return this._getCommandMarkers(skipEmptyCommands).length;
 	}
 }
 

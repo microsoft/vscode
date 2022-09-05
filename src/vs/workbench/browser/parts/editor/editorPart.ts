@@ -1194,4 +1194,4 @@ class EditorDropService implements IEditorDropService {
 }
 
 registerSingleton(IEditorGroupsService, EditorPart, false);
-registerSingleton(IEditorDropService, EditorDropService, false);
+registerSingleton(IEditorDropService, EditorDropService, true);

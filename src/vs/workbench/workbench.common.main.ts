@@ -138,7 +138,7 @@ registerSingleton(IListService, ListService, true);
 registerSingleton(IEditorWorkerService, EditorWorkerService, false);
 registerSingleton(IMarkerDecorationsService, MarkerDecorationsService, true);
 registerSingleton(IMarkerService, MarkerService, true);
-registerSingleton(IContextKeyService, ContextKeyService, false);
+registerSingleton(IContextKeyService, ContextKeyService, true);
 registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationService, true);
 registerSingleton(IDownloadService, DownloadService, true);
 registerSingleton(IOpenerService, OpenerService, true);

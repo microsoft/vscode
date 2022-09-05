@@ -93,7 +93,7 @@ import { WebLanguagePacksService } from 'vs/platform/languagePacks/browser/langu
 
 registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService, true);
 registerSingleton(IAccessibilityService, AccessibilityService, true);
-registerSingleton(IContextMenuService, ContextMenuService, false);
+registerSingleton(IContextMenuService, ContextMenuService, true);
 registerSingleton(ILoggerService, FileLoggerService, true);
 registerSingleton(IUserDataSyncStoreService, UserDataSyncStoreService, true);
 registerSingleton(IUserDataSyncMachinesService, UserDataSyncMachinesService, true);
@@ -103,7 +103,7 @@ registerSingleton(IUserDataSyncService, UserDataSyncService, true);
 registerSingleton(IUserDataAutoSyncService, UserDataAutoSyncService, false);
 registerSingleton(ITitleService, TitlebarPart, false);
 registerSingleton(IExtensionTipsService, ExtensionTipsService, true);
-registerSingleton(ITimerService, TimerService, false);
+registerSingleton(ITimerService, TimerService, true);
 registerSingleton(ICustomEndpointTelemetryService, NullEndpointTelemetryService, true);
 registerSingleton(IDiagnosticsService, NullDiagnosticsService, true);
 registerSingleton(ILanguagePackService, WebLanguagePacksService, true);
