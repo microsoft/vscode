@@ -1195,6 +1195,7 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 
 	public getViewLineData(viewLineNumber: number): ViewLineData {
 		const lineTokens = this.model.tokenization.getLineTokens(viewLineNumber);
+		console.log('lineTokens in getViewLineData : ', lineTokens);
 		const lineContent = lineTokens.getLineContent();
 		return new ViewLineData(
 			lineContent,

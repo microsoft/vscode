@@ -1125,6 +1125,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 
 	sb.appendASCIIString('</span>');
 
+	console.log('sb to string : ', sb.build());
 	return new RenderLineOutput(characterMapping, containsRTL, containsForeignElements);
 }
 

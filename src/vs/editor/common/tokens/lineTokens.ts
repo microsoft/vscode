@@ -75,6 +75,11 @@ export class LineTokens implements IViewLineTokens {
 		return true;
 	}
 
+	// TODO: remove later
+	public getTokens(): Uint32Array {
+		return this._tokens;
+	}
+
 	public getLineContent(): string {
 		return this._text;
 	}

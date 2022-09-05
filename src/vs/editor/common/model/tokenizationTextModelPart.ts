@@ -168,6 +168,10 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 					lineNumber <= element.endLineNumber;
 					lineNumber++
 				) {
+					console.log('language id : ', this._languageId);
+					console.log('line number : ', lineNumber - 1);
+					console.log('line length : ', this._textModel.getLineLength(lineNumber));
+					console.log('get line tokens : ', element.getLineTokens(lineNumber));
 					if (hasChange) {
 						this._tokens.setTokens(
 							this._languageId,
@@ -215,7 +219,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		tokens: SparseMultilineTokens[] | null,
 		isComplete: boolean
 	): void {
-		this._semanticTokens.set(tokens, isComplete);
+		// this._semanticTokens.set(tokens, isComplete);
 
 		this._emitModelTokensChangedEvent({
 			tokenizationSupportChanged: false,
@@ -353,11 +357,14 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		newText: string
 	): LineTokens | null {
 		const validatedPosition = this._textModel.validatePosition(position);
+		return null;
+		/*
 		return this._tokenization.tokenizeLineWithEdit(
 			validatedPosition,
 			length,
 			newText
 		);
+		*/
 	}
 
 	private getLanguageConfiguration(

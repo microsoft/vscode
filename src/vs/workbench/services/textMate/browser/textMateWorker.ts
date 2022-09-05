@@ -57,7 +57,7 @@ class TextMateWorkerModel extends MirrorTextModel {
 		this._languageId = languageId;
 		this._encodedLanguageId = encodedLanguageId;
 		this._isDisposed = false;
-		this._resetTokenization();
+		// this._resetTokenization();
 	}
 
 	public override dispose(): void {
@@ -73,6 +73,7 @@ class TextMateWorkerModel extends MirrorTextModel {
 
 	override onEvents(e: IModelChangedEvent): void {
 		super.onEvents(e);
+		/*
 		if (this._tokenizationStateStore) {
 			for (let i = 0; i < e.changes.length; i++) {
 				const change = e.changes[i];
@@ -80,7 +81,8 @@ class TextMateWorkerModel extends MirrorTextModel {
 				this._tokenizationStateStore.applyEdits(change.range, eolCount);
 			}
 		}
-		this._ensureTokens();
+		*/
+		// this._ensureTokens();
 	}
 
 	private _resetTokenization(): void {
@@ -99,7 +101,7 @@ class TextMateWorkerModel extends MirrorTextModel {
 			} else {
 				this._tokenizationStateStore = null;
 			}
-			this._ensureTokens();
+			// this._ensureTokens();
 		});
 	}
 
@@ -115,6 +117,7 @@ class TextMateWorkerModel extends MirrorTextModel {
 			const text = this._lines[lineIndex];
 			const lineStartState = this._tokenizationStateStore.getBeginState(lineIndex);
 
+			// TODO: Search for all the references of tokenizeEncoded
 			const r = this._tokenizationStateStore.tokenizationSupport.tokenizeEncoded(text, true, lineStartState!);
 			LineTokens.convertToEndOffset(r.tokens, text.length);
 			builder.add(lineIndex + 1, r.tokens);
@@ -122,6 +125,7 @@ class TextMateWorkerModel extends MirrorTextModel {
 			lineIndex = this._tokenizationStateStore.invalidLineStartIndex - 1; // -1 because the outer loop increments it
 		}
 
+		// TODO: part of interest
 		this._worker._setTokens(this._uri, this._versionId, builder.serialize());
 	}
 }
@@ -137,6 +141,7 @@ export class TextMateWorker {
 		this._host = ctx.host;
 		this._models = Object.create(null);
 		this._grammarCache = [];
+		/*
 		const grammarDefinitions = createData.grammarDefinitions.map<IValidGrammarDefinition>((def) => {
 			return {
 				location: URI.revive(def.location),
@@ -150,6 +155,7 @@ export class TextMateWorker {
 			};
 		});
 		this._grammarFactory = this._loadTMGrammarFactory(grammarDefinitions);
+		*/
 	}
 
 	private async _loadTMGrammarFactory(grammarDefinitions: IValidGrammarDefinition[]): Promise<TMGrammarFactory> {
@@ -217,6 +223,7 @@ export class TextMateWorker {
 		grammarFactory?.setTheme(theme, colorMap);
 	}
 
+	// TODO: _setTokens
 	public _setTokens(resource: URI, versionId: number, tokens: Uint8Array): void {
 		this._host.setTokens(resource, versionId, tokens);
 	}

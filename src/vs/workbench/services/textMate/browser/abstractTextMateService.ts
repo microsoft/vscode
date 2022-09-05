@@ -372,6 +372,7 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 		return true;
 	}
 
+	// TODO: Grammar created should have tokenizeLine2 function
 	public async createGrammar(languageId: string): Promise<IGrammar | null> {
 		if (!this._languageService.isRegisteredLanguageId(languageId)) {
 			return null;
@@ -449,6 +450,7 @@ class TMTokenizationSupportWithLineLimit implements ITokenizationSupport {
 		throw new Error('Not supported!');
 	}
 
+	// TODO consider this too
 	tokenizeEncoded(line: string, hasEOL: boolean, state: StackElement): EncodedTokenizationResult {
 		// Do not attempt to tokenize if a line is too long
 		if (line.length >= this._maxTokenizationLineLength) {

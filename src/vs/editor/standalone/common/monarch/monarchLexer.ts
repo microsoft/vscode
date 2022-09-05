@@ -488,6 +488,7 @@ export class MonarchTokenizer implements languages.ITokenizationSupport {
 		return tokensCollector.finalize(endLineState);
 	}
 
+	// TODO: consider
 	public tokenizeEncoded(line: string, hasEOL: boolean, lineState: languages.IState): languages.EncodedTokenizationResult {
 		if (line.length >= this._maxTokenizationLineLength) {
 			return nullTokenizeEncoded(this._languageService.languageIdCodec.encodeLanguageId(this._languageId), lineState);

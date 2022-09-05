@@ -35,6 +35,7 @@ export class TMTokenization extends Disposable implements ITokenizationSupport {
 		throw new Error('Not supported!');
 	}
 
+	// TODO: Tokenize Encoded studied
 	public tokenizeEncoded(line: string, hasEOL: boolean, state: StackElement): EncodedTokenizationResult {
 		const textMateResult = this._grammar.tokenizeLine2(line, state, 500);
 

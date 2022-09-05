@@ -50,18 +50,23 @@ export class ContiguousTokensStore {
 
 		const tokens = _tokens ? toUint32Array(_tokens) : null;
 
+		console.log('tokens in _messageTokens : ', tokens);
+
 		if (lineTextLength === 0) {
 			let hasDifferentLanguageId = false;
 			if (tokens && tokens.length > 1) {
+				console.log('1st if loop');
 				hasDifferentLanguageId = (TokenMetadata.getLanguageId(tokens[1]) !== topLevelLanguageId);
 			}
 
 			if (!hasDifferentLanguageId) {
+				console.log('2nd if loop');
 				return EMPTY_LINE_TOKENS;
 			}
 		}
 
 		if (!tokens || tokens.length === 0) {
+			console.log('3rd if loop');
 			const tokens = new Uint32Array(2);
 			tokens[0] = lineTextLength;
 			tokens[1] = getDefaultMetadata(topLevelLanguageId);
@@ -72,6 +77,7 @@ export class ContiguousTokensStore {
 		tokens[tokens.length - 2] = lineTextLength;
 
 		if (tokens.byteOffset === 0 && tokens.byteLength === tokens.buffer.byteLength) {
+			console.log('4th if loop');
 			// Store directly the ArrayBuffer pointer to save an object
 			return tokens.buffer;
 		}
