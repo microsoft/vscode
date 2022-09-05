@@ -5,19 +5,17 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
-import { autorun, derived, IObservable, ISettableObservable, ITransaction, transaction, observableValue } from 'vs/base/common/observable';
+import { autorun, derived, IObservable, ISettableObservable, ITransaction, observableValue, transaction } from 'vs/base/common/observable';
 import { noBreakWhitespace } from 'vs/base/common/strings';
 import { isDefined } from 'vs/base/common/types';
 import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
 import { CodeLensContribution } from 'vs/editor/contrib/codelens/browser/codelensController';
 import { localize } from 'vs/nls';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -28,86 +26,44 @@ import { InputState, ModifiedBaseRangeState } from 'vs/workbench/contrib/mergeEd
 import { applyObservableDecorations, setFields } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from 'vs/workbench/contrib/mergeEditor/browser/view/colors';
 import { EditorGutter, IGutterItemInfo, IGutterItemView } from '../editorGutter';
-import { CodeEditorView } from './codeEditorView';
+import { CodeEditorView, createSelectionsAutorun, TitleMenu } from './codeEditorView';
 
 export class InputCodeEditorView extends CodeEditorView {
-	private readonly decorations = derived(`input${this.inputNumber}.decorations`, reader => {
-		const viewModel = this.viewModel.read(reader);
-		if (!viewModel) {
-			return [];
-		}
-		const model = viewModel.model;
+	constructor(
+		public readonly inputNumber: 1 | 2,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IThemeService themeService: IThemeService,
+		@IMenuService menuService: IMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
+		super(instantiationService);
 
-		const activeModifiedBaseRange = viewModel.activeModifiedBaseRange.read(reader);
+		this._register(applyObservableDecorations(this.editor, this.decorations));
 
-		const result = new Array<IModelDeltaDecoration>();
-		for (const modifiedBaseRange of model.modifiedBaseRanges.read(reader)) {
+		this._register(
+			new EditorGutter(this.editor, this.htmlElements.gutterDiv, {
+				getIntersectingGutterItems: (range, reader) => {
+					return this.modifiedBaseRangeGutterItemInfos.read(reader);
+				},
+				createView: (item, target) => new MergeConflictGutterItemView(item, target, contextMenuService, themeService),
+			})
+		);
 
-			const range = modifiedBaseRange.getInputRange(this.inputNumber);
-			if (range && !range.isEmpty) {
-				const blockClassNames = ['merge-editor-block'];
-				const isHandled = model.isHandled(modifiedBaseRange).read(reader);
-				if (isHandled) {
-					blockClassNames.push('handled');
-				}
-				if (modifiedBaseRange === activeModifiedBaseRange) {
-					blockClassNames.push('focused');
-				}
-				if (modifiedBaseRange.isConflicting) {
-					blockClassNames.push('conflicting');
-				}
-				const inputClassName = this.inputNumber === 1 ? 'input1' : 'input2';
-				blockClassNames.push(inputClassName);
+		this._register(
+			createSelectionsAutorun(this, (baseRange, viewModel) =>
+				viewModel.model.translateBaseRangeToInput(this.inputNumber, baseRange)
+			)
+		);
 
-				result.push({
-					range: range.toInclusiveRange()!,
-					options: {
-						isWholeLine: true,
-						blockClassName: blockClassNames.join(' '),
-						description: 'Merge Editor',
-						minimap: {
-							position: MinimapPosition.Gutter,
-							color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
-						},
-						overviewRuler: modifiedBaseRange.isConflicting ? {
-							position: OverviewRulerLane.Center,
-							color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
-						} : undefined
-					}
-				});
-
-				if (modifiedBaseRange.isConflicting) {
-					const inputDiffs = modifiedBaseRange.getInputDiffs(this.inputNumber);
-					for (const diff of inputDiffs) {
-						const range = diff.outputRange.toInclusiveRange();
-						if (range) {
-							result.push({
-								range,
-								options: {
-									className: `merge-editor-diff ${inputClassName}`,
-									description: 'Merge Editor',
-									isWholeLine: true,
-								}
-							});
-						}
-
-						if (diff.rangeMappings) {
-							for (const d of diff.rangeMappings) {
-								result.push({
-									range: d.outputRange,
-									options: {
-										className: `merge-editor-diff-word ${inputClassName}`,
-										description: 'Merge Editor'
-									}
-								});
-							}
-						}
-					}
-				}
-			}
-		}
-		return result;
-	});
+		this._register(
+			instantiationService.createInstance(
+				TitleMenu,
+				inputNumber === 1 ? MenuId.MergeInput1Toolbar : MenuId.MergeInput2Toolbar,
+				this.htmlElements.toolbar
+			)
+		);
+	}
 
 	private readonly modifiedBaseRangeGutterItemInfos = derived(`input${this.inputNumber}.modifiedBaseRangeGutterItemInfos`, reader => {
 		const viewModel = this.viewModel.read(reader);
@@ -134,7 +90,7 @@ export class InputCodeEditorView extends CodeEditorView {
 				className: derived('checkbox classnames', (reader) => {
 					const classNames = [];
 					const active = viewModel.activeModifiedBaseRange.read(reader);
-					if (!model.has(baseRange)) {
+					if (!model.hasBaseRange(baseRange)) {
 						return ''; // Invalid state, should only be observed temporarily
 					}
 					const isHandled = model.isHandled(baseRange).read(reader);
@@ -254,41 +210,84 @@ export class InputCodeEditorView extends CodeEditorView {
 			}));
 	});
 
-	constructor(
-		public readonly inputNumber: 1 | 2,
-		titleMenuId: MenuId,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IThemeService themeService: IThemeService,
-		@IMenuService menuService: IMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-	) {
-		super(instantiationService);
+	private readonly decorations = derived(`input${this.inputNumber}.decorations`, reader => {
+		const viewModel = this.viewModel.read(reader);
+		if (!viewModel) {
+			return [];
+		}
+		const model = viewModel.model;
 
-		this._register(applyObservableDecorations(this.editor, this.decorations));
+		const activeModifiedBaseRange = viewModel.activeModifiedBaseRange.read(reader);
 
-		this._register(
-			new EditorGutter(this.editor, this.htmlElements.gutterDiv, {
-				getIntersectingGutterItems: (range, reader) => {
-					return this.modifiedBaseRangeGutterItemInfos.read(reader);
-				},
-				createView: (item, target) => new MergeConflictGutterItemView(item, target, contextMenuService, themeService),
-			})
-		);
+		const result = new Array<IModelDeltaDecoration>();
 
-		// title menu
-		const titleMenu = menuService.createMenu(titleMenuId, contextKeyService);
-		const toolBar = new ToolBar(this.htmlElements.toolbar, contextMenuService);
-		const toolBarUpdate = () => {
-			const secondary: IAction[] = [];
-			createAndFillInActionBarActions(titleMenu, { renderShortTitle: true }, secondary);
-			toolBar.setActions([], secondary);
-		};
-		this._store.add(toolBar);
-		this._store.add(titleMenu);
-		this._store.add(titleMenu.onDidChange(toolBarUpdate));
-		toolBarUpdate();
-	}
+		for (const modifiedBaseRange of model.modifiedBaseRanges.read(reader)) {
+
+			const range = modifiedBaseRange.getInputRange(this.inputNumber);
+			if (range && !range.isEmpty) {
+				const blockClassNames = ['merge-editor-block'];
+				const isHandled = model.isHandled(modifiedBaseRange).read(reader);
+				if (isHandled) {
+					blockClassNames.push('handled');
+				}
+				if (modifiedBaseRange === activeModifiedBaseRange) {
+					blockClassNames.push('focused');
+				}
+				if (modifiedBaseRange.isConflicting) {
+					blockClassNames.push('conflicting');
+				}
+				const inputClassName = this.inputNumber === 1 ? 'input1' : 'input2';
+				blockClassNames.push(inputClassName);
+
+				result.push({
+					range: range.toInclusiveRange()!,
+					options: {
+						isWholeLine: true,
+						blockClassName: blockClassNames.join(' '),
+						description: 'Merge Editor',
+						minimap: {
+							position: MinimapPosition.Gutter,
+							color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
+						},
+						overviewRuler: modifiedBaseRange.isConflicting ? {
+							position: OverviewRulerLane.Center,
+							color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
+						} : undefined
+					}
+				});
+
+				if (modifiedBaseRange.isConflicting || !model.isHandled(modifiedBaseRange).read(reader)) {
+					const inputDiffs = modifiedBaseRange.getInputDiffs(this.inputNumber);
+					for (const diff of inputDiffs) {
+						const range = diff.outputRange.toInclusiveRange();
+						if (range) {
+							result.push({
+								range,
+								options: {
+									className: `merge-editor-diff ${inputClassName}`,
+									description: 'Merge Editor',
+									isWholeLine: true,
+								}
+							});
+						}
+
+						if (diff.rangeMappings) {
+							for (const d of diff.rangeMappings) {
+								result.push({
+									range: d.outputRange,
+									options: {
+										className: `merge-editor-diff-word ${inputClassName}`,
+										description: 'Merge Editor'
+									}
+								});
+							}
+						}
+					}
+				}
+			}
+		}
+		return result;
+	});
 
 	protected override getEditorContributions(): IEditorContributionDescription[] | undefined {
 		return EditorExtensionsRegistry.getEditorContributions().filter(c => c.id !== CodeLensContribution.ID);
