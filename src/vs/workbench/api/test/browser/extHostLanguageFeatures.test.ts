@@ -54,6 +54,7 @@ import { OutlineModel } from 'vs/editor/contrib/documentSymbols/browser/outlineM
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 import { CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/browser/types';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 suite('ExtHostLanguageFeatures', function () {
 
@@ -88,6 +89,11 @@ suite('ExtHostLanguageFeatures', function () {
 			const instantiationService = new TestInstantiationService();
 			instantiationService.stub(IMarkerService, MarkerService);
 			instantiationService.set(ILanguageFeaturesService, languageFeaturesService);
+			instantiationService.set(IUriIdentityService, new class extends mock<IUriIdentityService>() {
+				override asCanonicalUri(uri: URI): URI {
+					return uri;
+				}
+			});
 			inst = instantiationService;
 		}
 
