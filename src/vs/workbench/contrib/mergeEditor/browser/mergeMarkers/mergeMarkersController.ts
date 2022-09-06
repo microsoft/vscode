@@ -132,7 +132,7 @@ function getBlocks(document: ITextModel, configuration: ProjectionConfiguration)
 		} else {
 			if (line.startsWith(configuration.blockToRemoveEndLinePrefix)) {
 				inBlock = false;
-				blocks.push(new Block(new LineRange(startLineNumber, curLine - startLineNumber + 1)));
+				blocks.push(new Block(new LineRange(startLineNumber, curLine - startLineNumber + 0)));
 				transformedContent.push('');
 			}
 		}
