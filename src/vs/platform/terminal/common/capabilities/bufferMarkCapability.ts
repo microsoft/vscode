@@ -11,8 +11,8 @@ import { IMarkProperties } from 'vs/platform/terminal/common/terminalProcess';
 import type { IMarker, Terminal } from 'xterm-headless';
 
 /**
- * Stores marks to be added to the buffer
- * anonymous marks are those that have no ID
+ * Manages "marks" in the buffer which are lines that are tracked when lines are added to or removed
+ * from the buffer.
  */
 export class BufferMarkCapability implements IBufferMarkDetectionCapability {
 
