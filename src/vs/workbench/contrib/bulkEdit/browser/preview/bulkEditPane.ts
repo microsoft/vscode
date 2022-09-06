@@ -102,11 +102,13 @@ export class BulkEditPane extends ViewPane {
 		this._ctxGroupByFile = BulkEditPane.ctxGroupByFile.bindTo(_contextKeyService);
 		this._ctxHasCheckedChanges = BulkEditPane.ctxHasCheckedChanges.bindTo(_contextKeyService);
 
-		this.onDidFocus(e => {
+		this._disposables.add(this.onDidFocus(e => {
 			if (
 				!this._activeEditor
+				// Diff Editor associated with the Refactor Preview should reopen
+				// only if its not visible at the moment
 				|| this._activeEditor.isVisible()
-				|| !this._activeEditor?.group?.previewEditor
+				|| !this._activeEditor.group?.previewEditor
 			) {
 				return;
 			}
@@ -114,7 +116,7 @@ export class BulkEditPane extends ViewPane {
 			this._activeEditor.group.openEditor(
 				this._activeEditor.group.previewEditor
 			);
-		});
+		}));
 	}
 
 	override dispose(): void {
@@ -270,7 +272,9 @@ export class BulkEditPane extends ViewPane {
 		// if no item is selected, first FileElement is returned
 		const hasNoCheckedEdit = !input.checked.checkedCount;
 		const element = await this._getFirstApplicableElement(elements, hasNoCheckedEdit);
-		if (!element) { return; }
+		if (!element) {
+			return;
+		}
 
 		await this._openElementAsEditor({
 			editorOptions: {
@@ -285,25 +289,38 @@ export class BulkEditPane extends ViewPane {
 
 	private async _getFirstApplicableElement(elements: BulkEditElement[], hasNoCheckedEdit: boolean):
 		Promise<FileElement | TextEditElement | undefined> {
-		let applicableElement: FileElement | TextEditElement | undefined;
-		for (const element of elements) {
-			if (element instanceof FileElement) {
-				if (hasNoCheckedEdit) { return element; }
-				applicableElement = await this._getTextEditElement(element);
-			} else if (element instanceof CategoryElement) {
-				applicableElement = await this._getFirstApplicableElement(
-					await this._treeDataSource.getChildren(element),
-					hasNoCheckedEdit);
-			}
-			if (applicableElement) { return applicableElement; }
-		}
-		return applicableElement;
-	}
+		const fileElementPromises = [];
+		const textEditElementPromises = [];
 
-	private async _getTextEditElement(element: FileElement):
-		Promise<TextEditElement | undefined> {
-		const textEditElements = await this._treeDataSource.getChildren(element) as TextEditElement[];
-		return textEditElements.find(element => element.isChecked());
+		// the input always contains either file or category grouping,
+		// so the top-level type is either CategoryElements or FileElements
+		for (const element of elements) {
+			if (element instanceof CategoryElement) {
+				fileElementPromises.push(this._treeDataSource.getChildren(element) as Promise<FileElement[]>);
+			} else if (element instanceof FileElement) {
+				if (hasNoCheckedEdit) {
+					return element;
+				}
+				textEditElementPromises.push(this._treeDataSource.getChildren(element) as Promise<TextEditElement[]>);
+			}
+		}
+
+		for (const fileElements of await Promise.all(fileElementPromises) ?? []) {
+			for (const element of fileElements) {
+				if (hasNoCheckedEdit) {
+					return element;
+				}
+				textEditElementPromises.push(this._treeDataSource.getChildren(element) as Promise<TextEditElement[]>);
+			}
+		}
+
+		for (const textEdits of await Promise.all(textEditElementPromises) ?? []) {
+			const checkedEdit = textEdits.find(edit => edit.isChecked());
+			if (checkedEdit) {
+				return checkedEdit;
+			}
+		}
+		return undefined;
 	}
 
 	accept(): void {
