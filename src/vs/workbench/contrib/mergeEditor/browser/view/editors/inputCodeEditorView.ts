@@ -370,7 +370,7 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 
 					contextMenuService.showContextMenu({
 						getAnchor: () => checkBox.domNode,
-						getActions: item.getContextMenuActions,
+						getActions: () => item.getContextMenuActions(),
 					});
 
 				} else if (e.button === /* Middle */ 1) {
