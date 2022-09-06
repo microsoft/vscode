@@ -8,7 +8,6 @@ import { grammarsExtPoint, ITMSyntaxExtensionPoint } from 'vs/workbench/services
 import { IExtensionService, ExtensionPointContribution } from 'vs/workbench/services/extensions/common/extensions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface ModeScopeMap {
 	[key: string]: string;
@@ -71,18 +70,13 @@ export abstract class EmmetEditorAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		const commandService = accessor.get(ICommandService);
-		const configurationService = accessor.get(IConfigurationService);
 		const extensionService = accessor.get(IExtensionService);
+		const commandService = accessor.get(ICommandService);
 
 		return this._withGrammarContributions(extensionService).then((grammarContributions) => {
 
 			if (this.id === 'editor.emmet.action.expandAbbreviation' && grammarContributions) {
-				const languageInfo = EmmetEditorAction.getLanguage(editor, grammarContributions);
-				const languageId = languageInfo?.language;
-				if (configurationService.getValue('emmet.triggerExpansionOnTab', { overrideIdentifier: languageId }) === true) {
-					return commandService.executeCommand<void>('emmet.expandAbbreviation', languageInfo);
-				}
+				return commandService.executeCommand<void>('emmet.expandAbbreviation', EmmetEditorAction.getLanguage(editor, grammarContributions));
 			}
 
 			return undefined;
