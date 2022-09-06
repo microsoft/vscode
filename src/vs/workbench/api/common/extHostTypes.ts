@@ -655,6 +655,29 @@ export class NotebookEdit implements vscode.NotebookEdit {
 	}
 }
 
+export class SnippetTextEdit implements vscode.SnippetTextEdit {
+
+	static isSnippetTextEdit(thing: any): thing is SnippetTextEdit {
+		if (thing instanceof SnippetTextEdit) {
+			return true;
+		}
+		if (!thing) {
+			return false;
+		}
+		return Range.isRange((<SnippetTextEdit>thing).range)
+			&& SnippetString.isSnippetString((<SnippetTextEdit>thing).snippet);
+	}
+
+	range: Range;
+
+	snippet: SnippetString;
+
+	constructor(range: Range, snippet: SnippetString) {
+		this.range = range;
+		this.snippet = snippet;
+	}
+}
+
 export interface IFileOperationOptions {
 	overwrite?: boolean;
 	ignoreIfExists?: boolean;
@@ -758,12 +781,8 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
 	// --- text
 
-	replace(uri: URI, range: Range, newText: string | vscode.SnippetString, metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		if (typeof newText === 'string') {
-			this._edits.push({ _type: FileEditType.Text, uri, edit: new TextEdit(range, newText), metadata });
-		} else {
-			this._edits.push({ _type: FileEditType.Snippet, uri, range, edit: newText, metadata });
-		}
+	replace(uri: URI, range: Range, newText: string, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+		this._edits.push({ _type: FileEditType.Text, uri, edit: new TextEdit(range, newText), metadata });
 	}
 
 	insert(resource: URI, position: Position, newText: string, metadata?: vscode.WorkspaceEditEntryMetadata): void {
@@ -792,7 +811,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 			coalesceInPlace(this._edits);
 		} else {
 			// append edit to the end
-			for (const edit of edits as TextEdit[] | NotebookEdit[]) {
+			for (const edit of edits as TextEdit[] | NotebookEdit[] | SnippetTextEdit[]) {
 				if (edit) {
 					if (NotebookEdit.isNotebookCellEdit(edit)) {
 						if (edit.newCellMetadata) {
@@ -802,6 +821,9 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 						} else {
 							this.replaceNotebookCells(uri, edit.range, edit.newCells);
 						}
+					} else if (SnippetTextEdit.isSnippetTextEdit(edit)) {
+						this._edits.push({ _type: FileEditType.Snippet, uri, range: edit.range, edit: edit.snippet });
+
 					} else {
 						this._edits.push({ _type: FileEditType.Text, uri, edit });
 					}
