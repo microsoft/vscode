@@ -27,9 +27,9 @@ export class BackupMainService implements IBackupMainService {
 
 	declare readonly _serviceBrand: undefined;
 
-	protected backupHome: string;
+	protected backupHome = this.environmentMainService.backupHome;
 
-	protected workspacesJsonPath: string;
+	protected workspacesJsonPath = join(this.backupHome, 'workspaces.json');
 	protected readonly workspacesJsonSaveSequentializer = new TaskSequentializer();
 	private lastKnownWorkspacesJsonContents: string | undefined = undefined;
 	private workspacesJsonWriteCounter = 0;
@@ -45,14 +45,11 @@ export class BackupMainService implements IBackupMainService {
 	private readonly backupPathComparer = { isEqual: (pathA: string, pathB: string) => isEqual(pathA, pathB, !isLinux) };
 
 	constructor(
-		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
+		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
 	) {
-		this.backupHome = environmentMainService.backupHome;
-		this.workspacesJsonPath = environmentMainService.backupWorkspacesPath;
-
 		this.registerListeners();
 	}
 
