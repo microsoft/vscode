@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { asArray, coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
-import { VSBuffer } from 'vs/base/common/buffer';
+import { encodeBase64, VSBuffer } from 'vs/base/common/buffer';
 import * as htmlContent from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ResourceSet } from 'vs/base/common/map';
@@ -592,7 +592,7 @@ export namespace WorkspaceEdit {
 					result.edits.push(<languages.IWorkspaceFileEdit>{
 						oldResource: entry.from,
 						newResource: entry.to,
-						options: entry.options,
+						options: { ...entry.options, contentsBase64: entry.options?.contents && encodeBase64(VSBuffer.wrap(entry.options.contents)) },
 						metadata: entry.metadata
 					});
 
