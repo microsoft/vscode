@@ -675,6 +675,8 @@ export interface ITreeView extends IDisposable {
 
 	readonly onDidChangeWelcomeState: Event<void>;
 
+	readonly onDidChangeCheckboxState: Event<ITreeItem[]>;
+
 	readonly container: any | undefined;
 
 	refresh(treeItems?: ITreeItem[]): Promise<void>;
@@ -772,6 +774,8 @@ export interface ITreeItem {
 	children?: ITreeItem[];
 
 	accessibilityInformation?: IAccessibilityInformation;
+
+	checkboxChecked?: boolean;
 }
 
 export class ResolvableTreeItem implements ITreeItem {
