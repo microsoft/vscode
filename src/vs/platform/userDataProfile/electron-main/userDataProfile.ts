@@ -56,10 +56,6 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		if (!this.isEnabled()) {
 			return undefined;
 		}
-		// Do not create the profile if folder/file arguments are not provided
-		if (!args._.length && !args['folder-uri'] && !args['file-uri']) {
-			return undefined;
-		}
 		if (args.profile) {
 			if (this.profiles.some(p => p.name === args.profile)) {
 				return undefined;
