@@ -38,6 +38,7 @@ declare module 'vscode' {
 		 * @param uri A resource identifier.
 		 * @param edits An array of edits.
 		 */
+		// TODO@API we support mixed edits of TextEdit and SnippetTextEdit
 		set(uri: Uri, edits: TextEdit[] | SnippetTextEdit[] | NotebookEdit[]): void;
 	}
 }
