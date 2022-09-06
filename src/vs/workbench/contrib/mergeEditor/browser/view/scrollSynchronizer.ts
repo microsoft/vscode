@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { autorunWithStore, IObservable } from 'vs/base/common/observable';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -117,13 +116,6 @@ export class ScrollSynchronizer extends Disposable {
 				}
 			}, 'set baseViewEditor.onDidScrollChange')
 		);
-
-		const debounced = this._register(new RunOnceScheduler(() => {
-			this.reentrancyBarrier.runExclusively(() => {
-				handleInput1OnScroll();
-			});
-		}, 0));
-
 
 		this._store.add(
 			autorunWithStore((reader, store) => {
