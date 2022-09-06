@@ -15,7 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
-import { IBackupWorkspacesFormat, ISerializedWorkspace } from 'vs/platform/backup/node/backup';
+import { IBackupWorkspaces, ISerializedWorkspace } from 'vs/platform/backup/node/backup';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { EnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
@@ -89,11 +89,11 @@ flakySuite('BackupMainService', () => {
 		}
 	}
 
-	async function readWorkspacesMetadata(backupWorkspacesPath: string): Promise<IBackupWorkspacesFormat> {
+	async function readWorkspacesMetadata(backupWorkspacesPath: string): Promise<IBackupWorkspaces> {
 		await service.joinMetadataWriter(); // await any pending writes
 
 		const buffer = await pfs.Promises.readFile(backupWorkspacesPath, 'utf-8');
-		return <IBackupWorkspacesFormat>JSON.parse(buffer);
+		return <IBackupWorkspaces>JSON.parse(buffer);
 	}
 
 	function sanitizePath(p: string): string {
@@ -338,14 +338,6 @@ flakySuite('BackupMainService', () => {
 			assertEqualFolderInfos(service.getFolderBackups(), []);
 		});
 
-		test('getFolderBackupPaths() should migrate folderURIWorkspaces', async () => {
-			await ensureFolderExists(existingTestFolder1);
-
-			fs.writeFileSync(backupWorkspacesPath, JSON.stringify({ folderURIWorkspaces: [existingTestFolder1.toString()] }));
-			await service.initialize();
-			assertEqualFolderInfos(service.getFolderBackups(), [toFolderBackupInfo(existingTestFolder1)]);
-		});
-
 		test('getFolderBackupPaths() should return [] when files.hotExit = "onExitAndWindowClose"', async () => {
 			const fi = toFolderBackupInfo(URI.file(fooFile.fsPath.toUpperCase()));
 			service.registerFolderBackup(fi);
@@ -478,7 +470,7 @@ flakySuite('BackupMainService', () => {
 
 			await ensureFolderExists(existingTestFolder1);
 
-			const workspacesJson: IBackupWorkspacesFormat = {
+			const workspacesJson: IBackupWorkspaces = {
 				rootURIWorkspaces: [],
 				folderWorkspaceInfos: [{ folderUri: existingTestFolder1.toString() }, { folderUri: existingTestFolder1.toString() }],
 				emptyWorkspaceInfos: []
@@ -494,7 +486,7 @@ flakySuite('BackupMainService', () => {
 
 			await ensureFolderExists(existingTestFolder1);
 
-			const workspacesJson: IBackupWorkspacesFormat = {
+			const workspacesJson: IBackupWorkspaces = {
 				rootURIWorkspaces: [],
 				folderWorkspaceInfos: [{ folderUri: existingTestFolder1.toString() }, { folderUri: existingTestFolder1.toString().toLowerCase() }],
 				emptyWorkspaceInfos: []
@@ -514,7 +506,7 @@ flakySuite('BackupMainService', () => {
 			const workspace2 = await ensureWorkspaceExists(toWorkspace(workspacePath1));
 			const workspace3 = await ensureWorkspaceExists(toWorkspace(workspacePath2));
 
-			const workspacesJson: IBackupWorkspacesFormat = {
+			const workspacesJson: IBackupWorkspaces = {
 				rootURIWorkspaces: [workspace1, workspace2, workspace3].map(toSerializedWorkspace),
 				folderWorkspaceInfos: [],
 				emptyWorkspaceInfos: []
@@ -622,13 +614,13 @@ flakySuite('BackupMainService', () => {
 
 			await ensureFolderExists(existingTestFolder1); // make sure backup folder exists, so the folder is not removed on loadSync
 
-			const workspacesJson: IBackupWorkspacesFormat = { rootURIWorkspaces: [], folderWorkspaceInfos: [{ folderUri: existingTestFolder1.toString() }], emptyWorkspaceInfos: [] };
+			const workspacesJson: IBackupWorkspaces = { rootURIWorkspaces: [], folderWorkspaceInfos: [{ folderUri: existingTestFolder1.toString() }], emptyWorkspaceInfos: [] };
 			await pfs.Promises.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson));
 			await service.initialize();
 			service.unregisterFolderBackup(barFile);
 			service.unregisterEmptyWindowBackup('test');
 			const content = await pfs.Promises.readFile(backupWorkspacesPath, 'utf-8');
-			const json = (<IBackupWorkspacesFormat>JSON.parse(content));
+			const json = (<IBackupWorkspaces>JSON.parse(content));
 			assert.deepStrictEqual(json.folderWorkspaceInfos, [{ folderUri: existingTestFolder1.toString() }]);
 		});
 	});

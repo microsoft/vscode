@@ -14,7 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { Promises, RimRafMode } from 'vs/base/node/pfs';
 import { TaskSequentializer } from 'vs/base/common/async';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
-import { IBackupWorkspacesFormat, IDeprecatedBackupWorkspacesFormat, IEmptyWindowBackupInfo, isEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
+import { IBackupWorkspaces, IEmptyWindowBackupInfo, isEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { ILifecycleMainService, ShutdownEvent } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
@@ -70,7 +70,7 @@ export class BackupMainService implements IBackupMainService {
 		await this.workspacesJsonSaveSequentializer.join();
 
 		// read workspace metadata
-		let backups: IBackupWorkspacesFormat & IDeprecatedBackupWorkspacesFormat = Object.create(null);
+		let backups: IBackupWorkspaces = Object.create(null);
 		try {
 			const workspacesMetadata = await this.readWorkspacesMetadata();
 			if (workspacesMetadata) {
@@ -104,8 +104,6 @@ export class BackupMainService implements IBackupMainService {
 		try {
 			if (Array.isArray(backups.folderWorkspaceInfos)) {
 				workspaceFolders = backups.folderWorkspaceInfos.map(folder => ({ folderUri: URI.parse(folder.folderUri), remoteAuthority: folder.remoteAuthority }));
-			} else if (Array.isArray(backups.folderURIWorkspaces)) {
-				workspaceFolders = backups.folderURIWorkspaces.map(folder => ({ folderUri: URI.parse(folder), remoteAuthority: undefined }));
 			}
 		} catch (e) {
 			// ignore URI parsing exceptions
@@ -488,7 +486,7 @@ export class BackupMainService implements IBackupMainService {
 		}
 	}
 
-	private serializeBackups(): IBackupWorkspacesFormat {
+	private serializeBackups(): IBackupWorkspaces {
 		return {
 			rootURIWorkspaces: this.workspaces.map(workspace => ({ id: workspace.workspace.id, configURIPath: workspace.workspace.configPath.toString(), remoteAuthority: workspace.remoteAuthority })),
 			folderWorkspaceInfos: this.folders.map(folder => ({ folderUri: folder.folderUri.toString(), remoteAuthority: folder.remoteAuthority })),
