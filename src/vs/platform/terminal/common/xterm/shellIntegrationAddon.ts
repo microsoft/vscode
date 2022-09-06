@@ -374,8 +374,19 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				}
 			}
 			case VSCodeOscPt.SetMark: {
-				const [id, hidden] = args;
-				this._createOrGetBufferMarkDetection(this._terminal).addMark({ id, hidden: hidden === 'Hidden' });
+				let hidden = false;
+				let id = undefined;
+				if (args[0]) {
+					if (args[0] === 'Hidden') {
+						hidden = true;
+					} else {
+						// there's an ID
+						const [, _id, _hidden] = args[0].split(new RegExp('Id='));
+						id = _id;
+						hidden = _hidden === 'Hidden';
+					}
+				}
+				this._createOrGetBufferMarkDetection(this._terminal).addMark({ id, hidden });
 				return true;
 			}
 		}
