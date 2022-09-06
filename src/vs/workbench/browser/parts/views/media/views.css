@@ -50,7 +50,7 @@
 	display: none;
 }
 
-.monaco-workbench .pane > .pane-body > .welcome-view {
+.monaco-workbench .pane>.pane-body>.welcome-view {
 	width: 100%;
 	height: 100%;
 	box-sizing: border-box;
@@ -58,12 +58,12 @@
 	flex-direction: column;
 }
 
-.monaco-workbench .pane > .pane-body:not(.welcome) > .welcome-view,
-.monaco-workbench .pane > .pane-body.welcome > :not(.welcome-view) {
+.monaco-workbench .pane>.pane-body:not(.welcome)>.welcome-view,
+.monaco-workbench .pane>.pane-body.welcome> :not(.welcome-view) {
 	display: none;
 }
 
-.monaco-workbench .pane > .pane-body .welcome-view-content {
+.monaco-workbench .pane>.pane-body .welcome-view-content {
 	display: flex;
 	flex-direction: column;
 	padding: 0 20px 1em 20px;
@@ -71,25 +71,25 @@
 	align-items: center;
 }
 
-.monaco-workbench .pane > .pane-body .welcome-view-content > .button-container {
+.monaco-workbench .pane>.pane-body .welcome-view-content>.button-container {
 	width: 100%;
 	max-width: 300px;
 	transition: 0.2s max-width ease-out;
 }
 
-.monaco-workbench .pane > .pane-body .welcome-view-content.wide > .button-container {
+.monaco-workbench .pane>.pane-body .welcome-view-content.wide>.button-container {
 	max-width: 100%;
 }
 
-.monaco-workbench .pane > .pane-body .welcome-view-content > .button-container > .monaco-button {
+.monaco-workbench .pane>.pane-body .welcome-view-content>.button-container>.monaco-button {
 	max-width: 300px;
 }
 
-.monaco-workbench .pane > .pane-body .welcome-view-content > p {
+.monaco-workbench .pane>.pane-body .welcome-view-content>p {
 	width: 100%;
 }
 
-.monaco-workbench .pane > .pane-body .welcome-view-content > * {
+.monaco-workbench .pane>.pane-body .welcome-view-content>* {
 	margin-block-start: 1em;
 	margin-block-end: 0;
 	margin-inline-start: 0px;
@@ -111,6 +111,7 @@
 
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item {
 	display: flex;
+	align-items: center;
 	height: 22px;
 	line-height: 22px;
 	flex: 1;
@@ -134,6 +135,7 @@
 	font-size: 13px;
 	line-height: 15px;
 }
+
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .monaco-inputbox {
 	line-height: normal;
 	flex: 1;
@@ -150,7 +152,7 @@
 	display: block;
 }
 
-.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .custom-view-tree-node-item-icon {
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item>.custom-view-tree-node-item-resourceLabel>.custom-view-tree-node-item-icon {
 	background-size: 16px;
 	background-position: left center;
 	background-repeat: no-repeat;
@@ -164,20 +166,21 @@
 	-moz-osx-font-smoothing: grayscale;
 }
 
-.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .custom-view-tree-node-item-icon.disabled {
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item>.custom-view-tree-node-item-resourceLabel>.custom-view-tree-node-item-icon.disabled {
 	opacity: 0.6;
 }
+
 /* makes spinning icons square */
-.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .custom-view-tree-node-item-icon.codicon.codicon-modifier-spin {
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item>.custom-view-tree-node-item-resourceLabel>.custom-view-tree-node-item-icon.codicon.codicon-modifier-spin {
 	padding-left: 6px;
 	margin-left: -6px;
 }
 
-.customview-tree .monaco-list .monaco-list-row.selected .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .custom-view-tree-node-item-icon.codicon {
+.customview-tree .monaco-list .monaco-list-row.selected .custom-view-tree-node-item>.custom-view-tree-node-item-resourceLabel>.custom-view-tree-node-item-icon.codicon {
 	color: currentColor !important;
 }
 
-.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-resourceLabel .monaco-icon-label-container > .monaco-icon-name-container {
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-resourceLabel .monaco-icon-label-container>.monaco-icon-name-container {
 	flex: 1;
 }
 
