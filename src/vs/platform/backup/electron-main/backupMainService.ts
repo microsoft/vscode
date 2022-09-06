@@ -341,9 +341,7 @@ export class BackupMainService implements IBackupMainService {
 
 	private async deleteStaleBackup(backupPath: string): Promise<void> {
 		try {
-			if (await Promises.exists(backupPath)) {
-				await Promises.rm(backupPath, RimRafMode.MOVE);
-			}
+			await Promises.rm(backupPath, RimRafMode.MOVE);
 		} catch (error) {
 			this.logService.error(`Backup: Could not delete stale backup: ${error.toString()}`);
 		}
