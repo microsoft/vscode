@@ -201,7 +201,7 @@ class CodeMain {
 		services.set(ILifecycleMainService, new SyncDescriptor(LifecycleMainService));
 
 		// Request
-		services.set(IRequestService, new SyncDescriptor(RequestMainService));
+		services.set(IRequestService, new SyncDescriptor(RequestMainService, undefined, true));
 
 		// Themes
 		services.set(IThemeMainService, new SyncDescriptor(ThemeMainService));
