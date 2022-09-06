@@ -652,9 +652,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				dispose: () => { }
 			};
 		}
-		if (Platform.isWeb) {
-			this._registerCommands();
-		}
 		const handle = AbstractTaskService._nextHandle++;
 		this._providers.set(handle, provider);
 		this._providerTypes.set(handle, type);
