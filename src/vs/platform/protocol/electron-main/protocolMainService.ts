@@ -7,7 +7,7 @@ import { session } from 'electron';
 import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
-import { FileAccess, Schemas } from 'vs/base/common/network';
+import { COI, FileAccess, Schemas } from 'vs/base/common/network';
 import { extname, normalize } from 'vs/base/common/path';
 import { isLinux } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -27,7 +27,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 	private readonly validExtensions = new Set(['.svg', '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp']); // https://github.com/microsoft/vscode/issues/119384
 
 	constructor(
-		@INativeEnvironmentService environmentService: INativeEnvironmentService,
+		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@ILogService private readonly logService: ILogService
 	) {
@@ -94,9 +94,18 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 	private handleResourceRequest(request: Electron.ProtocolRequest, callback: ProtocolCallback): void {
 		const path = this.requestToNormalizedFilePath(request);
 
+		let headers: Record<string, string> | undefined;
+		if (this.environmentService.crossOriginIsolated) {
+			if (path.endsWith('/workbench.html')) {
+				headers = COI.CoopAndCoep;
+			} else {
+				headers = COI.getHeadersFromQuery(request.url);
+			}
+		}
+
 		// first check by validRoots
 		if (this.validRoots.findSubstr(path)) {
-			return callback({ path });
+			return callback({ path, headers });
 		}
 
 		// then check by validExtensions

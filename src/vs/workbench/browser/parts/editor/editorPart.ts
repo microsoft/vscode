@@ -26,7 +26,7 @@ import { Color } from 'vs/base/common/color';
 import { CenteredViewLayout } from 'vs/base/browser/ui/centered/centeredViewLayout';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Parts, IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IBoundarySashes } from 'vs/base/browser/ui/grid/gridview';
 import { CompositeDragAndDropObserver } from 'vs/workbench/browser/dnd';
@@ -1193,5 +1193,5 @@ class EditorDropService implements IEditorDropService {
 	}
 }
 
-registerSingleton(IEditorGroupsService, EditorPart, false);
-registerSingleton(IEditorDropService, EditorDropService, true);
+registerSingleton(IEditorGroupsService, EditorPart, InstantiationType.Eager);
+registerSingleton(IEditorDropService, EditorDropService, InstantiationType.Delayed);

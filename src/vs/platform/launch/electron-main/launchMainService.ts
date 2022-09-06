@@ -3,39 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow } from 'electron';
+import { app } from 'electron';
 import { coalesce } from 'vs/base/common/arrays';
 import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
-import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { whenDeleted } from 'vs/base/node/pfs';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IMainProcessInfo, IWindowInfo } from 'vs/platform/launch/common/launch';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IURLService } from 'vs/platform/url/common/url';
 import { ICodeWindow } from 'vs/platform/window/electron-main/window';
 import { IWindowSettings } from 'vs/platform/window/common/window';
 import { IOpenConfiguration, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
-import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 
 export const ID = 'launchMainService';
 export const ILaunchMainService = createDecorator<ILaunchMainService>(ID);
 
 export interface IStartArguments {
-	args: NativeParsedArgs;
-	userEnv: IProcessEnvironment;
+	readonly args: NativeParsedArgs;
+	readonly userEnv: IProcessEnvironment;
 }
 
 export interface ILaunchMainService {
+
 	readonly _serviceBrand: undefined;
+
 	start(args: NativeParsedArgs, userEnv: IProcessEnvironment): Promise<void>;
+
 	getMainProcessId(): Promise<number>;
-	getMainProcessInfo(): Promise<IMainProcessInfo>;
 }
 
 export class LaunchMainService implements ILaunchMainService {
@@ -46,7 +44,6 @@ export class LaunchMainService implements ILaunchMainService {
 		@ILogService private readonly logService: ILogService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IURLService private readonly urlService: IURLService,
-		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IUserDataProfilesMainService private readonly userDataProfilesMainService: IUserDataProfilesMainService,
 	) { }
@@ -94,8 +91,10 @@ export class LaunchMainService implements ILaunchMainService {
 
 	private parseOpenUrl(args: NativeParsedArgs): { uri: URI; url: string }[] {
 		if (args['open-url'] && args._urls && args._urls.length > 0) {
+
 			// --open-url must contain -- followed by the url(s)
 			// process.argv is used over args._ as args._ are resolved to file paths at this point
+
 			return coalesce(args._urls
 				.map(url => {
 					try {
@@ -220,64 +219,5 @@ export class LaunchMainService implements ILaunchMainService {
 		this.logService.trace('Received request for process ID from other instance.');
 
 		return process.pid;
-	}
-
-	async getMainProcessInfo(): Promise<IMainProcessInfo> {
-		this.logService.trace('Received request for main process info from other instance.');
-
-		const windows: IWindowInfo[] = [];
-		BrowserWindow.getAllWindows().forEach(window => {
-			const codeWindow = this.windowsMainService.getWindowById(window.id);
-			if (codeWindow) {
-				windows.push(this.codeWindowToInfo(codeWindow));
-			} else {
-				windows.push(this.browserWindowToInfo(window));
-			}
-		});
-
-		return {
-			mainPID: process.pid,
-			mainArguments: process.argv.slice(1),
-			windows,
-			screenReader: !!app.accessibilitySupportEnabled,
-			gpuFeatureStatus: app.getGPUFeatureStatus()
-		};
-	}
-
-	private getFolderURIs(window: ICodeWindow): URI[] {
-		const folderURIs: URI[] = [];
-
-		const workspace = window.openedWorkspace;
-		if (isSingleFolderWorkspaceIdentifier(workspace)) {
-			folderURIs.push(workspace.uri);
-		} else if (isWorkspaceIdentifier(workspace)) {
-			const resolvedWorkspace = this.workspacesManagementMainService.resolveLocalWorkspaceSync(workspace.configPath); // workspace folders can only be shown for local (resolved) workspaces
-			if (resolvedWorkspace) {
-				const rootFolders = resolvedWorkspace.folders;
-				rootFolders.forEach(root => {
-					folderURIs.push(root.uri);
-				});
-			} else {
-				//TODO@RMacfarlane: can we add the workspace file here?
-			}
-		}
-
-		return folderURIs;
-	}
-
-	private codeWindowToInfo(window: ICodeWindow): IWindowInfo {
-		const folderURIs = this.getFolderURIs(window);
-		const win = assertIsDefined(window.win);
-
-		return this.browserWindowToInfo(win, folderURIs, window.remoteAuthority);
-	}
-
-	private browserWindowToInfo(window: BrowserWindow, folderURIs: URI[] = [], remoteAuthority?: string): IWindowInfo {
-		return {
-			pid: window.webContents.getOSProcessId(),
-			title: window.getTitle(),
-			folderURIs,
-			remoteAuthority
-		};
 	}
 }
