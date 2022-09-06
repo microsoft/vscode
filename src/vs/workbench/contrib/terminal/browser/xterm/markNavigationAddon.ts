@@ -194,7 +194,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		}
 		if (this._navigationDecorations) {
 			dispose(this._navigationDecorations);
-			this._navigationDecorations = [];
+			this._navigationDecorations = undefined;
 		}
 		const color = this._themeService.getColorTheme().getColor(TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR);
 		const startLine = marker.line;
