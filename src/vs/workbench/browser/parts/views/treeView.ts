@@ -604,7 +604,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
 		const dataSource = this.instantiationService.createInstance(TreeDataSource, this, <T>(task: Promise<T>) => this.progressService.withProgress({ location: this.id }, () => task));
 		const aligner = new Aligner(this.themeService);
-		const checkboxStateHandler = new CheckboxStateHandler();
+		const checkboxStateHandler = this._register(new CheckboxStateHandler());
 		this._register(checkboxStateHandler.onDidChangeCheckboxState(items => {
 			items.forEach(item => this.tree?.rerender(item));
 			this._onDidChangeCheckboxState.fire(items);
@@ -1144,10 +1144,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		const disposableStore = new DisposableStore();
 		templateData.elementDisposable = disposableStore;
 
-		this.renderCheckbox(node, templateData);
-		if (templateData.checkbox) {
-			disposableStore.add(templateData.checkbox);
-		}
+		this.renderCheckbox(node, templateData, disposableStore);
 
 		if (resource) {
 			const fileDecorations = this.configurationService.getValue<{ colors: boolean; badges: boolean }>('explorer.decorations');
@@ -1211,10 +1208,12 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		disposableStore.add(toDisposable(() => this.treeViewsService.removeRenderedTreeItemElement(node)));
 	}
 
-	private renderCheckbox(node: ITreeItem, templateData: ITreeExplorerTemplateData) {
+	private renderCheckbox(node: ITreeItem, templateData: ITreeExplorerTemplateData, disposableStore: DisposableStore) {
 		if (node.checkboxChecked !== undefined) {
-			if (!templateData.checkbox || templateData.checkbox.isDisposed) {
-				templateData.checkbox = new TreeItemCheckbox(templateData.checkboxContainer, this.checkboxStateHandler, this.themeService);
+			if (!templateData.checkbox) {
+				const checkbox = new TreeItemCheckbox(templateData.checkboxContainer, this.checkboxStateHandler, this.themeService);
+				templateData.checkbox = checkbox;
+				disposableStore.add({ dispose: () => { checkbox.dispose(); templateData.checkbox = undefined; } });
 			}
 			templateData.checkbox.render(node);
 		}
@@ -1276,7 +1275,6 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		templateData.resourceLabel.dispose();
 		templateData.actionBar.dispose();
 		templateData.elementDisposable.dispose();
-		templateData.checkbox?.dispose();
 	}
 }
 

@@ -13,11 +13,9 @@ import { attachToggleStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITreeItem } from 'vs/workbench/common/views';
 
-export class CheckboxStateHandler {
-	private readonly _onDidChangeCheckboxState = new Emitter<ITreeItem[]>();
+export class CheckboxStateHandler extends Disposable {
+	private readonly _onDidChangeCheckboxState = this._register(new Emitter<ITreeItem[]>());
 	readonly onDidChangeCheckboxState: Event<ITreeItem[]> = this._onDidChangeCheckboxState.event;
-
-	constructor() { }
 
 	public setCheckboxState(node: ITreeItem) {
 		this._onDidChangeCheckboxState.fire([node]);
@@ -43,7 +41,6 @@ export class TreeItemCheckbox extends Disposable {
 		if (node.checkboxChecked !== undefined) {
 			if (!this.toggle) {
 				this.createCheckbox(node);
-				this.registerListener(node);
 			}
 			else {
 				this.toggle.checked = node.checkboxChecked;
@@ -68,6 +65,7 @@ export class TreeItemCheckbox extends Disposable {
 
 	private registerListener(node: ITreeItem) {
 		if (this.toggle) {
+			this._register({ dispose: () => this.removeCheckbox() });
 			this._register(this.toggle);
 			this._register(this.toggle.onChange(() => {
 				this.setCheckbox(node);
@@ -90,12 +88,5 @@ export class TreeItemCheckbox extends Disposable {
 		for (const child of children) {
 			this.checkboxContainer.removeChild(child);
 		}
-		this.toggle = undefined;
-	}
-
-	public override dispose() {
-		super.dispose();
-		this.removeCheckbox();
-		this.isDisposed = true;
 	}
 }
