@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BugIndicatingError } from 'vs/base/common/errors';
+import { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';
 
 /**
  * Throws an error with the provided message if the provided value does not evaluate to a true Javascript value.
@@ -44,7 +44,7 @@ export function assertFn(condition: () => boolean): void {
 		debugger;
 		// Reevaluate `condition` again to make debugging easier
 		condition();
-		throw new BugIndicatingError('Assertion Failed');
+		onUnexpectedError(new BugIndicatingError('Assertion Failed'));
 	}
 }
 
