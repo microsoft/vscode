@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IBaseBackupInfo } from 'vs/platform/backup/common/backup';
+import { URI } from 'vs/base/common/uri';
+import { IBaseBackupInfo, IFolderBackupInfo, IWorkspaceBackupInfo } from 'vs/platform/backup/common/backup';
 
 export interface IEmptyWindowBackupInfo extends IBaseBackupInfo {
 	readonly backupFolder: string;
@@ -21,14 +22,53 @@ export interface ISerializedWorkspace {
 	readonly remoteAuthority?: string;
 }
 
+export function deserializeWorkspaceInfos(serializedBackupWorkspaces: ISerializedBackupWorkspaces): IWorkspaceBackupInfo[] {
+	let workspaceBackupInfos: IWorkspaceBackupInfo[] = [];
+	try {
+		if (Array.isArray(serializedBackupWorkspaces.rootURIWorkspaces)) {
+			workspaceBackupInfos = serializedBackupWorkspaces.rootURIWorkspaces.map(workspace => (
+				{
+					workspace: {
+						id: workspace.id,
+						configPath: URI.parse(workspace.configURIPath)
+					},
+					remoteAuthority: workspace.remoteAuthority
+				}
+			));
+		}
+	} catch (e) {
+		// ignore URI parsing exceptions
+	}
+
+	return workspaceBackupInfos;
+}
+
 export interface ISerializedFolder {
 	readonly folderUri: string;
 	readonly remoteAuthority?: string;
 }
 
+export function deserializeFolderInfos(serializedBackupWorkspaces: ISerializedBackupWorkspaces): IFolderBackupInfo[] {
+	let folderBackupInfos: IFolderBackupInfo[] = [];
+	try {
+		if (Array.isArray(serializedBackupWorkspaces.folderWorkspaceInfos)) {
+			folderBackupInfos = serializedBackupWorkspaces.folderWorkspaceInfos.map(folder => (
+				{
+					folderUri: URI.parse(folder.folderUri),
+					remoteAuthority: folder.remoteAuthority
+				}
+			));
+		}
+	} catch (e) {
+		// ignore URI parsing exceptions
+	}
+
+	return folderBackupInfos;
+}
+
 export interface ISerializedEmptyWindow extends IEmptyWindowBackupInfo { }
 
-export interface IBackupWorkspaces {
+export interface ISerializedBackupWorkspaces {
 	readonly rootURIWorkspaces: ISerializedWorkspace[];
 	readonly folderWorkspaceInfos: ISerializedFolder[];
 	readonly emptyWorkspaceInfos: ISerializedEmptyWindow[];

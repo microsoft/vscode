@@ -14,7 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { Promises, RimRafMode } from 'vs/base/node/pfs';
 import { TaskSequentializer } from 'vs/base/common/async';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
-import { IBackupWorkspaces, IEmptyWindowBackupInfo, isEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
+import { ISerializedBackupWorkspaces, IEmptyWindowBackupInfo, isEmptyWindowBackupInfo, deserializeWorkspaceInfos, deserializeFolderInfos } from 'vs/platform/backup/node/backup';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { ILifecycleMainService, ShutdownEvent } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
@@ -70,47 +70,24 @@ export class BackupMainService implements IBackupMainService {
 		await this.workspacesJsonSaveSequentializer.join();
 
 		// read workspace metadata
-		let backups: IBackupWorkspaces = Object.create(null);
+		let serializedBackupWorkspaces: ISerializedBackupWorkspaces = Object.create(null);
 		try {
 			const workspacesMetadata = await this.readWorkspacesMetadata();
 			if (workspacesMetadata) {
-				backups = JSON.parse(workspacesMetadata);
+				serializedBackupWorkspaces = JSON.parse(workspacesMetadata);
 			}
 		} catch (error) {
 			// invalid JSON or permission issue can happen here
 		}
 
 		// validate empty workspaces backups first
-		this.emptyWindows = await this.validateEmptyWorkspaces(backups.emptyWorkspaceInfos);
-
-		// read workspace backups
-		let rootWorkspaces: IWorkspaceBackupInfo[] = [];
-		try {
-			if (Array.isArray(backups.rootURIWorkspaces)) {
-				rootWorkspaces = backups.rootURIWorkspaces.map(workspace => ({
-					workspace: { id: workspace.id, configPath: URI.parse(workspace.configURIPath) },
-					remoteAuthority: workspace.remoteAuthority
-				}));
-			}
-		} catch (e) {
-			// ignore URI parsing exceptions
-		}
+		this.emptyWindows = await this.validateEmptyWorkspaces(serializedBackupWorkspaces.emptyWorkspaceInfos);
 
 		// validate workspace backups
-		this.workspaces = await this.validateWorkspaces(rootWorkspaces);
-
-		// read folder backups
-		let workspaceFolders: IFolderBackupInfo[] = [];
-		try {
-			if (Array.isArray(backups.folderWorkspaceInfos)) {
-				workspaceFolders = backups.folderWorkspaceInfos.map(folder => ({ folderUri: URI.parse(folder.folderUri), remoteAuthority: folder.remoteAuthority }));
-			}
-		} catch (e) {
-			// ignore URI parsing exceptions
-		}
+		this.workspaces = await this.validateWorkspaces(deserializeWorkspaceInfos(serializedBackupWorkspaces));
 
 		// validate folder backups
-		this.folders = await this.validateFolders(workspaceFolders);
+		this.folders = await this.validateFolders(deserializeFolderInfos(serializedBackupWorkspaces));
 
 		// save again in case some workspaces or folders have been removed
 		this.writeWorkspacesMetadata();
@@ -486,10 +463,21 @@ export class BackupMainService implements IBackupMainService {
 		}
 	}
 
-	private serializeBackups(): IBackupWorkspaces {
+	private serializeBackups(): ISerializedBackupWorkspaces {
 		return {
-			rootURIWorkspaces: this.workspaces.map(workspace => ({ id: workspace.workspace.id, configURIPath: workspace.workspace.configPath.toString(), remoteAuthority: workspace.remoteAuthority })),
-			folderWorkspaceInfos: this.folders.map(folder => ({ folderUri: folder.folderUri.toString(), remoteAuthority: folder.remoteAuthority })),
+			rootURIWorkspaces: this.workspaces.map(workspace => (
+				{
+					id: workspace.workspace.id,
+					configURIPath: workspace.workspace.configPath.toString(),
+					remoteAuthority: workspace.remoteAuthority
+				}
+			)),
+			folderWorkspaceInfos: this.folders.map(folder => (
+				{
+					folderUri: folder.folderUri.toString(),
+					remoteAuthority: folder.remoteAuthority
+				}
+			)),
 			emptyWorkspaceInfos: this.emptyWindows
 		};
 	}
