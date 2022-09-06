@@ -110,7 +110,7 @@ export interface ITerminalCapabilityImplMap {
 	[TerminalCapability.CommandDetection]: ICommandDetectionCapability;
 	[TerminalCapability.NaiveCwdDetection]: INaiveCwdDetectionCapability;
 	[TerminalCapability.PartialCommandDetection]: IPartialCommandDetectionCapability;
-	[TerminalCapability.BufferMarkDetection]: IBufferMarkDetectionCapability;
+	[TerminalCapability.BufferMarkDetection]: IBufferMarkCapability;
 }
 
 export interface ICwdDetectionCapability {
@@ -130,7 +130,7 @@ export interface ICommandInvalidationRequest {
 	reason: CommandInvalidationReason;
 }
 
-export interface IBufferMarkDetectionCapability {
+export interface IBufferMarkCapability {
 	type: TerminalCapability.BufferMarkDetection;
 	markers(): IMarker[];
 	onMarkAdded: Event<IMarkProperties>;

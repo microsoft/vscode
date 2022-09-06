@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
-import { IBufferMarkDetectionCapability, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IBufferMarkCapability, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IMarkProperties } from 'vs/platform/terminal/common/terminalProcess';
 // Importing types is safe in any layer
 // eslint-disable-next-line code-import-patterns
@@ -14,7 +14,7 @@ import type { IMarker, Terminal } from 'xterm-headless';
  * Manages "marks" in the buffer which are lines that are tracked when lines are added to or removed
  * from the buffer.
  */
-export class BufferMarkCapability implements IBufferMarkDetectionCapability {
+export class BufferMarkCapability implements IBufferMarkCapability {
 
 	readonly type = TerminalCapability.BufferMarkDetection;
 

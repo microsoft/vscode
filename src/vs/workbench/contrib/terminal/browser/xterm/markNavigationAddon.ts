@@ -6,7 +6,7 @@
 import { coalesce } from 'vs/base/common/arrays';
 import { Disposable, dispose } from 'vs/base/common/lifecycle';
 import { IMarkTracker } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IBufferMarkDetectionCapability, ICommandDetectionCapability, IPartialCommandDetectionCapability, ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IBufferMarkCapability, ICommandDetectionCapability, IPartialCommandDetectionCapability, ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import type { Terminal, IMarker, ITerminalAddon, IDecoration } from 'xterm';
 import { timeout } from 'vs/base/common/async';
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -30,7 +30,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 	protected _terminal: Terminal | undefined;
 	private _navigationDecorations: IDecoration[] | undefined;
 
-	private _detectionCapability?: ICommandDetectionCapability | IPartialCommandDetectionCapability | IBufferMarkDetectionCapability;
+	private _detectionCapability?: ICommandDetectionCapability | IPartialCommandDetectionCapability | IBufferMarkCapability;
 
 	activate(terminal: Terminal): void {
 		this._terminal = terminal;
